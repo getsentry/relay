@@ -1,0 +1,13 @@
+[package]
+authors = ["Sentry <hello@sentry.io>"]
+description = "Common functionality for the sentry agent"
+documentation = "https://docs.rs/smith-common"
+homepage = "https://github.com/getsentry/sentry-agent"
+license = "MIT"
+name = "smith-common"
+repository = "https://github.com/getsentry/sentry-agent"
+version = "0.1.0"
+
+[dependencies]
+failure = "0.1.1"
+failure_derive = "0.1.1"
