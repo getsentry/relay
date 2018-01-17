@@ -1,18 +1,21 @@
 [package]
-name = "sentry-agent"
-version = "0.1.0"
-license = "MIT"
 authors = ["Sentry <hello@sentry.io>"]
+description = "An proxy service for Sentry.\n"
+exclude = [".vscode/**/*"]
+license = "MIT"
+name = "sentry-agent"
 readme = "README.md"
-description = """
-An proxy service for Sentry.
-"""
-exclude = [
-    ".vscode/**/*",
-]
-
-[workspace]
+version = "0.1.0"
 
 [dependencies]
-smith-common = { version = "0.1.0", path = "common" }
-smith-server = { version = "0.1.0", path = "server" }
+failure = "0.1.1"
+
+[dependencies.smith-common]
+path = "common"
+version = "0.1.0"
+
+[dependencies.smith-server]
+path = "server"
+version = "0.1.0"
+
+[workspace]

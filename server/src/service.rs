@@ -2,7 +2,9 @@ use hyper::Body;
 use hyper::header::{ContentLength, ContentType};
 use hyper::server::{Http, Response, const_service, service_fn};
 
-use errors::Error;
+use errors::{Error, ErrorKind};
+use failure::ResultExt;
+
 static TEXT: &'static str = "Doing absolutely nothing so far!";
 
 pub fn run() -> Result<(), Error> {
@@ -15,6 +17,8 @@ pub fn run() -> Result<(), Error> {
             .with_body(""))
     }));
 
-    let server = Http::new().bind(&addr, hello)?;
-    Ok(server.run()?)
+    let server = Http::new()
+        .bind(&addr, hello)
+        .context(ErrorKind::BindFailed)?;
+    Ok(server.run().context(ErrorKind::ListenFailed)?)
 }
