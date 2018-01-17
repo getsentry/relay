@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-/// Represents a auth header parsing error.
+/// Represents an auth header parsing error.
 #[derive(Debug, Fail)]
 pub enum AuthParseError {
     /// Raised if the auth header is not indicating sentry auth
