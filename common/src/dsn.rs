@@ -73,16 +73,15 @@ impl FromStr for Dsn {
     type Err = DsnParseError;
 
     fn from_str(s: &str) -> Result<Dsn, DsnParseError> {
-        let url = match Url::parse(s) {
-            Ok(url) => url,
-            Err(_) => return Err(DsnParseError::InvalidUrl),
-        };
+        let url = Url::parse(s).map_err(|_| DsnParseError::InvalidUrl)?;
+
         if url.path() == "/" {
             return Err(DsnParseError::NoPath);
         }
-        let username = url.username().to_string();
-        if username.is_empty() {
-            return Err(DsnParseError::NoUsername);
+
+        let username = match url.username() {
+            "" => return Err(DsnParseError::NoUsername),
+            username => username.to_string(),
         };
 
         let scheme = url.scheme().to_string();
