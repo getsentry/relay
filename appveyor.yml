@@ -19,7 +19,7 @@ install:
   - cargo -vV
 
 build_script:
-  - cargo build --all --verbose
+  - cargo build --all --verbose --locked
 
 test_script:
   - cargo test --all --verbose

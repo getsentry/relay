@@ -9,7 +9,7 @@ os:
   - osx
 
 if: tag IS blank
-install: cargo build --all --verbose
+install: cargo build --all --verbose --locked
 script: cargo test --all --verbose
 
 notifications:
