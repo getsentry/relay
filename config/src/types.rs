@@ -13,6 +13,7 @@ lazy_static! {
         "https://ingest.sentry.io/").unwrap();
 }
 
+/// Indicates config related errors.
 #[derive(Fail, Debug)]
 pub enum ConfigError {
     /// Failed to open the file.
@@ -60,6 +61,11 @@ impl Config {
         let mut f = fs::File::open(&self.filename).map_err(ConfigError::CouldNotSave)?;
         serde_yaml::to_writer(&mut f, &self).map_err(ConfigError::BadYaml)?;
         Ok(())
+    }
+
+    /// Returns the filename of the config file.
+    pub fn filename(&self) -> &Path {
+        &self.filename
     }
 
     /// Regenerates the agent credentials.
