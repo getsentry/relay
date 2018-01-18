@@ -17,5 +17,5 @@ serde_json = "1.0.9"
 sodiumoxide = "0.0.16"
 
 [dependencies.uuid]
-features = ["v4"]
+features = ["v4", "serde"]
 version = "0.5.1"
