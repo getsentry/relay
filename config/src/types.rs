@@ -3,6 +3,7 @@ use std::io::Write;
 use std::fs;
 use std::io;
 use std::env;
+use std::net::{IpAddr, SocketAddr};
 
 use url_serde;
 use serde_yaml;
@@ -31,6 +32,8 @@ struct Agent {
     public_key: Option<PublicKey>,
     id: Option<AgentId>,
     #[serde(with = "url_serde")] upstream: Url,
+    host: IpAddr,
+    port: u16,
 }
 
 impl Default for Agent {
@@ -40,6 +43,8 @@ impl Default for Agent {
             public_key: None,
             id: None,
             upstream: Url::parse("https://ingest.sentry.io/").unwrap(),
+            host: "127.0.0.1".parse().unwrap(),
+            port: 3000,
         }
     }
 }
@@ -148,5 +153,10 @@ impl Config {
     /// Returns the upstream target.
     pub fn upstream_target(&self) -> &Url {
         &self.agent.upstream
+    }
+
+    /// Returns the listen address
+    pub fn listen_addr(&self) -> SocketAddr {
+        (self.agent.host, self.agent.port).into()
     }
 }

@@ -13,8 +13,7 @@ pub fn run(config: &Config) -> Result<(), Error> {
     println!("spawning with config: {}", config.filename().display());
     println!("  agent id: {}", config.agent_id());
     println!("  public key: {}", config.public_key());
-
-    let addr = ([127, 0, 0, 1], 3000).into();
+    println!("  listening on {}", config.listen_addr());
 
     let hello = const_service(service_fn(|_req| {
         Ok(Response::<Body>::new()
@@ -24,7 +23,7 @@ pub fn run(config: &Config) -> Result<(), Error> {
     }));
 
     let server = Http::new()
-        .bind(&addr, hello)
+        .bind(&config.listen_addr(), hello)
         .context(ErrorKind::BindFailed)?;
     Ok(server.run().context(ErrorKind::ListenFailed)?)
 }
