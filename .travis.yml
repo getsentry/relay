@@ -10,7 +10,9 @@ os:
 
 if: tag IS blank
 install: cargo build --all --locked
-script: cargo test --all
+script:
+  - cargo fmt -- --write-mode diff
+  - cargo test --all
 
 notifications:
   webhooks:
