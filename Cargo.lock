@@ -495,6 +495,7 @@ dependencies = [
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.11.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smith-config 0.1.0",
 ]
 
 [[package]]

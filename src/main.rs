@@ -1,29 +1,55 @@
 extern crate clap;
 extern crate failure;
+extern crate smith_config;
 extern crate smith_server;
 
-use failure::Fail;
-use clap::App;
+use std::env;
+use failure::Error;
+use clap::{App, AppSettings, Arg};
+
+use smith_config::Config;
 
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-pub const ABOUT: &'static str = "Test";
+pub const ABOUT: &'static str = "Runs a sentry-agent (fancy proxy server)";
 
-pub fn execute() {
+pub fn execute() -> Result<(), Error> {
     let app = App::new("sentry-agent")
+        .setting(AppSettings::UnifiedHelpMessage)
         .help_message("Print this help message.")
         .version(VERSION)
         .version_message("Print version information.")
-        .about(ABOUT);
+        .about(ABOUT)
+        .arg(
+            Arg::with_name("config")
+                .value_name("CONFIG")
+                .long("config")
+                .short("c")
+                .required(true)
+                .help("The path to the config file."),
+        );
+
+    let matches = app.get_matches();
+    let config = Config::open(matches.value_of("config").unwrap())?;
+    smith_server::run(&config)?;
+    Ok(())
 }
 
 pub fn main() {
-    if let Err(err) = smith_server::run() {
+    if let Err(err) = execute() {
         println!("error: {}", err);
         for cause in err.causes().skip(1) {
             println!("  caused by: {}", cause);
         }
-        if let Some(bt) = err.backtrace() {
-            println!("{}", bt);
+        match env::var("RUST_BACKTRACE").as_ref().map(|x| x.as_str()) {
+            Ok("1") | Ok("full") => {
+                let bt = err.backtrace();
+                println!("");
+                println!("{}", bt);
+            }
+            _ => if cfg!(debug_assertions) {
+                println!("");
+                println!("hint: you can set RUST_BACKTRACE=1 to get the entire backtrace.");
+            },
         }
     }
 }

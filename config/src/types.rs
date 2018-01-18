@@ -32,23 +32,20 @@ struct Agent {
     secret_key: Option<SecretKey>,
     public_key: Option<PublicKey>,
     id: Option<AgentId>,
-    #[serde(with = "url_serde")]
-    upstream: Option<Url>,
+    #[serde(with = "url_serde")] upstream: Option<Url>,
 }
 
 /// Config struct.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    #[serde(skip, default = "PathBuf::new")]
-    filename: PathBuf,
-    #[serde(default)]
-    agent: Agent,
+    #[serde(skip, default = "PathBuf::new")] filename: PathBuf,
+    #[serde(default)] agent: Agent,
 }
 
 impl Config {
     /// Loads a config from a given path.
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Config, ConfigError> {
-        let f = fs::File::open(path.as_ref()).map_err(ConfigError::CouldNotOpen)?;
+        let f = fs::File::open(&path).map_err(ConfigError::CouldNotOpen)?;
         let mut rv: Config =
             serde_yaml::from_reader(io::BufReader::new(f)).map_err(ConfigError::BadYaml)?;
         rv.filename = path.as_ref().to_path_buf();
@@ -60,11 +57,14 @@ impl Config {
     /// If the config does not exist or a secret key is not set, then credentials
     /// are regenerated automatically.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Config, ConfigError> {
-        let mut config = if fs::metadata(path.as_ref()).is_ok() {
-            Config::from_path(path.as_ref())?
+        let path = path.as_ref()
+            .canonicalize()
+            .map_err(ConfigError::CouldNotOpen)?;
+        let mut config = if fs::metadata(&path).is_ok() {
+            Config::from_path(&path)?
         } else {
             Config {
-                filename: path.as_ref().to_path_buf(),
+                filename: path,
                 agent: Default::default(),
             }
         };

@@ -3,6 +3,7 @@ extern crate failure;
 #[macro_use]
 extern crate failure_derive;
 extern crate hyper;
+extern crate smith_config;
 
 mod service;
 mod errors;

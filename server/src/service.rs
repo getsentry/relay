@@ -5,9 +5,13 @@ use hyper::server::{const_service, service_fn, Http, Response};
 use errors::{Error, ErrorKind};
 use failure::ResultExt;
 
+use smith_config::Config;
+
 static TEXT: &'static str = "Doing absolutely nothing so far!";
 
-pub fn run() -> Result<(), Error> {
+pub fn run(config: &Config) -> Result<(), Error> {
+    println!("spawning with config: {}", config.filename().display());
+
     let addr = ([127, 0, 0, 1], 3000).into();
 
     let hello = const_service(service_fn(|_req| {
