@@ -1,0 +1,26 @@
+[package]
+authors = ["Sentry <hello@sentry.io>"]
+description = "Config functionality for the sentry agent"
+documentation = "https://docs.rs/smith-config"
+homepage = "https://github.com/getsentry/sentry-agent"
+license = "MIT"
+name = "smith-config"
+repository = "https://github.com/getsentry/sentry-agent"
+version = "0.1.0"
+
+[dependencies]
+failure = "0.1.1"
+failure_derive = "0.1.1"
+lazy_static = "1.0.0"
+serde = "1.0.27"
+serde_derive = "1.0.27"
+url = "1.6.0"
+url_serde = "0.2.0"
+
+[dependencies.smith-aorta]
+path = "../aorta"
+version = "0.1.0"
+
+[dependencies.smith-common]
+path = "../common"
+version = "0.1.0"
