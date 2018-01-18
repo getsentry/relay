@@ -56,6 +56,25 @@ impl Config {
         Ok(rv)
     }
 
+    /// Loads a config from a path or initializes it.
+    ///
+    /// If the config does not exist or a secret key is not set, then credentials
+    /// are regenerated automatically.
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Config, ConfigError> {
+        let mut config = if fs::metadata(path.as_ref()).is_ok() {
+            Config::from_path(path.as_ref())?
+        } else {
+            Config {
+                filename: path.as_ref().to_path_buf(),
+                agent: Default::default()
+            }
+        };
+        if config.agent.secret_key.is_none() {
+            config.regenerate_credentials();
+        }
+        Ok(config)
+    }
+
     /// Writes back a config to the config file.
     pub fn save(&self) -> Result<(), ConfigError> {
         let mut f = fs::File::open(&self.filename).map_err(ConfigError::CouldNotSave)?;
