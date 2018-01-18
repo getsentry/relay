@@ -1,0 +1,23 @@
+language: rust
+cache: cargo
+
+git:
+  depth: 1
+
+os:
+  - linux
+  - osx
+
+if: tag IS blank
+install: cargo build --all --locked
+script: cargo test --all
+
+notifications:
+  webhooks:
+    urls:
+      - https://zeus.ci/hooks/a3901574-fbb7-11e7-9451-0a580a280114/public/provider/travis/webhook
+    on_success: always
+    on_failure: always
+    on_start: always
+    on_cancel: always
+    on_error: always
