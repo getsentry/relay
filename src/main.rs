@@ -29,7 +29,15 @@ pub fn execute() -> Result<(), Error> {
         );
 
     let matches = app.get_matches();
-    let config = Config::open(matches.value_of("config").unwrap())?;
+
+    let mut config = Config::open(matches.value_of("config").unwrap())?;
+
+    // upon loading the config can be initialized.  In that case it will be
+    // modified and we want to write it back automatically for now.
+    if config.changed() {
+        config.save()?;
+    }
+
     smith_server::run(&config)?;
     Ok(())
 }

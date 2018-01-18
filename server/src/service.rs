@@ -11,6 +11,8 @@ static TEXT: &'static str = "Doing absolutely nothing so far!";
 
 pub fn run(config: &Config) -> Result<(), Error> {
     println!("spawning with config: {}", config.filename().display());
+    println!("  agent id: {}", config.agent_id());
+    println!("  public key: {}", config.public_key());
 
     let addr = ([127, 0, 0, 1], 3000).into();
 
