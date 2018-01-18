@@ -30,11 +30,19 @@ pub enum KeyParseError {
 
 
 /// Represents the public key of an agent.
+///
+/// Public keys are based on ed25519 but this should be considered an
+/// implementation detail for now.  We only ever represent public keys
+/// on the wire as opaque ascii encoded strings of arbitrary format or length.
 pub struct PublicKey {
     inner: sign_backend::PublicKey,
 }
 
 /// Represents the secret key of an agent.
+///
+/// Secret keys are based on ed25519 but this should be considered an
+/// implementation detail for now.  We only ever represent public keys
+/// on the wire as opaque ascii encoded strings of arbitrary format or length.
 pub struct SecretKey {
     inner: sign_backend::SecretKey,
 }
