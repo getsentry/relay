@@ -10,9 +10,14 @@ os:
 
 if: tag IS blank
 install: cargo build --all --locked
-script:
-  - cargo fmt -- --write-mode diff
-  - cargo test --all
+script: cargo test --all
+
+matrix:
+  include:
+    os: linux
+    rust: nightly
+    install: cargo install rustfmt-nightly --force
+    script: cargo fmt -- --write-mode diff
 
 notifications:
   webhooks:
