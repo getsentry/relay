@@ -3,12 +3,18 @@ use std::str::FromStr;
 use std::sync::{Once, ONCE_INIT};
 
 use base64;
+use uuid::Uuid;
+use serde::ser::{Serialize, Serializer};
+use serde::de::{Deserialize, Deserializer, Visitor, self};
 use sodiumoxide;
 use sodiumoxide::crypto::sign::ed25519 as sign_backend;
 
 
 static INIT_SODIUMOXIDE_RNG: Once = ONCE_INIT;
 
+
+/// Alias for agent IDs (UUIDs)
+pub type AgentId = Uuid;
 
 /// Calls to sodiumoxide that need the RNG need to go through this
 /// wrapper as otherwise thread safety cannot be guarnateed.
@@ -92,6 +98,42 @@ impl fmt::Debug for SecretKey {
     }
 }
 
+impl Serialize for SecretKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for SecretKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        struct V;
+
+        impl<'de> Visitor<'de> for V {
+            type Value = SecretKey;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a secret key")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<SecretKey, E>
+                where E: de::Error
+            {
+                match value.parse() {
+                    Ok(value) => Ok(value),
+                    Err(_) => Err(de::Error::invalid_value(
+                        de::Unexpected::Str(value), &self)),
+                }
+            }
+        }
+
+        deserializer.deserialize_str(V)
+    }
+}
+
 impl PublicKey {
     /// Verifies a signature.
     pub fn verify(&self, data: &[u8], sig: &str) -> bool {
@@ -144,6 +186,47 @@ impl fmt::Debug for PublicKey {
     }
 }
 
+impl Serialize for PublicKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for PublicKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        struct V;
+
+        impl<'de> Visitor<'de> for V {
+            type Value = PublicKey;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a secret key")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<PublicKey, E>
+                where E: de::Error
+            {
+                match value.parse() {
+                    Ok(value) => Ok(value),
+                    Err(_) => Err(de::Error::invalid_value(
+                        de::Unexpected::Str(value), &self)),
+                }
+            }
+        }
+
+        deserializer.deserialize_str(V)
+    }
+}
+
+/// Generates an agent ID.
+pub fn generate_agent_id() -> AgentId {
+    Uuid::new_v4()
+}
+
 /// Generates a secret + public key pair.
 pub fn generate_key_pair() -> (SecretKey, PublicKey) {
     with_sodiumoxide_rng(|| {
@@ -165,6 +248,23 @@ fn test_keys() {
 
     assert_eq!("bad data".parse::<PublicKey>(), Err(KeyParseError::BadEncoding));
     assert_eq!("OvXF".parse::<PublicKey>(), Err(KeyParseError::BadKey));
+}
+
+#[test]
+fn test_serializing() {
+    use serde_json;
+
+    let sk: SecretKey = "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ".parse().unwrap();
+    let pk: PublicKey = "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU".parse().unwrap();
+
+    let sk_json = serde_json::to_string(&sk).unwrap();
+    assert_eq!(sk_json, "\"OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ\"");
+
+    let pk_json = serde_json::to_string(&pk).unwrap();
+    assert_eq!(pk_json, "\"JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU\"");
+
+    assert_eq!(serde_json::from_str::<SecretKey>(&sk_json).unwrap(), sk);
+    assert_eq!(serde_json::from_str::<PublicKey>(&pk_json).unwrap(), pk);
 }
 
 #[test]
