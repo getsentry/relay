@@ -7,11 +7,13 @@ use sodiumoxide;
 use sodiumoxide::crypto::sign::ed25519 as sign_backend;
 
 
-static INIT_SODIUMOXIDE: Once = ONCE_INIT;
+static INIT_SODIUMOXIDE_RNG: Once = ONCE_INIT;
 
 
-fn with_sodiumoxide<T, F: FnOnce() -> T>(cb: F) -> T {
-    INIT_SODIUMOXIDE.call_once(|| {
+/// Calls to sodiumoxide that need the RNG need to go through this
+/// wrapper as otherwise thread safety cannot be guarnateed.
+fn with_sodiumoxide_rng<T, F: FnOnce() -> T>(cb: F) -> T {
+    INIT_SODIUMOXIDE_RNG.call_once(|| {
         sodiumoxide::init();
     });
     cb()
@@ -144,7 +146,7 @@ impl fmt::Debug for PublicKey {
 
 /// Generates a secret + public key pair.
 pub fn generate_key_pair() -> (SecretKey, PublicKey) {
-    with_sodiumoxide(|| {
+    with_sodiumoxide_rng(|| {
         let (pk, sk) = sign_backend::gen_keypair();
         (SecretKey { inner: sk }, PublicKey { inner: pk })
     })
