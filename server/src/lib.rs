@@ -1,7 +1,8 @@
 //! Implements basics for the protocol.
-extern crate hyper;
 extern crate failure;
-#[macro_use] extern crate failure_derive;
+#[macro_use]
+extern crate failure_derive;
+extern crate hyper;
 
 mod service;
 mod errors;

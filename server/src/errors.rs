@@ -1,6 +1,6 @@
 use std::fmt;
 
-use failure::{Fail, Context, Backtrace};
+use failure::{Backtrace, Context, Fail};
 
 #[derive(Debug)]
 pub struct Error {
@@ -10,11 +10,11 @@ pub struct Error {
 #[derive(Debug, Fail, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ErrorKind {
     /// Binding failed.
-    #[fail(display="bind to interface failed")]
+    #[fail(display = "bind to interface failed")]
     BindFailed,
 
     /// Listening on the HTTP socket failed.
-    #[fail(display="listening failed")]
+    #[fail(display = "listening failed")]
     ListenFailed,
 }
 
@@ -42,7 +42,9 @@ impl Error {
 
 impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Error {
-        Error { inner: Context::new(kind) }
+        Error {
+            inner: Context::new(kind),
+        }
     }
 }
 

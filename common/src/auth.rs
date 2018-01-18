@@ -5,22 +5,21 @@ use std::str::FromStr;
 #[derive(Debug, Fail)]
 pub enum AuthParseError {
     /// Raised if the auth header is not indicating sentry auth
-    #[fail(display="non sentry auth")]
+    #[fail(display = "non sentry auth")]
     NonSentryAuth,
     /// Raised if the timestamp value is invalid.
-    #[fail(display="invalid value for timestamp")]
+    #[fail(display = "invalid value for timestamp")]
     InvalidTimestamp,
     /// Raised if the version value is invalid
-    #[fail(display="invalid value for version")]
+    #[fail(display = "invalid value for version")]
     InvalidVersion,
     /// Raised if the version is missing entirely
-    #[fail(display="no valid version defined")]
+    #[fail(display = "no valid version defined")]
     MissingVersion,
     /// Raised if the public key is missing entirely
-    #[fail(display="missing public key in auth header")]
+    #[fail(display = "missing public key in auth header")]
     MissingPublicKey,
 }
-
 
 /// Represents an auth header.
 #[derive(Default, Debug)]
@@ -66,8 +65,11 @@ impl Auth {
 
 impl fmt::Display for Auth {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Sentry sentry_key={}, sentry_version={}",
-               self.key, self.version)?;
+        write!(
+            f,
+            "Sentry sentry_key={}, sentry_version={}",
+            self.key, self.version
+        )?;
         if let Some(ts) = self.timestamp {
             write!(f, ", sentry_timestamp={}", ts)?;
         }
@@ -81,14 +83,17 @@ impl fmt::Display for Auth {
     }
 }
 
-
 impl FromStr for Auth {
     type Err = AuthParseError;
 
     fn from_str(s: &str) -> Result<Auth, AuthParseError> {
         let mut rv = Auth::default();
         let mut base_iter = s.splitn(2, ' ');
-        if !base_iter.next().unwrap_or("").eq_ignore_ascii_case("sentry") {
+        if !base_iter
+            .next()
+            .unwrap_or("")
+            .eq_ignore_ascii_case("sentry")
+        {
             return Err(AuthParseError::NonSentryAuth);
         }
         let items = base_iter.next().unwrap_or("");
@@ -96,15 +101,13 @@ impl FromStr for Auth {
             let mut kviter = item.trim().split('=');
             match (kviter.next(), kviter.next()) {
                 (Some("sentry_timestamp"), Some(ts)) => {
-                    rv.timestamp = Some(ts.parse().map_err(|_|
-                        AuthParseError::InvalidTimestamp)?);
+                    rv.timestamp = Some(ts.parse().map_err(|_| AuthParseError::InvalidTimestamp)?);
                 }
                 (Some("sentry_client"), Some(client)) => {
                     rv.client = Some(client.into());
                 }
                 (Some("sentry_version"), Some(version)) => {
-                    rv.version = version.parse().map_err(|_|
-                        AuthParseError::InvalidVersion)?;
+                    rv.version = version.parse().map_err(|_| AuthParseError::InvalidVersion)?;
                 }
                 (Some("sentry_key"), Some(key)) => {
                     rv.key = key.into();
@@ -133,16 +136,21 @@ fn test_auth_parsing() {
                       sentry_client=raven-python/42, \
                       sentry_version=6, \
                       sentry_key=public, \
-                      sentry_secret=secret".parse().unwrap();
+                      sentry_secret=secret"
+        .parse()
+        .unwrap();
     assert_eq!(auth.timestamp(), Some(1328055286.51));
     assert_eq!(auth.client_agent(), Some("raven-python/42"));
     assert_eq!(auth.version(), 6);
     assert_eq!(auth.public_key(), "public");
     assert_eq!(auth.secret_key(), Some("secret"));
 
-    assert_eq!(auth.to_string(), "Sentry sentry_key=public, \
-                      sentry_version=6, \
-                      sentry_timestamp=1328055286.51, \
-                      sentry_client=raven-python/42, \
-                      sentry_secret=secret");
+    assert_eq!(
+        auth.to_string(),
+        "Sentry sentry_key=public, \
+         sentry_version=6, \
+         sentry_timestamp=1328055286.51, \
+         sentry_client=raven-python/42, \
+         sentry_secret=secret"
+    );
 }

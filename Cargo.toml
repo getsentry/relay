@@ -8,7 +8,12 @@ readme = "README.md"
 version = "0.1.0"
 
 [dependencies]
+clap = "2.29.2"
 failure = "0.1.1"
+
+[dependencies.smith-aorta]
+path = "aorta"
+version = "0.1.0"
 
 [dependencies.smith-common]
 path = "common"
@@ -16,10 +21,6 @@ version = "0.1.0"
 
 [dependencies.smith-config]
 path = "config"
-version = "0.1.0"
-
-[dependencies.smith-aorta]
-path = "aorta"
 version = "0.1.0"
 
 [dependencies.smith-server]

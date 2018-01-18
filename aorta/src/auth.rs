@@ -5,13 +5,11 @@ use std::sync::{Once, ONCE_INIT};
 use base64;
 use uuid::Uuid;
 use serde::ser::{Serialize, Serializer};
-use serde::de::{Deserialize, Deserializer, Visitor, self};
+use serde::de::{self, Deserialize, Deserializer, Visitor};
 use sodiumoxide;
 use sodiumoxide::crypto::sign::ed25519 as sign_backend;
 
-
 static INIT_SODIUMOXIDE_RNG: Once = ONCE_INIT;
-
 
 /// Alias for agent IDs (UUIDs)
 pub type AgentId = Uuid;
@@ -29,13 +27,12 @@ fn with_sodiumoxide_rng<T, F: FnOnce() -> T>(cb: F) -> T {
 #[derive(Debug, Fail, PartialEq, Eq, Hash)]
 pub enum KeyParseError {
     /// Invalid key encoding
-    #[fail(display="bad key encoding")]
+    #[fail(display = "bad key encoding")]
     BadEncoding,
     /// Invalid key data
-    #[fail(display="bad key data")]
+    #[fail(display = "bad key data")]
     BadKey,
 }
-
 
 /// Represents the public key of an agent.
 ///
@@ -77,18 +74,21 @@ impl FromStr for SecretKey {
     fn from_str(s: &str) -> Result<SecretKey, KeyParseError> {
         let bytes = match base64::decode_config(s, base64::URL_SAFE_NO_PAD) {
             Ok(bytes) => bytes,
-            _ => return Err(KeyParseError::BadEncoding)
+            _ => return Err(KeyParseError::BadEncoding),
         };
         Ok(SecretKey {
-            inner: sign_backend::SecretKey::from_slice(&bytes)
-                .ok_or(KeyParseError::BadKey)?
+            inner: sign_backend::SecretKey::from_slice(&bytes).ok_or(KeyParseError::BadKey)?,
         })
     }
 }
 
 impl fmt::Display for SecretKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", base64::encode_config(&self.inner.0[..], base64::URL_SAFE_NO_PAD))
+        write!(
+            f,
+            "{}",
+            base64::encode_config(&self.inner.0[..], base64::URL_SAFE_NO_PAD)
+        )
     }
 }
 
@@ -100,7 +100,8 @@ impl fmt::Debug for SecretKey {
 
 impl Serialize for SecretKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         serializer.serialize_str(&self.to_string())
     }
@@ -108,7 +109,8 @@ impl Serialize for SecretKey {
 
 impl<'de> Deserialize<'de> for SecretKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         struct V;
 
@@ -120,12 +122,12 @@ impl<'de> Deserialize<'de> for SecretKey {
             }
 
             fn visit_str<E>(self, value: &str) -> Result<SecretKey, E>
-                where E: de::Error
+            where
+                E: de::Error,
             {
                 match value.parse() {
                     Ok(value) => Ok(value),
-                    Err(_) => Err(de::Error::invalid_value(
-                        de::Unexpected::Str(value), &self)),
+                    Err(_) => Err(de::Error::invalid_value(de::Unexpected::Str(value), &self)),
                 }
             }
         }
@@ -140,14 +142,13 @@ impl PublicKey {
         let mut sig_arr = [0u8; sign_backend::SIGNATUREBYTES];
         let sig_bytes = match base64::decode_config(sig, base64::URL_SAFE_NO_PAD) {
             Ok(bytes) => bytes,
-            _ => return false
+            _ => return false,
         };
         if sig_bytes.len() != sig_arr.len() {
             return false;
         }
         sig_arr.clone_from_slice(&sig_bytes);
-        sign_backend::verify_detached(&sign_backend::Signature(sig_arr),
-                                      data, &self.inner)
+        sign_backend::verify_detached(&sign_backend::Signature(sig_arr), data, &self.inner)
     }
 }
 
@@ -165,18 +166,21 @@ impl FromStr for PublicKey {
     fn from_str(s: &str) -> Result<PublicKey, KeyParseError> {
         let bytes = match base64::decode_config(s, base64::URL_SAFE_NO_PAD) {
             Ok(bytes) => bytes,
-            _ => return Err(KeyParseError::BadEncoding)
+            _ => return Err(KeyParseError::BadEncoding),
         };
         Ok(PublicKey {
-            inner: sign_backend::PublicKey::from_slice(&bytes)
-                .ok_or(KeyParseError::BadKey)?
+            inner: sign_backend::PublicKey::from_slice(&bytes).ok_or(KeyParseError::BadKey)?,
         })
     }
 }
 
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", base64::encode_config(&self.inner.0[..], base64::URL_SAFE_NO_PAD))
+        write!(
+            f,
+            "{}",
+            base64::encode_config(&self.inner.0[..], base64::URL_SAFE_NO_PAD)
+        )
     }
 }
 
@@ -188,7 +192,8 @@ impl fmt::Debug for PublicKey {
 
 impl Serialize for PublicKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         serializer.serialize_str(&self.to_string())
     }
@@ -196,7 +201,8 @@ impl Serialize for PublicKey {
 
 impl<'de> Deserialize<'de> for PublicKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         struct V;
 
@@ -208,12 +214,12 @@ impl<'de> Deserialize<'de> for PublicKey {
             }
 
             fn visit_str<E>(self, value: &str) -> Result<PublicKey, E>
-                where E: de::Error
+            where
+                E: de::Error,
             {
                 match value.parse() {
                     Ok(value) => Ok(value),
-                    Err(_) => Err(de::Error::invalid_value(
-                        de::Unexpected::Str(value), &self)),
+                    Err(_) => Err(de::Error::invalid_value(de::Unexpected::Str(value), &self)),
                 }
             }
         }
@@ -237,16 +243,33 @@ pub fn generate_key_pair() -> (SecretKey, PublicKey) {
 
 #[test]
 fn test_keys() {
-    let sk: SecretKey = "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ".parse().unwrap();
-    let pk: PublicKey = "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU".parse().unwrap();
+    let sk: SecretKey =
+        "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
+            .parse()
+            .unwrap();
+    let pk: PublicKey = "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU"
+        .parse()
+        .unwrap();
 
-    assert_eq!(sk.to_string(), "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ");
-    assert_eq!(pk.to_string(), "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU");
+    assert_eq!(
+        sk.to_string(),
+        "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
+    );
+    assert_eq!(
+        pk.to_string(),
+        "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU"
+    );
 
-    assert_eq!("bad data".parse::<SecretKey>(), Err(KeyParseError::BadEncoding));
+    assert_eq!(
+        "bad data".parse::<SecretKey>(),
+        Err(KeyParseError::BadEncoding)
+    );
     assert_eq!("OvXF".parse::<SecretKey>(), Err(KeyParseError::BadKey));
 
-    assert_eq!("bad data".parse::<PublicKey>(), Err(KeyParseError::BadEncoding));
+    assert_eq!(
+        "bad data".parse::<PublicKey>(),
+        Err(KeyParseError::BadEncoding)
+    );
     assert_eq!("OvXF".parse::<PublicKey>(), Err(KeyParseError::BadKey));
 }
 
@@ -254,8 +277,13 @@ fn test_keys() {
 fn test_serializing() {
     use serde_json;
 
-    let sk: SecretKey = "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ".parse().unwrap();
-    let pk: PublicKey = "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU".parse().unwrap();
+    let sk: SecretKey =
+        "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
+            .parse()
+            .unwrap();
+    let pk: PublicKey = "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU"
+        .parse()
+        .unwrap();
 
     let sk_json = serde_json::to_string(&sk).unwrap();
     assert_eq!(sk_json, "\"OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ\"");
@@ -275,6 +303,7 @@ fn test_signatures() {
     let sig = sk.sign(data);
     assert_eq!(pk.verify(data, &sig), true);
 
-    let bad_sig = "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
+    let bad_sig =
+        "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
     assert_eq!(pk.verify(data, &bad_sig), false);
 }
