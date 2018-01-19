@@ -269,8 +269,7 @@ impl<D: DeserializeOwned> Packed<D> {
     ///
     /// This can be used for bootstrapping purposes where looking into the
     /// payload is necessary as the public key is not known yet.
-    pub fn unpack_unsafe(data: &str) -> Result<Packed<D>, UnpackError>
-    {
+    pub fn unpack_unsafe(data: &str) -> Result<Packed<D>, UnpackError> {
         let mut pieces = data.splitn(2, '.');
         let _ = pieces.next().ok_or(UnpackError::BadData)?;
         let payload = pieces.next().ok_or(UnpackError::BadData)?;
