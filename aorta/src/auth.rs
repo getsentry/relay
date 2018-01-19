@@ -59,8 +59,10 @@ pub enum UnpackError {
 /// This is internally automatically used when data is signed.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Packed<D> {
+    /// The timestamp of when the data was packed and signed.
     #[serde(rename = "t")]
     pub timestamp: DateTime<Utc>,
+    /// The payload of the packed structure.
     #[serde(rename = "d")]
     pub data: D,
 }
@@ -259,6 +261,22 @@ impl PublicKey {
         } else {
             Err(UnpackError::SignatureExpired)
         }
+    }
+}
+
+impl<D: DeserializeOwned> Packed<D> {
+    /// Returns the data unsafe without verifying signature.
+    ///
+    /// This can be used for bootstrapping purposes where looking into the
+    /// payload is necessary as the public key is not known yet.
+    pub fn unpack_unsafe(data: &str) -> Result<Packed<D>, UnpackError>
+    {
+        let mut pieces = data.splitn(2, '.');
+        let _ = pieces.next().ok_or(UnpackError::BadData)?;
+        let payload = pieces.next().ok_or(UnpackError::BadData)?;
+        let payload_bytes = base64::decode_config(payload, base64::URL_SAFE_NO_PAD)
+            .map_err(|_| UnpackError::BadData)?;
+        serde_json::from_slice(&payload_bytes).map_err(UnpackError::BadPayload)
     }
 }
 
@@ -497,8 +515,15 @@ fn test_registration() {
     // create a register request
     let reg_req = RegisterRequest::new(&agent_id, &pk);
 
-    // sign and unsign it
+    // sign it
     let signed_reg_req = sk.pack(&reg_req);
+
+    // attempt to get the data unsigned unsafe
+    let reg_req_packed = Packed::<RegisterRequest>::unpack_unsafe(&signed_reg_req).unwrap();
+    assert_eq!(reg_req_packed.data.agent_id(), &agent_id);
+    assert_eq!(reg_req_packed.data.public_key(), &pk);
+
+    // unsign it properly now
     let reg_req: RegisterRequest = pk.unpack(&signed_reg_req, Some(max_age)).unwrap();
     assert_eq!(reg_req.agent_id(), &agent_id);
     assert_eq!(reg_req.public_key(), &pk);
