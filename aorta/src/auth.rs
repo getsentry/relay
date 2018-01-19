@@ -485,6 +485,8 @@ fn test_registration() {
 
     // create a response from the challenge
     let reg_resp = challenge.create_response();
+
+    // sign and unsign it
     let signed_reg_resp = sk.pack(&reg_resp);
     let reg_resp: RegisterResponse = pk.unpack(&signed_reg_resp).unwrap();
     assert_eq!(reg_resp.agent_id(), &agent_id);
