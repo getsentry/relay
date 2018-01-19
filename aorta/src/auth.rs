@@ -246,13 +246,15 @@ impl PublicKey {
 
     /// Unpacks the data and verifies that it's not too old, then
     /// throws away the wrapper.
+    ///
+    /// If no `max_age` is set, the embedded timestamp does not get validated.
     pub fn unpack<D: DeserializeOwned>(
         &self,
         data: &str,
-        max_age: Duration,
+        max_age: Option<Duration>,
     ) -> Result<D, UnpackError> {
         let rv: Packed<D> = self.unpack_wrapper(data)?;
-        if rv.timestamp >= (Utc::now() - max_age) {
+        if max_age.is_none() || rv.timestamp >= (Utc::now() - max_age.unwrap()) {
             Ok(rv.data)
         } else {
             Err(UnpackError::SignatureExpired)
@@ -497,7 +499,7 @@ fn test_registration() {
 
     // sign and unsign it
     let signed_reg_req = sk.pack(&reg_req);
-    let reg_req: RegisterRequest = pk.unpack(&signed_reg_req, max_age).unwrap();
+    let reg_req: RegisterRequest = pk.unpack(&signed_reg_req, Some(max_age)).unwrap();
     assert_eq!(reg_req.agent_id(), &agent_id);
     assert_eq!(reg_req.public_key(), &pk);
 
@@ -511,7 +513,7 @@ fn test_registration() {
 
     // sign and unsign it
     let signed_reg_resp = sk.pack(&reg_resp);
-    let reg_resp: RegisterResponse = pk.unpack(&signed_reg_resp, max_age).unwrap();
+    let reg_resp: RegisterResponse = pk.unpack(&signed_reg_resp, Some(max_age)).unwrap();
     assert_eq!(reg_resp.agent_id(), &agent_id);
     assert_eq!(reg_resp.token(), challenge.token());
 }
