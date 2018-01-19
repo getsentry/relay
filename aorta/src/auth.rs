@@ -10,7 +10,7 @@ use serde::de::{self, Deserialize, DeserializeOwned, Deserializer, Visitor};
 use serde_json;
 use sodiumoxide;
 use sodiumoxide::crypto::sign::ed25519 as sign_backend;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 
 static INIT_SODIUMOXIDE_RNG: Once = ONCE_INIT;
 
@@ -49,6 +49,20 @@ pub enum UnpackError {
     /// Raised if deserializing of data failed.
     #[fail(display = "could not deserialize payload")]
     BadPayload(serde_json::Error),
+    /// Raised on unpacking if the data is too old.
+    #[fail(display = "signature is too old")]
+    SignatureExpired,
+}
+
+/// A wrapper around packed data that adds a timestamp.
+///
+/// This is internally automatically used when data is signed.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Packed<D> {
+    #[serde(rename = "t")]
+    pub timestamp: DateTime<Utc>,
+    #[serde(rename = "d")]
+    pub data: D,
 }
 
 /// Represents the public key of an agent.
@@ -79,14 +93,12 @@ pub struct SecretKey {
 pub struct RegisterRequest {
     agent_id: AgentId,
     public_key: PublicKey,
-    timestamp: DateTime<Utc>,
 }
 
 /// Represents the response the server is supposed to send to a register request.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterChallenge {
     agent_id: AgentId,
-    timestamp: DateTime<Utc>,
     token: String,
 }
 
@@ -94,7 +106,6 @@ pub struct RegisterChallenge {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterResponse {
     agent_id: AgentId,
-    timestamp: DateTime<Utc>,
     token: String,
 }
 
@@ -105,11 +116,17 @@ impl SecretKey {
         base64::encode_config(&sig.0[..], base64::URL_SAFE_NO_PAD)
     }
 
-    /// Signs some serializable data and packs it.
+    /// Signs some serializable data and packs it.  In addition to just
+    /// signing it adds a wrapper around the payload that contains a
+    /// timestamp.
     pub fn pack<S: Serialize>(&self, data: S) -> String {
         // this can only fail if we deal with badly formed data.  In that case we
         // consider that a panic.  Should not happen.
-        let json = serde_json::to_vec(&data).expect("attempted to pack non json safe data");
+        let packed = Packed {
+            timestamp: Utc::now(),
+            data: data,
+        };
+        let json = serde_json::to_vec(&packed).expect("attempted to pack non json safe data");
         let sig = self.sign(&json);
         format!(
             "{}.{}",
@@ -210,8 +227,11 @@ impl PublicKey {
         sign_backend::verify_detached(&sign_backend::Signature(sig_arr), data, &self.inner)
     }
 
-    /// Unpacks signed data.
-    pub fn unpack<D: DeserializeOwned>(&self, data: &str) -> Result<D, UnpackError> {
+    /// Unpacks signed data and returns it with the packed wrapper.
+    pub fn unpack_wrapper<D: DeserializeOwned>(
+        &self,
+        data: &str,
+    ) -> Result<Packed<D>, UnpackError> {
         let mut pieces = data.splitn(2, '.');
         let sig = pieces.next().ok_or(UnpackError::BadData)?;
         let payload = pieces.next().ok_or(UnpackError::BadData)?;
@@ -221,6 +241,21 @@ impl PublicKey {
             serde_json::from_slice(&payload_bytes).map_err(UnpackError::BadPayload)
         } else {
             Err(UnpackError::BadSignature)
+        }
+    }
+
+    /// Unpacks the data and verifies that it's not too old, then
+    /// throws away the wrapper.
+    pub fn unpack<D: DeserializeOwned>(
+        &self,
+        data: &str,
+        max_age: Duration,
+    ) -> Result<D, UnpackError> {
+        let rv: Packed<D> = self.unpack_wrapper(data)?;
+        if rv.timestamp >= (Utc::now() - max_age) {
+            Ok(rv.data)
+        } else {
+            Err(UnpackError::SignatureExpired)
         }
     }
 }
@@ -320,7 +355,6 @@ impl RegisterRequest {
         RegisterRequest {
             agent_id: agent_id.clone(),
             public_key: public_key.clone(),
-            timestamp: Utc::now(),
         }
     }
 
@@ -334,11 +368,6 @@ impl RegisterRequest {
         &self.public_key
     }
 
-    /// Returns the timestamp of when the registration started.
-    pub fn timestamp(&self) -> &DateTime<Utc> {
-        &self.timestamp
-    }
-
     /// Creates a register challenge for this request.
     pub fn create_challenge(&self) -> RegisterChallenge {
         let mut rng = thread_rng();
@@ -347,7 +376,6 @@ impl RegisterRequest {
         let token = base64::encode_config(&bytes, base64::URL_SAFE_NO_PAD);
         RegisterChallenge {
             agent_id: self.agent_id.clone(),
-            timestamp: Utc::now(),
             token: token,
         }
     }
@@ -359,11 +387,6 @@ impl RegisterChallenge {
         &self.agent_id
     }
 
-    /// Returns the timestamp of when the register challenge was created.
-    pub fn timestamp(&self) -> &DateTime<Utc> {
-        &self.timestamp
-    }
-
     /// Returns the token that needs signing.
     pub fn token(&self) -> &str {
         &self.token
@@ -371,9 +394,8 @@ impl RegisterChallenge {
 
     /// Creates a register response.
     pub fn create_response(&self) -> RegisterResponse {
-        RegisterResponse { 
+        RegisterResponse {
             agent_id: self.agent_id.clone(),
-            timestamp: Utc::now(),
             token: self.token.clone(),
         }
     }
@@ -383,11 +405,6 @@ impl RegisterResponse {
     /// Returns the agent ID of the registering agent.
     pub fn agent_id(&self) -> &AgentId {
         &self.agent_id
-    }
-
-    /// Returns the timestamp of when the register response was created.
-    pub fn timestamp(&self) -> &DateTime<Utc> {
-        &self.timestamp
     }
 
     /// Returns the token that needs signing.
@@ -441,7 +458,11 @@ fn test_serializing() {
         .unwrap();
 
     let sk_json = serde_json::to_string(&sk).unwrap();
-    assert_eq!(sk_json, "\"OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ\"");
+    assert_eq!(
+        sk_json,
+        "\"OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMW\
+         iMLtSE86J3N9Peo5CBP1YQHDUkApQ\""
+    );
 
     let pk_json = serde_json::to_string(&pk).unwrap();
     assert_eq!(pk_json, "\"JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU\"");
@@ -465,6 +486,8 @@ fn test_signatures() {
 
 #[test]
 fn test_registration() {
+    let max_age = Duration::minutes(15);
+
     // initial setup
     let agent_id = generate_agent_id();
     let (sk, pk) = generate_key_pair();
@@ -474,7 +497,7 @@ fn test_registration() {
 
     // sign and unsign it
     let signed_reg_req = sk.pack(&reg_req);
-    let reg_req: RegisterRequest = pk.unpack(&signed_reg_req).unwrap();
+    let reg_req: RegisterRequest = pk.unpack(&signed_reg_req, max_age).unwrap();
     assert_eq!(reg_req.agent_id(), &agent_id);
     assert_eq!(reg_req.public_key(), &pk);
 
@@ -488,7 +511,7 @@ fn test_registration() {
 
     // sign and unsign it
     let signed_reg_resp = sk.pack(&reg_resp);
-    let reg_resp: RegisterResponse = pk.unpack(&signed_reg_resp).unwrap();
+    let reg_resp: RegisterResponse = pk.unpack(&signed_reg_resp, max_age).unwrap();
     assert_eq!(reg_resp.agent_id(), &agent_id);
     assert_eq!(reg_resp.token(), challenge.token());
 }
