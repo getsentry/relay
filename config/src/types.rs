@@ -31,7 +31,8 @@ struct Agent {
     secret_key: Option<SecretKey>,
     public_key: Option<PublicKey>,
     id: Option<AgentId>,
-    #[serde(with = "url_serde")] upstream: Url,
+    #[serde(with = "url_serde")]
+    upstream: Url,
     host: IpAddr,
     port: u16,
 }
@@ -52,9 +53,12 @@ impl Default for Agent {
 /// Config struct.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    #[serde(skip, default)] changed: bool,
-    #[serde(skip, default = "PathBuf::new")] filename: PathBuf,
-    #[serde(default)] agent: Agent,
+    #[serde(skip, default)]
+    changed: bool,
+    #[serde(skip, default = "PathBuf::new")]
+    filename: PathBuf,
+    #[serde(default)]
+    agent: Agent,
 }
 
 impl Config {
