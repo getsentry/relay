@@ -8,34 +8,51 @@ use url::Url;
 pub enum DsnParseError {
     #[fail(display = "no valid url provided")] InvalidUrl,
     #[fail(display = "username is empty")] NoUsername,
-    #[fail(display = "empty path")] NoPath,
+    #[fail(display = "empty path")] NoProjectId,
+    #[fail(display = "no valid scheme")] InvalidScheme,
+}
+
+// Represents the scheme of an url http/https
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum Scheme {
+    Http,
+    Https,
+}
+
+impl fmt::Display for Scheme {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", match *self {
+            Scheme::Https => "https",
+            Scheme::Http => "http",
+        })
+    }
 }
 
 /// Represents a Sentry dsn.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct Dsn {
-    scheme: String,
-    username: String,
-    password: Option<String>,
+    scheme: Scheme,
+    public_key: String,
+    secret_key: Option<String>,
     host: String,
     port: Option<u16>,
-    path: String,
+    project_id: String,
 }
 
 impl Dsn {
     /// Returns the scheme
-    pub fn scheme(&self) -> &str {
-        &self.scheme
+    pub fn scheme(&self) -> Scheme {
+        self.scheme
     }
 
-    /// Returns the username
-    pub fn username(&self) -> &str {
-        &self.username
+    /// Returns the public_key
+    pub fn public_key(&self) -> &str {
+        &self.public_key
     }
 
-    /// Returns password
-    pub fn password(&self) -> Option<&str> {
-        self.password.as_ref().map(|x| x.as_str())
+    /// Returns secret_key
+    pub fn secret_key(&self) -> Option<&str> {
+        self.secret_key.as_ref().map(|x| x.as_str())
     }
 
     /// Returns the host
@@ -48,23 +65,23 @@ impl Dsn {
         self.port
     }
 
-    /// Returns the path
-    pub fn path(&self) -> &str {
-        &self.path
+    /// Returns the project_id
+    pub fn project_id(&self) -> &str {
+        &self.project_id
     }
 }
 
 impl fmt::Display for Dsn {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}://{}", self.scheme, self.username)?;
-        if let Some(ref password) = self.password {
-            write!(f, ":{}", password)?;
+        write!(f, "{}://{}", self.scheme, self.public_key)?;
+        if let Some(ref secret_key) = self.secret_key {
+            write!(f, ":{}", secret_key)?;
         }
         write!(f, "@{}", self.host)?;
         if let Some(ref port) = self.port {
             write!(f, ":{}", port)?;
         }
-        write!(f, "{}", self.path)?;
+        write!(f, "{}", self.project_id)?;
         Ok(())
     }
 }
@@ -76,30 +93,35 @@ impl FromStr for Dsn {
         let url = Url::parse(s).map_err(|_| DsnParseError::InvalidUrl)?;
 
         if url.path() == "/" {
-            return Err(DsnParseError::NoPath);
+            return Err(DsnParseError::NoProjectId);
         }
 
-        let username = match url.username() {
+        let public_key = match url.username() {
             "" => return Err(DsnParseError::NoUsername),
             username => username.to_string(),
         };
 
-        let scheme = url.scheme().to_string();
-        let password = url.password().map(|s| s.into());
+        let scheme = match url.scheme(){
+            "http" => Scheme::Http,
+            "https" => Scheme::Https,
+            _ => return Err(DsnParseError::InvalidScheme),
+        };
+
+        let secret_key = url.password().map(|s| s.into());
         let port = url.port().map(|s| s.into());
         let host = match url.host_str() {
             Some(host) => host.into(),
             None => return Err(DsnParseError::InvalidUrl),
         };
-        let path = url.path().into();
+        let project_id = url.path().into();
 
         Ok(Dsn {
             scheme,
-            username,
-            password,
+            public_key,
+            secret_key,
             port,
             host,
-            path,
+            project_id,
         })
     }
 }
@@ -113,12 +135,12 @@ mod test {
     fn test_dsn_parsing() {
         let url = "https://username:password@domain:8888/path";
         let dsn = url.parse::<Dsn>().unwrap();
-        assert_eq!(dsn.scheme(), "https");
-        assert_eq!(dsn.username(), "username");
-        assert_eq!(dsn.password(), Some("password"));
+        assert_eq!(dsn.scheme(), Scheme::Https);
+        assert_eq!(dsn.public_key(), "username");
+        assert_eq!(dsn.secret_key(), Some("password"));
         assert_eq!(dsn.host(), "domain");
         assert_eq!(dsn.port(), Some(8888));
-        assert_eq!(dsn.path(), "/path");
+        assert_eq!(dsn.project_id(), "/path");
         assert_eq!(url, dsn.to_string());
     }
 
@@ -132,6 +154,13 @@ mod test {
     #[test]
     fn test_dsn_no_password() {
         let url = "https://username@domain:8888/path";
+        let dsn = Dsn::from_str(url).unwrap();
+        assert_eq!(url, dsn.to_string());
+    }
+
+    #[test]
+    fn test_dsn_http_url() {
+        let url = "http://username@domain:8888/path";
         let dsn = Dsn::from_str(url).unwrap();
         assert_eq!(url, dsn.to_string());
     }
@@ -155,8 +184,14 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "NoPath")]
-    fn test_dsn_no_path() {
+    #[should_panic(expected = "NoProjectId")]
+    fn test_dsn_no_project_id() {
         Dsn::from_str("https://username:password@domain:8888/").unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "InvalidScheme")]
+    fn test_dsn_invalid_scheme() {
+        Dsn::from_str("ftp://username:password@domain:8888/1").unwrap();
     }
 }
