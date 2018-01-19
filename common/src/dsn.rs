@@ -13,7 +13,7 @@ pub enum DsnParseError {
 }
 
 // Represents the scheme of an url http/https
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Scheme {
     Http,
     Https,
@@ -21,15 +21,19 @@ pub enum Scheme {
 
 impl fmt::Display for Scheme {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", match *self {
-            Scheme::Https => "https",
-            Scheme::Http => "http",
-        })
+        write!(
+            f,
+            "{}",
+            match *self {
+                Scheme::Https => "https",
+                Scheme::Http => "http",
+            }
+        )
     }
 }
 
 /// Represents a Sentry dsn.
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct Dsn {
     scheme: Scheme,
     public_key: String,
@@ -81,7 +85,7 @@ impl fmt::Display for Dsn {
         if let Some(ref port) = self.port {
             write!(f, ":{}", port)?;
         }
-        write!(f, "{}", self.project_id)?;
+        write!(f, "/{}", self.project_id)?;
         Ok(())
     }
 }
@@ -96,12 +100,18 @@ impl FromStr for Dsn {
             return Err(DsnParseError::NoProjectId);
         }
 
+        let path_segments = url.path_segments()
+            .ok_or_else(|| DsnParseError::NoProjectId)?;
+        if path_segments.count() > 1 {
+            return Err(DsnParseError::InvalidUrl);
+        }
+
         let public_key = match url.username() {
             "" => return Err(DsnParseError::NoUsername),
             username => username.to_string(),
         };
 
-        let scheme = match url.scheme(){
+        let scheme = match url.scheme() {
             "http" => Scheme::Http,
             "https" => Scheme::Https,
             _ => return Err(DsnParseError::InvalidScheme),
@@ -113,7 +123,7 @@ impl FromStr for Dsn {
             Some(host) => host.into(),
             None => return Err(DsnParseError::InvalidUrl),
         };
-        let project_id = url.path().into();
+        let project_id = url.path().trim_matches('/').into();
 
         Ok(Dsn {
             scheme,
@@ -130,6 +140,16 @@ impl FromStr for Dsn {
 mod test {
 
     use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_dsn_serialize_deserialize() {
+        let dsn = Dsn::from_str("https://username@domain/path").unwrap();
+        let serialized = serde_json::to_string(&dsn).unwrap();
+        assert_eq!(serialized, "{\"scheme\":\"Https\",\"public_key\":\"username\",\"secret_key\":null,\"host\":\"domain\",\"port\":null,\"project_id\":\"path\"}");
+        let deserialized: Dsn = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.to_string(), "https://username@domain/path");
+    }
 
     #[test]
     fn test_dsn_parsing() {
@@ -140,7 +160,7 @@ mod test {
         assert_eq!(dsn.secret_key(), Some("password"));
         assert_eq!(dsn.host(), "domain");
         assert_eq!(dsn.port(), Some(8888));
-        assert_eq!(dsn.project_id(), "/path");
+        assert_eq!(dsn.project_id(), "path");
         assert_eq!(url, dsn.to_string());
     }
 
@@ -163,6 +183,12 @@ mod test {
         let url = "http://username@domain:8888/path";
         let dsn = Dsn::from_str(url).unwrap();
         assert_eq!(url, dsn.to_string());
+    }
+
+    #[test]
+    #[should_panic(expected = "InvalidUrl")]
+    fn test_dsn_more_than_one_path() {
+        Dsn::from_str("http://username@domain:8888/path/path2").unwrap();
     }
 
     #[test]
