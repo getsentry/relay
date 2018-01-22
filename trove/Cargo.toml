@@ -1,0 +1,22 @@
+[package]
+authors = ["Sentry <hello@sentry.io>"]
+description = "A helper library for managing different aortas"
+documentation = "https://docs.rs/smith-trove"
+homepage = "https://github.com/getsentry/sentry-agent"
+license = "MIT"
+name = "smith-trove"
+repository = "https://github.com/getsentry/sentry-agent"
+version = "0.1.0"
+
+[dependencies]
+parking_lot = "0.5.3"
+failure = "0.1.1"
+failure_derive = "0.1.1"
+
+[dependencies.smith-common]
+path = "../common"
+version = "0.1.0"
+
+[dependencies.smith-aorta]
+path = "../aorta"
+version = "0.1.0"

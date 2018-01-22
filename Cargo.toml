@@ -15,6 +15,10 @@ failure = "0.1.1"
 path = "aorta"
 version = "0.1.0"
 
+[dependencies.smith-trove]
+path = "trove"
+version = "0.1.0"
+
 [dependencies.smith-common]
 path = "common"
 version = "0.1.0"

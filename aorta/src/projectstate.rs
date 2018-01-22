@@ -16,7 +16,9 @@ pub struct ProjectStateSnapshot {
 
 /// Gives access to the project's remote state.
 ///
-/// This wrapper is sync and can be updated
+/// This wrapper is sync and can be updated concurrently.  As the type is
+/// sync all of the methods can be used on a shared instance.  The type
+/// internally locks automatically.
 #[derive(Debug)]
 pub struct ProjectState {
     upstream: UpstreamDescriptor,
@@ -33,6 +35,10 @@ impl ProjectStateSnapshot {
 }
 
 impl ProjectState {
+    /// Creates a new project state.
+    ///
+    /// The project state is created without storing a snapshot.  This means
+    /// that accessing the snapshot will panic until the data becomes available.
     pub fn new(project_id: &str, upstream: &UpstreamDescriptor) -> ProjectState {
         ProjectState {
             project_id: project_id.to_string(),
@@ -53,6 +59,11 @@ impl ProjectState {
             Some(ref arc) => arc.clone(),
             None => panic!("Snapshot not yet available")
         }
+    }
+
+    /// Sets a new snapshot.
+    pub fn set_snapshot(&self, new_snapshot: ProjectStateSnapshot) {
+        *self.current_snapshot.write() = Some(Arc::new(new_snapshot));
     }
 
     /// The project ID of this project.

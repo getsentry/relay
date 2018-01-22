@@ -461,6 +461,7 @@ dependencies = [
  "smith-common 0.1.0",
  "smith-config 0.1.0",
  "smith-server 0.1.0",
+ "smith-trove 0.1.0",
 ]
 
 [[package]]
@@ -585,6 +586,17 @@ dependencies = [
  "failure_derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.11.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "smith-config 0.1.0",
+]
+
+[[package]]
+name = "smith-trove"
+version = "0.1.0"
+dependencies = [
+ "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure_derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smith-aorta 0.1.0",
+ "smith-common 0.1.0",
 ]
 
 [[package]]

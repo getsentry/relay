@@ -19,7 +19,7 @@ pub enum UpstreamError {
 }
 
 /// Raised if a URL cannot be parsed into an upstream descriptor.
-#[derive(Fail, Debug)]
+#[derive(Fail, Debug, PartialEq, Eq, Hash)]
 pub enum UpstreamParseError {
     /// Raised if an upstream could not be parsed as URL.
     #[fail(display="invalid upstream URL: bad URL format")]
@@ -37,7 +37,7 @@ pub enum UpstreamParseError {
 
 /// The upstream target is a type that holds all the information
 /// to uniquely identify an upstream target.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UpstreamDescriptor {
     host: String,
     port: Option<u16>,

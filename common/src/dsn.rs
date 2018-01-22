@@ -13,7 +13,7 @@ pub enum DsnParseError {
 }
 
 // Represents the scheme of an url http/https
-#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Scheme {
     Http,
     Https,
