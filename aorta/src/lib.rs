@@ -11,7 +11,13 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate sodiumoxide;
 extern crate uuid;
+extern crate url;
+extern crate smith_common;
 
 mod auth;
+mod upstream;
+mod projectstate;
 
 pub use auth::*;
+pub use upstream::*;
+pub use projectstate::*;
