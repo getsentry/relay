@@ -29,3 +29,17 @@ impl Trove {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_assert_sync() {
+        struct Assert<T: Sync> {
+            x: Option<T>,
+        }
+        let val: Assert<Trove> = Assert { x: None };
+        assert_eq!(val.x.is_none(), true);
+    }
+}
