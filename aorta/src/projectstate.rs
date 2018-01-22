@@ -57,7 +57,7 @@ impl ProjectState {
         let lock = self.current_snapshot.read();
         match *lock {
             Some(ref arc) => arc.clone(),
-            None => panic!("Snapshot not yet available")
+            None => panic!("Snapshot not yet available"),
         }
     }
 

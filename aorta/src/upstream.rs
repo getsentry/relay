@@ -10,11 +10,11 @@ use smith_common::{Dsn, Scheme};
 #[derive(Fail, Debug)]
 pub enum UpstreamError {
     /// Raised if the DNS lookup for an upstream host failed.
-    #[fail(display="dns lookup failed")]
+    #[fail(display = "dns lookup failed")]
     LookupFailed(#[cause] io::Error),
     /// Raised if the DNS lookup succeeded but an empty result was
     /// returned.
-    #[fail(display="dns lookup returned no results")]
+    #[fail(display = "dns lookup returned no results")]
     EmptyLookupResult,
 }
 
@@ -22,16 +22,16 @@ pub enum UpstreamError {
 #[derive(Fail, Debug, PartialEq, Eq, Hash)]
 pub enum UpstreamParseError {
     /// Raised if an upstream could not be parsed as URL.
-    #[fail(display="invalid upstream URL: bad URL format")]
+    #[fail(display = "invalid upstream URL: bad URL format")]
     BadUrl,
     /// Raised if a path was added to a URL.
-    #[fail(display="invalid upstream URL: non root URL given")]
+    #[fail(display = "invalid upstream URL: non root URL given")]
     NonOriginUrl,
     /// Raised if an unknown or unsupported scheme is encountered.
-    #[fail(display="invalid upstream URL: unknown or unsupported URL scheme")]
+    #[fail(display = "invalid upstream URL: unknown or unsupported URL scheme")]
     UnknownScheme,
     /// Raised if no host was provided.
-    #[fail(display="invalid upstream URL: no host")]
+    #[fail(display = "invalid upstream URL: no host")]
     NoHost,
 }
 
@@ -83,7 +83,8 @@ impl UpstreamDescriptor {
         (self.host(), self.port())
             .to_socket_addrs()
             .map_err(UpstreamError::LookupFailed)?
-            .next().ok_or(UpstreamError::EmptyLookupResult)
+            .next()
+            .ok_or(UpstreamError::EmptyLookupResult)
     }
 
     /// Returns the upstream's connection scheme.
@@ -104,13 +105,13 @@ impl FromStr for UpstreamDescriptor {
         let scheme = match url.scheme() {
             "http" => Scheme::Http,
             "https" => Scheme::Https,
-            _ => return Err(UpstreamParseError::UnknownScheme)
+            _ => return Err(UpstreamParseError::UnknownScheme),
         };
 
         Ok(UpstreamDescriptor {
             host: match url.host_str() {
                 Some(host) => host.to_string(),
-                None => return Err(UpstreamParseError::NoHost)
+                None => return Err(UpstreamParseError::NoHost),
             },
             port: url.port(),
             scheme: scheme,
@@ -133,7 +134,9 @@ mod test {
 
     #[test]
     fn test_from_dsn() {
-        let dsn: Dsn = "https://username:password@domain:8888/path".parse().unwrap();
+        let dsn: Dsn = "https://username:password@domain:8888/path"
+            .parse()
+            .unwrap();
         let desc = UpstreamDescriptor::from_dsn(&dsn);
         assert_eq!(desc.host(), "domain");
         assert_eq!(desc.port(), 8888);
