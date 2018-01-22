@@ -37,6 +37,7 @@ pub enum UpstreamParseError {
 
 /// The upstream target is a type that holds all the information
 /// to uniquely identify an upstream target.
+#[derive(Debug, Clone)]
 pub struct UpstreamDescriptor {
     host: String,
     port: Option<u16>,

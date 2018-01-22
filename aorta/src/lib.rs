@@ -12,6 +12,7 @@ extern crate serde_json;
 extern crate sodiumoxide;
 extern crate uuid;
 extern crate url;
+extern crate parking_lot;
 extern crate smith_common;
 
 mod auth;
