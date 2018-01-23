@@ -1,6 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
 
+use serde::ser::{Serialize, Serializer};
+use serde::de::{self, Deserialize, Deserializer, Visitor};
 use url::Url;
 
 /// Represents a dsn url parsing error.
@@ -15,7 +17,7 @@ pub enum DsnParseError {
 /// Represents the scheme of an url http/https.
 ///
 /// This holds schemes that are supported by sentry and agents.
-#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Scheme {
     Http,
     Https,
@@ -45,7 +47,7 @@ impl fmt::Display for Scheme {
 }
 
 /// Represents a Sentry dsn.
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct Dsn {
     scheme: Scheme,
     public_key: String,
@@ -148,6 +150,44 @@ impl FromStr for Dsn {
     }
 }
 
+impl Serialize for Dsn {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Dsn {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct V;
+
+        impl<'de> Visitor<'de> for V {
+            type Value = Dsn;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a sentry dsn")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Dsn, E>
+            where
+                E: de::Error,
+            {
+                match value.parse() {
+                    Ok(value) => Ok(value),
+                    Err(_) => Err(de::Error::invalid_value(de::Unexpected::Str(value), &self)),
+                }
+            }
+        }
+
+        deserializer.deserialize_str(V)
+    }
+}
+
 #[cfg(test)]
 mod test {
 
@@ -158,7 +198,7 @@ mod test {
     fn test_dsn_serialize_deserialize() {
         let dsn = Dsn::from_str("https://username@domain/path").unwrap();
         let serialized = serde_json::to_string(&dsn).unwrap();
-        assert_eq!(serialized, "{\"scheme\":\"Https\",\"public_key\":\"username\",\"secret_key\":null,\"host\":\"domain\",\"port\":null,\"project_id\":\"path\"}");
+        assert_eq!(serialized, "\"https://username@domain/path\"");
         let deserialized: Dsn = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized.to_string(), "https://username@domain/path");
     }
