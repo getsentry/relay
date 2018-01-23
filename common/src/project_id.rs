@@ -24,9 +24,11 @@ pub struct ProjectId {
 #[derive(Debug, Fail, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ProjectIdParseError {
     /// Raised if the value is not an integer in the supported range.
-    #[fail(display = "invalid value for project id")] InvalidValue,
+    #[fail(display = "invalid value for project id")]
+    InvalidValue,
     /// Raised if an empty value is parsed.
-    #[fail(display = "empty or missing project id")] EmptyValue,
+    #[fail(display = "empty or missing project id")]
+    EmptyValue,
 }
 
 impl fmt::Display for ProjectId {
@@ -122,11 +124,23 @@ mod test {
     fn test_basic_api() {
         let id: ProjectId = "42".parse().unwrap();
         assert_eq!(id, ProjectId::from(42));
-        assert_eq!("42xxx".parse::<ProjectId>(), Err(ProjectIdParseError::InvalidValue));
-        assert_eq!("".parse::<ProjectId>(), Err(ProjectIdParseError::EmptyValue));
+        assert_eq!(
+            "42xxx".parse::<ProjectId>(),
+            Err(ProjectIdParseError::InvalidValue)
+        );
+        assert_eq!(
+            "".parse::<ProjectId>(),
+            Err(ProjectIdParseError::EmptyValue)
+        );
         assert_eq!(ProjectId::from(42).to_string(), "42");
 
-        assert_eq!(serde_json::to_string(&ProjectId::from(42)).unwrap(), "\"42\"");
-        assert_eq!(serde_json::from_str::<ProjectId>("\"42\"").unwrap(), ProjectId::from(42));
+        assert_eq!(
+            serde_json::to_string(&ProjectId::from(42)).unwrap(),
+            "\"42\""
+        );
+        assert_eq!(
+            serde_json::from_str::<ProjectId>("\"42\"").unwrap(),
+            ProjectId::from(42)
+        );
     }
 }

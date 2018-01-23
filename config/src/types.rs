@@ -7,8 +7,8 @@ use std::net::{IpAddr, SocketAddr};
 
 use url_serde;
 use serde_yaml;
-use url::Url;
-use smith_aorta::{generate_agent_id, generate_key_pair, AgentId, PublicKey, SecretKey};
+use smith_aorta::{generate_agent_id, generate_key_pair, AgentId, PublicKey, SecretKey,
+                  UpstreamDescriptor};
 
 /// Indicates config related errors.
 #[derive(Fail, Debug)]
@@ -31,8 +31,7 @@ struct Agent {
     secret_key: Option<SecretKey>,
     public_key: Option<PublicKey>,
     id: Option<AgentId>,
-    #[serde(with = "url_serde")]
-    upstream: Url,
+    upstream: UpstreamDescriptor<'static>,
     host: IpAddr,
     port: u16,
 }
@@ -43,7 +42,9 @@ impl Default for Agent {
             secret_key: None,
             public_key: None,
             id: None,
-            upstream: Url::parse("https://ingest.sentry.io/").unwrap(),
+            upstream: "https://ingest.sentry.io/"
+                .parse::<UpstreamDescriptor>()
+                .unwrap(),
             host: "127.0.0.1".parse().unwrap(),
             port: 3000,
         }
@@ -154,8 +155,8 @@ impl Config {
         self.agent.id.as_ref().unwrap()
     }
 
-    /// Returns the upstream target.
-    pub fn upstream_target(&self) -> &Url {
+    /// Returns the upstream target as descriptor.
+    pub fn upstream_descriptor(&self) -> &UpstreamDescriptor {
         &self.agent.upstream
     }
 

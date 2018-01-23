@@ -1,9 +1,12 @@
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::io;
+use std::fmt;
 use std::str::FromStr;
 use std::borrow::Cow;
 
 use url::Url;
+use serde::ser::{Serialize, Serializer};
+use serde::de::{self, Deserialize, Deserializer, Visitor};
 
 use smith_common::{Dsn, Scheme};
 
@@ -103,6 +106,16 @@ impl<'a> UpstreamDescriptor<'a> {
     }
 }
 
+impl<'a> fmt::Display for UpstreamDescriptor<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}://{}", &self.scheme, &self.host)?;
+        if self.port() != self.scheme.default_port() {
+            write!(f, ":{}", self.port())?;
+        }
+        write!(f, "/")
+    }
+}
+
 impl FromStr for UpstreamDescriptor<'static> {
     type Err = UpstreamParseError;
 
@@ -129,6 +142,43 @@ impl FromStr for UpstreamDescriptor<'static> {
     }
 }
 
+impl Serialize for UpstreamDescriptor<'static> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for UpstreamDescriptor<'static> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct V;
+
+        impl<'de> Visitor<'de> for V {
+            type Value = UpstreamDescriptor<'static>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a sentry upstream url")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<UpstreamDescriptor<'static>, E>
+            where
+                E: de::Error,
+            {
+                value
+                    .parse()
+                    .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(value), &self))
+            }
+        }
+
+        deserializer.deserialize_str(V)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -144,9 +194,7 @@ mod test {
 
     #[test]
     fn test_from_dsn() {
-        let dsn: Dsn = "https://username:password@domain:8888/42"
-            .parse()
-            .unwrap();
+        let dsn: Dsn = "https://username:password@domain:8888/42".parse().unwrap();
         let desc = UpstreamDescriptor::from_dsn(&dsn);
         assert_eq!(desc.host(), "domain");
         assert_eq!(desc.port(), 8888);

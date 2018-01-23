@@ -140,7 +140,9 @@ impl FromStr for Dsn {
             Some(host) => host.into(),
             None => return Err(DsnParseError::InvalidUrl),
         };
-        let project_id = url.path().trim_matches('/').parse()
+        let project_id = url.path()
+            .trim_matches('/')
+            .parse()
             .map_err(DsnParseError::InvalidProjectId)?;
 
         Ok(Dsn {

@@ -34,7 +34,7 @@ impl Trove {
     /// Creates a new empty trove.
     pub fn new() -> Trove {
         Trove {
-            states: RwLock::new(HashMap::new())
+            states: RwLock::new(HashMap::new()),
         }
     }
 
@@ -48,14 +48,15 @@ impl Trove {
     }
 
     /// Looks up a project state by upstream descriptor and project id.
-    pub fn state_for_project(&self, upstream: &UpstreamDescriptor, project_id: ProjectId)
-        -> Arc<ProjectState>
-    {
+    pub fn state_for_project(
+        &self,
+        upstream: &UpstreamDescriptor,
+        project_id: ProjectId,
+    ) -> Arc<ProjectState> {
         self.state_for_key(StateKey(upstream.clone(), project_id))
     }
 
-    fn state_for_key(&self, key: StateKey) -> Arc<ProjectState>
-    {
+    fn state_for_key(&self, key: StateKey) -> Arc<ProjectState> {
         {
             let states = self.states.read();
             if let Some(ref rv) = states.get(&key) {
@@ -64,7 +65,9 @@ impl Trove {
         }
         {
             let state = ProjectState::new(key.1, &key.0);
-            self.states.write().insert(key.clone().into_owned(), Arc::new(state));
+            self.states
+                .write()
+                .insert(key.clone().into_owned(), Arc::new(state));
         }
         (*self.states.read().get(&key).unwrap()).clone()
     }
