@@ -12,7 +12,9 @@ pub enum DsnParseError {
     #[fail(display = "no valid scheme")] InvalidScheme,
 }
 
-// Represents the scheme of an url http/https
+/// Represents the scheme of an url http/https.
+///
+/// This holds schemes that are supported by sentry and agents.
 #[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Scheme {
     Http,

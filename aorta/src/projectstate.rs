@@ -21,7 +21,7 @@ pub struct ProjectStateSnapshot {
 /// internally locks automatically.
 #[derive(Debug)]
 pub struct ProjectState {
-    upstream: UpstreamDescriptor,
+    upstream: UpstreamDescriptor<'static>,
     project_id: String,
     current_snapshot: RwLock<Option<Arc<ProjectStateSnapshot>>>,
 }
@@ -42,7 +42,7 @@ impl ProjectState {
     pub fn new(project_id: &str, upstream: &UpstreamDescriptor) -> ProjectState {
         ProjectState {
             project_id: project_id.to_string(),
-            upstream: upstream.clone(),
+            upstream: upstream.clone().into_owned(),
             current_snapshot: RwLock::new(None),
         }
     }

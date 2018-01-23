@@ -1,6 +1,7 @@
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::io;
 use std::str::FromStr;
+use std::borrow::Cow;
 
 use url::Url;
 
@@ -37,18 +38,18 @@ pub enum UpstreamParseError {
 
 /// The upstream target is a type that holds all the information
 /// to uniquely identify an upstream target.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct UpstreamDescriptor {
-    host: String,
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
+pub struct UpstreamDescriptor<'a> {
+    host: Cow<'a, str>,
     port: Option<u16>,
     scheme: Scheme,
 }
 
-impl UpstreamDescriptor {
+impl<'a> UpstreamDescriptor<'a> {
     /// Manually constructs an upstream descriptor.
-    pub fn new(host: &str, port: u16, scheme: Scheme) -> UpstreamDescriptor {
+    pub fn new(host: &'a str, port: u16, scheme: Scheme) -> UpstreamDescriptor<'a> {
         UpstreamDescriptor {
-            host: host.to_string(),
+            host: Cow::Borrowed(host),
             port: Some(port),
             scheme: scheme,
         }
@@ -56,9 +57,9 @@ impl UpstreamDescriptor {
 
     /// Given a DSN this returns an upstream descriptor that
     /// describes it.
-    pub fn from_dsn(dsn: &Dsn) -> UpstreamDescriptor {
+    pub fn from_dsn(dsn: &'a Dsn) -> UpstreamDescriptor<'a> {
         UpstreamDescriptor {
-            host: dsn.host().to_string(),
+            host: Cow::Borrowed(dsn.host()),
             port: dsn.port(),
             scheme: dsn.scheme(),
         }
@@ -91,12 +92,21 @@ impl UpstreamDescriptor {
     pub fn scheme(&self) -> Scheme {
         self.scheme
     }
+
+    /// Returns a version of the upstream descriptor that is static.
+    pub fn into_owned(self) -> UpstreamDescriptor<'static> {
+        UpstreamDescriptor {
+            host: Cow::Owned(self.host.into_owned()),
+            port: self.port,
+            scheme: self.scheme,
+        }
+    }
 }
 
-impl FromStr for UpstreamDescriptor {
+impl FromStr for UpstreamDescriptor<'static> {
     type Err = UpstreamParseError;
 
-    fn from_str(s: &str) -> Result<UpstreamDescriptor, UpstreamParseError> {
+    fn from_str(s: &str) -> Result<UpstreamDescriptor<'static>, UpstreamParseError> {
         let url = Url::parse(s).map_err(|_| UpstreamParseError::BadUrl)?;
         if url.path() != "/" || !(url.query() == None || url.query() == Some("")) {
             return Err(UpstreamParseError::NonOriginUrl);
@@ -110,7 +120,7 @@ impl FromStr for UpstreamDescriptor {
 
         Ok(UpstreamDescriptor {
             host: match url.host_str() {
-                Some(host) => host.to_string(),
+                Some(host) => Cow::Owned(host.to_string()),
                 None => return Err(UpstreamParseError::NoHost),
             },
             port: url.port(),

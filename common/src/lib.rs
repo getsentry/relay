@@ -10,6 +10,8 @@ extern crate url;
 
 mod auth;
 mod dsn;
+mod project_id;
 
 pub use auth::*;
 pub use dsn::*;
+pub use project_id::*;

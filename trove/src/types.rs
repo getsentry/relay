@@ -1,12 +1,11 @@
+use std::sync::Arc;
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use parking_lot::RwLock;
 
 use smith_common::Dsn;
 use smith_aorta::{ProjectState, UpstreamDescriptor};
-
-#[derive(Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-struct StateKey(pub UpstreamDescriptor, pub String);
 
 /// The trove holds project states.
 ///
@@ -15,18 +14,21 @@ struct StateKey(pub UpstreamDescriptor, pub String);
 /// state of the project. Likewise if a DSN does not exist it will trivially
 /// figure out.  The trove can manage concurrent updates in the background
 /// automatically.
-pub struct Trove {
-    state_keys: RwLock<HashMap<Dsn, StateKey>>,
-    states: RwLock<HashMap<StateKey, ProjectState>>,
-}
+pub struct Trove {}
 
 impl Trove {
     /// Creates a new empty trove.
     pub fn new() -> Trove {
-        Trove {
-            state_keys: RwLock::new(HashMap::new()),
-            states: RwLock::new(HashMap::new()),
-        }
+        Trove {}
+    }
+
+    /// Looks up the project state by dsn.
+    ///
+    /// This lookup also creates an entry if it does not exist yet.  The
+    /// project state might be expired which is why an arc is returned.
+    /// Until the arc is dropped the data can be retained.
+    pub fn state_for_dsn(&self, dsn: &Dsn) -> Arc<ProjectState> {
+        panic!("not implemented");
     }
 }
 
