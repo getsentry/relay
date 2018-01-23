@@ -3,7 +3,6 @@
 //! changes that need to be flushed with the heartbeat and stores
 //! config updates from upstream.
 extern crate failure;
-#[macro_use]
 extern crate failure_derive;
 extern crate parking_lot;
 extern crate smith_aorta;

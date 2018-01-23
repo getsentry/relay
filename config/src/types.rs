@@ -5,7 +5,6 @@ use std::io;
 use std::env;
 use std::net::{IpAddr, SocketAddr};
 
-use url_serde;
 use serde_yaml;
 use smith_aorta::{generate_agent_id, generate_key_pair, AgentId, PublicKey, SecretKey,
                   UpstreamDescriptor};

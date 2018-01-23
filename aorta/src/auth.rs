@@ -5,8 +5,8 @@ use std::sync::{Once, ONCE_INIT};
 use rand::{thread_rng, Rng};
 use base64;
 use uuid::Uuid;
-use serde::ser::{Serialize, Serializer};
-use serde::de::{self, Deserialize, DeserializeOwned, Deserializer, Visitor};
+use serde::ser::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json;
 use sodiumoxide;
 use sodiumoxide::crypto::sign::ed25519 as sign_backend;
@@ -176,43 +176,7 @@ impl fmt::Debug for SecretKey {
     }
 }
 
-impl Serialize for SecretKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for SecretKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct V;
-
-        impl<'de> Visitor<'de> for V {
-            type Value = SecretKey;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a secret key")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<SecretKey, E>
-            where
-                E: de::Error,
-            {
-                match value.parse() {
-                    Ok(value) => Ok(value),
-                    Err(_) => Err(de::Error::invalid_value(de::Unexpected::Str(value), &self)),
-                }
-            }
-        }
-
-        deserializer.deserialize_str(V)
-    }
-}
+impl_str_serialization!(SecretKey, "a secret key");
 
 impl PublicKey {
     /// Verifies a signature.
@@ -317,43 +281,7 @@ impl fmt::Debug for PublicKey {
     }
 }
 
-impl Serialize for PublicKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for PublicKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct V;
-
-        impl<'de> Visitor<'de> for V {
-            type Value = PublicKey;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a secret key")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<PublicKey, E>
-            where
-                E: de::Error,
-            {
-                match value.parse() {
-                    Ok(value) => Ok(value),
-                    Err(_) => Err(de::Error::invalid_value(de::Unexpected::Str(value), &self)),
-                }
-            }
-        }
-
-        deserializer.deserialize_str(V)
-    }
-}
+impl_str_serialization!(PublicKey, "a public key");
 
 /// Generates an agent ID.
 pub fn generate_agent_id() -> AgentId {

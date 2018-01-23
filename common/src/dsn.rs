@@ -1,8 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-use serde::ser::{Serialize, Serializer};
-use serde::de::{self, Deserialize, Deserializer, Visitor};
 use url::Url;
 
 use project_id::{ProjectId, ProjectIdParseError};
@@ -156,43 +154,7 @@ impl FromStr for Dsn {
     }
 }
 
-impl Serialize for Dsn {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for Dsn {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct V;
-
-        impl<'de> Visitor<'de> for V {
-            type Value = Dsn;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a sentry dsn")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<Dsn, E>
-            where
-                E: de::Error,
-            {
-                match value.parse() {
-                    Ok(value) => Ok(value),
-                    Err(_) => Err(de::Error::invalid_value(de::Unexpected::Str(value), &self)),
-                }
-            }
-        }
-
-        deserializer.deserialize_str(V)
-    }
-}
+impl_str_serialization!(Dsn, "a sentry dsn");
 
 #[cfg(test)]
 mod test {

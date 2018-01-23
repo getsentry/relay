@@ -5,8 +5,6 @@ use std::str::FromStr;
 use std::borrow::Cow;
 
 use url::Url;
-use serde::ser::{Serialize, Serializer};
-use serde::de::{self, Deserialize, Deserializer, Visitor};
 
 use smith_common::{Dsn, Scheme};
 
@@ -142,42 +140,7 @@ impl FromStr for UpstreamDescriptor<'static> {
     }
 }
 
-impl Serialize for UpstreamDescriptor<'static> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for UpstreamDescriptor<'static> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct V;
-
-        impl<'de> Visitor<'de> for V {
-            type Value = UpstreamDescriptor<'static>;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a sentry upstream url")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<UpstreamDescriptor<'static>, E>
-            where
-                E: de::Error,
-            {
-                value
-                    .parse()
-                    .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(value), &self))
-            }
-        }
-
-        deserializer.deserialize_str(V)
-    }
-}
+impl_str_serialization!(UpstreamDescriptor<'static>, "a sentry upstream URL");
 
 #[cfg(test)]
 mod test {
