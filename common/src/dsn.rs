@@ -5,6 +5,8 @@ use serde::ser::{Serialize, Serializer};
 use serde::de::{self, Deserialize, Deserializer, Visitor};
 use url::Url;
 
+use project_id::{ProjectId, ProjectIdParseError};
+
 /// Represents a dsn url parsing error.
 #[derive(Debug, Fail)]
 pub enum DsnParseError {
@@ -12,6 +14,7 @@ pub enum DsnParseError {
     #[fail(display = "username is empty")] NoUsername,
     #[fail(display = "empty path")] NoProjectId,
     #[fail(display = "no valid scheme")] InvalidScheme,
+    #[fail(display = "invalid project id")] InvalidProjectId(#[cause] ProjectIdParseError),
 }
 
 /// Represents the scheme of an url http/https.
@@ -54,7 +57,7 @@ pub struct Dsn {
     secret_key: Option<String>,
     host: String,
     port: Option<u16>,
-    project_id: String,
+    project_id: ProjectId,
 }
 
 impl Dsn {
@@ -84,8 +87,8 @@ impl Dsn {
     }
 
     /// Returns the project_id
-    pub fn project_id(&self) -> &str {
-        &self.project_id
+    pub fn project_id(&self) -> ProjectId {
+        self.project_id
     }
 }
 
@@ -137,7 +140,8 @@ impl FromStr for Dsn {
             Some(host) => host.into(),
             None => return Err(DsnParseError::InvalidUrl),
         };
-        let project_id = url.path().trim_matches('/').into();
+        let project_id = url.path().trim_matches('/').parse()
+            .map_err(DsnParseError::InvalidProjectId)?;
 
         Ok(Dsn {
             scheme,
@@ -196,57 +200,57 @@ mod test {
 
     #[test]
     fn test_dsn_serialize_deserialize() {
-        let dsn = Dsn::from_str("https://username@domain/path").unwrap();
+        let dsn = Dsn::from_str("https://username@domain/42").unwrap();
         let serialized = serde_json::to_string(&dsn).unwrap();
-        assert_eq!(serialized, "\"https://username@domain/path\"");
+        assert_eq!(serialized, "\"https://username@domain/42\"");
         let deserialized: Dsn = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(deserialized.to_string(), "https://username@domain/path");
+        assert_eq!(deserialized.to_string(), "https://username@domain/42");
     }
 
     #[test]
     fn test_dsn_parsing() {
-        let url = "https://username:password@domain:8888/path";
+        let url = "https://username:password@domain:8888/23";
         let dsn = url.parse::<Dsn>().unwrap();
         assert_eq!(dsn.scheme(), Scheme::Https);
         assert_eq!(dsn.public_key(), "username");
         assert_eq!(dsn.secret_key(), Some("password"));
         assert_eq!(dsn.host(), "domain");
         assert_eq!(dsn.port(), Some(8888));
-        assert_eq!(dsn.project_id(), "path");
+        assert_eq!(dsn.project_id(), ProjectId::from(23));
         assert_eq!(url, dsn.to_string());
     }
 
     #[test]
     fn test_dsn_no_port() {
-        let url = "https://username@domain/path";
+        let url = "https://username@domain/42";
         let dsn = Dsn::from_str(url).unwrap();
         assert_eq!(url, dsn.to_string());
     }
 
     #[test]
     fn test_dsn_no_password() {
-        let url = "https://username@domain:8888/path";
+        let url = "https://username@domain:8888/42";
         let dsn = Dsn::from_str(url).unwrap();
         assert_eq!(url, dsn.to_string());
     }
 
     #[test]
     fn test_dsn_http_url() {
-        let url = "http://username@domain:8888/path";
+        let url = "http://username@domain:8888/42";
         let dsn = Dsn::from_str(url).unwrap();
         assert_eq!(url, dsn.to_string());
     }
 
     #[test]
     #[should_panic(expected = "InvalidUrl")]
-    fn test_dsn_more_than_one_path() {
+    fn test_dsn_more_than_one_non_integer_path() {
         Dsn::from_str("http://username@domain:8888/path/path2").unwrap();
     }
 
     #[test]
     #[should_panic(expected = "NoUsername")]
     fn test_dsn_no_username() {
-        Dsn::from_str("https://:password@domain:8888/path").unwrap();
+        Dsn::from_str("https://:password@domain:8888/23").unwrap();
     }
 
     #[test]
@@ -258,7 +262,7 @@ mod test {
     #[test]
     #[should_panic(expected = "InvalidUrl")]
     fn test_dsn_no_host() {
-        Dsn::from_str("https://username:password@:8888/path").unwrap();
+        Dsn::from_str("https://username:password@:8888/42").unwrap();
     }
 
     #[test]

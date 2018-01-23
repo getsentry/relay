@@ -144,7 +144,7 @@ mod test {
 
     #[test]
     fn test_from_dsn() {
-        let dsn: Dsn = "https://username:password@domain:8888/path"
+        let dsn: Dsn = "https://username:password@domain:8888/42"
             .parse()
             .unwrap();
         let desc = UpstreamDescriptor::from_dsn(&dsn);
