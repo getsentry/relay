@@ -27,6 +27,10 @@ struct TroveInner {
 }
 
 /// The trove holds project states and manages the upstream aorta.
+///
+/// The trove can be used from multiple threads as the object is internally
+/// synchronized.  It also typically has a governing thread running which
+/// automatically manages the state for the individual projects.
 pub struct Trove {
     inner: Arc<TroveInner>,
     join_handle: Mutex<Option<thread::JoinHandle<Result<(), GovernorError>>>>,
