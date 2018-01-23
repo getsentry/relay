@@ -9,13 +9,14 @@ repository = "https://github.com/getsentry/sentry-agent"
 version = "0.1.0"
 
 [dependencies]
-parking_lot = "0.5.3"
 failure = "0.1.1"
-
-[dependencies.smith-common]
-path = "../common"
-version = "0.1.0"
+failure_derive = "0.1.1"
+parking_lot = "0.5.3"
 
 [dependencies.smith-aorta]
 path = "../aorta"
+version = "0.1.0"
+
+[dependencies.smith-common]
+path = "../common"
 version = "0.1.0"
