@@ -23,7 +23,10 @@ pub struct ProjectId {
 /// Raised if a project ID cannot be parsed from a string.
 #[derive(Debug, Fail, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ProjectIdParseError {
-    #[fail(display = "invalid project id")] InvalidValue,
+    /// Raised if the value is not an integer in the supported range.
+    #[fail(display = "invalid value for project id")] InvalidValue,
+    /// Raised if an empty value is parsed.
+    #[fail(display = "empty or missing project id")] EmptyValue,
 }
 
 impl fmt::Display for ProjectId {
@@ -62,6 +65,9 @@ impl FromStr for ProjectId {
     type Err = ProjectIdParseError;
 
     fn from_str(s: &str) -> Result<ProjectId, ProjectIdParseError> {
+        if s.is_empty() {
+            return Err(ProjectIdParseError::EmptyValue);
+        }
         match s.parse::<u64>() {
             Ok(val) => Ok(ProjectId { val: val }),
             Err(_) => Err(ProjectIdParseError::InvalidValue),
@@ -117,6 +123,7 @@ mod test {
         let id: ProjectId = "42".parse().unwrap();
         assert_eq!(id, ProjectId::from(42));
         assert_eq!("42xxx".parse::<ProjectId>(), Err(ProjectIdParseError::InvalidValue));
+        assert_eq!("".parse::<ProjectId>(), Err(ProjectIdParseError::EmptyValue));
         assert_eq!(ProjectId::from(42).to_string(), "42");
 
         assert_eq!(serde_json::to_string(&ProjectId::from(42)).unwrap(), "\"42\"");
