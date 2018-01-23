@@ -2,6 +2,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use upstream::UpstreamDescriptor;
+use smith_common::ProjectId;
 
 /// The project state snapshot represents a known server state of
 /// a project.
@@ -22,7 +23,7 @@ pub struct ProjectStateSnapshot {
 #[derive(Debug)]
 pub struct ProjectState {
     upstream: UpstreamDescriptor<'static>,
-    project_id: String,
+    project_id: ProjectId,
     current_snapshot: RwLock<Option<Arc<ProjectStateSnapshot>>>,
 }
 
@@ -39,9 +40,9 @@ impl ProjectState {
     ///
     /// The project state is created without storing a snapshot.  This means
     /// that accessing the snapshot will panic until the data becomes available.
-    pub fn new(project_id: &str, upstream: &UpstreamDescriptor) -> ProjectState {
+    pub fn new(project_id: ProjectId, upstream: &UpstreamDescriptor) -> ProjectState {
         ProjectState {
-            project_id: project_id.to_string(),
+            project_id: project_id,
             upstream: upstream.clone().into_owned(),
             current_snapshot: RwLock::new(None),
         }
@@ -67,8 +68,8 @@ impl ProjectState {
     }
 
     /// The project ID of this project.
-    pub fn project_id(&self) -> &str {
-        &self.project_id
+    pub fn project_id(&self) -> ProjectId {
+        self.project_id
     }
 
     /// The direct upstream that reported the snapshot.
