@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use parking_lot::{Mutex, RwLock};
 
 use smith_common::ProjectId;
-use smith_aorta::{ProjectState, UpstreamDescriptor};
+use smith_aorta::{ProjectState, AortaConfig};
 
 /// Raised for errors that happen in the context of trove governing.
 #[derive(Debug, Fail)]
@@ -22,7 +22,7 @@ pub enum GovernorError {
 
 struct TroveInner {
     states: RwLock<HashMap<ProjectId, Arc<ProjectState>>>,
-    upstream: UpstreamDescriptor<'static>,
+    config: Arc<AortaConfig>,
     is_governed: AtomicBool,
 }
 
@@ -38,11 +38,14 @@ pub struct Trove {
 
 impl Trove {
     /// Creates a new empty trove for an upstream.
-    pub fn new(upstream: &UpstreamDescriptor) -> Trove {
+    ///
+    /// The config must already be stored in an Arc so it can be effectively
+    /// shared around.
+    pub fn new(config: Arc<AortaConfig>) -> Trove {
         Trove {
             inner: Arc::new(TroveInner {
                 states: RwLock::new(HashMap::new()),
-                upstream: upstream.clone().into_owned(),
+                config: config,
                 is_governed: AtomicBool::new(false),
             }),
             join_handle: Mutex::new(None),
@@ -69,7 +72,7 @@ impl Trove {
 
         // insert an empty state
         {
-            let state = ProjectState::new(project_id, &self.inner.upstream);
+            let state = ProjectState::new(project_id, self.inner.config.clone());
             self.inner
                 .states
                 .write()

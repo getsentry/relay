@@ -17,9 +17,11 @@ extern crate url;
 extern crate uuid;
 
 mod auth;
+mod config;
 mod upstream;
 mod projectstate;
 
 pub use auth::*;
+pub use config::*;
 pub use upstream::*;
 pub use projectstate::*;

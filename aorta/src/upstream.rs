@@ -104,6 +104,16 @@ impl<'a> UpstreamDescriptor<'a> {
     }
 }
 
+impl Default for UpstreamDescriptor<'static> {
+    fn default() -> UpstreamDescriptor<'static> {
+        UpstreamDescriptor {
+            host: Cow::Borrowed("ingest.sentry.io"),
+            port: None,
+            scheme: Scheme::Https,
+        }
+    }
+}
+
 impl<'a> fmt::Display for UpstreamDescriptor<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}://{}", &self.scheme, &self.host)?;

@@ -5,6 +5,7 @@ use parking_lot::RwLock;
 use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 
+use config::AortaConfig;
 use upstream::UpstreamDescriptor;
 use smith_common::ProjectId;
 
@@ -81,7 +82,7 @@ pub enum PublicKeyEventAction {
 /// internally locks automatically.
 #[derive(Debug)]
 pub struct ProjectState {
-    upstream: UpstreamDescriptor<'static>,
+    config: Arc<AortaConfig>,
     project_id: ProjectId,
     current_snapshot: RwLock<Option<Arc<ProjectStateSnapshot>>>,
     last_event: RwLock<Option<DateTime<Utc>>>,
@@ -120,10 +121,13 @@ impl ProjectState {
     ///
     /// The project state is created without storing a snapshot.  This means
     /// that accessing the snapshot will panic until the data becomes available.
-    pub fn new(project_id: ProjectId, upstream: &UpstreamDescriptor) -> ProjectState {
+    ///
+    /// The config is taken as `Arc` so we can share it effectively across
+    /// multiple project states and troves.
+    pub fn new(project_id: ProjectId, config: Arc<AortaConfig>) -> ProjectState {
         ProjectState {
             project_id: project_id,
-            upstream: upstream.clone().into_owned(),
+            config: config,
             current_snapshot: RwLock::new(None),
             last_event: RwLock::new(None),
         }
@@ -140,7 +144,7 @@ impl ProjectState {
     /// one upstream descriptor.  As a result of this, this descriptor will always
     /// match the one of the trove which holds the project state.
     pub fn upstream(&self) -> &UpstreamDescriptor {
-        &self.upstream
+        &self.config.upstream
     }
 
     /// Returns the time of the last event received (but not forwarded).
