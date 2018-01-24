@@ -3,9 +3,17 @@ use std::collections::HashMap;
 
 use parking_lot::RwLock;
 use chrono::{DateTime, Duration, Utc};
+use uuid::Uuid;
 
 use upstream::UpstreamDescriptor;
 use smith_common::ProjectId;
+
+/// These are config values that the user can modify in the UI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectConfig {
+    /// URLs that are permitted for cross original JavaScript requests.
+    allowed_domains: Vec<String>,
+}
 
 /// The project state snapshot represents a known server state of
 /// a project.
@@ -23,6 +31,12 @@ pub struct ProjectStateSnapshot {
     disabled: bool,
     /// A container of known public keys in the project.
     public_keys: HashMap<String, bool>,
+    /// The project's slug if available.
+    slug: Option<String>,
+    /// The project's current config
+    config: ProjectConfig,
+    /// The project state's revision id.
+    rev: Uuid,
 }
 
 /// A helper enum indicating the public key state.
@@ -88,6 +102,12 @@ impl ProjectStateSnapshot {
     pub fn disabled(&self) -> bool {
         self.disabled
     }
+
+    /// Returns true if the snapshot is outdated.
+    pub fn outdated(&self) -> bool {
+        // TODO(armin): change this to a value from the config
+        self.last_fetch < Utc::now() - Duration::seconds(60)
+    }
 }
 
 impl ProjectState {
@@ -134,6 +154,11 @@ impl ProjectState {
     pub fn get_public_key_event_action(&self, public_key: &str) -> PublicKeyEventAction {
         match *self.current_snapshot.read() {
             Some(ref snapshot) => {
+                // in case the entire project is disabled we always discard
+                // events.
+                if !snapshot.outdated() && snapshot.disabled() {
+                    return PublicKeyEventAction::Discard;
+                }
                 match snapshot.get_public_key_status(public_key) {
                     PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
                     PublicKeyStatus::Disabled => PublicKeyEventAction::Discard,
@@ -141,7 +166,7 @@ impl ProjectState {
                         // if the last config fetch was more than a minute ago we just
                         // accept the event because at this point the dsn might have
                         // become available upstream.
-                        if snapshot.last_fetch < Utc::now() - Duration::seconds(60) {
+                        if snapshot.outdated() {
                             PublicKeyEventAction::Queue
                         // we just assume the config did not change in the last 60
                         // seconds and the dsn is indeed not seen yet.
