@@ -10,9 +10,10 @@ use smith_common::ProjectId;
 
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectConfig {
     /// URLs that are permitted for cross original JavaScript requests.
-    allowed_domains: Vec<String>,
+    pub allowed_domains: Vec<String>,
 }
 
 /// The project state snapshot represents a known server state of
@@ -22,24 +23,25 @@ pub struct ProjectConfig {
 /// manages a view over it which supports concurrent updates in the
 /// background.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectStateSnapshot {
     /// The timestamp of when the snapshot was received.
-    last_fetch: DateTime<Utc>,
+    pub last_fetch: DateTime<Utc>,
     /// The timestamp of when the last snapshot was changed.
-    /// 
+    ///
     /// This might be `None` in some rare cases like where snapshots
     /// are faked locally.
-    last_change: Option<DateTime<Utc>>,
+    pub last_change: Option<DateTime<Utc>>,
     /// Indicates that the project is disabled.
-    disabled: bool,
+    pub disabled: bool,
     /// A container of known public keys in the project.
-    public_keys: HashMap<String, bool>,
+    pub public_keys: HashMap<String, bool>,
     /// The project's slug if available.
-    slug: Option<String>,
+    pub slug: Option<String>,
     /// The project's current config
-    config: ProjectConfig,
+    pub config: ProjectConfig,
     /// The project state's revision id.
-    rev: Option<Uuid>,
+    pub rev: Option<Uuid>,
 }
 
 /// A helper enum indicating the public key state.
@@ -152,12 +154,18 @@ impl ProjectState {
 
     /// Returns the time of the last config fetch.
     pub fn last_config_fetch(&self) -> Option<DateTime<Utc>> {
-        self.current_snapshot.read().as_ref().map(|x| x.last_fetch.clone())
+        self.current_snapshot
+            .read()
+            .as_ref()
+            .map(|x| x.last_fetch.clone())
     }
 
     /// Returns the time of the last config change.
     pub fn last_config_change(&self) -> Option<DateTime<Utc>> {
-        self.current_snapshot.read().as_ref().and_then(|x| x.last_change.clone())
+        self.current_snapshot
+            .read()
+            .as_ref()
+            .and_then(|x| x.last_change.clone())
     }
 
     /// Checks if events should be buffered for a public key.
