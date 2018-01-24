@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 
 use parking_lot::RwLock;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use config::AortaConfig;
@@ -110,9 +110,9 @@ impl ProjectStateSnapshot {
     }
 
     /// Returns true if the snapshot is outdated.
-    pub fn outdated(&self) -> bool {
+    pub fn outdated(&self, config: &AortaConfig) -> bool {
         // TODO(armin): change this to a value from the config
-        self.last_fetch < Utc::now() - Duration::seconds(60)
+        self.last_fetch < Utc::now() - config.snapshot_expiry
     }
 }
 
@@ -185,7 +185,7 @@ impl ProjectState {
                 // events unless the snapshot is outdated.  In case the
                 // snapshot is outdated we might fall back to sending or
                 // discarding as well based on the key status.
-                if !snapshot.outdated() && snapshot.disabled() {
+                if !snapshot.outdated(&self.config) && snapshot.disabled() {
                     return PublicKeyEventAction::Discard;
                 }
                 match snapshot.get_public_key_status(public_key) {
@@ -195,7 +195,7 @@ impl ProjectState {
                         // if the last config fetch was more than a minute ago we just
                         // accept the event because at this point the dsn might have
                         // become available upstream.
-                        if snapshot.outdated() {
+                        if snapshot.outdated(&self.config) {
                             PublicKeyEventAction::Queue
                         // we just assume the config did not change in the last 60
                         // seconds and the dsn is indeed not seen yet.
