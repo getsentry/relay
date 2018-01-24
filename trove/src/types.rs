@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use parking_lot::{Mutex, RwLock};
 
 use smith_common::ProjectId;
-use smith_aorta::{ProjectState, AortaConfig};
+use smith_aorta::{AortaConfig, ProjectState};
 
 /// Raised for errors that happen in the context of trove governing.
 #[derive(Debug, Fail)]

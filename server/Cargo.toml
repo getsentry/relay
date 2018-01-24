@@ -17,3 +17,7 @@ hyper = "0.11.14"
 [dependencies.smith-config]
 path = "../config"
 version = "0.1.0"
+
+[dependencies.smith-aorta]
+path = "../aorta"
+version = "0.1.0"

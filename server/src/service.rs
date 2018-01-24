@@ -6,6 +6,7 @@ use errors::{Error, ErrorKind};
 use failure::ResultExt;
 
 use smith_config::Config;
+use smith_aorta::test_req;
 
 static TEXT: &'static str = "Doing absolutely nothing so far!";
 
@@ -21,6 +22,8 @@ pub fn run(config: &Config) -> Result<(), Error> {
             .with_header(ContentType::plaintext())
             .with_body(""))
     }));
+
+    test_req();
 
     let server = Http::new()
         .bind(&config.listen_addr(), hello)

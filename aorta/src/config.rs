@@ -2,7 +2,6 @@ use chrono::Duration;
 
 use upstream::UpstreamDescriptor;
 
-
 /// Holds common config values that affect the aorta behavior.
 ///
 /// This config is typically created by something and then passed down
