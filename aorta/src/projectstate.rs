@@ -9,7 +9,7 @@ use upstream::UpstreamDescriptor;
 use smith_common::ProjectId;
 
 /// These are config values that the user can modify in the UI.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProjectConfig {
     /// URLs that are permitted for cross original JavaScript requests.
     allowed_domains: Vec<String>,
@@ -26,7 +26,10 @@ pub struct ProjectStateSnapshot {
     /// The timestamp of when the snapshot was received.
     last_fetch: DateTime<Utc>,
     /// The timestamp of when the last snapshot was changed.
-    last_change: DateTime<Utc>,
+    /// 
+    /// This might be `None` in some rare cases like where snapshots
+    /// are faked locally.
+    last_change: Option<DateTime<Utc>>,
     /// Indicates that the project is disabled.
     disabled: bool,
     /// A container of known public keys in the project.
@@ -36,7 +39,7 @@ pub struct ProjectStateSnapshot {
     /// The project's current config
     config: ProjectConfig,
     /// The project state's revision id.
-    rev: Uuid,
+    rev: Option<Uuid>,
 }
 
 /// A helper enum indicating the public key state.
@@ -147,15 +150,29 @@ impl ProjectState {
         *self.last_event.read()
     }
 
+    /// Returns the time of the last config fetch.
+    pub fn last_config_fetch(&self) -> Option<DateTime<Utc>> {
+        self.current_snapshot.read().as_ref().map(|x| x.last_fetch.clone())
+    }
+
+    /// Returns the time of the last config change.
+    pub fn last_config_change(&self) -> Option<DateTime<Utc>> {
+        self.current_snapshot.read().as_ref().and_then(|x| x.last_change.clone())
+    }
+
     /// Checks if events should be buffered for a public key.
     ///
     /// Events should be buffered until a key becomes available nor we
-    /// absolutely know that the key does not exist.
+    /// absolutely know that the key does not exist.  There is some
+    /// internal logic here that based on the age of the snapshot and
+    /// some global disabled settings will indicate different behaviors.
     pub fn get_public_key_event_action(&self, public_key: &str) -> PublicKeyEventAction {
         match *self.current_snapshot.read() {
             Some(ref snapshot) => {
                 // in case the entire project is disabled we always discard
-                // events.
+                // events unless the snapshot is outdated.  In case the
+                // snapshot is outdated we might fall back to sending or
+                // discarding as well based on the key status.
                 if !snapshot.outdated() && snapshot.disabled() {
                     return PublicKeyEventAction::Discard;
                 }
@@ -176,6 +193,7 @@ impl ProjectState {
                     }
                 }
             }
+            // in the absence of a snapshot we generally queue
             None => PublicKeyEventAction::Queue,
         }
     }
@@ -197,6 +215,23 @@ impl ProjectState {
     /// Sets a new snapshot.
     pub fn set_snapshot(&self, new_snapshot: ProjectStateSnapshot) {
         *self.current_snapshot.write() = Some(Arc::new(new_snapshot));
+    }
+
+    /// Sets a "project does not exist" snapshot.
+    ///
+    /// This is used when the server indicates that this project does not actually
+    /// exist or the agent has no permissions to work with it (these are both
+    /// reported as the same thing to the agent).
+    pub fn set_missing_snapshot(&self) {
+        self.set_snapshot(ProjectStateSnapshot {
+            last_fetch: Utc::now(),
+            last_change: None,
+            disabled: true,
+            public_keys: HashMap::new(),
+            slug: None,
+            config: Default::default(),
+            rev: None,
+        })
     }
 }
 
