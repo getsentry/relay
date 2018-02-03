@@ -3,11 +3,12 @@ use std::io::Write;
 use std::fs;
 use std::io;
 use std::env;
+use std::sync::Arc;
 use std::net::{IpAddr, SocketAddr};
 
 use serde_yaml;
-use smith_aorta::{generate_agent_id, generate_key_pair, AgentId, PublicKey, SecretKey,
-                  UpstreamDescriptor};
+use smith_aorta::{generate_agent_id, generate_key_pair, AgentId, AortaConfig, PublicKey,
+                  SecretKey, UpstreamDescriptor};
 
 /// Indicates config related errors.
 #[derive(Fail, Debug)]
@@ -162,5 +163,12 @@ impl Config {
     /// Returns the listen address
     pub fn listen_addr(&self) -> SocketAddr {
         (self.agent.host, self.agent.port).into()
+    }
+
+    /// Return a new aorta config based on this config file.
+    pub fn make_aorta_config(&self) -> Arc<AortaConfig> {
+        let mut rv = AortaConfig::default();
+        rv.upstream = self.upstream_descriptor().clone().into_owned();
+        Arc::new(rv)
     }
 }

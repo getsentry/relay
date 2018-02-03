@@ -1,13 +1,20 @@
 use std::io;
 use std::thread;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::collections::HashMap;
 
 use parking_lot::{Mutex, RwLock};
+use tokio_core::reactor::{Core, Remote};
+use futures::Stream;
+use futures::sync::{mpsc, oneshot};
 
 use smith_common::ProjectId;
-use smith_aorta::{AortaConfig, ProjectState};
+use smith_aorta::{test_req, AortaConfig, ProjectState};
+
+enum TroveEvent {
+    /// Tells the trove governor to shut down.
+    Shutdown,
+}
 
 /// Raised for errors that happen in the context of trove governing.
 #[derive(Debug, Fail)]
@@ -15,6 +22,9 @@ pub enum GovernorError {
     /// Raised if the governor could not be spawned.
     #[fail(display = "could not spawn governor thread")]
     SpawnError(#[cause] io::Error),
+    /// Raised if the event loop failed to spawn.
+    #[fail(display = "cannot spawn event loop")]
+    CannotSpawnEventLoop(#[cause] io::Error),
     /// Raised if the governor panicked.
     #[fail(display = "governor thread panicked")]
     Panic,
@@ -23,7 +33,8 @@ pub enum GovernorError {
 struct TroveInner {
     states: RwLock<HashMap<ProjectId, Arc<ProjectState>>>,
     config: Arc<AortaConfig>,
-    is_governed: AtomicBool,
+    governor_tx: RwLock<Option<mpsc::UnboundedSender<TroveEvent>>>,
+    remote: RwLock<Option<Remote>>,
 }
 
 /// The trove holds project states and manages the upstream aorta.
@@ -46,7 +57,8 @@ impl Trove {
             inner: Arc::new(TroveInner {
                 states: RwLock::new(HashMap::new()),
                 config: config,
-                is_governed: AtomicBool::new(false),
+                governor_tx: RwLock::new(None),
+                remote: RwLock::new(None),
             }),
             join_handle: Mutex::new(None),
         }
@@ -83,7 +95,7 @@ impl Trove {
 
     /// Returns `true` if the trove is governed.
     pub fn is_governed(&self) -> bool {
-        self.inner.is_governed.load(Ordering::Relaxed)
+        self.inner.remote.read().is_some()
     }
 
     /// Spawns a trove governor thread.
@@ -97,11 +109,14 @@ impl Trove {
         }
 
         let inner = self.inner.clone();
-        inner.is_governed.store(true, Ordering::Relaxed);
 
         *self.join_handle.lock() = Some(thread::Builder::new()
             .name("trove-governor".into())
-            .spawn(move || inner.run())
+            .spawn(move || {
+                let (tx, rx) = mpsc::unbounded::<TroveEvent>();
+                *inner.governor_tx.write() = Some(tx);
+                run_governor(inner, rx)
+            })
             .map_err(GovernorError::SpawnError)?);
 
         Ok(())
@@ -115,7 +130,11 @@ impl Trove {
     /// and kill the thread.  This however might not be executed as there is no
     /// guarantee that dtors are invoked in all cases.
     pub fn abdicate(&self) -> Result<(), GovernorError> {
-        self.inner.is_governed.store(false, Ordering::Relaxed);
+        // indicate on the trove inner that we're no longer governed and then
+        // attempt to send a message into the event channel if we can safely
+        // do so.
+        self.emit_event(TroveEvent::Shutdown);
+
         if let Some(handle) = self.join_handle.lock().take() {
             match handle.join() {
                 Err(_) => Err(GovernorError::Panic),
@@ -123,6 +142,26 @@ impl Trove {
             }
         } else {
             Ok(())
+        }
+    }
+
+    /// Returns the remote of the underlying governor.
+    ///
+    /// In case the governor is not running this will panic.
+    pub fn remote(&self) -> Remote {
+        self.inner
+            .remote
+            .read()
+            .as_ref()
+            .expect("trove is not goverened, remote unavailable")
+            .clone()
+    }
+
+    fn emit_event(&self, event: TroveEvent) -> bool {
+        if let Some(ref tx) = *self.inner.governor_tx.read() {
+            tx.unbounded_send(event).is_ok()
+        } else {
+            false
         }
     }
 }
@@ -133,10 +172,38 @@ impl Drop for Trove {
     }
 }
 
-impl TroveInner {
-    fn run(&self) -> Result<(), GovernorError> {
+fn run_governor(
+    inner: Arc<TroveInner>,
+    rx: mpsc::UnboundedReceiver<TroveEvent>,
+) -> Result<(), GovernorError> {
+    let mut core = Core::new().map_err(GovernorError::CannotSpawnEventLoop)?;
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let mut shutdown_tx = Some(shutdown_tx);
+
+    // Make the remote available outside.
+    *inner.remote.write() = Some(core.remote());
+
+    // spawn a stream that just listens in on the events sent into the
+    // trove governor so we can figure out when to terminate the thread
+    // or do similar things.
+    core.handle().spawn(rx.for_each(move |event| {
+        match event {
+            TroveEvent::Shutdown => {
+                if let Some(shutdown_tx) = shutdown_tx.take() {
+                    shutdown_tx.send(()).ok();
+                }
+            }
+        }
         Ok(())
-    }
+    }));
+
+    // test some stuff
+    test_req(core.handle());
+
+    core.run(shutdown_rx).ok();
+    *inner.remote.write() = None;
+
+    Ok(())
 }
 
 #[cfg(test)]

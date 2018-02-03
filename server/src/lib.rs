@@ -5,6 +5,7 @@ extern crate failure_derive;
 extern crate hyper;
 extern crate smith_aorta;
 extern crate smith_config;
+extern crate smith_trove;
 
 mod service;
 mod errors;

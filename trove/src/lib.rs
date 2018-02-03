@@ -5,9 +5,11 @@
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
+extern crate futures;
 extern crate parking_lot;
 extern crate smith_aorta;
 extern crate smith_common;
+extern crate tokio_core;
 
 mod types;
 

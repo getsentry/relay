@@ -16,6 +16,14 @@ pub enum ErrorKind {
     /// Listening on the HTTP socket failed.
     #[fail(display = "listening failed")]
     ListenFailed,
+
+    /// Spawning the trove governor failed.
+    #[fail(display = "aorta trove governor spawn failed")]
+    TroveGovernSpawnFailed,
+
+    /// Abdicating the trove governor failed.
+    #[fail(display = "aorta trove governor shutdown failed")]
+    TroveGovernShutdownFailed,
 }
 
 impl Fail for Error {
