@@ -11,10 +11,10 @@ use smith_trove::Trove;
 static TEXT: &'static str = "Doing absolutely nothing so far!";
 
 pub fn run(config: &Config) -> Result<(), Error> {
-    println!("spawning with config: {}", config.filename().display());
-    println!("  agent id: {}", config.agent_id());
-    println!("  public key: {}", config.public_key());
-    println!("  listening on {}", config.listen_addr());
+    info!("spawning with config: {}", config.filename().display());
+    info!("  agent id: {}", config.agent_id());
+    info!("  public key: {}", config.public_key());
+    info!("  listening on http://{}/", config.listen_addr());
 
     let trove = Trove::new(config.make_aorta_config());
     trove.govern().context(ErrorKind::TroveGovernSpawnFailed)?;

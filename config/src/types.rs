@@ -6,6 +6,7 @@ use std::env;
 use std::sync::Arc;
 use std::net::{IpAddr, SocketAddr};
 
+use log;
 use serde_yaml;
 use smith_aorta::{generate_agent_id, generate_key_pair, AgentId, AortaConfig, PublicKey,
                   SecretKey, UpstreamDescriptor};
@@ -36,6 +37,13 @@ struct Agent {
     port: u16,
 }
 
+/// Controls the logging system.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct Logging {
+    level: log::LevelFilter,
+}
+
 impl Default for Agent {
     fn default() -> Agent {
         Agent {
@@ -51,8 +59,16 @@ impl Default for Agent {
     }
 }
 
+impl Default for Logging {
+    fn default() -> Logging {
+        Logging {
+            level: log::LevelFilter::Info,
+        }
+    }
+}
+
 /// Config struct.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
     #[serde(skip, default)]
     changed: bool,
@@ -60,6 +76,8 @@ pub struct Config {
     filename: PathBuf,
     #[serde(default)]
     agent: Agent,
+    #[serde(default)]
+    logging: Logging,
 }
 
 impl Config {
@@ -94,7 +112,7 @@ impl Config {
             Config {
                 filename: path,
                 changed: false,
-                agent: Default::default(),
+                ..Default::default()
             }
         };
         if !config.is_configured() {
@@ -163,6 +181,11 @@ impl Config {
     /// Returns the listen address
     pub fn listen_addr(&self) -> SocketAddr {
         (self.agent.host, self.agent.port).into()
+    }
+
+    /// Returns the log level.
+    pub fn log_level_filter(&self) -> log::LevelFilter {
+        self.logging.level
     }
 
     /// Return a new aorta config based on this config file.

@@ -7,6 +7,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_yaml;
 extern crate url;
+extern crate log;
 extern crate url_serde;
 
 extern crate smith_aorta;
