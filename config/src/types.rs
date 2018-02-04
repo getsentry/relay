@@ -8,6 +8,7 @@ use std::net::{IpAddr, SocketAddr};
 
 use log;
 use serde_yaml;
+use chrono::Duration;
 use smith_aorta::{generate_agent_id, generate_key_pair, AgentId, AortaConfig, PublicKey,
                   SecretKey, UpstreamDescriptor};
 
@@ -44,6 +45,13 @@ struct Logging {
     level: log::LevelFilter,
 }
 
+/// Controls the aorta
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct Aorta {
+    snapshot_expiry: u32,
+}
+
 impl Default for Agent {
     fn default() -> Agent {
         Agent {
@@ -67,6 +75,14 @@ impl Default for Logging {
     }
 }
 
+impl Default for Aorta {
+    fn default() -> Aorta {
+        Aorta {
+            snapshot_expiry: 60,
+        }
+    }
+}
+
 /// Config struct.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
@@ -76,6 +92,8 @@ pub struct Config {
     filename: PathBuf,
     #[serde(default)]
     agent: Agent,
+    #[serde(default)]
+    aorta: Aorta,
     #[serde(default)]
     logging: Logging,
 }
@@ -188,9 +206,15 @@ impl Config {
         self.logging.level
     }
 
+    /// Returns the aorta snapshot expiry.
+    pub fn aorta_snapshot_expiry(&self) -> Duration {
+        Duration::seconds(self.aorta.snapshot_expiry as i64)
+    }
+
     /// Return a new aorta config based on this config file.
     pub fn make_aorta_config(&self) -> Arc<AortaConfig> {
         let mut rv = AortaConfig::default();
+        rv.snapshot_expiry = self.aorta_snapshot_expiry();
         rv.upstream = self.upstream_descriptor().clone().into_owned();
         Arc::new(rv)
     }

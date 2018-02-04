@@ -109,6 +109,7 @@ impl Trove {
         }
 
         let inner = self.inner.clone();
+        debug!("spawning trove governor");
 
         *self.join_handle.lock() = Some(thread::Builder::new()
             .name("trove-governor".into())
@@ -182,6 +183,7 @@ fn run_governor(
 
     // Make the remote available outside.
     *inner.remote.write() = Some(core.remote());
+    debug!("spawned trove governor");
 
     // spawn a stream that just listens in on the events sent into the
     // trove governor so we can figure out when to terminate the thread
@@ -202,6 +204,7 @@ fn run_governor(
 
     core.run(shutdown_rx).ok();
     *inner.remote.write() = None;
+    debug!("shut down trove governor");
 
     Ok(())
 }

@@ -1,8 +1,8 @@
 extern crate clap;
 extern crate failure;
+extern crate pretty_env_logger;
 extern crate smith_config;
 extern crate smith_server;
-extern crate pretty_env_logger;
 
 use std::env;
 use failure::Error;
