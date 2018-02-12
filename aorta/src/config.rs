@@ -1,5 +1,6 @@
 use chrono::Duration;
 
+use auth::{PublicKey, SecretKey, AgentId};
 use upstream::UpstreamDescriptor;
 
 /// Holds common config values that affect the aorta behavior.
@@ -13,6 +14,12 @@ pub struct AortaConfig {
     pub snapshot_expiry: Duration,
     /// The upstream descriptor for this aorta
     pub upstream: UpstreamDescriptor<'static>,
+    /// The agent ID.
+    pub agent_id: Option<AgentId>,
+    /// The private key for authentication.
+    pub secret_key: Option<SecretKey>,
+    /// The public key for authentication.
+    pub public_key: Option<PublicKey>,
 }
 
 impl Default for AortaConfig {
@@ -20,6 +27,9 @@ impl Default for AortaConfig {
         AortaConfig {
             snapshot_expiry: Duration::seconds(60),
             upstream: Default::default(),
+            agent_id: None,
+            secret_key: None,
+            public_key: None,
         }
     }
 }

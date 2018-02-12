@@ -13,6 +13,7 @@ extern crate smith_aorta;
 extern crate smith_common;
 extern crate tokio_core;
 
+mod auth;
 mod types;
 
 pub use types::*;

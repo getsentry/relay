@@ -17,5 +17,5 @@ pub fn test_req(handle: Handle) {
                 .map_err(From::from)
         })
     });
-    handle.spawn(work.map_err(|_| ()));
+    handle.spawn(work.map_err(|err| println!("error: {}", err)));
 }

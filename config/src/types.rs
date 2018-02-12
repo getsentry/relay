@@ -213,9 +213,12 @@ impl Config {
 
     /// Return a new aorta config based on this config file.
     pub fn make_aorta_config(&self) -> Arc<AortaConfig> {
-        let mut rv = AortaConfig::default();
-        rv.snapshot_expiry = self.aorta_snapshot_expiry();
-        rv.upstream = self.upstream_descriptor().clone().into_owned();
-        Arc::new(rv)
+        Arc::new(AortaConfig {
+            snapshot_expiry: self.aorta_snapshot_expiry(),
+            upstream: self.upstream_descriptor().clone().into_owned(),
+            agent_id: Some(self.agent_id().clone()),
+            secret_key: Some(self.secret_key().clone()),
+            public_key: Some(self.public_key().clone()),
+        })
     }
 }
