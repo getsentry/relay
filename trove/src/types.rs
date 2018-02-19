@@ -11,7 +11,7 @@ use futures::sync::{mpsc, oneshot};
 use smith_common::ProjectId;
 use smith_aorta::{AortaConfig, ProjectState};
 
-use auth::{AuthState, AuthError, handle_authentication};
+use auth::{AuthState, AuthError, spawn_authenticator};
 
 /// Represents an event that can be sent to the governor.
 #[derive(Debug)]
@@ -189,13 +189,6 @@ impl TroveState {
             .expect("trove is not goverened, remote unavailable")
             .clone()
     }
-
-    /// Returns the handle for the underlying state.
-    ///
-    /// This panics if the call does not happen on the governing thread.
-    pub fn handle(&self) -> Handle {
-        self.remote().handle().expect("trove is governed in another thread")
-    }
 }
 
 fn run_governor(
@@ -225,8 +218,7 @@ fn run_governor(
     }));
 
     // spawn the authentication handler
-    handle_authentication(core.handle(), state.clone())
-        .map_err(GovernorError::CannotSpawnAuthenticator)?;
+    spawn_authenticator(core.handle(), state.clone());
 
     core.run(shutdown_rx).ok();
     *state.remote.write() = None;

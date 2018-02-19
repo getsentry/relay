@@ -2,11 +2,15 @@ use std::io::{self, Write};
 
 use futures::{Future, Stream};
 use hyper::Client;
+use hyper_tls::HttpsConnector;
+
 use tokio_core::reactor::Handle;
 
 pub fn test_req(handle: Handle) {
-    let client = Client::configure().keep_alive(true).build(&handle);
-    let uri = "http://httpbin.org/ip".parse().unwrap();
+    let client = Client::configure()
+        .connector(HttpsConnector::new(4, &handle).unwrap())
+        .build(&handle);
+    let uri = "https://httpbin.org/ip".parse().unwrap();
     let work = client.get(uri).and_then(|res| {
         println!("Response: {}", res.status());
 

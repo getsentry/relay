@@ -27,6 +27,7 @@ pub fn run(config: &Config) -> Result<(), Error> {
     trove.govern().context(ErrorKind::TroveGovernSpawnFailed)?;
 
     let hello = const_service(service_fn(move |_req| {
+        trove.abdicate().unwrap();
         Ok(Response::<Body>::new()
             .with_header(ContentLength(TEXT.len() as u64))
             .with_header(ContentType::plaintext())
@@ -38,7 +39,7 @@ pub fn run(config: &Config) -> Result<(), Error> {
         .context(ErrorKind::BindFailed)?;
 
     server.run().context(ErrorKind::ListenFailed)?;
-    trove.abdicate().context(ErrorKind::TroveGovernSpawnFailed)?;
+    //trove.abdicate().context(ErrorKind::TroveGovernSpawnFailed)?;
 
     Ok(())
 }
