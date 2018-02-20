@@ -1,10 +1,9 @@
+use std::io::{self, Write};
 use std::sync::Arc;
 
-use tokio_core::reactor::Handle;
+use futures::{Future, Stream};
 
-use smith_aorta::test_req;
-
-use types::TroveState;
+use types::TroveContext;
 
 /// Represents the current auth state of the trove.
 #[derive(Debug)]
@@ -17,11 +16,23 @@ pub enum AuthState {
 }
 
 #[derive(Fail, Debug)]
-#[fail(display="could not authenticate")]
+#[fail(display = "could not authenticate")]
 pub struct AuthError;
 
-pub(crate) fn spawn_authenticator(handle: Handle, trove_state: Arc<TroveState>) {
+pub(crate) fn spawn_authenticator(ctx: &TroveContext) {
     debug!("Starting authenticator");
     let mut state = AuthState::Unknown;
-    test_req(handle);
+
+    let uri = "https://httpbin.org/ip".parse().unwrap();
+    let work = ctx.http_client().get(uri).and_then(|res| {
+        println!("Response: {}", res.status());
+
+        res.body().for_each(|chunk| {
+            io::stdout()
+                .write_all(&chunk)
+                .map(|_| ())
+                .map_err(From::from)
+        })
+    });
+    ctx.handle().spawn(work.map_err(|_| ()));
 }

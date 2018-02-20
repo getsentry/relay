@@ -6,6 +6,9 @@ extern crate failure;
 #[macro_use]
 extern crate failure_derive;
 extern crate futures;
+extern crate hyper;
+extern crate hyper_tls;
+extern crate native_tls;
 #[macro_use]
 extern crate log;
 extern crate parking_lot;

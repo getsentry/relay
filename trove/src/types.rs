@@ -4,14 +4,16 @@ use std::sync::Arc;
 use std::collections::HashMap;
 
 use parking_lot::{Mutex, RwLock};
-use tokio_core::reactor::{Core, Remote, Handle};
+use tokio_core::reactor::{Core, Handle, Remote};
 use futures::Stream;
 use futures::sync::{mpsc, oneshot};
+use hyper::client::{Client, HttpConnector};
+use hyper_tls::HttpsConnector;
 
 use smith_common::ProjectId;
 use smith_aorta::{AortaConfig, ProjectState};
 
-use auth::{AuthState, AuthError, spawn_authenticator};
+use auth::{spawn_authenticator, AuthError, AuthState};
 
 /// Represents an event that can be sent to the governor.
 #[derive(Debug)]
@@ -46,6 +48,31 @@ pub(crate) struct TroveState {
     pub governor_tx: RwLock<Option<mpsc::UnboundedSender<GovernorEvent>>>,
     pub remote: RwLock<Option<Remote>>,
     pub auth_state: RwLock<AuthState>,
+}
+
+/// Convenience context that never crosses threads.
+#[derive(Debug)]
+pub(crate) struct TroveContext {
+    handle: Handle,
+    state: Arc<TroveState>,
+    client: Client<HttpsConnector<HttpConnector>>,
+}
+
+impl TroveContext {
+    /// Returns the handle of the core loop.
+    pub fn handle(&self) -> Handle {
+        self.handle.clone()
+    }
+
+    /// Returns the state of the trove.
+    pub fn state(&self) -> Arc<TroveState> {
+        self.state.clone()
+    }
+
+    /// Returns a reference to the http client.
+    pub fn http_client(&self) -> &Client<HttpsConnector<HttpConnector>> {
+        &self.client
+    }
 }
 
 /// The trove holds project states and manages the upstream aorta.
@@ -203,6 +230,14 @@ fn run_governor(
     *state.remote.write() = Some(core.remote());
     debug!("spawned trove governor");
 
+    let ctx = TroveContext {
+        handle: core.handle(),
+        state: state.clone(),
+        client: Client::configure()
+            .connector(HttpsConnector::new(4, &core.handle()).unwrap())
+            .build(&core.handle()),
+    };
+
     // spawn a stream that just listens in on the events sent into the
     // trove governor so we can figure out when to terminate the thread
     // or do similar things.
@@ -218,7 +253,7 @@ fn run_governor(
     }));
 
     // spawn the authentication handler
-    spawn_authenticator(core.handle(), state.clone());
+    spawn_authenticator(&ctx);
 
     core.run(shutdown_rx).ok();
     *state.remote.write() = None;

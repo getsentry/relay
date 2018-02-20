@@ -5,8 +5,6 @@ extern crate failure;
 #[macro_use]
 extern crate failure_derive;
 extern crate futures;
-extern crate hyper;
-extern crate hyper_tls;
 extern crate parking_lot;
 extern crate rand;
 extern crate serde;
@@ -24,10 +22,8 @@ mod auth;
 mod config;
 mod upstream;
 mod projectstate;
-mod client;
 
 pub use auth::*;
 pub use config::*;
 pub use upstream::*;
 pub use projectstate::*;
-pub use client::*;

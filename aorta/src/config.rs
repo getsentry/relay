@@ -1,6 +1,6 @@
 use chrono::Duration;
 
-use auth::{PublicKey, SecretKey, AgentId};
+use auth::{AgentId, PublicKey, SecretKey};
 use upstream::UpstreamDescriptor;
 
 /// Holds common config values that affect the aorta behavior.

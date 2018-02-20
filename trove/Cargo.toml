@@ -15,6 +15,9 @@ futures = "0.1.18"
 log = "0.4.1"
 parking_lot = "0.5.3"
 tokio-core = "0.1.12"
+hyper = "0.11.18"
+hyper-tls = "0.1.2"
+native-tls = "0.1.5"
 
 [dependencies.smith-aorta]
 path = "../aorta"
