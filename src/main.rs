@@ -1,5 +1,6 @@
 extern crate clap;
 extern crate failure;
+extern crate pretty_env_logger;
 extern crate smith_config;
 extern crate smith_server;
 
@@ -11,6 +12,13 @@ use smith_config::Config;
 
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 pub const ABOUT: &'static str = "Runs a sentry-agent (fancy proxy server)";
+
+fn init_logging(config: &Config) {
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", config.log_level_filter().to_string());
+    }
+    pretty_env_logger::init();
+}
 
 pub fn execute() -> Result<(), Error> {
     let app = App::new("sentry-agent")
@@ -31,6 +39,7 @@ pub fn execute() -> Result<(), Error> {
     let matches = app.get_matches();
 
     let mut config = Config::open(matches.value_of("config").unwrap())?;
+    init_logging(&config);
 
     // upon loading the config can be initialized.  In that case it will be
     // modified and we want to write it back automatically for now.

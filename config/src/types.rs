@@ -3,11 +3,14 @@ use std::io::Write;
 use std::fs;
 use std::io;
 use std::env;
+use std::sync::Arc;
 use std::net::{IpAddr, SocketAddr};
 
+use log;
 use serde_yaml;
-use smith_aorta::{generate_agent_id, generate_key_pair, AgentId, PublicKey, SecretKey,
-                  UpstreamDescriptor};
+use chrono::Duration;
+use smith_aorta::{generate_agent_id, generate_key_pair, AgentId, AortaConfig, PublicKey,
+                  SecretKey, UpstreamDescriptor};
 
 /// Indicates config related errors.
 #[derive(Fail, Debug)]
@@ -35,6 +38,20 @@ struct Agent {
     port: u16,
 }
 
+/// Controls the logging system.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct Logging {
+    level: log::LevelFilter,
+}
+
+/// Controls the aorta
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct Aorta {
+    snapshot_expiry: u32,
+}
+
 impl Default for Agent {
     fn default() -> Agent {
         Agent {
@@ -50,15 +67,30 @@ impl Default for Agent {
     }
 }
 
+impl Default for Logging {
+    fn default() -> Logging {
+        Logging {
+            level: log::LevelFilter::Info,
+        }
+    }
+}
+
+impl Default for Aorta {
+    fn default() -> Aorta {
+        Aorta {
+            snapshot_expiry: 60,
+        }
+    }
+}
+
 /// Config struct.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
-    #[serde(skip, default)]
-    changed: bool,
-    #[serde(skip, default = "PathBuf::new")]
-    filename: PathBuf,
-    #[serde(default)]
-    agent: Agent,
+    #[serde(skip, default)] changed: bool,
+    #[serde(skip, default = "PathBuf::new")] filename: PathBuf,
+    #[serde(default)] agent: Agent,
+    #[serde(default)] aorta: Aorta,
+    #[serde(default)] logging: Logging,
 }
 
 impl Config {
@@ -93,7 +125,7 @@ impl Config {
             Config {
                 filename: path,
                 changed: false,
-                agent: Default::default(),
+                ..Default::default()
             }
         };
         if !config.is_configured() {
@@ -162,5 +194,26 @@ impl Config {
     /// Returns the listen address
     pub fn listen_addr(&self) -> SocketAddr {
         (self.agent.host, self.agent.port).into()
+    }
+
+    /// Returns the log level.
+    pub fn log_level_filter(&self) -> log::LevelFilter {
+        self.logging.level
+    }
+
+    /// Returns the aorta snapshot expiry.
+    pub fn aorta_snapshot_expiry(&self) -> Duration {
+        Duration::seconds(self.aorta.snapshot_expiry as i64)
+    }
+
+    /// Return a new aorta config based on this config file.
+    pub fn make_aorta_config(&self) -> Arc<AortaConfig> {
+        Arc::new(AortaConfig {
+            snapshot_expiry: self.aorta_snapshot_expiry(),
+            upstream: self.upstream_descriptor().clone().into_owned(),
+            agent_id: Some(self.agent_id().clone()),
+            secret_key: Some(self.secret_key().clone()),
+            public_key: Some(self.public_key().clone()),
+        })
     }
 }

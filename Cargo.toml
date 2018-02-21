@@ -10,13 +10,10 @@ version = "0.1.0"
 [dependencies]
 clap = "2.29.2"
 failure = "0.1.1"
+pretty_env_logger = "0.2.0"
 
 [dependencies.smith-aorta]
 path = "aorta"
-version = "0.1.0"
-
-[dependencies.smith-trove]
-path = "trove"
 version = "0.1.0"
 
 [dependencies.smith-common]
@@ -29,6 +26,10 @@ version = "0.1.0"
 
 [dependencies.smith-server]
 path = "server"
+version = "0.1.0"
+
+[dependencies.smith-trove]
+path = "trove"
 version = "0.1.0"
 
 [workspace]

@@ -9,6 +9,7 @@ repository = "https://github.com/getsentry/sentry-agent"
 version = "0.1.0"
 
 [dependencies]
+chrono = "0.4.0"
 failure = "0.1.1"
 failure_derive = "0.1.1"
 serde = "1.0.27"
@@ -16,6 +17,10 @@ serde_derive = "1.0.27"
 serde_yaml = "0.7.3"
 url = "1.6.0"
 url_serde = "0.2.0"
+
+[dependencies.log]
+features = ["serde"]
+version = "0.4.1"
 
 [dependencies.smith-aorta]
 path = "../aorta"
