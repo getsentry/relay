@@ -5,8 +5,8 @@ extern crate failure;
 #[macro_use]
 extern crate failure_derive;
 extern crate futures;
-extern crate parking_lot;
 extern crate hyper;
+extern crate parking_lot;
 extern crate rand;
 extern crate serde;
 #[macro_use]

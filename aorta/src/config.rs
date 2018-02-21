@@ -1,5 +1,5 @@
 use chrono::Duration;
-use hyper::{Uri, Request, Method};
+use hyper::{Method, Request, Uri};
 use hyper::header::{ContentLength, ContentType};
 use serde::Serialize;
 use serde_json;
@@ -41,22 +41,33 @@ impl Default for AortaConfig {
 impl AortaConfig {
     /// Returns the agent id or panics.
     pub fn agent_id(&self) -> &AgentId {
-        self.agent_id.as_ref().expect("agent id must be set on aorta config")
+        self.agent_id
+            .as_ref()
+            .expect("agent id must be set on aorta config")
     }
 
     /// Returns the public key or panics.
     pub fn public_key(&self) -> &PublicKey {
-        self.public_key.as_ref().expect("public key must be set on aorta config")
+        self.public_key
+            .as_ref()
+            .expect("public key must be set on aorta config")
     }
 
     /// Returns the secret key or panics.
     pub fn secret_key(&self) -> &SecretKey {
-        self.secret_key.as_ref().expect("secret key must be set on aorta config")
+        self.secret_key
+            .as_ref()
+            .expect("secret key must be set on aorta config")
     }
 
     /// Returns the URL to hit for an api request on the upstream.
     pub fn get_api_uri(&self, path: &str) -> Uri {
-        format!("{}api/0/{}", self.upstream, path.trim_left_matches(&['/'][..])).parse().unwrap()
+        format!(
+            "{}api/0/{}",
+            self.upstream,
+            path.trim_left_matches(&['/'][..])
+        ).parse()
+            .unwrap()
     }
 
     /// Prepares a JSON bodied API request to aorta with signature.
