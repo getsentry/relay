@@ -5,7 +5,10 @@ use std::slice;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
-use utils::{set_panic_hook, LAST_ERROR};
+use utils::{set_panic_hook, Panic, LAST_ERROR};
+
+use failure::Error;
+use smith_aorta::KeyParseError;
 
 /// Represents a string.
 #[repr(C)]
@@ -21,6 +24,35 @@ pub struct SmithBuf {
     pub data: *mut u8,
     pub len: usize,
     pub owned: bool,
+}
+
+/// Represents all possible error codes
+#[repr(u32)]
+pub enum SmithErrorCode {
+    NoError = 0,
+    Panic = 1,
+    Unknown = 2,
+    // smith_aorta::auth::KeyParseError
+    KeyParseErrorBadEncoding = 1000,
+    KeyParseErrorBadKey = 1001,
+}
+
+impl SmithErrorCode {
+    /// This maps all errors that can possibly happen.
+    pub fn from_error(error: &Error) -> SmithErrorCode {
+        for cause in error.causes() {
+            if let Some(..) = cause.downcast_ref::<Panic>() {
+                return SmithErrorCode::Panic;
+            }
+            if let Some(err) = cause.downcast_ref::<KeyParseError>() {
+                return match err {
+                    &KeyParseError::BadEncoding => SmithErrorCode::KeyParseErrorBadEncoding,
+                    &KeyParseError::BadKey => SmithErrorCode::KeyParseErrorBadKey,
+                };
+            }
+        }
+        SmithErrorCode::Unknown
+    }
 }
 
 impl Default for SmithStr {
@@ -126,12 +158,12 @@ pub unsafe extern "C" fn smith_init() {
 ///
 /// If there is no error, 0 is returned.
 #[no_mangle]
-pub unsafe extern "C" fn smith_err_failed() -> bool {
+pub unsafe extern "C" fn smith_err_last_code() -> SmithErrorCode {
     LAST_ERROR.with(|e| {
-        if let Some(..) = *e.borrow() {
-            true
+        if let Some(ref err) = *e.borrow() {
+            SmithErrorCode::from_error(err)
         } else {
-            false
+            SmithErrorCode::NoError
         }
     })
 }
