@@ -1,0 +1,22 @@
+[package]
+name = "smith-cabi"
+version = "0.1.0"
+license = "MIT"
+authors = ["Sentry <hello@sentry.io>"]
+homepage = "https://github.com/getsentry/sentry-agent"
+repository = "https://github.com/getsentry/sentry-agent"
+description = "Exposes some internals of the agent to C."
+
+[lib]
+name = "smith"
+crate-type = ["cdylib"]
+
+[workspace]
+
+[profile.release]
+debug = true
+lto = true
+
+[dependencies]
+smith-aorta = { version = "0.1.0", path = "../aorta" }
+failure = "0.1.1"
