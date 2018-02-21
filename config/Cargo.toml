@@ -1,11 +1,11 @@
 [package]
 authors = ["Sentry <hello@sentry.io>"]
-description = "Config functionality for the sentry agent"
+description = "Config functionality for the sentry relay"
 documentation = "https://docs.rs/smith-config"
-homepage = "https://github.com/getsentry/sentry-agent"
+homepage = "https://github.com/getsentry/sentry-relay"
 license = "MIT"
 name = "smith-config"
-repository = "https://github.com/getsentry/sentry-agent"
+repository = "https://github.com/getsentry/sentry-relay"
 version = "0.1.0"
 
 [dependencies]

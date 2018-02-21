@@ -15,6 +15,14 @@ pub struct SmithStr {
     pub owned: bool,
 }
 
+/// Represents a buffer.
+#[repr(C)]
+pub struct SmithBuf {
+    pub data: *mut u8,
+    pub len: usize,
+    pub owned: bool,
+}
+
 impl Default for SmithStr {
     fn default() -> SmithStr {
         SmithStr {
@@ -62,6 +70,52 @@ impl SmithStr {
     }
 }
 
+impl Default for SmithBuf {
+    fn default() -> SmithBuf {
+        SmithBuf {
+            data: ptr::null_mut(),
+            len: 0,
+            owned: false,
+        }
+    }
+}
+
+impl SmithBuf {
+    pub fn new(b: &[u8]) -> SmithBuf {
+        SmithBuf {
+            data: b.as_ptr() as *mut u8,
+            len: b.len(),
+            owned: false,
+        }
+    }
+
+    pub fn from_vec(mut b: Vec<u8>) -> SmithBuf {
+        b.shrink_to_fit();
+        let rv = SmithBuf {
+            data: b.as_ptr() as *mut u8,
+            len: b.len(),
+            owned: true,
+        };
+        mem::forget(b);
+        rv
+    }
+
+    pub unsafe fn free(&mut self) {
+        if self.owned {
+            Vec::from_raw_parts(self.data as *mut u8, self.len, self.len);
+            self.data = ptr::null_mut();
+            self.len = 0;
+            self.owned = false;
+        }
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe {
+            slice::from_raw_parts(self.data as *const u8, self.len)
+        }
+    }
+}
+
 /// Initializes the library
 #[no_mangle]
 pub unsafe extern "C" fn smith_init() {
@@ -89,7 +143,6 @@ pub unsafe extern "C" fn smith_err_failed() -> bool {
 #[no_mangle]
 pub unsafe extern "C" fn smith_err_get_last_message() -> SmithStr {
     use std::fmt::Write;
-    use std::error::Error;
     LAST_ERROR.with(|e| {
         if let Some(ref err) = *e.borrow() {
             let mut msg = err.to_string();
@@ -155,5 +208,16 @@ ffi_fn! {
 pub unsafe extern "C" fn smith_str_free(s: *mut SmithStr) {
     if !s.is_null() {
         (*s).free()
+    }
+}
+
+/// Frees a smith buf.
+///
+/// If the buffer is marked as not owned then this function does not
+/// do anything.
+#[no_mangle]
+pub unsafe extern "C" fn smith_buf_free(b: *mut SmithBuf) {
+    if !b.is_null() {
+        (*b).free()
     }
 }

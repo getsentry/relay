@@ -2,10 +2,10 @@
 authors = ["Sentry <hello@sentry.io>"]
 description = "The agent <-> backend communcation and authentication protocol"
 documentation = "https://docs.rs/smith-common"
-homepage = "https://github.com/getsentry/sentry-agent"
+homepage = "https://github.com/getsentry/sentry-relay"
 license = "MIT"
 name = "smith-aorta"
-repository = "https://github.com/getsentry/sentry-agent"
+repository = "https://github.com/getsentry/sentry-relay"
 version = "0.1.0"
 
 [dependencies]

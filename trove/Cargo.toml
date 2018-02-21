@@ -2,10 +2,10 @@
 authors = ["Sentry <hello@sentry.io>"]
 description = "A helper library for managing different aortas"
 documentation = "https://docs.rs/smith-trove"
-homepage = "https://github.com/getsentry/sentry-agent"
+homepage = "https://github.com/getsentry/sentry-relay"
 license = "MIT"
 name = "smith-trove"
-repository = "https://github.com/getsentry/sentry-agent"
+repository = "https://github.com/getsentry/sentry-relay"
 version = "0.1.0"
 
 [dependencies]

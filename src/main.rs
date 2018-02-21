@@ -11,7 +11,7 @@ use clap::{App, AppSettings, Arg};
 use smith_config::Config;
 
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-pub const ABOUT: &'static str = "Runs a sentry-agent (fancy proxy server)";
+pub const ABOUT: &'static str = "Runs a sentry-relay (fancy proxy server)";
 
 fn init_logging(config: &Config) {
     if env::var("RUST_LOG").is_err() {
@@ -21,7 +21,7 @@ fn init_logging(config: &Config) {
 }
 
 pub fn execute() -> Result<(), Error> {
-    let app = App::new("sentry-agent")
+    let app = App::new("sentry-relay")
         .setting(AppSettings::UnifiedHelpMessage)
         .help_message("Print this help message.")
         .version(VERSION)
