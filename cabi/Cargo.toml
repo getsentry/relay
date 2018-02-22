@@ -15,7 +15,6 @@ crate-type = ["cdylib"]
 
 [profile.release]
 debug = true
-lto = true
 
 [dependencies]
 smith-aorta = { version = "0.1.0", path = "../aorta" }
