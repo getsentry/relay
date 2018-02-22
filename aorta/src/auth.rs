@@ -311,10 +311,12 @@ impl RegisterRequest {
     /// This unpacks the embedded public key first, then verifies if the
     /// self signature was made by that public key.  If all is well then
     /// the data is returned.
-    pub fn bootstrap_unpack(data: &str) -> Result<RegisterRequest, UnpackError> {
+    pub fn bootstrap_unpack(data: &str, max_age: Option<Duration>)
+        -> Result<RegisterRequest, UnpackError>
+    {
         let packed = Packed::<RegisterRequest>::unpack_unsafe(data)?;
         let pk = packed.data.public_key();
-        pk.unpack(data, Some(Duration::minutes(15)))
+        pk.unpack(data, max_age)
     }
 
     /// Returns the agent ID of the registering agent.
@@ -468,7 +470,7 @@ fn test_registration() {
     assert_eq!(reg_req.public_key(), &pk);
 
     // use the shortcut.
-    let reg_req = RegisterRequest::bootstrap_unpack(&signed_reg_req).unwrap();
+    let reg_req = RegisterRequest::bootstrap_unpack(&signed_reg_req, Some(max_age)).unwrap();
     assert_eq!(reg_req.agent_id(), &agent_id);
     assert_eq!(reg_req.public_key(), &pk);
 

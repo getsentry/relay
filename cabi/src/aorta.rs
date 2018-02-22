@@ -1,6 +1,10 @@
-use smith_aorta::{PublicKey, SecretKey, generate_key_pair};
+use serde_json;
+use chrono::Duration;
 
-use core::{SmithBuf, SmithStr};
+use smith_aorta::{PublicKey, SecretKey, RegisterRequest, RegisterResponse,
+                  generate_key_pair, generate_agent_id};
+
+use core::{SmithBuf, SmithStr, SmithUuid};
 
 pub struct SmithAgentId;
 
@@ -16,6 +20,9 @@ pub struct SmithKeyPair {
     pub public_key: *mut SmithPublicKey,
     pub secret_key: *mut SmithSecretKey,
 }
+
+/// Represents a register request.
+pub struct SmithRegisterRequest;
 
 ffi_fn! {
     /// Parses a public key from a string.
@@ -93,5 +100,40 @@ ffi_fn! {
             secret_key: Box::into_raw(Box::new(sk)) as *mut SmithSecretKey,
             public_key: Box::into_raw(Box::new(pk)) as *mut SmithPublicKey,
         })
+    }
+}
+
+ffi_fn! {
+    /// Randomly generates an agent id
+    unsafe fn smith_generate_agent_id() -> Result<SmithUuid> {
+        let agent_id = generate_agent_id();
+        Ok(SmithUuid::new(agent_id))
+    }
+}
+
+ffi_fn! {
+    /// Creates a challenge from a register request and returns JSON.
+    unsafe fn smith_create_register_challenge(signed_req: *const SmithStr,
+                                              max_age: u32)
+        -> Result<SmithStr>
+    {
+        let max_age = Duration::seconds(max_age as i64);
+        let req = RegisterRequest::bootstrap_unpack((*signed_req).as_str(), Some(max_age))?;
+        let challenge = req.create_challenge();
+        Ok(SmithStr::from_string(serde_json::to_string(&challenge)?))
+    }
+}
+
+ffi_fn! {
+    /// Validates a register response.
+    unsafe fn smith_validate_register_response(pk: *const SmithPublicKey,
+                                               signed_resp: *const SmithStr,
+                                               max_age: u32)
+        -> Result<SmithStr>
+    {
+        let max_age = Duration::seconds(max_age as i64);
+        let pk = &*(pk as *const PublicKey);
+        let reg_resp: RegisterResponse = pk.unpack((*signed_resp).as_str(), Some(max_age))?;
+        Ok(SmithStr::from_string(serde_json::to_string(&reg_resp)?))
     }
 }

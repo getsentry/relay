@@ -48,6 +48,13 @@ typedef struct {
 } SmithStr;
 
 /*
+ * Represents a uuid.
+ */
+typedef struct {
+  uint8_t data[16];
+} SmithUuid;
+
+/*
  * Represents a key pair from key generation.
  */
 typedef struct {
@@ -62,6 +69,11 @@ typedef struct {
  * do anything.
  */
 void smith_buf_free(SmithBuf *b);
+
+/*
+ * Creates a challenge from a register request and returns JSON.
+ */
+SmithStr smith_create_register_challenge(const SmithStr *signed_req, uint32_t max_age);
 
 /*
  * Clears the last error.
@@ -87,6 +99,11 @@ SmithErrorCode smith_err_get_last_code(void);
  * that needs to be freed with `smith_str_free`.
  */
 SmithStr smith_err_get_last_message(void);
+
+/*
+ * Randomly generates an agent id
+ */
+SmithUuid smith_generate_agent_id(void);
 
 /*
  * Generates a secret, public key pair.
@@ -154,5 +171,25 @@ void smith_str_free(SmithStr *s);
  * owned flag to false.
  */
 SmithStr smith_str_from_cstr(const char *s);
+
+/*
+ * Returns true if the uuid is nil
+ */
+bool smith_uuid_is_nil(const SmithUuid *uuid);
+
+/*
+ * Formats the UUID into a string.
+ *
+ * The string is newly allocated and needs to be released with
+ * `smith_cstr_free`.
+ */
+SmithStr smith_uuid_to_str(const SmithUuid *uuid);
+
+/*
+ * Validates a register response.
+ */
+SmithStr smith_validate_register_response(const SmithPublicKey *pk,
+                                          const SmithStr *signed_resp,
+                                          uint32_t max_age);
 
 #endif /* SMITH_H_INCLUDED */

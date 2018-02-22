@@ -1,8 +1,6 @@
 import io
 import uuid
-import ntpath
 import weakref
-import posixpath
 from smith._lowlevel import ffi, lib
 from smith._compat import text_type, with_metaclass
 from smith.exceptions import exceptions_by_code, SmithError
@@ -98,3 +96,8 @@ def make_buf(value):
     rv.len = len(buf)
     attached_refs[rv] = buf
     return rv
+
+
+def decode_uuid(value):
+    """Decodes the given uuid value."""
+    return uuid.UUID(bytes=bytes(bytearray(ffi.unpack(value.data, 16))))

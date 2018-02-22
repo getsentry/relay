@@ -7,8 +7,15 @@ use std::os::raw::c_char;
 
 use utils::{set_panic_hook, Panic, LAST_ERROR};
 
+use uuid::Uuid;
 use failure::Error;
 use smith_aorta::KeyParseError;
+
+/// Represents a uuid.
+#[repr(C)]
+pub struct SmithUuid {
+    pub data: [u8; 16]
+}
 
 /// Represents a string.
 #[repr(C)]
@@ -98,6 +105,18 @@ impl SmithStr {
         unsafe {
             str::from_utf8_unchecked(slice::from_raw_parts(
                 self.data as *const _, self.len))
+        }
+    }
+}
+
+impl SmithUuid {
+    pub fn new(uuid: Uuid) -> SmithUuid {
+        unsafe { mem::transmute(*uuid.as_bytes()) }
+    }
+
+    pub fn as_uuid(&self) -> &Uuid {
+        unsafe {
+            mem::transmute(self)
         }
     }
 }
@@ -252,4 +271,24 @@ pub unsafe extern "C" fn smith_buf_free(b: *mut SmithBuf) {
     if !b.is_null() {
         (*b).free()
     }
+}
+
+/// Returns true if the uuid is nil
+#[no_mangle]
+pub unsafe extern "C" fn smith_uuid_is_nil(uuid: *const SmithUuid) -> bool {
+    if let Ok(uuid) = Uuid::from_bytes(&(*uuid).data[..]) {
+        uuid == Uuid::nil()
+    } else {
+        false
+    }
+}
+
+/// Formats the UUID into a string.
+///
+/// The string is newly allocated and needs to be released with
+/// `smith_cstr_free`.
+#[no_mangle]
+pub unsafe extern "C" fn smith_uuid_to_str(uuid: *const SmithUuid) -> SmithStr {
+    let uuid =  Uuid::from_bytes(&(*uuid).data[..]).unwrap_or(Uuid::nil());
+    SmithStr::from_string(uuid.hyphenated().to_string())
 }

@@ -19,3 +19,6 @@ debug = true
 [dependencies]
 smith-aorta = { version = "0.1.0", path = "../aorta" }
 failure = "0.1.1"
+uuid = "0.6.0"
+serde_json = "1.0.9"
+chrono = "0.4.0"
