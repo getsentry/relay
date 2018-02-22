@@ -1,4 +1,4 @@
-use smith_aorta::{PublicKey, SecretKey};
+use smith_aorta::{PublicKey, SecretKey, generate_key_pair};
 
 use core::{SmithBuf, SmithStr};
 
@@ -9,6 +9,13 @@ pub struct SmithPublicKey;
 
 /// Represents a secret key in smith.
 pub struct SmithSecretKey;
+
+/// Represents a key pair from key generation.
+#[repr(C)]
+pub struct SmithKeyPair {
+    pub public_key: *mut SmithPublicKey,
+    pub secret_key: *mut SmithSecretKey,
+}
 
 ffi_fn! {
     /// Parses a public key from a string.
@@ -75,5 +82,16 @@ ffi_fn! {
     unsafe fn smith_secretkey_sign(spk: *const SmithSecretKey, data: *const SmithBuf) -> Result<SmithStr> {
         let pk = spk as *const SecretKey;
         Ok(SmithStr::from_string((*pk).sign((*data).as_bytes())))
+    }
+}
+
+ffi_fn! {
+    /// Generates a secret, public key pair.
+    unsafe fn smith_generate_key_pair() -> Result<SmithKeyPair> {
+        let (sk, pk) = generate_key_pair();
+        Ok(SmithKeyPair {
+            secret_key: Box::into_raw(Box::new(sk)) as *mut SmithSecretKey,
+            public_key: Box::into_raw(Box::new(pk)) as *mut SmithPublicKey,
+        })
     }
 }

@@ -4,17 +4,23 @@ import ntpath
 import weakref
 import posixpath
 from smith._lowlevel import ffi, lib
-from smith._compat import text_type
+from smith._compat import text_type, with_metaclass
 from smith.exceptions import exceptions_by_code, SmithError
 
 
 attached_refs = weakref.WeakKeyDictionary()
 
 
-class RustObject(object):
+class _NoDict(type):
+
+    def __new__(cls, name, bases, d):
+        d.setdefault('__slots__', ())
+        return type.__new__(cls, name, bases, d)
+
+
+class RustObject(with_metaclass(_NoDict)):
+    __slots__ = ['_objptr', '_shared']
     __dealloc_func__ = None
-    _objptr = None
-    _shared = False
 
     def __init__(self):
         raise TypeError('Cannot instanciate %r objects' %
@@ -81,4 +87,14 @@ def encode_str(s):
     # we have to hold a weak reference here to ensure our string does not
     # get collected before the string is used.
     attached_refs[rv] = s
+    return rv
+
+
+
+def make_buf(value):
+    buf = memoryview(bytes(value))
+    rv = ffi.new('SmithBuf *')
+    rv.data = ffi.from_buffer(buf)
+    rv.len = len(buf)
+    attached_refs[rv] = buf
     return rv

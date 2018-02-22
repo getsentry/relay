@@ -48,6 +48,14 @@ typedef struct {
 } SmithStr;
 
 /*
+ * Represents a key pair from key generation.
+ */
+typedef struct {
+  SmithPublicKey *public_key;
+  SmithSecretKey *secret_key;
+} SmithKeyPair;
+
+/*
  * Frees a smith buf.
  *
  * If the buffer is marked as not owned then this function does not
@@ -66,6 +74,13 @@ void smith_err_clear(void);
 SmithStr smith_err_get_backtrace(void);
 
 /*
+ * Returns the last error code.
+ *
+ * If there is no error, 0 is returned.
+ */
+SmithErrorCode smith_err_get_last_code(void);
+
+/*
  * Returns the last error message.
  *
  * If there is no error an empty string is returned.  This allocates new memory
@@ -74,11 +89,9 @@ SmithStr smith_err_get_backtrace(void);
 SmithStr smith_err_get_last_message(void);
 
 /*
- * Returns the last error code.
- *
- * If there is no error, 0 is returned.
+ * Generates a secret, public key pair.
  */
-SmithErrorCode smith_err_last_code(void);
+SmithKeyPair smith_generate_key_pair(void);
 
 /*
  * Initializes the library

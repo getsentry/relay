@@ -158,7 +158,7 @@ pub unsafe extern "C" fn smith_init() {
 ///
 /// If there is no error, 0 is returned.
 #[no_mangle]
-pub unsafe extern "C" fn smith_err_last_code() -> SmithErrorCode {
+pub unsafe extern "C" fn smith_err_get_last_code() -> SmithErrorCode {
     LAST_ERROR.with(|e| {
         if let Some(ref err) = *e.borrow() {
             SmithErrorCode::from_error(err)
