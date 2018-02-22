@@ -75,8 +75,9 @@ def create_register_challenge(signed_req, max_age=60 * 15):
     rv = json.loads(decode_str(rustcall(
         lib.smith_create_register_challenge, encode_str(signed_req), max_age)))
     return {
-        'agent_id': uuid.UUID(rv['agent_id']),
-        'token': rv['token'],
+        'agent_id': uuid.UUID(rv['challenge']['agent_id']),
+        'public_key': PublicKey.parse(rv['request']['public_key']),
+        'token': rv['challenge']['token'],
     }
 
 

@@ -2,7 +2,7 @@ use serde_json;
 use chrono::Duration;
 
 use smith_aorta::{PublicKey, SecretKey, RegisterRequest, RegisterResponse,
-                  generate_key_pair, generate_agent_id};
+                  RegisterChallenge, generate_key_pair, generate_agent_id};
 
 use core::{SmithBuf, SmithStr, SmithUuid};
 
@@ -111,6 +111,12 @@ ffi_fn! {
     }
 }
 
+#[derive(Serialize)]
+struct CombinedChallengeResult {
+    pub request: RegisterRequest,
+    pub challenge: RegisterChallenge,
+}
+
 ffi_fn! {
     /// Creates a challenge from a register request and returns JSON.
     unsafe fn smith_create_register_challenge(signed_req: *const SmithStr,
@@ -120,7 +126,10 @@ ffi_fn! {
         let max_age = Duration::seconds(max_age as i64);
         let req = RegisterRequest::bootstrap_unpack((*signed_req).as_str(), Some(max_age))?;
         let challenge = req.create_challenge();
-        Ok(SmithStr::from_string(serde_json::to_string(&challenge)?))
+        Ok(SmithStr::from_string(serde_json::to_string(&CombinedChallengeResult {
+            request: req,
+            challenge: challenge,
+        })?))
     }
 }
 
