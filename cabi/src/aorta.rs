@@ -1,8 +1,9 @@
+use uuid::Uuid;
 use serde_json;
 use chrono::Duration;
 
 use smith_aorta::{PublicKey, SecretKey, RegisterRequest, RegisterResponse,
-                  RegisterChallenge, generate_key_pair, generate_agent_id};
+                  generate_key_pair, generate_agent_id};
 
 use core::{SmithBuf, SmithStr, SmithUuid};
 
@@ -113,8 +114,9 @@ ffi_fn! {
 
 #[derive(Serialize)]
 struct CombinedChallengeResult {
-    pub request: RegisterRequest,
-    pub challenge: RegisterChallenge,
+    pub agent_id: Uuid,
+    pub public_key: PublicKey,
+    pub token: String,
 }
 
 ffi_fn! {
@@ -127,8 +129,9 @@ ffi_fn! {
         let req = RegisterRequest::bootstrap_unpack((*signed_req).as_str(), Some(max_age))?;
         let challenge = req.create_challenge();
         Ok(SmithStr::from_string(serde_json::to_string(&CombinedChallengeResult {
-            request: req,
-            challenge: challenge,
+            agent_id: req.agent_id().clone(),
+            public_key: req.public_key().clone(),
+            token: challenge.token().to_string(),
         })?))
     }
 }
