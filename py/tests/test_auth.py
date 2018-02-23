@@ -1,5 +1,6 @@
 import uuid
 import smith
+import pytest
 
 
 def test_basic_key_functions():
@@ -14,6 +15,14 @@ def test_challenge_response():
     assert str(resp['public_key']) == 'rBnGlE4s79sQIhkkh14hdAHLS6XlsP4-D1JlEEvyhms'
     assert resp['agent_id'] == uuid.UUID('a1412620-b148-42b9-b6af-6e3f3bae08da')
     assert len(resp['token']) > 40
+
+
+def test_challenge_response_validation_errors():
+    with pytest.raises(smith.UnpackErrorSignatureExpired):
+        smith.create_register_challenge('scytiiMDtFO8GfpMHYvOs0Ue7mvb_jZmN7dAPb70KS_nu1FH3UuiZ0LsbLDu35_r5ohSqdD0llvsSZLTRmflDQ.eyJ0IjoiMjAxOC0wMi0yMlQyMzoxMDoyNy40MTQ0NjVaIiwiZCI6eyJhZ2VudF9pZCI6ImExNDEyNjIwLWIxNDgtNDJiOS1iNmFmLTZlM2YzYmFlMDhkYSIsInB1YmxpY19rZXkiOiJyQm5HbEU0czc5c1FJaGtraDE0aGRBSExTNlhsc1A0LUQxSmxFRXZ5aG1zIn19', max_age=1)
+
+    with pytest.raises(smith.UnpackErrorBadData):
+        smith.create_register_challenge('scytiiMDtFO8GfpMHYvOs0Ue7mvb_jZmN7dAPb70KS_nu1FH3UuiZ0LsbLDu35_r5ohSqdD0llvsSZLTRmflDQ.eyJ0IjoiMjAxOC0wMi0yMlQyMzoxMDoyNy40MTQ0NjVaIiwiZCI6eyJhZ2VudF9pZCI6ImExNDEyNjIwLWIxNDgtNDJiOS1iNmFmLTZlM2YzYmFlMDhkYSIsInB1YmxpY19rZXkiOiJyQm5HbEU0czc5c1FJaGtraDE0aGRBSExTNlhsc1A0LUQxSmxFRXZ5aG1zIn19addedcraphere')
 
 
 def test_register_response():
