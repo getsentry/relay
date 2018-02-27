@@ -490,10 +490,7 @@ fn test_registration() {
 
     // sign and unsign it
     let signed_reg_resp = sk.pack(&reg_resp);
-    println!("{}", &pk);
-    println!("{}", &signed_reg_resp);
     let reg_resp: RegisterResponse = pk.unpack(&signed_reg_resp, Some(max_age)).unwrap();
     assert_eq!(reg_resp.relay_id(), &relay_id);
     assert_eq!(reg_resp.token(), challenge.token());
-    panic!();
 }
