@@ -3,11 +3,9 @@ use serde_json;
 use chrono::Duration;
 
 use smith_aorta::{PublicKey, SecretKey, RegisterRequest, RegisterResponse,
-                  generate_key_pair, generate_agent_id};
+                  generate_key_pair, generate_relay_id};
 
 use core::{SmithBuf, SmithStr, SmithUuid};
-
-pub struct SmithAgentId;
 
 /// Represents a public key in smith.
 pub struct SmithPublicKey;
@@ -105,17 +103,20 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Randomly generates an agent id
-    unsafe fn smith_generate_agent_id() -> Result<SmithUuid> {
-        let agent_id = generate_agent_id();
-        Ok(SmithUuid::new(agent_id))
+    /// Randomly generates an relay id
+    unsafe fn smith_generate_relay_id() -> Result<SmithUuid> {
+        let relay_id = generate_relay_id();
+        Ok(SmithUuid::new(relay_id))
     }
 }
 
 #[derive(Serialize)]
 struct CombinedChallengeResult {
-    pub agent_id: Uuid,
+    #[serde(rename="i")]
+    pub relay_id: Uuid,
+    #[serde(rename="p")]
     pub public_key: PublicKey,
+    #[serde(rename="t")]
     pub token: String,
 }
 
@@ -129,7 +130,7 @@ ffi_fn! {
         let req = RegisterRequest::bootstrap_unpack((*signed_req).as_str(), Some(max_age))?;
         let challenge = req.create_challenge();
         Ok(SmithStr::from_string(serde_json::to_string(&CombinedChallengeResult {
-            agent_id: req.agent_id().clone(),
+            relay_id: req.relay_id().clone(),
             public_key: req.public_key().clone(),
             token: challenge.token().to_string(),
         })?))

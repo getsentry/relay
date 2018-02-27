@@ -57,8 +57,8 @@ impl Auth {
         self.secret.is_none()
     }
 
-    /// Returns the client's agent
-    pub fn client_agent(&self) -> Option<&str> {
+    /// Returns the client's relay
+    pub fn client_relay(&self) -> Option<&str> {
         self.client.as_ref().map(|x| x.as_str())
     }
 }
@@ -140,7 +140,7 @@ fn test_auth_parsing() {
         .parse()
         .unwrap();
     assert_eq!(auth.timestamp(), Some(1328055286.51));
-    assert_eq!(auth.client_agent(), Some("raven-python/42"));
+    assert_eq!(auth.client_relay(), Some("raven-python/42"));
     assert_eq!(auth.version(), 6);
     assert_eq!(auth.public_key(), "public");
     assert_eq!(auth.secret_key(), Some("secret"));

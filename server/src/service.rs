@@ -12,10 +12,10 @@ static TEXT: &'static str = "Doing absolutely nothing so far!";
 
 fn dump_spawn_infos(config: &Config) {
     info!(
-        "launching agent with config {}",
+        "launching relay with config {}",
         config.filename().display()
     );
-    info!("  agent id: {}", config.agent_id());
+    info!("  relay id: {}", config.relay_id());
     info!("  public key: {}", config.public_key());
     info!("  listening on http://{}/", config.listen_addr());
 }

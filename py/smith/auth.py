@@ -67,17 +67,17 @@ def generate_key_pair():
     )
 
 
-def generate_agent_id():
-    return decode_uuid(rustcall(lib.smith_generate_agent_id))
+def generate_relay_id():
+    return decode_uuid(rustcall(lib.smith_generate_relay_id))
 
 
 def create_register_challenge(signed_req, max_age=60 * 15):
     rv = json.loads(decode_str(rustcall(
         lib.smith_create_register_challenge, encode_str(signed_req), max_age)))
     return {
-        'agent_id': uuid.UUID(rv['agent_id']),
-        'public_key': PublicKey.parse(rv['public_key']),
-        'token': rv['token'],
+        'relay_id': uuid.UUID(rv['i']),
+        'public_key': PublicKey.parse(rv['p']),
+        'token': rv['t'],
     }
 
 
@@ -88,6 +88,6 @@ def validate_register_response(public_key, signed_resp, max_age=60 * 15):
         encode_str(signed_resp),
         max_age)))
     return {
-        'agent_id': uuid.UUID(rv['agent_id']),
-        'token': rv['token'],
+        'relay_id': uuid.UUID(rv['i']),
+        'token': rv['t'],
     }

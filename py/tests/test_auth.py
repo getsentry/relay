@@ -11,22 +11,22 @@ def test_basic_key_functions():
 
 
 def test_challenge_response():
-    resp = smith.create_register_challenge('scytiiMDtFO8GfpMHYvOs0Ue7mvb_jZmN7dAPb70KS_nu1FH3UuiZ0LsbLDu35_r5ohSqdD0llvsSZLTRmflDQ.eyJ0IjoiMjAxOC0wMi0yMlQyMzoxMDoyNy40MTQ0NjVaIiwiZCI6eyJhZ2VudF9pZCI6ImExNDEyNjIwLWIxNDgtNDJiOS1iNmFmLTZlM2YzYmFlMDhkYSIsInB1YmxpY19rZXkiOiJyQm5HbEU0czc5c1FJaGtraDE0aGRBSExTNlhsc1A0LUQxSmxFRXZ5aG1zIn19',  max_age=0xffffffff)
-    assert str(resp['public_key']) == 'rBnGlE4s79sQIhkkh14hdAHLS6XlsP4-D1JlEEvyhms'
-    assert resp['agent_id'] == uuid.UUID('a1412620-b148-42b9-b6af-6e3f3bae08da')
+    resp = smith.create_register_challenge('JGk9dBcPbu8YVeoLorihRdjs-p0f1x-GTsjjEDwEAyQX6kVV438SjnGY7mmWc0N2TE8Ll2tBHeCIZAOVPbxIDg.eyJ0IjoiMjAxOC0wMi0yN1QxMDoxNjoxNC42ODEwOTJaIiwiZCI6eyJpIjoiNjBhYWIyYjktYzYwMS00ODNlLWEzOGMtZTBjNmU3YTUzMTg1IiwicCI6InFPVkhTYkhOZmdFT3ZCc1d0NF82T2ZmRnVsZzBaTGZSZ0UzNU1WRWlQdEEifX0', max_age=0xffffffff)
+    assert str(resp['public_key']) == 'qOVHSbHNfgEOvBsWt4_6OffFulg0ZLfRgE35MVEiPtA'
+    assert resp['relay_id'] == uuid.UUID('60aab2b9-c601-483e-a38c-e0c6e7a53185')
     assert len(resp['token']) > 40
 
 
 def test_challenge_response_validation_errors():
     with pytest.raises(smith.UnpackErrorSignatureExpired):
-        smith.create_register_challenge('scytiiMDtFO8GfpMHYvOs0Ue7mvb_jZmN7dAPb70KS_nu1FH3UuiZ0LsbLDu35_r5ohSqdD0llvsSZLTRmflDQ.eyJ0IjoiMjAxOC0wMi0yMlQyMzoxMDoyNy40MTQ0NjVaIiwiZCI6eyJhZ2VudF9pZCI6ImExNDEyNjIwLWIxNDgtNDJiOS1iNmFmLTZlM2YzYmFlMDhkYSIsInB1YmxpY19rZXkiOiJyQm5HbEU0czc5c1FJaGtraDE0aGRBSExTNlhsc1A0LUQxSmxFRXZ5aG1zIn19', max_age=1)
+        smith.create_register_challenge('JGk9dBcPbu8YVeoLorihRdjs-p0f1x-GTsjjEDwEAyQX6kVV438SjnGY7mmWc0N2TE8Ll2tBHeCIZAOVPbxIDg.eyJ0IjoiMjAxOC0wMi0yN1QxMDoxNjoxNC42ODEwOTJaIiwiZCI6eyJpIjoiNjBhYWIyYjktYzYwMS00ODNlLWEzOGMtZTBjNmU3YTUzMTg1IiwicCI6InFPVkhTYkhOZmdFT3ZCc1d0NF82T2ZmRnVsZzBaTGZSZ0UzNU1WRWlQdEEifX0', max_age=1)
 
     with pytest.raises(smith.UnpackErrorBadData):
-        smith.create_register_challenge('scytiiMDtFO8GfpMHYvOs0Ue7mvb_jZmN7dAPb70KS_nu1FH3UuiZ0LsbLDu35_r5ohSqdD0llvsSZLTRmflDQ.eyJ0IjoiMjAxOC0wMi0yMlQyMzoxMDoyNy40MTQ0NjVaIiwiZCI6eyJhZ2VudF9pZCI6ImExNDEyNjIwLWIxNDgtNDJiOS1iNmFmLTZlM2YzYmFlMDhkYSIsInB1YmxpY19rZXkiOiJyQm5HbEU0czc5c1FJaGtraDE0aGRBSExTNlhsc1A0LUQxSmxFRXZ5aG1zIn19addedcraphere')
+        smith.create_register_challenge('JGk9dBcPbu8YVeoLorihRdjs-p0f1x-GTsjjEDwEAyQX6kVV438SjnGY7mmWc0N2TE8Ll2tBHeCIZAOVPbxIDg.eyJ0IjoiMjAxOC0wMi0yN1QxMDoxNjoxNC42ODEwOTJaIiwiZCI6eyJpIjoiNjBhYWIyYjktYzYwMS00ODNlLWEzOGMtZTBjNmU3YTUzMTg1IiwicCI6InFPVkhTYkhOZmdFT3ZCc1d0NF82T2ZmRnVsZzBaTGZSZ0UzNU1WRWlQdEEifX0addedcrapheres')
 
 
 def test_register_response():
-    pk = smith.PublicKey.parse('cv_JmtmGfMlpX82UCHwB8txCNm4kOQX8f8dMYEQv7Ts')
-    resp = smith.validate_register_response(pk, 'zgm-GMnQgFVaFG9qyGBsrZvHFnf-n1A4xg5n_NrRm0GKZthQFOcjDUsMvcytMY6ivmUaVjTL-Y1zmwEl5jGCBQ.eyJ0IjoiMjAxOC0wMi0yMlQyMzoyODowMC42NjcxOTlaIiwiZCI6eyJhZ2VudF9pZCI6IjdkNGY2M2Q2LTVmZGUtNGEyMS1iMmQ2LTY4OGViNGZhNTM1MCIsInRva2VuIjoiNzU1amVyWlh6bTZ5ZFAwRWg0ZmJRcmRJbTB4ZXVWNkR3NlZCbGNJUTF4QmZZYUlBRWsxNjBSNW1WdHVWYXdxWF82OU5RWnJKcHFKMUVRdktZc0VzWVEifX0', max_age=0xffffffff)
-    assert resp['token'] == '755jerZXzm6ydP0Eh4fbQrdIm0xeuV6Dw6VBlcIQ1xBfYaIAEk160R5mVtuVawqX_69NQZrJpqJ1EQvKYsEsYQ'
-    assert resp['agent_id'] == uuid.UUID('7d4f63d6-5fde-4a21-b2d6-688eb4fa5350')
+    pk = smith.PublicKey.parse('JsdkHWQ-H9-4kag2ybbyuahCEF2VAg3zf6kXpo-mj3A')
+    resp = smith.validate_register_response(pk, 'NA5wJRV4a6-w7cFx14Krb3bBUowI0foNcV92s1yFa08_3KDPw4aDsM6ipfJkLjBozgRX0ws-7rvy_cA8771ADg.eyJ0IjoiMjAxOC0wMi0yN1QxMDo1ODo0NC4wMzIzMzZaIiwiZCI6eyJpIjoiZDcyNjIyOTItNzJkYy00MmMzLWI2NzctY2Q0YTFjZGMwMTJjIiwidCI6IkxfcmlZSi1QSEhrdy1QalVvYjRYV05fMnI1NXprR3pBQzlVR3dwcU5XRnhxNHFlWFJscUJmdGhQX3hRSjg0MnIxU3A0QUZVNUVvcDNPT25CMm1RNUpBIn19', max_age=0xffffffff)
+    assert resp['token'] == 'L_riYJ-PHHkw-PjUob4XWN_2r55zkGzAC9UGwpqNWFxq4qeXRlqBfthP_xQJ842r1Sp4AFU5Eop3OOnB2mQ5JA'
+    assert resp['relay_id'] == uuid.UUID('d7262292-72dc-42c3-b677-cd4a1cdc012c')

@@ -24,15 +24,15 @@ pub struct AuthError;
 
 pub(crate) fn spawn_authenticator(ctx: &TroveContext) {
     debug!("Starting authenticator");
-    check_agent_state(ctx);
+    check_relay_state(ctx);
 }
 
-fn check_agent_state(ctx: &TroveContext) {
+fn check_relay_state(ctx: &TroveContext) {
     let mut state = AuthState::Unknown;
 
     let config = &ctx.state().config;
-    let reg_req = RegisterRequest::new(config.agent_id(), config.public_key());
-    let req = config.prepare_aorta_req(Method::Post, "agents/", &reg_req);
+    let reg_req = RegisterRequest::new(config.relay_id(), config.public_key());
+    let req = config.prepare_aorta_req(Method::Post, "relays/", &reg_req);
     let work = ctx.http_client().request(req).and_then(|res| {
         println!("Response: {}", res.status());
 

@@ -14,8 +14,8 @@ use chrono::{DateTime, Duration, Utc};
 
 static INIT_SODIUMOXIDE_RNG: Once = ONCE_INIT;
 
-/// Alias for agent IDs (UUIDs)
-pub type AgentId = Uuid;
+/// Alias for relay IDs (UUIDs)
+pub type RelayId = Uuid;
 
 /// Calls to sodiumoxide that need the RNG need to go through this
 /// wrapper as otherwise thread safety cannot be guarnateed.
@@ -48,7 +48,7 @@ pub enum UnpackError {
     BadSignature,
     /// Raised if deserializing of data failed.
     #[fail(display = "could not deserialize payload")]
-    BadPayload(serde_json::Error),
+    BadPayload(#[cause] serde_json::Error),
     /// Raised on unpacking if the data is too old.
     #[fail(display = "signature is too old")]
     SignatureExpired,
@@ -67,7 +67,7 @@ pub struct Packed<D> {
     pub data: D,
 }
 
-/// Represents the public key of an agent.
+/// Represents the public key of an relay.
 ///
 /// Public keys are based on ed25519 but this should be considered an
 /// implementation detail for now.  We only ever represent public keys
@@ -77,7 +77,7 @@ pub struct PublicKey {
     inner: sign_backend::PublicKey,
 }
 
-/// Represents the secret key of an agent.
+/// Represents the secret key of an relay.
 ///
 /// Secret keys are based on ed25519 but this should be considered an
 /// implementation detail for now.  We only ever represent public keys
@@ -89,26 +89,32 @@ pub struct SecretKey {
 
 /// Represents a challenge request.
 ///
-/// This is created if the agent signs in for the first time.  The server needs
+/// This is created if the relay signs in for the first time.  The server needs
 /// to respond to this challenge with a unique token that is then used to sign
 /// the response.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterRequest {
-    agent_id: AgentId,
+    #[serde(rename="i")]
+    relay_id: RelayId,
+    #[serde(rename="p")]
     public_key: PublicKey,
 }
 
 /// Represents the response the server is supposed to send to a register request.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterChallenge {
-    agent_id: AgentId,
+    #[serde(rename="i")]
+    relay_id: RelayId,
+    #[serde(rename="t")]
     token: String,
 }
 
 /// Represents a response to a register challenge
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterResponse {
-    agent_id: AgentId,
+    #[serde(rename="i")]
+    relay_id: RelayId,
+    #[serde(rename="t")]
     token: String,
 }
 
@@ -284,8 +290,8 @@ impl fmt::Debug for PublicKey {
 
 impl_str_serialization!(PublicKey, "a public key");
 
-/// Generates an agent ID.
-pub fn generate_agent_id() -> AgentId {
+/// Generates an relay ID.
+pub fn generate_relay_id() -> RelayId {
     Uuid::new_v4()
 }
 
@@ -298,10 +304,10 @@ pub fn generate_key_pair() -> (SecretKey, PublicKey) {
 }
 
 impl RegisterRequest {
-    /// Creates a new request to register an agent upstream.
-    pub fn new(agent_id: &AgentId, public_key: &PublicKey) -> RegisterRequest {
+    /// Creates a new request to register an relay upstream.
+    pub fn new(relay_id: &RelayId, public_key: &PublicKey) -> RegisterRequest {
         RegisterRequest {
-            agent_id: agent_id.clone(),
+            relay_id: relay_id.clone(),
             public_key: public_key.clone(),
         }
     }
@@ -319,12 +325,12 @@ impl RegisterRequest {
         pk.unpack(data, max_age)
     }
 
-    /// Returns the agent ID of the registering agent.
-    pub fn agent_id(&self) -> &AgentId {
-        &self.agent_id
+    /// Returns the relay ID of the registering relay.
+    pub fn relay_id(&self) -> &RelayId {
+        &self.relay_id
     }
 
-    /// Returns the new public key of registering agent.
+    /// Returns the new public key of registering relay.
     pub fn public_key(&self) -> &PublicKey {
         &self.public_key
     }
@@ -336,16 +342,16 @@ impl RegisterRequest {
         rng.fill_bytes(&mut bytes);
         let token = base64::encode_config(&bytes, base64::URL_SAFE_NO_PAD);
         RegisterChallenge {
-            agent_id: self.agent_id.clone(),
+            relay_id: self.relay_id.clone(),
             token: token,
         }
     }
 }
 
 impl RegisterChallenge {
-    /// Returns the agent ID of the registering agent.
-    pub fn agent_id(&self) -> &AgentId {
-        &self.agent_id
+    /// Returns the relay ID of the registering relay.
+    pub fn relay_id(&self) -> &RelayId {
+        &self.relay_id
     }
 
     /// Returns the token that needs signing.
@@ -356,16 +362,16 @@ impl RegisterChallenge {
     /// Creates a register response.
     pub fn create_response(&self) -> RegisterResponse {
         RegisterResponse {
-            agent_id: self.agent_id.clone(),
+            relay_id: self.relay_id.clone(),
             token: self.token.clone(),
         }
     }
 }
 
 impl RegisterResponse {
-    /// Returns the agent ID of the registering agent.
-    pub fn agent_id(&self) -> &AgentId {
-        &self.agent_id
+    /// Returns the relay ID of the registering relay.
+    pub fn relay_id(&self) -> &RelayId {
+        &self.relay_id
     }
 
     /// Returns the token that needs signing.
@@ -450,33 +456,33 @@ fn test_registration() {
     let max_age = Duration::minutes(15);
 
     // initial setup
-    let agent_id = generate_agent_id();
+    let relay_id = generate_relay_id();
     let (sk, pk) = generate_key_pair();
 
     // create a register request
-    let reg_req = RegisterRequest::new(&agent_id, &pk);
+    let reg_req = RegisterRequest::new(&relay_id, &pk);
 
     // sign it
     let signed_reg_req = sk.pack(&reg_req);
 
     // attempt to get the data unsigned unsafe
     let reg_req_packed = Packed::<RegisterRequest>::unpack_unsafe(&signed_reg_req).unwrap();
-    assert_eq!(reg_req_packed.data.agent_id(), &agent_id);
+    assert_eq!(reg_req_packed.data.relay_id(), &relay_id);
     assert_eq!(reg_req_packed.data.public_key(), &pk);
 
     // unsign it properly now
     let reg_req: RegisterRequest = pk.unpack(&signed_reg_req, Some(max_age)).unwrap();
-    assert_eq!(reg_req.agent_id(), &agent_id);
+    assert_eq!(reg_req.relay_id(), &relay_id);
     assert_eq!(reg_req.public_key(), &pk);
 
     // use the shortcut.
     let reg_req = RegisterRequest::bootstrap_unpack(&signed_reg_req, Some(max_age)).unwrap();
-    assert_eq!(reg_req.agent_id(), &agent_id);
+    assert_eq!(reg_req.relay_id(), &relay_id);
     assert_eq!(reg_req.public_key(), &pk);
 
     // create a challenge
     let challenge = reg_req.create_challenge();
-    assert_eq!(challenge.agent_id(), &agent_id);
+    assert_eq!(challenge.relay_id(), &relay_id);
     assert!(challenge.token().len() > 40);
 
     // create a response from the challenge
@@ -484,7 +490,10 @@ fn test_registration() {
 
     // sign and unsign it
     let signed_reg_resp = sk.pack(&reg_resp);
+    println!("{}", &pk);
+    println!("{}", &signed_reg_resp);
     let reg_resp: RegisterResponse = pk.unpack(&signed_reg_resp, Some(max_age)).unwrap();
-    assert_eq!(reg_resp.agent_id(), &agent_id);
+    assert_eq!(reg_resp.relay_id(), &relay_id);
     assert_eq!(reg_resp.token(), challenge.token());
+    panic!();
 }

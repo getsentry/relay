@@ -1,4 +1,4 @@
-//! Implements the agent <-> backend protocol.
+//! Implements the relay <-> backend protocol.
 extern crate base64;
 extern crate chrono;
 extern crate failure;

@@ -140,7 +140,7 @@ impl ProjectState {
 
     /// The direct upstream that reported the snapshot.
     ///
-    /// Currently an agent only ever has one trove and that trove can only have
+    /// Currently an relay only ever has one trove and that trove can only have
     /// one upstream descriptor.  As a result of this, this descriptor will always
     /// match the one of the trove which holds the project state.
     pub fn upstream(&self) -> &UpstreamDescriptor {
@@ -232,8 +232,8 @@ impl ProjectState {
     /// Sets a "project does not exist" snapshot.
     ///
     /// This is used when the server indicates that this project does not actually
-    /// exist or the agent has no permissions to work with it (these are both
-    /// reported as the same thing to the agent).
+    /// exist or the relay has no permissions to work with it (these are both
+    /// reported as the same thing to the relay).
     pub fn set_missing_snapshot(&self) {
         self.set_snapshot(ProjectStateSnapshot {
             last_fetch: Utc::now(),

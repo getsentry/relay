@@ -17,7 +17,7 @@ pub enum DsnParseError {
 
 /// Represents the scheme of an url http/https.
 ///
-/// This holds schemes that are supported by sentry and agents.
+/// This holds schemes that are supported by sentry and relays.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Scheme {
     Http,

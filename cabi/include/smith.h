@@ -52,19 +52,19 @@ typedef struct {
 } SmithStr;
 
 /*
- * Represents a uuid.
- */
-typedef struct {
-  uint8_t data[16];
-} SmithUuid;
-
-/*
  * Represents a key pair from key generation.
  */
 typedef struct {
   SmithPublicKey *public_key;
   SmithSecretKey *secret_key;
 } SmithKeyPair;
+
+/*
+ * Represents a uuid.
+ */
+typedef struct {
+  uint8_t data[16];
+} SmithUuid;
 
 /*
  * Frees a smith buf.
@@ -105,14 +105,14 @@ SmithErrorCode smith_err_get_last_code(void);
 SmithStr smith_err_get_last_message(void);
 
 /*
- * Randomly generates an agent id
- */
-SmithUuid smith_generate_agent_id(void);
-
-/*
  * Generates a secret, public key pair.
  */
 SmithKeyPair smith_generate_key_pair(void);
+
+/*
+ * Randomly generates an relay id
+ */
+SmithUuid smith_generate_relay_id(void);
 
 /*
  * Initializes the library

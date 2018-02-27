@@ -4,7 +4,7 @@ use hyper::header::{ContentLength, ContentType};
 use serde::Serialize;
 use serde_json;
 
-use auth::{AgentId, PublicKey, SecretKey};
+use auth::{RelayId, PublicKey, SecretKey};
 use upstream::UpstreamDescriptor;
 
 /// Holds common config values that affect the aorta behavior.
@@ -18,8 +18,8 @@ pub struct AortaConfig {
     pub snapshot_expiry: Duration,
     /// The upstream descriptor for this aorta
     pub upstream: UpstreamDescriptor<'static>,
-    /// The agent ID.
-    pub agent_id: Option<AgentId>,
+    /// The relay ID.
+    pub relay_id: Option<RelayId>,
     /// The private key for authentication.
     pub secret_key: Option<SecretKey>,
     /// The public key for authentication.
@@ -31,7 +31,7 @@ impl Default for AortaConfig {
         AortaConfig {
             snapshot_expiry: Duration::seconds(60),
             upstream: Default::default(),
-            agent_id: None,
+            relay_id: None,
             secret_key: None,
             public_key: None,
         }
@@ -39,11 +39,11 @@ impl Default for AortaConfig {
 }
 
 impl AortaConfig {
-    /// Returns the agent id or panics.
-    pub fn agent_id(&self) -> &AgentId {
-        self.agent_id
+    /// Returns the relay id or panics.
+    pub fn relay_id(&self) -> &RelayId {
+        self.relay_id
             .as_ref()
-            .expect("agent id must be set on aorta config")
+            .expect("relay id must be set on aorta config")
     }
 
     /// Returns the public key or panics.
@@ -77,7 +77,7 @@ impl AortaConfig {
         let signature = self.secret_key().sign(&json);
         {
             let headers = req.headers_mut();
-            headers.set_raw("X-Sentry-Agent-Signature", signature);
+            headers.set_raw("X-Sentry-Relay-Signature", signature);
             headers.set(ContentType::json());
             headers.set(ContentLength(json.len() as u64));
         }

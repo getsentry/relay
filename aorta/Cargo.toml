@@ -1,6 +1,6 @@
 [package]
 authors = ["Sentry <hello@sentry.io>"]
-description = "The agent <-> backend communcation and authentication protocol"
+description = "The relay <-> backend communcation and authentication protocol"
 documentation = "https://docs.rs/smith-common"
 homepage = "https://github.com/getsentry/sentry-relay"
 license = "MIT"

@@ -9,7 +9,7 @@ use std::net::{IpAddr, SocketAddr};
 use log;
 use serde_yaml;
 use chrono::Duration;
-use smith_aorta::{generate_agent_id, generate_key_pair, AgentId, AortaConfig, PublicKey,
+use smith_aorta::{generate_relay_id, generate_key_pair, RelayId, AortaConfig, PublicKey,
                   SecretKey, UpstreamDescriptor};
 
 /// Indicates config related errors.
@@ -26,13 +26,13 @@ pub enum ConfigError {
     BadYaml(#[cause] serde_yaml::Error),
 }
 
-/// Agent specific configuration values.
+/// Relay specific configuration values.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Agent {
+struct Relay {
     secret_key: Option<SecretKey>,
     public_key: Option<PublicKey>,
-    id: Option<AgentId>,
+    id: Option<RelayId>,
     upstream: UpstreamDescriptor<'static>,
     host: IpAddr,
     port: u16,
@@ -52,9 +52,9 @@ struct Aorta {
     snapshot_expiry: u32,
 }
 
-impl Default for Agent {
-    fn default() -> Agent {
-        Agent {
+impl Default for Relay {
+    fn default() -> Relay {
+        Relay {
             secret_key: None,
             public_key: None,
             id: None,
@@ -88,7 +88,7 @@ impl Default for Aorta {
 pub struct Config {
     #[serde(skip, default)] changed: bool,
     #[serde(skip, default = "PathBuf::new")] filename: PathBuf,
-    #[serde(default)] agent: Agent,
+    #[serde(default)] relay: Relay,
     #[serde(default)] aorta: Aorta,
     #[serde(default)] logging: Logging,
 }
@@ -151,12 +151,12 @@ impl Config {
         &self.filename
     }
 
-    /// Regenerates the agent credentials.
+    /// Regenerates the relay credentials.
     pub fn regenerate_credentials(&mut self) {
         let (sk, pk) = generate_key_pair();
-        self.agent.secret_key = Some(sk);
-        self.agent.public_key = Some(pk);
-        self.agent.id = Some(generate_agent_id());
+        self.relay.secret_key = Some(sk);
+        self.relay.public_key = Some(pk);
+        self.relay.id = Some(generate_relay_id());
         self.changed = true;
     }
 
@@ -167,33 +167,33 @@ impl Config {
 
     /// Returns `true` if the config is ready to use.
     pub fn is_configured(&self) -> bool {
-        self.agent.secret_key.is_some() && self.agent.public_key.is_some()
-            && self.agent.id.is_some()
+        self.relay.secret_key.is_some() && self.relay.public_key.is_some()
+            && self.relay.id.is_some()
     }
 
     /// Returns the secret key if set.
     pub fn secret_key(&self) -> &SecretKey {
-        self.agent.secret_key.as_ref().unwrap()
+        self.relay.secret_key.as_ref().unwrap()
     }
 
     /// Returns the public key if set.
     pub fn public_key(&self) -> &PublicKey {
-        self.agent.public_key.as_ref().unwrap()
+        self.relay.public_key.as_ref().unwrap()
     }
 
-    /// Returns the agent ID.
-    pub fn agent_id(&self) -> &AgentId {
-        self.agent.id.as_ref().unwrap()
+    /// Returns the relay ID.
+    pub fn relay_id(&self) -> &RelayId {
+        self.relay.id.as_ref().unwrap()
     }
 
     /// Returns the upstream target as descriptor.
     pub fn upstream_descriptor(&self) -> &UpstreamDescriptor {
-        &self.agent.upstream
+        &self.relay.upstream
     }
 
     /// Returns the listen address
     pub fn listen_addr(&self) -> SocketAddr {
-        (self.agent.host, self.agent.port).into()
+        (self.relay.host, self.relay.port).into()
     }
 
     /// Returns the log level.
@@ -211,7 +211,7 @@ impl Config {
         Arc::new(AortaConfig {
             snapshot_expiry: self.aorta_snapshot_expiry(),
             upstream: self.upstream_descriptor().clone().into_owned(),
-            agent_id: Some(self.agent_id().clone()),
+            relay_id: Some(self.relay_id().clone()),
             secret_key: Some(self.secret_key().clone()),
             public_key: Some(self.public_key().clone()),
         })

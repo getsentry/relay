@@ -111,7 +111,7 @@ impl Trove {
     ///
     /// Note that project states are also created if snapshots cannot be retrieved
     /// from upstream because the upstream is down or because the project does in
-    /// fact not exist or the agent has no permissions to access the data.
+    /// fact not exist or the relay has no permissions to access the data.
     pub fn state_for_project(&self, project_id: ProjectId) -> Arc<ProjectState> {
         // state already exists, return it.
         {

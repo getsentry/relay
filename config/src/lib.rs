@@ -1,4 +1,4 @@
-//! Config system for the agent.
+//! Config system for the relay.
 extern crate chrono;
 extern crate failure;
 #[macro_use]

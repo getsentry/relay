@@ -1,4 +1,4 @@
-//! Common functionality for the sentry agent.
+//! Common functionality for the sentry relay.
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
