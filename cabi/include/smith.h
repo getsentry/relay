@@ -116,6 +116,12 @@ SmithKeyPair smith_generate_key_pair(void);
 SmithUuid smith_generate_relay_id(void);
 
 /*
+ * Given just the data from a register response returns the
+ * conained relay id without validating the signature.
+ */
+SmithUuid smith_get_register_response_relay_id(const SmithBuf *data);
+
+/*
  * Initializes the library
  */
 void smith_init(void);

@@ -348,6 +348,12 @@ impl RegisterChallenge {
 }
 
 impl RegisterResponse {
+    /// Loads the register response without validating.
+    pub fn unpack_unsafe(data: &[u8]) -> Result<RegisterResponse, UnpackError> {
+        let packed = Packed::<RegisterResponse>::unpack_unsafe(data)?;
+        Ok(packed.data)
+    }
+
     /// Returns the relay ID of the registering relay.
     pub fn relay_id(&self) -> &RelayId {
         &self.relay_id

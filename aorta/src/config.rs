@@ -2,7 +2,6 @@ use chrono::Duration;
 use hyper::{Method, Request, Uri};
 use hyper::header::{ContentLength, ContentType};
 use serde::Serialize;
-use serde_json;
 
 use auth::{RelayId, PublicKey, SecretKey};
 use upstream::UpstreamDescriptor;
@@ -73,8 +72,7 @@ impl AortaConfig {
     /// Prepares a JSON bodied API request to aorta with signature.
     pub fn prepare_aorta_req<S: Serialize>(&self, method: Method, path: &str, body: &S) -> Request {
         let mut req = Request::new(method, self.get_api_uri(path));
-        let json = serde_json::to_vec(body).unwrap();
-        let signature = self.secret_key().sign(&json);
+        let (json, signature) = self.secret_key().pack(body);
         {
             let headers = req.headers_mut();
             headers.set_raw("X-Sentry-Relay-Signature", signature);

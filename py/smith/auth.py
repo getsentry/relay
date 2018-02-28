@@ -7,7 +7,7 @@ from smith.utils import RustObject, encode_str, decode_str, decode_uuid, \
 
 
 __all__ = ['PublicKey', 'SecretKey', 'generate_key_pair',
-           'create_register_challenge',
+           'create_register_challenge', 'get_register_response_relay_id',
            'validate_register_response']
 
 
@@ -80,6 +80,11 @@ def create_register_challenge(data, signature, max_age=60 * 15):
         'public_key': PublicKey.parse(rv['public_key']),
         'token': rv['token'],
     }
+
+
+def get_register_response_relay_id(data):
+    return decode_uuid(rustcall(
+        lib.smith_get_register_response_relay_id, make_buf(data)))
 
 
 def validate_register_response(public_key, data, signature, max_age=60 * 15):

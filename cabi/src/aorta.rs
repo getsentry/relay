@@ -135,6 +135,16 @@ ffi_fn! {
     }
 }
 
+ffi_fn! {
+    /// Given just the data from a register response returns the
+    /// conained relay id without validating the signature.
+    unsafe fn smith_get_register_response_relay_id(data: *const SmithBuf)
+        -> Result<SmithUuid>
+    {
+        Ok(SmithUuid::new(*RegisterResponse::unpack_unsafe((*data).as_bytes())?.relay_id()))
+    }
+}
+
 #[derive(Serialize)]
 struct SmithRegisterResponse {
     pub relay_id: Uuid,

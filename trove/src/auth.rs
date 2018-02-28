@@ -32,7 +32,7 @@ fn check_relay_state(ctx: &TroveContext) {
 
     let config = &ctx.state().config;
     let reg_req = RegisterRequest::new(config.relay_id(), config.public_key());
-    let req = config.prepare_aorta_req(Method::Post, "relays/", &reg_req);
+    let req = config.prepare_aorta_req(Method::Post, "relays/register/challenge/", &reg_req);
     let work = ctx.http_client().request(req).and_then(|res| {
         println!("Response: {}", res.status());
 
