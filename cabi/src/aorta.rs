@@ -111,12 +111,9 @@ ffi_fn! {
 }
 
 #[derive(Serialize)]
-struct CombinedChallengeResult {
-    #[serde(rename="i")]
+struct SmithChallengeResult {
     pub relay_id: Uuid,
-    #[serde(rename="p")]
     pub public_key: PublicKey,
-    #[serde(rename="t")]
     pub token: String,
 }
 
@@ -129,12 +126,18 @@ ffi_fn! {
         let max_age = Duration::seconds(max_age as i64);
         let req = RegisterRequest::bootstrap_unpack((*signed_req).as_str(), Some(max_age))?;
         let challenge = req.create_challenge();
-        Ok(SmithStr::from_string(serde_json::to_string(&CombinedChallengeResult {
+        Ok(SmithStr::from_string(serde_json::to_string(&SmithChallengeResult {
             relay_id: req.relay_id().clone(),
             public_key: req.public_key().clone(),
             token: challenge.token().to_string(),
         })?))
     }
+}
+
+#[derive(Serialize)]
+struct SmithRegisterResponse {
+    pub relay_id: Uuid,
+    pub token: String,
 }
 
 ffi_fn! {
@@ -147,6 +150,9 @@ ffi_fn! {
         let max_age = Duration::seconds(max_age as i64);
         let pk = &*(pk as *const PublicKey);
         let reg_resp: RegisterResponse = pk.unpack((*signed_resp).as_str(), Some(max_age))?;
-        Ok(SmithStr::from_string(serde_json::to_string(&reg_resp)?))
+        Ok(SmithStr::from_string(serde_json::to_string(&SmithRegisterResponse {
+            relay_id: reg_resp.relay_id().clone(),
+            token: reg_resp.token().to_string(),
+        })?))
     }
 }

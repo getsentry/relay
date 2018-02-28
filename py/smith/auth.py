@@ -75,9 +75,9 @@ def create_register_challenge(signed_req, max_age=60 * 15):
     rv = json.loads(decode_str(rustcall(
         lib.smith_create_register_challenge, encode_str(signed_req), max_age)))
     return {
-        'relay_id': uuid.UUID(rv['i']),
-        'public_key': PublicKey.parse(rv['p']),
-        'token': rv['t'],
+        'relay_id': uuid.UUID(rv['relay_id']),
+        'public_key': PublicKey.parse(rv['public_key']),
+        'token': rv['token'],
     }
 
 
@@ -88,6 +88,6 @@ def validate_register_response(public_key, signed_resp, max_age=60 * 15):
         encode_str(signed_resp),
         max_age)))
     return {
-        'relay_id': uuid.UUID(rv['i']),
-        'token': rv['t'],
+        'relay_id': uuid.UUID(rv['relay_id']),
+        'token': rv['token'],
     }
