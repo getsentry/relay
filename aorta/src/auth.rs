@@ -40,9 +40,6 @@ pub enum KeyParseError {
 /// Raised to indicate failure on unpacking.
 #[derive(Debug, Fail)]
 pub enum UnpackError {
-    /// Raised if signature or payload are missing
-    #[fail(display = "could not unpack because of bad data")]
-    BadData,
     /// Raised if the signature is invalid.
     #[fail(display = "invalid signature on data")]
     BadSignature,
@@ -60,10 +57,8 @@ pub enum UnpackError {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Packed<D> {
     /// The timestamp of when the data was packed and signed.
-    #[serde(rename = "t")]
     pub timestamp: DateTime<Utc>,
     /// The payload of the packed structure.
-    #[serde(rename = "d")]
     pub data: D,
 }
 
@@ -94,27 +89,21 @@ pub struct SecretKey {
 /// the response.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterRequest {
-    #[serde(rename="i")]
     relay_id: RelayId,
-    #[serde(rename="p")]
     public_key: PublicKey,
 }
 
 /// Represents the response the server is supposed to send to a register request.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterChallenge {
-    #[serde(rename="i")]
     relay_id: RelayId,
-    #[serde(rename="t")]
     token: String,
 }
 
 /// Represents a response to a register challenge
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterResponse {
-    #[serde(rename="i")]
     relay_id: RelayId,
-    #[serde(rename="t")]
     token: String,
 }
 
@@ -125,10 +114,12 @@ impl SecretKey {
         base64::encode_config(&sig.0[..], base64::URL_SAFE_NO_PAD)
     }
 
-    /// Signs some serializable data and packs it.  In addition to just
-    /// signing it adds a wrapper around the payload that contains a
-    /// timestamp.
-    pub fn pack<S: Serialize>(&self, data: S) -> String {
+    /// Signs some serializable data and packs it.
+    ///
+    /// This puts a wrapper with a timestamp around the data, encodes it to
+    /// json, serializes and signs it.  The return value is
+    /// `(packed, signature)`.
+    pub fn pack<S: Serialize>(&self, data: S) -> (Vec<u8>, String) {
         // this can only fail if we deal with badly formed data.  In that case we
         // consider that a panic.  Should not happen.
         let packed = Packed {
@@ -137,11 +128,7 @@ impl SecretKey {
         };
         let json = serde_json::to_vec(&packed).expect("attempted to pack non json safe data");
         let sig = self.sign(&json);
-        format!(
-            "{}.{}",
-            sig,
-            base64::encode_config(&json, base64::URL_SAFE_NO_PAD)
-        )
+        (json, sig)
     }
 }
 
@@ -203,15 +190,11 @@ impl PublicKey {
     /// Unpacks signed data and returns it with the packed wrapper.
     pub fn unpack_wrapper<D: DeserializeOwned>(
         &self,
-        data: &str,
+        data: &[u8],
+        signature: &str,
     ) -> Result<Packed<D>, UnpackError> {
-        let mut pieces = data.splitn(2, '.');
-        let sig = pieces.next().ok_or(UnpackError::BadData)?;
-        let payload = pieces.next().ok_or(UnpackError::BadData)?;
-        let payload_bytes = base64::decode_config(payload, base64::URL_SAFE_NO_PAD)
-            .map_err(|_| UnpackError::BadData)?;
-        if self.verify(&payload_bytes, sig) {
-            serde_json::from_slice(&payload_bytes).map_err(UnpackError::BadPayload)
+        if self.verify(&data, signature) {
+            serde_json::from_slice(&data).map_err(UnpackError::BadPayload)
         } else {
             Err(UnpackError::BadSignature)
         }
@@ -223,10 +206,11 @@ impl PublicKey {
     /// If no `max_age` is set, the embedded timestamp does not get validated.
     pub fn unpack<D: DeserializeOwned>(
         &self,
-        data: &str,
+        data: &[u8],
+        signature: &str,
         max_age: Option<Duration>,
     ) -> Result<D, UnpackError> {
-        let rv: Packed<D> = self.unpack_wrapper(data)?;
+        let rv: Packed<D> = self.unpack_wrapper(data, signature)?;
         if max_age.is_none() || rv.timestamp >= (Utc::now() - max_age.unwrap()) {
             Ok(rv.data)
         } else {
@@ -240,13 +224,8 @@ impl<D: DeserializeOwned> Packed<D> {
     ///
     /// This can be used for bootstrapping purposes where looking into the
     /// payload is necessary as the public key is not known yet.
-    pub fn unpack_unsafe(data: &str) -> Result<Packed<D>, UnpackError> {
-        let mut pieces = data.splitn(2, '.');
-        let _ = pieces.next().ok_or(UnpackError::BadData)?;
-        let payload = pieces.next().ok_or(UnpackError::BadData)?;
-        let payload_bytes = base64::decode_config(payload, base64::URL_SAFE_NO_PAD)
-            .map_err(|_| UnpackError::BadData)?;
-        serde_json::from_slice(&payload_bytes).map_err(UnpackError::BadPayload)
+    pub fn unpack_unsafe(data: &[u8]) -> Result<Packed<D>, UnpackError> {
+        serde_json::from_slice(&data).map_err(UnpackError::BadPayload)
     }
 }
 
@@ -317,12 +296,12 @@ impl RegisterRequest {
     /// This unpacks the embedded public key first, then verifies if the
     /// self signature was made by that public key.  If all is well then
     /// the data is returned.
-    pub fn bootstrap_unpack(data: &str, max_age: Option<Duration>)
+    pub fn bootstrap_unpack(data: &[u8], signature: &str, max_age: Option<Duration>)
         -> Result<RegisterRequest, UnpackError>
     {
         let packed = Packed::<RegisterRequest>::unpack_unsafe(data)?;
         let pk = packed.data.public_key();
-        pk.unpack(data, max_age)
+        pk.unpack(data, signature, max_age)
     }
 
     /// Returns the relay ID of the registering relay.
@@ -463,20 +442,20 @@ fn test_registration() {
     let reg_req = RegisterRequest::new(&relay_id, &pk);
 
     // sign it
-    let signed_reg_req = sk.pack(&reg_req);
+    let (reg_req_bytes, reg_req_sig) = sk.pack(&reg_req);
 
     // attempt to get the data unsigned unsafe
-    let reg_req_packed = Packed::<RegisterRequest>::unpack_unsafe(&signed_reg_req).unwrap();
+    let reg_req_packed = Packed::<RegisterRequest>::unpack_unsafe(&reg_req_bytes).unwrap();
     assert_eq!(reg_req_packed.data.relay_id(), &relay_id);
     assert_eq!(reg_req_packed.data.public_key(), &pk);
 
     // unsign it properly now
-    let reg_req: RegisterRequest = pk.unpack(&signed_reg_req, Some(max_age)).unwrap();
+    let reg_req: RegisterRequest = pk.unpack(&reg_req_bytes, &reg_req_sig, Some(max_age)).unwrap();
     assert_eq!(reg_req.relay_id(), &relay_id);
     assert_eq!(reg_req.public_key(), &pk);
 
     // use the shortcut.
-    let reg_req = RegisterRequest::bootstrap_unpack(&signed_reg_req, Some(max_age)).unwrap();
+    let reg_req = RegisterRequest::bootstrap_unpack(&reg_req_bytes, &reg_req_sig, Some(max_age)).unwrap();
     assert_eq!(reg_req.relay_id(), &relay_id);
     assert_eq!(reg_req.public_key(), &pk);
 
@@ -489,8 +468,12 @@ fn test_registration() {
     let reg_resp = challenge.create_response();
 
     // sign and unsign it
-    let signed_reg_resp = sk.pack(&reg_resp);
-    let reg_resp: RegisterResponse = pk.unpack(&signed_reg_resp, Some(max_age)).unwrap();
+    let (reg_resp_bytes, reg_resp_sig) = sk.pack(&reg_resp);
+    println!("{}", &pk);
+    println!("{}", String::from_utf8_lossy(&reg_resp_bytes));
+    println!("{}", &reg_resp_sig);
+    panic!();
+    let reg_resp: RegisterResponse = pk.unpack(&reg_resp_bytes, &reg_resp_sig, Some(max_age)).unwrap();
     assert_eq!(reg_resp.relay_id(), &relay_id);
     assert_eq!(reg_resp.token(), challenge.token());
 }

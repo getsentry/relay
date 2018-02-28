@@ -71,9 +71,10 @@ def generate_relay_id():
     return decode_uuid(rustcall(lib.smith_generate_relay_id))
 
 
-def create_register_challenge(signed_req, max_age=60 * 15):
+def create_register_challenge(data, signature, max_age=60 * 15):
     rv = json.loads(decode_str(rustcall(
-        lib.smith_create_register_challenge, encode_str(signed_req), max_age)))
+        lib.smith_create_register_challenge, make_buf(data),
+        encode_str(signature), max_age)))
     return {
         'relay_id': uuid.UUID(rv['relay_id']),
         'public_key': PublicKey.parse(rv['public_key']),
@@ -81,11 +82,12 @@ def create_register_challenge(signed_req, max_age=60 * 15):
     }
 
 
-def validate_register_response(public_key, signed_resp, max_age=60 * 15):
+def validate_register_response(public_key, data, signature, max_age=60 * 15):
     rv = json.loads(decode_str(rustcall(
         lib.smith_validate_register_response,
         public_key._objptr,
-        encode_str(signed_resp),
+        make_buf(data),
+        encode_str(signature),
         max_age)))
     return {
         'relay_id': uuid.UUID(rv['relay_id']),

@@ -11,22 +11,21 @@ def test_basic_key_functions():
 
 
 def test_challenge_response():
-    resp = smith.create_register_challenge('JGk9dBcPbu8YVeoLorihRdjs-p0f1x-GTsjjEDwEAyQX6kVV438SjnGY7mmWc0N2TE8Ll2tBHeCIZAOVPbxIDg.eyJ0IjoiMjAxOC0wMi0yN1QxMDoxNjoxNC42ODEwOTJaIiwiZCI6eyJpIjoiNjBhYWIyYjktYzYwMS00ODNlLWEzOGMtZTBjNmU3YTUzMTg1IiwicCI6InFPVkhTYkhOZmdFT3ZCc1d0NF82T2ZmRnVsZzBaTGZSZ0UzNU1WRWlQdEEifX0', max_age=0xffffffff)
-    assert str(resp['public_key']) == 'qOVHSbHNfgEOvBsWt4_6OffFulg0ZLfRgE35MVEiPtA'
-    assert resp['relay_id'] == uuid.UUID('60aab2b9-c601-483e-a38c-e0c6e7a53185')
+    resp = smith.create_register_challenge(b'{"timestamp":"2018-02-28T16:10:13.301546Z","data":{"relay_id":"88a4182a-03f2-42b5-a3a6-024a3ad78a2a","public_key":"GJpPsFJx70jY20wslkT-pDHplJtsv7oZ4sS6fSVaIoQ"}}', 'SXmBYCCsq0iNxm_IkWOJ1eVbMlbKz5Bx-_7T3iRhVvPz1Fq0ifP0F6OlgvVDZX4bxN3w-dEC7l3m307hGoyQBA', max_age=0xffffffff)
+    assert str(resp['public_key']) == 'GJpPsFJx70jY20wslkT-pDHplJtsv7oZ4sS6fSVaIoQ'
+    assert resp['relay_id'] == uuid.UUID('88a4182a-03f2-42b5-a3a6-024a3ad78a2a')
     assert len(resp['token']) > 40
 
 
 def test_challenge_response_validation_errors():
     with pytest.raises(smith.UnpackErrorSignatureExpired):
-        smith.create_register_challenge('JGk9dBcPbu8YVeoLorihRdjs-p0f1x-GTsjjEDwEAyQX6kVV438SjnGY7mmWc0N2TE8Ll2tBHeCIZAOVPbxIDg.eyJ0IjoiMjAxOC0wMi0yN1QxMDoxNjoxNC42ODEwOTJaIiwiZCI6eyJpIjoiNjBhYWIyYjktYzYwMS00ODNlLWEzOGMtZTBjNmU3YTUzMTg1IiwicCI6InFPVkhTYkhOZmdFT3ZCc1d0NF82T2ZmRnVsZzBaTGZSZ0UzNU1WRWlQdEEifX0', max_age=1)
-
-    with pytest.raises(smith.UnpackErrorBadData):
-        smith.create_register_challenge('JGk9dBcPbu8YVeoLorihRdjs-p0f1x-GTsjjEDwEAyQX6kVV438SjnGY7mmWc0N2TE8Ll2tBHeCIZAOVPbxIDg.eyJ0IjoiMjAxOC0wMi0yN1QxMDoxNjoxNC42ODEwOTJaIiwiZCI6eyJpIjoiNjBhYWIyYjktYzYwMS00ODNlLWEzOGMtZTBjNmU3YTUzMTg1IiwicCI6InFPVkhTYkhOZmdFT3ZCc1d0NF82T2ZmRnVsZzBaTGZSZ0UzNU1WRWlQdEEifX0addedcrapheres')
+        smith.create_register_challenge(b'{"timestamp":"2018-02-28T16:10:13.301546Z","data":{"relay_id":"88a4182a-03f2-42b5-a3a6-024a3ad78a2a","public_key":"GJpPsFJx70jY20wslkT-pDHplJtsv7oZ4sS6fSVaIoQ"}}', 'SXmBYCCsq0iNxm_IkWOJ1eVbMlbKz5Bx-_7T3iRhVvPz1Fq0ifP0F6OlgvVDZX4bxN3w-dEC7l3m307hGoyQBA', max_age=1)
+    with pytest.raises(smith.UnpackErrorBadPayload):
+        smith.create_register_challenge(b'{"timestamp":"2018-02-28T16:10:13.301546Z","data":{"relay_id":"88a4182a-03f2-42b5-a3a6-024a3ad78a2a","public_key":"GJpPsFJx70jY20wslkT-pDHplJtsv7oZ4sS6fSVaIoQ"}}garbage', 'SXmBYCCsq0iNxm_IkWOJ1eVbMlbKz5Bx-_7T3iRhVvPz1Fq0ifP0F6OlgvVDZX4bxN3w-dEC7l3m307hGoyQBA')
 
 
 def test_register_response():
-    pk = smith.PublicKey.parse('JsdkHWQ-H9-4kag2ybbyuahCEF2VAg3zf6kXpo-mj3A')
-    resp = smith.validate_register_response(pk, 'NA5wJRV4a6-w7cFx14Krb3bBUowI0foNcV92s1yFa08_3KDPw4aDsM6ipfJkLjBozgRX0ws-7rvy_cA8771ADg.eyJ0IjoiMjAxOC0wMi0yN1QxMDo1ODo0NC4wMzIzMzZaIiwiZCI6eyJpIjoiZDcyNjIyOTItNzJkYy00MmMzLWI2NzctY2Q0YTFjZGMwMTJjIiwidCI6IkxfcmlZSi1QSEhrdy1QalVvYjRYV05fMnI1NXprR3pBQzlVR3dwcU5XRnhxNHFlWFJscUJmdGhQX3hRSjg0MnIxU3A0QUZVNUVvcDNPT25CMm1RNUpBIn19', max_age=0xffffffff)
-    assert resp['token'] == 'L_riYJ-PHHkw-PjUob4XWN_2r55zkGzAC9UGwpqNWFxq4qeXRlqBfthP_xQJ842r1Sp4AFU5Eop3OOnB2mQ5JA'
-    assert resp['relay_id'] == uuid.UUID('d7262292-72dc-42c3-b677-cd4a1cdc012c')
+    pk = smith.PublicKey.parse('AsYdXPAFS3ZzY9BPJKpsmaGuNV54Af-0AXhqHwkUQ5g')
+    resp = smith.validate_register_response(pk, b'{"timestamp":"2018-02-28T16:14:24.084109Z","data":{"relay_id":"ba920727-03da-4596-925f-d8bb0f1f8ffd","token":"wcaRez_D3qIFK-NIqplNIEQWnRLZ01dcnCvJ0bCUCJjWfRQPCQSoD095Tp7X9HOUuT8nZKEFxDjIjd0zDA859A"}}', 'ueEi3iC61BhLsgk8gAADa_5vao9hG-q-DvaE-u9DnAUFRUlCBQExH45SrA_tgHyY7LiD-YLY5jVHmu3eXP64Bw', max_age=0xffffffff)
+    assert resp['token'] == 'wcaRez_D3qIFK-NIqplNIEQWnRLZ01dcnCvJ0bCUCJjWfRQPCQSoD095Tp7X9HOUuT8nZKEFxDjIjd0zDA859A'
+    assert resp['relay_id'] == uuid.UUID('ba920727-03da-4596-925f-d8bb0f1f8ffd')

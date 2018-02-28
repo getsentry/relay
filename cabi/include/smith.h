@@ -16,7 +16,6 @@ enum SmithErrorCode {
   SMITH_ERROR_CODE_UNKNOWN = 2,
   SMITH_ERROR_CODE_KEY_PARSE_ERROR_BAD_ENCODING = 1000,
   SMITH_ERROR_CODE_KEY_PARSE_ERROR_BAD_KEY = 1001,
-  SMITH_ERROR_CODE_UNPACK_ERROR_BAD_DATA = 1002,
   SMITH_ERROR_CODE_UNPACK_ERROR_BAD_SIGNATURE = 1003,
   SMITH_ERROR_CODE_UNPACK_ERROR_BAD_PAYLOAD = 1004,
   SMITH_ERROR_CODE_UNPACK_ERROR_SIGNATURE_EXPIRED = 1005,
@@ -77,7 +76,9 @@ void smith_buf_free(SmithBuf *b);
 /*
  * Creates a challenge from a register request and returns JSON.
  */
-SmithStr smith_create_register_challenge(const SmithStr *signed_req, uint32_t max_age);
+SmithStr smith_create_register_challenge(const SmithBuf *data,
+                                         const SmithStr *signature,
+                                         uint32_t max_age);
 
 /*
  * Clears the last error.
@@ -193,7 +194,8 @@ SmithStr smith_uuid_to_str(const SmithUuid *uuid);
  * Validates a register response.
  */
 SmithStr smith_validate_register_response(const SmithPublicKey *pk,
-                                          const SmithStr *signed_resp,
+                                          const SmithBuf *data,
+                                          const SmithStr *signature,
                                           uint32_t max_age);
 
 #endif /* SMITH_H_INCLUDED */

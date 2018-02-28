@@ -43,7 +43,6 @@ pub enum SmithErrorCode {
     KeyParseErrorBadEncoding = 1000,
     KeyParseErrorBadKey = 1001,
     // smith_aorta::auth::UnpackError
-    UnpackErrorBadData = 1002,
     UnpackErrorBadSignature = 1003,
     UnpackErrorBadPayload = 1004,
     UnpackErrorSignatureExpired = 1005,
@@ -64,7 +63,6 @@ impl SmithErrorCode {
             }
             if let Some(err) = cause.downcast_ref::<UnpackError>() {
                 return match err {
-                    &UnpackError::BadData => SmithErrorCode::UnpackErrorBadData,
                     &UnpackError::BadSignature => SmithErrorCode::UnpackErrorBadSignature,
                     &UnpackError::BadPayload(..) => SmithErrorCode::UnpackErrorBadPayload,
                     &UnpackError::SignatureExpired => SmithErrorCode::UnpackErrorSignatureExpired,

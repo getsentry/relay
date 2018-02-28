@@ -119,12 +119,13 @@ struct SmithChallengeResult {
 
 ffi_fn! {
     /// Creates a challenge from a register request and returns JSON.
-    unsafe fn smith_create_register_challenge(signed_req: *const SmithStr,
+    unsafe fn smith_create_register_challenge(data: *const SmithBuf,
+                                              signature: *const SmithStr,
                                               max_age: u32)
         -> Result<SmithStr>
     {
         let max_age = Duration::seconds(max_age as i64);
-        let req = RegisterRequest::bootstrap_unpack((*signed_req).as_str(), Some(max_age))?;
+        let req = RegisterRequest::bootstrap_unpack((*data).as_bytes(), (*signature).as_str(), Some(max_age))?;
         let challenge = req.create_challenge();
         Ok(SmithStr::from_string(serde_json::to_string(&SmithChallengeResult {
             relay_id: req.relay_id().clone(),
@@ -143,13 +144,15 @@ struct SmithRegisterResponse {
 ffi_fn! {
     /// Validates a register response.
     unsafe fn smith_validate_register_response(pk: *const SmithPublicKey,
-                                               signed_resp: *const SmithStr,
+                                               data: *const SmithBuf,
+                                               signature: *const SmithStr,
                                                max_age: u32)
         -> Result<SmithStr>
     {
         let max_age = Duration::seconds(max_age as i64);
         let pk = &*(pk as *const PublicKey);
-        let reg_resp: RegisterResponse = pk.unpack((*signed_resp).as_str(), Some(max_age))?;
+        let reg_resp: RegisterResponse = pk.unpack(
+            (*data).as_bytes(), (*signature).as_str(), Some(max_age))?;
         Ok(SmithStr::from_string(serde_json::to_string(&SmithRegisterResponse {
             relay_id: reg_resp.relay_id().clone(),
             token: reg_resp.token().to_string(),
