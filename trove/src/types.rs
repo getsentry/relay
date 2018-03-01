@@ -1,4 +1,5 @@
 use std::io;
+use std::fmt;
 use std::thread;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -8,15 +9,16 @@ use serde::de::DeserializeOwned;
 use serde_json;
 use parking_lot::{Mutex, RwLock};
 use tokio_core::reactor::{Core, Handle, Remote};
-use futures::{Future, Stream};
+use futures::{Future, IntoFuture, Stream};
 use futures::sync::{mpsc, oneshot};
 use hyper;
-use hyper::{Chunk, Method, Request};
+use hyper::{Chunk, Method, Request, StatusCode};
+use hyper::header::ContentType;
 use hyper::client::{Client, HttpConnector};
 use hyper_tls::HttpsConnector;
 
 use smith_common::ProjectId;
-use smith_aorta::{AortaConfig, ProjectState, AortaApiRequest};
+use smith_aorta::{AortaApiRequest, AortaConfig, ProjectState};
 
 use auth::{spawn_authenticator, AuthError, AuthState};
 
@@ -53,6 +55,25 @@ pub enum ApiError {
     /// On general http errors.
     #[fail(display = "http error")]
     HttpError(#[cause] hyper::Error),
+    /// A server indicated api error ocurred.
+    #[fail(display = "bad request ({}; {})", _0, _1)]
+    ErrorResponse(StatusCode, ApiErrorResponse),
+}
+
+/// An error response from an api.
+#[derive(Serialize, Deserialize, Default, Debug)]
+pub struct ApiErrorResponse {
+    detail: Option<String>,
+}
+
+impl fmt::Display for ApiErrorResponse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(ref detail) = self.detail {
+            write!(f, "{}", detail)
+        } else {
+            write!(f, "no error details")
+        }
+    }
 }
 
 /// An internal helper struct that represents the shared state of the
@@ -100,20 +121,41 @@ impl TroveContext {
                 .request(req)
                 .map_err(ApiError::HttpError)
                 .and_then(|res| {
-                    res.body().concat2().map_err(ApiError::HttpError).and_then(
-                        move |body: Chunk| {
-                            let v: D = serde_json::from_slice(&body).map_err(ApiError::BadPayload)?;
-                            Ok(v)
-                        },
-                    )
+                    let status = res.status();
+                    if status.is_success() {
+                        Box::new(res.body().concat2().map_err(ApiError::HttpError).and_then(
+                            move |body: Chunk| {
+                                Ok(serde_json::from_slice::<D>(&body)
+                                    .map_err(ApiError::BadPayload)?)
+                            },
+                        )) as Box<Future<Item = D, Error = ApiError>>
+                    } else if res.headers()
+                        .get::<ContentType>()
+                        .map(|x| x.type_() == "application" && x.subtype() == "json")
+                        .unwrap_or(false)
+                    {
+                        // error response
+                        Box::new(res.body().concat2().map_err(ApiError::HttpError).and_then(
+                            move |body: Chunk| {
+                                let err: ApiErrorResponse =
+                                    serde_json::from_slice(&body).map_err(ApiError::BadPayload)?;
+                                Err(ApiError::ErrorResponse(status, err))
+                            },
+                        )) as Box<Future<Item = D, Error = ApiError>>
+                    } else {
+                        Box::new(
+                            Err(ApiError::ErrorResponse(status, Default::default())).into_future(),
+                        ) as Box<Future<Item = D, Error = ApiError>>
+                    }
                 }),
         )
     }
 
     /// Shortcut for aorta requests for specific types.
-    pub fn aorta_request<T: AortaApiRequest>(&self, req: &T)
-        -> Box<Future<Item = T::Response, Error = ApiError>>
-    {
+    pub fn aorta_request<T: AortaApiRequest>(
+        &self,
+        req: &T,
+    ) -> Box<Future<Item = T::Response, Error = ApiError>> {
         let (method, path) = req.get_aorta_request_target();
         let req = self.state.config.prepare_aorta_req(method, &path, req);
         self.perform_aorta_request::<T::Response>(req)

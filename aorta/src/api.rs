@@ -4,7 +4,6 @@ use hyper::Method;
 use serde::ser::Serialize;
 use serde::de::DeserializeOwned;
 
-
 /// For well known types this can automatically define the API request to issue.
 pub trait AortaApiRequest: Serialize {
     /// The response type.
