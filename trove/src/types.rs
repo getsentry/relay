@@ -80,11 +80,11 @@ impl fmt::Display for ApiErrorResponse {
 /// trove.  An `Arc` of the state is passed around various systems.
 #[derive(Debug)]
 pub(crate) struct TroveState {
-    pub states: RwLock<HashMap<ProjectId, Arc<ProjectState>>>,
     pub config: Arc<AortaConfig>,
-    pub governor_tx: RwLock<Option<mpsc::UnboundedSender<GovernorEvent>>>,
-    pub remote: RwLock<Option<Remote>>,
-    pub auth_state: RwLock<AuthState>,
+    states: RwLock<HashMap<ProjectId, Arc<ProjectState>>>,
+    governor_tx: RwLock<Option<mpsc::UnboundedSender<GovernorEvent>>>,
+    remote: RwLock<Option<Remote>>,
+    auth_state: RwLock<AuthState>,
 }
 
 /// Convenience context that never crosses threads.
@@ -295,6 +295,21 @@ impl Drop for Trove {
 }
 
 impl TroveState {
+    /// Returns the current auth state.
+    pub fn auth_state(&self) -> AuthState {
+        *self.auth_state.read()
+    }
+
+    /// Transitions the auth state.
+    pub fn set_auth_state(&self, new_state: AuthState) {
+        let mut auth_state = self.auth_state.write();
+        let old_state = *auth_state;
+        if old_state != new_state {
+            info!("changing auth state: {:?} -> {:?}", old_state, new_state);
+            *auth_state = new_state;
+        }
+    }
+
     /// Returns the remote for the underlying state.
     pub fn remote(&self) -> Remote {
         self.remote
@@ -317,13 +332,13 @@ fn run_governor(
     *state.remote.write() = Some(core.remote());
     debug!("spawned trove governor");
 
-    let ctx = TroveContext {
+    let ctx = Arc::new(TroveContext {
         handle: core.handle(),
         state: state.clone(),
         client: Client::configure()
             .connector(HttpsConnector::new(4, &core.handle()).unwrap())
             .build(&core.handle()),
-    };
+    });
 
     // spawn a stream that just listens in on the events sent into the
     // trove governor so we can figure out when to terminate the thread
@@ -340,7 +355,7 @@ fn run_governor(
     }));
 
     // spawn the authentication handler
-    spawn_authenticator(&ctx);
+    spawn_authenticator(ctx);
 
     core.run(shutdown_rx).ok();
     *state.remote.write() = None;

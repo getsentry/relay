@@ -137,6 +137,20 @@ pub struct RegisterResponse {
     token: String,
 }
 
+/// Reprensents the final registration.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Registration {
+    relay_id: RelayId,
+}
+
+impl AortaApiRequest for RegisterResponse {
+    type Response = Registration;
+
+    fn get_aorta_request_target<'a>(&'a self) -> (Method, Cow<'a, str>) {
+        (Method::Post, Cow::Borrowed("relays/register/response/"))
+    }
+}
+
 impl SecretKey {
     pub fn sign(&self, data: &[u8]) -> String {
         self.sign_with_header(data, Default::default())
