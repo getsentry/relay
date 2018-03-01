@@ -1,4 +1,5 @@
 use std::fmt;
+use std::borrow::Cow;
 use std::str::FromStr;
 use std::sync::{Once, ONCE_INIT};
 
@@ -11,6 +12,9 @@ use serde_json;
 use sodiumoxide;
 use sodiumoxide::crypto::sign::ed25519 as sign_backend;
 use chrono::{DateTime, Duration, Utc};
+use hyper::Method;
+
+use api::AortaApiRequest;
 
 static INIT_SODIUMOXIDE_RNG: Once = ONCE_INIT;
 
@@ -57,7 +61,7 @@ pub enum UnpackError {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SignatureHeader {
     /// The timestamp of when the data was packed and signed.
-    #[serde(rename="t", skip_serializing_if="Option::is_none")]
+    #[serde(rename = "t", skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<DateTime<Utc>>,
 }
 
@@ -111,6 +115,14 @@ pub struct RegisterRequest {
     public_key: PublicKey,
 }
 
+impl AortaApiRequest for RegisterRequest {
+    type Response = RegisterChallenge;
+
+    fn get_aorta_request_target<'a>(&'a self) -> (Method, Cow<'a, str>) {
+        (Method::Post, Cow::Borrowed("relays/register/challenge/"))
+    }
+}
+
 /// Represents the response the server is supposed to send to a register request.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterChallenge {
@@ -131,7 +143,8 @@ impl SecretKey {
     }
 
     pub fn sign_with_header(&self, data: &[u8], header: SignatureHeader) -> String {
-        let mut header = serde_json::to_vec(&header).expect("attempted to pack non json safe header");
+        let mut header =
+            serde_json::to_vec(&header).expect("attempted to pack non json safe header");
         let header_encoded = base64::encode_config(&header[..], base64::URL_SAFE_NO_PAD);
         header.push(b'\x00');
         header.extend_from_slice(data);
@@ -146,13 +159,14 @@ impl SecretKey {
         self.pack_with_header(data, Default::default())
     }
 
-    pub fn pack_with_header<S: Serialize>(&self, data: S, header: SignatureHeader)
-        -> (Vec<u8>, String)
-    {
+    pub fn pack_with_header<S: Serialize>(
+        &self,
+        data: S,
+        header: SignatureHeader,
+    ) -> (Vec<u8>, String) {
         // this can only fail if we deal with badly formed data.  In that case we
         // consider that a panic.  Should not happen.
-        let json = serde_json::to_vec(&data)
-            .expect("attempted to pack non json safe data");
+        let json = serde_json::to_vec(&data).expect("attempted to pack non json safe data");
         let sig = self.sign_with_header(&json, header);
         (json, sig)
     }
@@ -205,9 +219,8 @@ impl PublicKey {
         let mut sig_arr = [0u8; sign_backend::SIGNATUREBYTES];
         let mut iter = sig.splitn(2, '.');
         let sig_bytes = match iter.next() {
-            Some(sig_encoded) => base64::decode_config(
-                sig_encoded, base64::URL_SAFE_NO_PAD).ok()?,
-            None => return None
+            Some(sig_encoded) => base64::decode_config(sig_encoded, base64::URL_SAFE_NO_PAD).ok()?,
+            None => return None,
         };
         if sig_bytes.len() != sig_arr.len() {
             return None;
@@ -215,15 +228,16 @@ impl PublicKey {
         sig_arr.clone_from_slice(&sig_bytes);
 
         let header = match iter.next() {
-            Some(header_encoded) => base64::decode_config(
-                header_encoded, base64::URL_SAFE_NO_PAD).ok()?,
-            None => return None
+            Some(header_encoded) => {
+                base64::decode_config(header_encoded, base64::URL_SAFE_NO_PAD).ok()?
+            }
+            None => return None,
         };
         let mut to_verify = header.clone();
         to_verify.push(b'\x00');
         to_verify.extend_from_slice(data);
-        if sign_backend::verify_detached(&sign_backend::Signature(sig_arr),
-                                         &to_verify, &self.inner) {
+        if sign_backend::verify_detached(&sign_backend::Signature(sig_arr), &to_verify, &self.inner)
+        {
             serde_json::from_slice(&header).ok()
         } else {
             None
@@ -336,11 +350,12 @@ impl RegisterRequest {
     /// This unpacks the embedded public key first, then verifies if the
     /// self signature was made by that public key.  If all is well then
     /// the data is returned.
-    pub fn bootstrap_unpack(data: &[u8], signature: &str, max_age: Option<Duration>)
-        -> Result<RegisterRequest, UnpackError>
-    {
-        let req: RegisterRequest = serde_json::from_slice(data)
-            .map_err(UnpackError::BadPayload)?;
+    pub fn bootstrap_unpack(
+        data: &[u8],
+        signature: &str,
+        max_age: Option<Duration>,
+    ) -> Result<RegisterRequest, UnpackError> {
+        let req: RegisterRequest = serde_json::from_slice(data).map_err(UnpackError::BadPayload)?;
         let pk = req.public_key();
         pk.unpack(data, signature, max_age)
     }
@@ -491,7 +506,8 @@ fn test_registration() {
     let (reg_req_bytes, reg_req_sig) = sk.pack(&reg_req);
 
     // attempt to get the data through bootstrap unpacking.
-    let reg_req = RegisterRequest::bootstrap_unpack(&reg_req_bytes, &reg_req_sig, Some(max_age)).unwrap();
+    let reg_req =
+        RegisterRequest::bootstrap_unpack(&reg_req_bytes, &reg_req_sig, Some(max_age)).unwrap();
     assert_eq!(reg_req.relay_id(), &relay_id);
     assert_eq!(reg_req.public_key(), &pk);
 
@@ -505,7 +521,8 @@ fn test_registration() {
 
     // sign and unsign it
     let (reg_resp_bytes, reg_resp_sig) = sk.pack(&reg_resp);
-    let reg_resp: RegisterResponse = pk.unpack(&reg_resp_bytes, &reg_resp_sig, Some(max_age)).unwrap();
+    let reg_resp: RegisterResponse = pk.unpack(&reg_resp_bytes, &reg_resp_sig, Some(max_age))
+        .unwrap();
     assert_eq!(reg_resp.relay_id(), &relay_id);
     assert_eq!(reg_resp.token(), challenge.token());
 }

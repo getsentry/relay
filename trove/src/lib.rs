@@ -12,11 +12,11 @@ extern crate hyper_tls;
 extern crate log;
 extern crate native_tls;
 extern crate parking_lot;
+extern crate serde;
+extern crate serde_json;
 extern crate smith_aorta;
 extern crate smith_common;
 extern crate tokio_core;
-extern crate serde;
-extern crate serde_json;
 
 mod auth;
 mod types;

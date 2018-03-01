@@ -9,7 +9,7 @@ use std::net::{IpAddr, SocketAddr};
 use log;
 use serde_yaml;
 use chrono::Duration;
-use smith_aorta::{generate_relay_id, generate_key_pair, RelayId, AortaConfig, PublicKey,
+use smith_aorta::{generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId,
                   SecretKey, UpstreamDescriptor};
 
 /// Indicates config related errors.

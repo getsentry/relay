@@ -8,15 +8,15 @@ use serde::de::DeserializeOwned;
 use serde_json;
 use parking_lot::{Mutex, RwLock};
 use tokio_core::reactor::{Core, Handle, Remote};
-use futures::{Stream, Future};
+use futures::{Future, Stream};
 use futures::sync::{mpsc, oneshot};
 use hyper;
-use hyper::{Request, Chunk, Method};
+use hyper::{Chunk, Method, Request};
 use hyper::client::{Client, HttpConnector};
 use hyper_tls::HttpsConnector;
 
 use smith_common::ProjectId;
-use smith_aorta::{AortaConfig, ProjectState};
+use smith_aorta::{AortaConfig, ProjectState, AortaApiRequest};
 
 use auth::{spawn_authenticator, AuthError, AuthState};
 
@@ -91,24 +91,32 @@ impl TroveContext {
     }
 
     /// Sends an API request and handles data.
-    pub fn perform_aorta_request<D: DeserializeOwned + 'static>(&self, req: Request)
-        -> Box<Future<Item=D, Error=ApiError>>
-    {
-        Box::new(self.http_client().request(req).map_err(ApiError::HttpError).and_then(|res| {
-            res.body().concat2().map_err(ApiError::HttpError).and_then(move |body: Chunk| {
-                let v: D = serde_json::from_slice(&body).map_err(ApiError::BadPayload)?;
-                Ok(v)
-            })
-        }))
+    pub fn perform_aorta_request<D: DeserializeOwned + 'static>(
+        &self,
+        req: Request,
+    ) -> Box<Future<Item = D, Error = ApiError>> {
+        Box::new(
+            self.http_client()
+                .request(req)
+                .map_err(ApiError::HttpError)
+                .and_then(|res| {
+                    res.body().concat2().map_err(ApiError::HttpError).and_then(
+                        move |body: Chunk| {
+                            let v: D = serde_json::from_slice(&body).map_err(ApiError::BadPayload)?;
+                            Ok(v)
+                        },
+                    )
+                }),
+        )
     }
 
-    /// Shortcut for aorta requests.
-    pub fn aorta_request<D: DeserializeOwned + 'static, S: Serialize>(
-        &self, method: Method, path: &str, body: &S)
-        -> Box<Future<Item=D, Error=ApiError>>
+    /// Shortcut for aorta requests for specific types.
+    pub fn aorta_request<T: AortaApiRequest>(&self, req: &T)
+        -> Box<Future<Item = T::Response, Error = ApiError>>
     {
-        let req = self.state.config.prepare_aorta_req(method, path, body);
-        self.perform_aorta_request::<D>(req)
+        let (method, path) = req.get_aorta_request_target();
+        let req = self.state.config.prepare_aorta_req(method, &path, req);
+        self.perform_aorta_request::<T::Response>(req)
     }
 }
 

@@ -3,7 +3,7 @@ use hyper::{Method, Request, Uri};
 use hyper::header::{ContentLength, ContentType};
 use serde::Serialize;
 
-use auth::{RelayId, PublicKey, SecretKey};
+use auth::{PublicKey, RelayId, SecretKey};
 use upstream::UpstreamDescriptor;
 
 /// Holds common config values that affect the aorta behavior.
