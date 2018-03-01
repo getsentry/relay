@@ -2,11 +2,12 @@ use std::io::{self, Write};
 use std::sync::Arc;
 
 use futures::{Future, Stream};
-use hyper::Method;
+use hyper::{Method, Chunk};
 
 use types::TroveContext;
 
-use smith_aorta::RegisterRequest;
+use smith_aorta::{RegisterRequest, RegisterChallenge};
+use serde_json;
 
 /// Represents the current auth state of the trove.
 #[derive(Debug)]
@@ -29,19 +30,13 @@ pub(crate) fn spawn_authenticator(ctx: &TroveContext) {
 
 fn check_relay_state(ctx: &TroveContext) {
     let mut state = AuthState::Unknown;
-
     let config = &ctx.state().config;
     let reg_req = RegisterRequest::new(config.relay_id(), config.public_key());
-    let req = config.prepare_aorta_req(Method::Post, "relays/register/challenge/", &reg_req);
-    let work = ctx.http_client().request(req).and_then(|res| {
-        println!("Response: {}", res.status());
-
-        res.body().for_each(|chunk| {
-            io::stdout()
-                .write_all(&chunk)
-                .map(|_| ())
-                .map_err(From::from)
-        })
+    let work = ctx.aorta_request(
+        Method::Post, "relays/register/challenge/", &reg_req)
+    .and_then(|rv: RegisterChallenge| {
+        println!("{:?}", rv);
+        Ok(())
     });
     ctx.handle().spawn(work.map_err(|_| ()));
 }

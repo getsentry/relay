@@ -3,10 +3,15 @@ use std::thread;
 use std::sync::Arc;
 use std::collections::HashMap;
 
+use serde::ser::Serialize;
+use serde::de::DeserializeOwned;
+use serde_json;
 use parking_lot::{Mutex, RwLock};
 use tokio_core::reactor::{Core, Handle, Remote};
-use futures::Stream;
+use futures::{Stream, Future};
 use futures::sync::{mpsc, oneshot};
+use hyper;
+use hyper::{Request, Chunk, Method};
 use hyper::client::{Client, HttpConnector};
 use hyper_tls::HttpsConnector;
 
@@ -37,6 +42,17 @@ pub enum GovernorError {
     /// Raised if the governor panicked.
     #[fail(display = "governor thread panicked")]
     Panic,
+}
+
+/// Raised for API Errors
+#[derive(Debug, Fail)]
+pub enum ApiError {
+    /// On deserialization errors.
+    #[fail(display = "could not deserialize response")]
+    BadPayload(#[cause] serde_json::Error),
+    /// On general http errors.
+    #[fail(display = "http error")]
+    HttpError(#[cause] hyper::Error),
 }
 
 /// An internal helper struct that represents the shared state of the
@@ -72,6 +88,27 @@ impl TroveContext {
     /// Returns a reference to the http client.
     pub fn http_client(&self) -> &Client<HttpsConnector<HttpConnector>> {
         &self.client
+    }
+
+    /// Sends an API request and handles data.
+    pub fn perform_aorta_request<D: DeserializeOwned + 'static>(&self, req: Request)
+        -> Box<Future<Item=D, Error=ApiError>>
+    {
+        Box::new(self.http_client().request(req).map_err(ApiError::HttpError).and_then(|res| {
+            res.body().concat2().map_err(ApiError::HttpError).and_then(move |body: Chunk| {
+                let v: D = serde_json::from_slice(&body).map_err(ApiError::BadPayload)?;
+                Ok(v)
+            })
+        }))
+    }
+
+    /// Shortcut for aorta requests.
+    pub fn aorta_request<D: DeserializeOwned + 'static, S: Serialize>(
+        &self, method: Method, path: &str, body: &S)
+        -> Box<Future<Item=D, Error=ApiError>>
+    {
+        let req = self.state.config.prepare_aorta_req(method, path, body);
+        self.perform_aorta_request::<D>(req)
     }
 }
 
