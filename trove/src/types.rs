@@ -120,7 +120,7 @@ impl TroveContext {
             self.http_client()
                 .request(req)
                 .map_err(ApiError::HttpError)
-                .and_then(|res| {
+                .and_then(|res| -> Box<Future<Item = D, Error = ApiError>> {
                     let status = res.status();
                     if status.is_success() {
                         Box::new(res.body().concat2().map_err(ApiError::HttpError).and_then(
@@ -128,7 +128,7 @@ impl TroveContext {
                                 Ok(serde_json::from_slice::<D>(&body)
                                     .map_err(ApiError::BadPayload)?)
                             },
-                        )) as Box<Future<Item = D, Error = ApiError>>
+                        ))
                     } else if res.headers()
                         .get::<ContentType>()
                         .map(|x| x.type_() == "application" && x.subtype() == "json")
@@ -141,11 +141,11 @@ impl TroveContext {
                                     serde_json::from_slice(&body).map_err(ApiError::BadPayload)?;
                                 Err(ApiError::ErrorResponse(status, err))
                             },
-                        )) as Box<Future<Item = D, Error = ApiError>>
+                        ))
                     } else {
                         Box::new(
                             Err(ApiError::ErrorResponse(status, Default::default())).into_future(),
-                        ) as Box<Future<Item = D, Error = ApiError>>
+                        )
                     }
                 }),
         )
