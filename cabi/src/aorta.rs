@@ -125,7 +125,8 @@ ffi_fn! {
         -> Result<SmithStr>
     {
         let max_age = Duration::seconds(max_age as i64);
-        let req = RegisterRequest::bootstrap_unpack((*data).as_bytes(), (*signature).as_str(), Some(max_age))?;
+        let req = RegisterRequest::bootstrap_unpack(
+            (*data).as_bytes(), (*signature).as_str(), Some(max_age))?;
         let challenge = req.create_challenge();
         Ok(SmithStr::from_string(serde_json::to_string(&SmithChallengeResult {
             relay_id: req.relay_id().clone(),
