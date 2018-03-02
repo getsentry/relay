@@ -9,7 +9,7 @@ os:
   - osx
 
 if: tag IS blank
-install: cargo build --all --locked
+install: cargo build --all
 script: cargo test --all
 
 matrix:
