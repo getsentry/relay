@@ -19,6 +19,9 @@ matrix:
     install: cargo install rustfmt-nightly --force
     script: cargo fmt -- --write-mode diff
 
+before_install:
+  - .ci/install-libsodium.sh
+
 notifications:
   webhooks:
     urls:
