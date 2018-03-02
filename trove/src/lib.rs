@@ -21,6 +21,7 @@ extern crate smith_common;
 extern crate tokio_core;
 
 mod auth;
+mod heartbeat;
 mod types;
 
 pub use types::*;

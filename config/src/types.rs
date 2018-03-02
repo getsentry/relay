@@ -50,6 +50,8 @@ struct Logging {
 #[serde(default)]
 struct Aorta {
     snapshot_expiry: u32,
+    auth_retry_interval: u32,
+    heartbeat_interval: u32,
 }
 
 impl Default for Relay {
@@ -79,6 +81,8 @@ impl Default for Aorta {
     fn default() -> Aorta {
         Aorta {
             snapshot_expiry: 60,
+            auth_retry_interval: 15,
+            heartbeat_interval: 30,
         }
     }
 }
@@ -206,10 +210,22 @@ impl Config {
         Duration::seconds(self.aorta.snapshot_expiry as i64)
     }
 
+    /// Returns the aorta auth retry interval.
+    pub fn aorta_auth_retry_interval(&self) -> Duration {
+        Duration::seconds(self.aorta.auth_retry_interval as i64)
+    }
+
+    /// Returns the aorta hearthbeat interval.
+    pub fn aorta_heartbeat_interval(&self) -> Duration {
+        Duration::seconds(self.aorta.heartbeat_interval as i64)
+    }
+
     /// Return a new aorta config based on this config file.
     pub fn make_aorta_config(&self) -> Arc<AortaConfig> {
         Arc::new(AortaConfig {
             snapshot_expiry: self.aorta_snapshot_expiry(),
+            auth_retry_interval: self.aorta_auth_retry_interval(),
+            heartbeat_interval: self.aorta_heartbeat_interval(),
             upstream: self.upstream_descriptor().clone().into_owned(),
             relay_id: Some(self.relay_id().clone()),
             secret_key: Some(self.secret_key().clone()),

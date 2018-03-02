@@ -15,6 +15,10 @@ use upstream::UpstreamDescriptor;
 pub struct AortaConfig {
     /// How long it takes until a snapshot is considered expired.
     pub snapshot_expiry: Duration,
+    /// How many seconds between failed auth attempts.
+    pub auth_retry_interval: Duration,
+    /// How many seconds between heartbeats
+    pub heartbeat_interval: Duration,
     /// The upstream descriptor for this aorta
     pub upstream: UpstreamDescriptor<'static>,
     /// The relay ID.
@@ -29,6 +33,8 @@ impl Default for AortaConfig {
     fn default() -> AortaConfig {
         AortaConfig {
             snapshot_expiry: Duration::seconds(60),
+            auth_retry_interval: Duration::seconds(15),
+            heartbeat_interval: Duration::seconds(30),
             upstream: Default::default(),
             relay_id: None,
             secret_key: None,

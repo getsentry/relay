@@ -21,12 +21,15 @@ use smith_common::ProjectId;
 use smith_aorta::{AortaApiRequest, AortaConfig, ProjectState};
 
 use auth::{spawn_authenticator, AuthError, AuthState};
+use heartbeat::spawn_heartbeat;
 
 /// Represents an event that can be sent to the governor.
 #[derive(Debug)]
 pub(crate) enum GovernorEvent {
     /// Tells the trove governor to shut down.
     Shutdown,
+    /// The trove authenticated successfully.
+    Authenticated,
 }
 
 /// Raised for errors that happen in the context of trove governing.
@@ -260,7 +263,7 @@ impl Trove {
         // indicate on the trove state that we're no longer governed and then
         // attempt to send a message into the event channel if we can safely
         // do so.
-        self.emit_event(GovernorEvent::Shutdown);
+        self.state.emit_governor_event(GovernorEvent::Shutdown);
 
         if let Some(handle) = self.join_handle.lock().take() {
             match handle.join() {
@@ -277,14 +280,6 @@ impl Trove {
     /// In case the governor is not running this will panic.
     pub fn remote(&self) -> Remote {
         self.state.remote()
-    }
-
-    fn emit_event(&self, event: GovernorEvent) -> bool {
-        if let Some(ref tx) = *self.state.governor_tx.read() {
-            tx.unbounded_send(event).is_ok()
-        } else {
-            false
-        }
     }
 }
 
@@ -307,6 +302,22 @@ impl TroveState {
         if old_state != new_state {
             info!("changing auth state: {:?} -> {:?}", old_state, new_state);
             *auth_state = new_state;
+        }
+
+        // if we transition from non authenticated to authenticated
+        // we emit an event.
+        if !old_state.is_authenticated() && new_state.is_authenticated() {
+            self.emit_governor_event(GovernorEvent::Authenticated);
+        }
+    }
+
+    /// Emits an event to the governor.
+    pub fn emit_governor_event(&self, event: GovernorEvent) -> bool {
+        info!("emit governor event: {:?}", event);
+        if let Some(ref tx) = *self.governor_tx.read() {
+            tx.unbounded_send(event).is_ok()
+        } else {
+            false
         }
     }
 
@@ -343,6 +354,7 @@ fn run_governor(
     // spawn a stream that just listens in on the events sent into the
     // trove governor so we can figure out when to terminate the thread
     // or do similar things.
+    let loop_ctx = ctx.clone();
     core.handle().spawn(rx.for_each(move |event| {
         match event {
             GovernorEvent::Shutdown => {
@@ -350,12 +362,15 @@ fn run_governor(
                     shutdown_tx.send(()).ok();
                 }
             }
+            GovernorEvent::Authenticated => {
+                spawn_heartbeat(loop_ctx.clone());
+            }
         }
         Ok(())
     }));
 
     // spawn the authentication handler
-    spawn_authenticator(ctx);
+    spawn_authenticator(ctx.clone());
 
     core.run(shutdown_rx).ok();
     *state.remote.write() = None;
