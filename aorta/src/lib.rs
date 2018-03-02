@@ -24,9 +24,11 @@ mod config;
 mod upstream;
 mod projectstate;
 mod api;
+mod query;
 
 pub use auth::*;
 pub use config::*;
 pub use upstream::*;
 pub use projectstate::*;
 pub use api::*;
+pub use query::*;

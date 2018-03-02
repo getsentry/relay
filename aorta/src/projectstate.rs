@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use config::AortaConfig;
 use upstream::UpstreamDescriptor;
+use query::Query;
 use smith_common::ProjectId;
 
 /// These are config values that the user can modify in the UI.
@@ -85,6 +86,7 @@ pub struct ProjectState {
     config: Arc<AortaConfig>,
     project_id: ProjectId,
     current_snapshot: RwLock<Option<Arc<ProjectStateSnapshot>>>,
+    pending_queries: RwLock<HashMap<Uuid, Query>>,
     last_event: RwLock<Option<DateTime<Utc>>>,
 }
 
@@ -129,8 +131,27 @@ impl ProjectState {
             project_id: project_id,
             config: config,
             current_snapshot: RwLock::new(None),
+            pending_queries: RwLock::new(HashMap::new()),
             last_event: RwLock::new(None),
         }
+    }
+
+    /// Adds a query that should be issued with the next heartbeat.
+    pub fn add_query(&self, query: Query) -> Uuid {
+        let query_id = Uuid::new_v4();
+        self.pending_queries.write().insert(query_id, query);
+        query_id
+    }
+
+    /// Adds a query if it's not in there already (debounces).  If the query
+    /// is already there, the old uuid is returned.
+    pub fn add_query_uniq(&self, query: Query) -> Uuid {
+        for (query_id, existing_query) in self.pending_queries.read().iter() {
+            if existing_query == &query {
+                return query_id.clone();
+            }
+        }
+        self.add_query(query)
     }
 
     /// The project ID of this project.
@@ -192,6 +213,12 @@ impl ProjectState {
                     PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
                     PublicKeyStatus::Disabled => PublicKeyEventAction::Discard,
                     PublicKeyStatus::Unknown => {
+                        // we don't know the key yet, ensure we fetch it on the next
+                        // heartbeat.
+                        self.add_query_uniq(Query::GetProjectConfig {
+                            project_id: self.project_id(),
+                        });
+
                         // if the last config fetch was more than a minute ago we just
                         // accept the event because at this point the dsn might have
                         // become available upstream.

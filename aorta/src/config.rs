@@ -81,6 +81,7 @@ impl AortaConfig {
         let (json, signature) = self.secret_key().pack(body);
         {
             let headers = req.headers_mut();
+            headers.set_raw("X-Sentry-Relay-Id", self.relay_id().to_string());
             headers.set_raw("X-Sentry-Relay-Signature", signature);
             headers.set(ContentType::json());
             headers.set(ContentLength(json.len() as u64));
