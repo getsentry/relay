@@ -265,9 +265,9 @@ impl PublicKey {
 
     /// Verifies a signature and checks the timestamp.
     pub fn verify_timestamp(&self, data: &[u8], sig: &str, max_age: Option<Duration>) -> bool {
-        self.verify_meta(data, sig).map(|header| {
-            max_age.is_none() || !header.expired(max_age.unwrap())
-        }).unwrap_or(false)
+        self.verify_meta(data, sig)
+            .map(|header| max_age.is_none() || !header.expired(max_age.unwrap()))
+            .unwrap_or(false)
     }
 
     /// Unpacks signed data and returns it with header.
