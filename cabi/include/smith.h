@@ -147,6 +147,14 @@ SmithStr smith_publickey_to_string(const SmithPublicKey *spk);
 bool smith_publickey_verify(const SmithPublicKey *spk, const SmithBuf *data, const SmithStr *sig);
 
 /*
+ * Verifies a signature
+ */
+bool smith_publickey_verify_timestamp(const SmithPublicKey *spk,
+                                      const SmithBuf *data,
+                                      const SmithStr *sig,
+                                      uint32_t max_age);
+
+/*
  * Frees a secret key.
  */
 void smith_secretkey_free(SmithSecretKey *spk);

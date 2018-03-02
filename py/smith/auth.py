@@ -4,6 +4,7 @@ from smith._lowlevel import lib, ffi
 from smith._compat import text_type, implements_to_string
 from smith.utils import RustObject, encode_str, decode_str, decode_uuid, \
     rustcall, make_buf
+from smith.exceptions import UnpackErrorBadSignature
 
 
 __all__ = ['PublicKey', 'SecretKey', 'generate_key_pair',
@@ -21,10 +22,18 @@ class PublicKey(RustObject):
         ptr = rustcall(lib.smith_publickey_parse, s)
         return cls._from_objptr(ptr)
 
-    def verify(self, buf, sig):
+    def verify(self, buf, sig, max_age=None):
         buf = make_buf(buf)
         sig = encode_str(sig)
-        return self._methodcall(lib.smith_publickey_verify, buf, sig)
+        if max_age is None:
+            return self._methodcall(lib.smith_publickey_verify, buf, sig)
+        return self._methodcall(
+            lib.smith_publickey_verify_timestamp, buf, sig, max_age)
+
+    def unpack(self, buf, sig, max_age=None):
+        if not self.verify(buf, sig, max_age):
+            raise UnpackErrorBadSignature('invalid signature')
+        return json.loads(buf)
 
     def __str__(self):
         return decode_str(self._methodcall(lib.smith_publickey_to_string), free=True)
@@ -48,6 +57,10 @@ class SecretKey(RustObject):
     def sign(self, value):
         buf = make_buf(value)
         return decode_str(self._methodcall(lib.smith_secretkey_sign, buf), free=True)
+
+    def pack(self, data):
+        packed = json.dumps(data, separators=(',', ':'))
+        return packed, self.sign(packed)
 
     def __str__(self):
         return decode_str(self._methodcall(lib.smith_secretkey_to_string), free=True)

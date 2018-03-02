@@ -58,6 +58,15 @@ ffi_fn! {
 }
 
 ffi_fn! {
+    /// Verifies a signature
+    unsafe fn smith_publickey_verify_timestamp(spk: *const SmithPublicKey, data: *const SmithBuf, sig: *const SmithStr, max_age: u32) -> Result<bool> {
+        let pk = spk as *const PublicKey;
+        let max_age = Some(Duration::seconds(max_age as i64));
+        Ok((*pk).verify_timestamp((*data).as_bytes(), (*sig).as_str(), max_age))
+    }
+}
+
+ffi_fn! {
     /// Parses a secret key from a string.
     unsafe fn smith_secretkey_parse(s: &SmithStr) -> Result<*mut SmithSecretKey> {
         let secret_key: SecretKey = s.as_str().parse()?;
