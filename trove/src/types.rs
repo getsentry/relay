@@ -260,6 +260,10 @@ impl Trove {
     /// and kill the thread.  This however might not be executed as there is no
     /// guarantee that dtors are invoked in all cases.
     pub fn abdicate(&self) -> Result<(), GovernorError> {
+        if !self.is_governed() {
+            return Ok(());
+        }
+
         // indicate on the trove state that we're no longer governed and then
         // attempt to send a message into the event channel if we can safely
         // do so.

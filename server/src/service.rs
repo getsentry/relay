@@ -1,9 +1,15 @@
+use parking_lot::Mutex;
+
+use futures::future::Future;
+use futures::sync::oneshot;
+
 use hyper::Body;
 use hyper::header::{ContentLength, ContentType};
 use hyper::server::{const_service, service_fn, Http, Response};
 
 use errors::{Error, ErrorKind};
 use failure::ResultExt;
+use ctrlc;
 
 use smith_config::Config;
 use smith_trove::Trove;
@@ -37,8 +43,23 @@ pub fn run(config: &Config) -> Result<(), Error> {
         .bind(&config.listen_addr(), hello)
         .context(ErrorKind::BindFailed)?;
 
-    server.run().context(ErrorKind::ListenFailed)?;
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let shutdown_tx = Mutex::new(Some(shutdown_tx));
+
+    ctrlc::set_handler(move || {
+        if let Some(tx) = shutdown_tx.lock().take() {
+            info!("received shutdown signal");
+            tx.send(()).ok();
+        }
+    }).expect("failed to set SIGINT/SIGTERM handler");
+
+    server
+        .run_until(shutdown_rx.map(|_| ()).map_err(|_| ()))
+        .context(ErrorKind::ListenFailed)?;
+
     trove.abdicate().context(ErrorKind::TroveGovernSpawnFailed)?;
+
+    info!("relay shut down");
 
     Ok(())
 }
