@@ -44,7 +44,10 @@ pub(crate) fn spawn_authenticator(ctx: Arc<TroveContext>) {
 fn register_with_upstream(ctx: Arc<TroveContext>) {
     let config = &ctx.state().config;
 
-    info!("registering with upstream (upstream = {})", &config.upstream);
+    info!(
+        "registering with upstream (upstream = {})",
+        &config.upstream
+    );
     let state = ctx.state();
 
     state.set_auth_state(AuthState::RegisterRequestChallenge);
