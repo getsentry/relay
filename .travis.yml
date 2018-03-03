@@ -5,7 +5,7 @@ git:
   depth: 1
 
 if: tag IS blank
-script: make $(SUITE)
+script: make $SUITE
 
 matrix:
   include:
