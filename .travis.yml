@@ -1,11 +1,15 @@
 language: rust
-cache: cargo
+cache:
+  cargo: true
+  directories:
+    - cabi/target
 
 git:
   depth: 1
 
 if: tag IS blank
 script: make $SUITE
+env: SMITH_DEBUG=1
 
 matrix:
   include:
