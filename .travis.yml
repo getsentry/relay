@@ -5,20 +5,21 @@ sudo: required
 git:
   depth: 1
 
-os:
-  - linux
-  - osx
-
 if: tag IS blank
 install: cargo build --all
-script: cargo test --all
+script: .ci/suite.sh
 
 matrix:
   include:
     os: linux
-    rust: nightly
-    install: cargo install rustfmt-nightly --force
-    script: cargo fmt -- --write-mode diff
+    env: SUITE=test
+  include:
+    os: osx
+    env: SUITE=test
+  include:
+    os: linux
+    env: SUITE=format
+    install: cargo install rustfmt-preview
 
 before_install:
   - .ci/install-libsodium.sh
