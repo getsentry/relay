@@ -2,7 +2,7 @@ venv/bin/python: setup.py
 	rm -rf venv
 	virtualenv venv
 	venv/bin/pip install --upgrade pip
-	venv/bin/pip install -v --editable .
+	SMITH_DEBUG=1 venv/bin/pip install -v --editable .
 	venv/bin/pip install pytest
 
 venv: venv/bin/python

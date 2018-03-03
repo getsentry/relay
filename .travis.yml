@@ -9,7 +9,6 @@ git:
 
 if: tag IS blank
 script: make $SUITE
-env: SMITH_DEBUG=1
 
 matrix:
   include:
