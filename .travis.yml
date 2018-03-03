@@ -21,7 +21,7 @@ matrix:
       script: cargo test --all
     - os: linux
       env: SUITE=format
-      install: cargo install rustfmt-preview
+      install: rustup component add rustfmt-preview
       script: cargo fmt -- --write-mode diff
 
 notifications:
