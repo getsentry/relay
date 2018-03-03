@@ -6,9 +6,15 @@ build:
 doc:
 	@cargo doc
 
-test: cargotest
+test: cargotest pytest
 
 cargotest:
 	@cargo test --all
 
-.PHONY: all doc test cargotest
+pytest:
+	@$(MAKE) -C py test
+
+format-check:
+	@cargo fmt -- --write-mode diff
+
+.PHONY: all doc test cargotest pytest format-check

@@ -5,6 +5,7 @@ git:
   depth: 1
 
 if: tag IS blank
+script: make $(SUITE)
 
 matrix:
   include:
@@ -13,16 +14,13 @@ matrix:
       env: SUITE=test
       before_install: .ci/install-libsodium.sh
       install: cargo build --all
-      script: cargo test --all
     - os: osx
       env: SUITE=test
       before_install: .ci/install-libsodium.sh
       install: cargo build --all
-      script: cargo test --all
     - os: linux
-      env: SUITE=format
+      env: SUITE=format-check
       install: rustup component add rustfmt-preview
-      script: cargo fmt -- --write-mode diff
 
 notifications:
   webhooks:
