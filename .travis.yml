@@ -5,22 +5,24 @@ git:
   depth: 1
 
 if: tag IS blank
-install: cargo build --all
-script: .ci/suite.sh
 
 matrix:
   include:
     - os: linux
       sudo: required
       env: SUITE=test
+      before_install: .ci/install-libsodium.sh
+      install: cargo build --all
+      script: cargo test --all
     - os: osx
       env: SUITE=test
+      before_install: .ci/install-libsodium.sh
+      install: cargo build --all
+      script: cargo test --all
     - os: linux
       env: SUITE=format
       install: cargo install rustfmt-preview
-
-before_install:
-  - .ci/install-libsodium.sh
+      script: cargo fmt -- --write-mode diff
 
 notifications:
   webhooks:
