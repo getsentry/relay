@@ -1,6 +1,5 @@
 language: rust
 cache: cargo
-sudo: required
 
 git:
   depth: 1
@@ -11,15 +10,14 @@ script: .ci/suite.sh
 
 matrix:
   include:
-    os: linux
-    env: SUITE=test
-  include:
-    os: osx
-    env: SUITE=test
-  include:
-    os: linux
-    env: SUITE=format
-    install: cargo install rustfmt-preview
+    - os: linux
+      sudo: required
+      env: SUITE=test
+    - os: osx
+      env: SUITE=test
+    - os: linux
+      env: SUITE=format
+      install: cargo install rustfmt-preview
 
 before_install:
   - .ci/install-libsodium.sh
