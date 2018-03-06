@@ -1,3 +1,9 @@
+/// Helper macro to implement string based serialization.
+///
+/// If a type implements `FromStr` and `Display` then this automatically
+/// implements a serializer/deserializer for that type that dispatches
+/// appropriately.  First argument is the name of the type, the second
+/// is a message for the expectation error (human readable type effectively).
 #[macro_export]
 macro_rules! impl_str_serialization {
     ($type:ty, $expectation:expr) => {

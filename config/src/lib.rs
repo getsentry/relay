@@ -1,4 +1,5 @@
 //! Config system for the relay.
+#![warn(missing_docs)]
 extern crate chrono;
 extern crate failure;
 #[macro_use]

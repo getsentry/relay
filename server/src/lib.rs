@@ -1,4 +1,5 @@
 //! Implements basics for the protocol.
+#![warn(missing_docs)]
 extern crate ctrlc;
 extern crate failure;
 #[macro_use]

@@ -1,4 +1,5 @@
 //! Common functionality for the sentry relay.
+#![warn(missing_docs)]
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;

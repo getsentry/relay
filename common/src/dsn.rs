@@ -8,11 +8,21 @@ use project_id::{ProjectId, ProjectIdParseError};
 /// Represents a dsn url parsing error.
 #[derive(Debug, Fail)]
 pub enum DsnParseError {
-    #[fail(display = "no valid url provided")] InvalidUrl,
-    #[fail(display = "username is empty")] NoUsername,
-    #[fail(display = "empty path")] NoProjectId,
-    #[fail(display = "no valid scheme")] InvalidScheme,
-    #[fail(display = "invalid project id")] InvalidProjectId(#[cause] ProjectIdParseError),
+    /// raised on completely invalid urls
+    #[fail(display = "no valid url provided")]
+    InvalidUrl,
+    /// raised the scheme is invalid / unsupported.
+    #[fail(display = "no valid scheme")]
+    InvalidScheme,
+    /// raised if the username (public key) portion is missing.
+    #[fail(display = "username is empty")]
+    NoUsername,
+    /// raised the project is is missing (first path component)
+    #[fail(display = "empty path")]
+    NoProjectId,
+    /// raised the project id is invalid.
+    #[fail(display = "invalid project id")]
+    InvalidProjectId(#[cause] ProjectIdParseError),
 }
 
 /// Represents the scheme of an url http/https.
@@ -20,7 +30,9 @@ pub enum DsnParseError {
 /// This holds schemes that are supported by sentry and relays.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Scheme {
+    /// unencrypted HTTP scheme (should not be used)
     Http,
+    /// encrypted HTTPS scheme
     Https,
 }
 

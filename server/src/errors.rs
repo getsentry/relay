@@ -2,11 +2,13 @@ use std::fmt;
 
 use failure::{Backtrace, Context, Fail};
 
+/// Common error type for the relay server.
 #[derive(Debug)]
 pub struct Error {
     inner: Context<ErrorKind>,
 }
 
+/// Indicates the type of failure of the server.
 #[derive(Debug, Fail, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ErrorKind {
     /// Binding failed.
@@ -43,6 +45,7 @@ impl fmt::Display for Error {
 }
 
 impl Error {
+    /// Returns the error kind of the error.
     pub fn kind(&self) -> ErrorKind {
         *self.inner.get_context()
     }

@@ -70,6 +70,13 @@ fn dump_spawn_infos(config: &Config) {
     info!("  listening on http://{}/", config.listen_addr());
 }
 
+/// Given a relay config spawns the server and lets it run until it stops.
+///
+/// This not only spawning the server but also a governed trove in the
+/// background.  Effectively this boots the server.  Right now this function
+/// can only ever be called once as it sets up a global signal handler
+/// to handle the SIGINT/SIGTERM.  Calling it a second time will fail with
+/// a panic.
 pub fn run(config: &Config) -> Result<(), Error> {
     dump_spawn_infos(config);
 
