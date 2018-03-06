@@ -19,12 +19,11 @@ static TEXT: &'static str = "Doing absolutely nothing so far!";
 
 struct ProxyService;
 
-
 impl Service for ProxyService {
     type Request = Request;
     type Response = Response;
     type Error = HyperError;
-    type Future = Box<Future<Item=Self::Response, Error=Self::Error>>;
+    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     fn call(&self, req: Request) -> Self::Future {
         lazy_static! {
@@ -41,7 +40,7 @@ impl Service for ProxyService {
             Response::new()
                 .with_header(ContentLength(TEXT.len() as u64))
                 .with_header(ContentType::plaintext())
-                .with_body(TEXT)
+                .with_body(TEXT),
         ))
     }
 }
