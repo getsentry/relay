@@ -7,7 +7,7 @@ import subprocess
 def has_cargo_fmt():
     """Runs a quick check to see if cargo fmt is installed."""
     try:
-        c = subprocess.Popen(['cargo', 'fmt', '--help'],
+        c = subprocess.Popen(['cargo', 'fmt', '--', '--help'],
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
         return c.wait() == 0
@@ -29,6 +29,7 @@ def run_format_check(files):
         return 0
     return subprocess.Popen(['cargo', 'fmt', '--',
                              '--write-mode=diff',
+                             '--skip-children',
                              '--color=always'] + rust_files).wait()
 
 
