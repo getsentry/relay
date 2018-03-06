@@ -14,7 +14,7 @@ use sodiumoxide::crypto::sign::ed25519 as sign_backend;
 use chrono::{DateTime, Duration, Utc};
 use hyper::Method;
 
-use api::AortaApiRequest;
+use api::ApiRequest;
 
 static INIT_SODIUMOXIDE_RNG: Once = ONCE_INIT;
 
@@ -115,7 +115,7 @@ pub struct RegisterRequest {
     public_key: PublicKey,
 }
 
-impl AortaApiRequest for RegisterRequest {
+impl ApiRequest for RegisterRequest {
     type Response = RegisterChallenge;
 
     fn get_aorta_request_target<'a>(&'a self) -> (Method, Cow<'a, str>) {
@@ -143,7 +143,7 @@ pub struct Registration {
     relay_id: RelayId,
 }
 
-impl AortaApiRequest for RegisterResponse {
+impl ApiRequest for RegisterResponse {
     type Response = Registration;
 
     fn get_aorta_request_target<'a>(&'a self) -> (Method, Cow<'a, str>) {
@@ -152,10 +152,18 @@ impl AortaApiRequest for RegisterResponse {
 }
 
 impl SecretKey {
+    /// Signs some data with the secret key and returns the signature.
+    ///
+    /// This is will sign with the default header.
     pub fn sign(&self, data: &[u8]) -> String {
         self.sign_with_header(data, Default::default())
     }
 
+    /// Signs some data with the seret key and a specific header and
+    /// then returns the signature.
+    ///
+    /// The default behavior is to attach the timestamp in the header to the
+    /// signature so that old signatures on verification can be rejected.
     pub fn sign_with_header(&self, data: &[u8], header: SignatureHeader) -> String {
         let mut header =
             serde_json::to_vec(&header).expect("attempted to pack non json safe header");
@@ -169,10 +177,12 @@ impl SecretKey {
         sig_encoded
     }
 
+    /// Packs some serializable data into JSON and signs it with the default header.
     pub fn pack<S: Serialize>(&self, data: S) -> (Vec<u8>, String) {
         self.pack_with_header(data, Default::default())
     }
 
+    /// Packs some serializable data into JSON and signs it with the specified header.
     pub fn pack_with_header<S: Serialize>(
         &self,
         data: S,

@@ -1,4 +1,5 @@
 //! Implements the relay <-> backend protocol.
+#![warn(missing_docs)]
 extern crate base64;
 extern crate chrono;
 extern crate failure;

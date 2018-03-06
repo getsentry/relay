@@ -4,7 +4,7 @@ use hyper::server::Response;
 use hyper::header::{ContentLength, ContentType};
 use serde_json;
 
-use smith_trove::ApiErrorResponse;
+use smith_aorta::ApiErrorResponse;
 
 pub fn make_error_response(
     status_code: StatusCode,

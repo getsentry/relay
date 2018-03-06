@@ -15,7 +15,8 @@ use errors::{Error, ErrorKind};
 use utils::make_error_response;
 
 use smith_config::Config;
-use smith_trove::{ApiErrorResponse, Trove, TroveContext};
+use smith_aorta::ApiErrorResponse;
+use smith_trove::{Trove, TroveContext};
 use smith_common::ProjectId;
 
 static TEXT: &'static str = "Doing absolutely nothing so far!";

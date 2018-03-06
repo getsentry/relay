@@ -11,12 +11,8 @@ use hyper::Method;
 
 use smith_common::ProjectId;
 
-use api::AortaApiRequest;
+use api::ApiRequest;
 use projectstate::{ProjectState, ProjectStateSnapshot};
-
-#[derive(Fail, Debug)]
-#[fail(display = "a query failed")]
-pub struct AortaQueryError;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct PackedQuery {
@@ -24,16 +20,22 @@ struct PackedQuery {
     pub data: serde_json::Value,
 }
 
+/// Indicates the internal status of an aorta query.
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum QueryStatus {
+    /// The query succeeded
     Success,
+    /// The query is still pending
     Pending,
+    /// The query failed with an error
     Error,
 }
 
+/// Indicates how a query failed.
 #[derive(Fail, Serialize, Deserialize, Debug)]
 pub struct QueryError {
+    /// Optionally a detailed error message about why the query failed.
     pub detail: Option<String>,
 }
 
@@ -153,18 +155,24 @@ impl fmt::Debug for QueryManager {
     }
 }
 
+/// A trait for all objects that can trigger an aorta query.
 pub trait AortaQuery: Serialize {
+    /// The type of the query response
     type Response: DeserializeOwned + 'static;
+
+    /// Returns the type (name) of the query in the aorta protocol.
     fn aorta_query_type(&self) -> &str;
 }
 
+/// A query to fetch the current project state.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectConfigQuery {
-    pub project_id: ProjectId,
+    project_id: ProjectId,
 }
 
 impl GetProjectConfigQuery {
+    /// Creates a new project query for a specific project id.
     pub fn new(project_id: ProjectId) -> GetProjectConfigQuery {
         GetProjectConfigQuery {
             project_id: project_id,
@@ -179,24 +187,31 @@ impl AortaQuery for GetProjectConfigQuery {
     }
 }
 
+/// An API request for the heartbeat request.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HeartbeatRequest {
     queries: HashMap<Uuid, PackedQuery>,
 }
 
+/// The response from a heartbeat query.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HeartbeatQueryResult {
+    /// The status of the query
     pub status: QueryStatus,
+    /// The raw response data as JSON.  Might be None if the
+    /// query is pending.
     pub result: Option<serde_json::Value>,
 }
 
+/// The response format for a heartbeat request.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct HeartbeatResponse {
+    /// A hashmap of query results.
     pub query_results: HashMap<Uuid, HeartbeatQueryResult>,
 }
 
-impl AortaApiRequest for HeartbeatRequest {
+impl ApiRequest for HeartbeatRequest {
     type Response = HeartbeatResponse;
 
     fn get_aorta_request_target<'a>(&'a self) -> (Method, Cow<'a, str>) {

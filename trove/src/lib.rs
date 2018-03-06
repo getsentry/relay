@@ -2,6 +2,7 @@
 //! aortas.  It's used by the server as a central point to buffer up
 //! changes that need to be flushed with the heartbeat and stores
 //! config updates from upstream.
+#![warn(missing_docs)]
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;

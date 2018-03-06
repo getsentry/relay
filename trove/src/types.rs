@@ -1,5 +1,4 @@
 use std::io;
-use std::fmt;
 use std::thread;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -17,14 +16,14 @@ use hyper::client::{Client, HttpConnector};
 use hyper_tls::HttpsConnector;
 
 use smith_common::ProjectId;
-use smith_aorta::{AortaApiRequest, AortaConfig, ProjectState, QueryManager};
+use smith_aorta::{AortaConfig, ApiErrorResponse, ApiRequest, ProjectState, QueryManager};
 
 use auth::{spawn_authenticator, AuthError, AuthState};
 use heartbeat::spawn_heartbeat;
 
 /// Represents an event that can be sent to the governor.
 #[derive(Debug)]
-pub enum GovernorEvent {
+pub(crate) enum GovernorEvent {
     /// Tells the trove governor to shut down.
     Shutdown,
     /// The trove authenticated successfully.
@@ -60,31 +59,6 @@ pub enum ApiError {
     /// A server indicated api error ocurred.
     #[fail(display = "bad request ({}; {})", _0, _1)]
     ErrorResponse(StatusCode, ApiErrorResponse),
-}
-
-/// An error response from an api.
-#[derive(Serialize, Deserialize, Default, Debug)]
-pub struct ApiErrorResponse {
-    detail: Option<String>,
-}
-
-impl ApiErrorResponse {
-    /// Creates an error response with a detail message
-    pub fn with_detail<S: AsRef<str>>(s: S) -> ApiErrorResponse {
-        ApiErrorResponse {
-            detail: Some(s.as_ref().to_string()),
-        }
-    }
-}
-
-impl fmt::Display for ApiErrorResponse {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(ref detail) = self.detail {
-            write!(f, "{}", detail)
-        } else {
-            write!(f, "no error details")
-        }
-    }
 }
 
 /// An internal helper struct that represents the shared state of the
@@ -182,7 +156,7 @@ impl TroveContext {
     }
 
     /// Shortcut for aorta requests for specific types.
-    pub fn aorta_request<T: AortaApiRequest>(
+    pub fn aorta_request<T: ApiRequest>(
         &self,
         req: &T,
     ) -> Box<Future<Item = T::Response, Error = ApiError>> {
@@ -195,7 +169,8 @@ impl TroveContext {
 /// The trove holds project states and manages the upstream aorta.
 ///
 /// The trove can be used from multiple threads as the object is internally
-/// synchronized.  It also typically has a governing thread running which
+/// synchronized however the typical case is to work with the the trove
+/// state or context.  It also typically has a governing thread running which
 /// automatically manages the state for the individual projects.
 pub struct Trove {
     state: Arc<TroveState>,
@@ -228,6 +203,9 @@ impl Trove {
     /// can be created for each thread that wants to interface with the
     /// trove which gives access to the most important data in it.
     ///
+    /// Alternatively you can directly use the trove state if API requests
+    /// do not need to be issued.
+    ///
     /// Note that this trove context shares the underlying trove but it has
     /// its own HTTP client and core.  This is for instance used by the
     /// API server to work with the trove from another thread.  This is
@@ -237,9 +215,9 @@ impl Trove {
         TroveContext::new(handle, self.state.clone())
     }
 
-    /// Returns `true` if the trove is governed.
-    pub fn is_governed(&self) -> bool {
-        self.state.remote.read().is_some()
+    /// Returns the internal state of the trove.
+    pub fn state(&self) -> Arc<TroveState> {
+        self.state.clone()
     }
 
     /// Spawns a trove governor thread.
@@ -248,7 +226,7 @@ impl Trove {
     /// state of the trove.  If the trove is already governed this function will
     /// panic.
     pub fn govern(&self) -> Result<(), GovernorError> {
-        if self.is_governed() {
+        if self.state.is_governed() {
             panic!("trove is already governed");
         }
 
@@ -273,9 +251,9 @@ impl Trove {
     /// If the trove is already not governed this method will just quietly
     /// do nothing.  Additionally dropping the trove will attempt to abdicate
     /// and kill the thread.  This however might not be executed as there is no
-    /// guarantee that dtors are invoked in all cases.
+    /// guarantee that dtors are invoked in all cases .
     pub fn abdicate(&self) -> Result<(), GovernorError> {
-        if !self.is_governed() {
+        if !self.state.is_governed() {
             return Ok(());
         }
 
@@ -302,6 +280,11 @@ impl Drop for Trove {
 }
 
 impl TroveState {
+    /// Returns `true` if the trove is governed.
+    pub fn is_governed(&self) -> bool {
+        self.remote.read().is_some()
+    }
+
     /// Returns the aorta config.
     pub fn config(&self) -> Arc<AortaConfig> {
         self.config.clone()
@@ -358,7 +341,7 @@ impl TroveState {
     }
 
     /// Emits an event to the governor.
-    pub fn emit_governor_event(&self, event: GovernorEvent) -> bool {
+    pub(crate) fn emit_governor_event(&self, event: GovernorEvent) -> bool {
         info!("emit governor event: {:?}", event);
         if let Some(ref tx) = *self.governor_tx.read() {
             tx.unbounded_send(event).is_ok()
