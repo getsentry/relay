@@ -66,6 +66,8 @@ pub struct QueryManager {
 impl QueryManager {
     /// Creates a new query manager
     pub fn new() -> QueryManager {
+        // TODO: queries can expire.  This means something needs to clean up very
+        // old query callbacks eventually or we leak memory here.
         QueryManager {
             pending_queries: RwLock::new(VecDeque::new()),
             query_callbacks: RwLock::new(HashMap::new()),
