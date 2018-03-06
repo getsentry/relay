@@ -9,7 +9,6 @@ use hyper::header::{ContentLength, ContentType};
 use hyper::server::{Http, Request, Response, Service};
 use regex::Regex;
 use failure::ResultExt;
-use ctrlc;
 
 use errors::{Error, ErrorKind};
 use utils::make_error_response;
@@ -60,39 +59,14 @@ impl Service for ProxyService {
     }
 }
 
-fn dump_spawn_infos(config: &Config) {
-    info!(
-        "launching relay with config {}",
-        config.filename().display()
-    );
-    info!("  relay id: {}", config.relay_id());
-    info!("  public key: {}", config.public_key());
-    info!("  listening on http://{}/", config.listen_addr());
-}
-
 /// Given a relay config spawns the server and lets it run until it stops.
 ///
 /// This not only spawning the server but also a governed trove in the
-/// background.  Effectively this boots the server.  Right now this function
-/// can only ever be called once as it sets up a global signal handler
-/// to handle the SIGINT/SIGTERM.  Calling it a second time will fail with
-/// a panic.
-pub fn run(config: &Config) -> Result<(), Error> {
-    dump_spawn_infos(config);
-
+/// background.  Effectively this boots the server.
+pub fn run(config: &Config, shutdown_rx: oneshot::Receiver<()>) -> Result<(), Error> {
+    let shutdown_rx = shutdown_rx.shared();
     let trove = Arc::new(Trove::new(config.make_aorta_config()));
     trove.govern().context(ErrorKind::TroveGovernSpawnFailed)?;
-
-    let (shutdown_tx, shutdown_rx) = oneshot::channel();
-    let shutdown_rx = shutdown_rx.shared();
-    let shutdown_tx = Mutex::new(Some(shutdown_tx));
-
-    ctrlc::set_handler(move || {
-        if let Some(tx) = shutdown_tx.lock().take() {
-            info!("received shutdown signal");
-            tx.send(()).ok();
-        }
-    }).expect("failed to set SIGINT/SIGTERM handler");
 
     // the service itself has a landing pad but in addition we also create one
     // for the server entirely in case we encounter a bad panic somewhere.

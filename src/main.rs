@@ -1,11 +1,20 @@
 extern crate clap;
+extern crate ctrlc;
 extern crate failure;
+extern crate futures;
+#[macro_use]
+extern crate log;
+extern crate parking_lot;
 extern crate pretty_env_logger;
+
 extern crate smith_config;
 extern crate smith_server;
 
 use std::env;
+
 use failure::Error;
+use futures::sync::oneshot;
+use parking_lot::Mutex;
 use clap::{App, AppSettings, Arg};
 
 use smith_config::Config;
@@ -18,6 +27,16 @@ fn init_logging(config: &Config) {
         env::set_var("RUST_LOG", config.log_level_filter().to_string());
     }
     pretty_env_logger::init();
+}
+
+fn dump_spawn_infos(config: &Config) {
+    info!(
+        "launching relay with config {}",
+        config.filename().display()
+    );
+    info!("  relay id: {}", config.relay_id());
+    info!("  public key: {}", config.public_key());
+    info!("  listening on http://{}/", config.listen_addr());
 }
 
 pub fn execute() -> Result<(), Error> {
@@ -47,7 +66,17 @@ pub fn execute() -> Result<(), Error> {
         config.save()?;
     }
 
-    smith_server::run(&config)?;
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let shutdown_tx = Mutex::new(Some(shutdown_tx));
+    ctrlc::set_handler(move || {
+        if let Some(tx) = shutdown_tx.lock().take() {
+            info!("received shutdown signal");
+            tx.send(()).ok();
+        }
+    }).expect("failed to set SIGINT/SIGTERM handler");
+    dump_spawn_infos(&config);
+    smith_server::run(&config, shutdown_rx)?;
+
     Ok(())
 }
 
