@@ -27,10 +27,15 @@ def run_format_check(files):
     rust_files = [x for x in files if x.endswith('.rs')]
     if not rust_files:
         return 0
-    return subprocess.Popen(['cargo', 'fmt', '--',
-                             '--write-mode=diff',
-                             '--skip-children',
-                             '--color=always'] + rust_files).wait()
+    rv = subprocess.Popen(['cargo', 'fmt', '--',
+                           '--write-mode=diff',
+                           '--skip-children',
+                           '--color=always'] + rust_files).wait()
+    if rv != 0:
+        print('', file=sys.stderr)
+        print('\033[1m\033[2minfo: to fix this run `cargo fmt` and '
+              'commit again\033[0m', file=sys.stderr)
+    return rv
 
 
 def main():
