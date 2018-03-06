@@ -39,7 +39,7 @@ pub(crate) fn spawn_authenticator(ctx: Arc<TroveContext>) {
 }
 
 fn register_with_upstream(ctx: Arc<TroveContext>) {
-    let config = &ctx.state().config;
+    let config = &ctx.state().config();
 
     info!(
         "registering with upstream (upstream = {})",
@@ -97,7 +97,7 @@ fn send_register_challenge_response(ctx: Arc<TroveContext>, challenge: RegisterC
 fn schedule_auth_retry(ctx: Arc<TroveContext>) {
     info!("scheduling authentication retry");
     let state = ctx.state();
-    let config = &ctx.state().config;
+    let config = &ctx.state().config();
     state.set_auth_state(AuthState::Error);
     let inner_ctx = ctx.clone();
     ctx.handle().spawn(

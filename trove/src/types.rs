@@ -24,7 +24,7 @@ use heartbeat::spawn_heartbeat;
 
 /// Represents an event that can be sent to the governor.
 #[derive(Debug)]
-pub(crate) enum GovernorEvent {
+pub enum GovernorEvent {
     /// Tells the trove governor to shut down.
     Shutdown,
     /// The trove authenticated successfully.
@@ -68,6 +68,15 @@ pub struct ApiErrorResponse {
     detail: Option<String>,
 }
 
+impl ApiErrorResponse {
+    /// Creates an error response with a detail message
+    pub fn with_detail<S: AsRef<str>>(s: S) -> ApiErrorResponse {
+        ApiErrorResponse {
+            detail: Some(s.as_ref().to_string()),
+        }
+    }
+}
+
 impl fmt::Display for ApiErrorResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(ref detail) = self.detail {
@@ -81,8 +90,8 @@ impl fmt::Display for ApiErrorResponse {
 /// An internal helper struct that represents the shared state of the
 /// trove.  An `Arc` of the state is passed around various systems.
 #[derive(Debug)]
-pub(crate) struct TroveState {
-    pub config: Arc<AortaConfig>,
+pub struct TroveState {
+    config: Arc<AortaConfig>,
     states: RwLock<HashMap<ProjectId, Arc<ProjectState>>>,
     governor_tx: RwLock<Option<mpsc::UnboundedSender<GovernorEvent>>>,
     remote: RwLock<Option<Remote>>,
@@ -92,14 +101,33 @@ pub(crate) struct TroveState {
 
 /// Convenience context that never crosses threads.
 #[derive(Debug)]
-pub(crate) struct TroveContext {
+pub struct TroveContext {
     handle: Handle,
     state: Arc<TroveState>,
     client: Client<HttpsConnector<HttpConnector>>,
 }
 
 impl TroveContext {
+    fn new(handle: Handle, state: Arc<TroveState>) -> Arc<TroveContext> {
+        let t = thread::current();
+        debug!(
+            "created new trove context for thread {} ({:?})",
+            t.name().unwrap_or("no-name"),
+            t.id()
+        );
+        Arc::new(TroveContext {
+            handle: handle.clone(),
+            state: state,
+            client: Client::configure()
+                .connector(HttpsConnector::new(4, &handle).unwrap())
+                .build(&handle),
+        })
+    }
+
     /// Returns the handle of the core loop.
+    ///
+    /// This is the handle that is used for the underlying HTTP client on the
+    /// trove context.
     pub fn handle(&self) -> Handle {
         self.handle.clone()
     }
@@ -114,8 +142,7 @@ impl TroveContext {
         &self.client
     }
 
-    /// Sends an API request and handles data.
-    pub fn perform_aorta_request<D: DeserializeOwned + 'static>(
+    fn perform_aorta_request<D: DeserializeOwned + 'static>(
         &self,
         req: Request,
     ) -> Box<Future<Item = D, Error = ApiError>> {
@@ -194,37 +221,20 @@ impl Trove {
         }
     }
 
-    /// Looks up a project state by project ID.
+    /// Creates a new trove context.
     ///
-    /// If the project state does not exist in the trove it's created.  The
-    /// return value is inside an arc wrapper as the trove might periodically
-    /// expired project states.
+    /// The trove as such is a type that exists in a place but cannot be
+    /// conveniently passed from thread to thread.  Instead a trove context
+    /// can be created for each thread that wants to interface with the
+    /// trove which gives access to the most important data in it.
     ///
-    /// Note that project states are also created if snapshots cannot be retrieved
-    /// from upstream because the upstream is down or because the project does in
-    /// fact not exist or the relay has no permissions to access the data.
-    pub fn state_for_project(&self, project_id: ProjectId) -> Arc<ProjectState> {
-        // state already exists, return it.
-        {
-            let states = self.state.states.read();
-            if let Some(ref rv) = states.get(&project_id) {
-                return (*rv).clone();
-            }
-        }
-
-        // insert an empty state
-        {
-            let state = ProjectState::new(
-                project_id,
-                self.state.config.clone(),
-                self.state.query_manager.clone(),
-            );
-            self.state
-                .states
-                .write()
-                .insert(project_id, Arc::new(state));
-        }
-        (*self.state.states.read().get(&project_id).unwrap()).clone()
+    /// Note that this trove context shares the underlying trove but it has
+    /// its own HTTP client and core.  This is for instance used by the
+    /// API server to work with the trove from another thread.  This is
+    /// needed because the underlying HTTP client cannot be shared between
+    /// threads.
+    pub fn new_context(&self, handle: Handle) -> Arc<TroveContext> {
+        TroveContext::new(handle, self.state.clone())
     }
 
     /// Returns `true` if the trove is governed.
@@ -283,13 +293,6 @@ impl Trove {
             Ok(())
         }
     }
-
-    /// Returns the remote of the underlying governor.
-    ///
-    /// In case the governor is not running this will panic.
-    pub fn remote(&self) -> Remote {
-        self.state.remote()
-    }
 }
 
 impl Drop for Trove {
@@ -299,6 +302,11 @@ impl Drop for Trove {
 }
 
 impl TroveState {
+    /// Returns the aorta config.
+    pub fn config(&self) -> Arc<AortaConfig> {
+        self.config.clone()
+    }
+
     /// Returns the current auth state.
     pub fn auth_state(&self) -> AuthState {
         *self.auth_state.read()
@@ -307,6 +315,25 @@ impl TroveState {
     /// Returns a project state if it exists.
     pub fn get_project_state(&self, project_id: ProjectId) -> Option<Arc<ProjectState>> {
         self.states.read().get(&project_id).map(|x| x.clone())
+    }
+
+    /// Gets or creates the project state.
+    pub fn get_or_create_project_state(&self, project_id: ProjectId) -> Arc<ProjectState> {
+        // state already exists, return it.
+        {
+            let states = self.states.read();
+            if let Some(ref rv) = states.get(&project_id) {
+                return (*rv).clone();
+            }
+        }
+
+        // insert an empty state
+        {
+            let state =
+                ProjectState::new(project_id, self.config.clone(), self.query_manager.clone());
+            self.states.write().insert(project_id, Arc::new(state));
+        }
+        (*self.states.read().get(&project_id).unwrap()).clone()
     }
 
     /// Returns the current query manager.
@@ -362,13 +389,7 @@ fn run_governor(
     *state.remote.write() = Some(core.remote());
     debug!("spawned trove governor");
 
-    let ctx = Arc::new(TroveContext {
-        handle: core.handle(),
-        state: state.clone(),
-        client: Client::configure()
-            .connector(HttpsConnector::new(4, &core.handle()).unwrap())
-            .build(&core.handle()),
-    });
+    let ctx = TroveContext::new(core.handle(), state.clone());
 
     // spawn a stream that just listens in on the events sent into the
     // trove governor so we can figure out when to terminate the thread

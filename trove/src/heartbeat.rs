@@ -14,7 +14,7 @@ pub(crate) fn spawn_heartbeat(ctx: Arc<TroveContext>) {
 
 fn schedule_heartbeat(ctx: Arc<TroveContext>) {
     let inner_ctx = ctx.clone();
-    let config = &ctx.state().config;
+    let config = &ctx.state().config();
     ctx.handle().spawn(
         Timeout::new(config.heartbeat_interval.to_std().unwrap(), &ctx.handle())
             .unwrap()
