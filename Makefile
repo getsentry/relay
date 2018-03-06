@@ -1,5 +1,8 @@
 all: test
 
+setup-git:
+	cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.py pre-commit
+
 build:
 	@cargo build --all
 
@@ -17,4 +20,4 @@ pytest:
 format-check:
 	@cargo fmt -- --write-mode diff
 
-.PHONY: all doc test cargotest pytest format-check
+.PHONY: all setup-git doc test cargotest pytest format-check
