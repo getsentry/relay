@@ -1,10 +1,11 @@
 use chrono::Duration;
-use hyper::{Method, Request, Uri};
+use hyper::{Method, Request};
 use hyper::header::{ContentLength, ContentType};
 use serde::Serialize;
 
 use auth::{PublicKey, RelayId, SecretKey};
 use upstream::UpstreamDescriptor;
+use smith_common::url_to_hyper_uri;
 
 /// Holds common config values that affect the aorta behavior.
 ///
@@ -65,19 +66,9 @@ impl AortaConfig {
             .expect("secret key must be set on aorta config")
     }
 
-    /// Returns the URL to hit for an api request on the upstream.
-    pub fn get_api_uri(&self, path: &str) -> Uri {
-        format!(
-            "{}api/0/{}",
-            self.upstream,
-            path.trim_left_matches(&['/'][..])
-        ).parse()
-            .unwrap()
-    }
-
     /// Prepares a JSON bodied API request to aorta with signature.
     pub fn prepare_aorta_req<S: Serialize>(&self, method: Method, path: &str, body: &S) -> Request {
-        let mut req = Request::new(method, self.get_api_uri(path));
+        let mut req = Request::new(method, url_to_hyper_uri(self.upstream.get_api_url(path)));
         let (json, signature) = self.secret_key().pack(body);
         {
             let headers = req.headers_mut();
