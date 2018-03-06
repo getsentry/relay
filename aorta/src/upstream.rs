@@ -85,7 +85,9 @@ impl<'a> UpstreamDescriptor<'a> {
 
     /// Returns the API store endpoint URL
     pub fn get_store_url(&self, project_id: ProjectId) -> Url {
-        format!("{}api/{}/store/", self, project_id).parse().unwrap()
+        format!("{}api/{}/store/", self, project_id)
+            .parse()
+            .unwrap()
     }
 
     /// Returns the socket address of the upstream.
