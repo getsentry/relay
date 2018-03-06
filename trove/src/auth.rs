@@ -1,9 +1,6 @@
-use std::io::{self, Write};
 use std::sync::Arc;
-use std::time::Duration;
 
 use futures::Future;
-use hyper::{Chunk, Method};
 use tokio_core::reactor::Timeout;
 
 use types::TroveContext;

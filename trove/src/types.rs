@@ -4,7 +4,6 @@ use std::thread;
 use std::sync::Arc;
 use std::collections::HashMap;
 
-use serde::ser::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json;
 use parking_lot::{Mutex, RwLock};
@@ -12,13 +11,13 @@ use tokio_core::reactor::{Core, Handle, Remote};
 use futures::{Future, IntoFuture, Stream};
 use futures::sync::{mpsc, oneshot};
 use hyper;
-use hyper::{Chunk, Method, Request, StatusCode};
+use hyper::{Chunk, Request, StatusCode};
 use hyper::header::ContentType;
 use hyper::client::{Client, HttpConnector};
 use hyper_tls::HttpsConnector;
 
 use smith_common::ProjectId;
-use smith_aorta::{AortaApiRequest, AortaConfig, ProjectState};
+use smith_aorta::{AortaApiRequest, AortaConfig, ProjectState, QueryManager};
 
 use auth::{spawn_authenticator, AuthError, AuthState};
 use heartbeat::spawn_heartbeat;
@@ -87,6 +86,7 @@ pub(crate) struct TroveState {
     states: RwLock<HashMap<ProjectId, Arc<ProjectState>>>,
     governor_tx: RwLock<Option<mpsc::UnboundedSender<GovernorEvent>>>,
     remote: RwLock<Option<Remote>>,
+    query_manager: Arc<QueryManager>,
     auth_state: RwLock<AuthState>,
 }
 
@@ -187,6 +187,7 @@ impl Trove {
                 config: config,
                 governor_tx: RwLock::new(None),
                 remote: RwLock::new(None),
+                query_manager: Arc::new(QueryManager::new()),
                 auth_state: RwLock::new(AuthState::Unknown),
             }),
             join_handle: Mutex::new(None),
@@ -213,7 +214,11 @@ impl Trove {
 
         // insert an empty state
         {
-            let state = ProjectState::new(project_id, self.state.config.clone());
+            let state = ProjectState::new(
+                project_id,
+                self.state.config.clone(),
+                self.state.query_manager.clone(),
+            );
             self.state
                 .states
                 .write()
@@ -297,6 +302,16 @@ impl TroveState {
     /// Returns the current auth state.
     pub fn auth_state(&self) -> AuthState {
         *self.auth_state.read()
+    }
+
+    /// Returns a project state if it exists.
+    pub fn get_project_state(&self, project_id: ProjectId) -> Option<Arc<ProjectState>> {
+        self.states.read().get(&project_id).map(|x| x.clone())
+    }
+
+    /// Returns the current query manager.
+    pub fn query_manager(&self) -> Arc<QueryManager> {
+        self.query_manager.clone()
     }
 
     /// Transitions the auth state.

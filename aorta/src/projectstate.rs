@@ -1,7 +1,8 @@
+use std::fmt;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::collections::HashMap;
 
-use serde_json;
 use parking_lot::RwLock;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -9,7 +10,7 @@ use serde::de::DeserializeOwned;
 
 use config::AortaConfig;
 use upstream::UpstreamDescriptor;
-use query::{AortaQuery, GetProjectConfigQuery, PackedQuery};
+use query::{AortaQuery, GetProjectConfigQuery, QueryError, QueryManager};
 use smith_common::ProjectId;
 
 /// These are config values that the user can modify in the UI.
@@ -87,8 +88,9 @@ pub enum PublicKeyEventAction {
 pub struct ProjectState {
     config: Arc<AortaConfig>,
     project_id: ProjectId,
-    current_snapshot: Arc<RwLock<Option<Arc<ProjectStateSnapshot>>>>,
-    pending_queries: RwLock<HashMap<Uuid, PackedQuery>>,
+    current_snapshot: RwLock<Option<Arc<ProjectStateSnapshot>>>,
+    requested_new_snapshot: AtomicBool,
+    query_manager: Arc<QueryManager>,
     last_event: RwLock<Option<DateTime<Utc>>>,
 }
 
@@ -128,50 +130,31 @@ impl ProjectState {
     ///
     /// The config is taken as `Arc` so we can share it effectively across
     /// multiple project states and troves.
-    pub fn new(project_id: ProjectId, config: Arc<AortaConfig>) -> ProjectState {
+    pub fn new(
+        project_id: ProjectId,
+        config: Arc<AortaConfig>,
+        query_manager: Arc<QueryManager>,
+    ) -> ProjectState {
         ProjectState {
             project_id: project_id,
             config: config,
-            current_snapshot: Arc::new(RwLock::new(None)),
-            pending_queries: RwLock::new(HashMap::new()),
+            current_snapshot: RwLock::new(None),
+            requested_new_snapshot: AtomicBool::new(false),
+            query_manager: query_manager,
             last_event: RwLock::new(None),
         }
     }
 
     /// Adds a query that should be issued with the next heartbeat.
-    pub fn add_query<Q: AortaQuery<Response = R>, R: DeserializeOwned + 'static>(
-        &self,
-        query: Q,
-    ) -> Uuid {
-        let query_id = Uuid::new_v4();
-        self.pending_queries.write().insert(
-            query_id,
-            PackedQuery {
-                ty: query.aorta_query_type().to_string(),
-                data: serde_json::to_value(&query).unwrap(),
-            },
-        );
-        query_id
-    }
-
-    /// Adds a query if it's not in there already (debounces).  If the query
-    /// is already there, the old uuid is returned.
-    pub fn add_query_uniq<Q: AortaQuery<Response = R>, R: DeserializeOwned + 'static>(
-        &self,
-        query: Q,
-    ) -> Uuid {
-        let packed_query = PackedQuery {
-            ty: query.aorta_query_type().to_string(),
-            data: serde_json::to_value(&query).unwrap(),
-        };
-        for (query_id, existing_query) in self.pending_queries.read().iter() {
-            if existing_query == &packed_query {
-                return query_id.clone();
-            }
-        }
-        let query_id = Uuid::new_v4();
-        self.pending_queries.write().insert(query_id, packed_query);
-        query_id
+    pub fn add_query<Q, R, F, E>(&self, query: Q, callback: F) -> Uuid
+    where
+        Q: AortaQuery<Response = R>,
+        R: DeserializeOwned + 'static,
+        F: FnMut(&ProjectState, Result<R, QueryError>) -> Result<(), E> + Sync + Send + 'static,
+        E: fmt::Debug,
+    {
+        self.query_manager
+            .add_query(self.project_id(), query, callback)
     }
 
     /// The project ID of this project.
@@ -213,6 +196,29 @@ impl ProjectState {
             .and_then(|x| x.last_change.clone())
     }
 
+    /// Requests an update to the project config to be fetched.
+    pub fn request_updated_project_config(&self) {
+        if !self.requested_new_snapshot
+            .compare_and_swap(false, true, Ordering::Relaxed)
+        {
+            return;
+        }
+
+        self.add_query(
+            GetProjectConfigQuery::new(self.project_id()),
+            move |ps, rv| -> Result<(), ()> {
+                if let Ok(snapshot) = rv {
+                    ps.requested_new_snapshot.store(false, Ordering::Relaxed);
+                    *ps.current_snapshot.write() = Some(Arc::new(snapshot));
+                } else {
+                    // TODO: error handling
+                    rv.unwrap();
+                }
+                Ok(())
+            },
+        );
+    }
+
     /// Checks if events should be buffered for a public key.
     ///
     /// Events should be buffered until a key becomes available nor we
@@ -235,17 +241,7 @@ impl ProjectState {
                     PublicKeyStatus::Unknown => {
                         // we don't know the key yet, ensure we fetch it on the next
                         // heartbeat.
-                        //
-                        // TODO(mitsuhiko): this should turn into something like this
-                        // instead:
-                        //
-                        //      let current_snapshot = self.current_snapshot.clone();
-                        //      project_state.add_query_uniq(GetProjectConfigQuery::new(project_id)
-                        //          .and_then(move |rv| {
-                        //              *current_snapshot.write() = Some(rv);
-                        //              Ok(())
-                        //          }));
-                        self.add_query_uniq(GetProjectConfigQuery::new(self.project_id()));
+                        self.request_updated_project_config();
 
                         // if the last config fetch was more than a minute ago we just
                         // accept the event because at this point the dsn might have

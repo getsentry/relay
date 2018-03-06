@@ -1,10 +1,11 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use futures::Future;
 use tokio_core::reactor::Timeout;
 
 use types::TroveContext;
+
+use smith_aorta::{HeartbeatResponse, QueryStatus};
 
 pub(crate) fn spawn_heartbeat(ctx: Arc<TroveContext>) {
     info!("starting heartbeat service");
@@ -37,5 +38,38 @@ fn perform_heartbeat(ctx: Arc<TroveContext>) {
         return;
     }
 
-    schedule_heartbeat(ctx);
+    let hb_req = state.query_manager().next_heartbeat_request();
+    let inner_ctx_success = ctx.clone();
+    let inner_ctx_failure = ctx.clone();
+
+    ctx.handle().spawn(
+        ctx.aorta_request(&hb_req)
+            .and_then(move |response| {
+                handle_heartbeat_response(inner_ctx_success.clone(), response);
+                schedule_heartbeat(inner_ctx_success);
+                Ok(())
+            })
+            .or_else(|err| {
+                error!("heartbeat failed: {}", &err);
+                schedule_heartbeat(inner_ctx_failure);
+                Err(())
+            }),
+    );
+}
+
+fn handle_heartbeat_response(ctx: Arc<TroveContext>, response: HeartbeatResponse) {
+    let state = ctx.state();
+    let query_manager = state.query_manager();
+    for (query_id, result) in response.query_results.into_iter() {
+        if result.status == QueryStatus::Pending {
+            continue;
+        }
+        if let Some((project_id, mut callback)) = query_manager.pop_callback(query_id) {
+            if let Some(project_state) = state.get_project_state(project_id) {
+                if let Some(data) = result.result {
+                    callback(&project_state, data, result.status == QueryStatus::Success);
+                }
+            }
+        }
+    }
 }
