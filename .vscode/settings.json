@@ -2,11 +2,7 @@
   "editor.formatOnType": true,
   "editor.formatOnPaste": true,
   "editor.formatOnSave": true,
-  "editor.rulers": [
-    100
-  ],
+  "editor.rulers": [100],
   "editor.tabSize": 4,
-  "rust.unstable_features": true,
-  "rust.workspace_mode": true,
-  "rust-client.channel": "nightly-2017-12-30"
+  "rust-client.channel": "stable"
 }
