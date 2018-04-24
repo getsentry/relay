@@ -71,7 +71,7 @@ fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadStoreReques
             Err(err) => return Err(BadStoreRequest::BadAuth(err)),
         },
         None => return Err(BadStoreRequest::MissingAuth),
-    };
+    }
 
     // fall back to auth from url
     Auth::from_pairs(
