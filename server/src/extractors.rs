@@ -48,8 +48,6 @@ impl StoreRequest {
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
-    #[fail(display = "missing x-sentry-auth header")]
-    MissingAuth,
     #[fail(display = "invalid project path parameter")]
     BadProject(#[fail(cause)] ProjectIdParseError),
     #[fail(display = "bad x-sentry-auth header")]
@@ -70,7 +68,7 @@ fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadStoreReques
             Ok(val) => return Ok(val),
             Err(err) => return Err(BadStoreRequest::BadAuth(err)),
         },
-        None => return Err(BadStoreRequest::MissingAuth),
+        None => {}
     }
 
     // fall back to auth from url
