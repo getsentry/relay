@@ -41,6 +41,27 @@ pub enum BadStoreRequest {
 
 impl ResponseError for BadStoreRequest {}
 
+fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadStoreRequest> {
+    // try auth from header
+    let auth = match req.headers()
+        .get("x-sentry-auth")
+        .and_then(|x| x.to_str().ok())
+    {
+        Some(auth) => match auth.parse::<Auth>() {
+            Ok(val) => val,
+            Err(err) => return Err(BadStoreRequest::BadAuth(err)),
+        },
+        None => return Err(BadStoreRequest::MissingAuth),
+    };
+
+    // fall back to auth from url
+    Auth::from_pairs(
+        req.query()
+            .iter()
+            .map(|&(ref a, ref b)| -> (&str, &str) { (&a, &b) }),
+    ).map_err(BadStoreRequest::BadAuth)
+}
+
 impl<S> FromRequest<S> for StoreRequest
 where
     S: 'static,
@@ -50,16 +71,9 @@ where
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
-        let req = req.clone();
-        let auth = match req.headers()
-            .get("x-sentry-auth")
-            .and_then(|x| x.to_str().ok())
-        {
-            Some(auth) => match auth.parse::<Auth>() {
-                Ok(val) => val,
-                Err(err) => return Box::new(future::err(BadStoreRequest::BadAuth(err).into())),
-            },
-            None => return Box::new(future::err(BadStoreRequest::MissingAuth.into())),
+        let auth = match get_auth_from_request(req) {
+            Ok(auth) => auth,
+            Err(err) => return Box::new(future::err(err.into())),
         };
         Box::new(
             JsonBody::new(req.clone())
