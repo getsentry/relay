@@ -2,41 +2,52 @@ use std::sync::Arc;
 
 use actix_web::{http, server, App, Json};
 use failure::ResultExt;
+use sentry_types::protocol::latest::Event;
 use uuid::Uuid;
 
-use smith_aorta::PublicKeyEventAction;
+use smith_aorta::{AortaChangeset, PublicKeyEventAction};
 use smith_config::Config;
 use smith_trove::Trove;
 
 use errors::{Error, ErrorKind};
 use extractors::{BadStoreRequest, StoreRequest};
 
-/// Response returned from the store route.
 #[derive(Serialize)]
-pub struct StoreResponse {
+struct StoreResponse {
     /// The ID of the stored event
     id: Uuid,
 }
 
+#[derive(Serialize)]
+struct StoreChangeset {
+    event: Event<'static>,
+}
+
+impl AortaChangeset for StoreChangeset {
+    fn aorta_changeset_type(&self) -> &str {
+        "store"
+    }
+}
+
 fn store(request: StoreRequest) -> Result<Json<StoreResponse>, BadStoreRequest> {
-    let public_key = request.auth().public_key();
     let trove_state = request.trove_state();
-    let project_state = trove_state.get_or_create_project_state(request.project_id());
+    let project_id = request.project_id();
+    let project_state = trove_state.get_or_create_project_state(project_id);
+    let event_action = project_state.get_public_key_event_action(request.auth().public_key());
 
-    // TODO: Set this ID into the event somehow
-    let event_id = request.event().id.unwrap_or_else(|| Uuid::new_v4());
+    let mut event = request.into_event();
+    let event_id = *event.id.get_or_insert_with(|| Uuid::new_v4());
 
-    match project_state.get_public_key_event_action(public_key) {
-        PublicKeyEventAction::Send => {
-            // TODO: Send right away
-        }
-        PublicKeyEventAction::Queue => {
-            // TODO: We don't have a queue yet
-        }
+    match event_action {
+        PublicKeyEventAction::Send => trove_state
+            .request_manager()
+            .add_changeset(StoreChangeset { event }),
+        // TODO: Implement an event queue in `TroveState`
+        PublicKeyEventAction::Queue => trove_state
+            .request_manager()
+            .add_changeset(StoreChangeset { event }),
         PublicKeyEventAction::Discard => {
-            // We simply swallow the event here.
-            // Not sure what to do with the response in this case
-            // TODO: Return something
+            debug!("Discarded event {} for project {}", event_id, project_id)
         }
     }
 

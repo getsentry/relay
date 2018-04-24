@@ -36,8 +36,8 @@ impl StoreRequest {
     }
 
     /// Returns the current trove state.
-    pub fn trove_state(&self) -> &TroveState {
-        &self.state
+    pub fn trove_state(&self) -> Arc<TroveState> {
+        self.state.clone()
     }
 
     /// Converts the object into the event.
