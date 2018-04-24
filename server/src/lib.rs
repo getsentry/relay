@@ -13,6 +13,8 @@ extern crate lazy_static;
 extern crate log;
 extern crate parking_lot;
 extern crate regex;
+extern crate sentry_types;
+extern crate serde;
 extern crate serde_json;
 extern crate smith_aorta;
 extern crate smith_common;
@@ -23,6 +25,7 @@ extern crate tokio_core;
 mod service;
 mod errors;
 mod utils;
+mod extractors;
 
 pub use service::*;
 pub use errors::*;
