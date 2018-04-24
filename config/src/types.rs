@@ -90,11 +90,16 @@ impl Default for Aorta {
 /// Config struct.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
-    #[serde(skip, default)] changed: bool,
-    #[serde(skip, default = "PathBuf::new")] filename: PathBuf,
-    #[serde(default)] relay: Relay,
-    #[serde(default)] aorta: Aorta,
-    #[serde(default)] logging: Logging,
+    #[serde(skip, default)]
+    changed: bool,
+    #[serde(skip, default = "PathBuf::new")]
+    filename: PathBuf,
+    #[serde(default)]
+    relay: Relay,
+    #[serde(default)]
+    aorta: Aorta,
+    #[serde(default)]
+    logging: Logging,
 }
 
 impl Config {

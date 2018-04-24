@@ -16,7 +16,8 @@ use projectstate::{ProjectState, ProjectStateSnapshot};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct PackedQuery {
-    #[serde(rename = "type")] pub ty: String,
+    #[serde(rename = "type")]
+    pub ty: String,
     pub data: serde_json::Value,
 }
 
