@@ -38,7 +38,7 @@ fn perform_heartbeat(ctx: Arc<TroveContext>) {
         return;
     }
 
-    let hb_req = state.query_manager().next_heartbeat_request();
+    let hb_req = state.request_manager().next_heartbeat_request();
     let inner_ctx_success = ctx.clone();
     let inner_ctx_failure = ctx.clone();
 
@@ -59,12 +59,12 @@ fn perform_heartbeat(ctx: Arc<TroveContext>) {
 
 fn handle_heartbeat_response(ctx: Arc<TroveContext>, response: HeartbeatResponse) {
     let state = ctx.state();
-    let query_manager = state.query_manager();
+    let request_manager = state.request_manager();
     for (query_id, result) in response.query_results.into_iter() {
         if result.status == QueryStatus::Pending {
             continue;
         }
-        if let Some((project_id, mut callback)) = query_manager.pop_callback(query_id) {
+        if let Some((project_id, mut callback)) = request_manager.pop_callback(query_id) {
             if let Some(project_state) = state.get_project_state(project_id) {
                 if let Some(data) = result.result {
                     callback(&project_state, data, result.status == QueryStatus::Success);

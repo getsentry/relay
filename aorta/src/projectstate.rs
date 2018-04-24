@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 
 use config::AortaConfig;
 use upstream::UpstreamDescriptor;
-use query::{AortaQuery, GetProjectConfigQuery, QueryError, QueryManager};
+use query::{AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};
 use smith_common::ProjectId;
 
 /// These are config values that the user can modify in the UI.
@@ -90,7 +90,7 @@ pub struct ProjectState {
     project_id: ProjectId,
     current_snapshot: RwLock<Option<Arc<ProjectStateSnapshot>>>,
     requested_new_snapshot: AtomicBool,
-    query_manager: Arc<QueryManager>,
+    request_manager: Arc<RequestManager>,
     last_event: RwLock<Option<DateTime<Utc>>>,
 }
 
@@ -133,14 +133,14 @@ impl ProjectState {
     pub fn new(
         project_id: ProjectId,
         config: Arc<AortaConfig>,
-        query_manager: Arc<QueryManager>,
+        request_manager: Arc<RequestManager>,
     ) -> ProjectState {
         ProjectState {
             project_id: project_id,
             config: config,
             current_snapshot: RwLock::new(None),
             requested_new_snapshot: AtomicBool::new(false),
-            query_manager: query_manager,
+            request_manager: request_manager,
             last_event: RwLock::new(None),
         }
     }
@@ -153,7 +153,7 @@ impl ProjectState {
         F: FnMut(&ProjectState, Result<R, QueryError>) -> Result<(), E> + Sync + Send + 'static,
         E: fmt::Debug,
     {
-        self.query_manager
+        self.request_manager
             .add_query(self.project_id(), query, callback)
     }
 

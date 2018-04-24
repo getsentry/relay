@@ -16,7 +16,7 @@ use hyper::client::{Client, HttpConnector};
 use hyper_tls::HttpsConnector;
 
 use smith_common::ProjectId;
-use smith_aorta::{AortaConfig, ApiErrorResponse, ApiRequest, ProjectState, QueryManager};
+use smith_aorta::{AortaConfig, ApiErrorResponse, ApiRequest, ProjectState, RequestManager};
 
 use auth::{spawn_authenticator, AuthError, AuthState};
 use heartbeat::spawn_heartbeat;
@@ -69,7 +69,7 @@ pub struct TroveState {
     states: RwLock<HashMap<ProjectId, Arc<ProjectState>>>,
     governor_tx: RwLock<Option<mpsc::UnboundedSender<GovernorEvent>>>,
     remote: RwLock<Option<Remote>>,
-    query_manager: Arc<QueryManager>,
+    request_manager: Arc<RequestManager>,
     auth_state: RwLock<AuthState>,
 }
 
@@ -189,7 +189,7 @@ impl Trove {
                 config: config,
                 governor_tx: RwLock::new(None),
                 remote: RwLock::new(None),
-                query_manager: Arc::new(QueryManager::new()),
+                request_manager: Arc::new(RequestManager::new()),
                 auth_state: RwLock::new(AuthState::Unknown),
             }),
             join_handle: Mutex::new(None),
@@ -312,16 +312,19 @@ impl TroveState {
 
         // insert an empty state
         {
-            let state =
-                ProjectState::new(project_id, self.config.clone(), self.query_manager.clone());
+            let state = ProjectState::new(
+                project_id,
+                self.config.clone(),
+                self.request_manager.clone(),
+            );
             self.states.write().insert(project_id, Arc::new(state));
         }
         (*self.states.read().get(&project_id).unwrap()).clone()
     }
 
-    /// Returns the current query manager.
-    pub fn query_manager(&self) -> Arc<QueryManager> {
-        self.query_manager.clone()
+    /// Returns the current request manager.
+    pub fn request_manager(&self) -> Arc<RequestManager> {
+        self.request_manager.clone()
     }
 
     /// Transitions the auth state.

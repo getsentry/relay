@@ -15,7 +15,7 @@ use api::ApiRequest;
 use projectstate::{ProjectState, ProjectStateSnapshot};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct PackedQuery {
+struct PackedRequest {
     #[serde(rename = "type")]
     pub ty: String,
     pub data: serde_json::Value,
@@ -50,9 +50,10 @@ impl fmt::Display for QueryError {
     }
 }
 
-/// The query manager helps sending aorta queries.
-pub struct QueryManager {
-    pending_queries: RwLock<VecDeque<(Uuid, PackedQuery)>>,
+/// The request manager helps sending aorta queries.
+pub struct RequestManager {
+    pending_changesets: RwLock<VecDeque<PackedRequest>>,
+    pending_queries: RwLock<VecDeque<(Uuid, PackedRequest)>>,
     // XXX: this should actually be FnOnce but current versions of rust do not
     // permit boxing this. See https://github.com/rust-lang/rfcs/issues/997
     query_callbacks: RwLock<
@@ -66,18 +67,27 @@ pub struct QueryManager {
     >,
 }
 
-impl QueryManager {
-    /// Creates a new query manager
-    pub fn new() -> QueryManager {
+impl RequestManager {
+    /// Creates a new request manager
+    pub fn new() -> RequestManager {
         // TODO: queries can expire.  This means something needs to clean up very
         // old query callbacks eventually or we leak memory here.
-        QueryManager {
+        RequestManager {
+            pending_changesets: RwLock::new(VecDeque::new()),
             pending_queries: RwLock::new(VecDeque::new()),
             query_callbacks: RwLock::new(HashMap::new()),
         }
     }
 
-    /// Adds a query to the query manager.
+    /// Adds a changeset to the request manager.
+    pub fn add_changeset<C: AortaChangeset>(&self, changeset: C) {
+        self.pending_changesets.write().push_back(PackedRequest {
+            ty: changeset.aorta_changeset_type().to_string(),
+            data: serde_json::to_value(&changeset).unwrap(),
+        })
+    }
+
+    /// Adds a query to the request manager.
     ///
     /// The callback is executed once the query returns with a result.
     pub fn add_query<Q, R, F, E>(&self, project_id: ProjectId, query: Q, callback: F) -> Uuid
@@ -107,7 +117,7 @@ impl QueryManager {
         );
         self.pending_queries.write().push_back((
             query_id,
-            PackedQuery {
+            PackedRequest {
                 ty: query.aorta_query_type().to_string(),
                 data: serde_json::to_value(&query).unwrap(),
             },
@@ -115,7 +125,11 @@ impl QueryManager {
         query_id
     }
 
-    fn unschedule_pending_query(&self) -> Option<(Uuid, PackedQuery)> {
+    fn unschedule_pending_changeset(&self) -> Option<PackedRequest> {
+        self.pending_changesets.write().pop_front()
+    }
+
+    fn unschedule_pending_query(&self) -> Option<(Uuid, PackedRequest)> {
         self.pending_queries.write().pop_front()
     }
 
@@ -134,26 +148,40 @@ impl QueryManager {
 
     /// Returns a single heartbeat request.
     ///
-    /// This unschedules some pending queries from the query manager.
+    /// This unschedules some pending queries from the request manager.
     pub fn next_heartbeat_request(&self) -> HeartbeatRequest {
         let mut rv = HeartbeatRequest {
+            changesets: Vec::new(),
             queries: HashMap::new(),
         };
+
         for _ in 0..50 {
-            if let Some((query_id, query)) = self.unschedule_pending_query() {
-                rv.queries.insert(query_id, query);
-            } else {
-                break;
-            }
+            match self.unschedule_pending_changeset() {
+                Some(changeset) => rv.changesets.push(changeset),
+                None => break,
+            };
+        }
+
+        for _ in 0..50 {
+            match self.unschedule_pending_query() {
+                Some((query_id, query)) => rv.queries.insert(query_id, query),
+                None => break,
+            };
         }
         rv
     }
 }
 
-impl fmt::Debug for QueryManager {
+impl fmt::Debug for RequestManager {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "QueryManager {{ ... }}")
+        write!(f, "RequestManager {{ ... }}")
     }
+}
+
+/// A trait for all objects that can trigger changes via aorta.
+pub trait AortaChangeset: Serialize {
+    /// Returns the type (name) of the query in the aorta protocol.
+    fn aorta_changeset_type(&self) -> &str;
 }
 
 /// A trait for all objects that can trigger an aorta query.
@@ -191,7 +219,8 @@ impl AortaQuery for GetProjectConfigQuery {
 /// An API request for the heartbeat request.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HeartbeatRequest {
-    queries: HashMap<Uuid, PackedQuery>,
+    changesets: Vec<PackedRequest>,
+    queries: HashMap<Uuid, PackedRequest>,
 }
 
 /// The response from a heartbeat query.
