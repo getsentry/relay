@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use futures::{future, Future};
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use actix_web::dev::JsonBody;
@@ -5,11 +7,16 @@ use actix_web::error::{Error, JsonPayloadError, ResponseError};
 use sentry_types::protocol::latest::Event;
 use sentry_types::{Auth, AuthParseError};
 
+use smith_common::{ProjectId, ProjectIdParseError};
+use smith_trove::TroveState;
+
 /// Holds an event and the associated auth header.
 #[derive(Debug)]
 pub struct StoreRequest {
     auth: Auth,
+    project_id: ProjectId,
     payload: Event<'static>,
+    state: Arc<TroveState>,
 }
 
 impl StoreRequest {
@@ -18,12 +25,22 @@ impl StoreRequest {
         &self.auth
     }
 
+    /// Returns the project identifier for this request.
+    pub fn project_id(&self) -> ProjectId {
+        self.project_id
+    }
+
     /// Returns a reference to the sentry event.
     pub fn event(&self) -> &Event<'static> {
         &self.payload
     }
 
-    /// Converts the object into the event
+    /// Returns the current trove state.
+    pub fn trove_state(&self) -> &TroveState {
+        &self.state
+    }
+
+    /// Converts the object into the event.
     pub fn into_event(self) -> Event<'static> {
         self.payload
     }
@@ -33,6 +50,8 @@ impl StoreRequest {
 pub enum BadStoreRequest {
     #[fail(display = "missing x-sentry-auth header")]
     MissingAuth,
+    #[fail(display = "invalid project path parameter")]
+    BadProject(#[fail(cause)] ProjectIdParseError),
     #[fail(display = "bad x-sentry-auth header")]
     BadAuth(#[fail(cause)] AuthParseError),
     #[fail(display = "bad JSON payload")]
@@ -62,26 +81,37 @@ fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadStoreReques
     ).map_err(BadStoreRequest::BadAuth)
 }
 
-impl<S> FromRequest<S> for StoreRequest
-where
-    S: 'static,
-{
+impl FromRequest<Arc<TroveState>> for StoreRequest {
     type Config = ();
     type Result = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<Arc<TroveState>>, _cfg: &Self::Config) -> Self::Result {
         let auth = match get_auth_from_request(req) {
             Ok(auth) => auth,
             Err(err) => return Box::new(future::err(err.into())),
         };
+
+        let project_id = match req.match_info()
+            .get("project")
+            .unwrap_or_default()
+            .parse()
+            .map_err(BadStoreRequest::BadProject)
+        {
+            Ok(project_id) => project_id,
+            Err(err) => return Box::new(future::err(err.into())),
+        };
+
+        let state = req.state().clone();
         Box::new(
             JsonBody::new(req.clone())
                 .limit(262_144)
                 .map_err(|e| BadStoreRequest::BadJson(e).into())
-                .map(|payload| StoreRequest {
-                    auth: auth,
-                    payload: payload,
+                .map(move |payload| StoreRequest {
+                    auth,
+                    project_id,
+                    payload,
+                    state,
                 }),
         )
     }
