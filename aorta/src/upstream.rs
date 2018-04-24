@@ -42,7 +42,7 @@ pub enum UpstreamParseError {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct UpstreamDescriptor<'a> {
     host: Cow<'a, str>,
-    port: Option<u16>,
+    port: u16,
     scheme: Scheme,
 }
 
@@ -51,7 +51,7 @@ impl<'a> UpstreamDescriptor<'a> {
     pub fn new(host: &'a str, port: u16, scheme: Scheme) -> UpstreamDescriptor<'a> {
         UpstreamDescriptor {
             host: Cow::Borrowed(host),
-            port: Some(port),
+            port: port,
             scheme: scheme,
         }
     }
@@ -73,7 +73,7 @@ impl<'a> UpstreamDescriptor<'a> {
 
     /// Returns the upstream port
     pub fn port(&self) -> u16 {
-        self.port.unwrap_or_else(|| self.scheme().default_port())
+        self.port
     }
 
     /// Returns the API base URL.
@@ -122,7 +122,7 @@ impl Default for UpstreamDescriptor<'static> {
     fn default() -> UpstreamDescriptor<'static> {
         UpstreamDescriptor {
             host: Cow::Borrowed("ingest.sentry.io"),
-            port: None,
+            port: 443,
             scheme: Scheme::Https,
         }
     }
@@ -158,7 +158,7 @@ impl FromStr for UpstreamDescriptor<'static> {
                 Some(host) => Cow::Owned(host.to_string()),
                 None => return Err(UpstreamParseError::NoHost),
             },
-            port: url.port(),
+            port: url.port().unwrap_or(scheme.default_port()),
             scheme: scheme,
         })
     }
