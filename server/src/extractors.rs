@@ -62,12 +62,12 @@ impl ResponseError for BadStoreRequest {}
 
 fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadStoreRequest> {
     // try auth from header
-    let auth = match req.headers()
+    match req.headers()
         .get("x-sentry-auth")
         .and_then(|x| x.to_str().ok())
     {
         Some(auth) => match auth.parse::<Auth>() {
-            Ok(val) => val,
+            Ok(val) => return Ok(val),
             Err(err) => return Err(BadStoreRequest::BadAuth(err)),
         },
         None => return Err(BadStoreRequest::MissingAuth),
