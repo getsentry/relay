@@ -41,4 +41,4 @@ version = "0.1.0"
 [workspace]
 
 [patch."crates-io"]
-sentry = { git = "https://github.com/getsentry/sentry-rust", rev = "2bbb3787060b6254786fb307c49993abe16a1598" }
+sentry = { git = "https://github.com/getsentry/sentry-rust", rev = "b2310fe52d68d0a93301ba0ab73ccc1dd6a10fac" }
