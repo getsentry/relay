@@ -16,6 +16,7 @@ futures = "0.1.18"
 parking_lot = "0.5.4"
 ctrlc = { version = "3.1.0", features = ["termination"] }
 log = "0.4.1"
+sentry = "0.4.0"
 
 [dependencies.smith-aorta]
 path = "aorta"
@@ -38,3 +39,6 @@ path = "trove"
 version = "0.1.0"
 
 [workspace]
+
+[patch."crates-io"]
+sentry = { git = "https://github.com/getsentry/sentry-rust", rev = "2bbb3787060b6254786fb307c49993abe16a1598" }

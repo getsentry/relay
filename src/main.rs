@@ -6,6 +6,7 @@ extern crate futures;
 extern crate log;
 extern crate parking_lot;
 extern crate pretty_env_logger;
+extern crate sentry;
 
 extern crate smith_config;
 extern crate smith_server;
@@ -24,7 +25,14 @@ fn init_logging(config: &Config) {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", config.log_level_filter().to_string());
     }
-    pretty_env_logger::init();
+
+    let mut log_builder = pretty_env_logger::formatted_builder().unwrap();
+    match env::var("RUST_LOG") {
+        Ok(rust_log) => log_builder.parse(&rust_log),
+        Err(_) => log_builder.filter_level(config.log_level_filter()),
+    };
+
+    sentry::integrations::log::init(Some(Box::new(log_builder.build())), Default::default());
 }
 
 fn dump_spawn_infos(config: &Config) {
@@ -56,6 +64,8 @@ pub fn execute() -> Result<(), Error> {
     let matches = app.get_matches();
 
     let mut config = Config::open(matches.value_of("config").unwrap())?;
+    sentry::init(config.sentry_dsn());
+
     init_logging(&config);
 
     // upon loading the config can be initialized.  In that case it will be
