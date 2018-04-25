@@ -9,6 +9,7 @@ use std::net::{IpAddr, SocketAddr};
 use log;
 use serde_yaml;
 use chrono::Duration;
+use sentry::Dsn;
 use smith_aorta::{generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId,
                   SecretKey, UpstreamDescriptor};
 
@@ -45,13 +46,21 @@ struct Logging {
     level: log::LevelFilter,
 }
 
-/// Controls the aorta
+/// Controls the aorta.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Aorta {
     snapshot_expiry: u32,
     auth_retry_interval: u32,
     heartbeat_interval: u32,
+}
+
+/// Controls interal reporting to Sentry.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct Sentry {
+    dsn: Dsn,
+    enabled: bool,
 }
 
 impl Default for Relay {
@@ -87,6 +96,17 @@ impl Default for Aorta {
     }
 }
 
+impl Default for Sentry {
+    fn default() -> Sentry {
+        Sentry {
+            dsn: "https://1bb6015c9e064924890685d6311e0344@sentry.io/1195971"
+                .parse()
+                .unwrap(),
+            enabled: true,
+        }
+    }
+}
+
 /// Config struct.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
@@ -100,6 +120,8 @@ pub struct Config {
     aorta: Aorta,
     #[serde(default)]
     logging: Logging,
+    #[serde(default)]
+    sentry: Sentry,
 }
 
 impl Config {
@@ -200,7 +222,7 @@ impl Config {
         &self.relay.upstream
     }
 
-    /// Returns the listen address
+    /// Returns the listen address.
     pub fn listen_addr(&self) -> SocketAddr {
         (self.relay.host, self.relay.port).into()
     }
@@ -236,5 +258,14 @@ impl Config {
             secret_key: Some(self.secret_key().clone()),
             public_key: Some(self.public_key().clone()),
         })
+    }
+
+    /// Return the Sentry DSN if reporting to Sentry is enabled.
+    pub fn sentry_dsn(&self) -> Option<&Dsn> {
+        if self.sentry.enabled {
+            Some(&self.sentry.dsn)
+        } else {
+            None
+        }
     }
 }
