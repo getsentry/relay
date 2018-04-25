@@ -9,9 +9,9 @@ use smith_aorta::{AortaChangeset, PublicKeyEventAction};
 use smith_config::Config;
 use smith_trove::Trove;
 
-use errors::{Error, ErrorKind};
+use errors::{ServerError, ServerErrorKind};
 use extractors::{BadProjectRequest, StoreRequest};
-use middlewares::ForceJson;
+use middlewares::{CaptureSentryError, ForceJson};
 
 #[derive(Serialize)]
 struct StoreResponse {
@@ -59,22 +59,28 @@ fn store(mut request: StoreRequest) -> Result<Json<StoreResponse>, BadProjectReq
 ///
 /// This not only spawning the server but also a governed trove in the
 /// background.  Effectively this boots the server.
-pub fn run(config: Config) -> Result<(), Error> {
+pub fn run(config: Config) -> Result<(), ServerError> {
     let trove = Arc::new(Trove::new(config.make_aorta_config()));
     let state = trove.state();
-    trove.govern().context(ErrorKind::TroveGovernSpawnFailed)?;
+    trove
+        .govern()
+        .context(ServerErrorKind::TroveGovernSpawnFailed)?;
 
     info!("spawning http listener");
     server::new(move || {
-        App::with_state(state.clone()).resource("/api/{project}/store/", |r| {
-            r.middleware(ForceJson);
-            r.method(http::Method::POST).with(store);
-        })
+        App::with_state(state.clone())
+            .middleware(CaptureSentryError)
+            .resource("/api/{project}/store/", |r| {
+                r.middleware(ForceJson);
+                r.method(http::Method::POST).with(store);
+            })
     }).bind(config.listen_addr())
-        .context(ErrorKind::BindFailed)?
+        .context(ServerErrorKind::BindFailed)?
         .run();
 
-    trove.abdicate().context(ErrorKind::TroveGovernSpawnFailed)?;
+    trove
+        .abdicate()
+        .context(ServerErrorKind::TroveGovernSpawnFailed)?;
     info!("relay shutdown complete");
 
     Ok(())

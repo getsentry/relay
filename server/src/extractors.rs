@@ -13,6 +13,22 @@ use smith_common::{ProjectId, ProjectIdParseError};
 use smith_aorta::ApiErrorResponse;
 use smith_trove::TroveState;
 
+#[derive(Fail, Debug)]
+pub enum BadProjectRequest {
+    #[fail(display = "invalid project path parameter")]
+    BadProject(#[cause] ProjectIdParseError),
+    #[fail(display = "bad x-sentry-auth header")]
+    BadAuth(#[cause] AuthParseError),
+    #[fail(display = "bad JSON payload")]
+    BadJson(#[cause] JsonPayloadError),
+}
+
+impl ResponseError for BadProjectRequest {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::build(StatusCode::BAD_REQUEST).json(&ApiErrorResponse::from_fail(self))
+    }
+}
+
 /// Holds an event and the associated auth header.
 #[derive(Debug)]
 pub struct ProjectRequest<T: DeserializeOwned + 'static> {
@@ -46,22 +62,6 @@ impl<T: DeserializeOwned + 'static> ProjectRequest<T> {
     /// Converts the object into the event.
     pub fn take_payload(&mut self) -> Option<T> {
         self.payload.take()
-    }
-}
-
-#[derive(Fail, Debug)]
-pub enum BadProjectRequest {
-    #[fail(display = "invalid project path parameter")]
-    BadProject(#[cause] ProjectIdParseError),
-    #[fail(display = "bad x-sentry-auth header")]
-    BadAuth(#[cause] AuthParseError),
-    #[fail(display = "bad JSON payload")]
-    BadJson(#[cause] JsonPayloadError),
-}
-
-impl ResponseError for BadProjectRequest {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(StatusCode::BAD_REQUEST).json(&ApiErrorResponse::from_fail(self))
     }
 }
 
