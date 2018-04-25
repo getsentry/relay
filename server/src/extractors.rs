@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
 use futures::{future, Future};
-use actix_web::{FromRequest, HttpMessage, HttpRequest};
+use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse};
 use actix_web::dev::JsonBody;
 use actix_web::error::{Error, JsonPayloadError, ResponseError};
+use http::StatusCode;
 use serde::de::DeserializeOwned;
 use sentry_types::protocol::latest::Event;
 use sentry_types::{Auth, AuthParseError};
 
 use smith_common::{ProjectId, ProjectIdParseError};
+use smith_aorta::ApiErrorResponse;
 use smith_trove::TroveState;
 
 /// Holds an event and the associated auth header.
@@ -50,14 +52,18 @@ impl<T: DeserializeOwned + 'static> ProjectRequest<T> {
 #[derive(Fail, Debug)]
 pub enum BadProjectRequest {
     #[fail(display = "invalid project path parameter")]
-    BadProject(#[fail(cause)] ProjectIdParseError),
+    BadProject(#[cause] ProjectIdParseError),
     #[fail(display = "bad x-sentry-auth header")]
-    BadAuth(#[fail(cause)] AuthParseError),
+    BadAuth(#[cause] AuthParseError),
     #[fail(display = "bad JSON payload")]
-    BadJson(#[fail(cause)] JsonPayloadError),
+    BadJson(#[cause] JsonPayloadError),
 }
 
-impl ResponseError for BadProjectRequest {}
+impl ResponseError for BadProjectRequest {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::build(StatusCode::BAD_REQUEST).json(&ApiErrorResponse::from_fail(self))
+    }
+}
 
 fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadProjectRequest> {
     // try auth from header
