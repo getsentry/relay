@@ -68,7 +68,7 @@ pub fn run(config: Config) -> Result<(), Error> {
     server::new(move || {
         App::with_state(state.clone()).resource("/api/{project}/store/", |r| {
             r.middleware(ForceJson);
-            r.method(http::Method::POST).with(store)
+            r.method(http::Method::POST).with(store);
         })
     }).bind(config.listen_addr())
         .context(ErrorKind::BindFailed)?
