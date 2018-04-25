@@ -4,6 +4,7 @@ use futures::{future, Future};
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use actix_web::dev::JsonBody;
 use actix_web::error::{Error, JsonPayloadError, ResponseError};
+use serde::de::DeserializeOwned;
 use sentry_types::protocol::latest::Event;
 use sentry_types::{Auth, AuthParseError};
 
@@ -12,14 +13,14 @@ use smith_trove::TroveState;
 
 /// Holds an event and the associated auth header.
 #[derive(Debug)]
-pub struct StoreRequest {
+pub struct ProjectRequest<T: DeserializeOwned + 'static> {
     auth: Auth,
     project_id: ProjectId,
-    payload: Event<'static>,
+    payload: Option<T>,
     state: Arc<TroveState>,
 }
 
-impl StoreRequest {
+impl<T: DeserializeOwned + 'static> ProjectRequest<T> {
     /// Returns the sentry protocol auth for this request.
     pub fn auth(&self) -> &Auth {
         &self.auth
@@ -30,9 +31,9 @@ impl StoreRequest {
         self.project_id
     }
 
-    /// Returns a reference to the sentry event.
-    pub fn event(&self) -> &Event<'static> {
-        &self.payload
+    /// Returns a reference to the payload.
+    pub fn payload(&self) -> Option<&T> {
+        self.payload.as_ref()
     }
 
     /// Returns the current trove state.
@@ -41,13 +42,13 @@ impl StoreRequest {
     }
 
     /// Converts the object into the event.
-    pub fn into_event(self) -> Event<'static> {
-        self.payload
+    pub fn take_payload(&mut self) -> Option<T> {
+        self.payload.take()
     }
 }
 
 #[derive(Fail, Debug)]
-pub enum BadStoreRequest {
+pub enum BadProjectRequest {
     #[fail(display = "invalid project path parameter")]
     BadProject(#[fail(cause)] ProjectIdParseError),
     #[fail(display = "bad x-sentry-auth header")]
@@ -56,9 +57,9 @@ pub enum BadStoreRequest {
     BadJson(#[fail(cause)] JsonPayloadError),
 }
 
-impl ResponseError for BadStoreRequest {}
+impl ResponseError for BadProjectRequest {}
 
-fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadStoreRequest> {
+fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadProjectRequest> {
     // try auth from header
     match req.headers()
         .get("x-sentry-auth")
@@ -66,7 +67,7 @@ fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadStoreReques
     {
         Some(auth) => match auth.parse::<Auth>() {
             Ok(val) => return Ok(val),
-            Err(err) => return Err(BadStoreRequest::BadAuth(err)),
+            Err(err) => return Err(BadProjectRequest::BadAuth(err)),
         },
         None => {}
     }
@@ -76,10 +77,10 @@ fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadStoreReques
         req.query()
             .iter()
             .map(|&(ref a, ref b)| -> (&str, &str) { (&a, &b) }),
-    ).map_err(BadStoreRequest::BadAuth)
+    ).map_err(BadProjectRequest::BadAuth)
 }
 
-impl FromRequest<Arc<TroveState>> for StoreRequest {
+impl<T: DeserializeOwned + 'static> FromRequest<Arc<TroveState>> for ProjectRequest<T> {
     type Config = ();
     type Result = Box<Future<Item = Self, Error = Error>>;
 
@@ -94,7 +95,7 @@ impl FromRequest<Arc<TroveState>> for StoreRequest {
             .get("project")
             .unwrap_or_default()
             .parse()
-            .map_err(BadStoreRequest::BadProject)
+            .map_err(BadProjectRequest::BadProject)
         {
             Ok(project_id) => project_id,
             Err(err) => return Box::new(future::err(err.into())),
@@ -104,13 +105,16 @@ impl FromRequest<Arc<TroveState>> for StoreRequest {
         Box::new(
             JsonBody::new(req.clone())
                 .limit(262_144)
-                .map_err(|e| BadStoreRequest::BadJson(e).into())
-                .map(move |payload| StoreRequest {
+                .map_err(|e| BadProjectRequest::BadJson(e).into())
+                .map(move |payload| ProjectRequest {
                     auth,
                     project_id,
-                    payload,
+                    payload: Some(payload),
                     state,
                 }),
         )
     }
 }
+
+/// Requests to the store endpoint
+pub type StoreRequest = ProjectRequest<Event<'static>>;

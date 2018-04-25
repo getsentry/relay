@@ -6,6 +6,7 @@ extern crate failure;
 #[macro_use]
 extern crate failure_derive;
 extern crate futures;
+extern crate http;
 #[macro_use]
 extern crate log;
 extern crate sentry_types;
@@ -22,6 +23,7 @@ mod service;
 mod errors;
 mod utils;
 mod extractors;
+mod middlewares;
 
 pub use service::*;
 pub use errors::*;
