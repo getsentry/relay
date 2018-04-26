@@ -60,16 +60,6 @@ fn init_logging(config: &Config) {
     sentry::integrations::log::init(Some(Box::new(log_builder.build())), Default::default());
 }
 
-fn dump_spawn_infos(config: &Config) {
-    info!(
-        "launching relay with config {}",
-        config.filename().display()
-    );
-    info!("  relay id: {}", config.relay_id());
-    info!("  public key: {}", config.public_key());
-    info!("  log level: {}", config.log_level_filter());
-}
-
 pub fn execute() -> Result<(), Error> {
     let app = App::new("sentry-relay")
         .setting(AppSettings::UnifiedHelpMessage)
@@ -99,7 +89,6 @@ pub fn execute() -> Result<(), Error> {
         config.save()?;
     }
 
-    dump_spawn_infos(&config);
     smith_server::run(config)?;
 
     Ok(())

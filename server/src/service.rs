@@ -56,6 +56,19 @@ fn store(mut request: StoreRequest) -> Result<Json<StoreResponse>, BadProjectReq
     Ok(Json(StoreResponse { id: event_id }))
 }
 
+fn dump_spawn_infos<H: server::HttpHandler>(config: &Config, server: &server::HttpServer<H>) {
+    info!(
+        "launching relay with config {}",
+        config.filename().display()
+    );
+    info!("  relay id: {}", config.relay_id());
+    info!("  public key: {}", config.public_key());
+    info!("  log level: {}", config.log_level_filter());
+    for addr in server.addrs() {
+        info!("  listening on: http://{}/", addr);
+    }
+}
+
 /// Given a relay config spawns the server and lets it run until it stops.
 ///
 /// This not only spawning the server but also a governed trove in the
@@ -67,7 +80,6 @@ pub fn run(config: Config) -> Result<(), ServerError> {
         .govern()
         .context(ServerErrorKind::TroveGovernSpawnFailed)?;
 
-    info!("spawning http listener");
     let mut server = server::new(move || {
         App::with_state(state.clone())
             .middleware(CaptureSentryError)
@@ -96,6 +108,8 @@ pub fn run(config: Config) -> Result<(), ServerError> {
             .context(ServerErrorKind::BindFailed)?;
     }
 
+    dump_spawn_infos(&config, &server);
+    info!("spawning http listener");
     server.run();
 
     trove
