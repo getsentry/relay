@@ -20,4 +20,7 @@ pytest:
 format-check:
 	@cargo fmt -- --write-mode diff
 
-.PHONY: all setup-git doc test cargotest pytest format-check
+devserver:
+	@catflap -- cargo watch -x "run -- -c relay.yml"
+
+.PHONY: all setup-git doc test cargotest pytest format-check devserver
