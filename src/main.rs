@@ -13,6 +13,7 @@ extern crate smith_server;
 
 use std::env;
 
+use log::LevelFilter;
 use failure::Error;
 use clap::{App, AppSettings, Arg};
 
@@ -23,7 +24,26 @@ pub const ABOUT: &'static str = "Runs a sentry-relay (fancy proxy server)";
 
 fn init_logging(config: &Config) {
     if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", config.log_level_filter().to_string());
+        env::set_var(
+            "RUST_LOG",
+            match config.log_level_filter() {
+                LevelFilter::Off => "",
+                LevelFilter::Error => "error",
+                LevelFilter::Warn => "warn",
+                LevelFilter::Info => "info",
+                LevelFilter::Debug => {
+                    "info,actix_web::pipeline=DEBUG,\
+                     smith_common=DEBUG,\
+                     smith_aorta=DEBUG,\
+                     smith_config=DEBUG,\
+                     smith_common=DEBUG,\
+                     smith_server=DEBUG,\
+                     smith_trove=DEBUG,\
+                     sentry_relay=DEBUG"
+                }
+                LevelFilter::Trace => "trace",
+            },
+        );
     }
 
     let mut log_builder = pretty_env_logger::formatted_builder().unwrap();
