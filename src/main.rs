@@ -32,7 +32,8 @@ fn init_logging(config: &Config) {
                 LevelFilter::Warn => "warn",
                 LevelFilter::Info => "info",
                 LevelFilter::Debug => {
-                    "info,actix_web::pipeline=DEBUG,\
+                    "info,\
+                     actix_web::pipeline=DEBUG,\
                      smith_common=DEBUG,\
                      smith_aorta=DEBUG,\
                      smith_config=DEBUG,\
