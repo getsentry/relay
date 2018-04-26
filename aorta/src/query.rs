@@ -140,10 +140,12 @@ impl RequestManager {
     pub fn pop_callback(
         &self,
         query_id: Uuid,
-    ) -> Option<(
-        ProjectId,
-        Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>,
-    )> {
+    ) -> Option<
+        (
+            ProjectId,
+            Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>,
+        ),
+    > {
         self.query_callbacks.write().remove(&query_id)
     }
 
