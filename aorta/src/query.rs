@@ -18,6 +18,7 @@ use projectstate::{ProjectState, ProjectStateSnapshot};
 struct PackedRequest {
     #[serde(rename = "type")]
     pub ty: String,
+    pub project_id: ProjectId,
     pub data: serde_json::Value,
 }
 
@@ -80,9 +81,10 @@ impl RequestManager {
     }
 
     /// Adds a changeset to the request manager.
-    pub fn add_changeset<C: AortaChangeset>(&self, changeset: C) {
+    pub fn add_changeset<C: AortaChangeset>(&self, project_id: ProjectId, changeset: C) {
         self.pending_changesets.write().push_back(PackedRequest {
             ty: changeset.aorta_changeset_type().to_string(),
+            project_id: project_id,
             data: serde_json::to_value(&changeset).unwrap(),
         })
     }
@@ -119,6 +121,7 @@ impl RequestManager {
             query_id,
             PackedRequest {
                 ty: query.aorta_query_type().to_string(),
+                project_id: project_id,
                 data: serde_json::to_value(&query).unwrap(),
             },
         ));
@@ -194,18 +197,7 @@ pub trait AortaQuery: Serialize {
 /// A query to fetch the current project state.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct GetProjectConfigQuery {
-    project_id: ProjectId,
-}
-
-impl GetProjectConfigQuery {
-    /// Creates a new project query for a specific project id.
-    pub fn new(project_id: ProjectId) -> GetProjectConfigQuery {
-        GetProjectConfigQuery {
-            project_id: project_id,
-        }
-    }
-}
+pub struct GetProjectConfigQuery;
 
 impl AortaQuery for GetProjectConfigQuery {
     type Response = ProjectStateSnapshot;

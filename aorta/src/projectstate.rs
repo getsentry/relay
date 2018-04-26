@@ -204,19 +204,16 @@ impl ProjectState {
             return;
         }
 
-        self.add_query(
-            GetProjectConfigQuery::new(self.project_id()),
-            move |ps, rv| -> Result<(), ()> {
-                if let Ok(snapshot) = rv {
-                    ps.requested_new_snapshot.store(false, Ordering::Relaxed);
-                    *ps.current_snapshot.write() = Some(Arc::new(snapshot));
-                } else {
-                    // TODO: error handling
-                    rv.unwrap();
-                }
-                Ok(())
-            },
-        );
+        self.add_query(GetProjectConfigQuery, move |ps, rv| -> Result<(), ()> {
+            if let Ok(snapshot) = rv {
+                ps.requested_new_snapshot.store(false, Ordering::Relaxed);
+                *ps.current_snapshot.write() = Some(Arc::new(snapshot));
+            } else {
+                // TODO: error handling
+                rv.unwrap();
+            }
+            Ok(())
+        });
     }
 
     /// Checks if events should be buffered for a public key.

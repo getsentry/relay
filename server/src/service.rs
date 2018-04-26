@@ -22,6 +22,7 @@ struct StoreResponse {
 
 #[derive(Serialize)]
 struct StoreChangeset {
+    public_key: String,
     event: Event<'static>,
 }
 
@@ -34,20 +35,17 @@ impl AortaChangeset for StoreChangeset {
 fn store(mut request: StoreRequest) -> Result<Json<StoreResponse>, BadProjectRequest> {
     let trove_state = request.trove_state();
     let project_id = request.project_id();
-    let project_state = trove_state.get_or_create_project_state(project_id);
-    let event_action = project_state.get_public_key_event_action(request.auth().public_key());
+    let public_key = request.auth().public_key().to_string();
 
     let mut event = request.take_payload().expect("Should not happen");
     let event_id = *event.id.get_or_insert_with(|| Uuid::new_v4());
 
-    match event_action {
-        PublicKeyEventAction::Send => trove_state
-            .request_manager()
-            .add_changeset(StoreChangeset { event }),
+    let project_state = trove_state.get_or_create_project_state(project_id);
+    match project_state.get_public_key_event_action(&public_key) {
         // TODO: Implement an event queue in `TroveState`
-        PublicKeyEventAction::Queue => trove_state
+        PublicKeyEventAction::Send | PublicKeyEventAction::Queue => trove_state
             .request_manager()
-            .add_changeset(StoreChangeset { event }),
+            .add_changeset(project_id, StoreChangeset { public_key, event }),
         PublicKeyEventAction::Discard => {
             debug!("Discarded event {} for project {}", event_id, project_id)
         }
