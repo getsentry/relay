@@ -44,6 +44,7 @@ struct Relay {
 #[serde(default)]
 struct Logging {
     level: log::LevelFilter,
+    enable_backtraces: bool,
 }
 
 /// Controls the aorta.
@@ -82,6 +83,7 @@ impl Default for Logging {
     fn default() -> Logging {
         Logging {
             level: log::LevelFilter::Info,
+            enable_backtraces: true,
         }
     }
 }
@@ -230,6 +232,11 @@ impl Config {
     /// Returns the log level.
     pub fn log_level_filter(&self) -> log::LevelFilter {
         self.logging.level
+    }
+
+    /// Should backtraces be enabled?
+    pub fn enable_backtraces(&self) -> bool {
+        self.logging.enable_backtraces
     }
 
     /// Returns the aorta snapshot expiry.

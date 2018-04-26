@@ -23,16 +23,20 @@ pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 pub const ABOUT: &'static str = "Runs a sentry-relay (fancy proxy server)";
 
 fn init_logging(config: &Config) {
+    if config.enable_backtraces() {
+        env::set_var("RUST_BACKTRACE", "1");
+    }
+
     if env::var("RUST_LOG").is_err() {
         env::set_var(
             "RUST_LOG",
             match config.log_level_filter() {
                 LevelFilter::Off => "",
-                LevelFilter::Error => "error",
-                LevelFilter::Warn => "warn",
-                LevelFilter::Info => "info",
+                LevelFilter::Error => "ERROR",
+                LevelFilter::Warn => "WARN",
+                LevelFilter::Info => "INFO",
                 LevelFilter::Debug => {
-                    "info,\
+                    "INFO,\
                      actix_web::pipeline=DEBUG,\
                      smith_common=DEBUG,\
                      smith_aorta=DEBUG,\
@@ -42,7 +46,7 @@ fn init_logging(config: &Config) {
                      smith_trove=DEBUG,\
                      sentry_relay=DEBUG"
                 }
-                LevelFilter::Trace => "trace",
+                LevelFilter::Trace => "TRACE",
             },
         );
     }
@@ -64,6 +68,7 @@ fn dump_spawn_infos(config: &Config) {
     info!("  relay id: {}", config.relay_id());
     info!("  public key: {}", config.public_key());
     info!("  listening on http://{}/", config.listen_addr());
+    info!("  log level: {}", config.log_level_filter());
 }
 
 pub fn execute() -> Result<(), Error> {
