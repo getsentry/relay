@@ -93,8 +93,8 @@ pub fn run(config: Config) -> Result<(), ServerError> {
 
     #[cfg(not(windows))]
     {
-        use std::os::unix::io::FromRawFd;
         use std::net::TcpListener;
+        use std::os::unix::io::FromRawFd;
 
         if let Some(fd) = env::var("LISTEN_FD").ok().and_then(|fd| fd.parse().ok()) {
             server = server.listen(unsafe { TcpListener::from_raw_fd(fd) });

@@ -1,18 +1,18 @@
-use std::fmt;
 use std::borrow::Cow;
+use std::fmt;
 use std::str::FromStr;
 use std::sync::{Once, ONCE_INIT};
 
-use rand::{thread_rng, Rng};
 use base64;
-use uuid::Uuid;
-use serde::ser::Serialize;
+use chrono::{DateTime, Duration, Utc};
+use hyper::Method;
+use rand::{thread_rng, Rng};
 use serde::de::DeserializeOwned;
+use serde::ser::Serialize;
 use serde_json;
 use sodiumoxide;
 use sodiumoxide::crypto::sign::ed25519 as sign_backend;
-use chrono::{DateTime, Duration, Utc};
-use hyper::Method;
+use uuid::Uuid;
 
 use api::ApiRequest;
 

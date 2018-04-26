@@ -1,7 +1,7 @@
-use http::header;
-use actix_web::{HttpRequest, HttpResponse};
-use actix_web::middleware::{Middleware, Response, Started};
 use actix_web::error::Error;
+use actix_web::middleware::{Middleware, Response, Started};
+use actix_web::{HttpRequest, HttpResponse};
+use http::header;
 use sentry::integrations::failure::capture_fail;
 
 /// forces the mimetype to json for some cases.

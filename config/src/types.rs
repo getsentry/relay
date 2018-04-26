@@ -1,15 +1,15 @@
-use std::path::{Path, PathBuf};
-use std::io::Write;
+use std::env;
 use std::fs;
 use std::io;
-use std::env;
-use std::sync::Arc;
+use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use log;
-use serde_yaml;
 use chrono::Duration;
+use log;
 use sentry::Dsn;
+use serde_yaml;
 use smith_aorta::{generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId,
                   SecretKey, UpstreamDescriptor};
 

@@ -20,16 +20,16 @@ extern crate tokio_core;
 extern crate url;
 extern crate uuid;
 
+mod api;
 mod auth;
 mod config;
-mod upstream;
 mod projectstate;
-mod api;
 mod query;
+mod upstream;
 
+pub use api::*;
 pub use auth::*;
 pub use config::*;
-pub use upstream::*;
 pub use projectstate::*;
-pub use api::*;
 pub use query::*;
+pub use upstream::*;

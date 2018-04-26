@@ -2,7 +2,6 @@ extern crate clap;
 extern crate ctrlc;
 extern crate failure;
 extern crate futures;
-#[macro_use]
 extern crate log;
 extern crate parking_lot;
 extern crate pretty_env_logger;
@@ -13,9 +12,9 @@ extern crate smith_server;
 
 use std::env;
 
-use log::LevelFilter;
-use failure::Error;
 use clap::{App, AppSettings, Arg};
+use failure::Error;
+use log::LevelFilter;
 
 use smith_config::Config;
 

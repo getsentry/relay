@@ -1,8 +1,8 @@
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::io;
-use std::fmt;
-use std::str::FromStr;
 use std::borrow::Cow;
+use std::fmt;
+use std::io;
+use std::net::{SocketAddr, ToSocketAddrs};
+use std::str::FromStr;
 
 use url::Url;
 

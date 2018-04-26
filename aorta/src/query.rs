@@ -1,13 +1,13 @@
-use std::fmt;
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
+use std::fmt;
 
-use serde::ser::Serialize;
+use hyper::Method;
+use parking_lot::RwLock;
 use serde::de::DeserializeOwned;
+use serde::ser::Serialize;
 use serde_json;
 use uuid::Uuid;
-use parking_lot::RwLock;
-use hyper::Method;
 
 use smith_common::ProjectId;
 
@@ -137,12 +137,10 @@ impl RequestManager {
     pub fn pop_callback(
         &self,
         query_id: Uuid,
-    ) -> Option<
-        (
-            ProjectId,
-            Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>,
-        ),
-    > {
+    ) -> Option<(
+        ProjectId,
+        Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>,
+    )> {
         self.query_callbacks.write().remove(&query_id)
     }
 

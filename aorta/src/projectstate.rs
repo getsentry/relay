@@ -1,17 +1,17 @@
-use std::fmt;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::collections::HashMap;
+use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
-use parking_lot::RwLock;
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
+use parking_lot::RwLock;
 use serde::de::DeserializeOwned;
+use uuid::Uuid;
 
 use config::AortaConfig;
-use upstream::UpstreamDescriptor;
 use query::{AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};
 use smith_common::ProjectId;
+use upstream::UpstreamDescriptor;
 
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
-use futures::{future, Future};
-use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse};
 use actix_web::dev::JsonBody;
 use actix_web::error::{Error, JsonPayloadError, ResponseError};
+use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse};
+use futures::{future, Future};
 use http::StatusCode;
-use serde::de::DeserializeOwned;
 use sentry_types::protocol::latest::Event;
 use sentry_types::{Auth, AuthParseError};
+use serde::de::DeserializeOwned;
 
-use smith_common::{ProjectId, ProjectIdParseError};
 use smith_aorta::ApiErrorResponse;
+use smith_common::{ProjectId, ProjectIdParseError};
 use smith_trove::TroveState;
 
 #[derive(Fail, Debug)]
@@ -47,11 +47,6 @@ impl<T: DeserializeOwned + 'static> ProjectRequest<T> {
     /// Returns the project identifier for this request.
     pub fn project_id(&self) -> ProjectId {
         self.project_id
-    }
-
-    /// Returns a reference to the payload.
-    pub fn payload(&self) -> Option<&T> {
-        self.payload.as_ref()
     }
 
     /// Returns the current trove state.

@@ -1,22 +1,22 @@
-use std::io;
-use std::thread;
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::io;
+use std::sync::Arc;
+use std::thread;
 
+use futures::sync::{mpsc, oneshot};
+use futures::{Future, IntoFuture, Stream};
+use hyper;
+use hyper::client::{Client, HttpConnector};
+use hyper::header::ContentType;
+use hyper::{Chunk, Request, StatusCode};
+use hyper_tls::HttpsConnector;
+use parking_lot::{Mutex, RwLock};
 use serde::de::DeserializeOwned;
 use serde_json;
-use parking_lot::{Mutex, RwLock};
 use tokio_core::reactor::{Core, Handle, Remote};
-use futures::{Future, IntoFuture, Stream};
-use futures::sync::{mpsc, oneshot};
-use hyper;
-use hyper::{Chunk, Request, StatusCode};
-use hyper::header::ContentType;
-use hyper::client::{Client, HttpConnector};
-use hyper_tls::HttpsConnector;
 
-use smith_common::ProjectId;
 use smith_aorta::{AortaConfig, ApiErrorResponse, ApiRequest, ProjectState, RequestManager};
+use smith_common::ProjectId;
 
 use auth::{spawn_authenticator, AuthError, AuthState};
 use heartbeat::spawn_heartbeat;

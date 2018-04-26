@@ -1,11 +1,11 @@
 use chrono::Duration;
-use hyper::{Method, Request};
 use hyper::header::{ContentLength, ContentType};
+use hyper::{Method, Request};
 use serde::Serialize;
 
 use auth::{PublicKey, RelayId, SecretKey};
-use upstream::UpstreamDescriptor;
 use smith_common::url_to_hyper_uri;
+use upstream::UpstreamDescriptor;
 
 /// Holds common config values that affect the aorta behavior.
 ///

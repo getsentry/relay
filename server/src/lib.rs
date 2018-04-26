@@ -20,11 +20,11 @@ extern crate smith_config;
 extern crate smith_trove;
 extern crate uuid;
 
-mod service;
 mod errors;
-mod utils;
 mod extractors;
 mod middlewares;
+mod service;
+mod utils;
 
-pub use service::*;
 pub use errors::*;
+pub use service::*;

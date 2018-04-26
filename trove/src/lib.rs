@@ -14,8 +14,6 @@ extern crate log;
 extern crate native_tls;
 extern crate parking_lot;
 extern crate serde;
-#[macro_use]
-extern crate serde_derive;
 extern crate serde_json;
 extern crate smith_aorta;
 extern crate smith_common;
