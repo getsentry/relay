@@ -67,7 +67,6 @@ fn dump_spawn_infos(config: &Config) {
     );
     info!("  relay id: {}", config.relay_id());
     info!("  public key: {}", config.public_key());
-    info!("  listening on http://{}/", config.listen_addr());
     info!("  log level: {}", config.log_level_filter());
 }
 

@@ -1,3 +1,4 @@
+use std::env;
 use std::sync::Arc;
 
 use actix_web::{http, server, App, Json};
@@ -67,16 +68,35 @@ pub fn run(config: Config) -> Result<(), ServerError> {
         .context(ServerErrorKind::TroveGovernSpawnFailed)?;
 
     info!("spawning http listener");
-    server::new(move || {
+    let mut server = server::new(move || {
         App::with_state(state.clone())
             .middleware(CaptureSentryError)
             .resource("/api/{project}/store/", |r| {
                 r.middleware(ForceJson);
                 r.method(http::Method::POST).with(store);
             })
-    }).bind(config.listen_addr())
-        .context(ServerErrorKind::BindFailed)?
-        .run();
+    });
+
+    let mut listening = false;
+
+    #[cfg(not(windows))]
+    {
+        use std::os::unix::io::FromRawFd;
+        use std::net::TcpListener;
+
+        if let Some(fd) = env::var("LISTEN_FD").ok().and_then(|fd| fd.parse().ok()) {
+            server = server.listen(unsafe { TcpListener::from_raw_fd(fd) });
+            listening = true;
+        }
+    }
+
+    if !listening {
+        server = server
+            .bind(config.listen_addr())
+            .context(ServerErrorKind::BindFailed)?;
+    }
+
+    server.run();
 
     trove
         .abdicate()
