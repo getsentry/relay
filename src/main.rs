@@ -78,7 +78,21 @@ pub fn execute() -> Result<(), Error> {
     let matches = app.get_matches();
 
     let mut config = Config::open(matches.value_of("config").unwrap())?;
-    sentry::init(config.sentry_dsn());
+    sentry::init((
+        config.sentry_dsn(),
+        sentry::ClientOptions {
+            in_app_include: vec![
+                "smith_common::",
+                "smith_aorta::",
+                "smith_config::",
+                "smith_common::",
+                "smith_server::",
+                "smith_trove::",
+                "sentry_relay::",
+            ],
+            ..Default::default()
+        },
+    ));
 
     init_logging(&config);
 
