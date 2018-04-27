@@ -29,7 +29,7 @@ pub fn store(mut request: StoreRequest) -> Result<Json<StoreResponse>, StoreReje
     let event_id = *event.id.get_or_insert_with(Uuid::new_v4);
     let project_state = trove_state.get_or_create_project_state(request.project_id());
 
-    if project_state.handle_event(request.auth().public_key(), event) {
+    if project_state.handle_event(request.auth().public_key().into(), event) {
         Ok(Json(StoreResponse { id: event_id }))
     } else {
         Err(StoreRejected)

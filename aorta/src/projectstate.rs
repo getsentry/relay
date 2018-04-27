@@ -1,7 +1,10 @@
-use std::collections::HashMap;
 use std::fmt;
+use std::mem;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
@@ -14,7 +17,7 @@ use query::{AortaChangeset, AortaQuery, GetProjectConfigQuery, QueryError, Reque
 use smith_common::ProjectId;
 use upstream::UpstreamDescriptor;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct StoreChangeset {
     public_key: String,
     event: Event<'static>,
@@ -92,6 +95,14 @@ pub enum PublicKeyEventAction {
     Send,
 }
 
+/// An event that was not sent yet.
+#[derive(Debug, Clone)]
+struct PendingEvent {
+    added_at: Instant,
+    public_key: String,
+    event: Event<'static>,
+}
+
 /// Gives access to the project's remote state.
 ///
 /// This wrapper is sync and can be updated concurrently.  As the type is
@@ -102,6 +113,7 @@ pub struct ProjectState {
     config: Arc<AortaConfig>,
     project_id: ProjectId,
     current_snapshot: RwLock<Option<Arc<ProjectStateSnapshot>>>,
+    pending_events: RwLock<Vec<PendingEvent>>,
     requested_new_snapshot: AtomicBool,
     request_manager: Arc<RequestManager>,
     last_event: RwLock<Option<DateTime<Utc>>>,
@@ -152,6 +164,7 @@ impl ProjectState {
             project_id: project_id,
             config: config,
             current_snapshot: RwLock::new(None),
+            pending_events: RwLock::new(Vec::new()),
             requested_new_snapshot: AtomicBool::new(false),
             request_manager: request_manager,
             last_event: RwLock::new(None),
@@ -220,7 +233,7 @@ impl ProjectState {
         self.add_query(GetProjectConfigQuery, move |ps, rv| -> Result<(), ()> {
             if let Ok(snapshot) = rv {
                 ps.requested_new_snapshot.store(false, Ordering::Relaxed);
-                *ps.current_snapshot.write() = Some(Arc::new(snapshot));
+                ps.set_snapshot(snapshot);
             } else {
                 // TODO: error handling
                 rv.unwrap();
@@ -275,18 +288,22 @@ impl ProjectState {
     ///
     /// It either puts it into an internal queue, sends it or discards it.  If the item
     /// was discarded `false` is returned.
-    pub fn handle_event(&self, public_key: &str, mut event: Event<'static>) -> bool {
+    pub fn handle_event<'a>(&self, public_key: Cow<'a, str>, mut event: Event<'static>) -> bool {
         let event_id = *event.id.get_or_insert_with(Uuid::new_v4);
-        match self.get_public_key_event_action(public_key) {
+        match self.get_public_key_event_action(&public_key) {
             PublicKeyEventAction::Queue => {
-                // queue event
+                self.pending_events.write().push(PendingEvent {
+                    added_at: Instant::now(),
+                    public_key: public_key.into_owned(),
+                    event: event,
+                });
                 true
             }
             PublicKeyEventAction::Send => {
                 self.request_manager.add_changeset(
                     self.project_id,
                     StoreChangeset {
-                        public_key: public_key.to_string(),
+                        public_key: public_key.into_owned(),
                         event: event,
                     },
                 );
@@ -319,6 +336,39 @@ impl ProjectState {
     /// Sets a new snapshot.
     pub fn set_snapshot(&self, new_snapshot: ProjectStateSnapshot) {
         *self.current_snapshot.write() = Some(Arc::new(new_snapshot));
+        self.retry_pending_events();
+    }
+
+    /// Attempts to send all pending requests now.
+    fn retry_pending_events(&self) {
+        let snapshot = self.snapshot();
+        let mut to_send = vec![];
+
+        // acquire the lock locally so we can then acquire the lock later on send
+        // without deadlocking
+        {
+            let mut lock = self.pending_events.write();
+            let pending = mem::replace(&mut *lock, Vec::new());
+
+            lock.extend(pending.into_iter().filter_map(|pending_event| {
+                if pending_event.added_at.elapsed() > Duration::from_secs(60) {
+                    return None;
+                }
+
+                match snapshot.get_public_key_status(&pending_event.public_key) {
+                    PublicKeyStatus::Enabled => {
+                        to_send.push(pending_event);
+                        None
+                    }
+                    PublicKeyStatus::Disabled => None,
+                    PublicKeyStatus::Unknown => Some(pending_event),
+                }
+            }));
+        }
+
+        for pending_event in to_send {
+            self.handle_event(pending_event.public_key.into(), pending_event.event);
+        }
     }
 
     /// Sets a "project does not exist" snapshot.
