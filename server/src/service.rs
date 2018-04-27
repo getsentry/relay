@@ -87,20 +87,26 @@ pub fn run(config: Config) -> Result<(), ServerError> {
             })
     });
 
-    let mut listening = false;
+    let fd_bound = {
+        #[cfg(not(windows))]
+        {
+            use std::net::TcpListener;
+            use std::os::unix::io::FromRawFd;
 
-    #[cfg(not(windows))]
-    {
-        use std::net::TcpListener;
-        use std::os::unix::io::FromRawFd;
-
-        if let Some(fd) = env::var("LISTEN_FD").ok().and_then(|fd| fd.parse().ok()) {
-            server = server.listen(unsafe { TcpListener::from_raw_fd(fd) });
-            listening = true;
+            if let Some(fd) = env::var("LISTEN_FD").ok().and_then(|fd| fd.parse().ok()) {
+                server = server.listen(unsafe { TcpListener::from_raw_fd(fd) });
+                true
+            } else {
+                false
+            }
         }
-    }
+        #[cfg(windows)]
+        {
+            false
+        }
+    };
 
-    if !listening {
+    if !fd_bound {
         server = server
             .bind(config.listen_addr())
             .context(ServerErrorKind::BindFailed)?;
