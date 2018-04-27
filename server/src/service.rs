@@ -1,8 +1,10 @@
 use std::env;
 use std::sync::Arc;
 
+use actix;
 use actix_web::{http, server, App};
 use failure::ResultExt;
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 
 use smith_config::Config;
 use smith_trove::{Trove, TroveState};
@@ -11,7 +13,11 @@ use endpoints;
 use errors::{ServerError, ServerErrorKind};
 use middlewares::{CaptureSentryError, ForceJson};
 
-fn dump_spawn_infos<H: server::HttpHandler>(config: &Config, server: &server::HttpServer<H>) {
+fn dump_spawn_infos<H: server::HttpHandler>(
+    config: &Config,
+    server: &server::HttpServer<H>,
+    tls_server: Option<&server::HttpServer<H>>,
+) {
     info!(
         "launching relay with config {}",
         config.filename().display()
@@ -21,6 +27,11 @@ fn dump_spawn_infos<H: server::HttpHandler>(config: &Config, server: &server::Ht
     info!("  log level: {}", config.log_level_filter());
     for addr in server.addrs() {
         info!("  listening on: http://{}/", addr);
+    }
+    if let Some(ref tls_server) = tls_server {
+        for addr in tls_server.addrs() {
+            info!("  listening on: https://{}/", addr);
+        }
     }
 }
 
@@ -44,7 +55,8 @@ pub fn run(config: Config) -> Result<(), ServerError> {
         .govern()
         .context(ServerErrorKind::TroveGovernSpawnFailed)?;
 
-    let mut server = server::new(move || make_app(state.clone()));
+    let server_state = state.clone();
+    let mut server = server::new(move || make_app(server_state.clone()));
 
     let fd_bound = {
         #[cfg(not(windows))]
@@ -71,9 +83,43 @@ pub fn run(config: Config) -> Result<(), ServerError> {
             .context(ServerErrorKind::BindFailed)?;
     }
 
-    dump_spawn_infos(&config, &server);
-    info!("spawning http listener");
-    server.run();
+    let tls = if let (Some(addr), Some(pk), Some(cert)) = (
+        config.tls_listen_addr(),
+        config.tls_private_key_path(),
+        config.tls_certificate_path(),
+    ) {
+        Some((
+            server::new(move || make_app(state.clone()))
+                .bind(addr)
+                .context(ServerErrorKind::BindFailed)?,
+            {
+                let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())
+                    .context(ServerErrorKind::TlsInitFailed)?;
+                builder
+                    .set_private_key_file(&pk, SslFiletype::PEM)
+                    .context(ServerErrorKind::TlsInitFailed)?;
+                builder
+                    .set_certificate_chain_file(&cert)
+                    .context(ServerErrorKind::TlsInitFailed)?;
+                builder
+            },
+        ))
+    } else {
+        None
+    };
+
+    dump_spawn_infos(&config, &server, tls.as_ref().map(|x| &x.0));
+    info!("spawning relay server");
+
+    let sys = actix::System::new("relay");
+    server.system_exit().start();
+    if let Some((tls_server, ssl_builder)) = tls {
+        tls_server
+            .system_exit()
+            .start_ssl(ssl_builder)
+            .context(ServerErrorKind::TlsInitFailed)?;
+    }
+    let _ = sys.run();
 
     trove
         .abdicate()

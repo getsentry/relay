@@ -37,6 +37,9 @@ struct Relay {
     upstream: UpstreamDescriptor<'static>,
     host: IpAddr,
     port: u16,
+    tls_port: u16,
+    tls_private_key: Option<PathBuf>,
+    tls_cert: Option<PathBuf>,
 }
 
 /// Controls the logging system.
@@ -75,6 +78,9 @@ impl Default for Relay {
                 .unwrap(),
             host: "127.0.0.1".parse().unwrap(),
             port: 3000,
+            tls_port: 3443,
+            tls_private_key: None,
+            tls_cert: None,
         }
     }
 }
@@ -227,6 +233,25 @@ impl Config {
     /// Returns the listen address.
     pub fn listen_addr(&self) -> SocketAddr {
         (self.relay.host, self.relay.port).into()
+    }
+
+    /// Returns the TLS listen address.
+    pub fn tls_listen_addr(&self) -> Option<SocketAddr> {
+        if self.relay.tls_private_key.is_some() && self.relay.tls_cert.is_some() {
+            Some((self.relay.host, self.relay.tls_port).into())
+        } else {
+            None
+        }
+    }
+
+    /// Returns the path to the private key
+    pub fn tls_private_key_path(&self) -> Option<&Path> {
+        self.relay.tls_private_key.as_ref().map(|x| x.as_path())
+    }
+
+    /// Returns the path to the cert
+    pub fn tls_certificate_path(&self) -> Option<&Path> {
+        self.relay.tls_cert.as_ref().map(|x| x.as_path())
     }
 
     /// Returns the log level.

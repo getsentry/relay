@@ -26,6 +26,10 @@ pub enum ServerErrorKind {
     /// Abdicating the trove governor failed.
     #[fail(display = "aorta trove governor shutdown failed")]
     TroveGovernShutdownFailed,
+
+    /// A TLS error ocurred
+    #[fail(display = "could not initialize the TLS server")]
+    TlsInitFailed,
 }
 
 impl Fail for ServerError {

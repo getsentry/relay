@@ -9,6 +9,7 @@ extern crate futures;
 extern crate http;
 #[macro_use]
 extern crate log;
+extern crate openssl;
 extern crate sentry;
 extern crate sentry_types;
 extern crate serde;
