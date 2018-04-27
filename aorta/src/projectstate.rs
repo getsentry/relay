@@ -8,10 +8,23 @@ use parking_lot::RwLock;
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
+use sentry_types::protocol::latest::Event;
 use config::AortaConfig;
-use query::{AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};
+use query::{AortaChangeset, AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};
 use smith_common::ProjectId;
 use upstream::UpstreamDescriptor;
+
+#[derive(Serialize)]
+struct StoreChangeset {
+    public_key: String,
+    event: Event<'static>,
+}
+
+impl AortaChangeset for StoreChangeset {
+    fn aorta_changeset_type(&self) -> &'static str {
+        "store"
+    }
+}
 
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -255,6 +268,37 @@ impl ProjectState {
             }
             // in the absence of a snapshot we generally queue
             None => PublicKeyEventAction::Queue,
+        }
+    }
+
+    /// Given a public key and an event this handles an event.
+    ///
+    /// It either puts it into an internal queue, sends it or discards it.  If the item
+    /// was discarded `false` is returned.
+    pub fn handle_event(&self, public_key: &str, mut event: Event<'static>) -> bool {
+        let event_id = *event.id.get_or_insert_with(Uuid::new_v4);
+        match self.get_public_key_event_action(public_key) {
+            PublicKeyEventAction::Queue => {
+                // queue event
+                true
+            }
+            PublicKeyEventAction::Send => {
+                self.request_manager.add_changeset(
+                    self.project_id,
+                    StoreChangeset {
+                        public_key: public_key.to_string(),
+                        event: event,
+                    },
+                );
+                true
+            }
+            PublicKeyEventAction::Discard => {
+                debug!(
+                    "Discarded event {} for project {}",
+                    event_id, self.project_id
+                );
+                false
+            }
         }
     }
 

@@ -1,58 +1,15 @@
 use std::env;
 use std::sync::Arc;
 
-use actix_web::{http, server, App, Json};
+use actix_web::{http, server, App};
 use failure::ResultExt;
-use sentry_types::protocol::latest::Event;
-use uuid::Uuid;
 
-use smith_aorta::{AortaChangeset, PublicKeyEventAction};
 use smith_config::Config;
-use smith_trove::Trove;
+use smith_trove::{Trove, TroveState};
 
+use endpoints;
 use errors::{ServerError, ServerErrorKind};
-use extractors::{BadProjectRequest, StoreRequest};
 use middlewares::{CaptureSentryError, ForceJson};
-
-#[derive(Serialize)]
-struct StoreResponse {
-    /// The ID of the stored event
-    id: Uuid,
-}
-
-#[derive(Serialize)]
-struct StoreChangeset {
-    public_key: String,
-    event: Event<'static>,
-}
-
-impl AortaChangeset for StoreChangeset {
-    fn aorta_changeset_type(&self) -> &'static str {
-        "store"
-    }
-}
-
-fn store(mut request: StoreRequest) -> Result<Json<StoreResponse>, BadProjectRequest> {
-    let trove_state = request.trove_state();
-    let project_id = request.project_id();
-    let public_key = request.auth().public_key().to_string();
-
-    let mut event = request.take_payload().expect("Should not happen");
-    let event_id = *event.id.get_or_insert_with(Uuid::new_v4);
-
-    let project_state = trove_state.get_or_create_project_state(project_id);
-    match project_state.get_public_key_event_action(&public_key) {
-        // TODO: Implement an event queue in `TroveState`
-        PublicKeyEventAction::Send | PublicKeyEventAction::Queue => trove_state
-            .request_manager()
-            .add_changeset(project_id, StoreChangeset { public_key, event }),
-        PublicKeyEventAction::Discard => {
-            debug!("Discarded event {} for project {}", event_id, project_id)
-        }
-    }
-
-    Ok(Json(StoreResponse { id: event_id }))
-}
 
 fn dump_spawn_infos<H: server::HttpHandler>(config: &Config, server: &server::HttpServer<H>) {
     info!(
@@ -67,6 +24,15 @@ fn dump_spawn_infos<H: server::HttpHandler>(config: &Config, server: &server::Ht
     }
 }
 
+fn make_app(state: Arc<TroveState>) -> App<Arc<TroveState>> {
+    App::with_state(state)
+        .middleware(CaptureSentryError)
+        .resource("/api/{project}/store/", |r| {
+            r.middleware(ForceJson);
+            r.method(http::Method::POST).with(endpoints::store);
+        })
+}
+
 /// Given a relay config spawns the server and lets it run until it stops.
 ///
 /// This not only spawning the server but also a governed trove in the
@@ -78,14 +44,7 @@ pub fn run(config: Config) -> Result<(), ServerError> {
         .govern()
         .context(ServerErrorKind::TroveGovernSpawnFailed)?;
 
-    let mut server = server::new(move || {
-        App::with_state(state.clone())
-            .middleware(CaptureSentryError)
-            .resource("/api/{project}/store/", |r| {
-                r.middleware(ForceJson);
-                r.method(http::Method::POST).with(store);
-            })
-    });
+    let mut server = server::new(move || make_app(state.clone()));
 
     let fd_bound = {
         #[cfg(not(windows))]
