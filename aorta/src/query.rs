@@ -17,7 +17,7 @@ use projectstate::{ProjectState, ProjectStateSnapshot};
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct PackedRequest {
     #[serde(rename = "type")]
-    pub ty: String,
+    pub ty: Cow<'static, str>,
     pub project_id: ProjectId,
     pub data: serde_json::Value,
 }
@@ -83,7 +83,7 @@ impl RequestManager {
     /// Adds a changeset to the request manager.
     pub fn add_changeset<C: AortaChangeset>(&self, project_id: ProjectId, changeset: C) {
         self.pending_changesets.write().push_back(PackedRequest {
-            ty: changeset.aorta_changeset_type().to_string(),
+            ty: Cow::Borrowed(changeset.aorta_changeset_type()),
             project_id: project_id,
             data: serde_json::to_value(&changeset).unwrap(),
         })
@@ -120,7 +120,7 @@ impl RequestManager {
         self.pending_queries.write().push_back((
             query_id,
             PackedRequest {
-                ty: query.aorta_query_type().to_string(),
+                ty: Cow::Borrowed(query.aorta_query_type()),
                 project_id: project_id,
                 data: serde_json::to_value(&query).unwrap(),
             },
@@ -184,7 +184,7 @@ impl fmt::Debug for RequestManager {
 /// A trait for all objects that can trigger changes via aorta.
 pub trait AortaChangeset: Serialize {
     /// Returns the type (name) of the query in the aorta protocol.
-    fn aorta_changeset_type(&self) -> &str;
+    fn aorta_changeset_type(&self) -> &'static str;
 }
 
 /// A trait for all objects that can trigger an aorta query.
@@ -193,7 +193,7 @@ pub trait AortaQuery: Serialize {
     type Response: DeserializeOwned + 'static;
 
     /// Returns the type (name) of the query in the aorta protocol.
-    fn aorta_query_type(&self) -> &str;
+    fn aorta_query_type(&self) -> &'static str;
 }
 
 /// A query to fetch the current project state.
@@ -203,7 +203,7 @@ pub struct GetProjectConfigQuery;
 
 impl AortaQuery for GetProjectConfigQuery {
     type Response = ProjectStateSnapshot;
-    fn aorta_query_type(&self) -> &str {
+    fn aorta_query_type(&self) -> &'static str {
         "get_project_config"
     }
 }

@@ -27,7 +27,7 @@ struct StoreChangeset {
 }
 
 impl AortaChangeset for StoreChangeset {
-    fn aorta_changeset_type(&self) -> &str {
+    fn aorta_changeset_type(&self) -> &'static str {
         "store"
     }
 }
@@ -38,7 +38,7 @@ fn store(mut request: StoreRequest) -> Result<Json<StoreResponse>, BadProjectReq
     let public_key = request.auth().public_key().to_string();
 
     let mut event = request.take_payload().expect("Should not happen");
-    let event_id = *event.id.get_or_insert_with(|| Uuid::new_v4());
+    let event_id = *event.id.get_or_insert_with(Uuid::new_v4);
 
     let project_state = trove_state.get_or_create_project_state(project_id);
     match project_state.get_public_key_event_action(&public_key) {
