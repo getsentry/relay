@@ -6,6 +6,9 @@ setup-git:
 build:
 	@cargo build --all
 
+releasebuild:
+	@OPENSSL_STATIC=1 cargo build --release
+
 doc:
 	@cargo doc
 
