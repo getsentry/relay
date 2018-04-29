@@ -7,6 +7,10 @@ name = "sentry-relay"
 readme = "README.md"
 version = "0.1.0"
 
+[features]
+default = []
+with_ssl = ["smith-server/with_ssl"]
+
 [dependencies]
 clap = "2.31.2"
 failure = "0.1.1"

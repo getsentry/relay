@@ -9,6 +9,7 @@ extern crate futures;
 extern crate http;
 #[macro_use]
 extern crate log;
+#[cfg(feature = "with_ssl")]
 extern crate openssl;
 extern crate sentry;
 extern crate sentry_types;

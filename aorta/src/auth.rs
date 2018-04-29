@@ -10,8 +10,8 @@ use rand::{thread_rng, Rng};
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 use serde_json;
-use sodiumoxide;
-use sodiumoxide::crypto::sign::ed25519 as sign_backend;
+use rust_sodium;
+use rust_sodium::crypto::sign::ed25519 as sign_backend;
 use uuid::Uuid;
 
 use api::ApiRequest;
@@ -21,11 +21,11 @@ static INIT_SODIUMOXIDE_RNG: Once = ONCE_INIT;
 /// Alias for relay IDs (UUIDs)
 pub type RelayId = Uuid;
 
-/// Calls to sodiumoxide that need the RNG need to go through this
+/// Calls to rust_sodium that need the RNG need to go through this
 /// wrapper as otherwise thread safety cannot be guarnateed.
 fn with_sodiumoxide_rng<T, F: FnOnce() -> T>(cb: F) -> T {
     INIT_SODIUMOXIDE_RNG.call_once(|| {
-        sodiumoxide::init();
+        rust_sodium::init();
     });
     cb()
 }

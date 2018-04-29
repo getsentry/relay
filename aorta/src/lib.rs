@@ -11,6 +11,7 @@ extern crate hyper;
 extern crate log;
 extern crate parking_lot;
 extern crate rand;
+extern crate rust_sodium;
 extern crate sentry_types;
 extern crate serde;
 #[macro_use]
@@ -18,7 +19,6 @@ extern crate serde_derive;
 extern crate serde_json;
 #[macro_use]
 extern crate smith_common;
-extern crate sodiumoxide;
 extern crate tokio_core;
 extern crate url;
 extern crate uuid;

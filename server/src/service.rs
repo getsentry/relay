@@ -4,7 +4,6 @@ use std::sync::Arc;
 use actix;
 use actix_web::{http, server, App};
 use failure::ResultExt;
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 
 use smith_config::Config;
 use smith_trove::{Trove, TroveState};
@@ -83,29 +82,39 @@ pub fn run(config: Config) -> Result<(), ServerError> {
             .context(ServerErrorKind::BindFailed)?;
     }
 
-    let tls = if let (Some(addr), Some(pk), Some(cert)) = (
-        config.tls_listen_addr(),
-        config.tls_private_key_path(),
-        config.tls_certificate_path(),
-    ) {
-        Some((
-            server::new(move || make_app(state.clone()))
-                .bind(addr)
-                .context(ServerErrorKind::BindFailed)?,
-            {
-                let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())
-                    .context(ServerErrorKind::TlsInitFailed)?;
-                builder
-                    .set_private_key_file(&pk, SslFiletype::PEM)
-                    .context(ServerErrorKind::TlsInitFailed)?;
-                builder
-                    .set_certificate_chain_file(&cert)
-                    .context(ServerErrorKind::TlsInitFailed)?;
-                builder
-            },
-        ))
-    } else {
-        None
+    let tls = {
+        #[cfg(feature = "with_ssl")]
+        {
+            use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+            if let (Some(addr), Some(pk), Some(cert)) = (
+                config.tls_listen_addr(),
+                config.tls_private_key_path(),
+                config.tls_certificate_path(),
+            ) {
+                Some((
+                    server::new(move || make_app(state.clone()))
+                        .bind(addr)
+                        .context(ServerErrorKind::BindFailed)?,
+                    {
+                        let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())
+                            .context(ServerErrorKind::TlsInitFailed)?;
+                        builder
+                            .set_private_key_file(&pk, SslFiletype::PEM)
+                            .context(ServerErrorKind::TlsInitFailed)?;
+                        builder
+                            .set_certificate_chain_file(&cert)
+                            .context(ServerErrorKind::TlsInitFailed)?;
+                        builder
+                    },
+                ))
+            } else {
+                None
+            }
+        }
+        #[cfg(not(feature = "with_ssl"))]
+        {
+            None::<(server::HttpServer<_>, ())>
+        }
     };
 
     dump_spawn_infos(&config, &server, tls.as_ref().map(|x| &x.0));
@@ -113,11 +122,14 @@ pub fn run(config: Config) -> Result<(), ServerError> {
 
     let sys = actix::System::new("relay");
     server.system_exit().start();
-    if let Some((tls_server, ssl_builder)) = tls {
-        tls_server
-            .system_exit()
-            .start_ssl(ssl_builder)
-            .context(ServerErrorKind::TlsInitFailed)?;
+    #[cfg(feature = "with_ssl")]
+    {
+        if let Some((tls_server, ssl_builder)) = tls {
+            tls_server
+                .system_exit()
+                .start_ssl(ssl_builder)
+                .context(ServerErrorKind::TlsInitFailed)?;
+        }
     }
     let _ = sys.run();
 
