@@ -11,6 +11,9 @@ version = "0.1.0"
 default = []
 with_ssl = ["smith-server/with_ssl"]
 
+[profile.release]
+lto = true
+
 [dependencies]
 clap = "2.31.2"
 failure = "0.1.1"

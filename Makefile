@@ -7,7 +7,7 @@ build:
 	@cargo build --all
 
 releasebuild:
-	@OPENSSL_STATIC=1 cargo build --release
+	@CARGO_INCREMENTAL= OPENSSL_STATIC=1 cargo build --release
 
 doc:
 	@cargo doc
@@ -26,4 +26,4 @@ format-check:
 devserver:
 	@catflap -p 3000 -- cargo watch -x "run -- -c relay.yml"
 
-.PHONY: all setup-git doc test cargotest pytest format-check devserver
+.PHONY: all setup-git build releasebuild doc test cargotest pytest format-check devserver
