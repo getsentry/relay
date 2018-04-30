@@ -24,7 +24,8 @@ def get_modified_files():
 
 
 def run_format_check(files):
-    rust_files = [x for x in files if x.endswith('.rs')]
+    rust_files = [x for x in files if x.endswith('.rs')
+                  and os.path.isfile(x)]
     if not rust_files:
         return 0
     rv = subprocess.Popen(['cargo', 'fmt', '--',
