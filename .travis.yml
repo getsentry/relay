@@ -3,6 +3,7 @@ cache:
   cargo: true
   directories:
     - cabi/target
+    - py/venv
 
 git:
   depth: 1
@@ -13,14 +14,17 @@ script: make $SUITE
 matrix:
   include:
     - os: linux
-      env: SUITE=test
-      install: cargo build --all
-    - os: osx
-      env: SUITE=test
-      install: cargo build --all
-    - os: linux
       env: SUITE=format-check
       install: rustup component add rustfmt-preview
+    - os: linux
+      env: SUITE=cargotest
+      install: cargo build --all
+    - os: osx
+      env: SUITE=cargotest
+      install: cargo build --all
+    - os: linux
+      env: SUITE=pytest
+      install: cargo build --all
 
 notifications:
   webhooks:
