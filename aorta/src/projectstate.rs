@@ -231,9 +231,12 @@ impl ProjectState {
         }
 
         self.add_query(GetProjectConfigQuery, move |ps, rv| -> Result<(), ()> {
-            if let Ok(snapshot) = rv {
+            if let Ok(snapshot_opt) = rv {
                 ps.requested_new_snapshot.store(false, Ordering::Relaxed);
-                ps.set_snapshot(snapshot);
+                match snapshot_opt {
+                    Some(snapshot) => ps.set_snapshot(snapshot),
+                    None => ps.set_missing_snapshot(),
+                }
             } else {
                 // TODO: error handling
                 rv.unwrap();
