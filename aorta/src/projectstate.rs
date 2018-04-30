@@ -313,10 +313,7 @@ impl ProjectState {
                 true
             }
             PublicKeyEventAction::Discard => {
-                debug!(
-                    "Discarded event {} for project {}",
-                    event_id, self.project_id
-                );
+                debug!("Discarded {} for project {}", event, self.project_id);
                 false
             }
         }
@@ -371,6 +368,10 @@ impl ProjectState {
         }
 
         for pending_event in to_send {
+            debug!(
+                "Sending previously pending {} for project {}",
+                event, self.project_id
+            );
             self.handle_event(pending_event.public_key.into(), pending_event.event);
         }
     }
