@@ -2,7 +2,7 @@ use std::env;
 use std::sync::Arc;
 
 use actix;
-use actix_web::{http, server, App};
+use actix_web::{server, App};
 use failure::ResultExt;
 
 use smith_config::Config;
@@ -10,7 +10,7 @@ use smith_trove::{Trove, TroveState};
 
 use endpoints;
 use errors::{ServerError, ServerErrorKind};
-use middlewares::{CaptureSentryError, ForceJson};
+use middlewares::CaptureSentryError;
 
 fn dump_spawn_infos<H: server::HttpHandler>(
     config: &Config,
@@ -34,13 +34,22 @@ fn dump_spawn_infos<H: server::HttpHandler>(
     }
 }
 
-fn make_app(state: Arc<TroveState>) -> App<Arc<TroveState>> {
-    App::with_state(state)
-        .middleware(CaptureSentryError)
-        .resource("/api/{project}/store/", |r| {
-            r.middleware(ForceJson);
-            r.method(http::Method::POST).with(endpoints::store);
-        })
+/// The actix app type for the relay web service.
+pub type ServiceApp = App<Arc<TroveState>>;
+
+fn make_app(state: Arc<TroveState>) -> ServiceApp {
+    let mut app = App::with_state(state).middleware(CaptureSentryError);
+
+    macro_rules! register_endpoint {
+        ($name:ident) => {
+            app = endpoints::$name::configure_app(app);
+        }
+    }
+
+    register_endpoint!(healthcheck);
+    register_endpoint!(store);
+
+    app
 }
 
 /// Given a relay config spawns the server and lets it run until it stops.

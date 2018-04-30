@@ -295,6 +295,11 @@ impl TroveState {
         *self.auth_state.read()
     }
 
+    /// Checks if the trove is healthy.
+    pub fn is_healthy(&self) -> bool {
+        self.is_governed() && self.auth_state().is_authenticated()
+    }
+
     /// Returns a project state if it exists.
     pub fn get_project_state(&self, project_id: ProjectId) -> Option<Arc<ProjectState>> {
         self.states.read().get(&project_id).map(|x| x.clone())

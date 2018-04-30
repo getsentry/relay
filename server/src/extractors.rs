@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use actix_web::dev::JsonBody;
 use actix_web::error::{Error, JsonPayloadError, ResponseError};
-use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, State};
 use futures::{future, Future};
 use http::StatusCode;
-use sentry_types::protocol::latest::Event;
 use sentry_types::{Auth, AuthParseError};
 use serde::de::DeserializeOwned;
 
@@ -28,6 +27,9 @@ impl ResponseError for BadProjectRequest {
         HttpResponse::build(StatusCode::BAD_REQUEST).json(&ApiErrorResponse::from_fail(self))
     }
 }
+
+/// An extractor for the trove state.
+pub type CurrentTroveState = State<Arc<TroveState>>;
 
 /// Holds an event and the associated auth header.
 #[derive(Debug)]
@@ -116,6 +118,3 @@ impl<T: DeserializeOwned + 'static> FromRequest<Arc<TroveState>> for ProjectRequ
         )
     }
 }
-
-/// Requests to the store endpoint
-pub type StoreRequest = ProjectRequest<Event<'static>>;
