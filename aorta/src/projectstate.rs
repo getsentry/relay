@@ -11,21 +11,21 @@ use parking_lot::RwLock;
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
-use sentry_types::protocol::latest::Event;
 use config::AortaConfig;
 use query::{AortaChangeset, AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};
 use smith_common::ProjectId;
 use upstream::UpstreamDescriptor;
+use event::EventVariant;
 
 #[derive(Serialize, Debug)]
 struct StoreChangeset {
     public_key: String,
-    event: Event<'static>,
+    event: EventVariant,
 }
 
 impl AortaChangeset for StoreChangeset {
     fn aorta_changeset_type(&self) -> &'static str {
-        "store"
+        self.event.changeset_type()
     }
 }
 
@@ -100,7 +100,7 @@ pub enum PublicKeyEventAction {
 struct PendingEvent {
     added_at: Instant,
     public_key: String,
-    event: Event<'static>,
+    event: EventVariant,
 }
 
 /// Gives access to the project's remote state.
@@ -295,8 +295,8 @@ impl ProjectState {
     ///
     /// It either puts it into an internal queue, sends it or discards it.  If the item
     /// was discarded `false` is returned.
-    pub fn handle_event<'a>(&self, public_key: Cow<'a, str>, mut event: Event<'static>) -> bool {
-        event.id.get_or_insert_with(Uuid::new_v4);
+    pub fn handle_event<'a>(&self, public_key: Cow<'a, str>, mut event: EventVariant) -> bool {
+        event.ensure_id();
         match self.get_public_key_event_action(&public_key) {
             PublicKeyEventAction::Queue => {
                 debug!("{}#{} -> pending", self.project_id, event);

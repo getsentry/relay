@@ -29,6 +29,7 @@ mod config;
 mod projectstate;
 mod query;
 mod upstream;
+mod event;
 
 pub use api::*;
 pub use auth::*;
@@ -36,3 +37,4 @@ pub use config::*;
 pub use projectstate::*;
 pub use query::*;
 pub use upstream::*;
+pub use event::*;

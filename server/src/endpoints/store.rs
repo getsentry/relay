@@ -1,13 +1,12 @@
 //! Handles event store requests.
 use actix_web::{HttpResponse, Json, ResponseError, http::Method};
 use uuid::Uuid;
-use sentry_types::protocol::latest::Event;
 
 use service::ServiceApp;
 use extractors::ProjectRequest;
 use middlewares::ForceJson;
 
-use smith_aorta::ApiErrorResponse;
+use smith_aorta::{ApiErrorResponse, EventV7, EventVariant};
 
 #[derive(Serialize)]
 struct StoreResponse {
@@ -24,12 +23,10 @@ impl ResponseError for StoreRejected {
     }
 }
 
-fn store(
-    mut request: ProjectRequest<Event<'static>>,
-) -> Result<Json<StoreResponse>, StoreRejected> {
+fn store(mut request: ProjectRequest<EventV7>) -> Result<Json<StoreResponse>, StoreRejected> {
     let trove_state = request.trove_state();
-    let mut event = request.take_payload().unwrap();
-    let event_id = *event.id.get_or_insert_with(Uuid::new_v4);
+    let mut event = EventVariant::SentryV7(request.take_payload().unwrap());
+    let event_id = event.ensure_id().unwrap_or_else(Uuid::nil);
     let project_state = trove_state.get_or_create_project_state(request.project_id());
 
     if project_state.handle_event(request.auth().public_key().into(), event) {
@@ -40,7 +37,7 @@ fn store(
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource("/api/{project}/store/", |r| {
+    app.resource(r"/api/{project:\d+}/store/", |r| {
         r.middleware(ForceJson);
         r.method(Method::POST).with(store);
     })
