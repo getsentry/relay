@@ -4,6 +4,8 @@ use actix_web::{HttpRequest, HttpResponse};
 use http::header;
 use sentry::integrations::failure::capture_fail;
 
+use constants::SERVER;
+
 /// forces the mimetype to json for some cases.
 pub struct ForceJson;
 
@@ -25,6 +27,21 @@ impl<S> Middleware<S> for CaptureSentryError {
             capture_fail(error.cause());
         }
 
+        Ok(Response::Done(resp))
+    }
+}
+
+/// Adds the common relay headers.
+pub struct AddCommonHeaders;
+
+impl<S> Middleware<S> for AddCommonHeaders {
+    fn response(
+        &self,
+        _req: &mut HttpRequest<S>,
+        mut resp: HttpResponse,
+    ) -> Result<Response, Error> {
+        resp.headers_mut()
+            .insert(header::SERVER, header::HeaderValue::from_static(SERVER));
         Ok(Response::Done(resp))
     }
 }
