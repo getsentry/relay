@@ -11,7 +11,6 @@ use smith_aorta::ApiErrorResponse;
 
 #[derive(Serialize)]
 struct StoreResponse {
-    /// The ID of the stored event
     id: Uuid,
 }
 
@@ -29,7 +28,7 @@ fn store(
     mut request: ProjectRequest<Event<'static>>,
 ) -> Result<Json<StoreResponse>, StoreRejected> {
     let trove_state = request.trove_state();
-    let mut event = request.take_payload().expect("Should not happen");
+    let mut event = request.take_payload().unwrap();
     let event_id = *event.id.get_or_insert_with(Uuid::new_v4);
     let project_state = trove_state.get_or_create_project_state(request.project_id());
 
