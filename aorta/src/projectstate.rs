@@ -292,7 +292,7 @@ impl ProjectState {
     /// It either puts it into an internal queue, sends it or discards it.  If the item
     /// was discarded `false` is returned.
     pub fn handle_event<'a>(&self, public_key: Cow<'a, str>, mut event: Event<'static>) -> bool {
-        let event_id = *event.id.get_or_insert_with(Uuid::new_v4);
+        event.id.get_or_insert_with(Uuid::new_v4);
         match self.get_public_key_event_action(&public_key) {
             PublicKeyEventAction::Queue => {
                 self.pending_events.write().push(PendingEvent {
@@ -370,7 +370,7 @@ impl ProjectState {
         for pending_event in to_send {
             debug!(
                 "Sending previously pending {} for project {}",
-                event, self.project_id
+                pending_event.event, self.project_id
             );
             self.handle_event(pending_event.public_key.into(), pending_event.event);
         }
