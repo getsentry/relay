@@ -156,18 +156,22 @@ impl RequestManager {
         self.inner.write().query_callbacks.remove(&query_id)
     }
 
+    /// The fallback interval after which a heartbeat is forced.
     fn heartbeat_interval(&self) -> Duration {
         self.config.heartbeat_interval.to_std().unwrap()
     }
 
+    /// The interval used as the minimum buffering between changsets and queries.
     fn buffer_interval(&self) -> Duration {
         self.config.changeset_buffer_interval.to_std().unwrap()
     }
 
+    /// A fast interval used when more data is expected.
     fn fast_retry_interval(&self) -> Duration {
         Duration::from_millis(100)
     }
 
+    /// A regular interval used when no data was in the last heartbeat attempt.
     fn normal_retry_interval(&self) -> Duration {
         Duration::from_secs(1)
     }

@@ -31,14 +31,23 @@ pub enum ConfigError {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Relay {
+    /// The secret key of the relay
     secret_key: Option<SecretKey>,
+    /// The public key of the relay
     public_key: Option<PublicKey>,
+    /// The globally unique ID of the relay.
     id: Option<RelayId>,
+    /// The upstream relay or sentry instance.
     upstream: UpstreamDescriptor<'static>,
+    /// The host the relay should bind to (network interface)
     host: IpAddr,
+    /// The port to bind for the unencrypted relay HTTP server.
     port: u16,
+    /// Optional port to bind for the encrypted relay HTTPS server.
     tls_port: u16,
+    /// The path to the private key to use for TLS
     tls_private_key: Option<PathBuf>,
+    /// The path to the certificate chain to use for TLS
     tls_cert: Option<PathBuf>,
 }
 
@@ -46,7 +55,9 @@ struct Relay {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Logging {
+    /// The log level for the relay.
     level: log::LevelFilter,
+    /// When set to true, backtraces are forced on.
     enable_backtraces: bool,
 }
 
@@ -54,10 +65,16 @@ struct Logging {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Aorta {
+    /// The number of seconds after which a relay is considered outdated.
     snapshot_expiry: u32,
+    /// The number of seconds between auth attempts.
     auth_retry_interval: u32,
+    /// The number of seconds after which a heartbeat is forced.
     heartbeat_interval: u32,
+    /// The number of seconds that the relay should buffer changesets for.
     changeset_buffer_interval: u32,
+    /// The number of seconds for which an event shoudl be buffered until the
+    /// initial config arrives.
     pending_events_timeout: u32,
 }
 
