@@ -18,13 +18,13 @@ matrix:
       install: rustup component add rustfmt-preview
     - os: linux
       env: SUITE=cargotest
-      install: cargo build --all
+      install: cargo build --all --locked
     - os: osx
       env: SUITE=cargotest
-      install: cargo build --all
+      install: cargo build --all --locked
     - os: linux
       env: SUITE=pytest
-      install: cargo build --all
+      install: skip
 
 notifications:
   webhooks:
