@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 use std::fmt;
 
 use hyper::Method;
@@ -13,6 +14,7 @@ use uuid::Uuid;
 use smith_common::ProjectId;
 
 use api::ApiRequest;
+use config::AortaConfig;
 use projectstate::{ProjectState, ProjectStateSnapshot};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -69,15 +71,17 @@ struct RequestManagerInner {
 
 /// The request manager helps sending aorta queries.
 pub struct RequestManager {
+    config: Arc<AortaConfig>,
     inner: RwLock<RequestManagerInner>,
 }
 
 impl RequestManager {
     /// Creates a new request manager
-    pub fn new() -> RequestManager {
+    pub fn new(config: Arc<AortaConfig>) -> RequestManager {
         // TODO: queries can expire.  This means something needs to clean up very
         // old query callbacks eventually or we leak memory here.
         RequestManager {
+            config: config,
             inner: RwLock::new(RequestManagerInner {
                 pending_changesets: VecDeque::new(),
                 pending_queries: VecDeque::new(),
@@ -152,6 +156,22 @@ impl RequestManager {
         self.inner.write().query_callbacks.remove(&query_id)
     }
 
+    fn heartbeat_interval(&self) -> Duration {
+        self.config.heartbeat_interval.to_std().unwrap()
+    }
+
+    fn buffer_interval(&self) -> Duration {
+        self.config.changeset_buffer_interval.to_std().unwrap()
+    }
+
+    fn fast_retry_interval(&self) -> Duration {
+        Duration::from_millis(100)
+    }
+
+    fn normal_retry_interval(&self) -> Duration {
+        Duration::from_secs(1)
+    }
+
     /// Returns a single heartbeat request.
     ///
     /// This unschedules some pending queries from the request manager.  It also
@@ -180,20 +200,24 @@ impl RequestManager {
         let last_heartbeat = inner.last_heartbeat;
         inner.last_heartbeat = Some(Instant::now());
 
-        // TODO(mitsuhiko): this should use values from the config
-
         // if there is actual data in the heartbeat request, send it and come back in two seconds.
         if !rv.changesets.is_empty() || !rv.queries.is_empty() {
-            (Some(rv), Duration::from_secs(2))
+            (
+                Some(rv),
+                match inner.pending_queries.is_empty() || inner.pending_changesets.is_empty() {
+                    true => self.buffer_interval(),
+                    false => self.fast_retry_interval(),
+                },
+            )
+
         // we waited long enough without sending some data, send an empty heartbeat now and come
         // back quickly for more checks
-        } else if last_heartbeat.is_none()
-            || last_heartbeat.unwrap().elapsed() > Duration::from_secs(30)
-        {
-            (Some(rv), Duration::from_secs(1))
+        } else if last_heartbeat.map_or(true, |x| x.elapsed() > self.heartbeat_interval()) {
+            (Some(rv), self.normal_retry_interval())
+
         // no request to send now, check back quickly
         } else {
-            (None, Duration::from_secs(1))
+            (None, self.normal_retry_interval())
         }
     }
 }

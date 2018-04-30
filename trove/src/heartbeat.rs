@@ -53,7 +53,7 @@ fn perform_heartbeat(ctx: Arc<TroveContext>) {
                     })
                     .or_else(|err| {
                         error!("heartbeat failed: {}", &err);
-                        // on error retry quicker
+                        // on error retry after a second
                         schedule_heartbeat(inner_ctx_failure, Duration::from_secs(1));
                         Err(())
                     }),

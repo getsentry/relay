@@ -186,10 +186,10 @@ impl Trove {
         Trove {
             state: Arc::new(TroveState {
                 states: RwLock::new(HashMap::new()),
-                config: config,
+                config: config.clone(),
                 governor_tx: RwLock::new(None),
                 remote: RwLock::new(None),
-                request_manager: Arc::new(RequestManager::new()),
+                request_manager: Arc::new(RequestManager::new(config)),
                 auth_state: RwLock::new(AuthState::Unknown),
             }),
             join_handle: Mutex::new(None),
