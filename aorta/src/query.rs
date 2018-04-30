@@ -202,7 +202,7 @@ pub trait AortaQuery: Serialize {
 pub struct GetProjectConfigQuery;
 
 impl AortaQuery for GetProjectConfigQuery {
-    type Response = ProjectStateSnapshot;
+    type Response = Option<ProjectStateSnapshot>;
     fn aorta_query_type(&self) -> &'static str {
         "get_project_config"
     }

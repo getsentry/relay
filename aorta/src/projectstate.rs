@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
@@ -346,6 +346,7 @@ impl ProjectState {
     fn retry_pending_events(&self) {
         let snapshot = self.snapshot();
         let mut to_send = vec![];
+        let timeout = self.config.pending_events_timeout.to_std().unwrap();
 
         // acquire the lock locally so we can then acquire the lock later on send
         // without deadlocking
@@ -354,7 +355,7 @@ impl ProjectState {
             let pending = mem::replace(&mut *lock, Vec::new());
 
             lock.extend(pending.into_iter().filter_map(|pending_event| {
-                if pending_event.added_at.elapsed() > Duration::from_secs(60) {
+                if pending_event.added_at.elapsed() > timeout {
                     return None;
                 }
 

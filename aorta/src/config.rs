@@ -20,6 +20,8 @@ pub struct AortaConfig {
     pub auth_retry_interval: Duration,
     /// How many seconds between heartbeats
     pub heartbeat_interval: Duration,
+    /// How long until an event is dropped from pending.
+    pub pending_events_timeout: Duration,
     /// The upstream descriptor for this aorta
     pub upstream: UpstreamDescriptor<'static>,
     /// The relay ID.
@@ -36,6 +38,7 @@ impl Default for AortaConfig {
             snapshot_expiry: Duration::seconds(60),
             auth_retry_interval: Duration::seconds(15),
             heartbeat_interval: Duration::seconds(30),
+            pending_events_timeout: Duration::seconds(60),
             upstream: Default::default(),
             relay_id: None,
             secret_key: None,
