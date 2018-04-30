@@ -1,5 +1,5 @@
 //! Handles event store requests.
-use actix_web::{HttpResponse, Json, ResponseError, http::{Method, StatusCode}};
+use actix_web::{HttpResponse, Json, ResponseError, http::Method};
 use uuid::Uuid;
 use sentry_types::protocol::latest::Event;
 
@@ -20,7 +20,7 @@ struct StoreRejected;
 
 impl ResponseError for StoreRejected {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(StatusCode::FORBIDDEN).json(&ApiErrorResponse::from_fail(self))
+        HttpResponse::Forbidden().json(&ApiErrorResponse::from_fail(self))
     }
 }
 
