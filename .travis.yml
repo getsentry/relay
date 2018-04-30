@@ -3,6 +3,7 @@ cache:
   cargo: true
   directories:
     - cabi/target
+    - py/venv
 
 git:
   depth: 1
@@ -13,17 +14,17 @@ script: make $SUITE
 matrix:
   include:
     - os: linux
-      sudo: required
-      env: SUITE=test
-      before_install: .ci/install-libsodium.sh
-      install: cargo build --all
-    - os: osx
-      env: SUITE=test
-      before_install: .ci/install-libsodium.sh
-      install: cargo build --all
-    - os: linux
       env: SUITE=format-check
       install: rustup component add rustfmt-preview
+    - os: linux
+      env: SUITE=cargotest
+      install: cargo build --all --locked
+    - os: osx
+      env: SUITE=cargotest
+      install: cargo build --all --locked
+    - os: linux
+      env: SUITE=pytest
+      install: skip
 
 notifications:
   webhooks:
