@@ -224,12 +224,13 @@ impl ProjectState {
 
     /// Requests an update to the project config to be fetched.
     pub fn request_updated_project_config(&self) {
-        if !self.requested_new_snapshot
+        if self.requested_new_snapshot
             .compare_and_swap(false, true, Ordering::Relaxed)
         {
             return;
         }
 
+        debug!("requesting updated project config for {}", self.project_id);
         self.add_query(GetProjectConfigQuery, move |ps, rv| -> Result<(), ()> {
             if let Ok(snapshot_opt) = rv {
                 ps.requested_new_snapshot.store(false, Ordering::Relaxed);
@@ -283,7 +284,10 @@ impl ProjectState {
                 }
             }
             // in the absence of a snapshot we generally queue
-            None => PublicKeyEventAction::Queue,
+            None => {
+                self.request_updated_project_config();
+                PublicKeyEventAction::Queue
+            }
         }
     }
 
@@ -295,6 +299,7 @@ impl ProjectState {
         event.id.get_or_insert_with(Uuid::new_v4);
         match self.get_public_key_event_action(&public_key) {
             PublicKeyEventAction::Queue => {
+                debug!("{}#{} -> pending", self.project_id, event);
                 self.pending_events.write().push(PendingEvent {
                     added_at: Instant::now(),
                     public_key: public_key.into_owned(),
@@ -303,6 +308,7 @@ impl ProjectState {
                 true
             }
             PublicKeyEventAction::Send => {
+                debug!("{}#{} -> changeset", self.project_id, event);
                 self.request_manager.add_changeset(
                     self.project_id,
                     StoreChangeset {
@@ -313,7 +319,7 @@ impl ProjectState {
                 true
             }
             PublicKeyEventAction::Discard => {
-                debug!("Discarded {} for project {}", event, self.project_id);
+                debug!("{}#{} -> discarded", self.project_id, event);
                 false
             }
         }
@@ -368,10 +374,7 @@ impl ProjectState {
         }
 
         for pending_event in to_send {
-            debug!(
-                "Sending previously pending {} for project {}",
-                pending_event.event, self.project_id
-            );
+            debug!("unpend {}#{}", self.project_id, pending_event.event);
             self.handle_event(pending_event.public_key.into(), pending_event.event);
         }
     }

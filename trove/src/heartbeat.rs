@@ -67,7 +67,7 @@ fn handle_heartbeat_response(ctx: Arc<TroveContext>, response: HeartbeatResponse
         if let Some((project_id, mut callback)) = request_manager.pop_callback(query_id) {
             if let Some(project_state) = state.get_project_state(project_id) {
                 if let Some(data) = result.result {
-                    callback(&project_state, data, result.status == QueryStatus::Success);
+                    callback(&project_state, data, result.status == QueryStatus::Ok);
                 }
             }
         }

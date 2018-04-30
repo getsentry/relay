@@ -27,7 +27,7 @@ struct PackedRequest {
 #[serde(rename_all = "lowercase")]
 pub enum QueryStatus {
     /// The query succeeded
-    Success,
+    Ok,
     /// The query is still pending
     Pending,
     /// The query failed with an error
