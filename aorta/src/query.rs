@@ -180,6 +180,8 @@ impl RequestManager {
         let last_heartbeat = inner.last_heartbeat;
         inner.last_heartbeat = Some(Instant::now());
 
+        // TODO(mitsuhiko): this should use values from the config
+
         // if there is actual data in the heartbeat request, send it and come back in two seconds.
         if !rv.changesets.is_empty() || !rv.queries.is_empty() {
             (Some(rv), Duration::from_secs(2))
