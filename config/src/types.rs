@@ -57,6 +57,7 @@ struct Aorta {
     snapshot_expiry: u32,
     auth_retry_interval: u32,
     heartbeat_interval: u32,
+    changeset_buffer_interval: u32,
     pending_events_timeout: u32,
 }
 
@@ -100,7 +101,8 @@ impl Default for Aorta {
         Aorta {
             snapshot_expiry: 60,
             auth_retry_interval: 15,
-            heartbeat_interval: 30,
+            heartbeat_interval: 60,
+            changeset_buffer_interval: 2,
             pending_events_timeout: 60,
         }
     }
@@ -281,6 +283,11 @@ impl Config {
         Duration::seconds(self.aorta.heartbeat_interval as i64)
     }
 
+    /// Returns the aorta changeset buffer interval.
+    pub fn aorta_changeset_buffer_interval(&self) -> Duration {
+        Duration::seconds(self.aorta.changeset_buffer_interval as i64)
+    }
+
     /// Returns the timeout for pending events.
     pub fn aorta_pending_events_timeout(&self) -> Duration {
         Duration::seconds(self.aorta.pending_events_timeout as i64)
@@ -292,6 +299,7 @@ impl Config {
             snapshot_expiry: self.aorta_snapshot_expiry(),
             auth_retry_interval: self.aorta_auth_retry_interval(),
             heartbeat_interval: self.aorta_heartbeat_interval(),
+            changeset_buffer_interval: self.aorta_changeset_buffer_interval(),
             pending_events_timeout: self.aorta_pending_events_timeout(),
             upstream: self.upstream_descriptor().clone().into_owned(),
             relay_id: Some(self.relay_id().clone()),

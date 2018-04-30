@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::Future;
 use tokio_core::reactor::Timeout;
@@ -9,14 +10,13 @@ use smith_aorta::{HeartbeatResponse, QueryStatus};
 
 pub(crate) fn spawn_heartbeat(ctx: Arc<TroveContext>) {
     info!("starting heartbeat service");
-    schedule_heartbeat(ctx);
+    schedule_heartbeat(ctx, Duration::from_secs(1));
 }
 
-fn schedule_heartbeat(ctx: Arc<TroveContext>) {
+fn schedule_heartbeat(ctx: Arc<TroveContext>, timeout: Duration) {
     let inner_ctx = ctx.clone();
-    let config = &ctx.state().config();
     ctx.handle().spawn(
-        Timeout::new(config.heartbeat_interval.to_std().unwrap(), &ctx.handle())
+        Timeout::new(timeout, &ctx.handle())
             .unwrap()
             .and_then(|_| {
                 perform_heartbeat(inner_ctx);
@@ -38,23 +38,31 @@ fn perform_heartbeat(ctx: Arc<TroveContext>) {
         return;
     }
 
-    let hb_req = state.request_manager().next_heartbeat_request();
-    let inner_ctx_success = ctx.clone();
-    let inner_ctx_failure = ctx.clone();
+    let (hb_req_opt, timeout) = state.request_manager().next_heartbeat_request();
 
-    ctx.handle().spawn(
-        ctx.aorta_request(&hb_req)
-            .and_then(move |response| {
-                handle_heartbeat_response(inner_ctx_success.clone(), response);
-                schedule_heartbeat(inner_ctx_success);
-                Ok(())
-            })
-            .or_else(|err| {
-                error!("heartbeat failed: {}", &err);
-                schedule_heartbeat(inner_ctx_failure);
-                Err(())
-            }),
-    );
+    match hb_req_opt {
+        Some(hb_req) => {
+            let inner_ctx_success = ctx.clone();
+            let inner_ctx_failure = ctx.clone();
+            ctx.handle().spawn(
+                ctx.aorta_request(&hb_req)
+                    .and_then(move |response| {
+                        handle_heartbeat_response(inner_ctx_success.clone(), response);
+                        schedule_heartbeat(inner_ctx_success, timeout);
+                        Ok(())
+                    })
+                    .or_else(|err| {
+                        error!("heartbeat failed: {}", &err);
+                        // on error retry quicker
+                        schedule_heartbeat(inner_ctx_failure, Duration::from_secs(1));
+                        Err(())
+                    }),
+            );
+        }
+        None => {
+            schedule_heartbeat(ctx, timeout);
+        }
+    }
 }
 
 fn handle_heartbeat_response(ctx: Arc<TroveContext>, response: HeartbeatResponse) {

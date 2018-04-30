@@ -1,3 +1,4 @@
+use std::time::{Duration, Instant};
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
@@ -51,21 +52,24 @@ impl fmt::Display for QueryError {
     }
 }
 
-/// The request manager helps sending aorta queries.
-pub struct RequestManager {
-    pending_changesets: RwLock<VecDeque<PackedRequest>>,
-    pending_queries: RwLock<VecDeque<(Uuid, PackedRequest)>>,
+struct RequestManagerInner {
+    pending_changesets: VecDeque<PackedRequest>,
+    pending_queries: VecDeque<(Uuid, PackedRequest)>,
     // XXX: this should actually be FnOnce but current versions of rust do not
     // permit boxing this. See https://github.com/rust-lang/rfcs/issues/997
-    query_callbacks: RwLock<
-        HashMap<
-            Uuid,
-            (
-                ProjectId,
-                Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>,
-            ),
-        >,
+    query_callbacks: HashMap<
+        Uuid,
+        (
+            ProjectId,
+            Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>,
+        ),
     >,
+    last_heartbeat: Option<Instant>,
+}
+
+/// The request manager helps sending aorta queries.
+pub struct RequestManager {
+    inner: RwLock<RequestManagerInner>,
 }
 
 impl RequestManager {
@@ -74,19 +78,25 @@ impl RequestManager {
         // TODO: queries can expire.  This means something needs to clean up very
         // old query callbacks eventually or we leak memory here.
         RequestManager {
-            pending_changesets: RwLock::new(VecDeque::new()),
-            pending_queries: RwLock::new(VecDeque::new()),
-            query_callbacks: RwLock::new(HashMap::new()),
+            inner: RwLock::new(RequestManagerInner {
+                pending_changesets: VecDeque::new(),
+                pending_queries: VecDeque::new(),
+                query_callbacks: HashMap::new(),
+                last_heartbeat: None,
+            }),
         }
     }
 
     /// Adds a changeset to the request manager.
     pub fn add_changeset<C: AortaChangeset>(&self, project_id: ProjectId, changeset: C) {
-        self.pending_changesets.write().push_back(PackedRequest {
-            ty: Cow::Borrowed(changeset.aorta_changeset_type()),
-            project_id: project_id,
-            data: serde_json::to_value(&changeset).unwrap(),
-        })
+        self.inner
+            .write()
+            .pending_changesets
+            .push_back(PackedRequest {
+                ty: Cow::Borrowed(changeset.aorta_changeset_type()),
+                project_id: project_id,
+                data: serde_json::to_value(&changeset).unwrap(),
+            })
     }
 
     /// Adds a query to the request manager.
@@ -101,7 +111,8 @@ impl RequestManager {
     {
         let query_id = Uuid::new_v4();
         let callback = RwLock::new(callback);
-        self.query_callbacks.write().insert(
+        let mut inner = self.inner.write();
+        inner.query_callbacks.insert(
             query_id,
             (
                 project_id,
@@ -117,7 +128,7 @@ impl RequestManager {
                 }),
             ),
         );
-        self.pending_queries.write().push_back((
+        inner.pending_queries.push_back((
             query_id,
             PackedRequest {
                 ty: Cow::Borrowed(query.aorta_query_type()),
@@ -126,14 +137,6 @@ impl RequestManager {
             },
         ));
         query_id
-    }
-
-    fn unschedule_pending_changeset(&self) -> Option<PackedRequest> {
-        self.pending_changesets.write().pop_front()
-    }
-
-    fn unschedule_pending_query(&self) -> Option<(Uuid, PackedRequest)> {
-        self.pending_queries.write().pop_front()
     }
 
     /// Given a query id removes and returns the callback.
@@ -146,32 +149,50 @@ impl RequestManager {
             Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>,
         ),
     > {
-        self.query_callbacks.write().remove(&query_id)
+        self.inner.write().query_callbacks.remove(&query_id)
     }
 
     /// Returns a single heartbeat request.
     ///
-    /// This unschedules some pending queries from the request manager.
-    pub fn next_heartbeat_request(&self) -> HeartbeatRequest {
+    /// This unschedules some pending queries from the request manager.  It also
+    /// returns when the next heartbeat should be.
+    pub fn next_heartbeat_request(&self) -> (Option<HeartbeatRequest>, Duration) {
         let mut rv = HeartbeatRequest {
             changesets: Vec::new(),
             queries: HashMap::new(),
         };
 
+        let mut inner = self.inner.write();
         for _ in 0..50 {
-            match self.unschedule_pending_changeset() {
+            match inner.pending_changesets.pop_front() {
                 Some(changeset) => rv.changesets.push(changeset),
                 None => break,
             };
         }
 
         for _ in 0..50 {
-            match self.unschedule_pending_query() {
+            match inner.pending_queries.pop_front() {
                 Some((query_id, query)) => rv.queries.insert(query_id, query),
                 None => break,
             };
         }
-        rv
+
+        let last_heartbeat = inner.last_heartbeat;
+        inner.last_heartbeat = Some(Instant::now());
+
+        // if there is actual data in the heartbeat request, send it and come back in two seconds.
+        if !rv.changesets.is_empty() || !rv.queries.is_empty() {
+            (Some(rv), Duration::from_secs(2))
+        // we waited long enough without sending some data, send an empty heartbeat now and come
+        // back quickly for more checks
+        } else if last_heartbeat.is_none()
+            || last_heartbeat.unwrap().elapsed() > Duration::from_secs(30)
+        {
+            (Some(rv), Duration::from_secs(1))
+        // no request to send now, check back quickly
+        } else {
+            (None, Duration::from_secs(1))
+        }
     }
 }
 
