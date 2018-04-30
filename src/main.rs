@@ -15,6 +15,7 @@ use std::env;
 use clap::{App, AppSettings, Arg};
 use failure::Error;
 use log::LevelFilter;
+use sentry::integrations::log as sentry_log;
 
 use smith_config::Config;
 
@@ -56,7 +57,16 @@ fn init_logging(config: &Config) {
         Err(_) => log_builder.filter_level(config.log_level_filter()),
     };
 
-    sentry::integrations::log::init(Some(Box::new(log_builder.build())), Default::default());
+    let log = Box::new(log_builder.build());
+    let global_filter = log.filter();
+
+    sentry_log::init(
+        Some(log),
+        sentry_log::LoggerOptions {
+            global_filter: Some(global_filter),
+            ..Default::default()
+        },
+    );
 }
 
 pub fn execute() -> Result<(), Error> {
