@@ -23,10 +23,14 @@ pub struct CaptureSentryError;
 
 impl<S> Middleware<S> for CaptureSentryError {
     fn response(&self, _req: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response, Error> {
-        if let Some(error) = resp.error() {
-            capture_fail(error.cause());
+        // TODO: newer versions of actix will support the backtrace on the actix
+        // error.  In that case we want to emit a custom error event to sentry
+        // that includes that backtrace (maybe also have a sentry-actix package).
+        if resp.status().is_server_error() {
+            if let Some(error) = resp.error() {
+                capture_fail(error.cause());
+            }
         }
-
         Ok(Response::Done(resp))
     }
 }
