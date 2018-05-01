@@ -1,5 +1,6 @@
 //! Handles event store requests.
 use actix_web::{HttpResponse, Json, ResponseError, http::Method};
+use actix_web::middleware::cors::Cors;
 use uuid::Uuid;
 
 use service::ServiceApp;
@@ -36,8 +37,20 @@ fn store(mut request: ProjectRequest<Event>) -> Result<Json<StoreResponse>, Stor
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource(r"/api/{project:\d+}/store/", |r| {
-        r.middleware(ForceJson);
-        r.method(Method::POST).with(store);
-    })
+    Cors::for_app(app)
+        .allowed_methods(vec!["POST"])
+        .allowed_headers(vec![
+            "x-sentry-auth",
+            "x-requested-with",
+            "origin",
+            "accept",
+            "content-type",
+            "authentication",
+        ])
+        .max_age(3600)
+        .resource(r"/api/{project:\d+}/store/", |r| {
+            r.middleware(ForceJson);
+            r.method(Method::POST).with(store);
+        })
+        .register()
 }
