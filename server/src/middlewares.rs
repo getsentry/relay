@@ -11,10 +11,17 @@ pub struct ForceJson;
 
 impl<S> Middleware<S> for ForceJson {
     fn start(&self, req: &mut HttpRequest<S>) -> Result<Started, Error> {
-        req.headers_mut().insert(
+        let headers = req.headers_mut();
+
+        headers.insert(
             header::CONTENT_TYPE,
             header::HeaderValue::from_static("application/json"),
         );
+        headers.insert(
+            "x-content-type-options",
+            header::HeaderValue::from_static("nosniff"),
+        );
+
         Ok(Started::Done)
     }
 }
