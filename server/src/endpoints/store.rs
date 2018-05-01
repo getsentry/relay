@@ -3,14 +3,14 @@ use actix_web::{HttpResponse, Json, ResponseError, http::Method};
 use uuid::Uuid;
 
 use service::ServiceApp;
-use extractors::ProjectRequest;
+use extractors::{Event, ProjectRequest};
 use middlewares::ForceJson;
 
-use smith_aorta::{ApiErrorResponse, EventV7, EventVariant};
+use smith_aorta::ApiErrorResponse;
 
 #[derive(Serialize)]
 struct StoreResponse {
-    id: Uuid,
+    id: Option<Uuid>,
 }
 
 #[derive(Fail, Debug)]
@@ -23,11 +23,10 @@ impl ResponseError for StoreRejected {
     }
 }
 
-fn store(mut request: ProjectRequest<EventV7>) -> Result<Json<StoreResponse>, StoreRejected> {
-    let trove_state = request.trove_state();
-    let mut event = EventVariant::SentryV7(request.take_payload().unwrap());
-    let event_id = event.ensure_id().unwrap_or_else(Uuid::nil);
-    let project_state = trove_state.get_or_create_project_state(request.project_id());
+fn store(mut request: ProjectRequest<Event>) -> Result<Json<StoreResponse>, StoreRejected> {
+    let event = request.take_payload().into_inner();
+    let event_id = event.id();
+    let project_state = request.get_or_create_project_state();
 
     if project_state.handle_event(request.auth().public_key().into(), event) {
         Ok(Json(StoreResponse { id: event_id }))

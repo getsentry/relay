@@ -22,8 +22,6 @@ extern crate smith_config;
 extern crate smith_trove;
 extern crate uuid;
 
-mod prelude {}
-
 mod errors;
 mod extractors;
 mod middlewares;

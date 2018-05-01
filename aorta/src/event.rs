@@ -16,14 +16,13 @@ pub enum EventVariant {
 }
 
 impl EventVariant {
-    /// Ensures that the event held has an ID and returns it.
+    /// Ensures that the event held has an ID.
     ///
-    /// For some event variants an ID might be impossible to set
-    /// in which case `None` is returned.
-    pub fn ensure_id(&mut self) -> Option<Uuid> {
+    /// This might not do anything for unknown event variants.
+    pub fn ensure_id(&mut self) {
         match *self {
             EventVariant::SentryV7(ref mut event) => {
-                Some(*event.id.get_or_insert_with(Uuid::new_v4))
+                event.id.get_or_insert_with(Uuid::new_v4);
             }
         }
     }
