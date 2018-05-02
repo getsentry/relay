@@ -15,7 +15,7 @@ pub struct EventMeta {
     /// the submitting ip address
     pub remote_addr: Option<IpAddr>,
     /// the client that submitted the event.
-    pub user_agent: Option<String>,
+    pub sentry_client: Option<String>,
 }
 
 /// An enum that can hold various types of sentry events.

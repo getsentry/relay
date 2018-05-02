@@ -162,7 +162,7 @@ impl FromRequest<Arc<TroveState>> for Event {
 
         let meta = EventMeta {
             remote_addr: req.peer_addr().map(|sock_addr| sock_addr.ip()),
-            user_agent: auth.client_agent().map(|x| x.to_string()),
+            sentry_client: auth.client_agent().map(|x| x.to_string()),
         };
 
         // anything up to 7 is considered sentry v7
