@@ -7,7 +7,7 @@ use futures::{future, Future};
 use http::StatusCode;
 use sentry_types::{Auth, AuthParseError};
 
-use smith_aorta::{ApiErrorResponse, EventVariant, ProjectState};
+use smith_aorta::{ApiErrorResponse, EventMeta, EventVariant, ProjectState};
 use smith_common::{ProjectId, ProjectIdParseError};
 use smith_trove::TroveState;
 
@@ -137,17 +137,18 @@ impl<T: FromRequest<Arc<TroveState>> + 'static> FromRequest<Arc<TroveState>> for
 /// Extracts an event variant from the payload.
 pub struct Event {
     event: EventVariant,
+    meta: EventMeta,
 }
 
 impl Event {
-    fn new(mut event: EventVariant) -> Event {
+    fn new(mut event: EventVariant, meta: EventMeta) -> Event {
         event.ensure_id();
-        Event { event }
+        Event { event, meta }
     }
 
-    /// Converts the event wrapper into the contained event variant.
-    pub fn into_inner(self) -> EventVariant {
-        self.event
+    /// Converts the event wrapper into the contained event meta and variant.
+    pub fn into_inner(self) -> (EventVariant, EventMeta) {
+        (self.event, self.meta)
     }
 }
 
@@ -159,13 +160,18 @@ impl FromRequest<Arc<TroveState>> for Event {
     fn from_request(req: &HttpRequest<Arc<TroveState>>, _cfg: &Self::Config) -> Self::Result {
         let auth: &Auth = req.extensions_ro().get().unwrap();
 
+        let meta = EventMeta {
+            remote_addr: req.peer_addr().map(|sock_addr| sock_addr.ip()),
+            user_agent: auth.client_agent().map(|x| x.to_string()),
+        };
+
         // anything up to 7 is considered sentry v7
         if auth.version() <= 7 {
             Box::new(
                 JsonBody::new(req.clone())
                     .limit(524_288)
                     .map_err(|e| BadProjectRequest::BadJson(e).into())
-                    .map(|e| Event::new(EventVariant::SentryV7(e))),
+                    .map(|e| Event::new(EventVariant::SentryV7(e), meta)),
             )
 
         // for now don't handle unsupported versions.  later fallback to raw

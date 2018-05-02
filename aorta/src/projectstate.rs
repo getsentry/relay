@@ -15,11 +15,12 @@ use config::AortaConfig;
 use query::{AortaChangeset, AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};
 use smith_common::ProjectId;
 use upstream::UpstreamDescriptor;
-use event::EventVariant;
+use event::{EventMeta, EventVariant};
 
 #[derive(Serialize, Debug)]
 struct StoreChangeset {
     public_key: String,
+    meta: EventMeta,
     event: EventVariant,
 }
 
@@ -100,6 +101,7 @@ pub enum PublicKeyEventAction {
 struct PendingEvent {
     added_at: Instant,
     public_key: String,
+    meta: EventMeta,
     event: EventVariant,
 }
 
@@ -295,7 +297,12 @@ impl ProjectState {
     ///
     /// It either puts it into an internal queue, sends it or discards it.  If the item
     /// was discarded `false` is returned.
-    pub fn handle_event<'a>(&self, public_key: Cow<'a, str>, mut event: EventVariant) -> bool {
+    pub fn handle_event<'a>(
+        &self,
+        public_key: Cow<'a, str>,
+        mut event: EventVariant,
+        meta: EventMeta,
+    ) -> bool {
         event.ensure_id();
         match self.get_public_key_event_action(&public_key) {
             PublicKeyEventAction::Queue => {
@@ -303,7 +310,8 @@ impl ProjectState {
                 self.pending_events.write().push(PendingEvent {
                     added_at: Instant::now(),
                     public_key: public_key.into_owned(),
-                    event: event,
+                    meta,
+                    event,
                 });
                 true
             }
@@ -313,7 +321,8 @@ impl ProjectState {
                     self.project_id,
                     StoreChangeset {
                         public_key: public_key.into_owned(),
-                        event: event,
+                        meta,
+                        event,
                     },
                 );
                 true
@@ -375,7 +384,11 @@ impl ProjectState {
 
         for pending_event in to_send {
             debug!("unpend {}#{}", self.project_id, pending_event.event);
-            self.handle_event(pending_event.public_key.into(), pending_event.event);
+            self.handle_event(
+                pending_event.public_key.into(),
+                pending_event.event,
+                pending_event.meta,
+            );
         }
     }
 

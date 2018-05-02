@@ -25,11 +25,11 @@ impl ResponseError for StoreRejected {
 }
 
 fn store(mut request: ProjectRequest<Event>) -> Result<Json<StoreResponse>, StoreRejected> {
-    let event = request.take_payload().into_inner();
+    let (event, meta) = request.take_payload().into_inner();
     let event_id = event.id();
     let project_state = request.get_or_create_project_state();
 
-    if project_state.handle_event(request.auth().public_key().into(), event) {
+    if project_state.handle_event(request.auth().public_key().into(), event, meta) {
         Ok(Json(StoreResponse { id: event_id }))
     } else {
         Err(StoreRejected)

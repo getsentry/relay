@@ -1,4 +1,5 @@
 use std::fmt;
+use std::net::IpAddr;
 
 use uuid::Uuid;
 
@@ -6,6 +7,16 @@ use sentry_types::protocol::v7;
 
 /// The v7 sentry protocol type.
 pub type EventV7 = v7::Event<'static>;
+
+/// Additional event meta data.
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(default)]
+pub struct EventMeta {
+    /// the submitting ip address
+    pub remote_addr: Option<IpAddr>,
+    /// the client that submitted the event.
+    pub user_agent: Option<String>,
+}
 
 /// An enum that can hold various types of sentry events.
 #[derive(Serialize, Debug, Clone)]
