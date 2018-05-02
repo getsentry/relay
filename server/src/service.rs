@@ -10,7 +10,7 @@ use smith_trove::{Trove, TroveState};
 
 use endpoints;
 use errors::{ServerError, ServerErrorKind};
-use middlewares::{AddCommonHeaders, CaptureSentryError};
+use middlewares::{AddCommonHeaders, CaptureSentryError, ErrorHandlers};
 
 fn dump_spawn_infos<H: server::HttpHandler>(
     config: &Config,
@@ -40,7 +40,8 @@ pub type ServiceApp = App<Arc<TroveState>>;
 fn make_app(state: Arc<TroveState>) -> ServiceApp {
     let mut app = App::with_state(state)
         .middleware(CaptureSentryError)
-        .middleware(AddCommonHeaders);
+        .middleware(AddCommonHeaders)
+        .middleware(ErrorHandlers);
 
     macro_rules! register_endpoint {
         ($name:ident) => {
