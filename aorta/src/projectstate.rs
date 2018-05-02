@@ -10,25 +10,13 @@ use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
+use url::Url;
 
 use config::AortaConfig;
-use query::{AortaChangeset, AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};
+use query::{AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};
 use smith_common::ProjectId;
 use upstream::UpstreamDescriptor;
-use event::{EventMeta, EventVariant};
-
-#[derive(Serialize, Debug)]
-struct StoreChangeset {
-    public_key: String,
-    meta: EventMeta,
-    event: EventVariant,
-}
-
-impl AortaChangeset for StoreChangeset {
-    fn aorta_changeset_type(&self) -> &'static str {
-        self.event.changeset_type()
-    }
-}
+use event::{EventMeta, EventVariant, StoreChangeset};
 
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -146,6 +134,11 @@ impl ProjectStateSnapshot {
     pub fn outdated(&self, config: &AortaConfig) -> bool {
         // TODO(armin): change this to a value from the config
         self.last_fetch < Utc::now() - config.snapshot_expiry
+    }
+
+    /// Returns the project config.
+    pub fn config(&self) -> &ProjectConfig {
+        &self.config
     }
 }
 
@@ -293,6 +286,17 @@ impl ProjectState {
         }
     }
 
+    /// Validates the origin.
+    pub fn is_valid_origin(&self, origin: &Url) -> bool {
+        self.snapshot_opt().map_or(true, |snapshot| {
+            let allowed = &snapshot.config().allowed_domains;
+            allowed.is_empty()
+                || allowed
+                    .iter()
+                    .any(|x| Some(x.as_str()) == origin.host_str())
+        })
+    }
+
     /// Given a public key and an event this handles an event.
     ///
     /// It either puts it into an internal queue, sends it or discards it.  If the item
@@ -304,6 +308,12 @@ impl ProjectState {
         meta: EventMeta,
     ) -> bool {
         event.ensure_id();
+        if let Some(ref origin) = meta.origin {
+            if !self.is_valid_origin(origin) {
+                debug!("{}#{} -> access denied", self.project_id, event);
+                return false;
+            }
+        }
         match self.get_public_key_event_action(&public_key) {
             PublicKeyEventAction::Queue => {
                 debug!("{}#{} -> pending", self.project_id, event);
@@ -339,12 +349,17 @@ impl ProjectState {
         self.current_snapshot.read().is_some()
     }
 
-    /// Returns the current project state.
+    /// Returns the current project snapshot.
     pub fn snapshot(&self) -> Arc<ProjectStateSnapshot> {
+        self.snapshot_opt().expect("Snapshot not yet available")
+    }
+
+    /// Returns the current project snapshot as option.
+    pub fn snapshot_opt(&self) -> Option<Arc<ProjectStateSnapshot>> {
         let lock = self.current_snapshot.read();
         match *lock {
-            Some(ref arc) => arc.clone(),
-            None => panic!("Snapshot not yet available"),
+            Some(ref arc) => Some(arc.clone()),
+            None => None,
         }
     }
 

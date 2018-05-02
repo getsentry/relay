@@ -1,9 +1,13 @@
 use std::fmt;
 use std::net::IpAddr;
 
+use url::Url;
+use url_serde;
 use uuid::Uuid;
 
 use sentry_types::protocol::v7;
+
+use query::AortaChangeset;
 
 /// The v7 sentry protocol type.
 pub type EventV7 = v7::Event<'static>;
@@ -12,6 +16,9 @@ pub type EventV7 = v7::Event<'static>;
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct EventMeta {
+    /// the optional browser origin of the event.
+    #[serde(with = "url_serde")]
+    pub origin: Option<Url>,
     /// the submitting ip address
     pub remote_addr: Option<IpAddr>,
     /// the client that submitted the event.
@@ -58,5 +65,22 @@ impl fmt::Display for EventVariant {
         match *self {
             EventVariant::SentryV7(ref event) => fmt::Display::fmt(event, f),
         }
+    }
+}
+
+/// The changeset for event stores.
+#[derive(Serialize, Debug)]
+pub struct StoreChangeset {
+    /// The public key that requested the store.
+    pub public_key: String,
+    /// The event meta data.
+    pub meta: EventMeta,
+    /// The event payload.
+    pub event: EventVariant,
+}
+
+impl AortaChangeset for StoreChangeset {
+    fn aorta_changeset_type(&self) -> &'static str {
+        self.event.changeset_type()
     }
 }

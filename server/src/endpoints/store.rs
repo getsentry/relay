@@ -15,7 +15,7 @@ struct StoreResponse {
 }
 
 #[derive(Fail, Debug)]
-#[fail(display = "event submission rejected (invalid or disabled public key)")]
+#[fail(display = "event submission rejected")]
 struct StoreRejected;
 
 impl ResponseError for StoreRejected {

@@ -25,6 +25,7 @@ url = "1.7.0"
 log = "0.4.1"
 sentry-types = "0.3.2"
 rust_sodium = "0.8.0"
+url_serde = "0.2.0"
 
 [dependencies.chrono]
 features = ["serde"]

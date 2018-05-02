@@ -21,6 +21,7 @@ extern crate serde_json;
 extern crate smith_common;
 extern crate tokio_core;
 extern crate url;
+extern crate url_serde;
 extern crate uuid;
 
 mod api;

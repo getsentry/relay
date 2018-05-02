@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use actix_web::dev::JsonBody;
 use actix_web::error::{Error, JsonPayloadError, ResponseError};
-use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, State};
+use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, State, http::header};
 use futures::{future, Future};
-use http::StatusCode;
 use sentry_types::{Auth, AuthParseError};
 
 use smith_aorta::{ApiErrorResponse, EventMeta, EventVariant, ProjectState};
@@ -25,7 +24,7 @@ pub enum BadProjectRequest {
 
 impl ResponseError for BadProjectRequest {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(StatusCode::BAD_REQUEST).json(&ApiErrorResponse::from_fail(self))
+        HttpResponse::BadRequest().json(&ApiErrorResponse::from_fail(self))
     }
 }
 
@@ -163,6 +162,11 @@ impl FromRequest<Arc<TroveState>> for Event {
         let meta = EventMeta {
             remote_addr: req.peer_addr().map(|sock_addr| sock_addr.ip()),
             sentry_client: auth.client_agent().map(|x| x.to_string()),
+            // XXX: handle non url origins safely here
+            origin: req.headers()
+                .get(header::ORIGIN)
+                .and_then(|x| x.to_str().ok())
+                .and_then(|x| x.parse().ok()),
         };
 
         // anything up to 7 is considered sentry v7
