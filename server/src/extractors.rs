@@ -162,7 +162,8 @@ impl FromRequest<Arc<TroveState>> for Event {
         let meta = EventMeta {
             remote_addr: req.peer_addr().map(|sock_addr| sock_addr.ip()),
             sentry_client: auth.client_agent().map(|x| x.to_string()),
-            // XXX: handle non url origins safely here
+            // TODO(mitsuhiko): handle non url origins safely here as well as invalid origins
+            // (eg: syntax error)
             origin: req.headers()
                 .get(header::ORIGIN)
                 .and_then(|x| x.to_str().ok())
