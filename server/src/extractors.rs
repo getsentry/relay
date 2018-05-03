@@ -223,7 +223,7 @@ impl FromRequest<Arc<TroveState>> for IncomingForeignEvent {
         let public_key = auth.public_key().to_string();
         let headers = req.headers()
             .iter()
-            .map(|(x, y)| (x.as_str().to_string(), y.to_str().unwrap_or("").into()))
+            .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").into()))
             .collect();
 
         let is_json = match req.mime_type() {
