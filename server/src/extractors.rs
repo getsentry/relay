@@ -153,21 +153,22 @@ pub struct IncomingEvent {
 }
 
 impl IncomingEvent {
-    fn new(mut event: EventVariant, meta: EventMeta, public_key: String) -> IncomingEvent {
-        event.ensure_id();
+    fn new(event: EventVariant, meta: EventMeta, public_key: String) -> IncomingEvent {
         IncomingEvent {
             event,
             meta,
             public_key,
         }
     }
+}
 
-    /// Converts the event into a store changeset.
-    pub fn into_store_changeset(self) -> StoreChangeset {
+impl From<IncomingEvent> for StoreChangeset {
+    fn from(mut inc: IncomingEvent) -> StoreChangeset {
+        inc.event.ensure_id();
         StoreChangeset {
-            event: self.event,
-            meta: self.meta,
-            public_key: self.public_key,
+            event: inc.event,
+            meta: inc.meta,
+            public_key: inc.public_key,
         }
     }
 }
@@ -202,6 +203,12 @@ impl FromRequest<Arc<TroveState>> for IncomingEvent {
 
 /// Extracts a foreign event from the payload.
 pub struct IncomingForeignEvent(pub IncomingEvent);
+
+impl From<IncomingForeignEvent> for StoreChangeset {
+    fn from(inc: IncomingForeignEvent) -> StoreChangeset {
+        inc.0.into()
+    }
+}
 
 impl FromRequest<Arc<TroveState>> for IncomingForeignEvent {
     type Config = ();

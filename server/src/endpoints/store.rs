@@ -1,4 +1,6 @@
 //! Handles event store requests.
+use std::sync::Arc;
+
 use actix_web::{HttpResponse, Json, ResponseError, http::Method};
 use actix_web::middleware::cors::Cors;
 use uuid::Uuid;
@@ -7,7 +9,7 @@ use service::ServiceApp;
 use extractors::{IncomingEvent, IncomingForeignEvent, ProjectRequest};
 use middlewares::ForceJson;
 
-use smith_aorta::ApiErrorResponse;
+use smith_aorta::{ApiErrorResponse, ProjectState, StoreChangeset};
 
 #[derive(Serialize)]
 struct StoreResponse {
@@ -24,31 +26,34 @@ impl ResponseError for StoreRejected {
     }
 }
 
-fn store_json_event(
-    mut request: ProjectRequest<IncomingEvent>,
+fn store(
+    changeset: StoreChangeset,
+    state: Arc<ProjectState>,
 ) -> Result<Json<StoreResponse>, StoreRejected> {
-    let changeset = request.take_payload().into_store_changeset();
     let event_id = changeset.event.id();
-    let project_state = request.get_or_create_project_state();
-
-    if project_state.store_changeset(changeset) {
+    if state.store_changeset(changeset) {
         Ok(Json(StoreResponse { id: event_id }))
     } else {
         Err(StoreRejected)
     }
 }
 
+fn store_json_event(
+    mut request: ProjectRequest<IncomingEvent>,
+) -> Result<Json<StoreResponse>, StoreRejected> {
+    store(
+        request.take_payload().into(),
+        request.get_or_create_project_state(),
+    )
+}
+
 fn store_foreign_event(
     mut request: ProjectRequest<IncomingForeignEvent>,
 ) -> Result<Json<StoreResponse>, StoreRejected> {
-    let changeset = request.take_payload().0.into_store_changeset();
-    let project_state = request.get_or_create_project_state();
-
-    if project_state.store_changeset(changeset) {
-        Ok(Json(StoreResponse { id: None }))
-    } else {
-        Err(StoreRejected)
-    }
+    store(
+        request.take_payload().into(),
+        request.get_or_create_project_state(),
+    )
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
