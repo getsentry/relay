@@ -1,7 +1,7 @@
 //! Handles event store requests.
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, Json, ResponseError, http::Method};
+use actix_web::{FromRequest, HttpResponse, Json, ResponseError, http::Method};
 use actix_web::middleware::cors::Cors;
 use uuid::Uuid;
 
@@ -9,7 +9,8 @@ use service::ServiceApp;
 use extractors::{IncomingEvent, IncomingForeignEvent, ProjectRequest};
 use middlewares::ForceJson;
 
-use smith_aorta::{ApiErrorResponse, ProjectState, StoreChangeset};
+use smith_trove::TroveState;
+use smith_aorta::{ApiErrorResponse, StoreChangeset};
 
 #[derive(Serialize)]
 struct StoreResponse {
@@ -26,34 +27,19 @@ impl ResponseError for StoreRejected {
     }
 }
 
-fn store(
-    changeset: StoreChangeset,
-    state: Arc<ProjectState>,
+fn store_event<I: FromRequest<Arc<TroveState>> + Into<StoreChangeset> + 'static>(
+    mut request: ProjectRequest<I>,
 ) -> Result<Json<StoreResponse>, StoreRejected> {
+    let changeset = request.take_payload().into();
     let event_id = changeset.event.id();
-    if state.store_changeset(changeset) {
+    if request
+        .get_or_create_project_state()
+        .store_changeset(changeset)
+    {
         Ok(Json(StoreResponse { id: event_id }))
     } else {
         Err(StoreRejected)
     }
-}
-
-fn store_json_event(
-    mut request: ProjectRequest<IncomingEvent>,
-) -> Result<Json<StoreResponse>, StoreRejected> {
-    store(
-        request.take_payload().into(),
-        request.get_or_create_project_state(),
-    )
-}
-
-fn store_foreign_event(
-    mut request: ProjectRequest<IncomingForeignEvent>,
-) -> Result<Json<StoreResponse>, StoreRejected> {
-    store(
-        request.take_payload().into(),
-        request.get_or_create_project_state(),
-    )
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
@@ -70,7 +56,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .max_age(3600)
         .resource(r"/api/{project:\d+}/store/", |r| {
             r.middleware(ForceJson);
-            r.method(Method::POST).with(store_json_event);
+            r.method(Method::POST).with(store_event::<IncomingEvent>);
         })
         .register();
 
@@ -86,7 +72,8 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         ])
         .max_age(3600)
         .resource(r"/api/{project:\d+}/{store_type:[a-z][a-z0-9-]*}/", |r| {
-            r.method(Method::POST).with(store_foreign_event);
+            r.method(Method::POST)
+                .with(store_event::<IncomingForeignEvent>);
         })
         .register();
 
