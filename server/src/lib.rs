@@ -28,7 +28,6 @@ mod extractors;
 mod middlewares;
 mod service;
 mod endpoints;
-mod utils;
 mod constants;
 
 pub use errors::*;

@@ -6,7 +6,8 @@ use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, State, http
 use futures::{future, Future};
 use sentry_types::{Auth, AuthParseError};
 
-use smith_aorta::{ApiErrorResponse, EventMeta, EventVariant, ProjectState};
+use smith_aorta::{ApiErrorResponse, EventMeta, EventVariant, ForeignEvent, ForeignPayload,
+                  ProjectState, StoreChangeset};
 use smith_common::{ProjectId, ProjectIdParseError};
 use smith_trove::TroveState;
 
@@ -20,6 +21,8 @@ pub enum BadProjectRequest {
     BadJson(#[cause] JsonPayloadError),
     #[fail(display = "unsupported protocol version ({})", _0)]
     UnsupportedProtocolVersion(u16),
+    #[fail(display = "unsupported foreign (proxy through) request")]
+    UnsupportedForeignRequest,
 }
 
 impl ResponseError for BadProjectRequest {
@@ -46,11 +49,6 @@ pub struct ProjectRequest<T: FromRequest<Arc<TroveState>> + 'static> {
 }
 
 impl<T: FromRequest<Arc<TroveState>> + 'static> ProjectRequest<T> {
-    /// Returns the sentry protocol auth for this request.
-    pub fn auth(&self) -> &Auth {
-        self.http_req.extensions_ro().get().unwrap()
-    }
-
     /// Returns the project identifier for this request.
     pub fn project_id(&self) -> ProjectId {
         *self.http_req.extensions_ro().get().unwrap()
@@ -133,25 +131,48 @@ impl<T: FromRequest<Arc<TroveState>> + 'static> FromRequest<Arc<TroveState>> for
     }
 }
 
+fn event_meta_from_req(req: &HttpRequest<Arc<TroveState>>) -> EventMeta {
+    let auth: &Auth = req.extensions_ro().get().unwrap();
+    EventMeta {
+        remote_addr: req.peer_addr().map(|sock_addr| sock_addr.ip()),
+        sentry_client: auth.client_agent().map(|x| x.to_string()),
+        // TODO(mitsuhiko): handle non url origins safely here as well as invalid origins
+        // (eg: syntax error)
+        origin: req.headers()
+            .get(header::ORIGIN)
+            .and_then(|x| x.to_str().ok())
+            .and_then(|x| x.parse().ok()),
+    }
+}
+
 /// Extracts an event variant from the payload.
-pub struct Event {
+pub struct IncomingEvent {
     event: EventVariant,
     meta: EventMeta,
+    public_key: String,
 }
 
-impl Event {
-    fn new(mut event: EventVariant, meta: EventMeta) -> Event {
+impl IncomingEvent {
+    fn new(mut event: EventVariant, meta: EventMeta, public_key: String) -> IncomingEvent {
         event.ensure_id();
-        Event { event, meta }
+        IncomingEvent {
+            event,
+            meta,
+            public_key,
+        }
     }
 
-    /// Converts the event wrapper into the contained event meta and variant.
-    pub fn into_inner(self) -> (EventVariant, EventMeta) {
-        (self.event, self.meta)
+    /// Converts the event into a store changeset.
+    pub fn into_store_changeset(self) -> StoreChangeset {
+        StoreChangeset {
+            event: self.event,
+            meta: self.meta,
+            public_key: self.public_key,
+        }
     }
 }
 
-impl FromRequest<Arc<TroveState>> for Event {
+impl FromRequest<Arc<TroveState>> for IncomingEvent {
     type Config = ();
     type Result = Box<Future<Item = Self, Error = Error>>;
 
@@ -159,24 +180,15 @@ impl FromRequest<Arc<TroveState>> for Event {
     fn from_request(req: &HttpRequest<Arc<TroveState>>, _cfg: &Self::Config) -> Self::Result {
         let auth: &Auth = req.extensions_ro().get().unwrap();
 
-        let meta = EventMeta {
-            remote_addr: req.peer_addr().map(|sock_addr| sock_addr.ip()),
-            sentry_client: auth.client_agent().map(|x| x.to_string()),
-            // TODO(mitsuhiko): handle non url origins safely here as well as invalid origins
-            // (eg: syntax error)
-            origin: req.headers()
-                .get(header::ORIGIN)
-                .and_then(|x| x.to_str().ok())
-                .and_then(|x| x.parse().ok()),
-        };
-
         // anything up to 7 is considered sentry v7
         if auth.version() <= 7 {
+            let meta = event_meta_from_req(req);
+            let public_key = auth.public_key().to_string();
             Box::new(
                 JsonBody::new(req.clone())
                     .limit(524_288)
                     .map_err(|e| BadProjectRequest::BadJson(e).into())
-                    .map(|e| Event::new(EventVariant::SentryV7(e), meta)),
+                    .map(move |e| IncomingEvent::new(EventVariant::SentryV7(e), meta, public_key)),
             )
 
         // for now don't handle unsupported versions.  later fallback to raw
@@ -185,5 +197,58 @@ impl FromRequest<Arc<TroveState>> for Event {
                 BadProjectRequest::UnsupportedProtocolVersion(auth.version()).into(),
             ))
         }
+    }
+}
+
+/// Extracts a foreign event from the payload.
+pub struct IncomingForeignEvent(pub IncomingEvent);
+
+impl FromRequest<Arc<TroveState>> for IncomingForeignEvent {
+    type Config = ();
+    type Result = Box<Future<Item = Self, Error = Error>>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest<Arc<TroveState>>, _cfg: &Self::Config) -> Self::Result {
+        let auth: &Auth = req.extensions_ro().get().unwrap();
+
+        let meta = event_meta_from_req(req);
+        let store_type = req.match_info().get("store_type").unwrap().to_string();
+        let public_key = auth.public_key().to_string();
+        let headers = req.headers()
+            .iter()
+            .map(|(x, y)| (x.as_str().to_string(), y.to_str().unwrap_or("").into()))
+            .collect();
+
+        if let Some(ct) = req.headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|x| x.to_str().ok())
+            .and_then(|x| x.split(';').next())
+        {
+            match ct {
+                "application/json" => {
+                    return Box::new(
+                        JsonBody::new(req.clone())
+                            .limit(524_288)
+                            .map_err(|e| BadProjectRequest::BadJson(e).into())
+                            .map(move |payload| {
+                                IncomingForeignEvent(IncomingEvent::new(
+                                    EventVariant::Foreign(ForeignEvent {
+                                        store_type: store_type,
+                                        headers: headers,
+                                        payload: ForeignPayload::Json(payload),
+                                    }),
+                                    meta,
+                                    public_key,
+                                ))
+                            }),
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        Box::new(future::err(
+            BadProjectRequest::UnsupportedForeignRequest.into(),
+        ))
     }
 }

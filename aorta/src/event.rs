@@ -1,13 +1,15 @@
 use std::fmt;
 use std::net::IpAddr;
+use std::collections::HashMap;
 
 use url::Url;
 use url_serde;
+use serde_json;
 use uuid::Uuid;
-
 use sentry_types::protocol::v7;
 
 use query::AortaChangeset;
+use utils::StandardBase64;
 
 /// The v7 sentry protocol type.
 pub type EventV7 = v7::Event<'static>;
@@ -31,6 +33,26 @@ pub struct EventMeta {
 pub enum EventVariant {
     /// The version 7 event variant.
     SentryV7(EventV7),
+    /// A foreign event.
+    Foreign(ForeignEvent),
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum ForeignPayload {
+    Json(serde_json::Value),
+    Raw(#[serde(with = "StandardBase64")] Vec<u8>),
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct ForeignEvent {
+    /// Store endpoint type.
+    pub store_type: String,
+    /// A subset of http request headers emitted with the event.
+    pub headers: HashMap<String, String>,
+    /// The request payload of the event.
+    #[serde(flatten)]
+    pub payload: ForeignPayload,
 }
 
 impl EventVariant {
@@ -42,6 +64,7 @@ impl EventVariant {
             EventVariant::SentryV7(ref mut event) => {
                 event.id.get_or_insert_with(Uuid::new_v4);
             }
+            _ => {}
         }
     }
 
@@ -49,6 +72,7 @@ impl EventVariant {
     pub fn id(&self) -> Option<Uuid> {
         match *self {
             EventVariant::SentryV7(ref event) => event.id,
+            EventVariant::Foreign(..) => None,
         }
     }
 
@@ -56,6 +80,7 @@ impl EventVariant {
     pub fn changeset_type(&self) -> &'static str {
         match *self {
             EventVariant::SentryV7(..) => "store_v7",
+            EventVariant::Foreign(..) => "store_foreign",
         }
     }
 }
@@ -64,6 +89,7 @@ impl fmt::Display for EventVariant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             EventVariant::SentryV7(ref event) => fmt::Display::fmt(event, f),
+            EventVariant::Foreign(..) => write!(f, "<foreign event>"),
         }
     }
 }

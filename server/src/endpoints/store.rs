@@ -4,7 +4,7 @@ use actix_web::middleware::cors::Cors;
 use uuid::Uuid;
 
 use service::ServiceApp;
-use extractors::{Event, ProjectRequest};
+use extractors::{IncomingEvent, IncomingForeignEvent, ProjectRequest};
 use middlewares::ForceJson;
 
 use smith_aorta::ApiErrorResponse;
@@ -24,20 +24,35 @@ impl ResponseError for StoreRejected {
     }
 }
 
-fn store(mut request: ProjectRequest<Event>) -> Result<Json<StoreResponse>, StoreRejected> {
-    let (event, meta) = request.take_payload().into_inner();
-    let event_id = event.id();
+fn store_json_event(
+    mut request: ProjectRequest<IncomingEvent>,
+) -> Result<Json<StoreResponse>, StoreRejected> {
+    let changeset = request.take_payload().into_store_changeset();
+    let event_id = changeset.event.id();
     let project_state = request.get_or_create_project_state();
 
-    if project_state.handle_event(request.auth().public_key().into(), event, meta) {
+    if project_state.store_changeset(changeset) {
         Ok(Json(StoreResponse { id: event_id }))
     } else {
         Err(StoreRejected)
     }
 }
 
+fn store_foreign_event(
+    mut request: ProjectRequest<IncomingForeignEvent>,
+) -> Result<Json<StoreResponse>, StoreRejected> {
+    let changeset = request.take_payload().0.into_store_changeset();
+    let project_state = request.get_or_create_project_state();
+
+    if project_state.store_changeset(changeset) {
+        Ok(Json(StoreResponse { id: None }))
+    } else {
+        Err(StoreRejected)
+    }
+}
+
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    Cors::for_app(app)
+    let app = Cors::for_app(app)
         .allowed_methods(vec!["POST"])
         .allowed_headers(vec![
             "x-sentry-auth",
@@ -50,7 +65,25 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .max_age(3600)
         .resource(r"/api/{project:\d+}/store/", |r| {
             r.middleware(ForceJson);
-            r.method(Method::POST).with(store);
+            r.method(Method::POST).with(store_json_event);
         })
-        .register()
+        .register();
+
+    let app = Cors::for_app(app)
+        .allowed_methods(vec!["POST"])
+        .allowed_headers(vec![
+            "x-sentry-auth",
+            "x-requested-with",
+            "origin",
+            "accept",
+            "content-type",
+            "authentication",
+        ])
+        .max_age(3600)
+        .resource(r"/api/{project:\d+}/{store_type:[a-z][a-z0-9-]*}/", |r| {
+            r.method(Method::POST).with(store_foreign_event);
+        })
+        .register();
+
+    app
 }

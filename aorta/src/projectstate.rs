@@ -2,7 +2,6 @@ use std::fmt;
 use std::mem;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -16,7 +15,7 @@ use config::AortaConfig;
 use query::{AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};
 use smith_common::ProjectId;
 use upstream::UpstreamDescriptor;
-use event::{EventMeta, EventVariant, StoreChangeset};
+use event::StoreChangeset;
 
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -85,12 +84,10 @@ pub enum PublicKeyEventAction {
 }
 
 /// An event that was not sent yet.
-#[derive(Debug, Clone)]
-struct PendingEvent {
+#[derive(Debug)]
+struct PendingStore {
     added_at: Instant,
-    public_key: String,
-    meta: EventMeta,
-    event: EventVariant,
+    changeset: StoreChangeset,
 }
 
 /// Gives access to the project's remote state.
@@ -103,7 +100,7 @@ pub struct ProjectState {
     config: Arc<AortaConfig>,
     project_id: ProjectId,
     current_snapshot: RwLock<Option<Arc<ProjectStateSnapshot>>>,
-    pending_events: RwLock<Vec<PendingEvent>>,
+    pending_stores: RwLock<Vec<PendingStore>>,
     requested_new_snapshot: AtomicBool,
     request_manager: Arc<RequestManager>,
     last_event: RwLock<Option<DateTime<Utc>>>,
@@ -159,7 +156,7 @@ impl ProjectState {
             project_id: project_id,
             config: config,
             current_snapshot: RwLock::new(None),
-            pending_events: RwLock::new(Vec::new()),
+            pending_stores: RwLock::new(Vec::new()),
             requested_new_snapshot: AtomicBool::new(false),
             request_manager: request_manager,
             last_event: RwLock::new(None),
@@ -290,10 +287,10 @@ impl ProjectState {
     pub fn is_valid_origin(&self, origin: &Url) -> bool {
         self.snapshot_opt().map_or(true, |snapshot| {
             let allowed = &snapshot.config().allowed_domains;
-            allowed.is_empty()
-                || allowed
+            !allowed.is_empty()
+                && allowed
                     .iter()
-                    .any(|x| Some(x.as_str()) == origin.host_str())
+                    .any(|x| x.as_str() == "*" || Some(x.as_str()) == origin.host_str())
         })
     }
 
@@ -301,44 +298,33 @@ impl ProjectState {
     ///
     /// It either puts it into an internal queue, sends it or discards it.  If the item
     /// was discarded `false` is returned.
-    pub fn handle_event<'a>(
-        &self,
-        public_key: Cow<'a, str>,
-        mut event: EventVariant,
-        meta: EventMeta,
-    ) -> bool {
-        event.ensure_id();
-        if let Some(ref origin) = meta.origin {
+    pub fn store_changeset<'a>(&self, changeset: StoreChangeset) -> bool {
+        if let Some(ref origin) = changeset.meta.origin {
             if !self.is_valid_origin(origin) {
-                debug!("{}#{} -> access denied", self.project_id, event);
+                debug!(
+                    "{}#{} -> access denied (bad origin {})",
+                    self.project_id, changeset.event, origin
+                );
                 return false;
             }
         }
-        match self.get_public_key_event_action(&public_key) {
+        match self.get_public_key_event_action(&changeset.public_key) {
             PublicKeyEventAction::Queue => {
-                debug!("{}#{} -> pending", self.project_id, event);
-                self.pending_events.write().push(PendingEvent {
+                debug!("{}#{} -> pending", self.project_id, changeset.event);
+                self.pending_stores.write().push(PendingStore {
                     added_at: Instant::now(),
-                    public_key: public_key.into_owned(),
-                    meta,
-                    event,
+                    changeset,
                 });
                 true
             }
             PublicKeyEventAction::Send => {
-                debug!("{}#{} -> changeset", self.project_id, event);
-                self.request_manager.add_changeset(
-                    self.project_id,
-                    StoreChangeset {
-                        public_key: public_key.into_owned(),
-                        meta,
-                        event,
-                    },
-                );
+                debug!("{}#{} -> changeset", self.project_id, changeset.event);
+                self.request_manager
+                    .add_changeset(self.project_id, changeset);
                 true
             }
             PublicKeyEventAction::Discard => {
-                debug!("{}#{} -> discarded", self.project_id, event);
+                debug!("{}#{} -> discarded", self.project_id, changeset.event);
                 false
             }
         }
@@ -378,32 +364,31 @@ impl ProjectState {
         // acquire the lock locally so we can then acquire the lock later on send
         // without deadlocking
         {
-            let mut lock = self.pending_events.write();
+            let mut lock = self.pending_stores.write();
             let pending = mem::replace(&mut *lock, Vec::new());
 
-            lock.extend(pending.into_iter().filter_map(|pending_event| {
-                if pending_event.added_at.elapsed() > timeout {
+            lock.extend(pending.into_iter().filter_map(|pending_store| {
+                if pending_store.added_at.elapsed() > timeout {
                     return None;
                 }
 
-                match snapshot.get_public_key_status(&pending_event.public_key) {
+                match snapshot.get_public_key_status(&pending_store.changeset.public_key) {
                     PublicKeyStatus::Enabled => {
-                        to_send.push(pending_event);
+                        to_send.push(pending_store);
                         None
                     }
                     PublicKeyStatus::Disabled => None,
-                    PublicKeyStatus::Unknown => Some(pending_event),
+                    PublicKeyStatus::Unknown => Some(pending_store),
                 }
             }));
         }
 
-        for pending_event in to_send {
-            debug!("unpend {}#{}", self.project_id, pending_event.event);
-            self.handle_event(
-                pending_event.public_key.into(),
-                pending_event.event,
-                pending_event.meta,
+        for pending_store in to_send {
+            debug!(
+                "unpend {}#{}",
+                self.project_id, pending_store.changeset.event
             );
+            self.store_changeset(pending_store.changeset);
         }
     }
 

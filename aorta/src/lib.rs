@@ -1,6 +1,8 @@
 //! Implements the relay <-> backend protocol.
 #![warn(missing_docs)]
 extern crate base64;
+#[macro_use]
+extern crate base64_serde;
 extern crate chrono;
 extern crate failure;
 #[macro_use]
@@ -31,6 +33,7 @@ mod projectstate;
 mod query;
 mod upstream;
 mod event;
+mod utils;
 
 pub use api::*;
 pub use auth::*;
