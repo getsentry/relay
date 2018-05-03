@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use actix_web::dev::JsonBody;
-use actix_web::error::{Error, JsonPayloadError, ResponseError};
+use actix_web::error::{Error, JsonPayloadError, PayloadError, ResponseError};
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, State, http::header};
 use futures::{future, Future};
 use sentry_types::{Auth, AuthParseError};
@@ -19,10 +19,10 @@ pub enum BadProjectRequest {
     BadAuth(#[cause] AuthParseError),
     #[fail(display = "bad JSON payload")]
     BadJson(#[cause] JsonPayloadError),
+    #[fail(display = "bad payload")]
+    BadPayload(#[cause] PayloadError),
     #[fail(display = "unsupported protocol version ({})", _0)]
     UnsupportedProtocolVersion(u16),
-    #[fail(display = "unsupported foreign (proxy through) request")]
-    UnsupportedForeignRequest,
 }
 
 impl ResponseError for BadProjectRequest {
@@ -219,36 +219,46 @@ impl FromRequest<Arc<TroveState>> for IncomingForeignEvent {
             .map(|(x, y)| (x.as_str().to_string(), y.to_str().unwrap_or("").into()))
             .collect();
 
-        if let Some(ct) = req.headers()
-            .get(header::CONTENT_TYPE)
-            .and_then(|x| x.to_str().ok())
-            .and_then(|x| x.split(';').next())
-        {
-            match ct {
-                "application/json" => {
-                    return Box::new(
-                        JsonBody::new(req.clone())
-                            .limit(524_288)
-                            .map_err(|e| BadProjectRequest::BadJson(e).into())
-                            .map(move |payload| {
-                                IncomingForeignEvent(IncomingEvent::new(
-                                    EventVariant::Foreign(ForeignEvent {
-                                        store_type: store_type,
-                                        headers: headers,
-                                        payload: ForeignPayload::Json(payload),
-                                    }),
-                                    meta,
-                                    public_key,
-                                ))
-                            }),
-                    );
-                }
-                _ => {}
-            }
-        }
+        let is_json = match req.mime_type() {
+            Ok(Some(ref mime)) => mime.type_() == "application" && mime.subtype() == "json",
+            _ => false,
+        };
 
-        Box::new(future::err(
-            BadProjectRequest::UnsupportedForeignRequest.into(),
-        ))
+        if is_json {
+            Box::new(
+                JsonBody::new(req.clone())
+                    .limit(524_288)
+                    .map_err(|e| BadProjectRequest::BadJson(e).into())
+                    .map(move |payload| {
+                        IncomingForeignEvent(IncomingEvent::new(
+                            EventVariant::Foreign(ForeignEvent {
+                                store_type: store_type,
+                                headers: headers,
+                                payload: ForeignPayload::Json(payload),
+                            }),
+                            meta,
+                            public_key,
+                        ))
+                    }),
+            )
+        } else {
+            Box::new(
+                req.clone()
+                    .body()
+                    .limit(524_288)
+                    .map_err(|e| BadProjectRequest::BadPayload(e).into())
+                    .map(move |payload| {
+                        IncomingForeignEvent(IncomingEvent::new(
+                            EventVariant::Foreign(ForeignEvent {
+                                store_type: store_type,
+                                headers: headers,
+                                payload: ForeignPayload::Raw(payload.to_vec()),
+                            }),
+                            meta,
+                            public_key,
+                        ))
+                    }),
+            )
+        }
     }
 }
