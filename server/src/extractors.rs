@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use actix_web::dev::JsonBody;
-use actix_web::error::{Error, JsonPayloadError, PayloadError, ResponseError};
+use actix_web::error::{Error, PayloadError, ResponseError};
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, State, http::header};
 use futures::{future, Future};
 use sentry_types::{Auth, AuthParseError};
@@ -10,6 +9,8 @@ use smith_aorta::{ApiErrorResponse, EventMeta, EventVariant, ForeignEvent, Forei
                   ProjectState, StoreChangeset};
 use smith_common::{ProjectId, ProjectIdParseError};
 use smith_trove::TroveState;
+
+use body::{EncodedJsonBody, JsonPayloadError};
 
 #[derive(Fail, Debug)]
 pub enum BadProjectRequest {
@@ -186,7 +187,7 @@ impl FromRequest<Arc<TroveState>> for IncomingEvent {
             let meta = event_meta_from_req(req);
             let public_key = auth.public_key().to_string();
             Box::new(
-                JsonBody::new(req.clone())
+                EncodedJsonBody::new(req.clone())
                     .limit(524_288)
                     .map_err(|e| BadProjectRequest::BadJson(e).into())
                     .map(move |e| IncomingEvent::new(EventVariant::SentryV7(e), meta, public_key)),
@@ -233,7 +234,7 @@ impl FromRequest<Arc<TroveState>> for IncomingForeignEvent {
 
         if is_json {
             Box::new(
-                JsonBody::new(req.clone())
+                EncodedJsonBody::new(req.clone())
                     .limit(524_288)
                     .map_err(|e| BadProjectRequest::BadJson(e).into())
                     .map(move |payload| {
