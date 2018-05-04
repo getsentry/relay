@@ -1,31 +1,11 @@
 use actix_web::error::Error;
-use actix_web::middleware::{Middleware, Response, Started};
+use actix_web::middleware::{Middleware, Response};
 use actix_web::{Body, HttpRequest, HttpResponse, http::header};
 use sentry::integrations::failure::capture_fail;
 
 use smith_aorta::ApiErrorResponse;
 
 use constants::SERVER;
-
-/// forces the mimetype to json for some cases.
-pub struct ForceJson;
-
-impl<S> Middleware<S> for ForceJson {
-    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started, Error> {
-        let headers = req.headers_mut();
-
-        headers.insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("application/json"),
-        );
-        headers.insert(
-            "x-content-type-options",
-            header::HeaderValue::from_static("nosniff"),
-        );
-
-        Ok(Started::Done)
-    }
-}
 
 /// Reports certain failures to sentry.
 pub struct CaptureSentryError;

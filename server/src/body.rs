@@ -3,20 +3,16 @@ use base64::{self, DecodeError};
 use bytes::{Bytes, BytesMut};
 use flate2::read::ZlibDecoder;
 use futures::{Future, Poll, Stream};
-use mime;
 use http::{StatusCode, header::CONTENT_LENGTH};
 use serde::de::DeserializeOwned;
 use serde_json::{self, error::Error as JsonError};
 
 /// A set of errors that can occur during parsing json payloads
 #[derive(Fail, Debug)]
-pub enum JsonPayloadError {
+pub enum EncodedJsonPayloadError {
     /// Payload size is bigger than limit
     #[fail(display = "payload size is too large")]
     Overflow,
-    /// Content type error
-    #[fail(display = "content type error")]
-    ContentType,
     /// Base64 Decode error
     #[fail(display = "base64 decode error: {}", _0)]
     Decode(#[cause] DecodeError),
@@ -28,30 +24,30 @@ pub enum JsonPayloadError {
     Payload(#[cause] PayloadError),
 }
 
-impl ResponseError for JsonPayloadError {
+impl ResponseError for EncodedJsonPayloadError {
     fn error_response(&self) -> HttpResponse {
         match *self {
-            JsonPayloadError::Overflow => HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE),
+            EncodedJsonPayloadError::Overflow => HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE),
             _ => HttpResponse::new(StatusCode::BAD_REQUEST),
         }
     }
 }
 
-impl From<PayloadError> for JsonPayloadError {
-    fn from(err: PayloadError) -> JsonPayloadError {
-        JsonPayloadError::Payload(err)
+impl From<PayloadError> for EncodedJsonPayloadError {
+    fn from(err: PayloadError) -> EncodedJsonPayloadError {
+        EncodedJsonPayloadError::Payload(err)
     }
 }
 
-impl From<DecodeError> for JsonPayloadError {
-    fn from(err: DecodeError) -> JsonPayloadError {
-        JsonPayloadError::Decode(err)
+impl From<DecodeError> for EncodedJsonPayloadError {
+    fn from(err: DecodeError) -> EncodedJsonPayloadError {
+        EncodedJsonPayloadError::Decode(err)
     }
 }
 
-impl From<JsonError> for JsonPayloadError {
-    fn from(err: JsonError) -> JsonPayloadError {
-        JsonPayloadError::Deserialize(err)
+impl From<JsonError> for EncodedJsonPayloadError {
+    fn from(err: JsonError) -> EncodedJsonPayloadError {
+        EncodedJsonPayloadError::Deserialize(err)
     }
 }
 
@@ -67,7 +63,7 @@ impl From<JsonError> for JsonPayloadError {
 pub struct EncodedJsonBody<T, U: DeserializeOwned> {
     limit: usize,
     req: Option<T>,
-    fut: Option<Box<Future<Item = U, Error = JsonPayloadError>>>,
+    fut: Option<Box<Future<Item = U, Error = EncodedJsonPayloadError>>>,
 }
 
 impl<T, U: DeserializeOwned> EncodedJsonBody<T, U> {
@@ -92,36 +88,27 @@ where
     T: HttpMessage + Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     type Item = U;
-    type Error = JsonPayloadError;
+    type Error = EncodedJsonPayloadError;
 
-    fn poll(&mut self) -> Poll<U, JsonPayloadError> {
+    fn poll(&mut self) -> Poll<U, EncodedJsonPayloadError> {
         if let Some(req) = self.req.take() {
             if let Some(len) = req.headers().get(CONTENT_LENGTH) {
                 if let Ok(s) = len.to_str() {
                     if let Ok(len) = s.parse::<usize>() {
                         if len > self.limit {
-                            return Err(JsonPayloadError::Overflow);
+                            return Err(EncodedJsonPayloadError::Overflow);
                         }
                     } else {
-                        return Err(JsonPayloadError::Overflow);
+                        return Err(EncodedJsonPayloadError::Overflow);
                     }
                 }
-            }
-
-            let json = if let Ok(Some(mime)) = req.mime_type() {
-                mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)
-            } else {
-                false
-            };
-            if !json {
-                return Err(JsonPayloadError::ContentType);
             }
 
             let limit = self.limit;
             let fut = req.from_err()
                 .fold(BytesMut::new(), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {
-                        Err(JsonPayloadError::Overflow)
+                        Err(EncodedJsonPayloadError::Overflow)
                     } else {
                         body.extend_from_slice(&chunk);
                         Ok(body)

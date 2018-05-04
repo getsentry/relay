@@ -7,7 +7,6 @@ use uuid::Uuid;
 
 use service::ServiceApp;
 use extractors::{IncomingEvent, IncomingForeignEvent, ProjectRequest};
-use middlewares::ForceJson;
 
 use smith_trove::TroveState;
 use smith_aorta::{ApiErrorResponse, StoreChangeset};
@@ -55,7 +54,6 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         ])
         .max_age(3600)
         .resource(r"/api/{project:\d+}/store/", |r| {
-            r.middleware(ForceJson);
             r.method(Method::POST).with(store_event::<IncomingEvent>);
         })
         .resource(r"/api/{project:\d+}/{store_type:[a-z][a-z0-9-]*}/", |r| {
