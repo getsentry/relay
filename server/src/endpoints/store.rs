@@ -27,7 +27,7 @@ impl ResponseError for StoreRejected {
     }
 }
 
-fn store_event<I: FromRequest<Arc<TroveState>> + Into<StoreChangeset> + 'static>(
+fn store_event<I: FromRequest<Arc<TroveState>> + Into<StoreChangeset>>(
     mut request: ProjectRequest<I>,
 ) -> Result<Json<StoreResponse>, StoreRejected> {
     let changeset = request.take_payload().into();
