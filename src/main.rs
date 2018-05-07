@@ -2,11 +2,13 @@ extern crate clap;
 extern crate ctrlc;
 extern crate failure;
 extern crate futures;
+#[macro_use]
 extern crate log;
 extern crate parking_lot;
 extern crate pretty_env_logger;
 extern crate sentry;
 
+extern crate smith_common;
 extern crate smith_config;
 extern crate smith_server;
 
@@ -18,9 +20,20 @@ use log::LevelFilter;
 use sentry::integrations::log as sentry_log;
 
 use smith_config::Config;
+use smith_common::metrics;
 
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 pub const ABOUT: &'static str = "Runs a sentry-relay (fancy proxy server)";
+
+fn dump_spawn_infos(config: &Config) {
+    info!(
+        "launching relay with config {}",
+        config.filename().display()
+    );
+    info!("  relay id: {}", config.relay_id());
+    info!("  public key: {}", config.public_key());
+    info!("  log level: {}", config.log_level_filter());
+}
 
 fn init_logging(config: &Config) {
     if config.enable_backtraces() {
@@ -69,6 +82,14 @@ fn init_logging(config: &Config) {
     );
 }
 
+fn init_metrics(config: &Config) -> Result<(), Error> {
+    let addrs = config.statsd_addrs()?;
+    if !addrs.is_empty() {
+        metrics::configure_statsd(config.metrics_prefix(), &addrs[..]);
+    }
+    Ok(())
+}
+
 pub fn execute() -> Result<(), Error> {
     let app = App::new("sentry-relay")
         .setting(AppSettings::UnifiedHelpMessage)
@@ -105,6 +126,8 @@ pub fn execute() -> Result<(), Error> {
     ));
 
     init_logging(&config);
+    dump_spawn_infos(&config);
+    init_metrics(&config)?;
 
     // upon loading the config can be initialized.  In that case it will be
     // modified and we want to write it back automatically for now.
