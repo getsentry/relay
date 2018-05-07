@@ -5,6 +5,7 @@ use actix_web::error::{Error, JsonPayloadError, PayloadError, ResponseError};
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, State, http::header};
 use futures::{future, Future};
 use sentry_types::{Auth, AuthParseError};
+use url::Url;
 
 use smith_aorta::{ApiErrorResponse, EventMeta, EventVariant, ForeignEvent, ForeignPayload,
                   ProjectState, StoreChangeset};
@@ -135,17 +136,33 @@ impl<T: FromRequest<Arc<TroveState>> + 'static> FromRequest<Arc<TroveState>> for
     }
 }
 
+fn parse_header_url(header: &header::HeaderValue) -> Option<Url> {
+    let mut string = header.to_str().ok()?;
+
+    if string.ends_with("/") {
+        string = &string[..string.len() - 1];
+    }
+
+    match string {
+        "null" => None,
+        _ => string.parse().ok(),
+    }
+}
+
+fn event_origin_from_req<T>(req: &HttpRequest<T>) -> Option<Url> {
+    let headers = req.headers();
+    headers
+        .get(header::ORIGIN)
+        .and_then(parse_header_url)
+        .or_else(|| headers.get(header::REFERER).and_then(parse_header_url))
+}
+
 fn event_meta_from_req(req: &HttpRequest<Arc<TroveState>>) -> EventMeta {
     let auth: &Auth = req.extensions_ro().get().unwrap();
     EventMeta {
         remote_addr: req.peer_addr().map(|sock_addr| sock_addr.ip()),
         sentry_client: auth.client_agent().map(|x| x.to_string()),
-        // TODO(mitsuhiko): handle non url origins safely here as well as invalid origins
-        // (eg: syntax error)
-        origin: req.headers()
-            .get(header::ORIGIN)
-            .and_then(|x| x.to_str().ok())
-            .and_then(|x| x.parse().ok()),
+        origin: event_origin_from_req(req),
     }
 }
 
