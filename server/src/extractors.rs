@@ -136,25 +136,15 @@ impl<T: FromRequest<Arc<TroveState>> + 'static> FromRequest<Arc<TroveState>> for
     }
 }
 
-fn parse_header_url(header: &header::HeaderValue) -> Option<Url> {
-    let mut string = header.to_str().ok()?;
-
-    if string.ends_with("/") {
-        string = &string[..string.len() - 1];
-    }
-
-    match string {
-        "null" => None,
-        _ => string.parse().ok(),
-    }
-}
-
-fn event_origin_from_req<T>(req: &HttpRequest<T>) -> Option<Url> {
-    let headers = req.headers();
-    headers
-        .get(header::ORIGIN)
-        .and_then(parse_header_url)
-        .or_else(|| headers.get(header::REFERER).and_then(parse_header_url))
+fn parse_header_origin<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Option<Url> {
+    req.headers()
+        .get(header)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.parse::<Url>().ok())
+        .and_then(|u| match u.scheme() {
+            "http" | "https" => Some(u),
+            _ => None,
+        })
 }
 
 fn event_meta_from_req(req: &HttpRequest<Arc<TroveState>>) -> EventMeta {
@@ -162,7 +152,8 @@ fn event_meta_from_req(req: &HttpRequest<Arc<TroveState>>) -> EventMeta {
     EventMeta {
         remote_addr: req.peer_addr().map(|sock_addr| sock_addr.ip()),
         sentry_client: auth.client_agent().map(|x| x.to_string()),
-        origin: event_origin_from_req(req),
+        origin: parse_header_origin(req, header::ORIGIN)
+            .or_else(|| parse_header_origin(req, header::REFERER)),
     }
 }
 

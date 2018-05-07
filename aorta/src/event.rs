@@ -9,7 +9,7 @@ use uuid::Uuid;
 use sentry_types::protocol::v7;
 
 use query::AortaChangeset;
-use utils::StandardBase64;
+use utils::{serialize_origin, StandardBase64};
 
 /// The v7 sentry protocol type.
 pub type EventV7 = v7::Event<'static>;
@@ -19,7 +19,8 @@ pub type EventV7 = v7::Event<'static>;
 #[serde(default)]
 pub struct EventMeta {
     /// the optional browser origin of the event.
-    #[serde(with = "url_serde")]
+    #[serde(deserialize_with = "url_serde::deserialize")]
+    #[serde(serialize_with = "serialize_origin")]
     pub origin: Option<Url>,
     /// the submitting ip address
     pub remote_addr: Option<IpAddr>,
