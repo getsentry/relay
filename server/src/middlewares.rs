@@ -1,11 +1,31 @@
+use std::time::Instant;
+
 use actix_web::error::Error;
-use actix_web::middleware::{Middleware, Response};
+use actix_web::middleware::{Finished, Middleware, Response, Started};
 use actix_web::{Body, HttpRequest, HttpResponse, http::header};
 use sentry::integrations::failure::capture_fail;
 
 use smith_aorta::ApiErrorResponse;
 
 use constants::SERVER;
+
+/// Basic logging
+pub struct Logging;
+
+struct StartTime(Instant);
+
+impl<S> Middleware<S> for Logging {
+    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started, Error> {
+        req.extensions_mut().insert(StartTime(Instant::now()));
+        Ok(Started::Done)
+    }
+
+    fn finish(&self, req: &mut HttpRequest<S>, _resp: &HttpResponse) -> Finished {
+        let start_time = req.extensions().get::<StartTime>().unwrap().0;
+        metric!(timer("requests.duration") = start_time.elapsed());
+        Finished::Done
+    }
+}
 
 /// Reports certain failures to sentry.
 pub struct CaptureSentryError;

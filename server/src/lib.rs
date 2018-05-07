@@ -22,6 +22,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate smith_aorta;
+#[macro_use]
 extern crate smith_common;
 extern crate smith_config;
 extern crate smith_trove;
