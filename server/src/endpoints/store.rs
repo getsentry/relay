@@ -31,14 +31,17 @@ fn store_event<I: FromRequest<Arc<TroveState>> + Into<StoreChangeset>>(
 ) -> Result<Json<StoreResponse>, StoreRejected> {
     let changeset = request.take_payload().into();
     let event_id = changeset.event.id();
+
+    metric!(counter(&format!("event.protocol.v{}", request.auth().version())) += 1);
+
     if request
         .get_or_create_project_state()
         .store_changeset(changeset)
     {
-        metric!(counter("store.accepted") += 1);
+        metric!(counter("event.accepted") += 1);
         Ok(Json(StoreResponse { id: event_id }))
     } else {
-        metric!(counter("store.rejected") += 1);
+        metric!(counter("event.rejected") += 1);
         Err(StoreRejected)
     }
 }

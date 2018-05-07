@@ -10,7 +10,7 @@ use smith_trove::{Trove, TroveState};
 
 use endpoints;
 use errors::{ServerError, ServerErrorKind};
-use middlewares::{AddCommonHeaders, CaptureSentryError, ErrorHandlers, Logging};
+use middlewares::{AddCommonHeaders, CaptureSentryError, ErrorHandlers, Metrics};
 
 fn dump_listen_infos<H: server::HttpHandler>(
     server: &server::HttpServer<H>,
@@ -32,7 +32,7 @@ pub type ServiceApp = App<Arc<TroveState>>;
 
 fn make_app(state: Arc<TroveState>) -> ServiceApp {
     let mut app = App::with_state(state)
-        .middleware(Logging)
+        .middleware(Metrics)
         .middleware(CaptureSentryError)
         .middleware(AddCommonHeaders)
         .middleware(ErrorHandlers);

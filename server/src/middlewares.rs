@@ -9,20 +9,21 @@ use smith_aorta::ApiErrorResponse;
 
 use constants::SERVER;
 
-/// Basic logging
-pub struct Logging;
+/// Basic metrics
+pub struct Metrics;
 
 struct StartTime(Instant);
 
-impl<S> Middleware<S> for Logging {
+impl<S> Middleware<S> for Metrics {
     fn start(&self, req: &mut HttpRequest<S>) -> Result<Started, Error> {
         req.extensions_mut().insert(StartTime(Instant::now()));
         Ok(Started::Done)
     }
 
-    fn finish(&self, req: &mut HttpRequest<S>, _resp: &HttpResponse) -> Finished {
+    fn finish(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
         let start_time = req.extensions().get::<StartTime>().unwrap().0;
         metric!(timer("requests.duration") = start_time.elapsed());
+        metric!(counter(&format!("responses.status_code.{}", resp.status())) += 1);
         Finished::Done
     }
 }
@@ -69,8 +70,6 @@ pub struct ErrorHandlers;
 
 impl<S> Middleware<S> for ErrorHandlers {
     fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response, Error> {
-        metric!(counter(&format!("responses.status_code.{}", resp.status())) += 1);
-
         if (resp.status().is_server_error() || resp.status().is_client_error())
             && resp.body() == &Body::Empty
         {

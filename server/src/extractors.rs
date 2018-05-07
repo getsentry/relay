@@ -59,6 +59,11 @@ impl<T: FromRequest<Arc<TroveState>> + 'static> ProjectRequest<T> {
         *self.http_req.extensions_ro().get().unwrap()
     }
 
+    /// Returns the auth info
+    pub fn auth(&self) -> &Auth {
+        self.http_req.extensions_ro().get().unwrap()
+    }
+
     /// Returns the current trove state.
     pub fn trove_state(&self) -> Arc<TroveState> {
         self.http_req.state().clone()
