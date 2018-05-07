@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::io;
 use std::io::Write;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -61,6 +61,17 @@ struct Logging {
     enable_backtraces: bool,
 }
 
+/// Control the metrics.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct Metrics {
+    /// If set to a host/port string then metrics will be reported to this
+    /// statsd instance.
+    statsd: Option<String>,
+    /// The prefix that should be added to all metrics.
+    prefix: String,
+}
+
 /// Controls the aorta.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -113,6 +124,15 @@ impl Default for Logging {
     }
 }
 
+impl Default for Metrics {
+    fn default() -> Metrics {
+        Metrics {
+            statsd: None,
+            prefix: "sentry.relay".into(),
+        }
+    }
+}
+
 impl Default for Aorta {
     fn default() -> Aorta {
         Aorta {
@@ -149,6 +169,8 @@ pub struct Config {
     aorta: Aorta,
     #[serde(default)]
     logging: Logging,
+    #[serde(default)]
+    metrics: Metrics,
     #[serde(default)]
     sentry: Sentry,
 }
@@ -283,6 +305,22 @@ impl Config {
     /// Should backtraces be enabled?
     pub fn enable_backtraces(&self) -> bool {
         self.logging.enable_backtraces
+    }
+
+    /// Returns the socket addresses for statsd.
+    ///
+    /// If stats is disabled an empty vector is returned.
+    pub fn statsd_addrs(&self) -> Result<Vec<SocketAddr>, io::Error> {
+        if let Some(ref addr) = self.metrics.statsd {
+            Ok(addr.as_str().to_socket_addrs()?.collect())
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    /// Return the prefix for statsd metrics.
+    pub fn metrics_prefix(&self) -> &str {
+        &self.metrics.prefix
     }
 
     /// Returns the aorta snapshot expiry.

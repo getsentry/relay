@@ -39,7 +39,7 @@ pub fn disable() {
 pub fn configure_statsd<A: ToSocketAddrs>(prefix: &str, host: A) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
-        info!("reporting metrics to statsd at {:?}", addrs[0]);
+        info!("reporting metrics to statsd at {}", addrs[0]);
     }
     set_client(StatsdClient::from_udp_host(prefix, &addrs[..]).unwrap());
 }
@@ -139,22 +139,4 @@ macro_rules! metric {
         });
         rv
     }};
-}
-
-fn test_metrics() {
-    use std::time::Instant;
-    let now = Instant::now();
-    metric!(counter("my.counter") += 42);
-    metric!(counter("my.counter") -= 42, "foo" => "bar");
-    metric!(gauge("my.counter") = 42);
-    metric!(gauge("my.counter") = 42, "blub" => "blah");
-    metric!(timer("my.counter") = now.elapsed());
-    metric!(timer("my.counter") = now.elapsed(), "blub" => "blah");
-
-    let _x = metric!(timer("my.counter"), {
-        // do something here
-    });
-    let _x = metric!(timer("my.counter"), {
-        // do something here
-    }, "blub" => "blah");
 }

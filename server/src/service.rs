@@ -12,18 +12,11 @@ use endpoints;
 use errors::{ServerError, ServerErrorKind};
 use middlewares::{AddCommonHeaders, CaptureSentryError, ErrorHandlers, Logging};
 
-fn dump_spawn_infos<H: server::HttpHandler>(
-    config: &Config,
+fn dump_listen_infos<H: server::HttpHandler>(
     server: &server::HttpServer<H>,
     tls_server: Option<&server::HttpServer<H>>,
 ) {
-    info!(
-        "launching relay with config {}",
-        config.filename().display()
-    );
-    info!("  relay id: {}", config.relay_id());
-    info!("  public key: {}", config.public_key());
-    info!("  log level: {}", config.log_level_filter());
+    info!("spawning http server");
     for addr in server.addrs() {
         info!("  listening on: http://{}/", addr);
     }
@@ -130,7 +123,7 @@ pub fn run(config: Config) -> Result<(), ServerError> {
         }
     };
 
-    dump_spawn_infos(&config, &server, tls.as_ref().map(|x| &x.0));
+    dump_listen_infos(&server, tls.as_ref().map(|x| &x.0));
     info!("spawning relay server");
 
     let sys = actix::System::new("relay");
