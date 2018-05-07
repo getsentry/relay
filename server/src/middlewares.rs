@@ -69,6 +69,8 @@ pub struct ErrorHandlers;
 
 impl<S> Middleware<S> for ErrorHandlers {
     fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response, Error> {
+        metric!(counter(&format!("responses.status_code.{}", resp.status())) += 1);
+
         if (resp.status().is_server_error() || resp.status().is_client_error())
             && resp.body() == &Body::Empty
         {

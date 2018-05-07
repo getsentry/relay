@@ -35,8 +35,10 @@ fn store_event<I: FromRequest<Arc<TroveState>> + Into<StoreChangeset>>(
         .get_or_create_project_state()
         .store_changeset(changeset)
     {
+        metric!(counter("store.accepted") += 1);
         Ok(Json(StoreResponse { id: event_id }))
     } else {
+        metric!(counter("store.rejected") += 1);
         Err(StoreRejected)
     }
 }
