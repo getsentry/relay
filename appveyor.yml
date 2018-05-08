@@ -22,5 +22,4 @@ build_script:
   - cargo build --all --locked
 
 test_script:
-  - cargo fmt -- --write-mode diff
   - cargo test --all
