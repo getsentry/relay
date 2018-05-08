@@ -49,7 +49,7 @@ def _make_exceptions():
         if not attr.startswith('SEMAPHORE_ERROR_CODE_'):
             continue
 
-        error_name = attr[17:].title().replace('_', '')
+        error_name = attr[21:].title().replace('_', '')
         base = _get_error_base(error_name)
         exc = _make_error(error_name, base=base,
                           code=getattr(lib, attr))
