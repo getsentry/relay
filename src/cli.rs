@@ -41,6 +41,18 @@ fn make_app<'a, 'b>() -> App<'a, 'b> {
                 ),
         )
         .subcommand(App::new("init").about("Initialize a new relay config"))
+        .subcommand(
+            App::new("dump-config")
+                .about("Dump the entire config out for debugging purposes")
+                .arg(
+                    Arg::with_name("format")
+                        .short("f")
+                        .long("format")
+                        .possible_values(&["debug", "json", "yaml"])
+                        .default_value("debug")
+                        .help("The output format"),
+                ),
+        )
 }
 
 /// Runs the command line application.
@@ -60,6 +72,8 @@ pub fn execute() -> Result<(), Error> {
         generate_auth(config, &matches)
     } else if let Some(matches) = matches.subcommand_matches("run") {
         run(config, &matches)
+    } else if let Some(matches) = matches.subcommand_matches("dump-config") {
+        dump_config(config, &matches)
     } else {
         unreachable!();
     }
@@ -148,5 +162,15 @@ pub fn run<'a>(mut config: Config, _matches: &ArgMatches<'a>) -> Result<(), Erro
 
     smith_server::run(config)?;
 
+    Ok(())
+}
+
+pub fn dump_config<'a>(config: Config, matches: &ArgMatches<'a>) -> Result<(), Error> {
+    match matches.value_of("format").unwrap() {
+        "debug" => println!("{:#?}", &config),
+        "json" => println!("{}", config.to_json_string()?),
+        "yaml" => println!("{}", config.to_yaml_string()?),
+        _ => unreachable!(),
+    }
     Ok(())
 }

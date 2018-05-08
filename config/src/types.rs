@@ -2,6 +2,7 @@ use std::fs;
 use std::io;
 use std::io::Write;
 use std::fmt;
+use std::env;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -9,6 +10,7 @@ use std::sync::Arc;
 use chrono::Duration;
 use log;
 use sentry::Dsn;
+use serde_json;
 use serde_yaml;
 use serde::ser::Serialize;
 use serde::de::DeserializeOwned;
@@ -76,7 +78,7 @@ pub enum ConfigErrorKind {
     /// Failed to save a file.
     #[fail(display = "could not write config file")]
     CouldNotWriteFile,
-    /// Parsing a YAML error failed.
+    /// Parsing/dumping YAML failed.
     #[fail(display = "could not parse yaml config file")]
     BadYaml,
     /// Invalid config value
@@ -246,6 +248,15 @@ pub struct Config {
     path: PathBuf,
 }
 
+impl fmt::Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Config")
+            .field("path", &self.path)
+            .field("values", &self.values)
+            .finish()
+    }
+}
+
 fn load_config_from_path<D: DeserializeOwned>(path: &Path) -> Result<D, ConfigError> {
     let f = ctry!(
         fs::File::open(path),
@@ -281,7 +292,9 @@ fn get_config_path(path: &Path, file: &str) -> PathBuf {
 impl Config {
     /// Loads a config from a given config folder.
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Config, ConfigError> {
-        let path = path.as_ref().to_path_buf();
+        let path = env::current_dir()
+            .map(|x| x.join(path.as_ref()))
+            .unwrap_or_else(|_| path.as_ref().to_path_buf());
         let values = load_config_from_path(&get_config_path(&path, "config"))?;
         let credentials_path = get_config_path(&path, "credentials");
         let credentials = if fs::metadata(&credentials_path).is_ok() {
@@ -304,6 +317,24 @@ impl Config {
     /// Returns the filename of the config file.
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// Dumps out a JSON string of the values.
+    pub fn to_json_string(&self) -> Result<String, ConfigError> {
+        Ok(ctry!(
+            serde_json::to_string_pretty(&self.values),
+            ConfigErrorKind::InvalidValue,
+            &self.path
+        ))
+    }
+
+    /// Dumps out a YAML string of the values.
+    pub fn to_yaml_string(&self) -> Result<String, ConfigError> {
+        Ok(ctry!(
+            serde_yaml::to_string(&self.values),
+            ConfigErrorKind::InvalidValue,
+            &self.path
+        ))
     }
 
     /// Regenerates the relay credentials.

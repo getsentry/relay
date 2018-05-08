@@ -1770,6 +1770,7 @@ dependencies = [
  "sentry 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.48 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.48 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_yaml 0.7.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "smith-aorta 0.1.0",
  "smith-common 0.1.0",

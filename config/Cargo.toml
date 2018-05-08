@@ -18,6 +18,7 @@ serde_yaml = "0.7.4"
 url = "1.7.0"
 url_serde = "0.2.0"
 sentry = "0.5.1"
+serde_json = "1.0.17"
 
 [dependencies.log]
 features = ["serde"]
