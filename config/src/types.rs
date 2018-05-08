@@ -271,7 +271,7 @@ impl Config {
         let values = load_config_from_path(&path.join("config.yml"))?;
         let credentials_path = path.join("credentials.yml");
         let credentials = if fs::metadata(&credentials_path).is_ok() {
-            Some(load_config_from_path(&path.join("config.yml"))?)
+            Some(load_config_from_path(&credentials_path)?)
         } else {
             None
         };
@@ -291,6 +291,7 @@ impl Config {
     ///
     /// This also writes the credentials back to the file.
     pub fn regenerate_credentials(&mut self) -> Result<(), ConfigError> {
+        info!("generating new relay credentials");
         let (sk, pk) = generate_key_pair();
         let creds = Credentials {
             secret_key: sk,

@@ -15,7 +15,7 @@ with_ssl = ["smith-server/with_ssl"]
 lto = true
 
 [dependencies]
-clap = "2.31.2"
+clap = { version = "2.31.2", default-features = false }
 failure = "0.1.1"
 pretty_env_logger = "0.2.2"
 tokio-core = "0.1.17"
