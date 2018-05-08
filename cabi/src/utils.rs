@@ -10,7 +10,7 @@ thread_local! {
 }
 
 #[derive(Fail, Debug)]
-#[fail(display="smith panicked: {}", _0)]
+#[fail(display = "semaphore panicked: {}", _0)]
 pub struct Panic(String);
 
 fn set_last_error(err: Error) {

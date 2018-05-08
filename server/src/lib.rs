@@ -15,17 +15,17 @@ extern crate log;
 extern crate mime;
 #[cfg(feature = "with_ssl")]
 extern crate openssl;
+extern crate semaphore_aorta;
+#[macro_use]
+extern crate semaphore_common;
+extern crate semaphore_config;
+extern crate semaphore_trove;
 extern crate sentry;
 extern crate sentry_types;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-extern crate smith_aorta;
-#[macro_use]
-extern crate smith_common;
-extern crate smith_config;
-extern crate smith_trove;
 extern crate url;
 extern crate uuid;
 

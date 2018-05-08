@@ -9,9 +9,9 @@ extern crate parking_lot;
 extern crate pretty_env_logger;
 extern crate sentry;
 
-extern crate smith_common;
-extern crate smith_config;
-extern crate smith_server;
+extern crate semaphore_common;
+extern crate semaphore_config;
+extern crate semaphore_server;
 
 mod setup;
 mod cli;

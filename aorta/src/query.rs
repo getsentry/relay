@@ -11,7 +11,7 @@ use serde::ser::Serialize;
 use serde_json;
 use uuid::Uuid;
 
-use smith_common::ProjectId;
+use semaphore_common::ProjectId;
 
 use api::ApiRequest;
 use config::AortaConfig;

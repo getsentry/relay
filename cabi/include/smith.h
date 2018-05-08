@@ -1,7 +1,7 @@
 /* c bindings to the sentry relay library */
 
-#ifndef SMITH_H_INCLUDED
-#define SMITH_H_INCLUDED
+#ifndef SEMAPHORE_H_INCLUDED
+#define SEMAPHORE_H_INCLUDED
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -10,27 +10,27 @@
 /*
  * Represents all possible error codes
  */
-enum SmithErrorCode {
-  SMITH_ERROR_CODE_NO_ERROR = 0,
-  SMITH_ERROR_CODE_PANIC = 1,
-  SMITH_ERROR_CODE_UNKNOWN = 2,
-  SMITH_ERROR_CODE_KEY_PARSE_ERROR_BAD_ENCODING = 1000,
-  SMITH_ERROR_CODE_KEY_PARSE_ERROR_BAD_KEY = 1001,
-  SMITH_ERROR_CODE_UNPACK_ERROR_BAD_SIGNATURE = 1003,
-  SMITH_ERROR_CODE_UNPACK_ERROR_BAD_PAYLOAD = 1004,
-  SMITH_ERROR_CODE_UNPACK_ERROR_SIGNATURE_EXPIRED = 1005,
+enum SemaphoreErrorCode {
+  SEMAPHORE_ERROR_CODE_NO_ERROR = 0,
+  SEMAPHORE_ERROR_CODE_PANIC = 1,
+  SEMAPHORE_ERROR_CODE_UNKNOWN = 2,
+  SEMAPHORE_ERROR_CODE_KEY_PARSE_ERROR_BAD_ENCODING = 1000,
+  SEMAPHORE_ERROR_CODE_KEY_PARSE_ERROR_BAD_KEY = 1001,
+  SEMAPHORE_ERROR_CODE_UNPACK_ERROR_BAD_SIGNATURE = 1003,
+  SEMAPHORE_ERROR_CODE_UNPACK_ERROR_BAD_PAYLOAD = 1004,
+  SEMAPHORE_ERROR_CODE_UNPACK_ERROR_SIGNATURE_EXPIRED = 1005,
 };
-typedef uint32_t SmithErrorCode;
+typedef uint32_t SemaphoreErrorCode;
 
 /*
- * Represents a public key in smith.
+ * Represents a public key in semaphore.
  */
-typedef struct SmithPublicKey SmithPublicKey;
+typedef struct SemaphorePublicKey SemaphorePublicKey;
 
 /*
- * Represents a secret key in smith.
+ * Represents a secret key in semaphore.
  */
-typedef struct SmithSecretKey SmithSecretKey;
+typedef struct SemaphoreSecretKey SemaphoreSecretKey;
 
 /*
  * Represents a buffer.
@@ -39,7 +39,7 @@ typedef struct {
   uint8_t *data;
   size_t len;
   bool owned;
-} SmithBuf;
+} SemaphoreBuf;
 
 /*
  * Represents a string.
@@ -48,168 +48,168 @@ typedef struct {
   char *data;
   size_t len;
   bool owned;
-} SmithStr;
+} SemaphoreStr;
 
 /*
  * Represents a key pair from key generation.
  */
 typedef struct {
-  SmithPublicKey *public_key;
-  SmithSecretKey *secret_key;
-} SmithKeyPair;
+  SemaphorePublicKey *public_key;
+  SemaphoreSecretKey *secret_key;
+} SemaphoreKeyPair;
 
 /*
  * Represents a uuid.
  */
 typedef struct {
   uint8_t data[16];
-} SmithUuid;
+} SemaphoreUuid;
 
 /*
- * Frees a smith buf.
+ * Frees a semaphore buf.
  *
  * If the buffer is marked as not owned then this function does not
  * do anything.
  */
-void smith_buf_free(SmithBuf *b);
+void semaphore_buf_free(SemaphoreBuf *b);
 
 /*
  * Creates a challenge from a register request and returns JSON.
  */
-SmithStr smith_create_register_challenge(const SmithBuf *data,
-                                         const SmithStr *signature,
+SemaphoreStr semaphore_create_register_challenge(const SemaphoreBuf *data,
+                                         const SemaphoreStr *signature,
                                          uint32_t max_age);
 
 /*
  * Clears the last error.
  */
-void smith_err_clear(void);
+void semaphore_err_clear(void);
 
 /*
  * Returns the panic information as string.
  */
-SmithStr smith_err_get_backtrace(void);
+SemaphoreStr semaphore_err_get_backtrace(void);
 
 /*
  * Returns the last error code.
  *
  * If there is no error, 0 is returned.
  */
-SmithErrorCode smith_err_get_last_code(void);
+SemaphoreErrorCode semaphore_err_get_last_code(void);
 
 /*
  * Returns the last error message.
  *
  * If there is no error an empty string is returned.  This allocates new memory
- * that needs to be freed with `smith_str_free`.
+ * that needs to be freed with `semaphore_str_free`.
  */
-SmithStr smith_err_get_last_message(void);
+SemaphoreStr semaphore_err_get_last_message(void);
 
 /*
  * Generates a secret, public key pair.
  */
-SmithKeyPair smith_generate_key_pair(void);
+SemaphoreKeyPair semaphore_generate_key_pair(void);
 
 /*
  * Randomly generates an relay id
  */
-SmithUuid smith_generate_relay_id(void);
+SemaphoreUuid semaphore_generate_relay_id(void);
 
 /*
  * Given just the data from a register response returns the
  * conained relay id without validating the signature.
  */
-SmithUuid smith_get_register_response_relay_id(const SmithBuf *data);
+SemaphoreUuid semaphore_get_register_response_relay_id(const SemaphoreBuf *data);
 
 /*
  * Initializes the library
  */
-void smith_init(void);
+void semaphore_init(void);
 
 /*
  * Frees a public key.
  */
-void smith_publickey_free(SmithPublicKey *spk);
+void semaphore_publickey_free(SemaphorePublicKey *spk);
 
 /*
  * Parses a public key from a string.
  */
-SmithPublicKey *smith_publickey_parse(const SmithStr *s);
+SemaphorePublicKey *semaphore_publickey_parse(const SemaphoreStr *s);
 
 /*
  * Converts a public key into a string.
  */
-SmithStr smith_publickey_to_string(const SmithPublicKey *spk);
+SemaphoreStr semaphore_publickey_to_string(const SemaphorePublicKey *spk);
 
 /*
  * Verifies a signature
  */
-bool smith_publickey_verify(const SmithPublicKey *spk, const SmithBuf *data, const SmithStr *sig);
+bool semaphore_publickey_verify(const SemaphorePublicKey *spk, const SemaphoreBuf *data, const SemaphoreStr *sig);
 
 /*
  * Verifies a signature
  */
-bool smith_publickey_verify_timestamp(const SmithPublicKey *spk,
-                                      const SmithBuf *data,
-                                      const SmithStr *sig,
+bool semaphore_publickey_verify_timestamp(const SemaphorePublicKey *spk,
+                                      const SemaphoreBuf *data,
+                                      const SemaphoreStr *sig,
                                       uint32_t max_age);
 
 /*
  * Frees a secret key.
  */
-void smith_secretkey_free(SmithSecretKey *spk);
+void semaphore_secretkey_free(SemaphoreSecretKey *spk);
 
 /*
  * Parses a secret key from a string.
  */
-SmithSecretKey *smith_secretkey_parse(const SmithStr *s);
+SemaphoreSecretKey *semaphore_secretkey_parse(const SemaphoreStr *s);
 
 /*
  * Verifies a signature
  */
-SmithStr smith_secretkey_sign(const SmithSecretKey *spk, const SmithBuf *data);
+SemaphoreStr semaphore_secretkey_sign(const SemaphoreSecretKey *spk, const SemaphoreBuf *data);
 
 /*
  * Converts a secret key into a string.
  */
-SmithStr smith_secretkey_to_string(const SmithSecretKey *spk);
+SemaphoreStr semaphore_secretkey_to_string(const SemaphoreSecretKey *spk);
 
 /*
- * Frees a smith str.
+ * Frees a semaphore str.
  *
  * If the string is marked as not owned then this function does not
  * do anything.
  */
-void smith_str_free(SmithStr *s);
+void semaphore_str_free(SemaphoreStr *s);
 
 /*
- * Creates a smith str from a c string.
+ * Creates a semaphore str from a c string.
  *
  * This sets the string to owned.  In case it's not owned you either have
  * to make sure you are not freeing the memory or you need to set the
  * owned flag to false.
  */
-SmithStr smith_str_from_cstr(const char *s);
+SemaphoreStr semaphore_str_from_cstr(const char *s);
 
 /*
  * Returns true if the uuid is nil
  */
-bool smith_uuid_is_nil(const SmithUuid *uuid);
+bool semaphore_uuid_is_nil(const SemaphoreUuid *uuid);
 
 /*
  * Formats the UUID into a string.
  *
  * The string is newly allocated and needs to be released with
- * `smith_cstr_free`.
+ * `semaphore_cstr_free`.
  */
-SmithStr smith_uuid_to_str(const SmithUuid *uuid);
+SemaphoreStr semaphore_uuid_to_str(const SemaphoreUuid *uuid);
 
 /*
  * Validates a register response.
  */
-SmithStr smith_validate_register_response(const SmithPublicKey *pk,
-                                          const SmithBuf *data,
-                                          const SmithStr *signature,
+SemaphoreStr semaphore_validate_register_response(const SemaphorePublicKey *pk,
+                                          const SemaphoreBuf *data,
+                                          const SemaphoreStr *signature,
                                           uint32_t max_age);
 
-#endif /* SMITH_H_INCLUDED */
+#endif /* SEMAPHORE_H_INCLUDED */

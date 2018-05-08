@@ -9,7 +9,7 @@ version = "0.1.0"
 
 [features]
 default = []
-with_ssl = ["smith-server/with_ssl"]
+with_ssl = ["semaphore-server/with_ssl"]
 
 [profile.release]
 lto = true
@@ -26,23 +26,23 @@ log = "0.4.1"
 sentry = "0.5.1"
 dialoguer = "0.1.0"
 
-[dependencies.smith-aorta]
+[dependencies.semaphore-aorta]
 path = "aorta"
 version = "0.1.0"
 
-[dependencies.smith-common]
+[dependencies.semaphore-common]
 path = "common"
 version = "0.1.0"
 
-[dependencies.smith-config]
+[dependencies.semaphore-config]
 path = "config"
 version = "0.1.0"
 
-[dependencies.smith-server]
+[dependencies.semaphore-server]
 path = "server"
 version = "0.1.0"
 
-[dependencies.smith-trove]
+[dependencies.semaphore-trove]
 path = "trove"
 version = "0.1.0"
 

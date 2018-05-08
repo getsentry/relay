@@ -6,8 +6,8 @@ use failure::Error;
 use pretty_env_logger;
 use sentry::integrations::log as sentry_log;
 
-use smith_config::Config;
-use smith_common::metrics;
+use semaphore_config::Config;
+use semaphore_common::metrics;
 
 /// Print spawn infos to the log.
 pub fn dump_spawn_infos(config: &Config) {
@@ -31,12 +31,12 @@ pub fn init_logging(config: &Config) {
         config.sentry_dsn(),
         sentry::ClientOptions {
             in_app_include: vec![
-                "smith_common::",
-                "smith_aorta::",
-                "smith_config::",
-                "smith_common::",
-                "smith_server::",
-                "smith_trove::",
+                "semaphore_common::",
+                "semaphore_aorta::",
+                "semaphore_config::",
+                "semaphore_common::",
+                "semaphore_server::",
+                "semaphore_trove::",
                 "sentry_relay::",
             ],
             ..Default::default()
@@ -58,12 +58,12 @@ pub fn init_logging(config: &Config) {
                 LevelFilter::Debug => {
                     "INFO,\
                      actix_web::pipeline=DEBUG,\
-                     smith_common=DEBUG,\
-                     smith_aorta=DEBUG,\
-                     smith_config=DEBUG,\
-                     smith_common=DEBUG,\
-                     smith_server=DEBUG,\
-                     smith_trove=DEBUG,\
+                     semaphore_common=DEBUG,\
+                     semaphore_aorta=DEBUG,\
+                     semaphore_config=DEBUG,\
+                     semaphore_common=DEBUG,\
+                     semaphore_server=DEBUG,\
+                     semaphore_trove=DEBUG,\
                      sentry_relay=DEBUG"
                 }
                 LevelFilter::Trace => "TRACE",

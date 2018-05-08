@@ -1,10 +1,10 @@
 [package]
 authors = ["Sentry <hello@sentry.io>"]
 description = "Config functionality for the sentry relay"
-documentation = "https://docs.rs/smith-config"
+documentation = "https://docs.rs/semaphore-config"
 homepage = "https://github.com/getsentry/sentry-relay"
 license = "MIT"
-name = "smith-config"
+name = "semaphore-config"
 repository = "https://github.com/getsentry/sentry-relay"
 version = "0.1.0"
 
@@ -24,10 +24,10 @@ serde_json = "1.0.17"
 features = ["serde"]
 version = "0.4.1"
 
-[dependencies.smith-aorta]
+[dependencies.semaphore-aorta]
 path = "../aorta"
 version = "0.1.0"
 
-[dependencies.smith-common]
+[dependencies.semaphore-common]
 path = "../common"
 version = "0.1.0"

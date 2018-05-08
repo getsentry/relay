@@ -15,8 +15,8 @@ extern crate serde_yaml;
 extern crate url;
 extern crate url_serde;
 
-extern crate smith_aorta;
-extern crate smith_common;
+extern crate semaphore_aorta;
+extern crate semaphore_common;
 
 mod types;
 

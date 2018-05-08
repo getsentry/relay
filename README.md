@@ -2,7 +2,7 @@
 
 <a href="https://travis-ci.org/getsentry/sentry-relay"><img src="https://travis-ci.org/getsentry/sentry-relay.svg?branch=master" alt=""></a>
 
-The Sentry Relay (aka Smith) is a work in progress service that pushes some
+The Sentry Relay (aka Semaphore) is a work in progress service that pushes some
 functionality from the Sentry SDKs as well as the Sentry server into a proxy process.
 
 ## License

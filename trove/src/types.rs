@@ -15,8 +15,8 @@ use serde::de::DeserializeOwned;
 use serde_json;
 use tokio_core::reactor::{Core, Handle, Remote};
 
-use smith_aorta::{AortaConfig, ApiErrorResponse, ApiRequest, ProjectState, RequestManager};
-use smith_common::ProjectId;
+use semaphore_aorta::{AortaConfig, ApiErrorResponse, ApiRequest, ProjectState, RequestManager};
+use semaphore_common::ProjectId;
 
 use auth::{spawn_authenticator, AuthError, AuthState};
 use heartbeat::spawn_heartbeat;

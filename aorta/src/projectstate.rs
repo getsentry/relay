@@ -13,7 +13,7 @@ use url::Url;
 
 use config::AortaConfig;
 use query::{AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};
-use smith_common::ProjectId;
+use semaphore_common::ProjectId;
 use upstream::UpstreamDescriptor;
 use event::StoreChangeset;
 

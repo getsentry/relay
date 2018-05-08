@@ -6,7 +6,7 @@ use tokio_core::reactor::Timeout;
 
 use types::TroveContext;
 
-use smith_aorta::{HeartbeatResponse, QueryStatus};
+use semaphore_aorta::{HeartbeatResponse, QueryStatus};
 
 pub(crate) fn spawn_heartbeat(ctx: Arc<TroveContext>) {
     info!("starting heartbeat service");

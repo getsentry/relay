@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use url::Url;
 
-use smith_common::{Dsn, ProjectId, Scheme};
+use semaphore_common::{Dsn, ProjectId, Scheme};
 
 /// Indicates failures in the upstream error api.
 #[derive(Fail, Debug)]
@@ -169,7 +169,7 @@ impl_str_serialization!(UpstreamDescriptor<'static>, "a sentry upstream URL");
 #[cfg(test)]
 mod test {
     use super::*;
-    use smith_common::Dsn;
+    use semaphore_common::Dsn;
 
     #[test]
     fn test_basic_parsing() {

@@ -8,8 +8,8 @@ use uuid::Uuid;
 use service::ServiceApp;
 use extractors::{IncomingEvent, IncomingForeignEvent, ProjectRequest};
 
-use smith_trove::TroveState;
-use smith_aorta::{ApiErrorResponse, StoreChangeset};
+use semaphore_trove::TroveState;
+use semaphore_aorta::{ApiErrorResponse, StoreChangeset};
 
 #[derive(Serialize)]
 struct StoreResponse {

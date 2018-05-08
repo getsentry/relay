@@ -7,10 +7,10 @@ use futures::{future, Future};
 use sentry_types::{Auth, AuthParseError};
 use url::Url;
 
-use smith_aorta::{ApiErrorResponse, EventMeta, EventVariant, ForeignEvent, ForeignPayload,
-                  ProjectState, StoreChangeset};
-use smith_common::{ProjectId, ProjectIdParseError};
-use smith_trove::TroveState;
+use semaphore_aorta::{ApiErrorResponse, EventMeta, EventVariant, ForeignEvent, ForeignPayload,
+                      ProjectState, StoreChangeset};
+use semaphore_common::{ProjectId, ProjectIdParseError};
+use semaphore_trove::TroveState;
 
 use body::{EncodedJsonBody, EncodedJsonPayloadError};
 

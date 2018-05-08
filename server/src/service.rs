@@ -5,8 +5,8 @@ use actix;
 use actix_web::{server, App};
 use failure::ResultExt;
 
-use smith_config::Config;
-use smith_trove::{Trove, TroveState};
+use semaphore_config::Config;
+use semaphore_trove::{Trove, TroveState};
 
 use endpoints;
 use errors::{ServerError, ServerErrorKind};

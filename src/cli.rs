@@ -5,8 +5,8 @@ use failure::{err_msg, Error};
 use clap::{App, AppSettings, Arg, ArgMatches};
 use dialoguer::{Confirmation, Select};
 
-use smith_server;
-use smith_config::{Config, MinimalConfig};
+use semaphore_server;
+use semaphore_config::{Config, MinimalConfig};
 
 use setup;
 use utils;
@@ -160,7 +160,7 @@ pub fn run<'a>(mut config: Config, _matches: &ArgMatches<'a>) -> Result<(), Erro
     setup::dump_spawn_infos(&config);
     setup::init_metrics(&config)?;
 
-    smith_server::run(config)?;
+    semaphore_server::run(config)?;
 
     Ok(())
 }

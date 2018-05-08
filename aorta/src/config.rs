@@ -4,7 +4,7 @@ use hyper::{Method, Request};
 use serde::Serialize;
 
 use auth::{PublicKey, RelayId, SecretKey};
-use smith_common::url_to_hyper_uri;
+use semaphore_common::url_to_hyper_uri;
 use upstream::UpstreamDescriptor;
 
 /// Holds common config values that affect the aorta behavior.
