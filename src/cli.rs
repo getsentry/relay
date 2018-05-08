@@ -1,13 +1,18 @@
+use std::env;
+use std::path::{Path, PathBuf};
+
 use failure::{err_msg, Error};
 use clap::{App, AppSettings, Arg, ArgMatches};
+use dialoguer::{Confirmation, Select};
 
 use smith_server;
-use smith_config::Config;
+use smith_config::{Config, MinimalConfig};
 
 use setup;
+use utils;
 
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-pub const ABOUT: &'static str = "Runs a sentry-relay (fancy proxy server)";
+pub const ABOUT: &'static str = "Runs a sentry-relay";
 
 fn make_app<'a, 'b>() -> App<'a, 'b> {
     App::new("sentry-relay")
@@ -42,14 +47,17 @@ fn make_app<'a, 'b>() -> App<'a, 'b> {
 pub fn execute() -> Result<(), Error> {
     let app = make_app();
     let matches = app.get_matches();
-    let config = Config::from_path(&matches.value_of("config").unwrap_or(".sentry-relay"))?;
+    let config_path = matches.value_of("config").unwrap_or(".sentry-relay");
 
+    // init is special because it does not yet have a config.
+    if let Some(matches) = matches.subcommand_matches("init") {
+        return init(&config_path, &matches);
+    }
+
+    let config = Config::from_path(&config_path)?;
     setup::init_logging(&config);
-
     if let Some(matches) = matches.subcommand_matches("generate-auth") {
         generate_auth(config, &matches)
-    } else if let Some(matches) = matches.subcommand_matches("init") {
-        init(config, &matches)
     } else if let Some(matches) = matches.subcommand_matches("run") {
         run(config, &matches)
     } else {
@@ -68,7 +76,63 @@ pub fn generate_auth<'a>(mut config: Config, matches: &ArgMatches<'a>) -> Result
     Ok(())
 }
 
-pub fn init<'a>(_config: Config, _matches: &ArgMatches<'a>) -> Result<(), Error> {
+pub fn init<'a, P: AsRef<Path>>(config_path: P, _matches: &ArgMatches<'a>) -> Result<(), Error> {
+    let mut done_something = false;
+    let config_path = env::current_dir()?.join(config_path.as_ref());
+    println!("Initializing relay in {}", config_path.display());
+
+    if !Config::config_exists(&config_path) {
+        println!("There is no relay config yet. Do you want to create one?");
+        let item = Select::new()
+            .default(0)
+            .item("yes, create default config")
+            .item("yes, create custom config")
+            .item("no, abort")
+            .interact()?;
+
+        let with_prompts = match item {
+            0 => false,
+            1 => true,
+            2 => return Ok(()),
+            _ => unreachable!(),
+        };
+
+        let mut mincfg: MinimalConfig = Default::default();
+        if with_prompts {
+            utils::prompt_value("upstream", &mut mincfg.relay.upstream)?;
+            utils::prompt_value("listen interface", &mut mincfg.relay.host)?;
+            utils::prompt_value("listen port", &mut mincfg.relay.port)?;
+
+            if Confirmation::new("do you want to configure TLS").interact()? {
+                let mut port = mincfg.relay.port.saturating_add(443);
+                utils::prompt_value("tls port", &mut port)?;
+                mincfg.relay.tls_port = Some(port);
+                let mut path = None::<String>;
+                utils::prompt_value_no_default("tls private key path", &mut path)?;
+                mincfg.relay.tls_private_key = Some(PathBuf::from(path.unwrap()));
+                let mut path = None::<String>;
+                utils::prompt_value_no_default("tls certificate path", &mut path)?;
+                mincfg.relay.tls_cert = Some(PathBuf::from(path.unwrap()));
+            }
+        }
+
+        mincfg.save_in_folder(&config_path)?;
+        done_something = true;
+    }
+
+    let mut config = Config::from_path(&config_path)?;
+    if !config.has_credentials() {
+        println!("Generating credentials ...");
+        config.regenerate_credentials()?;
+        done_something = true;
+    }
+
+    if done_something {
+        println!("All done!");
+    } else {
+        println!("Nothing to do.");
+    }
+
     Ok(())
 }
 

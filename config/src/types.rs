@@ -98,19 +98,29 @@ struct Credentials {
 /// Relay specific configuration values.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Relay {
+pub struct Relay {
     /// The upstream relay or sentry instance.
-    upstream: UpstreamDescriptor<'static>,
+    pub upstream: UpstreamDescriptor<'static>,
     /// The host the relay should bind to (network interface)
-    host: IpAddr,
+    pub host: IpAddr,
     /// The port to bind for the unencrypted relay HTTP server.
-    port: u16,
+    pub port: u16,
     /// Optional port to bind for the encrypted relay HTTPS server.
-    tls_port: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls_port: Option<u16>,
     /// The path to the private key to use for TLS
-    tls_private_key: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls_private_key: Option<PathBuf>,
     /// The path to the certificate chain to use for TLS
-    tls_cert: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls_cert: Option<PathBuf>,
+}
+
+/// Minimal version of a config for dumping out.
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct MinimalConfig {
+    /// The relay part of the config.
+    pub relay: Relay,
 }
 
 /// Controls the logging system.
@@ -167,7 +177,7 @@ impl Default for Relay {
                 .unwrap(),
             host: "127.0.0.1".parse().unwrap(),
             port: 3000,
-            tls_port: 3443,
+            tls_port: None,
             tls_private_key: None,
             tls_cert: None,
         }
@@ -264,12 +274,16 @@ fn save_config_to_path<S: Serialize>(path: &Path, s: &S) -> Result<(), ConfigErr
     Ok(())
 }
 
+fn get_config_path(path: &Path, file: &str) -> PathBuf {
+    path.join(format!("{}.yml", file))
+}
+
 impl Config {
     /// Loads a config from a given config folder.
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Config, ConfigError> {
         let path = path.as_ref().to_path_buf();
-        let values = load_config_from_path(&path.join("config.yml"))?;
-        let credentials_path = path.join("credentials.yml");
+        let values = load_config_from_path(&get_config_path(&path, "config"))?;
+        let credentials_path = get_config_path(&path, "credentials");
         let credentials = if fs::metadata(&credentials_path).is_ok() {
             Some(load_config_from_path(&credentials_path)?)
         } else {
@@ -280,6 +294,11 @@ impl Config {
             credentials,
             values,
         })
+    }
+
+    /// Checks if the config is already initialized.
+    pub fn config_exists<P: AsRef<Path>>(path: P) -> bool {
+        fs::metadata(get_config_path(path.as_ref(), "config")).is_ok()
     }
 
     /// Returns the filename of the config file.
@@ -298,7 +317,7 @@ impl Config {
             public_key: pk,
             id: generate_relay_id(),
         };
-        save_config_to_path(&self.path.join("credentials.yml"), &creds)?;
+        save_config_to_path(&get_config_path(&self.path, "credentials"), &creds)?;
         self.credentials = Some(creds);
         Ok(())
     }
@@ -336,7 +355,8 @@ impl Config {
     /// Returns the TLS listen address.
     pub fn tls_listen_addr(&self) -> Option<SocketAddr> {
         if self.values.relay.tls_private_key.is_some() && self.values.relay.tls_cert.is_some() {
-            Some((self.values.relay.host, self.values.relay.tls_port).into())
+            let port = self.values.relay.tls_port.unwrap_or(3443);
+            Some((self.values.relay.host, port).into())
         } else {
             None
         }
@@ -433,5 +453,19 @@ impl Config {
         } else {
             None
         }
+    }
+}
+
+impl MinimalConfig {
+    /// Saves the config in the given config folder as config.yml
+    pub fn save_in_folder<P: AsRef<Path>>(&self, p: P) -> Result<(), ConfigError> {
+        if fs::metadata(p.as_ref()).is_err() {
+            ctry!(
+                fs::create_dir_all(p.as_ref()),
+                ConfigErrorKind::CouldNotOpenFile,
+                p.as_ref()
+            );
+        }
+        save_config_to_path(&get_config_path(p.as_ref(), "config"), self)
     }
 }

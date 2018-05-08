@@ -1,5 +1,6 @@
 extern crate clap;
 extern crate ctrlc;
+extern crate dialoguer;
 extern crate failure;
 extern crate futures;
 #[macro_use]
@@ -14,6 +15,7 @@ extern crate smith_server;
 
 mod setup;
 mod cli;
+mod utils;
 
 use std::env;
 
