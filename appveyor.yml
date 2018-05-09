@@ -1,5 +1,9 @@
 skip_tags: true
 
+branches:
+  only:
+    - master
+
 cache:
   - 'target'
   - '%USERPROFILE%\.cargo'
