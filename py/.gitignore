@@ -4,4 +4,4 @@ build
 *.egg-info
 .eggs
 .pytest_cache
-smith/_lowlevel*
+semaphore/_lowlevel*
