@@ -3,8 +3,8 @@ name = "semaphore-cabi"
 version = "0.1.0"
 license = "MIT"
 authors = ["Sentry <hello@sentry.io>"]
-homepage = "https://github.com/getsentry/sentry-relay"
-repository = "https://github.com/getsentry/sentry-relay"
+homepage = "https://github.com/getsentry/semaphore"
+repository = "https://github.com/getsentry/semaphore"
 description = "Exposes some internals of the relay to C."
 
 [lib]

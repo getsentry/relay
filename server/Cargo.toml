@@ -2,10 +2,10 @@
 authors = ["Sentry <hello@sentry.io>"]
 description = "Server components for the relay"
 documentation = "https://docs.rs/semaphore-server"
-homepage = "https://github.com/getsentry/sentry-relay"
+homepage = "https://github.com/getsentry/semaphore"
 license = "MIT"
 name = "semaphore-server"
-repository = "https://github.com/getsentry/sentry-relay"
+repository = "https://github.com/getsentry/semaphore"
 version = "0.1.0"
 build = "build.rs"
 

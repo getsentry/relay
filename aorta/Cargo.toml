@@ -2,10 +2,10 @@
 authors = ["Sentry <hello@sentry.io>"]
 description = "The relay <-> backend communcation and authentication protocol"
 documentation = "https://docs.rs/semaphore-common"
-homepage = "https://github.com/getsentry/sentry-relay"
+homepage = "https://github.com/getsentry/semaphore"
 license = "MIT"
 name = "semaphore-aorta"
-repository = "https://github.com/getsentry/sentry-relay"
+repository = "https://github.com/getsentry/semaphore"
 version = "0.1.0"
 
 [dependencies]
