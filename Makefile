@@ -24,6 +24,6 @@ format-check:
 	@cargo fmt -- --write-mode diff
 
 devserver:
-	@catflap -p 3000 -- cargo watch -x "run -- -c relay.yml"
+	@catflap -p 3000 -- cargo watch -x "run -- run"
 
 .PHONY: all setup-git build releasebuild doc test cargotest pytest format-check devserver

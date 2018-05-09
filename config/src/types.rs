@@ -1,7 +1,8 @@
-use std::env;
 use std::fs;
 use std::io;
 use std::io::Write;
+use std::fmt;
+use std::env;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -9,46 +10,119 @@ use std::sync::Arc;
 use chrono::Duration;
 use log;
 use sentry::Dsn;
+use serde_json;
 use serde_yaml;
+use serde::ser::Serialize;
+use serde::de::DeserializeOwned;
+use failure::{Backtrace, Context, Fail};
 use smith_aorta::{generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId,
                   SecretKey, UpstreamDescriptor};
 
 /// Indicates config related errors.
-#[derive(Fail, Debug)]
-pub enum ConfigError {
+#[derive(Debug)]
+pub struct ConfigError {
+    filename: PathBuf,
+    inner: Context<ConfigErrorKind>,
+}
+
+macro_rules! ctry {
+    ($expr:expr, $kind:expr, $path:expr) => {
+        match $expr {
+            Ok(val) => val,
+            Err(err) => return Err(ConfigError::new($path, err.context($kind)))
+        }
+    }
+}
+
+impl Fail for ConfigError {
+    fn cause(&self) -> Option<&Fail> {
+        self.inner.cause()
+    }
+
+    fn backtrace(&self) -> Option<&Backtrace> {
+        self.inner.backtrace()
+    }
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} (file {})", self.inner, self.filename().display())
+    }
+}
+
+impl ConfigError {
+    fn new<P: AsRef<Path>>(p: P, inner: Context<ConfigErrorKind>) -> ConfigError {
+        ConfigError {
+            filename: p.as_ref().to_path_buf(),
+            inner: inner,
+        }
+    }
+
+    /// Returns the filename that failed.
+    pub fn filename(&self) -> &Path {
+        &self.filename
+    }
+
+    /// Returns the error kind of the error.
+    pub fn kind(&self) -> ConfigErrorKind {
+        *self.inner.get_context()
+    }
+}
+
+/// Indicates config related errors.
+#[derive(Fail, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum ConfigErrorKind {
     /// Failed to open the file.
     #[fail(display = "could not open config file")]
-    CouldNotOpen(#[cause] io::Error),
+    CouldNotOpenFile,
     /// Failed to save a file.
-    #[fail(display = "could not save a config file")]
-    CouldNotSave(#[cause] io::Error),
-    /// Parsing a YAML error failed.
-    #[fail(display = "could not parse yaml file")]
-    BadYaml(#[cause] serde_yaml::Error),
+    #[fail(display = "could not write config file")]
+    CouldNotWriteFile,
+    /// Parsing/dumping YAML failed.
+    #[fail(display = "could not parse yaml config file")]
+    BadYaml,
+    /// Invalid config value
+    #[fail(display = "invalid config value")]
+    InvalidValue,
+}
+
+/// The relay credentials
+#[derive(Serialize, Deserialize, Debug)]
+struct Credentials {
+    /// The secret key of the relay
+    secret_key: SecretKey,
+    /// The public key of the relay
+    public_key: PublicKey,
+    /// The globally unique ID of the relay.
+    id: RelayId,
 }
 
 /// Relay specific configuration values.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Relay {
-    /// The secret key of the relay
-    secret_key: Option<SecretKey>,
-    /// The public key of the relay
-    public_key: Option<PublicKey>,
-    /// The globally unique ID of the relay.
-    id: Option<RelayId>,
+pub struct Relay {
     /// The upstream relay or sentry instance.
-    upstream: UpstreamDescriptor<'static>,
+    pub upstream: UpstreamDescriptor<'static>,
     /// The host the relay should bind to (network interface)
-    host: IpAddr,
+    pub host: IpAddr,
     /// The port to bind for the unencrypted relay HTTP server.
-    port: u16,
+    pub port: u16,
     /// Optional port to bind for the encrypted relay HTTPS server.
-    tls_port: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls_port: Option<u16>,
     /// The path to the private key to use for TLS
-    tls_private_key: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls_private_key: Option<PathBuf>,
     /// The path to the certificate chain to use for TLS
-    tls_cert: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls_cert: Option<PathBuf>,
+}
+
+/// Minimal version of a config for dumping out.
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct MinimalConfig {
+    /// The relay part of the config.
+    pub relay: Relay,
 }
 
 /// Controls the logging system.
@@ -100,15 +174,12 @@ struct Sentry {
 impl Default for Relay {
     fn default() -> Relay {
         Relay {
-            secret_key: None,
-            public_key: None,
-            id: None,
             upstream: "https://ingest.sentry.io/"
                 .parse::<UpstreamDescriptor>()
                 .unwrap(),
             host: "127.0.0.1".parse().unwrap(),
             port: 3000,
-            tls_port: 3443,
+            tls_port: None,
             tls_private_key: None,
             tls_cert: None,
         }
@@ -156,13 +227,8 @@ impl Default for Sentry {
     }
 }
 
-/// Config struct.
 #[derive(Serialize, Deserialize, Debug, Default)]
-pub struct Config {
-    #[serde(skip, default)]
-    changed: bool,
-    #[serde(skip, default = "PathBuf::new")]
-    filename: PathBuf,
+struct ConfigValues {
     #[serde(default)]
     relay: Relay,
     #[serde(default)]
@@ -175,113 +241,153 @@ pub struct Config {
     sentry: Sentry,
 }
 
+/// Config struct.
+pub struct Config {
+    values: ConfigValues,
+    credentials: Option<Credentials>,
+    path: PathBuf,
+}
+
+impl fmt::Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Config")
+            .field("path", &self.path)
+            .field("values", &self.values)
+            .finish()
+    }
+}
+
+fn load_config_from_path<D: DeserializeOwned>(path: &Path) -> Result<D, ConfigError> {
+    let f = ctry!(
+        fs::File::open(path),
+        ConfigErrorKind::CouldNotOpenFile,
+        path
+    );
+    Ok(ctry!(
+        serde_yaml::from_reader(io::BufReader::new(f)),
+        ConfigErrorKind::BadYaml,
+        path
+    ))
+}
+
+fn save_config_to_path<S: Serialize>(path: &Path, s: &S) -> Result<(), ConfigError> {
+    let mut f = ctry!(
+        fs::File::create(path),
+        ConfigErrorKind::CouldNotWriteFile,
+        path
+    );
+    ctry!(
+        serde_yaml::to_writer(&mut f, s),
+        ConfigErrorKind::BadYaml,
+        path
+    );
+    f.write_all(b"\n").ok();
+    Ok(())
+}
+
+fn get_config_path(path: &Path, file: &str) -> PathBuf {
+    path.join(format!("{}.yml", file))
+}
+
 impl Config {
-    /// Loads a config from a given path.
-    ///
-    /// This can load a config that does not have any credentials yet in
-    /// which case some methods will fail (like `secret_key`).  This can
-    /// be verified with `is_configured`.  The `open` method handles
-    /// this automatically.
+    /// Loads a config from a given config folder.
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Config, ConfigError> {
-        let f = fs::File::open(&path).map_err(ConfigError::CouldNotOpen)?;
-        let mut rv: Config =
-            serde_yaml::from_reader(io::BufReader::new(f)).map_err(ConfigError::BadYaml)?;
-        rv.filename = path.as_ref().to_path_buf();
-        Ok(rv)
-    }
-
-    /// Loads a config from a path or initializes it.
-    ///
-    /// If the config does not exist or a secret key is not set, then credentials
-    /// are regenerated automatically.
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Config, ConfigError> {
-        let path = match path.as_ref().canonicalize() {
-            Ok(pathbuf) => pathbuf,
-            Err(_) => env::current_dir()
-                .map_err(ConfigError::CouldNotOpen)?
-                .join(path.as_ref()),
-        };
-        let mut config = if fs::metadata(&path).is_ok() {
-            Config::from_path(&path)?
+        let path = env::current_dir()
+            .map(|x| x.join(path.as_ref()))
+            .unwrap_or_else(|_| path.as_ref().to_path_buf());
+        let values = load_config_from_path(&get_config_path(&path, "config"))?;
+        let credentials_path = get_config_path(&path, "credentials");
+        let credentials = if fs::metadata(&credentials_path).is_ok() {
+            Some(load_config_from_path(&credentials_path)?)
         } else {
-            Config {
-                filename: path,
-                changed: false,
-                ..Default::default()
-            }
+            None
         };
-        if !config.is_configured() {
-            config.regenerate_credentials();
-        }
-        Ok(config)
+        Ok(Config {
+            path,
+            credentials,
+            values,
+        })
     }
 
-    /// Writes back a config to the config file if the config changed.
-    pub fn save(&mut self) -> Result<bool, ConfigError> {
-        if !self.changed {
-            return Ok(false);
-        }
-        let mut f = fs::File::create(&self.filename).map_err(ConfigError::CouldNotSave)?;
-        serde_yaml::to_writer(&mut f, &self).map_err(ConfigError::BadYaml)?;
-        f.write_all(b"\n").ok();
-        self.changed = false;
-        Ok(true)
+    /// Checks if the config is already initialized.
+    pub fn config_exists<P: AsRef<Path>>(path: P) -> bool {
+        fs::metadata(get_config_path(path.as_ref(), "config")).is_ok()
     }
 
     /// Returns the filename of the config file.
-    pub fn filename(&self) -> &Path {
-        &self.filename
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Dumps out a JSON string of the values.
+    pub fn to_json_string(&self) -> Result<String, ConfigError> {
+        Ok(ctry!(
+            serde_json::to_string_pretty(&self.values),
+            ConfigErrorKind::InvalidValue,
+            &self.path
+        ))
+    }
+
+    /// Dumps out a YAML string of the values.
+    pub fn to_yaml_string(&self) -> Result<String, ConfigError> {
+        Ok(ctry!(
+            serde_yaml::to_string(&self.values),
+            ConfigErrorKind::InvalidValue,
+            &self.path
+        ))
     }
 
     /// Regenerates the relay credentials.
-    pub fn regenerate_credentials(&mut self) {
+    ///
+    /// This also writes the credentials back to the file.
+    pub fn regenerate_credentials(&mut self) -> Result<(), ConfigError> {
+        info!("generating new relay credentials");
         let (sk, pk) = generate_key_pair();
-        self.relay.secret_key = Some(sk);
-        self.relay.public_key = Some(pk);
-        self.relay.id = Some(generate_relay_id());
-        self.changed = true;
-    }
-
-    /// Returns `true` if the config changed.
-    pub fn changed(&self) -> bool {
-        self.changed
+        let creds = Credentials {
+            secret_key: sk,
+            public_key: pk,
+            id: generate_relay_id(),
+        };
+        save_config_to_path(&get_config_path(&self.path, "credentials"), &creds)?;
+        self.credentials = Some(creds);
+        Ok(())
     }
 
     /// Returns `true` if the config is ready to use.
-    pub fn is_configured(&self) -> bool {
-        self.relay.secret_key.is_some() && self.relay.public_key.is_some()
-            && self.relay.id.is_some()
+    pub fn has_credentials(&self) -> bool {
+        self.credentials.is_some()
     }
 
     /// Returns the secret key if set.
     pub fn secret_key(&self) -> &SecretKey {
-        self.relay.secret_key.as_ref().unwrap()
+        &self.credentials.as_ref().unwrap().secret_key
     }
 
     /// Returns the public key if set.
     pub fn public_key(&self) -> &PublicKey {
-        self.relay.public_key.as_ref().unwrap()
+        &self.credentials.as_ref().unwrap().public_key
     }
 
     /// Returns the relay ID.
     pub fn relay_id(&self) -> &RelayId {
-        self.relay.id.as_ref().unwrap()
+        &self.credentials.as_ref().unwrap().id
     }
 
     /// Returns the upstream target as descriptor.
     pub fn upstream_descriptor(&self) -> &UpstreamDescriptor {
-        &self.relay.upstream
+        &self.values.relay.upstream
     }
 
     /// Returns the listen address.
     pub fn listen_addr(&self) -> SocketAddr {
-        (self.relay.host, self.relay.port).into()
+        (self.values.relay.host, self.values.relay.port).into()
     }
 
     /// Returns the TLS listen address.
     pub fn tls_listen_addr(&self) -> Option<SocketAddr> {
-        if self.relay.tls_private_key.is_some() && self.relay.tls_cert.is_some() {
-            Some((self.relay.host, self.relay.tls_port).into())
+        if self.values.relay.tls_private_key.is_some() && self.values.relay.tls_cert.is_some() {
+            let port = self.values.relay.tls_port.unwrap_or(3443);
+            Some((self.values.relay.host, port).into())
         } else {
             None
         }
@@ -289,30 +395,38 @@ impl Config {
 
     /// Returns the path to the private key
     pub fn tls_private_key_path(&self) -> Option<&Path> {
-        self.relay.tls_private_key.as_ref().map(|x| x.as_path())
+        self.values
+            .relay
+            .tls_private_key
+            .as_ref()
+            .map(|x| x.as_path())
     }
 
     /// Returns the path to the cert
     pub fn tls_certificate_path(&self) -> Option<&Path> {
-        self.relay.tls_cert.as_ref().map(|x| x.as_path())
+        self.values.relay.tls_cert.as_ref().map(|x| x.as_path())
     }
 
     /// Returns the log level.
     pub fn log_level_filter(&self) -> log::LevelFilter {
-        self.logging.level
+        self.values.logging.level
     }
 
     /// Should backtraces be enabled?
     pub fn enable_backtraces(&self) -> bool {
-        self.logging.enable_backtraces
+        self.values.logging.enable_backtraces
     }
 
     /// Returns the socket addresses for statsd.
     ///
     /// If stats is disabled an empty vector is returned.
-    pub fn statsd_addrs(&self) -> Result<Vec<SocketAddr>, io::Error> {
-        if let Some(ref addr) = self.metrics.statsd {
-            Ok(addr.as_str().to_socket_addrs()?.collect())
+    pub fn statsd_addrs(&self) -> Result<Vec<SocketAddr>, ConfigError> {
+        if let Some(ref addr) = self.values.metrics.statsd {
+            Ok(ctry!(
+                addr.as_str().to_socket_addrs(),
+                ConfigErrorKind::InvalidValue,
+                &self.path
+            ).collect())
         } else {
             Ok(vec![])
         }
@@ -320,32 +434,32 @@ impl Config {
 
     /// Return the prefix for statsd metrics.
     pub fn metrics_prefix(&self) -> &str {
-        &self.metrics.prefix
+        &self.values.metrics.prefix
     }
 
     /// Returns the aorta snapshot expiry.
     pub fn aorta_snapshot_expiry(&self) -> Duration {
-        Duration::seconds(self.aorta.snapshot_expiry as i64)
+        Duration::seconds(self.values.aorta.snapshot_expiry as i64)
     }
 
     /// Returns the aorta auth retry interval.
     pub fn aorta_auth_retry_interval(&self) -> Duration {
-        Duration::seconds(self.aorta.auth_retry_interval as i64)
+        Duration::seconds(self.values.aorta.auth_retry_interval as i64)
     }
 
     /// Returns the aorta hearthbeat interval.
     pub fn aorta_heartbeat_interval(&self) -> Duration {
-        Duration::seconds(self.aorta.heartbeat_interval as i64)
+        Duration::seconds(self.values.aorta.heartbeat_interval as i64)
     }
 
     /// Returns the aorta changeset buffer interval.
     pub fn aorta_changeset_buffer_interval(&self) -> Duration {
-        Duration::seconds(self.aorta.changeset_buffer_interval as i64)
+        Duration::seconds(self.values.aorta.changeset_buffer_interval as i64)
     }
 
     /// Returns the timeout for pending events.
     pub fn aorta_pending_events_timeout(&self) -> Duration {
-        Duration::seconds(self.aorta.pending_events_timeout as i64)
+        Duration::seconds(self.values.aorta.pending_events_timeout as i64)
     }
 
     /// Return a new aorta config based on this config file.
@@ -365,10 +479,24 @@ impl Config {
 
     /// Return the Sentry DSN if reporting to Sentry is enabled.
     pub fn sentry_dsn(&self) -> Option<&Dsn> {
-        if self.sentry.enabled {
-            Some(&self.sentry.dsn)
+        if self.values.sentry.enabled {
+            Some(&self.values.sentry.dsn)
         } else {
             None
         }
+    }
+}
+
+impl MinimalConfig {
+    /// Saves the config in the given config folder as config.yml
+    pub fn save_in_folder<P: AsRef<Path>>(&self, p: P) -> Result<(), ConfigError> {
+        if fs::metadata(p.as_ref()).is_err() {
+            ctry!(
+                fs::create_dir_all(p.as_ref()),
+                ConfigErrorKind::CouldNotOpenFile,
+                p.as_ref()
+            );
+        }
+        save_config_to_path(&get_config_path(p.as_ref(), "config"), self)
     }
 }

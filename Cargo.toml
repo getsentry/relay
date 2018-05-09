@@ -15,7 +15,7 @@ with_ssl = ["smith-server/with_ssl"]
 lto = true
 
 [dependencies]
-clap = "2.31.2"
+clap = { version = "2.31.2", default-features = false }
 failure = "0.1.1"
 pretty_env_logger = "0.2.2"
 tokio-core = "0.1.17"
@@ -24,6 +24,7 @@ parking_lot = "0.5.5"
 ctrlc = { version = "3.1.0", features = ["termination"] }
 log = "0.4.1"
 sentry = "0.5.1"
+dialoguer = "0.1.0"
 
 [dependencies.smith-aorta]
 path = "aorta"
