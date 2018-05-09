@@ -40,6 +40,9 @@ bytes = "0.4.7"
 base64 = "0.9.1"
 flate2 = "1.0.1"
 
+[target."cfg(not(windows))".dependencies]
+libc = "0.2.40"
+
 [dependencies.semaphore-aorta]
 path = "../aorta"
 version = "0.1.0"

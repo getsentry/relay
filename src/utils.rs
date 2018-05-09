@@ -4,6 +4,7 @@ use std::fmt::Display;
 use dialoguer::Input;
 use failure::Error;
 
+/// Prompts for a value that has a default.
 pub fn prompt_value<V: FromStr + Display>(name: &str, v: &mut V) -> Result<(), Error>
 where
     <V as FromStr>::Err: Display,
@@ -23,6 +24,7 @@ where
     }
 }
 
+/// Prompts for a value without a default.
 pub fn prompt_value_no_default<V: FromStr + Display>(
     name: &str,
     v: &mut Option<V>,

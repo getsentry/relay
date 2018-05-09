@@ -29,6 +29,9 @@ extern crate serde_json;
 extern crate url;
 extern crate uuid;
 
+#[cfg(not(windows))]
+extern crate libc;
+
 mod body;
 mod errors;
 mod extractors;
@@ -36,6 +39,7 @@ mod middlewares;
 mod service;
 mod endpoints;
 mod constants;
+mod utils;
 
 pub use errors::*;
 pub use service::*;

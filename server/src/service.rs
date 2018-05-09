@@ -1,5 +1,5 @@
-use std::env;
 use std::sync::Arc;
+use std::net::{SocketAddr, TcpListener};
 
 use actix;
 use actix_web::{server, App};
@@ -11,6 +11,7 @@ use semaphore_trove::{Trove, TroveState};
 use endpoints;
 use errors::{ServerError, ServerErrorKind};
 use middlewares::{AddCommonHeaders, CaptureSentryError, ErrorHandlers, Metrics};
+use utils::get_external_tcp_listeners;
 
 fn dump_listen_infos<H: server::HttpHandler>(
     server: &server::HttpServer<H>,
@@ -49,6 +50,20 @@ fn make_app(state: Arc<TroveState>) -> ServiceApp {
     app
 }
 
+fn bind_server<H: server::HttpHandler>(
+    listeners: &mut Vec<TcpListener>,
+    server: server::HttpServer<H>,
+    listen_addr: SocketAddr,
+) -> Result<server::HttpServer<H>, ServerError> {
+    Ok(if !listeners.is_empty() {
+        server.listen(listeners.remove(0))
+    } else {
+        server
+            .bind(listen_addr)
+            .context(ServerErrorKind::BindFailed)?
+    })
+}
+
 /// Given a relay config spawns the server and lets it run until it stops.
 ///
 /// This not only spawning the server but also a governed trove in the
@@ -63,30 +78,8 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     let server_state = state.clone();
     let mut server = server::new(move || make_app(server_state.clone()));
 
-    let fd_bound = {
-        #[cfg(not(windows))]
-        {
-            use std::net::TcpListener;
-            use std::os::unix::io::FromRawFd;
-
-            if let Some(fd) = env::var("LISTEN_FD").ok().and_then(|fd| fd.parse().ok()) {
-                server = server.listen(unsafe { TcpListener::from_raw_fd(fd) });
-                true
-            } else {
-                false
-            }
-        }
-        #[cfg(windows)]
-        {
-            false
-        }
-    };
-
-    if !fd_bound {
-        server = server
-            .bind(config.listen_addr())
-            .context(ServerErrorKind::BindFailed)?;
-    }
+    let mut listeners = get_external_tcp_listeners();
+    server = bind_server(&mut listeners, server, config.listen_addr())?;
 
     let tls = {
         #[cfg(feature = "with_ssl")]
@@ -98,9 +91,11 @@ pub fn run(config: Config) -> Result<(), ServerError> {
                 config.tls_certificate_path(),
             ) {
                 Some((
-                    server::new(move || make_app(state.clone()))
-                        .bind(addr)
-                        .context(ServerErrorKind::BindFailed)?,
+                    bind_server(
+                        &mut listeners,
+                        server::new(move || make_app(state.clone())),
+                        addr,
+                    ),
                     {
                         let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())
                             .context(ServerErrorKind::TlsInitFailed)?;
