@@ -87,14 +87,14 @@ pub enum ConfigErrorKind {
 }
 
 /// The relay credentials
-#[derive(Serialize, Deserialize, Debug)]
-struct Credentials {
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct Credentials {
     /// The secret key of the relay
-    secret_key: SecretKey,
+    pub secret_key: SecretKey,
     /// The public key of the relay
-    public_key: PublicKey,
+    pub public_key: PublicKey,
     /// The globally unique ID of the relay.
-    id: RelayId,
+    pub id: RelayId,
 }
 
 /// Relay specific configuration values.
@@ -108,13 +108,10 @@ pub struct Relay {
     /// The port to bind for the unencrypted relay HTTP server.
     pub port: u16,
     /// Optional port to bind for the encrypted relay HTTPS server.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub tls_port: Option<u16>,
     /// The path to the private key to use for TLS
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub tls_private_key: Option<PathBuf>,
     /// The path to the certificate chain to use for TLS
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub tls_cert: Option<PathBuf>,
 }
 
@@ -351,6 +348,38 @@ impl Config {
         save_config_to_path(&get_config_path(&self.path, "credentials"), &creds)?;
         self.credentials = Some(creds);
         Ok(())
+    }
+
+    /// Return the current credentials
+    pub fn credentials(&self) -> Option<&Credentials> {
+        self.credentials.as_ref()
+    }
+
+    /// Set new credentials.
+    pub fn replace_credentials(
+        &mut self,
+        credentials: Option<Credentials>,
+    ) -> Result<bool, ConfigError> {
+        if self.credentials == credentials {
+            return Ok(false);
+        }
+        match credentials {
+            Some(creds) => {
+                save_config_to_path(&get_config_path(&self.path, "credentials"), &creds)?;
+                self.credentials = Some(creds);
+            }
+            None => {
+                let path = get_config_path(&self.path, "credentials");
+                if fs::metadata(&path).is_ok() {
+                    ctry!(
+                        fs::remove_file(&path),
+                        ConfigErrorKind::CouldNotWriteFile,
+                        &path
+                    );
+                }
+            }
+        }
+        Ok(true)
     }
 
     /// Returns `true` if the config is ready to use.

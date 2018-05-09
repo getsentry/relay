@@ -25,10 +25,7 @@ where
 }
 
 /// Prompts for a value without a default.
-pub fn prompt_value_no_default<V: FromStr + Display>(
-    name: &str,
-    v: &mut Option<V>,
-) -> Result<(), Error>
+pub fn prompt_value_no_default<V: FromStr + Display>(name: &str) -> Result<V, Error>
 where
     <V as FromStr>::Err: Display,
 {
@@ -36,8 +33,7 @@ where
         let s = Input::new(name).interact()?;
         match s.parse() {
             Ok(value) => {
-                *v = Some(value);
-                return Ok(());
+                return Ok(value);
             }
             Err(err) => {
                 println!("  invalid input: {}", err);

@@ -26,9 +26,9 @@ functionality from the Sentry SDKs as well as the Sentry server into a proxy pro
 
 Semaphore needs a relay ready sentry installation to connect to.  It stores all
 of its settings in a `.semaphore` folder in the current working directory by
-default.  The initial config is created there by the `init` command:
+default.  The initial config can be created through a wizard:
 
-    semaphore init
+    semaphore config init
 
 This will guide you through the setup experience.
 

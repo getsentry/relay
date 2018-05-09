@@ -15,14 +15,15 @@ pub fn dump_spawn_infos(config: &Config) {
         "launching relay from config folder {}",
         config.path().display()
     );
-    dump_credentials(config);
+    info!("  relay id: {}", config.relay_id());
+    info!("  public key: {}", config.public_key());
     info!("  log level: {}", config.log_level_filter());
 }
 
 /// Dumps out credential info.
 pub fn dump_credentials(config: &Config) {
-    info!("  relay id: {}", config.relay_id());
-    info!("  public key: {}", config.public_key());
+    println!("  relay id: {}", config.relay_id());
+    println!("  public key: {}", config.public_key());
 }
 
 /// Initialize the logging system.

@@ -8,6 +8,7 @@ extern crate log;
 extern crate parking_lot;
 extern crate pretty_env_logger;
 extern crate sentry;
+extern crate uuid;
 
 extern crate semaphore_common;
 extern crate semaphore_config;

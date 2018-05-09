@@ -25,6 +25,7 @@ ctrlc = { version = "3.1.0", features = ["termination"] }
 log = "0.4.1"
 sentry = "0.5.1"
 dialoguer = "0.1.0"
+uuid = "0.6.3"
 
 [dependencies.semaphore-aorta]
 path = "aorta"
