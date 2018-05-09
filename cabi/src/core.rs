@@ -9,17 +9,17 @@ use utils::{set_panic_hook, Panic, LAST_ERROR};
 
 use uuid::Uuid;
 use failure::Error;
-use smith_aorta::{KeyParseError, UnpackError};
+use semaphore_aorta::{KeyParseError, UnpackError};
 
 /// Represents a uuid.
 #[repr(C)]
-pub struct SmithUuid {
-    pub data: [u8; 16]
+pub struct SemaphoreUuid {
+    pub data: [u8; 16],
 }
 
 /// Represents a string.
 #[repr(C)]
-pub struct SmithStr {
+pub struct SemaphoreStr {
     pub data: *mut c_char,
     pub len: usize,
     pub owned: bool,
@@ -27,7 +27,7 @@ pub struct SmithStr {
 
 /// Represents a buffer.
 #[repr(C)]
-pub struct SmithBuf {
+pub struct SemaphoreBuf {
     pub data: *mut u8,
     pub len: usize,
     pub owned: bool,
@@ -35,47 +35,49 @@ pub struct SmithBuf {
 
 /// Represents all possible error codes
 #[repr(u32)]
-pub enum SmithErrorCode {
+pub enum SemaphoreErrorCode {
     NoError = 0,
     Panic = 1,
     Unknown = 2,
-    // smith_aorta::auth::KeyParseError
+    // semaphore_aorta::auth::KeyParseError
     KeyParseErrorBadEncoding = 1000,
     KeyParseErrorBadKey = 1001,
-    // smith_aorta::auth::UnpackError
+    // semaphore_aorta::auth::UnpackError
     UnpackErrorBadSignature = 1003,
     UnpackErrorBadPayload = 1004,
     UnpackErrorSignatureExpired = 1005,
 }
 
-impl SmithErrorCode {
+impl SemaphoreErrorCode {
     /// This maps all errors that can possibly happen.
-    pub fn from_error(error: &Error) -> SmithErrorCode {
+    pub fn from_error(error: &Error) -> SemaphoreErrorCode {
         for cause in error.causes() {
             if let Some(..) = cause.downcast_ref::<Panic>() {
-                return SmithErrorCode::Panic;
+                return SemaphoreErrorCode::Panic;
             }
             if let Some(err) = cause.downcast_ref::<KeyParseError>() {
                 return match err {
-                    &KeyParseError::BadEncoding => SmithErrorCode::KeyParseErrorBadEncoding,
-                    &KeyParseError::BadKey => SmithErrorCode::KeyParseErrorBadKey,
+                    &KeyParseError::BadEncoding => SemaphoreErrorCode::KeyParseErrorBadEncoding,
+                    &KeyParseError::BadKey => SemaphoreErrorCode::KeyParseErrorBadKey,
                 };
             }
             if let Some(err) = cause.downcast_ref::<UnpackError>() {
                 return match err {
-                    &UnpackError::BadSignature => SmithErrorCode::UnpackErrorBadSignature,
-                    &UnpackError::BadPayload(..) => SmithErrorCode::UnpackErrorBadPayload,
-                    &UnpackError::SignatureExpired => SmithErrorCode::UnpackErrorSignatureExpired,
+                    &UnpackError::BadSignature => SemaphoreErrorCode::UnpackErrorBadSignature,
+                    &UnpackError::BadPayload(..) => SemaphoreErrorCode::UnpackErrorBadPayload,
+                    &UnpackError::SignatureExpired => {
+                        SemaphoreErrorCode::UnpackErrorSignatureExpired
+                    }
                 };
             }
         }
-        SmithErrorCode::Unknown
+        SemaphoreErrorCode::Unknown
     }
 }
 
-impl Default for SmithStr {
-    fn default() -> SmithStr {
-        SmithStr {
+impl Default for SemaphoreStr {
+    fn default() -> SemaphoreStr {
+        SemaphoreStr {
             data: ptr::null_mut(),
             len: 0,
             owned: false,
@@ -83,18 +85,18 @@ impl Default for SmithStr {
     }
 }
 
-impl SmithStr {
-    pub fn new(s: &str) -> SmithStr {
-        SmithStr {
+impl SemaphoreStr {
+    pub fn new(s: &str) -> SemaphoreStr {
+        SemaphoreStr {
             data: s.as_ptr() as *mut c_char,
             len: s.len(),
             owned: false,
         }
     }
 
-    pub fn from_string(mut s: String) -> SmithStr {
+    pub fn from_string(mut s: String) -> SemaphoreStr {
         s.shrink_to_fit();
-        let rv = SmithStr {
+        let rv = SemaphoreStr {
             data: s.as_ptr() as *mut c_char,
             len: s.len(),
             owned: true,
@@ -113,28 +115,23 @@ impl SmithStr {
     }
 
     pub fn as_str(&self) -> &str {
-        unsafe {
-            str::from_utf8_unchecked(slice::from_raw_parts(
-                self.data as *const _, self.len))
-        }
+        unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.data as *const _, self.len)) }
     }
 }
 
-impl SmithUuid {
-    pub fn new(uuid: Uuid) -> SmithUuid {
+impl SemaphoreUuid {
+    pub fn new(uuid: Uuid) -> SemaphoreUuid {
         unsafe { mem::transmute(*uuid.as_bytes()) }
     }
 
     pub fn as_uuid(&self) -> &Uuid {
-        unsafe {
-            mem::transmute(self)
-        }
+        unsafe { mem::transmute(self) }
     }
 }
 
-impl Default for SmithBuf {
-    fn default() -> SmithBuf {
-        SmithBuf {
+impl Default for SemaphoreBuf {
+    fn default() -> SemaphoreBuf {
+        SemaphoreBuf {
             data: ptr::null_mut(),
             len: 0,
             owned: false,
@@ -142,18 +139,18 @@ impl Default for SmithBuf {
     }
 }
 
-impl SmithBuf {
-    pub fn new(b: &[u8]) -> SmithBuf {
-        SmithBuf {
+impl SemaphoreBuf {
+    pub fn new(b: &[u8]) -> SemaphoreBuf {
+        SemaphoreBuf {
             data: b.as_ptr() as *mut u8,
             len: b.len(),
             owned: false,
         }
     }
 
-    pub fn from_vec(mut b: Vec<u8>) -> SmithBuf {
+    pub fn from_vec(mut b: Vec<u8>) -> SemaphoreBuf {
         b.shrink_to_fit();
-        let rv = SmithBuf {
+        let rv = SemaphoreBuf {
             data: b.as_ptr() as *mut u8,
             len: b.len(),
             owned: true,
@@ -172,15 +169,13 @@ impl SmithBuf {
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        unsafe {
-            slice::from_raw_parts(self.data as *const u8, self.len)
-        }
+        unsafe { slice::from_raw_parts(self.data as *const u8, self.len) }
     }
 }
 
 /// Initializes the library
 #[no_mangle]
-pub unsafe extern "C" fn smith_init() {
+pub unsafe extern "C" fn semaphore_init() {
     set_panic_hook();
 }
 
@@ -188,12 +183,12 @@ pub unsafe extern "C" fn smith_init() {
 ///
 /// If there is no error, 0 is returned.
 #[no_mangle]
-pub unsafe extern "C" fn smith_err_get_last_code() -> SmithErrorCode {
+pub unsafe extern "C" fn semaphore_err_get_last_code() -> SemaphoreErrorCode {
     LAST_ERROR.with(|e| {
         if let Some(ref err) = *e.borrow() {
-            SmithErrorCode::from_error(err)
+            SemaphoreErrorCode::from_error(err)
         } else {
-            SmithErrorCode::NoError
+            SemaphoreErrorCode::NoError
         }
     })
 }
@@ -201,9 +196,9 @@ pub unsafe extern "C" fn smith_err_get_last_code() -> SmithErrorCode {
 /// Returns the last error message.
 ///
 /// If there is no error an empty string is returned.  This allocates new memory
-/// that needs to be freed with `smith_str_free`.
+/// that needs to be freed with `semaphore_str_free`.
 #[no_mangle]
-pub unsafe extern "C" fn smith_err_get_last_message() -> SmithStr {
+pub unsafe extern "C" fn semaphore_err_get_last_message() -> SemaphoreStr {
     use std::fmt::Write;
     LAST_ERROR.with(|e| {
         if let Some(ref err) = *e.borrow() {
@@ -211,7 +206,7 @@ pub unsafe extern "C" fn smith_err_get_last_message() -> SmithStr {
             for cause in err.causes().skip(1) {
                 write!(&mut msg, "\n  caused by: {}", cause).ok();
             }
-            SmithStr::from_string(msg)
+            SemaphoreStr::from_string(msg)
         } else {
             Default::default()
         }
@@ -220,7 +215,7 @@ pub unsafe extern "C" fn smith_err_get_last_message() -> SmithStr {
 
 /// Returns the panic information as string.
 #[no_mangle]
-pub unsafe extern "C" fn smith_err_get_backtrace() -> SmithStr {
+pub unsafe extern "C" fn semaphore_err_get_backtrace() -> SemaphoreStr {
     LAST_ERROR.with(|e| {
         if let Some(ref error) = *e.borrow() {
             let backtrace = error.backtrace().to_string();
@@ -228,7 +223,7 @@ pub unsafe extern "C" fn smith_err_get_backtrace() -> SmithStr {
                 use std::fmt::Write;
                 let mut out = String::new();
                 write!(&mut out, "stacktrace: {}", backtrace).ok();
-                SmithStr::from_string(out)
+                SemaphoreStr::from_string(out)
             } else {
                 Default::default()
             }
@@ -240,21 +235,21 @@ pub unsafe extern "C" fn smith_err_get_backtrace() -> SmithStr {
 
 /// Clears the last error.
 #[no_mangle]
-pub unsafe extern "C" fn smith_err_clear() {
+pub unsafe extern "C" fn semaphore_err_clear() {
     LAST_ERROR.with(|e| {
         *e.borrow_mut() = None;
     });
 }
 
 ffi_fn! {
-    /// Creates a smith str from a c string.
+    /// Creates a semaphore str from a c string.
     ///
     /// This sets the string to owned.  In case it's not owned you either have
     /// to make sure you are not freeing the memory or you need to set the
     /// owned flag to false.
-    unsafe fn smith_str_from_cstr(s: *const c_char) -> Result<SmithStr> {
+    unsafe fn semaphore_str_from_cstr(s: *const c_char) -> Result<SemaphoreStr> {
         let s = CStr::from_ptr(s).to_str()?;
-        Ok(SmithStr {
+        Ok(SemaphoreStr {
             data: s.as_ptr() as *mut _,
             len: s.len(),
             owned: true,
@@ -262,23 +257,23 @@ ffi_fn! {
     }
 }
 
-/// Frees a smith str.
+/// Frees a semaphore str.
 ///
 /// If the string is marked as not owned then this function does not
 /// do anything.
 #[no_mangle]
-pub unsafe extern "C" fn smith_str_free(s: *mut SmithStr) {
+pub unsafe extern "C" fn semaphore_str_free(s: *mut SemaphoreStr) {
     if !s.is_null() {
         (*s).free()
     }
 }
 
-/// Frees a smith buf.
+/// Frees a semaphore buf.
 ///
 /// If the buffer is marked as not owned then this function does not
 /// do anything.
 #[no_mangle]
-pub unsafe extern "C" fn smith_buf_free(b: *mut SmithBuf) {
+pub unsafe extern "C" fn semaphore_buf_free(b: *mut SemaphoreBuf) {
     if !b.is_null() {
         (*b).free()
     }
@@ -286,7 +281,7 @@ pub unsafe extern "C" fn smith_buf_free(b: *mut SmithBuf) {
 
 /// Returns true if the uuid is nil
 #[no_mangle]
-pub unsafe extern "C" fn smith_uuid_is_nil(uuid: *const SmithUuid) -> bool {
+pub unsafe extern "C" fn semaphore_uuid_is_nil(uuid: *const SemaphoreUuid) -> bool {
     if let Ok(uuid) = Uuid::from_bytes(&(*uuid).data[..]) {
         uuid == Uuid::nil()
     } else {
@@ -297,9 +292,9 @@ pub unsafe extern "C" fn smith_uuid_is_nil(uuid: *const SmithUuid) -> bool {
 /// Formats the UUID into a string.
 ///
 /// The string is newly allocated and needs to be released with
-/// `smith_cstr_free`.
+/// `semaphore_cstr_free`.
 #[no_mangle]
-pub unsafe extern "C" fn smith_uuid_to_str(uuid: *const SmithUuid) -> SmithStr {
-    let uuid =  Uuid::from_bytes(&(*uuid).data[..]).unwrap_or(Uuid::nil());
-    SmithStr::from_string(uuid.hyphenated().to_string())
+pub unsafe extern "C" fn semaphore_uuid_to_str(uuid: *const SemaphoreUuid) -> SemaphoreStr {
+    let uuid = Uuid::from_bytes(&(*uuid).data[..]).unwrap_or(Uuid::nil());
+    SemaphoreStr::from_string(uuid.hyphenated().to_string())
 }

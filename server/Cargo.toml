@@ -1,11 +1,11 @@
 [package]
 authors = ["Sentry <hello@sentry.io>"]
 description = "Server components for the relay"
-documentation = "https://docs.rs/smith-server"
-homepage = "https://github.com/getsentry/sentry-relay"
+documentation = "https://docs.rs/semaphore-server"
+homepage = "https://github.com/getsentry/semaphore"
 license = "MIT"
-name = "smith-server"
-repository = "https://github.com/getsentry/sentry-relay"
+name = "semaphore-server"
+repository = "https://github.com/getsentry/semaphore"
 version = "0.1.0"
 build = "build.rs"
 
@@ -40,18 +40,18 @@ bytes = "0.4.7"
 base64 = "0.9.1"
 flate2 = "1.0.1"
 
-[dependencies.smith-aorta]
+[dependencies.semaphore-aorta]
 path = "../aorta"
 version = "0.1.0"
 
-[dependencies.smith-config]
+[dependencies.semaphore-config]
 path = "../config"
 version = "0.1.0"
 
-[dependencies.smith-common]
+[dependencies.semaphore-common]
 path = "../common"
 version = "0.1.0"
 
-[dependencies.smith-trove]
+[dependencies.semaphore-trove]
 path = "../trove"
 version = "0.1.0"

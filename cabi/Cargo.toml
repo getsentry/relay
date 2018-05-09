@@ -1,14 +1,14 @@
 [package]
-name = "smith-cabi"
+name = "semaphore-cabi"
 version = "0.1.0"
 license = "MIT"
 authors = ["Sentry <hello@sentry.io>"]
-homepage = "https://github.com/getsentry/sentry-relay"
-repository = "https://github.com/getsentry/sentry-relay"
+homepage = "https://github.com/getsentry/semaphore"
+repository = "https://github.com/getsentry/semaphore"
 description = "Exposes some internals of the relay to C."
 
 [lib]
-name = "smith"
+name = "semaphore"
 crate-type = ["cdylib"]
 
 [workspace]
@@ -17,7 +17,7 @@ crate-type = ["cdylib"]
 debug = true
 
 [dependencies]
-smith-aorta = { version = "0.1.0", path = "../aorta" }
+semaphore-aorta = { version = "0.1.0", path = "../aorta" }
 failure = "0.1.1"
 uuid = "0.6.3"
 serde_json = "1.0.17"

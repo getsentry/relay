@@ -1,11 +1,11 @@
 [package]
 authors = ["Sentry <hello@sentry.io>"]
 description = "A helper library for managing different aortas"
-documentation = "https://docs.rs/smith-trove"
-homepage = "https://github.com/getsentry/sentry-relay"
+documentation = "https://docs.rs/semaphore-trove"
+homepage = "https://github.com/getsentry/semaphore"
 license = "MIT"
-name = "smith-trove"
-repository = "https://github.com/getsentry/sentry-relay"
+name = "semaphore-trove"
+repository = "https://github.com/getsentry/semaphore"
 version = "0.1.0"
 
 [dependencies]
@@ -22,10 +22,10 @@ serde_json = "1.0.17"
 serde = "1.0.45"
 serde_derive = "1.0.45"
 
-[dependencies.smith-aorta]
+[dependencies.semaphore-aorta]
 path = "../aorta"
 version = "0.1.0"
 
-[dependencies.smith-common]
+[dependencies.semaphore-common]
 path = "../common"
 version = "0.1.0"

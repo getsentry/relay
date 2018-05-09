@@ -1,11 +1,11 @@
 [package]
 authors = ["Sentry <hello@sentry.io>"]
 description = "The relay <-> backend communcation and authentication protocol"
-documentation = "https://docs.rs/smith-common"
-homepage = "https://github.com/getsentry/sentry-relay"
+documentation = "https://docs.rs/semaphore-common"
+homepage = "https://github.com/getsentry/semaphore"
 license = "MIT"
-name = "smith-aorta"
-repository = "https://github.com/getsentry/sentry-relay"
+name = "semaphore-aorta"
+repository = "https://github.com/getsentry/semaphore"
 version = "0.1.0"
 
 [dependencies]
@@ -32,7 +32,7 @@ base64-serde = "0.3.0"
 features = ["serde"]
 version = "0.4.2"
 
-[dependencies.smith-common]
+[dependencies.semaphore-common]
 path = "../common"
 version = "0.1.0"
 

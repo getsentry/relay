@@ -14,13 +14,13 @@ extern crate log;
 extern crate parking_lot;
 extern crate rand;
 extern crate rust_sodium;
+#[macro_use]
+extern crate semaphore_common;
 extern crate sentry_types;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-#[macro_use]
-extern crate smith_common;
 extern crate tokio_core;
 extern crate url;
 extern crate url_serde;

@@ -1,11 +1,11 @@
 [package]
 authors = ["Sentry <hello@sentry.io>"]
 description = "Common functionality for the sentry relay"
-documentation = "https://docs.rs/smith-common"
-homepage = "https://github.com/getsentry/sentry-relay"
+documentation = "https://docs.rs/semaphore-common"
+homepage = "https://github.com/getsentry/semaphore"
 license = "MIT"
-name = "smith-common"
-repository = "https://github.com/getsentry/sentry-relay"
+name = "semaphore-common"
+repository = "https://github.com/getsentry/semaphore"
 version = "0.1.0"
 
 [dependencies]

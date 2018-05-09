@@ -1,13 +1,13 @@
-from smith._compat import implements_to_string
-from smith._lowlevel import lib
+from semaphore._compat import implements_to_string
+from semaphore._lowlevel import lib
 
 
-__all__ = ['SmithError']
+__all__ = ['SemaphoreError']
 exceptions_by_code = {}
 
 
 @implements_to_string
-class SmithError(Exception):
+class SemaphoreError(Exception):
     code = None
 
     def __init__(self, msg):
@@ -22,7 +22,7 @@ class SmithError(Exception):
         return rv
 
 
-def _make_error(error_name, base=SmithError, code=None):
+def _make_error(error_name, base=SemaphoreError, code=None):
     class Exc(base):
         pass
     Exc.__name__ = error_name
@@ -41,15 +41,15 @@ def _get_error_base(error_name):
         if base_class is None:
             base_class = _make_error(base_error_name)
         return base_class
-    return SmithError
+    return SemaphoreError
 
 
 def _make_exceptions():
     for attr in dir(lib):
-        if not attr.startswith('SMITH_ERROR_CODE_'):
+        if not attr.startswith('SEMAPHORE_ERROR_CODE_'):
             continue
 
-        error_name = attr[17:].title().replace('_', '')
+        error_name = attr[21:].title().replace('_', '')
         base = _get_error_base(error_name)
         exc = _make_error(error_name, base=base,
                           code=getattr(lib, attr))

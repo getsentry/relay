@@ -1,9 +1,9 @@
 import io
 import uuid
 import weakref
-from smith._lowlevel import ffi, lib
-from smith._compat import text_type, with_metaclass
-from smith.exceptions import exceptions_by_code, SmithError
+from semaphore._lowlevel import ffi, lib
+from semaphore._compat import text_type, with_metaclass
+from semaphore.exceptions import exceptions_by_code, SemaphoreError
 
 
 attached_refs = weakref.WeakKeyDictionary()
@@ -50,15 +50,15 @@ class RustObject(with_metaclass(_NoDict)):
 
 def rustcall(func, *args):
     """Calls rust method and does some error handling."""
-    lib.smith_err_clear()
+    lib.semaphore_err_clear()
     rv = func(*args)
-    err = lib.smith_err_get_last_code()
+    err = lib.semaphore_err_get_last_code()
     if not err:
         return rv
-    msg = lib.smith_err_get_last_message()
-    cls = exceptions_by_code.get(err, SmithError)
+    msg = lib.semaphore_err_get_last_message()
+    cls = exceptions_by_code.get(err, SemaphoreError)
     exc = cls(decode_str(msg))
-    backtrace = decode_str(lib.smith_err_get_backtrace())
+    backtrace = decode_str(lib.semaphore_err_get_backtrace())
     if backtrace:
         exc.rust_info = backtrace
     raise exc
@@ -72,12 +72,12 @@ def decode_str(s, free=False):
         return ffi.unpack(s.data, s.len).decode('utf-8', 'replace')
     finally:
         if free:
-            lib.smith_str_free(ffi.addressof(s))
+            lib.semaphore_str_free(ffi.addressof(s))
 
 
 def encode_str(s):
-    """Encodes a SmithStr"""
-    rv = ffi.new('SmithStr *')
+    """Encodes a SemaphoreStr"""
+    rv = ffi.new('SemaphoreStr *')
     if isinstance(s, text_type):
         s = s.encode('utf-8')
     rv.data = ffi.from_buffer(s)
@@ -91,7 +91,7 @@ def encode_str(s):
 
 def make_buf(value):
     buf = memoryview(bytes(value))
-    rv = ffi.new('SmithBuf *')
+    rv = ffi.new('SemaphoreBuf *')
     rv.data = ffi.from_buffer(buf)
     rv.len = len(buf)
     attached_refs[rv] = buf

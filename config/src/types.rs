@@ -15,8 +15,8 @@ use serde_yaml;
 use serde::ser::Serialize;
 use serde::de::DeserializeOwned;
 use failure::{Backtrace, Context, Fail};
-use smith_aorta::{generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId,
-                  SecretKey, UpstreamDescriptor};
+use semaphore_aorta::{generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId,
+                      SecretKey, UpstreamDescriptor};
 
 /// Indicates config related errors.
 #[derive(Debug)]

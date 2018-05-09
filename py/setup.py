@@ -13,7 +13,7 @@ from distutils.command.sdist import sdist
 _version_re = re.compile(r'^version\s*=\s*"(.*?)"\s*$(?m)')
 
 
-DEBUG_BUILD = os.environ.get('SMITH_DEBUG') == '1'
+DEBUG_BUILD = os.environ.get('SEMAPHORE_DEBUG') == '1'
 
 with open('README', 'rb') as f:
     readme = f.read()
@@ -78,15 +78,15 @@ def build_native(spec):
     if sys.platform == 'darwin':
         rtld_flags.append('NODELETE')
     spec.add_cffi_module(
-        module_path='smith._lowlevel',
-        dylib=lambda: build.find_dylib('smith', in_path='target/%s' % target),
-        header_filename=lambda: build.find_header('smith.h', in_path='include'),
+        module_path='semaphore._lowlevel',
+        dylib=lambda: build.find_dylib('semaphore', in_path='target/%s' % target),
+        header_filename=lambda: build.find_header('semaphore.h', in_path='include'),
         rtld_flags=rtld_flags
     )
 
 
 setup(
-    name='smith',
+    name='semaphore',
     version=version,
     packages=find_packages(),
     author='Sentry',

@@ -5,7 +5,7 @@ use actix_web::middleware::{Finished, Middleware, Response, Started};
 use actix_web::{Body, HttpRequest, HttpResponse, http::header};
 use sentry::integrations::failure::capture_fail;
 
-use smith_aorta::ApiErrorResponse;
+use semaphore_aorta::ApiErrorResponse;
 
 use constants::SERVER;
 

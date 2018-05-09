@@ -5,17 +5,17 @@ use failure::{err_msg, Error};
 use clap::{App, AppSettings, Arg, ArgMatches};
 use dialoguer::{Confirmation, Select};
 
-use smith_server;
-use smith_config::{Config, MinimalConfig};
+use semaphore_server;
+use semaphore_config::{Config, MinimalConfig};
 
 use setup;
 use utils;
 
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-pub const ABOUT: &'static str = "Runs a sentry-relay";
+pub const ABOUT: &'static str = "Semaphore is an implementation of the relay system for Sentry.";
 
 fn make_app<'a, 'b>() -> App<'a, 'b> {
-    App::new("sentry-relay")
+    App::new("semaphore")
         .setting(AppSettings::UnifiedHelpMessage)
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .help_message("Print this help message.")
@@ -59,7 +59,7 @@ fn make_app<'a, 'b>() -> App<'a, 'b> {
 pub fn execute() -> Result<(), Error> {
     let app = make_app();
     let matches = app.get_matches();
-    let config_path = matches.value_of("config").unwrap_or(".sentry-relay");
+    let config_path = matches.value_of("config").unwrap_or(".semaphore");
 
     // init is special because it does not yet have a config.
     if let Some(matches) = matches.subcommand_matches("init") {
@@ -160,7 +160,7 @@ pub fn run<'a>(mut config: Config, _matches: &ArgMatches<'a>) -> Result<(), Erro
     setup::dump_spawn_infos(&config);
     setup::init_metrics(&config)?;
 
-    smith_server::run(config)?;
+    semaphore_server::run(config)?;
 
     Ok(())
 }

@@ -5,7 +5,7 @@ use tokio_core::reactor::Timeout;
 
 use types::TroveContext;
 
-use smith_aorta::{RegisterChallenge, RegisterRequest};
+use semaphore_aorta::{RegisterChallenge, RegisterRequest};
 
 /// Represents the current auth state of the trove.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
