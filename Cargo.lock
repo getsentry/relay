@@ -1459,6 +1459,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "semaphore"
+version = "0.1.0"
+dependencies = [
+ "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ctrlc 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "dialoguer 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pretty_env_logger 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "semaphore-aorta 0.1.0",
+ "semaphore-common 0.1.0",
+ "semaphore-config 0.1.0",
+ "semaphore-server 0.1.0",
+ "semaphore-trove 0.1.0",
+ "sentry 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "semaphore-aorta"
 version = "0.1.0"
 dependencies = [
@@ -1620,27 +1641,6 @@ dependencies = [
  "uname 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "semaphore"
-version = "0.1.0"
-dependencies = [
- "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "ctrlc 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "dialoguer 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "parking_lot 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "pretty_env_logger 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "semaphore-aorta 0.1.0",
- "semaphore-common 0.1.0",
- "semaphore-config 0.1.0",
- "semaphore-server 0.1.0",
- "semaphore-trove 0.1.0",
- "sentry 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
