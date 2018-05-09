@@ -13,8 +13,6 @@
 [![PyPI](https://img.shields.io/pypi/v/semaphore.svg)](https://pypi.python.org/pypi/Semaphore)
 [![license](https://img.shields.io/github/license/getsentry/semaphore.svg)](https://github.com/getsentry/semaphore/blob/master/LICENSE)
 
-<img src="https://github.com/getsentry/semaphore/blob/master/artwork/semaphore.jpg?raw=true" alt="semaphore tower">
-
 <p align="center">
   <p align="center">
     <img src="https://github.com/getsentry/semaphore/blob/master/artwork/semaphore.jpg?raw=true" alt="semaphore tower" width="480">
