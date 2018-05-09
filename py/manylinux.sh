@@ -4,7 +4,7 @@ set -e
 # Install dependencies needed by our wheel
 yum -y -q -e 0 install gcc libffi-devel openssl101e-devel
 
-export OPENSSL_INCLUDE_DIR=/usr/include/openssl101e/openssl
+export OPENSSL_INCLUDE_DIR=/usr/include/openssl101e
 export OPENSSL_LIB_DIR=/usr/lib64/openssl101e
 
 # Install Rust
