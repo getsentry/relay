@@ -22,9 +22,24 @@
 The Sentry Relay (aka Semaphore) is a work in progress service that pushes some
 functionality from the Sentry SDKs as well as the Sentry server into a proxy process.
 
+## Usage
+
+Semaphore needs a relay ready sentry installation to connect to.  It stores all
+of its settings in a `.semaphore` folder in the current working directory by
+default.  The initial config is created there by the `init` command:
+
+    semaphore init
+
+This will guide you through the setup experience.
+
+To run semaphore in the foreground and connect to the upstream sentry installation
+`run` can be used:
+
+    semaphore run
+
 ## License
 
-Sentry Relay is licensed under the MIT license.
+Semaphore is licensed under the MIT license.
 
 ## Development
 
