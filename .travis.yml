@@ -34,21 +34,21 @@ matrix:
     # Python tests
     - os: linux
       env: SUITE=pytest
-    - os: linux
+    - os: osx
       env: SUITE=pytest
 
     # Rust builds
-    - os: linux
-      sudo: required
-      env: SUITE=dockerbuild BUILD_ARCH=i686
-    - os: linux
-      sudo: required
-      env: SUITE=dockerbuild BUILD_ARCH=x86_64
-    - os: osx
-      osx_image: xcode6.4
-      language: rust
-      env: SUITE=releasebuild
-      install: skip
+    # - os: linux
+    #   sudo: required
+    #   env: SUITE=dockerbuild BUILD_ARCH=i686
+    # - os: linux
+    #   sudo: required
+    #   env: SUITE=dockerbuild BUILD_ARCH=x86_64
+    # - os: osx
+    #   osx_image: xcode6.4
+    #   language: rust
+    #   env: SUITE=releasebuild
+    #   install: skip
 
     # Python builds
     - os: linux
