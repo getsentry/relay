@@ -19,6 +19,7 @@ fn make_app<'a, 'b>() -> App<'a, 'b> {
     App::new("semaphore")
         .global_setting(AppSettings::UnifiedHelpMessage)
         .setting(AppSettings::SubcommandRequiredElseHelp)
+        .max_term_width(79)
         .help_message("Print this help message.")
         .version(VERSION)
         .version_message("Print version information.")
@@ -36,24 +37,60 @@ fn make_app<'a, 'b>() -> App<'a, 'b> {
             App::new("credentials")
                 .setting(AppSettings::SubcommandRequiredElseHelp)
                 .about("Manage the relay credentials")
-                .subcommand(
-                    App::new("generate").about("Generate new credentials").arg(
-                        Arg::with_name("overwrite")
-                            .long("overwrite")
-                            .help("Overwrite already existing credentials instead of failing"),
-                    ),
+                .after_help(
+                    "This command can be used to manage the stored credentials of \
+                     the relay.  These credentials are used to authenticate with the \
+                     upstream sentry.  A sentry organization trusts a certain public \
+                     key and each relay is identified with a unique relay ID.\n\
+                     \n\
+                     Multiple relays can share the same public/secret key pair for as \
+                     long as they use different relay IDs.  Once a relay (as identified \
+                     by the ID) has signed in with a certain key it cannot be changed \
+                     any more.",
                 )
                 .subcommand(
-                    App::new("remove").about("Remove credentials").arg(
-                        Arg::with_name("yes")
-                            .long("yes")
-                            .help("Do not prompt for confirmation"),
-                    ),
+                    App::new("generate")
+                        .about("Generate new credentials")
+                        .after_help(
+                            "This generates new credentials for the relay and stores \
+                             them.  In case the relay already has credentials stored \
+                             this command will error unless the '--overwrite' option \
+                             has been passed.",
+                        )
+                        .arg(
+                            Arg::with_name("overwrite")
+                                .long("overwrite")
+                                .help("Overwrite already existing credentials instead of failing"),
+                        ),
                 )
-                .subcommand(App::new("show").about("Show current credentials"))
+                .subcommand(
+                    App::new("remove")
+                        .about("Remove credentials")
+                        .after_help(
+                            "This command removes already stored credentials from the \
+                             relay.",
+                        )
+                        .arg(
+                            Arg::with_name("yes")
+                                .long("yes")
+                                .help("Do not prompt for confirmation"),
+                        ),
+                )
+                .subcommand(
+                    App::new("show")
+                        .about("Show currently stored credentials.")
+                        .after_help("This prints out the agent ID and public key."),
+                )
                 .subcommand(
                     App::new("set")
                         .about("Set new credentials")
+                        .after_help(
+                            "Credentials can be stored by providing them on the command \
+                             line.  If just an agent id (or secret/public key pair) is \
+                             provided that part of the credentials are overwritten.  If \
+                             no credentials are stored yet at all and no parameters are \
+                             supplied the command will prompt for the appropriate values.",
+                        )
                         .arg(
                             Arg::with_name("secret_key")
                                 .long("secret-key")
@@ -82,11 +119,33 @@ fn make_app<'a, 'b>() -> App<'a, 'b> {
         .subcommand(
             App::new("config")
                 .about("Manage the relay config")
+                .after_help(
+                    "This command provides basic config management.  It can be \
+                     used primarily to initialize a new relay config and to \
+                     print out the current config.",
+                )
                 .setting(AppSettings::SubcommandRequiredElseHelp)
-                .subcommand(App::new("init").about("Initialize a new relay config"))
+                .subcommand(
+                    App::new("init")
+                        .about("Initialize a new relay config")
+                        .after_help(
+                            "For new relay installations this will guide through \
+                             the initial config process and create the necessary \
+                             files.  It will create an initial config as well as \
+                             set of credentials.",
+                        ),
+                )
                 .subcommand(
                     App::new("show")
                         .about("Show the entire config out for debugging purposes")
+                        .after_help(
+                            "This dumps out the entire config including the values \
+                             which are not in the config file but filled in from \
+                             defaults.  The default output format is YAML but \
+                             other formats can also be specified.  The debug format \
+                             in particular is useful to understand how the relay \
+                             interprets the individual values.",
+                        )
                         .arg(
                             Arg::with_name("format")
                                 .short("f")
@@ -137,6 +196,7 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
         println!("Generated new credentials");
         setup::dump_credentials(&config);
     } else if let Some(matches) = matches.subcommand_matches("set") {
+        let mut prompted = false;
         let secret_key = match matches.value_of("secret_key") {
             Some(value) => Some(value
                 .parse()
@@ -150,6 +210,7 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
             None => config.credentials().map(|x| x.public_key.clone()),
         };
         let id = match matches.value_of("id") {
+            Some("random") => Some(Uuid::new_v4()),
             Some(value) => Some(value
                 .parse()
                 .map_err(|_| err_msg("invalid relay id supplied"))?),
@@ -158,15 +219,22 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
         let changed = config.replace_credentials(Some(Credentials {
             secret_key: match secret_key {
                 Some(value) => value,
-                None => utils::prompt_value_no_default("secret key")?,
+                None => {
+                    prompted = true;
+                    utils::prompt_value_no_default("secret key")?
+                }
             },
             public_key: match public_key {
                 Some(value) => value,
-                None => utils::prompt_value_no_default("public key")?,
+                None => {
+                    prompted = true;
+                    utils::prompt_value_no_default("public key")?
+                }
             },
             id: match id {
                 Some(value) => value,
                 None => {
+                    prompted = true;
                     if Confirmation::new("do you want to generate a random relay id").interact()? {
                         Uuid::new_v4()
                     } else {
@@ -176,9 +244,14 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
             },
         }))?;
         if !changed {
-            println!("no changes");
+            println!("Nothing was changed");
+            if !prompted {
+                println!(
+                    "Run `semaphore credentials remove` first to remove all stored credentials."
+                );
+            }
         } else {
-            println!("Stored updated credentials");
+            println!("Stored updated credentials:");
             setup::dump_credentials(&config);
         }
     } else if let Some(matches) = matches.subcommand_matches("remove") {

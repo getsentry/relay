@@ -38,10 +38,13 @@ pub enum EventVariant {
     Foreign(ForeignEvent),
 }
 
+/// Represents some payload not known to the relay
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum ForeignPayload {
+    /// JSON formatted payload
     Json(serde_json::Value),
+    /// Base64 encoded binary data.
     Raw(#[serde(with = "StandardBase64")] Vec<u8>),
 }
 
