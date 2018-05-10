@@ -1,6 +1,6 @@
 //! Provides access to the metrics sytem.
-use std::sync::Arc;
 use std::net::ToSocketAddrs;
+use std::sync::Arc;
 
 use cadence::StatsdClient;
 use parking_lot::RwLock;
@@ -16,8 +16,8 @@ thread_local! {
 /// Internal prelude for the macro
 #[doc(hidden)]
 pub mod _pred {
-    pub use std::time::Instant;
     pub use cadence::prelude::*;
+    pub use std::time::Instant;
 }
 
 /// The metrics prelude that is necessary to use the client.

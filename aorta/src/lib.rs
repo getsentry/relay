@@ -29,16 +29,16 @@ extern crate uuid;
 mod api;
 mod auth;
 mod config;
+mod event;
 mod projectstate;
 mod query;
 mod upstream;
-mod event;
 mod utils;
 
 pub use api::*;
 pub use auth::*;
 pub use config::*;
+pub use event::*;
 pub use projectstate::*;
 pub use query::*;
 pub use upstream::*;
-pub use event::*;

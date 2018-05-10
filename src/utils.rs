@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use std::fmt::Display;
+use std::str::FromStr;
 
 use dialoguer::Input;
 use failure::Error;

@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::net::{SocketAddr, TcpListener};
+use std::sync::Arc;
 
 use actix;
 use actix_web::{server, App};
@@ -41,7 +41,7 @@ fn make_app(state: Arc<TroveState>) -> ServiceApp {
     macro_rules! register_endpoint {
         ($name:ident) => {
             app = endpoints::$name::configure_app(app);
-        }
+        };
     }
 
     register_endpoint!(healthcheck);

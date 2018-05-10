@@ -7,11 +7,11 @@ use base64;
 use chrono::{DateTime, Duration, Utc};
 use hyper::Method;
 use rand::{thread_rng, Rng};
+use rust_sodium;
+use rust_sodium::crypto::sign::ed25519 as sign_backend;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 use serde_json;
-use rust_sodium;
-use rust_sodium::crypto::sign::ed25519 as sign_backend;
 use uuid::Uuid;
 
 use api::ApiRequest;

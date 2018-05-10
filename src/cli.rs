@@ -1,13 +1,13 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-use failure::{err_msg, Error};
 use clap::{App, AppSettings, Arg, ArgMatches};
 use dialoguer::{Confirmation, Select};
+use failure::{err_msg, Error};
 use uuid::Uuid;
 
-use semaphore_server;
 use semaphore_config::{Config, Credentials, MinimalConfig};
+use semaphore_server;
 
 use setup;
 use utils;

@@ -1,13 +1,13 @@
 use std::env;
 
-use sentry;
-use log::LevelFilter;
 use failure::Error;
+use log::LevelFilter;
 use pretty_env_logger;
+use sentry;
 use sentry::integrations::log as sentry_log;
 
-use semaphore_config::Config;
 use semaphore_common::metrics;
+use semaphore_config::Config;
 
 /// Print spawn infos to the log.
 pub fn dump_spawn_infos(config: &Config) {

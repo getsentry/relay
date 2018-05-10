@@ -1,22 +1,22 @@
+use std::env;
+use std::fmt;
 use std::fs;
 use std::io;
 use std::io::Write;
-use std::fmt;
-use std::env;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use chrono::Duration;
-use log;
-use sentry::Dsn;
-use serde_json;
-use serde_yaml;
-use serde::ser::Serialize;
-use serde::de::DeserializeOwned;
 use failure::{Backtrace, Context, Fail};
+use log;
 use semaphore_aorta::{generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId,
                       SecretKey, UpstreamDescriptor};
+use sentry::Dsn;
+use serde::de::DeserializeOwned;
+use serde::ser::Serialize;
+use serde_json;
+use serde_yaml;
 
 /// Indicates config related errors.
 #[derive(Debug)]
@@ -29,9 +29,9 @@ macro_rules! ctry {
     ($expr:expr, $kind:expr, $path:expr) => {
         match $expr {
             Ok(val) => val,
-            Err(err) => return Err(ConfigError::new($path, err.context($kind)))
+            Err(err) => return Err(ConfigError::new($path, err.context($kind))),
         }
-    }
+    };
 }
 
 impl Fail for ConfigError {

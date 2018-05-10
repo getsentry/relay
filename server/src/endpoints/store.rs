@@ -1,15 +1,15 @@
 //! Handles event store requests.
 use std::sync::Arc;
 
-use actix_web::{FromRequest, HttpResponse, Json, ResponseError, http::Method};
 use actix_web::middleware::cors::Cors;
+use actix_web::{FromRequest, HttpResponse, Json, ResponseError, http::Method};
 use uuid::Uuid;
 
-use service::ServiceApp;
 use extractors::{IncomingEvent, IncomingForeignEvent, ProjectRequest};
+use service::ServiceApp;
 
-use semaphore_trove::TroveState;
 use semaphore_aorta::{ApiErrorResponse, StoreChangeset};
+use semaphore_trove::TroveState;
 
 #[derive(Serialize)]
 struct StoreResponse {

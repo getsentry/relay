@@ -1,8 +1,8 @@
 //! A simple healthcheck endpoint for the relay.
 use actix_web::{HttpResponse, http::Method};
 
-use service::ServiceApp;
 use extractors::CurrentTroveState;
+use service::ServiceApp;
 
 #[derive(Serialize)]
 struct HealthcheckResponse {

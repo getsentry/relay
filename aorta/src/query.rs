@@ -1,8 +1,8 @@
-use std::time::{Duration, Instant};
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
 use std::fmt;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use hyper::Method;
 use parking_lot::RwLock;
@@ -147,12 +147,10 @@ impl RequestManager {
     pub fn pop_callback(
         &self,
         query_id: Uuid,
-    ) -> Option<
-        (
-            ProjectId,
-            Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>,
-        ),
-    > {
+    ) -> Option<(
+        ProjectId,
+        Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>,
+    )> {
         self.inner.write().query_callbacks.remove(&query_id)
     }
 

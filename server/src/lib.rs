@@ -33,12 +33,12 @@ extern crate uuid;
 extern crate libc;
 
 mod body;
+mod constants;
+mod endpoints;
 mod errors;
 mod extractors;
 mod middlewares;
 mod service;
-mod endpoints;
-mod constants;
 mod utils;
 
 pub use errors::*;

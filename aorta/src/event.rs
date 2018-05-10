@@ -1,12 +1,12 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::net::IpAddr;
-use std::collections::HashMap;
 
+use sentry_types::protocol::v7;
+use serde_json;
 use url::Url;
 use url_serde;
-use serde_json;
 use uuid::Uuid;
-use sentry_types::protocol::v7;
 
 use query::AortaChangeset;
 use utils::{serialize_origin, StandardBase64};

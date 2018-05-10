@@ -14,8 +14,8 @@ extern crate semaphore_common;
 extern crate semaphore_config;
 extern crate semaphore_server;
 
-mod setup;
 mod cli;
+mod setup;
 mod utils;
 
 use std::env;

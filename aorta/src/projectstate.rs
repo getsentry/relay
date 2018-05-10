@@ -1,21 +1,21 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::mem;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::de::DeserializeOwned;
-use uuid::Uuid;
 use url::Url;
+use uuid::Uuid;
 
 use config::AortaConfig;
+use event::StoreChangeset;
 use query::{AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};
 use semaphore_common::ProjectId;
 use upstream::UpstreamDescriptor;
-use event::StoreChangeset;
 
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
