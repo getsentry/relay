@@ -185,7 +185,7 @@ pub unsafe extern "C" fn semaphore_init() {
 #[no_mangle]
 pub unsafe extern "C" fn semaphore_err_get_last_code() -> SemaphoreErrorCode {
     LAST_ERROR.with(|e| {
-        if let Some(err) = *e.borrow() {
+        if let Some(ref err) = *e.borrow() {
             SemaphoreErrorCode::from_error(err)
         } else {
             SemaphoreErrorCode::NoError
@@ -201,7 +201,7 @@ pub unsafe extern "C" fn semaphore_err_get_last_code() -> SemaphoreErrorCode {
 pub unsafe extern "C" fn semaphore_err_get_last_message() -> SemaphoreStr {
     use std::fmt::Write;
     LAST_ERROR.with(|e| {
-        if let Some(err) = *e.borrow() {
+        if let Some(ref err) = *e.borrow() {
             let mut msg = err.to_string();
             for cause in err.causes().skip(1) {
                 write!(&mut msg, "\n  caused by: {}", cause).ok();
@@ -217,7 +217,7 @@ pub unsafe extern "C" fn semaphore_err_get_last_message() -> SemaphoreStr {
 #[no_mangle]
 pub unsafe extern "C" fn semaphore_err_get_backtrace() -> SemaphoreStr {
     LAST_ERROR.with(|e| {
-        if let Some(error) = *e.borrow() {
+        if let Some(ref error) = *e.borrow() {
             let backtrace = error.backtrace().to_string();
             if !backtrace.is_empty() {
                 use std::fmt::Write;
