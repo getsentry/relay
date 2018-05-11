@@ -28,13 +28,17 @@ cargotest:
 	@cargo test --all
 .PHONY: cargotest
 
-pymanylinux:
+manylinux:
 	@scripts/docker-manylinux.sh
-.PHONY: pymanylinux
+.PHONY: manylinux
 
-pywheel:
+wheel:
 	@$(MAKE) -C py wheel
-.PHONY: pywheel
+.PHONY: wheel
+
+sdist:
+	@$(MAKE) -C py sdist
+.PHONY: sdist
 
 pytest:
 	@$(MAKE) -C py test

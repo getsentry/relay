@@ -11,7 +11,7 @@ test: venv
 	@venv/bin/pytest tests
 
 manylinux:
-	@$(MAKE) -C .. pymanylinux
+	@$(MAKE) -C .. manylinux
 
 wheel: venv
 	@venv/bin/python setup.py bdist_wheel
