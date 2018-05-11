@@ -1,7 +1,16 @@
 venv
+
+# FFI
+semaphore/_lowlevel*
+
+# Wheels
 dist
 build
 *.egg-info
 .eggs
 .pytest_cache
-semaphore/_lowlevel*
+
+# sdist
+version.txt
+rustsrc.zip
+MANIFEST

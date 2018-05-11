@@ -34,7 +34,7 @@ def vendor_rust_deps():
 
 def write_version():
     with open('version.txt', 'wb') as f:
-        f.write('%s\n' % version)
+        f.write(('%s\n' % version).encode())
 
 
 class CustomSDist(sdist):
