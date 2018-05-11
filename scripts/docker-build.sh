@@ -6,7 +6,9 @@ TARGET="${BUILD_ARCH}-unknown-linux-musl"
 
 docker run \
         -e 'CC=' \
+        -e 'C_INCLUDE_PATH=' \
         -e "TARGET_CC=${TARGET}-gcc" \
+        -e "TARGET_C_INCLUDE_PATH=/usr/local/musl/${TARGET}/include/" \
         -w ${BUILD_DIR} \
         -v `pwd`:${BUILD_DIR} \
         -v $HOME/.cargo/registry:/root/.cargo/registry \
