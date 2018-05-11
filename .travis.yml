@@ -1,4 +1,4 @@
-language: generic
+language: rust
 services:
   - docker
 
@@ -15,54 +15,56 @@ branches:
   only:
     - master
 
+install: skip
 script: make $SUITE
 
 matrix:
   include:
     # Rust tests
-    - os: linux
-      env: SUITE=format-check
-      language: rust
+    - env: SUITE=format-check
       install: rustup component add rustfmt-preview
     - os: linux
       env: SUITE=cargotest
-      language: rust
+      install: cargo build --all
     - os: osx
       env: SUITE=cargotest
-      language: rust
+      install: cargo build --all
 
     # Python tests
-    # - os: linux
-    #   env: SUITE=pytest
-    # - os: osx
-    #   env: SUITE=pytest
+    - os: linux
+      env: SUITE=pytest
+    - os: osx
+      env: SUITE=pytest
 
     # Rust builds
-    # - os: linux
-    #   sudo: required
-    #   env: SUITE=dockerbuild BUILD_ARCH=i686
-    # - os: linux
-    #   sudo: required
-    #   env: SUITE=dockerbuild BUILD_ARCH=x86_64
-    # - os: osx
-    #   osx_image: xcode6.4
-    #   language: rust
-    #   env: SUITE=releasebuild
-    #   install: skip
+    - os: linux
+      sudo: required
+      env: SUITE=dockerbuild BUILD_ARCH=i686
+      language: generic
+    - os: linux
+      sudo: required
+      env: SUITE=dockerbuild BUILD_ARCH=x86_64
+      language: generic
+    - os: osx
+      osx_image: xcode6.4
+      env: SUITE=releasebuild
 
     # Python builds
     - os: linux
       sudo: required
       env: SUITE=manylinux BUILD_ARCH=i686
+      language: generic
     - os: linux
       sudo: required
       env: SUITE=manylinux BUILD_ARCH=x86_64
-    # - os: osx
-    #   osx_image: xcode7.3
-    #   env: SUITE=wheel
-    # - os: linux
-    #   sudo: required
-    #   env: SUITE=sdist
+      language: generic
+    - os: osx
+      osx_image: xcode7.3
+      env: SUITE=wheel
+    - os: linux
+      sudo: required
+      env: SUITE=sdist
+      language: generic
 
 notifications:
   webhooks:
