@@ -254,36 +254,103 @@ impl fmt::Debug for Config {
     }
 }
 
-fn load_config_from_path<D: DeserializeOwned>(path: &Path) -> Result<D, ConfigError> {
-    let f = ctry!(
-        fs::File::open(path),
-        ConfigErrorKind::CouldNotOpenFile,
-        path
-    );
-    Ok(ctry!(
-        serde_yaml::from_reader(io::BufReader::new(f)),
-        ConfigErrorKind::BadYaml,
-        path
-    ))
+enum ConfigFormat {
+    Yaml,
+    Json,
 }
 
-fn save_config_to_path<S: Serialize>(path: &Path, s: &S) -> Result<(), ConfigError> {
-    let mut f = ctry!(
-        fs::File::create(path),
-        ConfigErrorKind::CouldNotWriteFile,
-        path
-    );
-    ctry!(
-        serde_yaml::to_writer(&mut f, s),
-        ConfigErrorKind::BadYaml,
-        path
-    );
-    f.write_all(b"\n").ok();
-    Ok(())
+impl ConfigFormat {
+    pub fn extension(&self) -> &'static str {
+        match self {
+            ConfigFormat::Yaml => "yml",
+            ConfigFormat::Json => "json",
+        }
+    }
 }
 
-fn get_config_path(path: &Path, file: &str) -> PathBuf {
-    path.join(format!("{}.yml", file))
+trait ConfigObject: DeserializeOwned + Serialize {
+    fn format() -> ConfigFormat;
+    fn name() -> &'static str;
+    fn path(base: &Path) -> PathBuf {
+        base.join(format!("{}.{}", Self::name(), Self::format().extension()))
+    }
+
+    fn load(base: &Path) -> Result<Self, ConfigError> {
+        let path = Self::path(base);
+        let f = ctry!(
+            fs::File::open(&path),
+            ConfigErrorKind::CouldNotOpenFile,
+            &path
+        );
+        Ok(match Self::format() {
+            ConfigFormat::Yaml => ctry!(
+                serde_yaml::from_reader(io::BufReader::new(f)),
+                ConfigErrorKind::BadYaml,
+                &path
+            ),
+            ConfigFormat::Json => ctry!(
+                serde_json::from_reader(io::BufReader::new(f)),
+                ConfigErrorKind::BadYaml,
+                &path
+            ),
+        })
+    }
+
+    fn save(&self, base: &Path) -> Result<(), ConfigError> {
+        let path = Self::path(base);
+        let mut options = fs::OpenOptions::new();
+        options.write(true).truncate(true).create(true);
+
+        // Remove all non-user permissions for the newly created file
+        #[cfg(not(windows))]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+
+        let mut f = ctry!(
+            options.open(&path),
+            ConfigErrorKind::CouldNotWriteFile,
+            &path
+        );
+
+        match Self::format() {
+            ConfigFormat::Yaml => {
+                ctry!(
+                    serde_yaml::to_writer(&mut f, self),
+                    ConfigErrorKind::BadYaml,
+                    &path
+                );
+            }
+            ConfigFormat::Json => {
+                ctry!(
+                    serde_json::to_writer_pretty(&mut f, self),
+                    ConfigErrorKind::BadYaml,
+                    &path
+                );
+            }
+        }
+        f.write_all(b"\n").ok();
+        Ok(())
+    }
+}
+
+impl ConfigObject for Credentials {
+    fn format() -> ConfigFormat {
+        ConfigFormat::Json
+    }
+    fn name() -> &'static str {
+        "credentials"
+    }
+}
+
+impl ConfigObject for ConfigValues {
+    fn format() -> ConfigFormat {
+        ConfigFormat::Yaml
+    }
+    fn name() -> &'static str {
+        "config"
+    }
 }
 
 impl Config {
@@ -292,37 +359,25 @@ impl Config {
         let path = env::current_dir()
             .map(|x| x.join(path.as_ref()))
             .unwrap_or_else(|_| path.as_ref().to_path_buf());
-        let values = load_config_from_path(&get_config_path(&path, "config"))?;
-        let credentials_path = get_config_path(&path, "credentials");
-        let credentials = if fs::metadata(&credentials_path).is_ok() {
-            Some(load_config_from_path(&credentials_path)?)
-        } else {
-            None
-        };
         Ok(Config {
+            values: ConfigValues::load(&path)?,
+            credentials: if fs::metadata(Credentials::path(&path)).is_ok() {
+                Some(Credentials::load(&path)?)
+            } else {
+                None
+            },
             path,
-            credentials,
-            values,
         })
     }
 
     /// Checks if the config is already initialized.
     pub fn config_exists<P: AsRef<Path>>(path: P) -> bool {
-        fs::metadata(get_config_path(path.as_ref(), "config")).is_ok()
+        fs::metadata(ConfigValues::path(path.as_ref())).is_ok()
     }
 
     /// Returns the filename of the config file.
     pub fn path(&self) -> &Path {
         &self.path
-    }
-
-    /// Dumps out a JSON string of the values.
-    pub fn to_json_string(&self) -> Result<String, ConfigError> {
-        Ok(ctry!(
-            serde_json::to_string_pretty(&self.values),
-            ConfigErrorKind::InvalidValue,
-            &self.path
-        ))
     }
 
     /// Dumps out a YAML string of the values.
@@ -345,7 +400,7 @@ impl Config {
             public_key: pk,
             id: generate_relay_id(),
         };
-        save_config_to_path(&get_config_path(&self.path, "credentials"), &creds)?;
+        creds.save(&self.path)?;
         self.credentials = Some(creds);
         Ok(())
     }
@@ -365,11 +420,11 @@ impl Config {
         }
         match credentials {
             Some(creds) => {
-                save_config_to_path(&get_config_path(&self.path, "credentials"), &creds)?;
+                creds.save(&self.path)?;
                 self.credentials = Some(creds);
             }
             None => {
-                let path = get_config_path(&self.path, "credentials");
+                let path = Credentials::path(&self.path);
                 if fs::metadata(&path).is_ok() {
                     ctry!(
                         fs::remove_file(&path),
@@ -526,6 +581,15 @@ impl MinimalConfig {
                 p.as_ref()
             );
         }
-        save_config_to_path(&get_config_path(p.as_ref(), "config"), self)
+        self.save(p.as_ref())
+    }
+}
+
+impl ConfigObject for MinimalConfig {
+    fn format() -> ConfigFormat {
+        ConfigFormat::Yaml
+    }
+    fn name() -> &'static str {
+        "config"
     }
 }

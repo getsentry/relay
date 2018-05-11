@@ -18,7 +18,9 @@ pub const ABOUT: &'static str = "Semaphore is an implementation of the relay sys
 fn make_app<'a, 'b>() -> App<'a, 'b> {
     App::new("semaphore")
         .global_setting(AppSettings::UnifiedHelpMessage)
+        .global_setting(AppSettings::DisableHelpSubcommand)
         .setting(AppSettings::SubcommandRequiredElseHelp)
+        .setting(AppSettings::GlobalVersion)
         .max_term_width(79)
         .help_message("Print this help message.")
         .version(VERSION)
@@ -142,15 +144,15 @@ fn make_app<'a, 'b>() -> App<'a, 'b> {
                             "This dumps out the entire config including the values \
                              which are not in the config file but filled in from \
                              defaults.  The default output format is YAML but \
-                             other formats can also be specified.  The debug format \
-                             in particular is useful to understand how the relay \
-                             interprets the individual values.",
+                             a debug format can also be specific which is useful \
+                             to understand how the relay interprets the individual \
+                             values.",
                         )
                         .arg(
                             Arg::with_name("format")
                                 .short("f")
                                 .long("format")
-                                .possible_values(&["debug", "json", "yaml"])
+                                .possible_values(&["debug", "yaml"])
                                 .default_value("yaml")
                                 .help("The output format"),
                         ),
@@ -285,7 +287,6 @@ pub fn manage_config<'a>(config: Config, matches: &ArgMatches<'a>) -> Result<(),
     } else if let Some(matches) = matches.subcommand_matches("show") {
         match matches.value_of("format").unwrap() {
             "debug" => println!("{:#?}", &config),
-            "json" => println!("{}", config.to_json_string()?),
             "yaml" => println!("{}", config.to_yaml_string()?),
             _ => unreachable!(),
         }
