@@ -26,7 +26,7 @@ pub enum EncodedJsonPayloadError {
 
 impl ResponseError for EncodedJsonPayloadError {
     fn error_response(&self) -> HttpResponse {
-        match *self {
+        match self {
             EncodedJsonPayloadError::Overflow => HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE),
             _ => HttpResponse::new(StatusCode::BAD_REQUEST),
         }

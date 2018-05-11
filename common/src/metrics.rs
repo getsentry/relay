@@ -55,7 +55,7 @@ where
     R: Default,
 {
     CURRENT_CLIENT.with(|client| {
-        if let Some(ref client) = *client {
+        if let Some(client) = client {
             f(&*client)
         } else {
             Default::default()

@@ -9,7 +9,7 @@ pub fn serialize_origin<S>(url: &Option<Url>, serializer: S) -> Result<S::Ok, S:
 where
     S: Serializer,
 {
-    if let Some(ref url) = *url {
+    if let Some(url) = url {
         let string = url.origin().ascii_serialization();
         serializer.serialize_some(&string)
     } else {

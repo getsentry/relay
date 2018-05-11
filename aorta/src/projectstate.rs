@@ -342,8 +342,7 @@ impl ProjectState {
 
     /// Returns the current project snapshot as option.
     pub fn snapshot_opt(&self) -> Option<Arc<ProjectStateSnapshot>> {
-        let lock = self.current_snapshot.read();
-        match *lock {
+        match *self.current_snapshot.read() {
             Some(ref arc) => Some(arc.clone()),
             None => None,
         }

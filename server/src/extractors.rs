@@ -244,7 +244,7 @@ impl FromRequest<Arc<TroveState>> for IncomingForeignEvent {
             .collect();
 
         let is_json = match req.mime_type() {
-            Ok(Some(ref mime)) => mime.type_() == "application" && mime.subtype() == "json",
+            Ok(Some(mime)) => mime.type_() == "application" && mime.subtype() == "json",
             _ => false,
         };
 

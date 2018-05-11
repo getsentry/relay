@@ -21,7 +21,7 @@ fn dump_listen_infos<H: server::HttpHandler>(
     for addr in server.addrs() {
         info!("  listening on: http://{}/", addr);
     }
-    if let Some(ref tls_server) = tls_server {
+    if let Some(tls_server) = tls_server {
         for addr in tls_server.addrs() {
             info!("  listening on: https://{}/", addr);
         }

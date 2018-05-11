@@ -310,7 +310,7 @@ impl TroveState {
         // state already exists, return it.
         {
             let states = self.states.read();
-            if let Some(ref rv) = states.get(&project_id) {
+            if let Some(rv) = states.get(&project_id) {
                 return (*rv).clone();
             }
         }

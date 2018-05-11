@@ -65,8 +65,8 @@ impl EventVariant {
     ///
     /// This might not do anything for unknown event variants.
     pub fn ensure_id(&mut self) {
-        match *self {
-            EventVariant::SentryV7(ref mut event) => {
+        match self {
+            EventVariant::SentryV7(event) => {
                 event.id.get_or_insert_with(Uuid::new_v4);
             }
             _ => {}
@@ -75,15 +75,15 @@ impl EventVariant {
 
     /// Returns the ID of the event.
     pub fn id(&self) -> Option<Uuid> {
-        match *self {
-            EventVariant::SentryV7(ref event) => event.id,
+        match self {
+            EventVariant::SentryV7(event) => event.id,
             EventVariant::Foreign(..) => None,
         }
     }
 
     /// The changeset that should be used for events of this kind.
     pub fn changeset_type(&self) -> &'static str {
-        match *self {
+        match self {
             EventVariant::SentryV7(..) => "store_v7",
             EventVariant::Foreign(..) => "store_foreign",
         }
@@ -92,8 +92,8 @@ impl EventVariant {
 
 impl fmt::Display for EventVariant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            EventVariant::SentryV7(ref event) => fmt::Display::fmt(event, f),
+        match self {
+            EventVariant::SentryV7(event) => fmt::Display::fmt(event, f),
             EventVariant::Foreign(..) => write!(f, "<foreign event>"),
         }
     }
