@@ -11,8 +11,8 @@ extern crate uuid;
 #[macro_use]
 mod utils;
 
-mod core;
 mod aorta;
+mod core;
 
-pub use core::*;
 pub use aorta::*;
+pub use core::*;

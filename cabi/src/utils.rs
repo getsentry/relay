@@ -1,7 +1,7 @@
+use std::cell::RefCell;
 use std::mem;
 use std::panic;
 use std::thread;
-use std::cell::RefCell;
 
 use failure::Error;
 

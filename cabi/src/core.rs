@@ -1,15 +1,15 @@
-use std::mem;
-use std::ptr;
-use std::str;
-use std::slice;
 use std::ffi::CStr;
+use std::mem;
 use std::os::raw::c_char;
+use std::ptr;
+use std::slice;
+use std::str;
 
 use utils::{set_panic_hook, Panic, LAST_ERROR};
 
-use uuid::Uuid;
 use failure::Error;
 use semaphore_aorta::{KeyParseError, UnpackError};
+use uuid::Uuid;
 
 /// Represents a uuid.
 #[repr(C)]
@@ -57,15 +57,15 @@ impl SemaphoreErrorCode {
             }
             if let Some(err) = cause.downcast_ref::<KeyParseError>() {
                 return match err {
-                    &KeyParseError::BadEncoding => SemaphoreErrorCode::KeyParseErrorBadEncoding,
-                    &KeyParseError::BadKey => SemaphoreErrorCode::KeyParseErrorBadKey,
+                    KeyParseError::BadEncoding => SemaphoreErrorCode::KeyParseErrorBadEncoding,
+                    KeyParseError::BadKey => SemaphoreErrorCode::KeyParseErrorBadKey,
                 };
             }
             if let Some(err) = cause.downcast_ref::<UnpackError>() {
                 return match err {
-                    &UnpackError::BadSignature => SemaphoreErrorCode::UnpackErrorBadSignature,
-                    &UnpackError::BadPayload(..) => SemaphoreErrorCode::UnpackErrorBadPayload,
-                    &UnpackError::SignatureExpired => {
+                    UnpackError::BadSignature => SemaphoreErrorCode::UnpackErrorBadSignature,
+                    UnpackError::BadPayload(..) => SemaphoreErrorCode::UnpackErrorBadPayload,
+                    UnpackError::SignatureExpired => {
                         SemaphoreErrorCode::UnpackErrorSignatureExpired
                     }
                 };

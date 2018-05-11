@@ -48,6 +48,7 @@ pub enum ForeignPayload {
     Raw(#[serde(with = "StandardBase64")] Vec<u8>),
 }
 
+/// Represents an event unknown to the relay
 #[derive(Serialize, Debug, Clone)]
 pub struct ForeignEvent {
     /// Store endpoint type.

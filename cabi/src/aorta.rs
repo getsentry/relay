@@ -1,6 +1,6 @@
-use uuid::Uuid;
-use serde_json;
 use chrono::Duration;
+use serde_json;
+use uuid::Uuid;
 
 use semaphore_aorta::{generate_key_pair, generate_relay_id, PublicKey, RegisterRequest,
                       RegisterResponse, SecretKey};
