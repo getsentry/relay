@@ -20,35 +20,44 @@ script: make $SUITE
 matrix:
   include:
     # Rust tests
-    - os: linux
-      env: SUITE=format-check
-      language: rust
-      install: rustup component add rustfmt-preview
-    - os: linux
-      env: SUITE=cargotest
-      language: rust
-    - os: osx
-      env: SUITE=cargotest
-      language: rust
+    #    - os: linux
+    #      env: SUITE=format-check
+    #      language: rust
+    #      install: rustup component add rustfmt-preview
+    #    - os: linux
+    #      env: SUITE=cargotest
+    #      language: rust
+    #    - os: osx
+    #      env: SUITE=cargotest
+    #      language: rust
 
     # Python tests
-    # - os: linux
-    #   env: SUITE=pytest
-    # - os: osx
-    #   env: SUITE=pytest
+    - os: linux
+      env: SUITE=pytest
+    - os: osx
+      env: SUITE=pytest BUILD_OS=osx
+      osx_image: xcode9.3
+      script:
+        - cd py
+        - ls -alh ./
+        - rm -rf ./venv
+        - virtualenv venv -p python2.7
+        - venv/bin/pip install --upgrade pip                    
+        - venv/bin/python setup.py develop
+        - SEMAPHORE_DEBUG=1 venv/bin/pip install -v --editable .
 
-    # Rust builds
-    # - os: linux
-    #   sudo: required
-    #   env: SUITE=dockerbuild BUILD_ARCH=i686
-    # - os: linux
-    #   sudo: required
-    #   env: SUITE=dockerbuild BUILD_ARCH=x86_64
-    # - os: osx
-    #   osx_image: xcode6.4
-    #   language: rust
-    #   env: SUITE=releasebuild
-    #   install: skip
+          #    # Rust builds
+          #    - os: linux
+          #      sudo: required
+          #      env: SUITE=dockerbuild BUILD_ARCH=i686
+          #    - os: linux
+          #      sudo: required
+          #      env: SUITE=dockerbuild BUILD_ARCH=x86_64
+          #    - os: osx
+          #      osx_image: xcode6.4
+          #      language: rust
+          #      env: SUITE=releasebuild
+          #      install: skip
 
     # Python builds
     - os: linux
@@ -57,12 +66,12 @@ matrix:
     - os: linux
       sudo: required
       env: SUITE=manylinux BUILD_ARCH=x86_64
-    # - os: osx
-    #   osx_image: xcode7.3
-    #   env: SUITE=wheel
-    # - os: linux
-    #   sudo: required
-    #   env: SUITE=sdist
+    - os: osx
+      osx_image: xcode7.3
+      env: SUITE=wheel
+    - os: linux
+      sudo: required
+      env: SUITE=sdist
 
 notifications:
   webhooks:
