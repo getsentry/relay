@@ -15,6 +15,7 @@ crate-type = ["cdylib"]
 
 [profile.release]
 debug = true
+lto = true
 
 [dependencies]
 semaphore-aorta = { version = "0.1.0", path = "../aorta" }
