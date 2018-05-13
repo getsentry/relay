@@ -1,11 +1,12 @@
 [package]
 authors = ["Sentry <hello@sentry.io>"]
-description = "An proxy service for Sentry.\n"
+description = "An proxy service for Sentry."
 exclude = [".vscode/**/*"]
 license = "MIT"
 name = "semaphore"
 readme = "README.md"
 version = "0.1.0"
+build = "build.rs"
 
 [features]
 default = []
@@ -26,6 +27,9 @@ log = "0.4.1"
 sentry = "0.5.1"
 dialoguer = "0.1.0"
 uuid = "0.6.3"
+
+[build-dependencies]
+clap = { version = "2.31.2", default-features = false }
 
 [dependencies.semaphore-aorta]
 path = "aorta"

@@ -15,6 +15,7 @@ extern crate semaphore_config;
 extern crate semaphore_server;
 
 mod cli;
+mod cliapp;
 mod setup;
 mod utils;
 
