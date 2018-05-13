@@ -165,6 +165,7 @@ pub fn make_app() -> App<'static, 'static> {
                     Arg::with_name("format")
                         .short("f")
                         .long("format")
+                        .value_name("FORMAT")
                         .possible_values(&Shell::variants()[..])
                         .help(
                             "Explicitly pick the shell to generate a completion file \
