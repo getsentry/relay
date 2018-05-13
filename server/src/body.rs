@@ -54,12 +54,6 @@ impl From<JsonError> for EncodedJsonPayloadError {
 /// Request payload decoder and json parser that resolves to a deserialized `T` value.
 ///
 /// The payload can either be raw JSON, or base64 encoded gzipped (zlib) JSON.
-///
-/// Returns error:
-///
-/// * content type is not `application/json`
-/// * content length is greater than the configured limit (defaults to 256k)
-///
 pub struct EncodedJsonBody<T, U: DeserializeOwned> {
     limit: usize,
     req: Option<T>,
