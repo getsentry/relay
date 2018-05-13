@@ -24,6 +24,8 @@ pub struct AortaConfig {
     pub changeset_buffer_interval: Duration,
     /// How long until an event is dropped from pending.
     pub pending_events_timeout: Duration,
+    /// The maximum size of an event in bytes.
+    pub max_event_payload_size: usize,
     /// The upstream descriptor for this aorta
     pub upstream: UpstreamDescriptor<'static>,
     /// The relay ID.
@@ -42,6 +44,7 @@ impl Default for AortaConfig {
             heartbeat_interval: Duration::seconds(60),
             changeset_buffer_interval: Duration::seconds(2),
             pending_events_timeout: Duration::seconds(60),
+            max_event_payload_size: 524_288,
             upstream: Default::default(),
             relay_id: None,
             secret_key: None,

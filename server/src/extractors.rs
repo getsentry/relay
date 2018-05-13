@@ -197,6 +197,7 @@ impl FromRequest<Arc<TroveState>> for IncomingEvent {
     #[inline]
     fn from_request(req: &HttpRequest<Arc<TroveState>>, _cfg: &Self::Config) -> Self::Result {
         let auth: &Auth = req.extensions_ro().get().unwrap();
+        let max_payload = req.state().config().max_event_payload_size;
 
         // anything up to 7 is considered sentry v7
         if auth.version() <= 7 {
@@ -204,7 +205,7 @@ impl FromRequest<Arc<TroveState>> for IncomingEvent {
             let public_key = auth.public_key().to_string();
             Box::new(
                 EncodedJsonBody::new(req.clone())
-                    .limit(524_288)
+                    .limit(max_payload)
                     .map_err(|e| BadProjectRequest::BadEncodedJson(e).into())
                     .map(move |e| IncomingEvent::new(EventVariant::SentryV7(e), meta, public_key)),
             )
@@ -234,6 +235,7 @@ impl FromRequest<Arc<TroveState>> for IncomingForeignEvent {
     #[inline]
     fn from_request(req: &HttpRequest<Arc<TroveState>>, _cfg: &Self::Config) -> Self::Result {
         let auth: &Auth = req.extensions_ro().get().unwrap();
+        let max_payload = req.state().config().max_event_payload_size;
 
         let meta = event_meta_from_req(req);
         let store_type = req.match_info().get("store_type").unwrap().to_string();
@@ -251,7 +253,7 @@ impl FromRequest<Arc<TroveState>> for IncomingForeignEvent {
         if is_json {
             Box::new(
                 JsonBody::new(req.clone())
-                    .limit(524_288)
+                    .limit(max_payload)
                     .map_err(|e| BadProjectRequest::BadJson(e).into())
                     .map(move |payload| {
                         IncomingForeignEvent(IncomingEvent::new(
@@ -269,7 +271,7 @@ impl FromRequest<Arc<TroveState>> for IncomingForeignEvent {
             Box::new(
                 req.clone()
                     .body()
-                    .limit(524_288)
+                    .limit(max_payload)
                     .map_err(|e| BadProjectRequest::BadPayload(e).into())
                     .map(move |payload| {
                         IncomingForeignEvent(IncomingEvent::new(

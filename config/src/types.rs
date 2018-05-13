@@ -158,6 +158,8 @@ struct Aorta {
     /// The number of seconds for which an event shoudl be buffered until the
     /// initial config arrives.
     pending_events_timeout: u32,
+    /// The maximum payload size for events.
+    max_event_payload_size: u32,
 }
 
 /// Controls interal reporting to Sentry.
@@ -209,6 +211,7 @@ impl Default for Aorta {
             heartbeat_interval: 60,
             changeset_buffer_interval: 2,
             pending_events_timeout: 60,
+            max_event_payload_size: 524_288,
         }
     }
 }
@@ -546,6 +549,11 @@ impl Config {
         Duration::seconds(self.values.aorta.pending_events_timeout as i64)
     }
 
+    /// Returns the maximum size of an event payload in bytes.
+    pub fn aorta_max_event_payload_size(&self) -> usize {
+        self.values.aorta.max_event_payload_size as usize
+    }
+
     /// Return a new aorta config based on this config file.
     pub fn make_aorta_config(&self) -> Arc<AortaConfig> {
         Arc::new(AortaConfig {
@@ -554,6 +562,7 @@ impl Config {
             heartbeat_interval: self.aorta_heartbeat_interval(),
             changeset_buffer_interval: self.aorta_changeset_buffer_interval(),
             pending_events_timeout: self.aorta_pending_events_timeout(),
+            max_event_payload_size: self.aorta_max_event_payload_size(),
             upstream: self.upstream_descriptor().clone().into_owned(),
             relay_id: Some(self.relay_id().clone()),
             secret_key: Some(self.secret_key().clone()),
