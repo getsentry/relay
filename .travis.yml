@@ -57,17 +57,29 @@ matrix:
       sudo: required
       env: SUITE=manylinux BUILD_ARCH=i686
       language: generic
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
     - os: linux
       sudo: required
       env: SUITE=manylinux BUILD_ARCH=x86_64
       language: generic
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
     - os: osx
       osx_image: xcode7.3
       env: SUITE=wheel
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
     - os: linux
       sudo: required
       env: SUITE=sdist
       language: generic
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
 
 notifications:
   webhooks:
