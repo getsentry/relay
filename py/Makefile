@@ -2,13 +2,16 @@ venv/bin/python: setup.py
 	rm -rf venv
 	virtualenv venv
 	venv/bin/pip install --upgrade pip
-	SEMAPHORE_DEBUG=1 venv/bin/pip install -v --editable .
 	venv/bin/pip install pytest
 
 venv: venv/bin/python
 .PHONY: venv
 
-test: venv
+install: venv
+	SEMAPHORE_DEBUG=1 venv/bin/pip install -v --editable .
+.PHONY: install
+
+test: install
 	@venv/bin/pytest tests
 .PHONY: test
 
