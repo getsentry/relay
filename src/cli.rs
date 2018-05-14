@@ -233,7 +233,7 @@ pub fn generate_completions<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
             _ => {
                 #[cfg(windows)]
                 {
-                    Shell::Powerhell
+                    Shell::PowerShell
                 }
                 #[cfg(not(windows))]
                 {

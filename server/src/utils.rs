@@ -1,4 +1,3 @@
-use std::env;
 use std::net::TcpListener;
 
 /// Returns all externally passed TCP listeners.
@@ -6,6 +5,7 @@ pub fn get_external_tcp_listeners() -> Vec<TcpListener> {
     #[cfg(not(windows))]
     {
         use libc::getpid;
+        use std::env;
         use std::os::unix::io::{FromRawFd, RawFd};
 
         // catflap
