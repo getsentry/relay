@@ -38,15 +38,9 @@ matrix:
 
     # Rust builds
     - os: linux
-      sudo: required
-      env: SUITE=dockerbuild BUILD_ARCH=i686
-      language: generic
-    - os: linux
-      sudo: required
-      env: SUITE=dockerbuild BUILD_ARCH=x86_64
-      language: generic
+      env: SUITE=releasebuild
     - os: osx
-      osx_image: xcode6.4
+      osx_image: xcode7.3
       env: SUITE=releasebuild
 
     # Python builds

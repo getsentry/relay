@@ -13,10 +13,6 @@ releasebuild:
 	cargo build --release --locked
 .PHONY: releasebuild
 
-dockerbuild:
-	@scripts/docker-build.sh
-.PHONY: dockerbuild
-
 doc:
 	@cargo doc
 .PHONY: doc
