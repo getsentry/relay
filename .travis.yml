@@ -3,10 +3,11 @@ services:
   - docker
 
 cache:
-  cargo: true
   directories:
     - cabi/target
     - py/venv
+    - $HOME/.cargo
+    - $TRAVIS_BUILD_DIR/target
 
 git:
   depth: 1
@@ -38,7 +39,15 @@ matrix:
 
     # Rust builds
     - os: linux
-      env: SUITE=releasebuild
+      language: generic
+      env:
+        - SUITE=releasebuild-docker
+        - BUILD_ARCH=x86_64
+    - os: linux
+      language: generic
+      env:
+        - SUITE=releasebuild-docker
+        - BUILD_ARCH=i686
     - os: osx
       osx_image: xcode7.3
       env: SUITE=releasebuild
