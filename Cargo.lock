@@ -22,7 +22,7 @@ dependencies = [
 
 [[package]]
 name = "actix-web"
-version = "0.5.6"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "actix 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -53,11 +53,12 @@ dependencies = [
  "openssl 0.10.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "percent-encoding 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "regex 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.51 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_urlencoded 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha1 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slab 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1556,7 +1557,7 @@ name = "semaphore-server"
 version = "0.1.0"
 dependencies = [
  "actix 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-web 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-web 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2392,7 +2393,7 @@ dependencies = [
 
 [metadata]
 "checksum actix 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)" = "e767e3170dc7cdec50fe1b74d22fd9d2f4b78b97b2052a254b5acb07dae68634"
-"checksum actix-web 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)" = "ebda1eae1638d03af2fc27a7d57c5fd035901a949f548d7c72ff5e07f5052d9f"
+"checksum actix-web 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)" = "c9b236d41ef0e71cbd8d0e94bdcad626e17ddc773f6147dd9a35d1ab6bdd260d"
 "checksum actix_derive 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c4b1dc922654b9aca7a8a31eab875fde804fa9fbd67f220f2e457787b23590f2"
 "checksum adler32 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6cbd0b9af8587c72beadc9f72d35b9fbb070982c9e6203e46e93f10df25f8f45"
 "checksum aho-corasick 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)" = "d6531d44de723825aa81398a6415283229725a00fa30713812ab9323faa82fc4"
