@@ -5,6 +5,8 @@ extern crate failure;
 extern crate futures;
 #[macro_use]
 extern crate log;
+#[cfg(not(windows))]
+extern crate openssl_probe;
 extern crate parking_lot;
 extern crate pretty_env_logger;
 extern crate sentry;
@@ -22,6 +24,15 @@ mod utils;
 use std::env;
 
 pub fn main() {
+    // on non windows machines we want to initialize the openssl envvars based on
+    // what openssl probe tells us.  We will eventually stop doing that if we
+    // kill openssl.
+    #[cfg(not(windows))]
+    {
+        use openssl_probe::init_ssl_cert_env_vars;
+        init_ssl_cert_env_vars();
+    }
+
     // only print backtrace in console if we were requested before the
     // start of the app.  The envvar is overwritten by our own internal
     // sentry integration later.

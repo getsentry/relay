@@ -28,9 +28,6 @@ sentry = "0.5.1"
 dialoguer = "0.1.0"
 uuid = "0.6.3"
 
-[build-dependencies]
-clap = { version = "2.31.2", default-features = false }
-
 [dependencies.semaphore-aorta]
 path = "aorta"
 version = "0.1.0"
@@ -50,5 +47,11 @@ version = "0.1.0"
 [dependencies.semaphore-trove]
 path = "trove"
 version = "0.1.0"
+
+[target."cfg(not(windows))".dependencies]
+openssl-probe = "0.1.2"
+
+[build-dependencies]
+clap = { version = "2.31.2", default-features = false }
 
 [workspace]
