@@ -25,6 +25,3 @@ serde_json = "1.0.17"
 chrono = "0.4.2"
 serde_derive = "1.0.45"
 serde = "1.0.45"
-
-[patch."crates-io"]
-sentry-types = { git = "https://github.com/getsentry/rust-sentry-types", rev = "2a4807c83cf561e42b59202ad6cc56d88d34a5ec" }

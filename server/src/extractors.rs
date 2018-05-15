@@ -97,14 +97,7 @@ fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadProjectRequ
     }
 
     // fall back to auth from url
-    // TODO: query access like this is deprecated. maybwe we let the underlying
-    // auth object parse the query string instead?
-    #[allow(deprecated)]
-    Auth::from_pairs(
-        req.query()
-            .iter()
-            .map(|&(ref a, ref b)| -> (&str, &str) { (&a, &b) }),
-    ).map_err(BadProjectRequest::BadAuth)
+    Auth::from_querystring(req.query_string().as_bytes()).map_err(BadProjectRequest::BadAuth)
 }
 
 impl<T: FromRequest<Arc<TroveState>> + 'static> FromRequest<Arc<TroveState>> for ProjectRequest<T> {

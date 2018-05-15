@@ -28,7 +28,7 @@ tokio-core = "0.1.17"
 actix = "0.5.6"
 actix-web = { version = "0.6.4", default-features = false, features = ["brotli", "flate2-c"] }
 openssl = { version = "0.10.7", optional = true }
-sentry-types = "0.3.4"
+sentry-types = "0.5.0"
 serde = "1.0.45"
 serde_derive = "1.0.45"
 uuid = { version = "0.6.3", features = ["v4"] }
