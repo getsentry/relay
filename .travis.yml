@@ -43,31 +43,52 @@ matrix:
       env:
         - SUITE=releasebuild-docker
         - BUILD_ARCH=x86_64
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/octet-stream" target/x86_64-unknown-linux-gnu/release/semaphore
     - os: linux
       language: generic
       env:
         - SUITE=releasebuild-docker
         - BUILD_ARCH=i686
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/octet-stream" target/i686-unknown-linux-gnu/release/semaphore
     - os: osx
       osx_image: xcode7.3
       env: SUITE=releasebuild
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/octet-stream" target/release/semaphore
 
     # Python builds
     - os: linux
       sudo: required
       env: SUITE=manylinux BUILD_ARCH=i686
       language: generic
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
     - os: linux
       sudo: required
       env: SUITE=manylinux BUILD_ARCH=x86_64
       language: generic
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
     - os: osx
       osx_image: xcode7.3
       env: SUITE=wheel
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
     - os: linux
       sudo: required
       env: SUITE=sdist
       language: generic
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
 
 notifications:
   webhooks:
