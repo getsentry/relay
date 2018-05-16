@@ -4,7 +4,6 @@ use failure::Error;
 use log::LevelFilter;
 use pretty_env_logger;
 use sentry;
-use sentry::integrations::log as sentry_log;
 
 use semaphore_common::metrics;
 use semaphore_config::Config;
@@ -81,13 +80,14 @@ pub fn init_logging(config: &Config) {
     let log = Box::new(log_builder.build());
     let global_filter = log.filter();
 
-    sentry_log::init(
+    sentry::integrations::log::init(
         Some(log),
-        sentry_log::LoggerOptions {
+        sentry::integrations::log::LoggerOptions {
             global_filter: Some(global_filter),
             ..Default::default()
         },
     );
+    sentry::integrations::panic::register_panic_handler();
 }
 
 /// Initialize the metric system.

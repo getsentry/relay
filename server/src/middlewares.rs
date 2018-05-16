@@ -3,11 +3,11 @@ use std::time::Instant;
 use actix_web::error::Error;
 use actix_web::middleware::{Finished, Middleware, Response, Started};
 use actix_web::{Body, HttpRequest, HttpResponse, http::header};
-use sentry::integrations::failure::capture_fail;
 
 use semaphore_aorta::ApiErrorResponse;
 
 use constants::SERVER;
+use utils::report_actix_error_to_sentry;
 
 /// Basic metrics
 pub struct Metrics;
@@ -33,13 +33,10 @@ pub struct CaptureSentryError;
 
 impl<S> Middleware<S> for CaptureSentryError {
     fn response(&self, _: &mut HttpRequest<S>, mut resp: HttpResponse) -> Result<Response, Error> {
-        // TODO: newer versions of actix will support the backtrace on the actix
-        // error.  In that case we want to emit a custom error event to sentry
-        // that includes that backtrace (maybe also have a sentry-actix package).
         let mut event_id = None;
         if resp.status().is_server_error() {
             if let Some(error) = resp.error() {
-                event_id = Some(capture_fail(error.cause()));
+                event_id = Some(report_actix_error_to_sentry(error));
             }
         }
         if let Some(event_id) = event_id {

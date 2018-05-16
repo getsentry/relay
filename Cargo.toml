@@ -54,4 +54,7 @@ openssl-probe = "0.1.2"
 [build-dependencies]
 clap = { version = "2.31.2", default-features = false }
 
+[patch.crates-io]
+sentry = { git = "https://github.com/getsentry/sentry-rust", rev = "0bf9723d4bbb1820033d4d6906407c0df0d59286" }
+
 [workspace]
