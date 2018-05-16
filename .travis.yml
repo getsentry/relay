@@ -45,7 +45,9 @@ matrix:
         - BUILD_ARCH=x86_64
       after_success:
         - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/octet-stream" target/x86_64-unknown-linux-gnu/release/semaphore
+        - zeus upload -t "application/octet-stream"
+                      -n semaphore-Linux-x86_64
+                      target/x86_64-unknown-linux-gnu/release/semaphore
     - os: linux
       language: generic
       env:
@@ -53,13 +55,17 @@ matrix:
         - BUILD_ARCH=i686
       after_success:
         - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/octet-stream" target/i686-unknown-linux-gnu/release/semaphore
+        - zeus upload -t "application/octet-stream"
+                      -n semaphore-Linux-i686
+                      target/i686-unknown-linux-gnu/release/semaphore
     - os: osx
       osx_image: xcode7.3
       env: SUITE=releasebuild
       after_success:
         - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/octet-stream" target/release/semaphore
+        - zeus upload -t "application/octet-stream"
+                      -n semaphore-Darwin-x86_64
+                      target/release/semaphore
 
     # Python builds
     - os: linux

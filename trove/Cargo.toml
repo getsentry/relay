@@ -24,8 +24,6 @@ serde_derive = "1.0.45"
 
 [dependencies.semaphore-aorta]
 path = "../aorta"
-version = "0.1.0"
 
 [dependencies.semaphore-common]
 path = "../common"
-version = "0.1.0"
