@@ -78,8 +78,8 @@ Semaphore is licensed under the MIT license.
 We're going to settle on using vscode for this project for now. We're targeting
 stable rust at the moment and the repo is appropriately configured.
 
-If you have `catflap` and `cargo-watch` installed, the `make devserver` command can auto-reload the
+If you have `systemfd` and `cargo-watch` installed, the `make devserver` command can auto-reload the
 relay:
 
-    $ cargo install catflap cargo-watch
+    $ cargo install systemfd cargo-watch
     $ make devserver
