@@ -1,9 +1,9 @@
-use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
 
 use actix;
 use actix_web::{server, App};
 use failure::ResultExt;
+use listenfd::ListenFdManager;
 
 use semaphore_config::Config;
 use semaphore_trove::{Trove, TroveState};
@@ -11,7 +11,6 @@ use semaphore_trove::{Trove, TroveState};
 use endpoints;
 use errors::{ServerError, ServerErrorKind};
 use middlewares::{AddCommonHeaders, CaptureSentryError, ErrorHandlers, Metrics};
-use utils::get_external_tcp_listeners;
 
 fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
     info!("spawning http server");
@@ -56,10 +55,13 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     let server_state = state.clone();
     let mut server = server::new(move || make_app(server_state.clone()));
 
-    let mut listeners = get_external_tcp_listeners();
+    let mut listenfd = ListenFdManager::from_env();
 
-    server = if !listeners.is_empty() {
-        server.listen(listeners.remove(0))
+    server = if let Some(listener) = listenfd
+        .take_tcp_listener(0)
+        .context(ServerErrorKind::BindFailed)?
+    {
+        server.listen(listener)
     } else {
         server
             .bind(config.listen_addr())
@@ -83,8 +85,11 @@ pub fn run(config: Config) -> Result<(), ServerError> {
             builder
                 .set_certificate_chain_file(&cert)
                 .context(ServerErrorKind::TlsInitFailed)?;
-            server = if !listeners.is_empty() {
-                server.listen_ssl(listeners.remove(0), builder)?
+            server = if let Some(listener) = listenfd
+                .take_tcp_listener(1)
+                .context(ServerErrorKind::BindFailed)?
+            {
+                server.listen_ssl(listener)?
             } else {
                 server
                     .bind_ssl(config.listen_addr(), builder)

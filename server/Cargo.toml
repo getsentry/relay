@@ -39,6 +39,7 @@ mime = "0.3.7"
 bytes = "0.4.7"
 base64 = "0.9.1"
 flate2 = "1.0.1"
+listenfd = "0.1.0"
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.40"

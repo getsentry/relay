@@ -25,6 +25,7 @@ extern crate sentry_types;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate listenfd;
 extern crate serde_json;
 extern crate url;
 extern crate uuid;
