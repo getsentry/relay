@@ -23,7 +23,7 @@ dependencies = [
 [[package]]
 name = "actix-web"
 version = "0.6.6"
-source = "git+https://github.com/mitsuhiko/actix-web?rev=7bb7d85c1d1c19002b5887e3e319a08c07565ee0#7bb7d85c1d1c19002b5887e3e319a08c07565ee0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "actix 0.5.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -861,7 +861,7 @@ dependencies = [
 [[package]]
 name = "listenfd"
 version = "0.2.0"
-source = "git+https://github.com/mitsuhiko/rust-listenfd?rev=1b8d9eaeeb0530ad410a3a9efb805d2d8dfd3381#1b8d9eaeeb0530ad410a3a9efb805d2d8dfd3381"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.40 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -1549,7 +1549,7 @@ name = "semaphore-server"
 version = "0.1.0"
 dependencies = [
  "actix 0.5.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-web 0.6.6 (git+https://github.com/mitsuhiko/actix-web?rev=7bb7d85c1d1c19002b5887e3e319a08c07565ee0)",
+ "actix-web 0.6.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1561,7 +1561,7 @@ dependencies = [
  "hyper 0.11.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.40 (registry+https://github.com/rust-lang/crates.io-index)",
- "listenfd 0.2.0 (git+https://github.com/mitsuhiko/rust-listenfd?rev=1b8d9eaeeb0530ad410a3a9efb805d2d8dfd3381)",
+ "listenfd 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "openssl 0.10.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2392,7 +2392,7 @@ dependencies = [
 
 [metadata]
 "checksum actix 0.5.7 (registry+https://github.com/rust-lang/crates.io-index)" = "7f01f05bfb6e77d47a04752efdac401e0e20b49130ac673cde367cda8eb7c92c"
-"checksum actix-web 0.6.6 (git+https://github.com/mitsuhiko/actix-web?rev=7bb7d85c1d1c19002b5887e3e319a08c07565ee0)" = "<none>"
+"checksum actix-web 0.6.6 (registry+https://github.com/rust-lang/crates.io-index)" = "24c9dea2bb91f975e9c82bad6fe7013122ddab79918dd1d93acc9e7398ffda97"
 "checksum actix_derive 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c4b1dc922654b9aca7a8a31eab875fde804fa9fbd67f220f2e457787b23590f2"
 "checksum adler32 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6cbd0b9af8587c72beadc9f72d35b9fbb070982c9e6203e46e93f10df25f8f45"
 "checksum aho-corasick 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)" = "d6531d44de723825aa81398a6415283229725a00fa30713812ab9323faa82fc4"
@@ -2485,7 +2485,7 @@ dependencies = [
 "checksum libflate 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)" = "1a429b86418868c7ea91ee50e9170683f47fd9d94f5375438ec86ec3adb74e8e"
 "checksum linked-hash-map 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7860ec297f7008ff7a1e3382d7f7e1dcd69efc94751a2284bafc3d013c2aa939"
 "checksum linked-hash-map 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "70fb39025bc7cdd76305867c4eccf2f2dcf6e9a57f5b21a93e1c2d86cd03ec9e"
-"checksum listenfd 0.2.0 (git+https://github.com/mitsuhiko/rust-listenfd?rev=1b8d9eaeeb0530ad410a3a9efb805d2d8dfd3381)" = "<none>"
+"checksum listenfd 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4a9a0b88d4bc0b6a445751513cd7c754fdd50125eb6f6911188c6a10baf9eacb"
 "checksum log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "e19e8d5c34a3e0e2223db8e060f9e8264aeeb5c5fc64a4ee9965c062211c024b"
 "checksum log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "89f010e843f2b1a31dbd316b3b8d443758bc634bed37aabade59c686d644e0a2"
 "checksum lru-cache 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4d06ff7ff06f729ce5f4e227876cb88d10bc59cd4ae1e09fbb2bde15c850dc21"
