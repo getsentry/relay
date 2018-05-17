@@ -57,5 +57,6 @@ clap = { version = "2.31.2", default-features = false }
 [patch.crates-io]
 sentry = { git = "https://github.com/getsentry/sentry-rust", rev = "0bf9723d4bbb1820033d4d6906407c0df0d59286" }
 actix-web = { git = "https://github.com/mitsuhiko/actix-web", rev = "7bb7d85c1d1c19002b5887e3e319a08c07565ee0" }
+listenfd = { git = "https://github.com/mitsuhiko/rust-listenfd", rev = "1b8d9eaeeb0530ad410a3a9efb805d2d8dfd3381" }
 
 [workspace]

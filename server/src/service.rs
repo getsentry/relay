@@ -3,7 +3,7 @@ use std::sync::Arc;
 use actix;
 use actix_web::{server, App};
 use failure::ResultExt;
-use listenfd::ListenFdManager;
+use listenfd::ListenFd;
 
 use semaphore_config::Config;
 use semaphore_trove::{Trove, TroveState};
@@ -55,7 +55,7 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     let server_state = state.clone();
     let mut server = server::new(move || make_app(server_state.clone()));
 
-    let mut listenfd = ListenFdManager::from_env();
+    let mut listenfd = ListenFd::from_env();
 
     server = if let Some(listener) = listenfd
         .take_tcp_listener(0)
