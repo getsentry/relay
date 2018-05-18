@@ -26,8 +26,6 @@ version = "0.4.1"
 
 [dependencies.semaphore-aorta]
 path = "../aorta"
-version = "0.1.0"
 
 [dependencies.semaphore-common]
 path = "../common"
-version = "0.1.0"

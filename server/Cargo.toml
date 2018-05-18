@@ -46,16 +46,12 @@ libc = "0.2.40"
 
 [dependencies.semaphore-aorta]
 path = "../aorta"
-version = "0.1.0"
 
 [dependencies.semaphore-config]
 path = "../config"
-version = "0.1.0"
 
 [dependencies.semaphore-common]
 path = "../common"
-version = "0.1.0"
 
 [dependencies.semaphore-trove]
 path = "../trove"
-version = "0.1.0"

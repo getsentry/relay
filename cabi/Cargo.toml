@@ -18,10 +18,12 @@ debug = true
 lto = true
 
 [dependencies]
-semaphore-aorta = { version = "0.1.0", path = "../aorta" }
 failure = "0.1.1"
 uuid = "0.6.3"
 serde_json = "1.0.17"
 chrono = "0.4.2"
 serde_derive = "1.0.45"
 serde = "1.0.45"
+
+[dependencies.semaphore-aorta]
+path = "../aorta"

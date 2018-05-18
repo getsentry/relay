@@ -7,6 +7,7 @@ name = "semaphore"
 readme = "README.md"
 version = "0.1.0"
 build = "build.rs"
+publish = false
 
 [features]
 default = []
@@ -30,23 +31,18 @@ uuid = "0.6.3"
 
 [dependencies.semaphore-aorta]
 path = "aorta"
-version = "0.1.0"
 
 [dependencies.semaphore-common]
 path = "common"
-version = "0.1.0"
 
 [dependencies.semaphore-config]
 path = "config"
-version = "0.1.0"
 
 [dependencies.semaphore-server]
 path = "server"
-version = "0.1.0"
 
 [dependencies.semaphore-trove]
 path = "trove"
-version = "0.1.0"
 
 [target."cfg(not(windows))".dependencies]
 openssl-probe = "0.1.2"

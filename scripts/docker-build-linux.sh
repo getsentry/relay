@@ -23,7 +23,7 @@ docker run \
         -v `pwd`:/work \
         -v $HOME/.cargo/registry:/usr/local/cargo/registry \
         -it $DOCKER_ARCH/rust:jessie \
-        bash -c "./scripts/prepare-build.sh && cargo build --release --locked --target=${TARGET}"
+        bash -c "./scripts/prepare-build.sh >/dev/null && cargo build --release --locked --target=${TARGET}"
 
 # Fix permissions for shared directories
 USER_ID=$(id -u)
