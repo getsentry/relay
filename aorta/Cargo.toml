@@ -6,7 +6,7 @@ homepage = "https://github.com/getsentry/semaphore"
 license = "MIT"
 name = "semaphore-aorta"
 repository = "https://github.com/getsentry/semaphore"
-version = "0.1.0"
+version = "0.1.1"
 
 [dependencies]
 base64 = "0.9.1"

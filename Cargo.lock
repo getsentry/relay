@@ -1459,7 +1459,7 @@ dependencies = [
 
 [[package]]
 name = "semaphore"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "ctrlc 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1470,11 +1470,11 @@ dependencies = [
  "openssl-probe 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "pretty_env_logger 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "semaphore-aorta 0.1.0",
- "semaphore-common 0.1.0",
- "semaphore-config 0.1.0",
- "semaphore-server 0.1.0",
- "semaphore-trove 0.1.0",
+ "semaphore-aorta 0.1.1",
+ "semaphore-common 0.1.1",
+ "semaphore-config 0.1.1",
+ "semaphore-server 0.1.1",
+ "semaphore-trove 0.1.1",
  "sentry 0.5.1 (git+https://github.com/getsentry/sentry-rust?rev=0bf9723d4bbb1820033d4d6906407c0df0d59286)",
  "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1482,7 +1482,7 @@ dependencies = [
 
 [[package]]
 name = "semaphore-aorta"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64-serde 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1496,7 +1496,7 @@ dependencies = [
  "parking_lot 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust_sodium 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "semaphore-common 0.1.0",
+ "semaphore-common 0.1.1",
  "sentry-types 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.55 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.55 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1509,7 +1509,7 @@ dependencies = [
 
 [[package]]
 name = "semaphore-common"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cadence 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1527,14 +1527,14 @@ dependencies = [
 
 [[package]]
 name = "semaphore-config"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "semaphore-aorta 0.1.0",
- "semaphore-common 0.1.0",
+ "semaphore-aorta 0.1.1",
+ "semaphore-common 0.1.1",
  "sentry 0.5.1 (git+https://github.com/getsentry/sentry-rust?rev=0bf9723d4bbb1820033d4d6906407c0df0d59286)",
  "serde 1.0.55 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.55 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1546,7 +1546,7 @@ dependencies = [
 
 [[package]]
 name = "semaphore-server"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "actix 0.5.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-web 0.6.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1567,10 +1567,10 @@ dependencies = [
  "openssl 0.10.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "semaphore-aorta 0.1.0",
- "semaphore-common 0.1.0",
- "semaphore-config 0.1.0",
- "semaphore-trove 0.1.0",
+ "semaphore-aorta 0.1.1",
+ "semaphore-common 0.1.1",
+ "semaphore-config 0.1.1",
+ "semaphore-trove 0.1.1",
  "sentry 0.5.1 (git+https://github.com/getsentry/sentry-rust?rev=0bf9723d4bbb1820033d4d6906407c0df0d59286)",
  "sentry-types 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.55 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1583,7 +1583,7 @@ dependencies = [
 
 [[package]]
 name = "semaphore-trove"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1593,8 +1593,8 @@ dependencies = [
  "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "native-tls 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "semaphore-aorta 0.1.0",
- "semaphore-common 0.1.0",
+ "semaphore-aorta 0.1.1",
+ "semaphore-common 0.1.1",
  "serde 1.0.55 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.55 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.17 (registry+https://github.com/rust-lang/crates.io-index)",
