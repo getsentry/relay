@@ -28,6 +28,8 @@ log = "0.4.1"
 sentry = "0.5.1"
 dialoguer = "0.1.0"
 uuid = "0.6.3"
+console = "0.6.1"
+env_logger = "0.5.10"
 
 [dependencies.semaphore-aorta]
 path = "aorta"

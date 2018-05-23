@@ -1,5 +1,8 @@
 use std::env;
+use std::io::Write;
 
+use console;
+use env_logger;
 use failure::Error;
 use log::LevelFilter;
 use pretty_env_logger;
@@ -71,7 +74,26 @@ pub fn init_logging(config: &Config) {
         );
     }
 
-    let mut log_builder = pretty_env_logger::formatted_builder().unwrap();
+    let mut log_builder = {
+        if console::user_attended() {
+            pretty_env_logger::formatted_builder().unwrap()
+        } else {
+            let mut builder = env_logger::Builder::new();
+            builder.format(|buf, record| {
+                let ts = buf.timestamp();
+                writeln!(
+                    buf,
+                    "{} [{}] {}: {}",
+                    ts,
+                    record.module_path().unwrap_or("<unknown>"),
+                    record.level(),
+                    record.args()
+                )
+            });
+            builder
+        }
+    };
+
     match env::var("RUST_LOG") {
         Ok(rust_log) => log_builder.parse(&rust_log),
         Err(_) => log_builder.filter_level(config.log_level_filter()),

@@ -5,6 +5,8 @@ extern crate failure;
 extern crate futures;
 #[macro_use]
 extern crate log;
+extern crate console;
+extern crate env_logger;
 #[cfg(not(windows))]
 extern crate openssl_probe;
 extern crate parking_lot;
