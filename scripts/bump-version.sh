@@ -43,6 +43,12 @@ esac
 echo "Current version: $VERSION"
 echo "Bumping version: $TARGET"
 
+# Check that the tag does not exist
+if git rev-list "${TARGET}.." &>/dev/null; then
+  echo "ERROR: Tag ${TARGET} already exists."
+  exit 1
+fi
+
 # Check that there's a valid CHANGELOG entry for the new version
 UNRELEASED_MARKER="[Unreleased]"
 echo "Checking changelog entry..."
@@ -57,8 +63,13 @@ if [ -z "${CHANGELOG_NEW}" ]; then
     exit 1
 fi
 echo "Changelog entry found."
-# Replace version in CHANGELOG
-sed -i '' -e "s/\\${UNRELEASED_MARKER}/${TARGET}/" CHANGELOG.md
+
+# Replace version in CHANGELOG, add a new "unreleased" section
+sed -i '' -E -e "\
+s/^(.*)(\\${UNRELEASED_MARKER}|$TARGET)(.*)$\
+/\1${UNRELEASED_MARKER}\3\\
+\\
+\1${TARGET}\3/" CHANGELOG.md
 
 VERSION_RE=${VERSION//\./\\.}
 find . -name Cargo.toml -type f -exec sed -i '' -e "1,/^version/ s/^version.*/version = \"$TARGET\"/" {} \;
