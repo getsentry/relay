@@ -1,0 +1,10 @@
+# Copy the semaphore binary to a clean image
+FROM ubuntu:14.04
+RUN apt-get update \
+    && apt-get install -y ca-certificates --no-install-recommends \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+COPY semaphore /bin/semaphore
+WORKDIR /work
+EXPOSE 3000
+CMD ["/bin/semaphore"]
