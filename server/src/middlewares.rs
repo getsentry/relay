@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use actix_web::error::Error;
 use actix_web::middleware::{Finished, Middleware, Response, Started};
-use actix_web::{Body, HttpRequest, HttpResponse, http::header};
+use actix_web::{http::header, Body, HttpRequest, HttpResponse};
 
 use semaphore_aorta::ApiErrorResponse;
 

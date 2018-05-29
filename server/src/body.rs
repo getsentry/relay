@@ -1,9 +1,9 @@
-use actix_web::{HttpMessage, HttpResponse, ResponseError, error::PayloadError};
+use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
 use base64::{self, DecodeError};
 use bytes::{Bytes, BytesMut};
 use flate2::read::ZlibDecoder;
 use futures::{Future, Poll, Stream};
-use http::{StatusCode, header::CONTENT_LENGTH};
+use http::{header::CONTENT_LENGTH, StatusCode};
 use serde::de::DeserializeOwned;
 use serde_json::{self, error::Error as JsonError};
 

@@ -1,5 +1,5 @@
 //! A simple healthcheck endpoint for the relay.
-use actix_web::{HttpResponse, http::Method};
+use actix_web::{http::Method, HttpResponse};
 
 use extractors::CurrentTroveState;
 use service::ServiceApp;

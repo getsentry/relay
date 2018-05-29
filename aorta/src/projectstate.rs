@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::mem;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};

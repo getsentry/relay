@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use actix_web::middleware::cors::Cors;
-use actix_web::{FromRequest, HttpResponse, Json, ResponseError, http::Method};
+use actix_web::{http::Method, FromRequest, HttpResponse, Json, ResponseError};
 use uuid::Uuid;
 
 use extractors::{IncomingEvent, IncomingForeignEvent, ProjectRequest};

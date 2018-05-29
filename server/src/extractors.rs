@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use actix_web::dev::JsonBody;
 use actix_web::error::{Error, JsonPayloadError, PayloadError, ResponseError};
-use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, State, http::header};
+use actix_web::{http::header, FromRequest, HttpMessage, HttpRequest, HttpResponse, State};
 use futures::{future, Future};
 use sentry_types::{Auth, AuthParseError};
 use url::Url;
