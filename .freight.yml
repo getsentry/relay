@@ -1,0 +1,4 @@
+deploy:
+  services:
+    - name: semaphore
+      healthcheck: sleep 3 && curl -fsi curl 127.0.0.1:3000/api/relay/healthcheck/
