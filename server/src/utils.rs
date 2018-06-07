@@ -8,11 +8,11 @@ use uuid::Uuid;
 /// Creates an error event from an actix error.
 pub fn event_from_actix_error(err: &Error) -> Event<'static> {
     let mut exceptions = vec![exception_from_single_fail(
-        err.as_fail(),
+        err.cause(),
         Some(err.backtrace()),
     )];
 
-    let mut ptr: Option<&Fail> = err.as_fail().cause();
+    let mut ptr: Option<&Fail> = err.cause().cause();
     while let Some(cause) = ptr {
         exceptions.push(exception_from_single_fail(cause, cause.backtrace()));
         ptr = Some(cause);

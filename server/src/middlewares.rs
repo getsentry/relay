@@ -16,12 +16,12 @@ pub struct Metrics;
 struct StartTime(Instant);
 
 impl<S> Middleware<S> for Metrics {
-    fn start(&mut self, req: &mut HttpRequest<S>) -> Result<Started, Error> {
+    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started, Error> {
         req.extensions_mut().insert(StartTime(Instant::now()));
         Ok(Started::Done)
     }
 
-    fn finish(&mut self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
+    fn finish(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
         let start_time = req.extensions().get::<StartTime>().unwrap().0;
         metric!(timer("requests.duration") = start_time.elapsed());
         metric!(counter(&format!("responses.status_code.{}", resp.status())) += 1);
@@ -34,7 +34,7 @@ pub struct CaptureSentryError;
 
 impl Middleware<ServiceState> for CaptureSentryError {
     fn response(
-        &mut self,
+        &self,
         _req: &mut HttpRequest<ServiceState>,
         mut resp: HttpResponse,
     ) -> Result<Response, Error> {
@@ -57,7 +57,7 @@ pub struct AddCommonHeaders;
 
 impl<S> Middleware<S> for AddCommonHeaders {
     fn response(
-        &mut self,
+        &self,
         _req: &mut HttpRequest<S>,
         mut resp: HttpResponse,
     ) -> Result<Response, Error> {
@@ -71,7 +71,7 @@ impl<S> Middleware<S> for AddCommonHeaders {
 pub struct ErrorHandlers;
 
 impl<S> Middleware<S> for ErrorHandlers {
-    fn response(&mut self, _: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response, Error> {
+    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response, Error> {
         if (resp.status().is_server_error() || resp.status().is_client_error())
             && resp.body() == &Body::Empty
         {
