@@ -192,16 +192,18 @@ fn log_failed_payload(err: &EncodedJsonPayloadError) {
     for cause in causes.iter().rev() {
         warn!("payload processing issue: {}", cause);
     }
-    warn!(
-        "bad event payload: {} [ payload: {:?} ]",
-        err,
-        err.utf8_body()
+    warn!("failed processing event: {}", err);
+    debug!(
+        "bad event payload: {}",
+        err.utf8_body().unwrap_or("<broken>")
     );
 
     sentry::with_client_and_scope(|client, scope| {
         let mut event = sentry::integrations::failure::event_from_fail(err);
+        let last = event.exceptions.len() - 1;
+        event.exceptions[last].ty = "BadEventPayload".into();
         if let Some(body) = err.utf8_body() {
-            event.extra.insert("raw_payload".into(), body.into());
+            event.message = Some(format!("payload: {}", body));
         };
         client.capture_event(event, Some(scope));
     });
