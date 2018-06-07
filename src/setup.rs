@@ -42,6 +42,7 @@ pub fn init_logging(config: &Config) {
                 "semaphore_trove::",
                 "sentry_relay::",
             ],
+            release: sentry_crate_release!(),
             ..Default::default()
         },
     ));
