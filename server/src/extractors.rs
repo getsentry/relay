@@ -15,6 +15,8 @@ use semaphore_common::{ProjectId, ProjectIdParseError};
 use body::{EncodedJsonBody, EncodedJsonPayloadError};
 use service::ServiceState;
 
+use sentry;
+
 #[derive(Fail, Debug)]
 pub enum BadProjectRequest {
     #[fail(display = "invalid project path parameter")]
@@ -190,11 +192,19 @@ fn log_failed_payload(err: &EncodedJsonPayloadError) {
     for cause in causes.iter().rev() {
         warn!("payload processing issue: {}", cause);
     }
-    error!(
+    warn!(
         "bad event payload: {} [ payload: {:?} ]",
         err,
         err.utf8_body()
     );
+
+    sentry::with_client_and_scope(|client, scope| {
+        let mut event = sentry::integrations::failure::event_from_fail(err);
+        if let Some(body) = err.utf8_body() {
+            event.extra.insert("raw_payload".into(), body.into());
+        };
+        client.capture_event(event, Some(scope));
+    });
 }
 
 impl FromRequest<ServiceState> for IncomingEvent {
