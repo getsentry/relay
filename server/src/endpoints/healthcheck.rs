@@ -1,7 +1,7 @@
 //! A simple healthcheck endpoint for the relay.
 use actix_web::{http::Method, HttpResponse};
 
-use extractors::CurrentTroveState;
+use extractors::CurrentServiceState;
 use service::ServiceApp;
 
 #[derive(Serialize)]
@@ -9,7 +9,7 @@ struct HealthcheckResponse {
     is_healthy: bool,
 }
 
-fn healthcheck(state: CurrentTroveState) -> HttpResponse {
+fn healthcheck(state: CurrentServiceState) -> HttpResponse {
     let resp = HealthcheckResponse {
         is_healthy: state.is_healthy(),
     };
