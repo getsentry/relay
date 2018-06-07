@@ -6,7 +6,7 @@ use std::sync::{Once, ONCE_INIT};
 use base64;
 use chrono::{DateTime, Duration, Utc};
 use hyper::Method;
-use rand::{thread_rng, Rng};
+use rand::{thread_rng, RngCore};
 use rust_sodium;
 use rust_sodium::crypto::sign::ed25519 as sign_backend;
 use serde::de::DeserializeOwned;
@@ -25,7 +25,7 @@ pub type RelayId = Uuid;
 /// wrapper as otherwise thread safety cannot be guarnateed.
 fn with_sodiumoxide_rng<T, F: FnOnce() -> T>(cb: F) -> T {
     INIT_SODIUMOXIDE_RNG.call_once(|| {
-        rust_sodium::init();
+        rust_sodium::init().ok();
     });
     cb()
 }

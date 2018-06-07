@@ -19,15 +19,15 @@ lto = true
 [dependencies]
 clap = { version = "2.31.2", default-features = false, features = ["wrap_help"] }
 failure = "0.1.1"
-pretty_env_logger = "0.2.2"
+pretty_env_logger = "0.2.3"
 tokio-core = "0.1.17"
 futures = "0.1.21"
 parking_lot = "0.5.5"
-ctrlc = { version = "3.1.0", features = ["termination"] }
-log = "0.4.1"
-sentry = "0.5.1"
+ctrlc = { version = "3.1.1", features = ["termination"] }
+log = "0.4.2"
+sentry = "0.5.4"
 dialoguer = "0.1.0"
-uuid = "0.6.3"
+uuid = "0.6.5"
 console = "0.6.1"
 env_logger = "0.5.10"
 
