@@ -22,7 +22,7 @@ build:
 
 install:
   # Push job information to Zeus
-  - npm install --save -g https://github.com/getsentry/zeus-cli/tarball/master
+  - npm install -g @zeus-ci/cli
   - zeus job update --status=pending -B "%APPVEYOR_PULL_REQUEST_TITLE%" -J "%APPVEYOR_JOB_NAME%"
   # Install the rest
   - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
