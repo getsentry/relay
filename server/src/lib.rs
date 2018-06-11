@@ -21,7 +21,6 @@ extern crate semaphore_common;
 extern crate semaphore_config;
 extern crate semaphore_trove;
 extern crate sentry;
-extern crate sentry_types;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;

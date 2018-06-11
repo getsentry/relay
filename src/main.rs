@@ -11,6 +11,7 @@ extern crate env_logger;
 extern crate openssl_probe;
 extern crate parking_lot;
 extern crate pretty_env_logger;
+#[macro_use]
 extern crate sentry;
 extern crate uuid;
 

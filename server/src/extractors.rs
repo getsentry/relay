@@ -5,12 +5,11 @@ use actix_web::error::{Error, JsonPayloadError, PayloadError, ResponseError};
 use actix_web::{http::header, FromRequest, HttpMessage, HttpRequest, HttpResponse, State};
 use failure::Fail;
 use futures::{future, Future};
-use sentry_types::{Auth, AuthParseError};
 use url::Url;
 
 use semaphore_aorta::{ApiErrorResponse, EventMeta, EventVariant, ForeignEvent, ForeignPayload,
                       ProjectState, StoreChangeset};
-use semaphore_common::{ProjectId, ProjectIdParseError};
+use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
 use body::{EncodedJsonBody, EncodedJsonPayloadError};
 use service::ServiceState;

@@ -7,15 +7,19 @@ use uuid::Uuid;
 
 /// Creates an error event from an actix error.
 pub fn event_from_actix_error(err: &Error) -> Event<'static> {
-    let mut exceptions = vec![exception_from_single_fail(
-        err.cause(),
-        Some(err.backtrace()),
-    )];
+    let mut exceptions = Vec::new();
 
-    let mut ptr: Option<&Fail> = err.cause().cause();
-    while let Some(cause) = ptr {
-        exceptions.push(exception_from_single_fail(cause, cause.backtrace()));
-        ptr = Some(cause);
+    let mut index = 0;
+    let mut fail: Option<&Fail> = Some(err.as_fail());
+    while let Some(cause) = fail {
+        let backtrace = match index {
+            0 => Some(err.backtrace()),
+            _ => cause.backtrace(),
+        };
+
+        exceptions.push(exception_from_single_fail(cause, backtrace));
+        fail = Some(cause);
+        index += 1;
     }
 
     exceptions.reverse();
