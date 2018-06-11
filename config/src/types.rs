@@ -130,6 +130,8 @@ pub struct MinimalConfig {
 struct Logging {
     /// The log level for the relay.
     level: log::LevelFilter,
+    /// If set to true this emits log messages for failed event payloads.
+    log_failed_payloads: bool,
     /// When set to true, backtraces are forced on.
     enable_backtraces: bool,
 }
@@ -191,6 +193,7 @@ impl Default for Logging {
     fn default() -> Logging {
         Logging {
             level: log::LevelFilter::Info,
+            log_failed_payloads: false,
             enable_backtraces: true,
         }
     }
@@ -504,6 +507,11 @@ impl Config {
     /// Should backtraces be enabled?
     pub fn enable_backtraces(&self) -> bool {
         self.values.logging.enable_backtraces
+    }
+
+    /// Should we debug log bad payloads?
+    pub fn log_failed_payloads(&self) -> bool {
+        self.values.logging.log_failed_payloads
     }
 
     /// Returns the socket addresses for statsd.

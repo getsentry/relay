@@ -7,6 +7,7 @@ use actix_web::{http::header, Body, HttpRequest, HttpResponse};
 use semaphore_aorta::ApiErrorResponse;
 
 use constants::SERVER;
+use service::ServiceState;
 use utils::report_actix_error_to_sentry;
 
 /// Basic metrics
@@ -31,11 +32,15 @@ impl<S> Middleware<S> for Metrics {
 /// Reports certain failures to sentry.
 pub struct CaptureSentryError;
 
-impl<S> Middleware<S> for CaptureSentryError {
-    fn response(&self, _: &mut HttpRequest<S>, mut resp: HttpResponse) -> Result<Response, Error> {
+impl Middleware<ServiceState> for CaptureSentryError {
+    fn response(
+        &self,
+        _req: &mut HttpRequest<ServiceState>,
+        mut resp: HttpResponse,
+    ) -> Result<Response, Error> {
         let mut event_id = None;
-        if resp.status().is_server_error() {
-            if let Some(error) = resp.error() {
+        if let Some(error) = resp.error() {
+            if resp.status().is_server_error() {
                 event_id = Some(report_actix_error_to_sentry(error));
             }
         }

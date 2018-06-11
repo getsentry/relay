@@ -25,6 +25,7 @@ mod setup;
 mod utils;
 
 use std::env;
+use std::time::Duration;
 
 pub fn main() {
     // on non windows machines we want to initialize the openssl envvars based on
@@ -57,5 +58,7 @@ pub fn main() {
             println!("");
             println!("hint: you can set RUST_BACKTRACE=1 to get the entire backtrace.");
         }
-    }
+    };
+
+    sentry::drain_events(Some(Duration::from_secs(2)));
 }

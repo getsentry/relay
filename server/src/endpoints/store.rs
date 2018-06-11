@@ -1,15 +1,12 @@
 //! Handles event store requests.
-use std::sync::Arc;
-
 use actix_web::middleware::cors::Cors;
 use actix_web::{http::Method, FromRequest, HttpResponse, Json, ResponseError};
 use uuid::Uuid;
 
 use extractors::{IncomingEvent, IncomingForeignEvent, ProjectRequest};
-use service::ServiceApp;
+use service::{ServiceApp, ServiceState};
 
 use semaphore_aorta::{ApiErrorResponse, StoreChangeset};
-use semaphore_trove::TroveState;
 
 #[derive(Serialize)]
 struct StoreResponse {
@@ -26,7 +23,7 @@ impl ResponseError for StoreRejected {
     }
 }
 
-fn store_event<I: FromRequest<Arc<TroveState>> + Into<StoreChangeset>>(
+fn store_event<I: FromRequest<ServiceState> + Into<StoreChangeset>>(
     mut request: ProjectRequest<I>,
 ) -> Result<Json<StoreResponse>, StoreRejected> {
     let changeset = request.take_payload().into();

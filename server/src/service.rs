@@ -5,6 +5,7 @@ use actix_web::{server, App};
 use failure::ResultExt;
 use listenfd::ListenFd;
 
+use semaphore_aorta::AortaConfig;
 use semaphore_config::Config;
 use semaphore_trove::{Trove, TroveState};
 
@@ -19,10 +20,39 @@ fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
     }
 }
 
-/// The actix app type for the relay web service.
-pub type ServiceApp = App<Arc<TroveState>>;
+/// Server state.
+#[derive(Clone, Debug)]
+pub struct ServiceState {
+    trove_state: Arc<TroveState>,
+    config: Arc<Config>,
+}
 
-fn make_app(state: Arc<TroveState>) -> ServiceApp {
+impl ServiceState {
+    /// Returns an atomically counted reference to the trove state.
+    pub fn trove_state(&self) -> Arc<TroveState> {
+        self.trove_state.clone()
+    }
+
+    /// Returns an atomically counted reference to the aorta config.
+    pub fn aorta_config(&self) -> Arc<AortaConfig> {
+        self.trove_state.config().clone()
+    }
+
+    /// Returns an atomically counted reference to the config.
+    pub fn config(&self) -> Arc<Config> {
+        self.config.clone()
+    }
+
+    /// Checks if the service is healthy.
+    pub fn is_healthy(&self) -> bool {
+        self.trove_state.is_healthy()
+    }
+}
+
+/// The actix app type for the relay web service.
+pub type ServiceApp = App<ServiceState>;
+
+fn make_app(state: ServiceState) -> ServiceApp {
     let mut app = App::with_state(state)
         .middleware(Metrics)
         .middleware(CaptureSentryError)
@@ -46,14 +76,17 @@ fn make_app(state: Arc<TroveState>) -> ServiceApp {
 /// This not only spawning the server but also a governed trove in the
 /// background.  Effectively this boots the server.
 pub fn run(config: Config) -> Result<(), ServerError> {
+    let config = Arc::new(config);
     let trove = Arc::new(Trove::new(config.make_aorta_config()));
-    let state = trove.state();
     trove
         .govern()
         .context(ServerErrorKind::TroveGovernSpawnFailed)?;
 
-    let server_state = state.clone();
-    let mut server = server::new(move || make_app(server_state.clone()));
+    let service_state = ServiceState {
+        trove_state: trove.state(),
+        config: config.clone(),
+    };
+    let mut server = server::new(move || make_app(service_state.clone()));
 
     let mut listenfd = ListenFd::from_env();
 

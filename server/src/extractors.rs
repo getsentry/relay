@@ -3,15 +3,18 @@ use std::sync::Arc;
 use actix_web::dev::JsonBody;
 use actix_web::error::{Error, JsonPayloadError, PayloadError, ResponseError};
 use actix_web::{http::header, FromRequest, HttpMessage, HttpRequest, HttpResponse, State};
+use failure::Fail;
 use futures::{future, Future};
 use url::Url;
 
 use semaphore_aorta::{ApiErrorResponse, EventMeta, EventVariant, ForeignEvent, ForeignPayload,
                       ProjectState, StoreChangeset};
 use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
-use semaphore_trove::TroveState;
 
 use body::{EncodedJsonBody, EncodedJsonPayloadError};
+use service::ServiceState;
+
+use sentry;
 
 #[derive(Fail, Debug)]
 pub enum BadProjectRequest {
@@ -35,8 +38,8 @@ impl ResponseError for BadProjectRequest {
     }
 }
 
-/// An extractor for the trove state.
-pub type CurrentTroveState = State<Arc<TroveState>>;
+/// An extractor for the entire service state.
+pub type CurrentServiceState = State<ServiceState>;
 
 /// A common extractor for handling project requests.
 ///
@@ -47,12 +50,12 @@ pub type CurrentTroveState = State<Arc<TroveState>>;
 /// In particular it wraps another extractor that can give convenient
 /// access to the request's payload.
 #[derive(Debug)]
-pub struct ProjectRequest<T: FromRequest<Arc<TroveState>> + 'static> {
-    http_req: HttpRequest<Arc<TroveState>>,
+pub struct ProjectRequest<T: FromRequest<ServiceState> + 'static> {
+    http_req: HttpRequest<ServiceState>,
     payload: Option<T>,
 }
 
-impl<T: FromRequest<Arc<TroveState>> + 'static> ProjectRequest<T> {
+impl<T: FromRequest<ServiceState> + 'static> ProjectRequest<T> {
     /// Returns the project identifier for this request.
     pub fn project_id(&self) -> ProjectId {
         *self.http_req.extensions().get().unwrap()
@@ -63,14 +66,15 @@ impl<T: FromRequest<Arc<TroveState>> + 'static> ProjectRequest<T> {
         self.http_req.extensions().get().unwrap()
     }
 
-    /// Returns the current trove state.
-    pub fn trove_state(&self) -> Arc<TroveState> {
-        self.http_req.state().clone()
+    /// Returns the current service state.
+    pub fn service_state(&self) -> &ServiceState {
+        self.http_req.state()
     }
 
     /// Gets or creates the project state.
     pub fn get_or_create_project_state(&self) -> Arc<ProjectState> {
-        self.trove_state()
+        self.service_state()
+            .trove_state()
             .get_or_create_project_state(self.project_id())
     }
 
@@ -99,11 +103,11 @@ fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadProjectRequ
     Auth::from_querystring(req.query_string().as_bytes()).map_err(BadProjectRequest::BadAuth)
 }
 
-impl<T: FromRequest<Arc<TroveState>> + 'static> FromRequest<Arc<TroveState>> for ProjectRequest<T> {
-    type Config = <T as FromRequest<Arc<TroveState>>>::Config;
+impl<T: FromRequest<ServiceState> + 'static> FromRequest<ServiceState> for ProjectRequest<T> {
+    type Config = <T as FromRequest<ServiceState>>::Config;
     type Result = Box<Future<Item = Self, Error = Error>>;
 
-    fn from_request(req: &HttpRequest<Arc<TroveState>>, cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<ServiceState>, cfg: &Self::Config) -> Self::Result {
         let mut req = req.clone();
         let auth = match get_auth_from_request(&req) {
             Ok(auth) => auth,
@@ -144,7 +148,7 @@ fn parse_header_origin<T>(req: &HttpRequest<T>, header: header::HeaderName) -> O
         })
 }
 
-fn event_meta_from_req(req: &HttpRequest<Arc<TroveState>>) -> EventMeta {
+fn event_meta_from_req(req: &HttpRequest<ServiceState>) -> EventMeta {
     let auth: &Auth = req.extensions().get().unwrap();
     EventMeta {
         remote_addr: req.peer_addr().map(|sock_addr| sock_addr.ip()),
@@ -182,14 +186,37 @@ impl From<IncomingEvent> for StoreChangeset {
     }
 }
 
-impl FromRequest<Arc<TroveState>> for IncomingEvent {
+fn log_failed_payload(err: &EncodedJsonPayloadError) {
+    let causes: Vec<_> = err.causes().skip(1).collect();
+    for cause in causes.iter().rev() {
+        warn!("payload processing issue: {}", cause);
+    }
+    warn!("failed processing event: {}", err);
+    debug!(
+        "bad event payload: {}",
+        err.utf8_body().unwrap_or("<broken>")
+    );
+
+    sentry::with_client_and_scope(|client, scope| {
+        let mut event = sentry::integrations::failure::event_from_fail(err);
+        let last = event.exceptions.len() - 1;
+        event.exceptions[last].ty = "BadEventPayload".into();
+        if let Some(body) = err.utf8_body() {
+            event.message = Some(format!("payload: {}", body));
+        };
+        client.capture_event(event, Some(scope));
+    });
+}
+
+impl FromRequest<ServiceState> for IncomingEvent {
     type Config = ();
     type Result = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<Arc<TroveState>>, _cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
         let auth: &Auth = req.extensions().get().unwrap();
-        let max_payload = req.state().config().max_event_payload_size;
+        let max_payload = req.state().aorta_config().max_event_payload_size;
+        let log_failed_payloads = req.state().config().log_failed_payloads();
 
         // anything up to 7 is considered sentry v7
         if auth.version() <= 7 {
@@ -198,7 +225,12 @@ impl FromRequest<Arc<TroveState>> for IncomingEvent {
             Box::new(
                 EncodedJsonBody::new(req.clone())
                     .limit(max_payload)
-                    .map_err(|e| BadProjectRequest::BadEncodedJson(e).into())
+                    .map_err(move |e| {
+                        if log_failed_payloads {
+                            log_failed_payload(&e);
+                        }
+                        BadProjectRequest::BadEncodedJson(e).into()
+                    })
                     .map(move |e| IncomingEvent::new(EventVariant::SentryV7(e), meta, public_key)),
             )
 
@@ -220,14 +252,14 @@ impl From<IncomingForeignEvent> for StoreChangeset {
     }
 }
 
-impl FromRequest<Arc<TroveState>> for IncomingForeignEvent {
+impl FromRequest<ServiceState> for IncomingForeignEvent {
     type Config = ();
     type Result = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<Arc<TroveState>>, _cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
         let auth: &Auth = req.extensions().get().unwrap();
-        let max_payload = req.state().config().max_event_payload_size;
+        let max_payload = req.state().aorta_config().max_event_payload_size;
 
         let meta = event_meta_from_req(req);
         let store_type = req.match_info().get("store_type").unwrap().to_string();

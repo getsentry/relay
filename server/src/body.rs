@@ -1,3 +1,5 @@
+use std::str;
+
 use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
 use base64::{self, DecodeError};
 use bytes::{Bytes, BytesMut};
@@ -15,13 +17,30 @@ pub enum EncodedJsonPayloadError {
     Overflow,
     /// Base64 Decode error
     #[fail(display = "base64 decode error: {}", _0)]
-    Decode(#[cause] DecodeError),
+    Decode(#[cause] DecodeError, Option<Bytes>),
     /// Deserialize error
     #[fail(display = "json deserialize error: {}", _0)]
-    Deserialize(#[cause] JsonError),
+    Deserialize(#[cause] JsonError, Option<Bytes>),
     /// Payload error
     #[fail(display = "error that occur during reading payload: {}", _0)]
     Payload(#[cause] PayloadError),
+}
+
+impl EncodedJsonPayloadError {
+    /// Returns the body of the error if available.
+    pub fn body(&self) -> Option<&[u8]> {
+        match self {
+            EncodedJsonPayloadError::Overflow => None,
+            EncodedJsonPayloadError::Decode(_, ref body) => body.as_ref().map(|x| &x[..]),
+            EncodedJsonPayloadError::Deserialize(_, ref body) => body.as_ref().map(|x| &x[..]),
+            EncodedJsonPayloadError::Payload(_) => None,
+        }
+    }
+
+    /// Returns the body of the error as utf-8 string
+    pub fn utf8_body(&self) -> Option<&str> {
+        self.body().and_then(|val| str::from_utf8(val).ok())
+    }
 }
 
 impl ResponseError for EncodedJsonPayloadError {
@@ -36,18 +55,6 @@ impl ResponseError for EncodedJsonPayloadError {
 impl From<PayloadError> for EncodedJsonPayloadError {
     fn from(err: PayloadError) -> EncodedJsonPayloadError {
         EncodedJsonPayloadError::Payload(err)
-    }
-}
-
-impl From<DecodeError> for EncodedJsonPayloadError {
-    fn from(err: DecodeError) -> EncodedJsonPayloadError {
-        EncodedJsonPayloadError::Decode(err)
-    }
-}
-
-impl From<JsonError> for EncodedJsonPayloadError {
-    fn from(err: JsonError) -> EncodedJsonPayloadError {
-        EncodedJsonPayloadError::Deserialize(err)
     }
 }
 
@@ -110,13 +117,18 @@ where
                 })
                 .and_then(|body| {
                     if body.starts_with(b"{") {
-                        Ok(serde_json::from_slice(&body)?)
+                        Ok(serde_json::from_slice(&body).map_err(|err| {
+                            EncodedJsonPayloadError::Deserialize(err, Some(body.freeze()))
+                        })?)
                     } else {
                         // TODO: Switch to a streaming decoder
                         // see https://github.com/alicemaz/rust-base64/pull/56
-                        let binary_body = base64::decode(&body)?;
+                        let binary_body = base64::decode(&body).map_err(|err| {
+                            EncodedJsonPayloadError::Decode(err, Some(body.freeze()))
+                        })?;
                         let decode_stream = ZlibDecoder::new(binary_body.as_slice());
-                        Ok(serde_json::from_reader(decode_stream)?)
+                        Ok(serde_json::from_reader(decode_stream)
+                            .map_err(|err| EncodedJsonPayloadError::Deserialize(err, None))?)
                     }
                 });
             self.fut = Some(Box::new(fut));
