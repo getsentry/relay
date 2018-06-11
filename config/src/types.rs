@@ -10,13 +10,15 @@ use std::sync::Arc;
 use chrono::Duration;
 use failure::{Backtrace, Context, Fail};
 use log;
-use semaphore_aorta::{generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId,
-                      SecretKey, UpstreamDescriptor};
+// Dsn must be imported from sentry and not sentry-types for compatibility with sentry::init!
 use sentry::Dsn;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 use serde_json;
 use serde_yaml;
+
+use semaphore_aorta::{generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId,
+                      SecretKey, UpstreamDescriptor};
 
 /// Indicates config related errors.
 #[derive(Debug)]

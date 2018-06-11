@@ -2,11 +2,12 @@ use std::collections::HashMap;
 use std::fmt;
 use std::net::IpAddr;
 
-use sentry_types::protocol::v7;
 use serde_json;
 use url::Url;
 use url_serde;
 use uuid::Uuid;
+
+use semaphore_common::v7;
 
 use query::AortaChangeset;
 use utils::{serialize_origin, StandardBase64};
