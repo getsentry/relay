@@ -117,15 +117,24 @@ impl<T: FromRequest<ServiceState> + 'static> FromRequest<ServiceState> for Proje
 
         req.extensions_mut().insert(auth.clone());
 
-        match req.match_info()
+        let project_id = match req.match_info()
             .get("project")
             .unwrap_or_default()
             .parse::<ProjectId>()
             .map_err(BadProjectRequest::BadProject)
         {
-            Ok(project_id) => req.extensions_mut().insert(project_id),
+            Ok(project_id) => project_id,
             Err(err) => return Box::new(future::err(err.into())),
         };
+
+        sentry::configure_scope(|scope| {
+            scope.set_user(Some(sentry::User {
+                id: Some(project_id.to_string()),
+                ..Default::default()
+            }));
+        });
+
+        req.extensions_mut().insert(project_id);
 
         Box::new(
             T::from_request(&req, cfg)

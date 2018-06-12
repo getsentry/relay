@@ -122,6 +122,20 @@ pub struct MinimalConfig {
     pub relay: Relay,
 }
 
+/// Controls the log format
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum LogFormat {
+    /// Auto detect (pretty for tty, simplified for other)
+    Auto,
+    /// With colors
+    Pretty,
+    /// Simplified log output
+    Simplified,
+    /// Dump out JSON lines
+    Json,
+}
+
 /// Controls the logging system.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -130,6 +144,8 @@ struct Logging {
     level: log::LevelFilter,
     /// If set to true this emits log messages for failed event payloads.
     log_failed_payloads: bool,
+    /// Controls the log format.
+    format: LogFormat,
     /// When set to true, backtraces are forced on.
     enable_backtraces: bool,
 }
@@ -192,6 +208,7 @@ impl Default for Logging {
         Logging {
             level: log::LevelFilter::Info,
             log_failed_payloads: false,
+            format: LogFormat::Auto,
             enable_backtraces: true,
         }
     }
@@ -510,6 +527,11 @@ impl Config {
     /// Should we debug log bad payloads?
     pub fn log_failed_payloads(&self) -> bool {
         self.values.logging.log_failed_payloads
+    }
+
+    /// Which log format should be used?
+    pub fn log_format(&self) -> LogFormat {
+        self.values.logging.format
     }
 
     /// Returns the socket addresses for statsd.
