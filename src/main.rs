@@ -13,6 +13,11 @@ extern crate parking_lot;
 extern crate pretty_env_logger;
 #[macro_use]
 extern crate sentry;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate chrono;
+extern crate serde_json;
 extern crate uuid;
 
 extern crate semaphore_common;
