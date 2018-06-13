@@ -19,6 +19,7 @@ mod utils;
 #[macro_use]
 pub mod metrics;
 
+pub use sentry_types::protocol::v7;
 pub use sentry_types::{Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError,
                        Scheme};
 
