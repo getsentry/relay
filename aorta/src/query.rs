@@ -200,10 +200,10 @@ impl RequestManager {
         }
 
         let last_heartbeat = inner.last_heartbeat;
-        inner.last_heartbeat = Some(Instant::now());
 
         // if there is actual data in the heartbeat request, send it and come back in two seconds.
         if !rv.changesets.is_empty() || !rv.queries.is_empty() {
+            inner.last_heartbeat = Some(Instant::now());
             (
                 Some(rv),
                 match inner.pending_queries.is_empty() || inner.pending_changesets.is_empty() {
@@ -215,6 +215,7 @@ impl RequestManager {
         // we waited long enough without sending some data, send an empty heartbeat now and come
         // back quickly for more checks
         } else if last_heartbeat.map_or(true, |x| x.elapsed() > self.heartbeat_interval()) {
+            inner.last_heartbeat = Some(Instant::now());
             (Some(rv), self.normal_retry_interval())
 
         // no request to send now, check back quickly
