@@ -254,12 +254,20 @@ impl ProjectState {
                 if !snapshot.outdated(&self.config) && snapshot.disabled() {
                     return PublicKeyEventAction::Discard;
                 }
+
+                // if the snapshot is out of date, we schedule an update in the next
+                // heartbeat but proceed like it was still up to date. the upstream
+                // semaphore (or sentry) will still filter events.
+                if snapshot.outdated(&self.config) {
+                    self.request_updated_project_config();
+                }
+
                 match snapshot.get_public_key_status(public_key) {
                     PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
                     PublicKeyStatus::Disabled => PublicKeyEventAction::Discard,
                     PublicKeyStatus::Unknown => {
                         // we don't know the key yet, ensure we fetch it on the next
-                        // heartbeat.
+                        // heartbeat, even if the snapshot is up to date.
                         self.request_updated_project_config();
 
                         // if the last config fetch was more than a minute ago we just
