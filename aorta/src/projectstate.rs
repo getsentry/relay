@@ -245,48 +245,44 @@ impl ProjectState {
     /// internal logic here that based on the age of the snapshot and
     /// some global disabled settings will indicate different behaviors.
     pub fn get_public_key_event_action(&self, public_key: &str) -> PublicKeyEventAction {
-        match *self.current_snapshot.read() {
-            Some(ref snapshot) => {
-                // in case the entire project is disabled we always discard
-                // events unless the snapshot is outdated.  In case the
-                // snapshot is outdated we might fall back to sending or
-                // discarding as well based on the key status.
-                if !snapshot.outdated(&self.config) && snapshot.disabled() {
-                    return PublicKeyEventAction::Discard;
-                }
-
-                // if the snapshot is out of date, we schedule an update in the next
-                // heartbeat but proceed like it was still up to date. the upstream
-                // semaphore (or sentry) will still filter events.
-                if snapshot.outdated(&self.config) {
-                    self.request_updated_project_config();
-                }
-
-                match snapshot.get_public_key_status(public_key) {
-                    PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
-                    PublicKeyStatus::Disabled => PublicKeyEventAction::Discard,
-                    PublicKeyStatus::Unknown => {
-                        // we don't know the key yet, ensure we fetch it on the next
-                        // heartbeat, even if the snapshot is up to date.
-                        self.request_updated_project_config();
-
-                        // if the last config fetch was more than a minute ago we just
-                        // accept the event because at this point the dsn might have
-                        // become available upstream.
-                        if snapshot.outdated(&self.config) {
-                            PublicKeyEventAction::Queue
-                        // we just assume the config did not change in the last 60
-                        // seconds and the dsn is indeed not seen yet.
-                        } else {
-                            PublicKeyEventAction::Discard
-                        }
-                    }
-                }
-            }
-            // in the absence of a snapshot we generally queue
+        let guard = self.current_snapshot.read();
+        let snapshot = match *guard {
+            Some(ref snapshot) => snapshot,
             None => {
+                // in the absence of a snapshot we generally queue.
                 self.request_updated_project_config();
-                PublicKeyEventAction::Queue
+                return PublicKeyEventAction::Queue;
+            }
+        };
+
+        if snapshot.outdated(&self.config) {
+            // if the snapshot is out of date, we schedule an update in the next
+            // heartbeat but proceed like it was still up to date. the upstream
+            // semaphore (or sentry) will still filter events.
+            self.request_updated_project_config();
+
+            // we assume it is unlikely to re-activate a disabled public key.
+            // thus we handle events pretending the config is still valid,
+            // except queueing events for unknown DSNs as they might have become
+            // available in the meanwhile.
+            match snapshot.get_public_key_status(public_key) {
+                PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
+                PublicKeyStatus::Disabled => PublicKeyEventAction::Discard,
+                PublicKeyStatus::Unknown => PublicKeyEventAction::Queue,
+            }
+        } else {
+            // only drop events if we know for sure the project is disabled.
+            if snapshot.disabled() {
+                return PublicKeyEventAction::Discard;
+            }
+
+            // since the config has been fetched recently, we assume unknown
+            // public keys do not exist and drop events eagerly.
+            match snapshot.get_public_key_status(public_key) {
+                PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
+                PublicKeyStatus::Disabled | PublicKeyStatus::Unknown => {
+                    PublicKeyEventAction::Discard
+                }
             }
         }
     }
