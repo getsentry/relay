@@ -23,6 +23,7 @@ env:
 branches:
   only:
     - master
+    - /^release\/[\d.]+$/
 
 install: skip
 script: make $SUITE
