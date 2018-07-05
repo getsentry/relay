@@ -6,7 +6,7 @@ homepage = "https://github.com/getsentry/semaphore"
 license = "MIT"
 name = "semaphore-config"
 repository = "https://github.com/getsentry/semaphore"
-version = "0.1.1"
+version = "0.1.2"
 
 [dependencies]
 chrono = "0.4.2"
