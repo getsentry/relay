@@ -1,6 +1,0 @@
-store: zeus
-targets:
-  - github
-  - pypi
-ignoredChecks:
-  - ci/dockercloud
