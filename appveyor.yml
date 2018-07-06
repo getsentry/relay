@@ -3,6 +3,7 @@ skip_tags: true
 branches:
   only:
     - master
+    - /^release\/[\d.]+$/
 
 cache:
   - 'target'
