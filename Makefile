@@ -44,9 +44,17 @@ pytest:
 	@$(MAKE) -C py test
 .PHONY: pytest
 
+format:
+	@cargo fmt
+.PHONY: format
+
 format-check:
 	@cargo fmt -- --write-mode diff
 .PHONY: format-check
+
+lint:
+	@cargo +nightly clippy --tests --all -- -D clippy
+.PHONY: lint
 
 devserver:
 	@systemfd --no-pid -s http::3000 -- cargo watch -x "run -- run"

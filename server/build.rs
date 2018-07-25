@@ -10,7 +10,7 @@ fn main() {
 
     write!(
         f,
-        "pub const SERVER: &'static str = \"semaphore/{}\";\n",
+        "pub const SERVER: &str = \"semaphore/{}\";\n",
         env::var("CARGO_PKG_VERSION").unwrap()
     ).unwrap();
     println!("cargo:rerun-if-changed=build.rs\n");

@@ -12,7 +12,7 @@ pub trait ApiRequest: Serialize {
     type Response: DeserializeOwned + 'static;
 
     /// Returns the target URL and method.
-    fn get_aorta_request_target<'a>(&'a self) -> (Method, Cow<'a, str>);
+    fn get_aorta_request_target(&self) -> (Method, Cow<str>);
 }
 
 /// An error response from an api.

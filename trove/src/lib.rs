@@ -3,6 +3,8 @@
 //! changes that need to be flushed with the heartbeat and stores
 //! config updates from upstream.
 #![warn(missing_docs)]
+#![cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
+
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;

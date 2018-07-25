@@ -127,7 +127,7 @@ pub fn init_logging(config: &Config) {
                             lineno: record.line(),
                         },
                     ).map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-                    buf.write(b"\n")?;
+                    buf.write_all(b"\n")?;
                     Ok(())
                 });
                 builder

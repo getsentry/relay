@@ -153,12 +153,12 @@ impl ProjectState {
         request_manager: Arc<RequestManager>,
     ) -> ProjectState {
         ProjectState {
-            project_id: project_id,
-            config: config,
+            project_id,
+            config,
             current_snapshot: RwLock::new(None),
             pending_stores: RwLock::new(Vec::new()),
             requested_new_snapshot: AtomicBool::new(false),
-            request_manager: request_manager,
+            request_manager,
             last_event: RwLock::new(None),
         }
     }
@@ -200,10 +200,7 @@ impl ProjectState {
 
     /// Returns the time of the last config fetch.
     pub fn last_config_fetch(&self) -> Option<DateTime<Utc>> {
-        self.current_snapshot
-            .read()
-            .as_ref()
-            .map(|x| x.last_fetch.clone())
+        self.current_snapshot.read().as_ref().map(|x| x.last_fetch)
     }
 
     /// Returns the time of the last config change.
@@ -211,7 +208,7 @@ impl ProjectState {
         self.current_snapshot
             .read()
             .as_ref()
-            .and_then(|x| x.last_change.clone())
+            .and_then(|x| x.last_change)
     }
 
     /// Requests an update to the project config to be fetched.
@@ -302,7 +299,7 @@ impl ProjectState {
     ///
     /// It either puts it into an internal queue, sends it or discards it.  If the item
     /// was discarded `false` is returned.
-    pub fn store_changeset<'a>(&self, changeset: StoreChangeset) -> bool {
+    pub fn store_changeset(&self, changeset: StoreChangeset) -> bool {
         if let Some(ref origin) = changeset.meta.origin {
             if !self.is_valid_origin(origin) {
                 debug!(

@@ -118,7 +118,7 @@ pub struct RegisterRequest {
 impl ApiRequest for RegisterRequest {
     type Response = RegisterChallenge;
 
-    fn get_aorta_request_target<'a>(&'a self) -> (Method, Cow<'a, str>) {
+    fn get_aorta_request_target(&self) -> (Method, Cow<str>) {
         (Method::Post, Cow::Borrowed("relays/register/challenge/"))
     }
 }
@@ -146,7 +146,7 @@ pub struct Registration {
 impl ApiRequest for RegisterResponse {
     type Response = Registration;
 
-    fn get_aorta_request_target<'a>(&'a self) -> (Method, Cow<'a, str>) {
+    fn get_aorta_request_target(&self) -> (Method, Cow<str>) {
         (Method::Post, Cow::Borrowed("relays/register/response/"))
     }
 }
@@ -156,7 +156,7 @@ impl SecretKey {
     ///
     /// This is will sign with the default header.
     pub fn sign(&self, data: &[u8]) -> String {
-        self.sign_with_header(data, Default::default())
+        self.sign_with_header(data, &Default::default())
     }
 
     /// Signs some data with the seret key and a specific header and
@@ -164,7 +164,7 @@ impl SecretKey {
     ///
     /// The default behavior is to attach the timestamp in the header to the
     /// signature so that old signatures on verification can be rejected.
-    pub fn sign_with_header(&self, data: &[u8], header: SignatureHeader) -> String {
+    pub fn sign_with_header(&self, data: &[u8], header: &SignatureHeader) -> String {
         let mut header =
             serde_json::to_vec(&header).expect("attempted to pack non json safe header");
         let header_encoded = base64::encode_config(&header[..], base64::URL_SAFE_NO_PAD);
@@ -179,26 +179,26 @@ impl SecretKey {
 
     /// Packs some serializable data into JSON and signs it with the default header.
     pub fn pack<S: Serialize>(&self, data: S) -> (Vec<u8>, String) {
-        self.pack_with_header(data, Default::default())
+        self.pack_with_header(data, &Default::default())
     }
 
     /// Packs some serializable data into JSON and signs it with the specified header.
     pub fn pack_with_header<S: Serialize>(
         &self,
         data: S,
-        header: SignatureHeader,
+        header: &SignatureHeader,
     ) -> (Vec<u8>, String) {
         // this can only fail if we deal with badly formed data.  In that case we
         // consider that a panic.  Should not happen.
         let json = serde_json::to_vec(&data).expect("attempted to pack non json safe data");
-        let sig = self.sign_with_header(&json, header);
+        let sig = self.sign_with_header(&json, &header);
         (json, sig)
     }
 }
 
 impl PartialEq for SecretKey {
     fn eq(&self, other: &SecretKey) -> bool {
-        &self.inner.0[..] == &other.inner.0[..]
+        self.inner.0[..] == other.inner.0[..]
     }
 }
 
@@ -316,7 +316,7 @@ impl PublicKey {
 
 impl PartialEq for PublicKey {
     fn eq(&self, other: &PublicKey) -> bool {
-        &self.inner.0[..] == &other.inner.0[..]
+        self.inner.0[..] == other.inner.0[..]
     }
 }
 
@@ -371,7 +371,7 @@ impl RegisterRequest {
     /// Creates a new request to register an relay upstream.
     pub fn new(relay_id: &RelayId, public_key: &PublicKey) -> RegisterRequest {
         RegisterRequest {
-            relay_id: relay_id.clone(),
+            relay_id: *relay_id,
             public_key: public_key.clone(),
         }
     }
@@ -408,8 +408,8 @@ impl RegisterRequest {
         rng.fill_bytes(&mut bytes);
         let token = base64::encode_config(&bytes, base64::URL_SAFE_NO_PAD);
         RegisterChallenge {
-            relay_id: self.relay_id.clone(),
-            token: token,
+            relay_id: self.relay_id,
+            token,
         }
     }
 }
@@ -428,7 +428,7 @@ impl RegisterChallenge {
     /// Creates a register response.
     pub fn create_response(&self) -> RegisterResponse {
         RegisterResponse {
-            relay_id: self.relay_id.clone(),
+            relay_id: self.relay_id,
             token: self.token.clone(),
         }
     }

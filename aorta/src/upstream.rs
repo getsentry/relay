@@ -51,8 +51,8 @@ impl<'a> UpstreamDescriptor<'a> {
     pub fn new(host: &'a str, port: u16, scheme: Scheme) -> UpstreamDescriptor<'a> {
         UpstreamDescriptor {
             host: Cow::Borrowed(host),
-            port: port,
-            scheme: scheme,
+            port,
+            scheme,
         }
     }
 
@@ -158,8 +158,8 @@ impl FromStr for UpstreamDescriptor<'static> {
                 Some(host) => Cow::Owned(host.to_string()),
                 None => return Err(UpstreamParseError::NoHost),
             },
-            port: url.port().unwrap_or(scheme.default_port()),
-            scheme: scheme,
+            port: url.port().unwrap_or_else(|| scheme.default_port()),
+            scheme,
         })
     }
 }

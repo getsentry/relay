@@ -17,8 +17,10 @@ use serde::ser::Serialize;
 use serde_json;
 use serde_yaml;
 
-use semaphore_aorta::{generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId,
-                      SecretKey, UpstreamDescriptor};
+use semaphore_aorta::{
+    generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId, SecretKey,
+    UpstreamDescriptor,
+};
 
 /// Indicates config related errors.
 #[derive(Debug)]
@@ -56,7 +58,7 @@ impl ConfigError {
     fn new<P: AsRef<Path>>(p: P, inner: Context<ConfigErrorKind>) -> ConfigError {
         ConfigError {
             filename: p.as_ref().to_path_buf(),
-            inner: inner,
+            inner,
         }
     }
 
@@ -558,27 +560,27 @@ impl Config {
 
     /// Returns the aorta snapshot expiry.
     pub fn aorta_snapshot_expiry(&self) -> Duration {
-        Duration::seconds(self.values.aorta.snapshot_expiry as i64)
+        Duration::seconds(self.values.aorta.snapshot_expiry.into())
     }
 
     /// Returns the aorta auth retry interval.
     pub fn aorta_auth_retry_interval(&self) -> Duration {
-        Duration::seconds(self.values.aorta.auth_retry_interval as i64)
+        Duration::seconds(self.values.aorta.auth_retry_interval.into())
     }
 
     /// Returns the aorta hearthbeat interval.
     pub fn aorta_heartbeat_interval(&self) -> Duration {
-        Duration::seconds(self.values.aorta.heartbeat_interval as i64)
+        Duration::seconds(self.values.aorta.heartbeat_interval.into())
     }
 
     /// Returns the aorta changeset buffer interval.
     pub fn aorta_changeset_buffer_interval(&self) -> Duration {
-        Duration::seconds(self.values.aorta.changeset_buffer_interval as i64)
+        Duration::seconds(self.values.aorta.changeset_buffer_interval.into())
     }
 
     /// Returns the timeout for pending events.
     pub fn aorta_pending_events_timeout(&self) -> Duration {
-        Duration::seconds(self.values.aorta.pending_events_timeout as i64)
+        Duration::seconds(self.values.aorta.pending_events_timeout.into())
     }
 
     /// Returns the maximum size of an event payload in bytes.
@@ -596,7 +598,7 @@ impl Config {
             pending_events_timeout: self.aorta_pending_events_timeout(),
             max_event_payload_size: self.aorta_max_event_payload_size(),
             upstream: self.upstream_descriptor().clone().into_owned(),
-            relay_id: Some(self.relay_id().clone()),
+            relay_id: Some(*self.relay_id()),
             secret_key: Some(self.secret_key().clone()),
             public_key: Some(self.public_key().clone()),
         })

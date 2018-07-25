@@ -57,10 +57,10 @@ pub fn main() {
         }
         if console_bt {
             let bt = err.backtrace();
-            println!("");
+            println!();
             println!("{}", bt);
         } else if cfg!(debug_assertions) {
-            println!("");
+            println!();
             println!("hint: you can set RUST_BACKTRACE=1 to get the entire backtrace.");
         }
     };

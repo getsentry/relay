@@ -77,7 +77,7 @@ impl AortaConfig {
 
     /// Prepares a JSON bodied API request to aorta with signature.
     pub fn prepare_aorta_req<S: Serialize>(&self, method: Method, path: &str, body: &S) -> Request {
-        let mut req = Request::new(method, url_to_hyper_uri(self.upstream.get_api_url(path)));
+        let mut req = Request::new(method, url_to_hyper_uri(&self.upstream.get_api_url(path)));
         let (json, signature) = self.secret_key().pack(body);
         {
             let headers = req.headers_mut();

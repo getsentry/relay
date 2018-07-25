@@ -34,9 +34,9 @@ pub struct EventMeta {
 #[serde(untagged)]
 pub enum EventVariant {
     /// The version 7 event variant.
-    SentryV7(EventV7),
+    SentryV7(Box<EventV7>),
     /// A foreign event.
-    Foreign(ForeignEvent),
+    Foreign(Box<ForeignEvent>),
 }
 
 /// Represents some payload not known to the relay
@@ -66,11 +66,8 @@ impl EventVariant {
     ///
     /// This might not do anything for unknown event variants.
     pub fn ensure_id(&mut self) {
-        match self {
-            EventVariant::SentryV7(event) => {
-                event.id.get_or_insert_with(Uuid::new_v4);
-            }
-            _ => {}
+        if let EventVariant::SentryV7(event) = self {
+            event.id.get_or_insert_with(Uuid::new_v4);
         }
     }
 

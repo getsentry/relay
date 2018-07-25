@@ -1,5 +1,6 @@
 //! Implements basics for the protocol.
 #![warn(missing_docs)]
+
 extern crate actix;
 extern crate actix_web;
 extern crate base64;

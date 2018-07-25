@@ -91,7 +91,7 @@ impl TroveContext {
         );
         Arc::new(TroveContext {
             handle: handle.clone(),
-            state: state,
+            state,
             client: Client::configure()
                 .connector(HttpsConnector::new(4, &handle).unwrap())
                 .build(&handle),
@@ -302,7 +302,7 @@ impl TroveState {
 
     /// Returns a project state if it exists.
     pub fn get_project_state(&self, project_id: ProjectId) -> Option<Arc<ProjectState>> {
-        self.states.read().get(&project_id).map(|x| x.clone())
+        self.states.read().get(&project_id).cloned()
     }
 
     /// Gets or creates the project state.

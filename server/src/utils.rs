@@ -25,7 +25,7 @@ pub fn event_from_actix_error(err: &Error) -> Event<'static> {
     exceptions.reverse();
 
     Event {
-        exceptions: exceptions,
+        exceptions,
         level: Level::Error,
         ..Default::default()
     }

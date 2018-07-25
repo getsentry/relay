@@ -33,7 +33,7 @@ pub fn execute() -> Result<(), Error> {
     let config = Config::from_path(&config_path)?;
     setup::init_logging(&config);
     if let Some(matches) = matches.subcommand_matches("config") {
-        manage_config(config, &matches)
+        manage_config(&config, &matches)
     } else if let Some(matches) = matches.subcommand_matches("credentials") {
         manage_credentials(config, &matches)
     } else if let Some(matches) = matches.subcommand_matches("run") {
@@ -73,7 +73,7 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
             Some(value) => Some(value
                 .parse()
                 .map_err(|_| err_msg("invalid relay id supplied"))?),
-            None => config.credentials().map(|x| x.id.clone()),
+            None => config.credentials().map(|x| x.id),
         };
         let changed = config.replace_credentials(Some(Credentials {
             secret_key: match secret_key {
@@ -138,7 +138,7 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
     Ok(())
 }
 
-pub fn manage_config<'a>(config: Config, matches: &ArgMatches<'a>) -> Result<(), Error> {
+pub fn manage_config<'a>(config: &Config, matches: &ArgMatches<'a>) -> Result<(), Error> {
     if let Some(matches) = matches.subcommand_matches("init") {
         return init_config(config.path(), &matches);
     } else if let Some(matches) = matches.subcommand_matches("show") {
@@ -190,9 +190,10 @@ pub fn init_config<'a, P: AsRef<Path>>(
                 mincfg.relay.tls_private_key = Some(PathBuf::from(
                     utils::prompt_value_no_default::<String>("tls private key path")?,
                 ));
-                mincfg.relay.tls_cert = Some(PathBuf::from(utils::prompt_value_no_default::<
-                    String,
-                >("tls certificate path")?));
+                mincfg.relay.tls_cert =
+                    Some(PathBuf::from(utils::prompt_value_no_default::<String>(
+                        "tls certificate path",
+                    )?));
             }
         }
 

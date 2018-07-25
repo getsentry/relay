@@ -54,18 +54,15 @@ impl fmt::Display for QueryError {
     }
 }
 
+/// Callback invoked with the result of a query.
+pub type QueryCallback = Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>;
+
 struct RequestManagerInner {
     pending_changesets: VecDeque<PackedRequest>,
     pending_queries: VecDeque<(Uuid, PackedRequest)>,
     // XXX: this should actually be FnOnce but current versions of rust do not
     // permit boxing this. See https://github.com/rust-lang/rfcs/issues/997
-    query_callbacks: HashMap<
-        Uuid,
-        (
-            ProjectId,
-            Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>,
-        ),
-    >,
+    query_callbacks: HashMap<Uuid, (ProjectId, QueryCallback)>,
     last_heartbeat: Option<Instant>,
 }
 
@@ -81,7 +78,7 @@ impl RequestManager {
         // TODO: queries can expire.  This means something needs to clean up very
         // old query callbacks eventually or we leak memory here.
         RequestManager {
-            config: config,
+            config,
             inner: RwLock::new(RequestManagerInner {
                 pending_changesets: VecDeque::new(),
                 pending_queries: VecDeque::new(),
@@ -92,13 +89,17 @@ impl RequestManager {
     }
 
     /// Adds a changeset to the request manager.
-    pub fn add_changeset<C: AortaChangeset>(&self, project_id: ProjectId, changeset: C) {
+    #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
+    pub fn add_changeset<C>(&self, project_id: ProjectId, changeset: C)
+    where
+        C: AortaChangeset,
+    {
         self.inner
             .write()
             .pending_changesets
             .push_back(PackedRequest {
                 ty: Cow::Borrowed(changeset.aorta_changeset_type()),
-                project_id: project_id,
+                project_id,
                 data: serde_json::to_value(&changeset).unwrap(),
             })
     }
@@ -106,6 +107,7 @@ impl RequestManager {
     /// Adds a query to the request manager.
     ///
     /// The callback is executed once the query returns with a result.
+    #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
     pub fn add_query<Q, R, F, E>(&self, project_id: ProjectId, query: Q, callback: F) -> Uuid
     where
         Q: AortaQuery<Response = R>,
@@ -136,7 +138,7 @@ impl RequestManager {
             query_id,
             PackedRequest {
                 ty: Cow::Borrowed(query.aorta_query_type()),
-                project_id: project_id,
+                project_id,
                 data: serde_json::to_value(&query).unwrap(),
             },
         ));
@@ -144,13 +146,7 @@ impl RequestManager {
     }
 
     /// Given a query id removes and returns the callback.
-    pub fn pop_callback(
-        &self,
-        query_id: Uuid,
-    ) -> Option<(
-        ProjectId,
-        Box<FnMut(&ProjectState, serde_json::Value, bool) -> () + Sync + Send>,
-    )> {
+    pub fn pop_callback(&self, query_id: Uuid) -> Option<(ProjectId, QueryCallback)> {
         self.inner.write().query_callbacks.remove(&query_id)
     }
 
@@ -206,9 +202,10 @@ impl RequestManager {
             inner.last_heartbeat = Some(Instant::now());
             (
                 Some(rv),
-                match inner.pending_queries.is_empty() || inner.pending_changesets.is_empty() {
-                    true => self.buffer_interval(),
-                    false => self.fast_retry_interval(),
+                if inner.pending_queries.is_empty() || inner.pending_changesets.is_empty() {
+                    self.buffer_interval()
+                } else {
+                    self.fast_retry_interval()
                 },
             )
 
@@ -286,7 +283,7 @@ pub struct HeartbeatResponse {
 impl ApiRequest for HeartbeatRequest {
     type Response = HeartbeatResponse;
 
-    fn get_aorta_request_target<'a>(&'a self) -> (Method, Cow<'a, str>) {
+    fn get_aorta_request_target(&self) -> (Method, Cow<str>) {
         (Method::Post, Cow::Borrowed("relays/heartbeat/"))
     }
 }

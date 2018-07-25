@@ -9,6 +9,7 @@ struct HealthcheckResponse {
     is_healthy: bool,
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 fn healthcheck(state: CurrentServiceState) -> HttpResponse {
     let resp = HealthcheckResponse {
         is_healthy: state.is_healthy(),

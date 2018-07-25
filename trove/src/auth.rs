@@ -19,11 +19,11 @@ pub enum AuthState {
 
 impl AuthState {
     /// Returns true if the state is considered authenticated
-    pub fn is_authenticated(&self) -> bool {
+    pub fn is_authenticated(self) -> bool {
         // XXX: the goal of auth state is that it also tracks auth
         // failures from the heartbeat.  Later we will need to
         // extend the states here for it.
-        *self == AuthState::Registered
+        self == AuthState::Registered
     }
 }
 

@@ -4,8 +4,8 @@
 // automatically generate the completion scripts.
 use clap::{App, AppSettings, Arg, Shell};
 
-pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-pub const ABOUT: &'static str = "Semaphore is an implementation of the relay system for Sentry.";
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const ABOUT: &str = "Semaphore is an implementation of the relay system for Sentry.";
 
 pub fn make_app() -> App<'static, 'static> {
     App::new("semaphore")

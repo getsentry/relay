@@ -7,8 +7,10 @@ use failure::Fail;
 use futures::{future, Future};
 use url::Url;
 
-use semaphore_aorta::{ApiErrorResponse, EventMeta, EventVariant, ForeignEvent, ForeignPayload,
-                      ProjectState, StoreChangeset};
+use semaphore_aorta::{
+    ApiErrorResponse, EventMeta, EventVariant, ForeignEvent, ForeignPayload, ProjectState,
+    StoreChangeset,
+};
 use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
 use body::{EncodedJsonBody, EncodedJsonPayloadError};
@@ -88,15 +90,15 @@ impl<T: FromRequest<ServiceState> + 'static> ProjectRequest<T> {
 
 fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadProjectRequest> {
     // try auth from header
-    match req.headers()
+    let auth = req.headers()
         .get("x-sentry-auth")
-        .and_then(|x| x.to_str().ok())
-    {
-        Some(auth) => match auth.parse::<Auth>() {
+        .and_then(|x| x.to_str().ok());
+
+    if let Some(auth) = auth {
+        match auth.parse::<Auth>() {
             Ok(val) => return Ok(val),
             Err(err) => return Err(BadProjectRequest::BadAuth(err)),
-        },
-        None => {}
+        }
     }
 
     // fall back to auth from url
@@ -290,11 +292,11 @@ impl FromRequest<ServiceState> for IncomingForeignEvent {
                     .map_err(|e| BadProjectRequest::BadJson(e).into())
                     .map(move |payload| {
                         IncomingForeignEvent(IncomingEvent::new(
-                            EventVariant::Foreign(ForeignEvent {
-                                store_type: store_type,
-                                headers: headers,
+                            EventVariant::Foreign(Box::new(ForeignEvent {
+                                store_type,
+                                headers,
                                 payload: ForeignPayload::Json(payload),
-                            }),
+                            })),
                             meta,
                             public_key,
                         ))
@@ -308,11 +310,11 @@ impl FromRequest<ServiceState> for IncomingForeignEvent {
                     .map_err(|e| BadProjectRequest::BadPayload(e).into())
                     .map(move |payload| {
                         IncomingForeignEvent(IncomingEvent::new(
-                            EventVariant::Foreign(ForeignEvent {
-                                store_type: store_type,
-                                headers: headers,
+                            EventVariant::Foreign(Box::new(ForeignEvent {
+                                store_type,
+                                headers,
                                 payload: ForeignPayload::Raw(payload.to_vec()),
-                            }),
+                            })),
                             meta,
                             public_key,
                         ))

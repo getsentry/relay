@@ -65,6 +65,6 @@ impl From<ServerErrorKind> for ServerError {
 
 impl From<Context<ServerErrorKind>> for ServerError {
     fn from(inner: Context<ServerErrorKind>) -> ServerError {
-        ServerError { inner: inner }
+        ServerError { inner }
     }
 }

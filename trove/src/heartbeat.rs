@@ -68,10 +68,12 @@ fn perform_heartbeat(ctx: Arc<TroveContext>) {
 fn handle_heartbeat_response(ctx: Arc<TroveContext>, response: HeartbeatResponse) {
     let state = ctx.state();
     let request_manager = state.request_manager();
-    for (query_id, result) in response.query_results.into_iter() {
+
+    for (query_id, result) in response.query_results {
         if result.status == QueryStatus::Pending {
             continue;
         }
+
         if let Some((project_id, mut callback)) = request_manager.pop_callback(query_id) {
             if let Some(project_state) = state.get_project_state(project_id) {
                 if let Some(data) = result.result {

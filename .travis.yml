@@ -34,6 +34,9 @@ matrix:
     # Rust tests
     - env: SUITE=format-check
       install: rustup component add rustfmt-preview
+    - env: SUITE=lint
+      install: rustup component add clippy-preview
+      rust: nightly
     - os: linux
       env: SUITE=cargotest
       install: cargo build --all
