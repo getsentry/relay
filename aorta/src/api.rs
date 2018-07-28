@@ -36,7 +36,7 @@ impl ApiErrorResponse {
     pub fn from_fail<F: Fail>(fail: &F) -> ApiErrorResponse {
         let mut messages = vec![];
 
-        for cause in fail.causes() {
+        for cause in Fail::causes(fail) {
             let msg = cause.to_string();
             if !messages.contains(&msg) {
                 messages.push(msg);

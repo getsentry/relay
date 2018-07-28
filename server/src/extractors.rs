@@ -198,7 +198,7 @@ impl From<IncomingEvent> for StoreChangeset {
 }
 
 fn log_failed_payload(err: &EncodedJsonPayloadError) {
-    let causes: Vec<_> = err.causes().skip(1).collect();
+    let causes: Vec<_> = Fail::causes(err).skip(1).collect();
     for cause in causes.iter().rev() {
         warn!("payload processing issue: {}", cause);
     }
