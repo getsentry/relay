@@ -62,14 +62,7 @@ matrix:
                       -n semaphore-Linux-x86_64
                       target/x86_64-unknown-linux-gnu/release/semaphore
         # Build and push image to Dockerhub, on master branch only
-        - if [ "$TRAVIS_BRANCH" != "master" -o "$TRAVIS_PULL_REQUEST" != "false" ]; then travis_terminate 0; fi
-        - echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-        - cp target/x86_64-unknown-linux-gnu/release/semaphore semaphore
-        - docker build --pull -f Dockerfile.publish --tag "${IMAGE_NAME}" .
-        - docker tag "${IMAGE_NAME}" "${IMAGE_NAME}:latest"
-        - docker tag "${IMAGE_NAME}" "${IMAGE_NAME}:$(git rev-parse HEAD)"
-        - docker push "${IMAGE_NAME}:latest"
-        - docker push "${IMAGE_NAME}:$(git rev-parse HEAD)"
+        - bash scripts/push-docker-image.sh
 
 #    - os: linux
 #      language: generic
