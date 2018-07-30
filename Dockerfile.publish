@@ -8,11 +8,13 @@ RUN apt-get update \
 
 RUN groupadd -r semaphore && useradd -r -m -g semaphore semaphore
 
-COPY semaphore /bin/semaphore
-
 WORKDIR /work
-EXPOSE 3000
 VOLUME /etc/semaphore
+
+EXPOSE 3000
 
 COPY ./docker-entrypoint.sh /
 ENTRYPOINT ["/bin/bash", "/docker-entrypoint.sh"]
+
+# Do this as the last step to use cache as much as possible
+COPY semaphore /bin/semaphore
