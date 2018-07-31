@@ -60,5 +60,7 @@ clap = { version = "2.31.2", default-features = false }
 [patch.crates-io]
 sentry = { git = "https://github.com/getsentry/sentry-rust", rev = "0bf9723d4bbb1820033d4d6906407c0df0d59286" }
 sentry-types = { git = "https://github.com/getsentry/rust-sentry-types", rev = "3bb7f3847480676d753288b137e8f95a4f3af020" }
+serde = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
+serde_derive = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
 
 [workspace]
