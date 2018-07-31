@@ -75,14 +75,15 @@ impl EventVariant {
             EventVariant::SentryV7(event) => {
                 event.id.get_or_insert_with(Uuid::new_v4);
             }
-            EventVariant::SentryV8(ref mut annotated) => match **annotated {
-                v8::Annotated(
+            EventVariant::SentryV8(ref mut annotated) => {
+                if let v8::Annotated(
                     Some(v8::Event {
                         id: v8::Annotated(ref mut id, ..),
                         ..
                     }),
                     _,
-                ) => {
+                ) = **annotated
+                {
                     let new_id = match id {
                         None | Some(None) => Some(Uuid::new_v4()),
                         _ => None,
@@ -91,8 +92,7 @@ impl EventVariant {
                         *id = Some(Some(new_id));
                     }
                 }
-                _ => {}
-            },
+            }
             EventVariant::Foreign(..) => {}
         }
     }
