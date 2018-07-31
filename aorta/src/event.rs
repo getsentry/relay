@@ -7,13 +7,10 @@ use url::Url;
 use url_serde;
 use uuid::Uuid;
 
-use semaphore_common::{v7, v8};
+use semaphore_common::v8;
 
 use query::AortaChangeset;
 use utils::{serialize_origin, StandardBase64};
-
-/// The v7 sentry protocol type.
-pub type EventV7 = v7::Event<'static>;
 
 /// The v8 sentry protocol type.
 pub type EventV8 = v8::Annotated<v8::Event>;
@@ -36,8 +33,6 @@ pub struct EventMeta {
 #[derive(Serialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum EventVariant {
-    /// The version 7 event variant.
-    SentryV7(Box<EventV7>),
     /// The version 8 event variant.
     SentryV8(Box<EventV8>),
     /// A foreign event.
@@ -72,9 +67,6 @@ impl EventVariant {
     /// This might not do anything for unknown event variants.
     pub fn ensure_id(&mut self) {
         match self {
-            EventVariant::SentryV7(event) => {
-                event.id.get_or_insert_with(Uuid::new_v4);
-            }
             EventVariant::SentryV8(ref mut annotated) => {
                 if let v8::Annotated(
                     Some(v8::Event {
@@ -100,7 +92,6 @@ impl EventVariant {
     /// Returns the ID of the event.
     pub fn id(&self) -> Option<Uuid> {
         match self {
-            EventVariant::SentryV7(event) => event.id,
             EventVariant::SentryV8(ref annotated) => match **annotated {
                 v8::Annotated(
                     Some(v8::Event {
@@ -118,7 +109,6 @@ impl EventVariant {
     /// The changeset that should be used for events of this kind.
     pub fn changeset_type(&self) -> &'static str {
         match self {
-            EventVariant::SentryV7(..) => "store_v7",
             // XXX: this should actually be store v8 but we don't have that yet
             EventVariant::SentryV8(..) => "store_v7",
             EventVariant::Foreign(..) => "store_foreign",
@@ -129,7 +119,6 @@ impl EventVariant {
 impl fmt::Display for EventVariant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            EventVariant::SentryV7(event) => fmt::Display::fmt(event, f),
             EventVariant::SentryV8(..) => write!(f, "sentry v8 event"),
             EventVariant::Foreign(..) => write!(f, "<foreign event>"),
         }

@@ -1,3 +1,4 @@
+use std::io::{self, Read};
 use std::str;
 
 use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
@@ -6,18 +7,22 @@ use bytes::{Bytes, BytesMut};
 use flate2::read::ZlibDecoder;
 use futures::{Future, Poll, Stream};
 use http::{header::CONTENT_LENGTH, StatusCode};
-use serde::de::DeserializeOwned;
-use serde_json::{self, error::Error as JsonError};
+use serde_json::error::Error as JsonError;
+
+use semaphore_aorta::{EventV8, EventVariant};
 
 /// A set of errors that can occur during parsing json payloads
 #[derive(Fail, Debug)]
-pub enum EncodedJsonPayloadError {
+pub enum EncodedEventPayloadError {
     /// Payload size is bigger than limit
     #[fail(display = "payload size is too large")]
     Overflow,
     /// Base64 Decode error
     #[fail(display = "base64 decode error: {}", _0)]
     Decode(#[cause] DecodeError, Option<Bytes>),
+    /// zlib decode error
+    #[fail(display = "zlib decode error: {}", _0)]
+    Zlib(#[cause] io::Error, Option<Bytes>),
     /// Deserialize error
     #[fail(display = "json deserialize error: {}", _0)]
     Deserialize(#[cause] JsonError, Option<Bytes>),
@@ -26,14 +31,15 @@ pub enum EncodedJsonPayloadError {
     Payload(#[cause] PayloadError),
 }
 
-impl EncodedJsonPayloadError {
+impl EncodedEventPayloadError {
     /// Returns the body of the error if available.
     pub fn body(&self) -> Option<&[u8]> {
         match self {
-            EncodedJsonPayloadError::Overflow => None,
-            EncodedJsonPayloadError::Decode(_, ref body) => body.as_ref().map(|x| &x[..]),
-            EncodedJsonPayloadError::Deserialize(_, ref body) => body.as_ref().map(|x| &x[..]),
-            EncodedJsonPayloadError::Payload(_) => None,
+            EncodedEventPayloadError::Overflow => None,
+            EncodedEventPayloadError::Decode(_, ref body) => body.as_ref().map(|x| &x[..]),
+            EncodedEventPayloadError::Zlib(_, ref body) => body.as_ref().map(|x| &x[..]),
+            EncodedEventPayloadError::Deserialize(_, ref body) => body.as_ref().map(|x| &x[..]),
+            EncodedEventPayloadError::Payload(_) => None,
         }
     }
 
@@ -43,34 +49,34 @@ impl EncodedJsonPayloadError {
     }
 }
 
-impl ResponseError for EncodedJsonPayloadError {
+impl ResponseError for EncodedEventPayloadError {
     fn error_response(&self) -> HttpResponse {
         match self {
-            EncodedJsonPayloadError::Overflow => HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE),
+            EncodedEventPayloadError::Overflow => HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE),
             _ => HttpResponse::new(StatusCode::BAD_REQUEST),
         }
     }
 }
 
-impl From<PayloadError> for EncodedJsonPayloadError {
-    fn from(err: PayloadError) -> EncodedJsonPayloadError {
-        EncodedJsonPayloadError::Payload(err)
+impl From<PayloadError> for EncodedEventPayloadError {
+    fn from(err: PayloadError) -> EncodedEventPayloadError {
+        EncodedEventPayloadError::Payload(err)
     }
 }
 
 /// Request payload decoder and json parser that resolves to a deserialized `T` value.
 ///
 /// The payload can either be raw JSON, or base64 encoded gzipped (zlib) JSON.
-pub struct EncodedJsonBody<T, U: DeserializeOwned> {
+pub struct EncodedEvent<T> {
     limit: usize,
     req: Option<T>,
-    fut: Option<Box<Future<Item = U, Error = EncodedJsonPayloadError>>>,
+    fut: Option<Box<Future<Item = EventVariant, Error = EncodedEventPayloadError>>>,
 }
 
-impl<T, U: DeserializeOwned> EncodedJsonBody<T, U> {
+impl<T> EncodedEvent<T> {
     /// Create `JsonBody` for request.
     pub fn new(req: T) -> Self {
-        EncodedJsonBody {
+        EncodedEvent {
             limit: 262_144,
             req: Some(req),
             fut: None,
@@ -84,23 +90,30 @@ impl<T, U: DeserializeOwned> EncodedJsonBody<T, U> {
     }
 }
 
-impl<T, U: DeserializeOwned + 'static> Future for EncodedJsonBody<T, U>
+fn decode_event(body: BytesMut) -> Result<EventVariant, EncodedEventPayloadError> {
+    Ok(EventVariant::SentryV8(Box::new(
+        EventV8::from_json_bytes(&body)
+            .map_err(|err| EncodedEventPayloadError::Deserialize(err, Some(body.freeze())))?,
+    )))
+}
+
+impl<T> Future for EncodedEvent<T>
 where
     T: HttpMessage + Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
-    type Item = U;
-    type Error = EncodedJsonPayloadError;
+    type Item = EventVariant;
+    type Error = EncodedEventPayloadError;
 
-    fn poll(&mut self) -> Poll<U, EncodedJsonPayloadError> {
+    fn poll(&mut self) -> Poll<EventVariant, EncodedEventPayloadError> {
         if let Some(req) = self.req.take() {
             if let Some(len) = req.headers().get(CONTENT_LENGTH) {
                 if let Ok(s) = len.to_str() {
                     if let Ok(len) = s.parse::<usize>() {
                         if len > self.limit {
-                            return Err(EncodedJsonPayloadError::Overflow);
+                            return Err(EncodedEventPayloadError::Overflow);
                         }
                     } else {
-                        return Err(EncodedJsonPayloadError::Overflow);
+                        return Err(EncodedEventPayloadError::Overflow);
                     }
                 }
             }
@@ -109,7 +122,7 @@ where
             let fut = req.from_err()
                 .fold(BytesMut::new(), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {
-                        Err(EncodedJsonPayloadError::Overflow)
+                        Err(EncodedEventPayloadError::Overflow)
                     } else {
                         body.extend_from_slice(&chunk);
                         Ok(body)
@@ -117,18 +130,19 @@ where
                 })
                 .and_then(|body| {
                     if body.starts_with(b"{") {
-                        Ok(serde_json::from_slice(&body).map_err(|err| {
-                            EncodedJsonPayloadError::Deserialize(err, Some(body.freeze()))
-                        })?)
+                        decode_event(body)
                     } else {
                         // TODO: Switch to a streaming decoder
                         // see https://github.com/alicemaz/rust-base64/pull/56
                         let binary_body = base64::decode(&body).map_err(|err| {
-                            EncodedJsonPayloadError::Decode(err, Some(body.freeze()))
+                            EncodedEventPayloadError::Decode(err, Some(body.freeze()))
                         })?;
-                        let decode_stream = ZlibDecoder::new(binary_body.as_slice());
-                        Ok(serde_json::from_reader(decode_stream)
-                            .map_err(|err| EncodedJsonPayloadError::Deserialize(err, None))?)
+                        let mut decode_stream = ZlibDecoder::new(binary_body.as_slice());
+                        let mut bytes = vec![];
+                        decode_stream
+                            .read_to_end(&mut bytes)
+                            .map_err(|err| EncodedEventPayloadError::Zlib(err, None))?;
+                        decode_event(BytesMut::from(bytes))
                     }
                 });
             self.fut = Some(Box::new(fut));
@@ -136,7 +150,7 @@ where
 
         self.fut
             .as_mut()
-            .expect("EncodedJsonBody cannot be used multiple times")
+            .expect("EncodedEvent cannot be used multiple times")
             .poll()
     }
 }

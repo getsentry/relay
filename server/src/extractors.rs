@@ -13,7 +13,7 @@ use semaphore_aorta::{
 };
 use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
-use body::{EncodedJsonBody, EncodedJsonPayloadError};
+use body::{EncodedEvent, EncodedEventPayloadError};
 use service::ServiceState;
 
 use sentry;
@@ -26,8 +26,8 @@ pub enum BadProjectRequest {
     BadAuth(#[cause] AuthParseError),
     #[fail(display = "bad JSON payload")]
     BadJson(#[cause] JsonPayloadError),
-    #[fail(display = "bad JSON payload")]
-    BadEncodedJson(#[cause] EncodedJsonPayloadError),
+    #[fail(display = "bad event payload")]
+    BadEvent(#[cause] EncodedEventPayloadError),
     #[fail(display = "bad payload")]
     BadPayload(#[cause] PayloadError),
     #[fail(display = "unsupported protocol version ({})", _0)]
@@ -197,7 +197,7 @@ impl From<IncomingEvent> for StoreChangeset {
     }
 }
 
-fn log_failed_payload(err: &EncodedJsonPayloadError) {
+fn log_failed_payload(err: &EncodedEventPayloadError) {
     let causes: Vec<_> = Fail::causes(err).skip(1).collect();
     for cause in causes.iter().rev() {
         warn!("payload processing issue: {}", cause);
@@ -229,20 +229,20 @@ impl FromRequest<ServiceState> for IncomingEvent {
         let max_payload = req.state().aorta_config().max_event_payload_size;
         let log_failed_payloads = req.state().config().log_failed_payloads();
 
-        // anything up to 7 is considered sentry v7
-        if auth.version() <= 7 {
+        // anything up to 8 is considered sentry v8
+        if auth.version() <= 8 {
             let meta = event_meta_from_req(req);
             let public_key = auth.public_key().to_string();
             Box::new(
-                EncodedJsonBody::new(req.clone())
+                EncodedEvent::new(req.clone())
                     .limit(max_payload)
                     .map_err(move |e| {
                         if log_failed_payloads {
                             log_failed_payload(&e);
                         }
-                        BadProjectRequest::BadEncodedJson(e).into()
+                        BadProjectRequest::BadEvent(e).into()
                     })
-                    .map(move |e| IncomingEvent::new(EventVariant::SentryV7(e), meta, public_key)),
+                    .map(move |e| IncomingEvent::new(e, meta, public_key)),
             )
 
         // for now don't handle unsupported versions.  later fallback to raw

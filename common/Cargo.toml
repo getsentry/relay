@@ -21,4 +21,4 @@ lazy_static = "1.0.1"
 cadence = "0.14.0"
 parking_lot = "0.5.5"
 log = "0.4.2"
-marshal = { git = "https://github.com/getsentry/marshal", rev = "bec795c2ec4a94d07553c3957ed3764b3681bee7" }
+marshal = { git = "https://github.com/getsentry/marshal", rev = "8b7a674e0310f764b682a947694a9679f05540a1" }

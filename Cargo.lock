@@ -964,7 +964,7 @@ dependencies = [
 [[package]]
 name = "marshal"
 version = "0.1.0"
-source = "git+https://github.com/getsentry/marshal?rev=bec795c2ec4a94d07553c3957ed3764b3681bee7#bec795c2ec4a94d07553c3957ed3764b3681bee7"
+source = "git+https://github.com/getsentry/marshal?rev=8b7a674e0310f764b682a947694a9679f05540a1#8b7a674e0310f764b682a947694a9679f05540a1"
 dependencies = [
  "chrono 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "cookie 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -973,7 +973,7 @@ dependencies = [
  "failure_derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hmac 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "marshal_derive 0.1.0 (git+https://github.com/getsentry/marshal?rev=bec795c2ec4a94d07553c3957ed3764b3681bee7)",
+ "marshal_derive 0.1.0 (git+https://github.com/getsentry/marshal?rev=8b7a674e0310f764b682a947694a9679f05540a1)",
  "queryst 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.999 (git+https://github.com/mitsuhiko/serde?rev=880a8c0181ad7202950f24cc8f6872994913441d)",
@@ -987,7 +987,7 @@ dependencies = [
 [[package]]
 name = "marshal_derive"
 version = "0.1.0"
-source = "git+https://github.com/getsentry/marshal?rev=bec795c2ec4a94d07553c3957ed3764b3681bee7#bec795c2ec4a94d07553c3957ed3764b3681bee7"
+source = "git+https://github.com/getsentry/marshal?rev=8b7a674e0310f764b682a947694a9679f05540a1#8b7a674e0310f764b682a947694a9679f05540a1"
 dependencies = [
  "proc-macro2 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1654,7 +1654,7 @@ dependencies = [
  "hyper 0.11.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "marshal 0.1.0 (git+https://github.com/getsentry/marshal?rev=bec795c2ec4a94d07553c3957ed3764b3681bee7)",
+ "marshal 0.1.0 (git+https://github.com/getsentry/marshal?rev=8b7a674e0310f764b682a947694a9679f05540a1)",
  "parking_lot 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "sentry-types 0.6.2 (git+https://github.com/getsentry/rust-sentry-types?rev=3bb7f3847480676d753288b137e8f95a4f3af020)",
  "serde 1.0.999 (git+https://github.com/mitsuhiko/serde?rev=880a8c0181ad7202950f24cc8f6872994913441d)",
@@ -2704,8 +2704,8 @@ source = "git+https://github.com/getsentry/sentry-rust?rev=0bf9723d4bbb1820033d4
 "checksum log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "e19e8d5c34a3e0e2223db8e060f9e8264aeeb5c5fc64a4ee9965c062211c024b"
 "checksum log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "61bd98ae7f7b754bc53dca7d44b604f733c6bba044ea6f41bc8d89272d8161d2"
 "checksum lru-cache 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4d06ff7ff06f729ce5f4e227876cb88d10bc59cd4ae1e09fbb2bde15c850dc21"
-"checksum marshal 0.1.0 (git+https://github.com/getsentry/marshal?rev=bec795c2ec4a94d07553c3957ed3764b3681bee7)" = "<none>"
-"checksum marshal_derive 0.1.0 (git+https://github.com/getsentry/marshal?rev=bec795c2ec4a94d07553c3957ed3764b3681bee7)" = "<none>"
+"checksum marshal 0.1.0 (git+https://github.com/getsentry/marshal?rev=8b7a674e0310f764b682a947694a9679f05540a1)" = "<none>"
+"checksum marshal_derive 0.1.0 (git+https://github.com/getsentry/marshal?rev=8b7a674e0310f764b682a947694a9679f05540a1)" = "<none>"
 "checksum matches 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "835511bab37c34c47da5cb44844bea2cfde0236db0b506f90ea4224482c9774a"
 "checksum memchr 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "796fba70e76612589ed2ce7f45282f5af869e0fdd7cc6199fa1aa1f1d591ba9d"
 "checksum memoffset 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0f9dc261e2b62d7a622bf416ea3c5245cdd5d9a7fcc428c0d06804dfce1775b3"
