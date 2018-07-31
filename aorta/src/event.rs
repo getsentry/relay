@@ -81,7 +81,7 @@ impl EventVariant {
                         id: v8::Annotated(ref mut id, ..),
                         ..
                     }),
-                    ..,
+                    _,
                 ) => {
                     let new_id = match id {
                         None | Some(None) => Some(Uuid::new_v4()),
