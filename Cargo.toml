@@ -14,7 +14,6 @@ default = []
 with_ssl = ["semaphore-server/with_ssl"]
 
 [profile.release]
-lto = true
 debug = true
 
 [dependencies]
