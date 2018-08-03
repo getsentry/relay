@@ -49,6 +49,7 @@ matrix:
       env: SUITE=pytest
     - os: osx
       env: SUITE=pytest
+      install: easy_install virtualenv
 
     # Rust builds
     - os: linux
