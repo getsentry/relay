@@ -5,3 +5,4 @@ github:
 targets:
   - name: github
   - name: pypi
+changelogPolicy: simple
