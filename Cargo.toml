@@ -18,23 +18,23 @@ lto = true
 debug = true
 
 [dependencies]
-clap = { version = "2.31.2", default-features = false, features = ["wrap_help"] }
-failure = "0.1.1"
-pretty_env_logger = "0.2.3"
+clap = { version = "2.32.0", default-features = false, features = ["wrap_help"] }
+failure = "0.1.2"
+pretty_env_logger = "0.2.4"
 tokio-core = "0.1.17"
-futures = "0.1.21"
-parking_lot = "0.5.5"
+futures = "0.1.23"
+parking_lot = "0.6.3"
 ctrlc = { version = "3.1.1", features = ["termination"] }
-log = { version = "0.4.2", features = ["serde"] }
+log = { version = "0.4.3", features = ["serde"] }
 sentry = "0.5.4"
 dialoguer = "0.1.0"
 uuid = "0.6.5"
 console = "0.6.1"
-env_logger = "0.5.10"
-chrono = "0.4.3"
-serde_derive = "1.0.66"
-serde = "1.0.66"
-serde_json = "1.0.20"
+env_logger = "0.5.11"
+chrono = "0.4.5"
+serde_derive = "1.0.70"
+serde = "1.0.70"
+serde_json = "1.0.24"
 
 [dependencies.semaphore-aorta]
 path = "aorta"
@@ -55,7 +55,7 @@ path = "trove"
 openssl-probe = "0.1.2"
 
 [build-dependencies]
-clap = { version = "2.31.2", default-features = false }
+clap = { version = "2.32.0", default-features = false }
 
 [patch.crates-io]
 sentry = { git = "https://github.com/getsentry/sentry-rust", rev = "0bf9723d4bbb1820033d4d6906407c0df0d59286" }

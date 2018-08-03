@@ -97,9 +97,10 @@ fn decode_event(body: BytesMut) -> Result<EventVariant, EncodedEventPayloadError
     )))
 }
 
-impl<T> Future for EncodedEvent<T>
+impl<T, S> Future for EncodedEvent<T>
 where
-    T: HttpMessage + Stream<Item = Bytes, Error = PayloadError> + 'static,
+    T: HttpMessage<Stream = S>,
+    S: Stream<Item = Bytes, Error = PayloadError> + Sized + 'static,
 {
     type Item = EventVariant;
     type Error = EncodedEventPayloadError;
@@ -119,7 +120,8 @@ where
             }
 
             let limit = self.limit;
-            let fut = req.from_err()
+            let fut = req.payload()
+                .from_err()
                 .fold(BytesMut::new(), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {
                         Err(EncodedEventPayloadError::Overflow)

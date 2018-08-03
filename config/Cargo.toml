@@ -9,20 +9,20 @@ repository = "https://github.com/getsentry/semaphore"
 version = "0.1.2"
 
 [dependencies]
-chrono = "0.4.2"
-failure = "0.1.1"
-failure_derive = "0.1.1"
-serde = "1.0.66"
-serde_derive = "1.0.66"
-serde_yaml = "0.7.4"
-url = "1.7.0"
+chrono = "0.4.5"
+failure = "0.1.2"
+failure_derive = "0.1.2"
+serde = "1.0.70"
+serde_derive = "1.0.70"
+serde_yaml = "0.7.5"
+url = "1.7.1"
 url_serde = "0.2.0"
 sentry = "0.5.4"
-serde_json = "1.0.20"
+serde_json = "1.0.24"
 
 [dependencies.log]
 features = ["serde"]
-version = "0.4.2"
+version = "0.4.3"
 
 [dependencies.semaphore-aorta]
 path = "../aorta"

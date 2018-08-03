@@ -16,12 +16,12 @@ pub struct Metrics;
 struct StartTime(Instant);
 
 impl<S> Middleware<S> for Metrics {
-    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started, Error> {
+    fn start(&self, req: &HttpRequest<S>) -> Result<Started, Error> {
         req.extensions_mut().insert(StartTime(Instant::now()));
         Ok(Started::Done)
     }
 
-    fn finish(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
+    fn finish(&self, req: &HttpRequest<S>, resp: &HttpResponse) -> Finished {
         let start_time = req.extensions().get::<StartTime>().unwrap().0;
         metric!(timer("requests.duration") = start_time.elapsed());
         metric!(counter(&format!("responses.status_code.{}", resp.status())) += 1);
@@ -35,7 +35,7 @@ pub struct CaptureSentryError;
 impl Middleware<ServiceState> for CaptureSentryError {
     fn response(
         &self,
-        _req: &mut HttpRequest<ServiceState>,
+        _req: &HttpRequest<ServiceState>,
         mut resp: HttpResponse,
     ) -> Result<Response, Error> {
         let mut event_id = None;
@@ -56,11 +56,7 @@ impl Middleware<ServiceState> for CaptureSentryError {
 pub struct AddCommonHeaders;
 
 impl<S> Middleware<S> for AddCommonHeaders {
-    fn response(
-        &self,
-        _req: &mut HttpRequest<S>,
-        mut resp: HttpResponse,
-    ) -> Result<Response, Error> {
+    fn response(&self, _req: &HttpRequest<S>, mut resp: HttpResponse) -> Result<Response, Error> {
         resp.headers_mut()
             .insert(header::SERVER, header::HeaderValue::from_static(SERVER));
         Ok(Response::Done(resp))
@@ -71,7 +67,7 @@ impl<S> Middleware<S> for AddCommonHeaders {
 pub struct ErrorHandlers;
 
 impl<S> Middleware<S> for ErrorHandlers {
-    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response, Error> {
+    fn response(&self, _: &HttpRequest<S>, resp: HttpResponse) -> Result<Response, Error> {
         if (resp.status().is_server_error() || resp.status().is_client_error())
             && resp.body() == &Body::Empty
         {
