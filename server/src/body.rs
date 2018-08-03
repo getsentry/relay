@@ -120,7 +120,8 @@ where
             }
 
             let limit = self.limit;
-            let fut = req.payload()
+            let fut = req
+                .payload()
                 .from_err()
                 .fold(BytesMut::new(), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {

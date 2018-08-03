@@ -213,7 +213,8 @@ impl ProjectState {
 
     /// Requests an update to the project config to be fetched.
     pub fn request_updated_project_config(&self) {
-        if self.requested_new_snapshot
+        if self
+            .requested_new_snapshot
             .compare_and_swap(false, true, Ordering::Relaxed)
         {
             return;

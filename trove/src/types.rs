@@ -133,7 +133,8 @@ impl TroveContext {
                                     .map_err(ApiError::BadPayload)?)
                             },
                         ))
-                    } else if res.headers()
+                    } else if res
+                        .headers()
                         .get::<ContentType>()
                         .map(|x| x.type_() == "application" && x.subtype() == "json")
                         .unwrap_or(false)
@@ -233,14 +234,16 @@ impl Trove {
         let state = self.state.clone();
         debug!("spawning trove governor");
 
-        *self.join_handle.lock() = Some(thread::Builder::new()
-            .name("trove-governor".into())
-            .spawn(move || {
-                let (tx, rx) = mpsc::unbounded::<GovernorEvent>();
-                *state.governor_tx.write() = Some(tx);
-                run_governor(state, rx)
-            })
-            .map_err(GovernorError::SpawnError)?);
+        *self.join_handle.lock() = Some(
+            thread::Builder::new()
+                .name("trove-governor".into())
+                .spawn(move || {
+                    let (tx, rx) = mpsc::unbounded::<GovernorEvent>();
+                    *state.governor_tx.write() = Some(tx);
+                    run_governor(state, rx)
+                })
+                .map_err(GovernorError::SpawnError)?,
+        );
 
         Ok(())
     }

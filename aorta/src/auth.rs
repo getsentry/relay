@@ -552,7 +552,8 @@ fn test_registration() {
 
     // sign and unsign it
     let (reg_resp_bytes, reg_resp_sig) = sk.pack(&reg_resp);
-    let reg_resp: RegisterResponse = pk.unpack(&reg_resp_bytes, &reg_resp_sig, Some(max_age))
+    let reg_resp: RegisterResponse = pk
+        .unpack(&reg_resp_bytes, &reg_resp_sig, Some(max_age))
         .unwrap();
     assert_eq!(reg_resp.relay_id(), &relay_id);
     assert_eq!(reg_resp.token(), challenge.token());

@@ -154,6 +154,26 @@ pub fn make_app() -> App<'static, 'static> {
                 ),
         )
         .subcommand(
+            App::new("process-event")
+                .about("Processes a single event piped in")
+                .after_help(
+                    "This takes an event on stdin and puts the processed event to stdout. \
+                     Optionally an additional PII processing config can be supplied.  This is \
+                     primarily useful for PII config testing as well as SDK integration tests.",
+                )
+                .arg(
+                    Arg::with_name("pretty")
+                        .long("pretty")
+                        .help("Pretty print the output JSON"),
+                )
+                .arg(
+                    Arg::with_name("pii_config")
+                        .long("pii-config")
+                        .value_name("PATH")
+                        .help("The path to a PII processing config"),
+                ),
+        )
+        .subcommand(
             App::new("generate-completions")
                 .about("Generate shell completion file")
                 .after_help(

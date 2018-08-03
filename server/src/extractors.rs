@@ -91,7 +91,8 @@ impl<T: FromRequest<ServiceState> + 'static> ProjectRequest<T> {
 
 fn get_auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadProjectRequest> {
     // try auth from header
-    let auth = req.headers()
+    let auth = req
+        .headers()
         .get("x-sentry-auth")
         .and_then(|x| x.to_str().ok());
 
@@ -119,7 +120,8 @@ impl<T: FromRequest<ServiceState> + 'static> FromRequest<ServiceState> for Proje
 
         req.extensions_mut().insert(auth.clone());
 
-        let project_id = match req.match_info()
+        let project_id = match req
+            .match_info()
             .get("project")
             .unwrap_or_default()
             .parse::<ProjectId>()
@@ -279,7 +281,8 @@ impl FromRequest<ServiceState> for IncomingForeignEvent {
         let meta = event_meta_from_req(req);
         let store_type = req.match_info().get("store_type").unwrap().to_string();
         let public_key = auth.public_key().to_string();
-        let headers = req.headers()
+        let headers = req
+            .headers()
             .iter()
             .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").into()))
             .collect();

@@ -20,6 +20,7 @@ mod utils;
 #[macro_use]
 pub mod metrics;
 
+pub use marshal::processor;
 pub use marshal::protocol as v8;
 pub use sentry_types::{
     Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError, Scheme,

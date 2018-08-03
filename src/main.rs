@@ -20,6 +20,7 @@ extern crate chrono;
 extern crate serde_json;
 extern crate uuid;
 
+extern crate semaphore_aorta;
 extern crate semaphore_common;
 extern crate semaphore_config;
 extern crate semaphore_server;
@@ -52,7 +53,7 @@ pub fn main() {
 
     if let Err(err) = cli::execute() {
         println!("error: {}", err);
-        for cause in err.causes().skip(1) {
+        for cause in err.iter_causes() {
             println!("  caused by: {}", cause);
         }
         if console_bt {

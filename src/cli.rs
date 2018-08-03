@@ -1,5 +1,6 @@
 use std::env;
-use std::io;
+use std::fs;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 use clap::{ArgMatches, Shell};
@@ -7,6 +8,8 @@ use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 use uuid::Uuid;
 
+use semaphore_aorta::EventV8;
+use semaphore_common::processor::PiiConfig;
 use semaphore_config::{Config, Credentials, MinimalConfig};
 use semaphore_server;
 
@@ -28,6 +31,9 @@ pub fn execute() -> Result<(), Error> {
     // likewise completions generation does not need the config.
     } else if let Some(matches) = matches.subcommand_matches("generate-completions") {
         return generate_completions(&matches);
+    // we also do not read the config for offline event processing
+    } else if let Some(matches) = matches.subcommand_matches("process-event") {
+        return process_event(&matches);
     }
 
     let config = Config::from_path(&config_path)?;
@@ -57,22 +63,28 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
     } else if let Some(matches) = matches.subcommand_matches("set") {
         let mut prompted = false;
         let secret_key = match matches.value_of("secret_key") {
-            Some(value) => Some(value
-                .parse()
-                .map_err(|_| err_msg("invalid secret key supplied"))?),
+            Some(value) => Some(
+                value
+                    .parse()
+                    .map_err(|_| err_msg("invalid secret key supplied"))?,
+            ),
             None => config.credentials().map(|x| x.secret_key.clone()),
         };
         let public_key = match matches.value_of("secret_key") {
-            Some(value) => Some(value
-                .parse()
-                .map_err(|_| err_msg("invalid public key supplied"))?),
+            Some(value) => Some(
+                value
+                    .parse()
+                    .map_err(|_| err_msg("invalid public key supplied"))?,
+            ),
             None => config.credentials().map(|x| x.public_key.clone()),
         };
         let id = match matches.value_of("id") {
             Some("random") => Some(Uuid::new_v4()),
-            Some(value) => Some(value
-                .parse()
-                .map_err(|_| err_msg("invalid relay id supplied"))?),
+            Some(value) => Some(
+                value
+                    .parse()
+                    .map_err(|_| err_msg("invalid relay id supplied"))?,
+            ),
             None => config.credentials().map(|x| x.id),
         };
         let changed = config.replace_credentials(Some(Credentials {
@@ -245,6 +257,34 @@ pub fn generate_completions<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
         Some(shell) => shell,
     };
     make_app().gen_completions_to("semaphore", shell, &mut io::stdout());
+    Ok(())
+}
+
+pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
+    let pii_config = if let Some(pii_config) = matches.value_of("pii_config") {
+        let json_config = fs::read_to_string(&pii_config)?;
+        Some(PiiConfig::from_json(&json_config)?)
+    } else {
+        None
+    };
+
+    let mut event_json = Vec::new();
+    let stdin = io::stdin();
+    stdin.lock().read_to_end(&mut event_json)?;
+    let event = EventV8::from_json_bytes(&event_json[..])?;
+    let event = if let Some(pii_config) = pii_config {
+        let processor = pii_config.processor();
+        processor.process_root_value(event)
+    } else {
+        event
+    };
+
+    if matches.is_present("pretty") {
+        println!("{}", event.to_json_pretty()?);
+    } else {
+        println!("{}", event.to_json()?);
+    }
+
     Ok(())
 }
 
