@@ -77,7 +77,7 @@ matrix:
 #                      target/i686-unknown-linux-gnu/release/semaphore
 
     - os: osx
-      osx_image: xcode7.3
+      osx_image: xcode9.2
       env: SUITE=releasebuild
       after_success:
         - npm install -g @zeus-ci/cli
