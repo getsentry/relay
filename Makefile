@@ -49,7 +49,7 @@ format:
 .PHONY: format
 
 format-check:
-	@cargo fmt -- --write-mode diff
+	@cargo fmt -- --check
 .PHONY: format-check
 
 lint:
