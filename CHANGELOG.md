@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+
+* Added support for metadata format
+
 ## 0.1.2
 
 * JSON logging (#32)
