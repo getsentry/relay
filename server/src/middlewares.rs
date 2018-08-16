@@ -56,10 +56,23 @@ impl Middleware<ServiceState> for CaptureSentryError {
 pub struct AddCommonHeaders;
 
 impl<S> Middleware<S> for AddCommonHeaders {
-    fn response(&self, _req: &HttpRequest<S>, mut resp: HttpResponse) -> Result<Response, Error> {
-        resp.headers_mut()
+    fn response(
+        &self,
+        request: &HttpRequest<S>,
+        mut response: HttpResponse,
+    ) -> Result<Response, Error> {
+        response
+            .headers_mut()
             .insert(header::SERVER, header::HeaderValue::from_static(SERVER));
-        Ok(Response::Done(resp))
+
+        if let Some(peer_address) = request.peer_addr() {
+            response.headers_mut().insert(
+                header::FORWARDED,
+                header::HeaderValue::from_str(&peer_address.to_string())?,
+            );
+        }
+
+        Ok(Response::Done(response))
     }
 }
 
