@@ -76,6 +76,13 @@ impl<'a> UpstreamDescriptor<'a> {
         self.port
     }
 
+    /// Returns a URL relative to the upstream.
+    pub fn get_url(&self, path: &str) -> Url {
+        format!("{}{}", self, path.trim_left_matches(&['/'][..]))
+            .parse()
+            .unwrap()
+    }
+
     /// Returns the API base URL.
     pub fn get_api_url(&self, path: &str) -> Url {
         format!("{}api/0/{}", self, path.trim_left_matches(&['/'][..]))

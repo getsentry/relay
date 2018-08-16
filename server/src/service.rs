@@ -61,6 +61,7 @@ fn make_app(state: ServiceState) -> ServiceApp {
 
     // app = endpoints::healthcheck::configure_app(app);
     // app = endpoints::store::configure_app(app);
+    app = endpoints::forward::configure_app(app);
 
     app
 }
