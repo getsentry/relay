@@ -59,8 +59,8 @@ fn make_app(state: ServiceState) -> ServiceApp {
         .middleware(AddCommonHeaders)
         .middleware(ErrorHandlers);
 
-    app = endpoints::healthcheck::configure_app(app);
-    app = endpoints::store::configure_app(app);
+    // app = endpoints::healthcheck::configure_app(app);
+    // app = endpoints::store::configure_app(app);
 
     app
 }
