@@ -59,14 +59,8 @@ fn make_app(state: ServiceState) -> ServiceApp {
         .middleware(AddCommonHeaders)
         .middleware(ErrorHandlers);
 
-    macro_rules! register_endpoint {
-        ($name:ident) => {
-            app = endpoints::$name::configure_app(app);
-        };
-    }
-
-    register_endpoint!(healthcheck);
-    register_endpoint!(store);
+    app = endpoints::healthcheck::configure_app(app);
+    app = endpoints::store::configure_app(app);
 
     app
 }
