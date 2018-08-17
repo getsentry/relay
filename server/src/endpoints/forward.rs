@@ -1,5 +1,6 @@
 use actix_web::client::ClientRequest;
 use actix_web::{AsyncResponder, Body, Error, HttpMessage, HttpRequest, HttpResponse};
+use itertools::Itertools;
 
 use futures::{future, Future, Stream};
 use http::header::{self, HeaderValue};
@@ -27,22 +28,38 @@ fn forward_upstream(
         .map(|pq| pq.as_str())
         .unwrap_or("");
 
+    let addr = request.peer_addr().map(|x| x.ip().to_string());
+
+    let forwarded_ips = addr
+        .as_ref()
+        .map(|x| x.as_str())
+        .into_iter()
+        .chain(
+            request
+                .headers()
+                .get("X-Forwarded-For")
+                .and_then(|x| x.to_str().ok())
+                .unwrap_or("")
+                .split(",")
+                .map(|x| x.trim()),
+        )
+        .join(",");
+
     let mut request_builder = ClientRequest::build_from(request);
     request_builder.uri(upstream.get_url(path_and_query));
+    request_builder.set_header("X-Forwarded-For", forwarded_ips);
 
-    if let Some(peer_addr) = request.peer_addr() {
-        request_builder.header(
-            header::FORWARDED,
-            tryf!(HeaderValue::from_str(&peer_addr.to_string())),
-        );
-    }
-
-    let client_request = tryf!(request_builder.finish());
+    let client_request =
+        tryf!(request_builder.body(Body::Streaming(Box::new(request.payload().from_err()))));
     client_request
         .send()
         .map_err(Error::from)
         .and_then(|resp| {
-            Ok(HttpResponse::Ok().body(Body::Streaming(Box::new(resp.payload().from_err()))))
+            let mut response_builder = HttpResponse::build(resp.status());
+            for (key, value) in resp.headers() {
+                response_builder.header(key.clone(), value.clone());
+            }
+            Ok(response_builder.body(Body::Streaming(Box::new(resp.payload().from_err()))))
         })
         .responder()
 }

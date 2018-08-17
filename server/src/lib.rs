@@ -11,6 +11,7 @@ extern crate failure_derive;
 extern crate flate2;
 extern crate futures;
 extern crate http;
+extern crate itertools;
 #[macro_use]
 extern crate log;
 extern crate mime;
