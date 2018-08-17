@@ -46,6 +46,7 @@ fn forward_upstream(
     let client_request = ClientRequest::build_from(request)
         .uri(upstream.get_url(path_and_query))
         .set_header("X-Forwarded-For", forwarded_ips)
+        .set_header("Host", config.upstream_descriptor().host())
         .body(Body::Streaming(Box::new(request.payload().from_err())));
 
     let client_request = tryf!(client_request);
