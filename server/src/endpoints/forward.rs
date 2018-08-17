@@ -1,6 +1,5 @@
 use actix_web::client::ClientRequest;
 use actix_web::{AsyncResponder, Body, Error, HttpMessage, HttpRequest, HttpResponse};
-use itertools::Itertools;
 
 use futures::{future, Future, Stream};
 
@@ -15,6 +14,27 @@ macro_rules! tryf {
     };
 }
 
+fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
+    let peer_addr = request
+        .peer_addr()
+        .map(|v| v.ip().to_string())
+        .unwrap_or_else(|| String::new());
+
+    let forwarded = request
+        .headers()
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if forwarded.is_empty() {
+        peer_addr
+    } else if peer_addr.is_empty() {
+        forwarded.to_string()
+    } else {
+        format!("{}, {}", peer_addr, forwarded)
+    }
+}
+
 fn forward_upstream(
     request: &HttpRequest<ServiceState>,
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
@@ -27,30 +47,13 @@ fn forward_upstream(
         .map(|pq| pq.as_str())
         .unwrap_or("");
 
-    let addr = request.peer_addr().map(|x| x.ip().to_string());
-    let forwarded_ips = addr
-        .as_ref()
-        .map(|x| x.as_str())
-        .into_iter()
-        .chain(
-            request
-                .headers()
-                .get("X-Forwarded-For")
-                .and_then(|x| x.to_str().ok())
-                .unwrap_or("")
-                .split(",")
-                .map(|x| x.trim()),
-        )
-        .join(",");
-
     let client_request = ClientRequest::build_from(request)
         .uri(upstream.get_url(path_and_query))
-        .set_header("X-Forwarded-For", forwarded_ips)
-        .set_header("Host", config.upstream_descriptor().host())
+        .set_header("Host", upstream.host())
+        .set_header("X-Forwarded-For", get_forwarded_for(request))
         .body(Body::Streaming(Box::new(request.payload().from_err())));
 
-    let client_request = tryf!(client_request);
-    client_request
+    tryf!(client_request)
         .send()
         .map_err(Error::from)
         .and_then(|resp| {
