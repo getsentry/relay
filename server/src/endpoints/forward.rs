@@ -3,7 +3,6 @@ use actix_web::{AsyncResponder, Body, Error, HttpMessage, HttpRequest, HttpRespo
 use itertools::Itertools;
 
 use futures::{future, Future, Stream};
-use http::header::{self, HeaderValue};
 
 use service::{ServiceApp, ServiceState};
 
@@ -29,7 +28,6 @@ fn forward_upstream(
         .unwrap_or("");
 
     let addr = request.peer_addr().map(|x| x.ip().to_string());
-
     let forwarded_ips = addr
         .as_ref()
         .map(|x| x.as_str())
@@ -45,12 +43,12 @@ fn forward_upstream(
         )
         .join(",");
 
-    let mut request_builder = ClientRequest::build_from(request);
-    request_builder.uri(upstream.get_url(path_and_query));
-    request_builder.set_header("X-Forwarded-For", forwarded_ips);
+    let client_request = ClientRequest::build_from(request)
+        .uri(upstream.get_url(path_and_query))
+        .set_header("X-Forwarded-For", forwarded_ips)
+        .body(Body::Streaming(Box::new(request.payload().from_err())));
 
-    let client_request =
-        tryf!(request_builder.body(Body::Streaming(Box::new(request.payload().from_err()))));
+    let client_request = tryf!(client_request);
     client_request
         .send()
         .map_err(Error::from)
