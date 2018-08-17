@@ -65,13 +65,6 @@ impl<S> Middleware<S> for AddCommonHeaders {
             .headers_mut()
             .insert(header::SERVER, header::HeaderValue::from_static(SERVER));
 
-        if let Some(peer_address) = request.peer_addr() {
-            response.headers_mut().insert(
-                header::FORWARDED,
-                header::HeaderValue::from_str(&peer_address.to_string())?,
-            );
-        }
-
         Ok(Response::Done(response))
     }
 }
