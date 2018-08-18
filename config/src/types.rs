@@ -173,8 +173,6 @@ struct Aorta {
     snapshot_expiry: u32,
     /// The number of seconds between auth attempts.
     auth_retry_interval: u32,
-    /// The number of seconds after which a heartbeat is forced.
-    heartbeat_interval: u32,
     /// The number of seconds that the relay should buffer changesets for.
     changeset_buffer_interval: u32,
     /// The number of seconds for which an event shoudl be buffered until the
@@ -232,7 +230,6 @@ impl Default for Aorta {
         Aorta {
             snapshot_expiry: 60,
             auth_retry_interval: 15,
-            heartbeat_interval: 60,
             changeset_buffer_interval: 2,
             pending_events_timeout: 60,
             max_event_payload_size: 524_288,
@@ -567,12 +564,6 @@ impl Config {
     pub fn aorta_auth_retry_interval(&self) -> Duration {
         Duration::seconds(self.values.aorta.auth_retry_interval.into())
     }
-
-    /// Returns the aorta hearthbeat interval.
-    pub fn aorta_heartbeat_interval(&self) -> Duration {
-        Duration::seconds(self.values.aorta.heartbeat_interval.into())
-    }
-
     /// Returns the aorta changeset buffer interval.
     pub fn aorta_changeset_buffer_interval(&self) -> Duration {
         Duration::seconds(self.values.aorta.changeset_buffer_interval.into())
@@ -593,7 +584,6 @@ impl Config {
         Arc::new(AortaConfig {
             snapshot_expiry: self.aorta_snapshot_expiry(),
             auth_retry_interval: self.aorta_auth_retry_interval(),
-            heartbeat_interval: self.aorta_heartbeat_interval(),
             changeset_buffer_interval: self.aorta_changeset_buffer_interval(),
             pending_events_timeout: self.aorta_pending_events_timeout(),
             max_event_payload_size: self.aorta_max_event_payload_size(),

@@ -1,7 +1,4 @@
-//! This library implements helpers for managing various upstream
-//! aortas.  It's used by the server as a central point to buffer up
-//! changes that need to be flushed with the heartbeat and stores
-//! config updates from upstream.
+//! This library manages project config updates and various async requests to the upstream relay.
 #![warn(missing_docs)]
 #![cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 
@@ -22,7 +19,6 @@ extern crate serde_json;
 extern crate tokio_core;
 
 mod auth;
-mod heartbeat;
 mod types;
 
 pub use types::*;
