@@ -21,4 +21,5 @@ extern crate tokio_core;
 mod auth;
 mod types;
 
+pub use auth::AuthState;
 pub use types::*;
