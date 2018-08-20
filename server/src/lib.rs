@@ -27,6 +27,7 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate listenfd;
+extern crate parking_lot;
 extern crate serde_json;
 extern crate url;
 extern crate uuid;
@@ -39,6 +40,7 @@ mod constants;
 mod endpoints;
 mod errors;
 mod extractors;
+mod managers;
 mod middlewares;
 mod service;
 mod utils;

@@ -48,3 +48,13 @@ macro_rules! impl_str_serialization {
         }
     };
 }
+
+#[macro_export]
+macro_rules! tryf {
+    ($e:expr) => {
+        match $e {
+            Ok(value) => value,
+            Err(e) => return ::actix::Response::reply(Err(::std::convert::From::from(e))),
+        }
+    };
+}
