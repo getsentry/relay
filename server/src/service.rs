@@ -11,10 +11,10 @@ use semaphore_aorta::AortaConfig;
 use semaphore_config::Config;
 use semaphore_trove::{Trove, TroveState};
 
+use actors::keys::KeyManager;
+use actors::upstream::UpstreamRelay;
 use endpoints;
 use errors::{ServerError, ServerErrorKind};
-use managers::keys::KeyManager;
-use managers::upstream_requests::UpstreamRequestManager;
 use middlewares::{AddCommonHeaders, CaptureSentryError, ErrorHandlers, Metrics};
 
 fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
@@ -90,7 +90,7 @@ pub fn run(config: Config) -> Result<(), ServerError> {
 
     let sys = actix::System::new("relay");
 
-    let upstream_request_manager = UpstreamRequestManager::new(
+    let upstream_request_manager = UpstreamRelay::new(
         config.credentials().cloned(),
         config.upstream_descriptor().clone().into_owned(),
         trove.state(),
