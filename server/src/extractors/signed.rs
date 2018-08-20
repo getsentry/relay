@@ -14,16 +14,28 @@ use serde::de::DeserializeOwned;
 use sentry;
 
 use semaphore_aorta::ApiErrorResponse;
+use semaphore_aorta::PublicKey;
 use semaphore_aorta::RelayId;
 
 use actors::keys::GetPublicKey;
 use service::ServiceState;
 
-pub struct SignedJson<T>(pub T);
+pub struct SignedJson<T> {
+    inner: T,
+    public_key: PublicKey,
+    relay_id: RelayId,
+}
 
 impl<T> SignedJson<T> {
     pub fn into_inner(self) -> T {
-        self.0
+        self.inner
+    }
+
+    pub fn relay_id(&self) -> &RelayId {
+        &self.relay_id
+    }
+    pub fn public_key(&self) -> &PublicKey {
+        &self.public_key
     }
 }
 
@@ -80,7 +92,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
             req.state()
                 .key_manager()
                 .send(GetPublicKey {
-                    relay_ids: vec![relay_id],
+                    relay_ids: vec![relay_id.clone()],
                 })
                 .map_err(Error::from)
                 .and_then(|public_keys_response| public_keys_response.map_err(Error::from))
@@ -92,13 +104,17 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
                         .ok_or(SignatureError::UnknownRelay)
                         .map_err(Error::from)
                 })
-                .and_then(move |public_key| -> Self::Result {
+                .and_then(move |public_key| {
                     Box::new(raw_body.map_err(Error::from).and_then(move |body| {
                         public_key
                             .unpack(&body, &relay_sig, None)
                             .map_err(|_| SignatureError::BadSignature)
                             .map_err(Error::from)
-                            .map(SignedJson)
+                            .map(|inner| SignedJson {
+                                inner,
+                                public_key,
+                                relay_id,
+                            })
                     }))
                 }),
         )
