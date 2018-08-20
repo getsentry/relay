@@ -78,10 +78,7 @@ impl Project {
         let future = wrap_future::<_, Self>(request)
             .and_then(move |state_result, actor, _context| {
                 actor.state_channel = None;
-                actor.state = match state_result {
-                    Ok(state) => Some(Arc::new(state)),
-                    Err(_) => None,
-                };
+                actor.state = state_result.map(Arc::new).ok();
 
                 sender.send(actor.state.clone()).ok();
                 wrap_future(future::ok(()))
@@ -132,7 +129,7 @@ impl UpstreamRequest for GetProjectStates {
 pub struct ProjectManager {
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
-    state_channels: HashMap<ProjectId, oneshot::Sender<Option<ProjectStateSnapshot>>>,
+    state_channels: HashMap<ProjectId, oneshot::Sender<ProjectStateSnapshot>>,
 }
 
 impl ProjectManager {
@@ -144,13 +141,13 @@ impl ProjectManager {
         }
     }
 
-    pub fn schedule_fetch(&mut self, ctx: &mut Context<Self>) {
+    pub fn schedule_fetch(&mut self, context: &mut Context<Self>) {
         if self.state_channels.is_empty() {
-            ctx.run_later(Duration::from_secs(1), Self::fetch_states);
+            context.run_later(Duration::from_secs(1), Self::fetch_states);
         }
     }
 
-    pub fn fetch_states(&mut self, ctx: &mut Context<Self>) {
+    pub fn fetch_states(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.state_channels, HashMap::new());
 
         let request = GetProjectStates {
@@ -171,21 +168,21 @@ impl ProjectManager {
                                 .unwrap_or(None)
                                 .unwrap_or_else(|| ProjectStateSnapshot::missing());
 
-                            channel.send(Some(state)).ok();
+                            channel.send(state).ok();
                         }
                     }
                     Err(e) => {
                         // TODO: Log error
-                        for (_, channel) in channels {
-                            channel.send(None).ok();
-                        }
+
+                        // NOTE: We're dropping `channels` here, which closes the receiver on the
+                        // other end. Project actors will interpret this as fetch failure.
                     }
                 }
 
                 Ok(())
             });
 
-        ctx.spawn(wrap_future(future).drop_err());
+        context.spawn(wrap_future(future).drop_err());
     }
 }
 
@@ -213,10 +210,10 @@ impl Message for GetProject {
 impl Handler<GetProject> for ProjectManager {
     type Result = Addr<Project>;
 
-    fn handle(&mut self, message: GetProject, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
         self.projects
             .entry(message.id)
-            .or_insert_with(|| Project::new(message.id, ctx.address()).start())
+            .or_insert_with(|| Project::new(message.id, context.address()).start())
             .clone()
     }
 }
@@ -235,12 +232,13 @@ impl Handler<FetchProjectState> for ProjectManager {
     fn handle(&mut self, message: FetchProjectState, ctx: &mut Self::Context) -> Self::Result {
         let (sender, receiver) = oneshot::channel();
 
-        if let Some(previous) = self.state_channels.insert(message.id, sender) {
+        // NOTE: Schedule before inserting the channel
+        self.schedule_fetch(ctx);
+
+        if self.state_channels.insert(message.id, sender).is_some() {
             // TODO: This branch should not happen. Log this?
-            previous.send(None).ok();
         }
 
-        self.schedule_fetch(ctx);
-        Response::async(receiver.then(|state| state.unwrap_or(None).ok_or(())))
+        Response::async(receiver.then(|state| state.map_err(|_| ())))
     }
 }
