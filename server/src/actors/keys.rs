@@ -1,23 +1,22 @@
 //! This actor caches known public keys.
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Instant;
 
+use actix::fut::wrap_future;
 use actix::Actor;
+use actix::ActorFuture;
+use actix::ActorResponse;
 use actix::Addr;
 use actix::Context;
 use actix::Handler;
 use actix::Message;
-use actix::Response;
 
 use actix_web::http::Method;
 use actix_web::HttpResponse;
 use actix_web::ResponseError;
 
-use futures::Future;
-
-use parking_lot::RwLock;
+use futures::future;
 
 use semaphore_aorta::ApiErrorResponse;
 use semaphore_aorta::PublicKey;
@@ -83,14 +82,14 @@ impl KeyState {
 
 pub struct KeyManager {
     // XXX: only necessary because we mutate inside of a closure passed to future.and_then
-    keys: Arc<RwLock<HashMap<RelayId, KeyState>>>,
+    keys: HashMap<RelayId, KeyState>,
     upstream: Addr<UpstreamRelay>,
 }
 
 impl KeyManager {
     pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
         KeyManager {
-            keys: Arc::new(RwLock::new(HashMap::new())),
+            keys: HashMap::new(),
             upstream,
         }
     }
@@ -131,13 +130,14 @@ impl UpstreamRequest for GetPublicKey {
 }
 
 impl Handler<GetPublicKey> for KeyManager {
-    type Result = Response<GetPublicKeyResult, KeyError>;
+    type Result = ActorResponse<Self, GetPublicKeyResult, KeyError>;
+
     fn handle(&mut self, msg: GetPublicKey, _ctx: &mut Context<Self>) -> Self::Result {
         let mut known_keys = HashMap::new();
         let mut unknown_ids = vec![];
 
         for id in msg.relay_ids.into_iter() {
-            match self.keys.read().get(&id) {
+            match self.keys.get(&id) {
                 Some(key) if key.is_valid_cache() => {
                     known_keys.insert(id, key.as_option().cloned());
                 }
@@ -148,26 +148,31 @@ impl Handler<GetPublicKey> for KeyManager {
         }
 
         if unknown_ids.is_empty() {
-            Response::reply(Ok(GetPublicKeyResult {
+            ActorResponse::reply(Ok(GetPublicKeyResult {
                 public_keys: known_keys,
             }))
         } else {
-            let self_keys = self.keys.clone();
-            Response::async(
-                self.upstream
-                    .send(SendRequest(GetPublicKey {
-                        relay_ids: unknown_ids,
-                    }))
-                    .map_err(|_| KeyError)
-                    .and_then(move |response| {
-                        for (id, key) in response.map_err(|_| KeyError)?.public_keys {
+            let request = SendRequest(GetPublicKey {
+                relay_ids: unknown_ids,
+            });
+
+            ActorResponse::async(
+                wrap_future::<_, Self>(self.upstream.send(request))
+                    .map_err(|_, _, _| KeyError)
+                    .and_then(|response, actor, ctx| {
+                        let response = match response.map_err(|_| KeyError) {
+                            Ok(response) => response,
+                            Err(e) => return wrap_future(future::err(e)),
+                        };
+
+                        for (id, key) in response.public_keys {
                             known_keys.insert(id, key.clone());
-                            self_keys.write().insert(id, KeyState::from_option(key));
+                            actor.keys.insert(id, KeyState::from_option(key));
                         }
 
-                        Ok(GetPublicKeyResult {
+                        wrap_future(future::ok(GetPublicKeyResult {
                             public_keys: known_keys,
-                        })
+                        }))
                     }),
             )
         }
