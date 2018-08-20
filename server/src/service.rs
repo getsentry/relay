@@ -12,6 +12,7 @@ use semaphore_config::Config;
 use semaphore_trove::{Trove, TroveState};
 
 use actors::keys::KeyManager;
+use actors::project::ProjectManager;
 use actors::upstream::UpstreamRelay;
 use endpoints;
 use errors::{ServerError, ServerErrorKind};
@@ -29,6 +30,7 @@ fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
 pub struct ServiceState {
     trove_state: Arc<TroveState>,
     key_manager: Addr<KeyManager>,
+    project_manager: Addr<ProjectManager>,
     config: Arc<Config>,
 }
 
@@ -90,22 +92,20 @@ pub fn run(config: Config) -> Result<(), ServerError> {
 
     let sys = actix::System::new("relay");
 
-    let upstream_request_manager = UpstreamRelay::new(
+    let upstream_relay = UpstreamRelay::new(
         config.credentials().cloned(),
         config.upstream_descriptor().clone().into_owned(),
         trove.state(),
-    );
-
-    let upstream_request_manager_addr = upstream_request_manager.start();
-    let key_manager = KeyManager::new(upstream_request_manager_addr);
+    ).start();
 
     let service_state = ServiceState {
         trove_state: trove.state(),
-        key_manager: key_manager.start(),
+        key_manager: KeyManager::new(upstream_relay.clone()).start(),
+        project_manager: ProjectManager::new(upstream_relay.clone()).start(),
         config: config.clone(),
     };
-    let mut server = server::new(move || make_app(service_state.clone()));
 
+    let mut server = server::new(move || make_app(service_state.clone()));
     let mut listenfd = ListenFd::from_env();
 
     server = if let Some(listener) = listenfd

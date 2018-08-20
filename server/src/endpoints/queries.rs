@@ -4,8 +4,7 @@ use actix_web::Json;
 
 use futures::Future;
 
-use actors::keys::GetPublicKey;
-use actors::keys::GetPublicKeyResult;
+use actors::keys::{GetPublicKey, GetPublicKeyResult};
 use extractors::CurrentServiceState;
 use service::ServiceApp;
 
@@ -20,6 +19,13 @@ fn get_public_keys(
             .and_then(|x| x.map_err(Error::from).map(|x| Json(x))),
     )
 }
+
+// #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
+// fn get_project_configs(
+//     (state, body): (CurrentServiceState, Json<String>),
+// ) -> Box<Future<Item = Json, Error = Error>> {
+//     unimplemented!()
+// }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.resource("/api/0/relays/publickeys/", |r| {
