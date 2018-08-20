@@ -19,6 +19,9 @@ use service::ServiceState;
 
 use sentry;
 
+mod signed;
+pub use self::signed::SignedJson;
+
 #[derive(Fail, Debug)]
 pub enum BadProjectRequest {
     #[fail(display = "invalid project path parameter")]
