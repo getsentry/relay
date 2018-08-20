@@ -37,6 +37,7 @@ build_script:
 
 test_script:
   - cargo test --all --release
+  - cargo run --release -- --help
 
 on_success:
   - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%.exe .\target\release\semaphore.exe

@@ -11,6 +11,7 @@ build:
 
 releasebuild:
 	cargo build --release --locked
+	cargo run --release -- --help
 .PHONY: releasebuild
 
 releasebuild-docker:

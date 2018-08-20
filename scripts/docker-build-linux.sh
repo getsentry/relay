@@ -1,29 +1,48 @@
 #!/bin/bash
 set -eux
 
-TARGET="${BUILD_ARCH}-unknown-linux-gnu"
-
-if [ "$BUILD_ARCH" = "x86_64" ]; then
-    DOCKER_ARCH="amd64"
-    OPENSSL_ARCH="linux-x86_64"
+if [ "${BUILD_ARCH}" = "x86_64" ]; then
+  DOCKER_ARCH="amd64"
+  OPENSSL_ARCH="linux-x86_64"
+elif [ "${BUILD_ARCH}" = "i686" ]; then
+  DOCKER_ARCH="i386"
+  OPENSSL_ARCH="linux-generic32"
 else
-    DOCKER_ARCH="i386"
-    OPENSSL_ARCH="linux-generic32"
+  echo "Invalid architecture: ${BUILD_ARCH}"
+  exit 1
 fi
 
-OPENSSL_DIR="/usr/local/build/$TARGET"
+TARGET=${BUILD_ARCH}-unknown-linux-gnu
+BUILD_TAG="build-${BUILD_ARCH}"
+BUILD_IMAGE="${IMAGE_NAME}:${BUILD_TAG}"
 
-docker run \
-        -w /work \
-        -e TARGET=${TARGET} \
-        -e BUILD_ARCH=${BUILD_ARCH} \
-        -e OPENSSL_ARCH=${OPENSSL_ARCH} \
-        -e OPENSSL_DIR=${OPENSSL_DIR} \
-        -e OPENSSL_STATIC="1" \
-        -v `pwd`:/work \
-        -v $HOME/.cargo/registry:/usr/local/cargo/registry \
-        -it $DOCKER_ARCH/rust:jessie \
-        bash -c "./scripts/prepare-build.sh >/dev/null && cargo build --release --locked --target=${TARGET}"
+# Prepare build environment first
+docker pull $BUILD_IMAGE || true
+docker build --build-arg DOCKER_ARCH=${DOCKER_ARCH} \
+             --build-arg BUILD_ARCH=${BUILD_ARCH} \
+             --build-arg OPENSSL_ARCH=${OPENSSL_ARCH} \
+             --cache-from=${BUILD_IMAGE} \
+             -t "${BUILD_IMAGE}" -f Dockerfile.build .
+
+# Push build image if possible
+if [ -n "${DOCKER_PASS}" ]; then
+  echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin || true
+  docker push "${BUILD_IMAGE}" || true
+fi
+
+DOCKER_RUN_OPTS="
+  -v $(pwd):/work
+  -v $HOME/.cargo/registry:/usr/local/cargo/registry
+  $BUILD_IMAGE
+"
+
+# And now build the project
+docker run $DOCKER_RUN_OPTS \
+  cargo build --release --locked --target=${TARGET}
+
+# Smoke test
+docker run $DOCKER_RUN_OPTS \
+  cargo run --release --target=${TARGET} -- --help
 
 # Fix permissions for shared directories
 USER_ID=$(id -u)
