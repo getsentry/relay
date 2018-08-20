@@ -109,12 +109,12 @@ impl Actor for KeyManager {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetPublicKey {
-    relay_ids: Vec<RelayId>,
+    pub relay_ids: Vec<RelayId>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetPublicKeyResult {
-    public_keys: HashMap<RelayId, Option<PublicKey>>,
+    pub public_keys: HashMap<RelayId, Option<PublicKey>>,
 }
 
 impl Message for GetPublicKey {
