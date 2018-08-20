@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use actix;
+use actix::Actor;
+use actix::Addr;
 use actix_web::{server, App};
 use failure::ResultExt;
 use listenfd::ListenFd;
@@ -11,6 +13,8 @@ use semaphore_trove::{Trove, TroveState};
 
 use endpoints;
 use errors::{ServerError, ServerErrorKind};
+use managers::keys::KeyManager;
+use managers::upstream_requests::UpstreamRequestManager;
 use middlewares::{AddCommonHeaders, CaptureSentryError, ErrorHandlers, Metrics};
 
 fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
@@ -21,9 +25,10 @@ fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
 }
 
 /// Server state.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ServiceState {
     trove_state: Arc<TroveState>,
+    key_manager: Addr<KeyManager>,
     config: Arc<Config>,
 }
 
@@ -47,6 +52,11 @@ impl ServiceState {
     pub fn is_healthy(&self) -> bool {
         self.trove_state.is_healthy()
     }
+
+    /// Returns current key manager
+    pub fn key_manager(&self) -> Addr<KeyManager> {
+        self.key_manager.clone()
+    }
 }
 
 /// The actix app type for the relay web service.
@@ -62,6 +72,7 @@ fn make_app(state: ServiceState) -> ServiceApp {
     // app = endpoints::healthcheck::configure_app(app);
     // app = endpoints::store::configure_app(app);
     app = endpoints::forward::configure_app(app);
+    app = endpoints::queries::configure_app(app);
 
     app
 }
@@ -77,8 +88,20 @@ pub fn run(config: Config) -> Result<(), ServerError> {
         .govern()
         .context(ServerErrorKind::TroveGovernSpawnFailed)?;
 
+    let sys = actix::System::new("relay");
+
+    let upstream_request_manager = UpstreamRequestManager::new(
+        config.credentials().cloned(),
+        config.upstream_descriptor().clone().into_owned(),
+        trove.state(),
+    );
+
+    let upstream_request_manager_addr = upstream_request_manager.start();
+    let key_manager = KeyManager::new(upstream_request_manager_addr);
+
     let service_state = ServiceState {
         trove_state: trove.state(),
+        key_manager: key_manager.start(),
         config: config.clone(),
     };
     let mut server = server::new(move || make_app(service_state.clone()));
@@ -129,7 +152,6 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     dump_listen_infos(&server);
     info!("spawning relay server");
 
-    let sys = actix::System::new("relay");
     server.system_exit().start();
     let _ = sys.run();
 
