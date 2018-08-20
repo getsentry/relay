@@ -58,7 +58,7 @@ pub struct AddCommonHeaders;
 impl<S> Middleware<S> for AddCommonHeaders {
     fn response(
         &self,
-        request: &HttpRequest<S>,
+        _request: &HttpRequest<S>,
         mut response: HttpResponse,
     ) -> Result<Response, Error> {
         response
