@@ -1,28 +1,36 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::mem;
 use std::sync::Arc;
+use std::time::Duration;
 
-use actix::{Actor, Addr, AsyncContext, Context, Handler, MailboxError, Message, Response};
-use futures::Future;
-use parking_lot::RwLock;
+use actix::fut::wrap_future;
+use actix::{Actor, ActorFuture, Addr, AsyncContext, Context, Handler, Message, Response};
+use actix_web::http::Method;
+use futures::future::{self, Future, Shared};
+use futures::sync::oneshot;
 
 // TODO(ja): Move this here and rename to ProjectState
 use semaphore_aorta::ProjectStateSnapshot;
 use semaphore_common::ProjectId;
 
-use actors::upstream::UpstreamRelay;
+use actors::upstream::{SendRequest, SendRequestError, UpstreamRelay, UpstreamRequest};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
-    #[fail(display = "internal error: {0}", _0)]
-    Mailbox(#[fail(cause)] MailboxError),
+    #[fail(display = "project state request canceled")]
+    Canceled,
     #[fail(display = "failed to fetch project state")]
     FetchFailed,
+    #[fail(display = "failed to fetch projects from upstream")]
+    UpstreamFailed(#[fail(cause)] SendRequestError),
 }
 
 pub struct Project {
     id: ProjectId,
     manager: Addr<ProjectManager>,
-    state: Arc<RwLock<Option<Arc<ProjectStateSnapshot>>>>,
+    state: Option<Arc<ProjectStateSnapshot>>,
+    state_channel: Option<Shared<oneshot::Receiver<Option<Arc<ProjectStateSnapshot>>>>>,
 }
 
 impl Project {
@@ -30,29 +38,58 @@ impl Project {
         Project {
             id,
             manager,
-            state: Arc::new(RwLock::new(None)),
+            state: None,
+            state_channel: None,
         }
     }
 
-    pub fn state(&self) -> Option<Arc<ProjectStateSnapshot>> {
-        (*self.state.read()).clone()
+    fn get_or_fetch_state(
+        &mut self,
+        context: &mut Context<Self>,
+    ) -> Response<Arc<ProjectStateSnapshot>, ProjectError> {
+        if let Some(ref state) = self.state {
+            return Response::reply(Ok(state.clone()));
+        }
+
+        let channel = match self.state_channel {
+            Some(ref channel) => channel.clone(),
+            None => {
+                let channel = self.fetch_state(context);
+                self.state_channel = Some(channel.clone());
+                channel
+            }
+        };
+
+        Response::async(channel.map_err(|_| ProjectError::Canceled).and_then(
+            |option| match *option {
+                Some(ref state) => Ok(state.clone()),
+                None => Err(ProjectError::FetchFailed),
+            },
+        ))
     }
 
-    pub fn get_state(&self) -> Response<Arc<ProjectStateSnapshot>, ProjectError> {
-        let state = self.state.clone();
-        match self.state() {
-            Some(ref state) => Response::reply(Ok(state.clone())),
-            None => Response::async(
-                self.manager
-                    .send(FetchProjectState { id: self.id })
-                    .map_err(ProjectError::Mailbox)
-                    .and_then(move |response| {
-                        let response = Arc::new(response?);
-                        *state.write() = Some(response.clone());
-                        Ok(response)
-                    }),
-            ),
-        }
+    fn fetch_state(
+        &mut self,
+        context: &mut Context<Self>,
+    ) -> Shared<oneshot::Receiver<Option<Arc<ProjectStateSnapshot>>>> {
+        let (sender, receiver) = oneshot::channel();
+
+        let request = self.manager.send(FetchProjectState { id: self.id });
+        let future = wrap_future::<_, Self>(request)
+            .and_then(move |state_result, actor, _context| {
+                actor.state_channel = None;
+                actor.state = match state_result {
+                    Ok(state) => Some(Arc::new(state)),
+                    Err(_) => None,
+                };
+
+                sender.send(actor.state.clone()).ok();
+                wrap_future(future::ok(()))
+            })
+            .drop_err();
+
+        context.spawn(future);
+        receiver.shared()
     }
 }
 
@@ -69,22 +106,86 @@ impl Message for GetProjectState {
 impl Handler<GetProjectState> for Project {
     type Result = Response<Arc<ProjectStateSnapshot>, ProjectError>;
 
-    fn handle(&mut self, _message: GetProjectState, _ctx: &mut Context<Self>) -> Self::Result {
-        self.get_state()
+    fn handle(&mut self, _message: GetProjectState, context: &mut Context<Self>) -> Self::Result {
+        self.get_or_fetch_state(context)
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetProjectStates {
+    pub projects: Vec<ProjectId>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetProjectStatesResponse {
+    configs: HashMap<ProjectId, Option<ProjectStateSnapshot>>,
+}
+
+impl UpstreamRequest for GetProjectStates {
+    type Response = GetProjectStatesResponse;
+
+    fn get_upstream_request_target(&self) -> (Method, Cow<str>) {
+        (Method::POST, Cow::Borrowed("/api/0/relays/projectconfigs/"))
     }
 }
 
 pub struct ProjectManager {
-    projects: HashMap<ProjectId, Addr<Project>>,
     upstream: Addr<UpstreamRelay>,
+    projects: HashMap<ProjectId, Addr<Project>>,
+    state_channels: HashMap<ProjectId, oneshot::Sender<Option<ProjectStateSnapshot>>>,
 }
 
 impl ProjectManager {
     pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
         ProjectManager {
-            projects: HashMap::new(),
             upstream,
+            projects: HashMap::new(),
+            state_channels: HashMap::new(),
         }
+    }
+
+    pub fn schedule_fetch(&mut self, ctx: &mut Context<Self>) {
+        if self.state_channels.is_empty() {
+            ctx.run_later(Duration::from_secs(1), Self::fetch_states);
+        }
+    }
+
+    pub fn fetch_states(&mut self, ctx: &mut Context<Self>) {
+        let channels = mem::replace(&mut self.state_channels, HashMap::new());
+
+        let request = GetProjectStates {
+            projects: channels.keys().cloned().collect(),
+        };
+
+        let future = self
+            .upstream
+            .send(SendRequest(request))
+            .map_err(|_| ProjectError::UpstreamFailed)
+            .and_then(|response| {
+                match response {
+                    Ok(mut response) => {
+                        for (id, channel) in channels {
+                            let state = response
+                                .configs
+                                .remove(&id)
+                                .unwrap_or(None)
+                                .unwrap_or_else(|| ProjectStateSnapshot::missing());
+
+                            channel.send(Some(state)).ok();
+                        }
+                    }
+                    Err(e) => {
+                        // TODO: Log error
+                        for (_, channel) in channels {
+                            channel.send(None).ok();
+                        }
+                    }
+                }
+
+                Ok(())
+            });
+
+        ctx.spawn(wrap_future(future).drop_err());
     }
 }
 
@@ -125,13 +226,21 @@ pub struct FetchProjectState {
 }
 
 impl Message for FetchProjectState {
-    type Result = Result<ProjectStateSnapshot, ProjectError>;
+    type Result = Result<ProjectStateSnapshot, ()>;
 }
 
 impl Handler<FetchProjectState> for ProjectManager {
-    type Result = Response<ProjectStateSnapshot, ProjectError>;
+    type Result = Response<ProjectStateSnapshot, ()>;
 
-    fn handle(&mut self, message: FetchProjectState, _ctx: &mut Self::Context) -> Self::Result {
-        unimplemented!()
+    fn handle(&mut self, message: FetchProjectState, ctx: &mut Self::Context) -> Self::Result {
+        let (sender, receiver) = oneshot::channel();
+
+        if let Some(previous) = self.state_channels.insert(message.id, sender) {
+            // TODO: This branch should not happen. Log this?
+            previous.send(None).ok();
+        }
+
+        self.schedule_fetch(ctx);
+        Response::async(receiver.then(|state| state.unwrap_or(None).ok_or(())))
     }
 }

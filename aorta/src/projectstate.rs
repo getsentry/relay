@@ -107,6 +107,19 @@ pub struct ProjectState {
 }
 
 impl ProjectStateSnapshot {
+    /// Project state for a missing project.
+    pub fn missing() -> Self {
+        ProjectStateSnapshot {
+            last_fetch: Utc::now(),
+            last_change: None,
+            disabled: true,
+            public_keys: HashMap::new(),
+            slug: None,
+            config: Default::default(),
+            rev: None,
+        }
+    }
+
     /// Returns the current status of a key.
     pub fn get_public_key_status(&self, public_key: &str) -> PublicKeyStatus {
         match self.public_keys.get(public_key) {
@@ -399,15 +412,7 @@ impl ProjectState {
     /// exist or the relay has no permissions to work with it (these are both
     /// reported as the same thing to the relay).
     pub fn set_missing_snapshot(&self) {
-        self.set_snapshot(ProjectStateSnapshot {
-            last_fetch: Utc::now(),
-            last_change: None,
-            disabled: true,
-            public_keys: HashMap::new(),
-            slug: None,
-            config: Default::default(),
-            rev: None,
-        })
+        self.set_snapshot(ProjectStateSnapshot::missing())
     }
 }
 
