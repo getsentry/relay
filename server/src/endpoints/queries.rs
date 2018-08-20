@@ -28,6 +28,7 @@ fn get_public_keys(
 // fn get_project_configs(
 //     (state, body): (CurrentServiceState, SignedJson<String>),
 // ) -> Box<Future<Item = Json, Error = Error>> {
+//     // TODO(markus) here: check if relay has access to projects
 //     unimplemented!()
 // }
 
