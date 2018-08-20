@@ -23,9 +23,9 @@ use semaphore_aorta::ApiErrorResponse;
 use semaphore_aorta::PublicKey;
 use semaphore_aorta::RelayId;
 
-use managers::upstream_requests::SendRequest;
-use managers::upstream_requests::UpstreamRequest;
-use managers::upstream_requests::UpstreamRequestManager;
+use actors::upstream::SendRequest;
+use actors::upstream::UpstreamRelay;
+use actors::upstream::UpstreamRequest;
 
 #[derive(Fail, Debug)]
 #[fail(display = "failed to fetch keys")]
@@ -84,11 +84,11 @@ impl KeyState {
 pub struct KeyManager {
     // XXX: only necessary because we mutate inside of a closure passed to future.and_then
     keys: Arc<RwLock<HashMap<RelayId, KeyState>>>,
-    upstream: Addr<UpstreamRequestManager>,
+    upstream: Addr<UpstreamRelay>,
 }
 
 impl KeyManager {
-    pub fn new(upstream: Addr<UpstreamRequestManager>) -> Self {
+    pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
         KeyManager {
             keys: Arc::new(RwLock::new(HashMap::new())),
             upstream,
@@ -109,7 +109,7 @@ impl Actor for KeyManager {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct GetPublicKeyMessage {
+pub struct GetPublicKey {
     relay_ids: Vec<RelayId>,
 }
 
@@ -118,11 +118,11 @@ pub struct GetPublicKeyResult {
     public_keys: HashMap<RelayId, Option<PublicKey>>,
 }
 
-impl Message for GetPublicKeyMessage {
+impl Message for GetPublicKey {
     type Result = Result<GetPublicKeyResult, KeyError>;
 }
 
-impl UpstreamRequest for GetPublicKeyMessage {
+impl UpstreamRequest for GetPublicKey {
     type Response = GetPublicKeyResult;
 
     fn get_upstream_request_target(&self) -> (Method, Cow<str>) {
@@ -130,9 +130,9 @@ impl UpstreamRequest for GetPublicKeyMessage {
     }
 }
 
-impl Handler<GetPublicKeyMessage> for KeyManager {
+impl Handler<GetPublicKey> for KeyManager {
     type Result = Response<GetPublicKeyResult, KeyError>;
-    fn handle(&mut self, msg: GetPublicKeyMessage, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: GetPublicKey, _ctx: &mut Context<Self>) -> Self::Result {
         let mut known_keys = HashMap::new();
         let mut unknown_ids = vec![];
 
@@ -155,7 +155,7 @@ impl Handler<GetPublicKeyMessage> for KeyManager {
             let self_keys = self.keys.clone();
             Response::async(
                 self.upstream
-                    .send(SendRequest(GetPublicKeyMessage {
+                    .send(SendRequest(GetPublicKey {
                         relay_ids: unknown_ids,
                     }))
                     .map_err(|_| KeyError)

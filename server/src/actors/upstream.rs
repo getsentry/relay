@@ -28,20 +28,20 @@ use semaphore_config::Credentials;
 use semaphore_trove::AuthState;
 use semaphore_trove::TroveState;
 
-pub struct UpstreamRequestManager {
+pub struct UpstreamRelay {
     credentials: Option<Credentials>,
     upstream: UpstreamDescriptor<'static>,
     // XXX: Only used for checking auth state. Should be removed once auth is done in this actor
     trove_state: Arc<TroveState>,
 }
 
-impl UpstreamRequestManager {
+impl UpstreamRelay {
     pub fn new(
         credentials: Option<Credentials>,
         upstream: UpstreamDescriptor<'static>,
         trove_state: Arc<TroveState>,
     ) -> Self {
-        UpstreamRequestManager {
+        UpstreamRelay {
             credentials,
             upstream,
             trove_state,
@@ -59,7 +59,7 @@ impl UpstreamRequestManager {
     }
 }
 
-impl Actor for UpstreamRequestManager {
+impl Actor for UpstreamRelay {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Context<Self>) {
@@ -101,7 +101,7 @@ impl<T: UpstreamRequest> Message for SendRequest<T> {
     type Result = Result<<T as UpstreamRequest>::Response, SendRequestError>;
 }
 
-impl<T: UpstreamRequest> Handler<SendRequest<T>> for UpstreamRequestManager {
+impl<T: UpstreamRequest> Handler<SendRequest<T>> for UpstreamRelay {
     type Result = Response<<T as UpstreamRequest>::Response, SendRequestError>;
     fn handle(&mut self, msg: SendRequest<T>, _ctx: &mut Context<Self>) -> Self::Result {
         let credentials = tryf!(self.assert_authenticated());

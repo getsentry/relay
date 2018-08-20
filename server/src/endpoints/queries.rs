@@ -4,14 +4,14 @@ use actix_web::Json;
 
 use futures::Future;
 
+use actors::keys::GetPublicKey;
+use actors::keys::GetPublicKeyResult;
 use extractors::CurrentServiceState;
-use managers::keys::GetPublicKeyMessage;
-use managers::keys::GetPublicKeyResult;
 use service::ServiceApp;
 
 #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 fn get_public_keys(
-    (state, body): (CurrentServiceState, Json<GetPublicKeyMessage>),
+    (state, body): (CurrentServiceState, Json<GetPublicKey>),
 ) -> Box<Future<Item = Json<GetPublicKeyResult>, Error = Error>> {
     let res = state.key_manager().send(body.into_inner());
 

@@ -35,12 +35,12 @@ extern crate uuid;
 #[cfg(not(windows))]
 extern crate libc;
 
+mod actors;
 mod body;
 mod constants;
 mod endpoints;
 mod errors;
 mod extractors;
-mod managers;
 mod middlewares;
 mod service;
 mod utils;
