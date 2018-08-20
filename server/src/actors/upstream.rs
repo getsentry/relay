@@ -7,7 +7,7 @@ use actix::Actor;
 use actix::Context;
 use actix::Handler;
 use actix::Message;
-use actix::Response;
+use actix::ResponseFuture;
 
 use actix_web;
 use actix_web::client::ClientRequest;
@@ -102,7 +102,7 @@ impl<T: UpstreamRequest> Message for SendRequest<T> {
 }
 
 impl<T: UpstreamRequest> Handler<SendRequest<T>> for UpstreamRelay {
-    type Result = Box<Future<Item = <T as UpstreamRequest>::Response, Error = SendRequestError>>;
+    type Result = ResponseFuture<<T as UpstreamRequest>::Response, SendRequestError>;
     fn handle(&mut self, msg: SendRequest<T>, _ctx: &mut Context<Self>) -> Self::Result {
         let credentials = tryf!(self.assert_authenticated());
         let (method, url) = {

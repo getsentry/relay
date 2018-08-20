@@ -1,10 +1,10 @@
 use actix_web::client::ClientRequest;
 use actix_web::{AsyncResponder, Body, Error, HttpMessage, HttpRequest, HttpResponse};
+use actix::ResponseFuture;
 
 use futures::{future, Future, Stream};
 
 use service::{ServiceApp, ServiceState};
-
 
 fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
     let peer_addr = request
@@ -29,7 +29,7 @@ fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
 
 fn forward_upstream(
     request: &HttpRequest<ServiceState>,
-) -> Box<Future<Item = HttpResponse, Error = Error>> {
+) -> ResponseFuture<HttpResponse, Error> {
     let config = request.state().config();
     let upstream = config.upstream_descriptor();
 
