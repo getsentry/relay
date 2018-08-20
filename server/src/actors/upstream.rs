@@ -63,11 +63,11 @@ impl Actor for UpstreamRelay {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Context<Self>) {
-        info!("Upstream requests manager started");
+        info!("Upstream relay started");
     }
 
     fn stopped(&mut self, _ctx: &mut Context<Self>) {
-        println!("Upstream requests manager stopped");
+        println!("Upstream relay stopped");
     }
 }
 
