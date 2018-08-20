@@ -1,6 +1,6 @@
+use actix::ResponseFuture;
 use actix_web::client::ClientRequest;
 use actix_web::{AsyncResponder, Body, Error, HttpMessage, HttpRequest, HttpResponse};
-use actix::ResponseFuture;
 
 use futures::{future, Future, Stream};
 
@@ -27,9 +27,7 @@ fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
     }
 }
 
-fn forward_upstream(
-    request: &HttpRequest<ServiceState>,
-) -> ResponseFuture<HttpResponse, Error> {
+fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpResponse, Error> {
     let config = request.state().config();
     let upstream = config.upstream_descriptor();
 
