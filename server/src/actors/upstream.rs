@@ -102,7 +102,7 @@ impl<T: UpstreamRequest> Message for SendRequest<T> {
 }
 
 impl<T: UpstreamRequest> Handler<SendRequest<T>> for UpstreamRelay {
-    type Result = Response<<T as UpstreamRequest>::Response, SendRequestError>;
+    type Result = Box<Future<Item = <T as UpstreamRequest>::Response, Error = SendRequestError>>;
     fn handle(&mut self, msg: SendRequest<T>, _ctx: &mut Context<Self>) -> Self::Result {
         let credentials = tryf!(self.assert_authenticated());
         let (method, url) = {
@@ -122,7 +122,7 @@ impl<T: UpstreamRequest> Handler<SendRequest<T>> for UpstreamRelay {
                 .body(Body::Binary(Binary::Bytes(json.into())))
         );
 
-        Response::async(
+        Box::new(
             request
                 .send()
                 .map_err(|e| actix_web::Error::from(e).into())
