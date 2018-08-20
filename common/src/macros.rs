@@ -54,7 +54,7 @@ macro_rules! tryf {
     ($e:expr) => {
         match $e {
             Ok(value) => value,
-            Err(e) => return ::actix::Response::reply(Err(::std::convert::From::from(e))),
+            Err(e) => return Box::new(::futures::future::err(::std::convert::From::from(e))),
         }
     };
 }

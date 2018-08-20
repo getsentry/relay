@@ -5,14 +5,6 @@ use futures::{future, Future, Stream};
 
 use service::{ServiceApp, ServiceState};
 
-macro_rules! tryf {
-    ($e:expr) => {
-        match $e {
-            Ok(value) => value,
-            Err(e) => return Box::new(future::err(Error::from(e))),
-        }
-    };
-}
 
 fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
     let peer_addr = request
