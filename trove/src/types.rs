@@ -19,7 +19,6 @@ use semaphore_aorta::{AortaConfig, ApiErrorResponse, ApiRequest, ProjectState, R
 use semaphore_common::ProjectId;
 
 use auth::{spawn_authenticator, AuthError, AuthState};
-use heartbeat::spawn_heartbeat;
 
 /// Represents an event that can be sent to the governor.
 #[derive(Debug)]
@@ -388,7 +387,6 @@ fn run_governor(
     // spawn a stream that just listens in on the events sent into the
     // trove governor so we can figure out when to terminate the thread
     // or do similar things.
-    let loop_ctx = ctx.clone();
     core.handle().spawn(rx.for_each(move |event| {
         match event {
             GovernorEvent::Shutdown => {
@@ -396,9 +394,7 @@ fn run_governor(
                     shutdown_tx.send(()).ok();
                 }
             }
-            GovernorEvent::Authenticated => {
-                spawn_heartbeat(loop_ctx.clone());
-            }
+            GovernorEvent::Authenticated => (),
         }
         Ok(())
     }));

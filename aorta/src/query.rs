@@ -63,7 +63,6 @@ struct RequestManagerInner {
     // XXX: this should actually be FnOnce but current versions of rust do not
     // permit boxing this. See https://github.com/rust-lang/rfcs/issues/997
     query_callbacks: HashMap<Uuid, (ProjectId, QueryCallback)>,
-    last_heartbeat: Option<Instant>,
 }
 
 /// The request manager helps sending aorta queries.
@@ -83,7 +82,6 @@ impl RequestManager {
                 pending_changesets: VecDeque::new(),
                 pending_queries: VecDeque::new(),
                 query_callbacks: HashMap::new(),
-                last_heartbeat: None,
             }),
         }
     }
@@ -150,11 +148,6 @@ impl RequestManager {
         self.inner.write().query_callbacks.remove(&query_id)
     }
 
-    /// The fallback interval after which a heartbeat is forced.
-    fn heartbeat_interval(&self) -> Duration {
-        self.config.heartbeat_interval.to_std().unwrap()
-    }
-
     /// The interval used as the minimum buffering between changsets and queries.
     fn buffer_interval(&self) -> Duration {
         self.config.changeset_buffer_interval.to_std().unwrap()
@@ -163,62 +156,6 @@ impl RequestManager {
     /// A fast interval used when more data is expected.
     fn fast_retry_interval(&self) -> Duration {
         Duration::from_millis(100)
-    }
-
-    /// A regular interval used when no data was in the last heartbeat attempt.
-    fn normal_retry_interval(&self) -> Duration {
-        Duration::from_secs(1)
-    }
-
-    /// Returns a single heartbeat request.
-    ///
-    /// This unschedules some pending queries from the request manager.  It also
-    /// returns when the next heartbeat should be.
-    pub fn next_heartbeat_request(&self) -> (Option<HeartbeatRequest>, Duration) {
-        let mut rv = HeartbeatRequest {
-            changesets: Vec::new(),
-            queries: HashMap::new(),
-        };
-
-        let mut inner = self.inner.write();
-        for _ in 0..50 {
-            match inner.pending_changesets.pop_front() {
-                Some(changeset) => rv.changesets.push(changeset),
-                None => break,
-            };
-        }
-
-        for _ in 0..50 {
-            match inner.pending_queries.pop_front() {
-                Some((query_id, query)) => rv.queries.insert(query_id, query),
-                None => break,
-            };
-        }
-
-        let last_heartbeat = inner.last_heartbeat;
-
-        // if there is actual data in the heartbeat request, send it and come back in two seconds.
-        if !rv.changesets.is_empty() || !rv.queries.is_empty() {
-            inner.last_heartbeat = Some(Instant::now());
-            (
-                Some(rv),
-                if inner.pending_queries.is_empty() || inner.pending_changesets.is_empty() {
-                    self.buffer_interval()
-                } else {
-                    self.fast_retry_interval()
-                },
-            )
-
-        // we waited long enough without sending some data, send an empty heartbeat now and come
-        // back quickly for more checks
-        } else if last_heartbeat.map_or(true, |x| x.elapsed() > self.heartbeat_interval()) {
-            inner.last_heartbeat = Some(Instant::now());
-            (Some(rv), self.normal_retry_interval())
-
-        // no request to send now, check back quickly
-        } else {
-            (None, self.normal_retry_interval())
-        }
     }
 }
 
@@ -252,38 +189,5 @@ impl AortaQuery for GetProjectConfigQuery {
     type Response = Option<ProjectStateSnapshot>;
     fn aorta_query_type(&self) -> &'static str {
         "get_project_config"
-    }
-}
-
-/// An API request for the heartbeat request.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct HeartbeatRequest {
-    changesets: Vec<PackedRequest>,
-    queries: HashMap<Uuid, PackedRequest>,
-}
-
-/// The response from a heartbeat query.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct HeartbeatQueryResult {
-    /// The status of the query
-    pub status: QueryStatus,
-    /// The raw response data as JSON.  Might be None if the
-    /// query is pending.
-    pub result: Option<serde_json::Value>,
-}
-
-/// The response format for a heartbeat request.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct HeartbeatResponse {
-    /// A hashmap of query results.
-    pub query_results: HashMap<Uuid, HeartbeatQueryResult>,
-}
-
-impl ApiRequest for HeartbeatRequest {
-    type Response = HeartbeatResponse;
-
-    fn get_aorta_request_target(&self) -> (Method, Cow<str>) {
-        (Method::Post, Cow::Borrowed("relays/heartbeat/"))
     }
 }

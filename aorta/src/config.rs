@@ -18,8 +18,6 @@ pub struct AortaConfig {
     pub snapshot_expiry: Duration,
     /// How many seconds between failed auth attempts.
     pub auth_retry_interval: Duration,
-    /// How many seconds between heartbeats even if not data is setn
-    pub heartbeat_interval: Duration,
     /// How many seconds of changesets should be buffered.
     pub changeset_buffer_interval: Duration,
     /// How long until an event is dropped from pending.
@@ -41,7 +39,6 @@ impl Default for AortaConfig {
         AortaConfig {
             snapshot_expiry: Duration::seconds(60),
             auth_retry_interval: Duration::seconds(15),
-            heartbeat_interval: Duration::seconds(60),
             changeset_buffer_interval: Duration::seconds(2),
             pending_events_timeout: Duration::seconds(60),
             max_event_payload_size: 524_288,
