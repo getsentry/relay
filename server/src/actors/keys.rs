@@ -1,22 +1,26 @@
 //! This actor caches known public keys.
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::time::Instant;
+use std::mem;
+use std::time::{Duration, Instant};
 
 use actix::fut::wrap_future;
 use actix::Actor;
 use actix::ActorFuture;
-use actix::ActorResponse;
 use actix::Addr;
+use actix::AsyncContext;
 use actix::Context;
 use actix::Handler;
 use actix::Message;
+use actix::Response;
 
 use actix_web::http::Method;
 use actix_web::HttpResponse;
 use actix_web::ResponseError;
 
-use futures::future;
+use futures::future::Shared;
+use futures::sync::oneshot;
+use futures::{future, Future};
 
 use semaphore_aorta::ApiErrorResponse;
 use semaphore_aorta::PublicKey;
@@ -36,6 +40,7 @@ impl ResponseError for KeyError {
     }
 }
 
+#[derive(Debug)]
 enum KeyState {
     Exists {
         public_key: PublicKey,
@@ -80,18 +85,107 @@ impl KeyState {
     }
 }
 
+#[derive(Debug)]
+struct KeyChannel {
+    sender: oneshot::Sender<Option<PublicKey>>,
+    receiver: Shared<oneshot::Receiver<Option<PublicKey>>>,
+}
+
+impl KeyChannel {
+    pub fn new() -> Self {
+        let (sender, receiver) = oneshot::channel();
+        KeyChannel {
+            sender,
+            receiver: receiver.shared(),
+        }
+    }
+
+    pub fn send(self, value: Option<PublicKey>) -> Result<(), Option<PublicKey>> {
+        self.sender.send(value)
+    }
+
+    pub fn receiver(&self) -> Shared<oneshot::Receiver<Option<PublicKey>>> {
+        self.receiver.clone()
+    }
+}
+
+enum KeyResponse {
+    Reply(RelayId, Option<PublicKey>),
+    Async(Box<Future<Item = (RelayId, Option<PublicKey>), Error = KeyError>>),
+}
+
 pub struct KeyManager {
-    // XXX: only necessary because we mutate inside of a closure passed to future.and_then
-    keys: HashMap<RelayId, KeyState>,
     upstream: Addr<UpstreamRelay>,
+    keys: HashMap<RelayId, KeyState>,
+    key_channels: HashMap<RelayId, KeyChannel>,
 }
 
 impl KeyManager {
     pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
         KeyManager {
-            keys: HashMap::new(),
             upstream,
+            keys: HashMap::new(),
+            key_channels: HashMap::new(),
         }
+    }
+
+    fn schedule_fetch(&mut self, context: &mut Context<Self>) {
+        if self.key_channels.is_empty() {
+            context.run_later(Duration::from_secs(1), Self::fetch_keys);
+        }
+    }
+
+    fn fetch_keys(&mut self, context: &mut Context<Self>) {
+        let channels = mem::replace(&mut self.key_channels, HashMap::new());
+
+        let request = GetPublicKeys {
+            relay_ids: channels.keys().cloned().collect(),
+        };
+
+        let future = wrap_future::<_, Self>(self.upstream.send(SendRequest(request)))
+            .map_err(|_, _, _| KeyError)
+            .and_then(|response, actor, _| {
+                match response {
+                    Ok(mut response) => {
+                        for (id, channel) in channels {
+                            let key = response.public_keys.remove(&id).unwrap_or(None);
+                            actor.keys.insert(id, KeyState::from_option(key.clone()));
+                            channel.send(key).ok();
+                        }
+                    }
+                    Err(error) => {
+                        error!("error fetching public keys: {}", error);
+
+                        // NOTE: We're dropping `channels` here, which closes the receiver on the
+                        // other end with a `oneshot::Canceled` error which gets mapped to a
+                        // `KeyError`.
+                    }
+                }
+
+                wrap_future(future::ok(()))
+            });
+
+        context.spawn(future.drop_err());
+    }
+
+    fn get_or_fetch_key(&mut self, relay_id: RelayId, context: &mut Context<Self>) -> KeyResponse {
+        if let Some(key) = self.keys.get(&relay_id) {
+            if key.is_valid_cache() {
+                return KeyResponse::Reply(relay_id, key.as_option().cloned());
+            }
+        }
+
+        self.schedule_fetch(context);
+
+        let receiver = self
+            .key_channels
+            .entry(relay_id.clone())
+            .or_insert_with(|| KeyChannel::new())
+            .receiver()
+            .map(move |key| (relay_id, (*key).clone()))
+            .map_err(|_| KeyError);
+
+        KeyResponse::Async(Box::new(receiver))
     }
 }
 
@@ -104,6 +198,35 @@ impl Actor for KeyManager {
 
     fn stopped(&mut self, _ctx: &mut Context<Self>) {
         println!("Key manager stopped");
+    }
+}
+
+#[derive(Debug)]
+pub struct GetPublicKey {
+    pub relay_id: RelayId,
+}
+
+#[derive(Debug)]
+pub struct GetPublicKeyResult {
+    pub public_key: Option<PublicKey>,
+}
+
+impl Message for GetPublicKey {
+    type Result = Result<GetPublicKeyResult, KeyError>;
+}
+
+impl Handler<GetPublicKey> for KeyManager {
+    type Result = Response<GetPublicKeyResult, KeyError>;
+
+    fn handle(&mut self, message: GetPublicKey, context: &mut Context<Self>) -> Self::Result {
+        match self.get_or_fetch_key(message.relay_id, context) {
+            KeyResponse::Reply(_id, public_key) => {
+                Response::reply(Ok(GetPublicKeyResult { public_key }))
+            }
+            KeyResponse::Async(fut) => {
+                Response::async(fut.map(|(_id, public_key)| GetPublicKeyResult { public_key }))
+            }
+        }
     }
 }
 
@@ -130,51 +253,32 @@ impl UpstreamRequest for GetPublicKeys {
 }
 
 impl Handler<GetPublicKeys> for KeyManager {
-    type Result = ActorResponse<Self, GetPublicKeysResult, KeyError>;
+    type Result = Response<GetPublicKeysResult, KeyError>;
 
-    fn handle(&mut self, msg: GetPublicKeys, _ctx: &mut Context<Self>) -> Self::Result {
-        let mut known_keys = HashMap::new();
-        let mut unknown_ids = vec![];
+    fn handle(&mut self, message: GetPublicKeys, context: &mut Context<Self>) -> Self::Result {
+        let mut public_keys = HashMap::new();
+        let mut key_futures = Vec::new();
 
-        for id in msg.relay_ids.into_iter() {
-            match self.keys.get(&id) {
-                Some(key) if key.is_valid_cache() => {
-                    known_keys.insert(id, key.as_option().cloned());
+        for id in message.relay_ids {
+            match self.get_or_fetch_key(id, context) {
+                KeyResponse::Reply(id, key) => {
+                    public_keys.insert(id, key);
                 }
-                _ => {
-                    unknown_ids.push(id);
+                KeyResponse::Async(fut) => {
+                    key_futures.push(fut);
                 }
             }
         }
 
-        if unknown_ids.is_empty() {
-            ActorResponse::reply(Ok(GetPublicKeysResult {
-                public_keys: known_keys,
-            }))
-        } else {
-            let request = SendRequest(GetPublicKeys {
-                relay_ids: unknown_ids,
-            });
-
-            ActorResponse::async(
-                wrap_future::<_, Self>(self.upstream.send(request))
-                    .map_err(|_, _, _| KeyError)
-                    .and_then(|response, actor, _ctx| {
-                        let response = match response.map_err(|_| KeyError) {
-                            Ok(response) => response,
-                            Err(e) => return wrap_future(future::err(e)),
-                        };
-
-                        for (id, key) in response.public_keys {
-                            known_keys.insert(id, key.clone());
-                            actor.keys.insert(id, KeyState::from_option(key));
-                        }
-
-                        wrap_future(future::ok(GetPublicKeysResult {
-                            public_keys: known_keys,
-                        }))
-                    }),
-            )
+        if key_futures.is_empty() {
+            return Response::reply(Ok(GetPublicKeysResult { public_keys }));
         }
+
+        let future = future::join_all(key_futures).map(move |responses| {
+            public_keys.extend(responses);
+            GetPublicKeysResult { public_keys }
+        });
+
+        Response::async(future)
     }
 }
