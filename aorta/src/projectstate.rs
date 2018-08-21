@@ -11,6 +11,7 @@ use serde::de::DeserializeOwned;
 use url::Url;
 use uuid::Uuid;
 
+use auth::PublicKey;
 use config::AortaConfig;
 use event::StoreChangeset;
 use query::{AortaQuery, GetProjectConfigQuery, QueryError, RequestManager};

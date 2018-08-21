@@ -59,6 +59,11 @@ impl ServiceState {
     pub fn key_manager(&self) -> Addr<KeyManager> {
         self.key_manager.clone()
     }
+
+    /// Returns current project manager
+    pub fn project_manager(&self) -> Addr<ProjectManager> {
+        self.project_manager.clone()
+    }
 }
 
 /// The actix app type for the relay web service.
