@@ -171,8 +171,8 @@ impl ProjectManager {
                             channel.send(state).ok();
                         }
                     }
-                    Err(e) => {
-                        // TODO: Log error
+                    Err(error) => {
+                        error!("error fetching project states: {}", error);
 
                         // NOTE: We're dropping `channels` here, which closes the receiver on the
                         // other end. Project actors will interpret this as fetch failure.
@@ -230,13 +230,11 @@ impl Handler<FetchProjectState> for ProjectManager {
     type Result = Response<ProjectStateSnapshot, ()>;
 
     fn handle(&mut self, message: FetchProjectState, ctx: &mut Self::Context) -> Self::Result {
-        let (sender, receiver) = oneshot::channel();
-
-        // NOTE: Schedule before inserting the channel
         self.schedule_fetch(ctx);
 
+        let (sender, receiver) = oneshot::channel();
         if self.state_channels.insert(message.id, sender).is_some() {
-            // TODO: This branch should not happen. Log this?
+            error!("invariant violation: project state fetched twice for same project");
         }
 
         Response::async(receiver.then(|state| state.map_err(|_| ())))
