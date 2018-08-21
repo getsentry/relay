@@ -23,7 +23,6 @@ use service::ServiceState;
 pub struct SignedJson<T> {
     inner: T,
     public_key: PublicKey,
-    relay_id: RelayId,
 }
 
 impl<T> SignedJson<T> {
@@ -31,9 +30,6 @@ impl<T> SignedJson<T> {
         self.inner
     }
 
-    pub fn relay_id(&self) -> &RelayId {
-        &self.relay_id
-    }
     pub fn public_key(&self) -> &PublicKey {
         &self.public_key
     }
@@ -113,7 +109,6 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
                             .map(|inner| SignedJson {
                                 inner,
                                 public_key,
-                                relay_id,
                             })
                     }))
                 }),

@@ -6,9 +6,6 @@ use actix_web::Json;
 
 use futures::{future, Future};
 
-use semaphore_aorta::ApiErrorResponse;
-use semaphore_aorta::RelayId;
-
 use actors::keys::{GetPublicKeys, GetPublicKeysResult};
 use actors::project::{GetProject, GetProjectState, GetProjectStates, GetProjectStatesResponse};
 use extractors::CurrentServiceState;
