@@ -12,8 +12,6 @@ use actix::ResponseFuture;
 use actix_web;
 use actix_web::client::ClientRequest;
 use actix_web::http::Method;
-use actix_web::Binary;
-use actix_web::Body;
 use actix_web::HttpMessage;
 
 use serde::de::DeserializeOwned;
@@ -92,7 +90,9 @@ impl From<actix_web::Error> for SendRequestError {
 pub trait UpstreamRequest: Serialize {
     type Response: DeserializeOwned + 'static + Send;
 
-    fn get_upstream_request_target(&self) -> (Method, Cow<str>);
+    fn method(&self) -> Method;
+
+    fn path(&self) -> Cow<str>;
 }
 
 pub struct SendRequest<T: UpstreamRequest>(pub T);
@@ -103,34 +103,31 @@ impl<T: UpstreamRequest> Message for SendRequest<T> {
 
 impl<T: UpstreamRequest> Handler<SendRequest<T>> for UpstreamRelay {
     type Result = ResponseFuture<<T as UpstreamRequest>::Response, SendRequestError>;
+
     fn handle(&mut self, msg: SendRequest<T>, _ctx: &mut Context<Self>) -> Self::Result {
+        let method = msg.0.method();
+        let url = self.upstream.get_url(&msg.0.path());
+
         let credentials = tryf!(self.assert_authenticated());
-        let (method, url) = {
-            let (method, path) = msg.0.get_upstream_request_target();
-            (method, self.upstream.get_url(&path))
-        };
         let (json, signature) = credentials.secret_key.pack(msg.0);
 
-        let request = tryf!(
-            ClientRequest::build()
-                .method(method)
-                .uri(url)
-                .header("X-Sentry-Relay-Id", format!("{}", credentials.id.simple()))
-                .header("X-Sentry-Relay-Signature", signature)
-                .header(header::CONTENT_TYPE, "application/json")
-                .header(header::CONTENT_LENGTH, format!("{}", json.len()))
-                .body(Body::Binary(Binary::Bytes(json.into())))
-        );
+        let request = ClientRequest::build()
+            .method(method)
+            .uri(url)
+            .header("X-Sentry-Relay-Id", credentials.id.simple().to_string())
+            .header("X-Sentry-Relay-Signature", signature)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(json);
 
-        Box::new(
-            request
-                .send()
-                .map_err(|e| actix_web::Error::from(e).into())
-                .and_then(|response| {
-                    response
-                        .json()
-                        .map_err(|e| actix_web::Error::from(e).into())
-                }),
-        )
+        let future = tryf!(request)
+            .send()
+            .map_err(|e| SendRequestError::Other(e.into()))
+            .and_then(|response| {
+                response
+                    .json()
+                    .map_err(|e| SendRequestError::Other(e.into()))
+            });
+
+        Box::new(future)
     }
 }
