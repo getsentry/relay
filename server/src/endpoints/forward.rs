@@ -2,7 +2,7 @@ use actix::ResponseFuture;
 use actix_web::client::ClientRequest;
 use actix_web::{AsyncResponder, Body, Error, HttpMessage, HttpRequest, HttpResponse};
 
-use futures::{future, Future, Stream};
+use futures::{Future, Stream};
 
 use service::{ServiceApp, ServiceState};
 
