@@ -29,6 +29,7 @@ use semaphore_aorta::RelayId;
 use actors::upstream::SendRequest;
 use actors::upstream::UpstreamRelay;
 use actors::upstream::UpstreamRequest;
+use constants::{BATCH_TIMEOUT, MISSING_PUBLIC_KEY_EXPIRY, PUBLIC_KEY_EXPIRY};
 
 #[derive(Fail, Debug)]
 #[fail(display = "failed to fetch keys")]
@@ -57,8 +58,10 @@ impl KeyState {
             KeyState::Exists {
                 public_key: _,
                 checked_at,
-            } => checked_at.elapsed().as_secs() < 3600,
-            KeyState::DoesNotExist { checked_at } => checked_at.elapsed().as_secs() < 60,
+            } => checked_at.elapsed().as_secs() < PUBLIC_KEY_EXPIRY,
+            KeyState::DoesNotExist { checked_at } => {
+                checked_at.elapsed().as_secs() < MISSING_PUBLIC_KEY_EXPIRY
+            }
         }
     }
 
@@ -131,7 +134,7 @@ impl KeyManager {
 
     fn schedule_fetch(&mut self, context: &mut Context<Self>) {
         if self.key_channels.is_empty() {
-            context.run_later(Duration::from_secs(1), Self::fetch_keys);
+            context.run_later(Duration::from_secs(BATCH_TIMEOUT), Self::fetch_keys);
         }
     }
 

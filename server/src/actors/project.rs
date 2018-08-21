@@ -18,6 +18,7 @@ use semaphore_aorta::ProjectStateSnapshot;
 use semaphore_common::ProjectId;
 
 use actors::upstream::{SendRequest, SendRequestError, UpstreamRelay, UpstreamRequest};
+use constants::BATCH_TIMEOUT;
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -148,7 +149,7 @@ impl ProjectManager {
 
     pub fn schedule_fetch(&mut self, context: &mut Context<Self>) {
         if self.state_channels.is_empty() {
-            context.run_later(Duration::from_secs(1), Self::fetch_states);
+            context.run_later(Duration::from_secs(BATCH_TIMEOUT), Self::fetch_states);
         }
     }
 
