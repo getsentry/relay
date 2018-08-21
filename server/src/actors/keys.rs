@@ -248,10 +248,14 @@ impl Message for GetPublicKeys {
 }
 
 impl UpstreamRequest for GetPublicKeys {
-    type Response = GetPublicKeysResult;
+    type Result = GetPublicKeysResult;
 
-    fn get_upstream_request_target(&self) -> (Method, Cow<str>) {
-        (Method::POST, Cow::Borrowed("/api/0/relays/publickeys/"))
+    fn method(&self) -> Method {
+        Method::POST
+    }
+
+    fn path(&self) -> Cow<str> {
+        Cow::Borrowed("/api/0/relays/publickeys/")
     }
 }
 
