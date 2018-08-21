@@ -6,7 +6,10 @@ use std::time::Duration;
 
 use actix::fut::wrap_future;
 use actix::{Actor, ActorFuture, Addr, AsyncContext, Context, Handler, Message, Response};
+
 use actix_web::http::Method;
+use actix_web::ResponseError;
+
 use futures::future::{self, Future, Shared};
 use futures::sync::oneshot;
 
@@ -25,6 +28,8 @@ pub enum ProjectError {
     #[fail(display = "failed to fetch projects from upstream")]
     UpstreamFailed(#[fail(cause)] SendRequestError),
 }
+
+impl ResponseError for ProjectError {}
 
 pub struct Project {
     id: ProjectId,
@@ -113,9 +118,9 @@ pub struct GetProjectStates {
     pub projects: Vec<ProjectId>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct GetProjectStatesResponse {
-    configs: HashMap<ProjectId, Option<ProjectStateSnapshot>>,
+    pub configs: HashMap<ProjectId, Option<ProjectStateSnapshot>>,
 }
 
 impl UpstreamRequest for GetProjectStates {
@@ -200,7 +205,7 @@ impl Actor for ProjectManager {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetProject {
-    id: ProjectId,
+    pub id: ProjectId,
 }
 
 impl Message for GetProject {
