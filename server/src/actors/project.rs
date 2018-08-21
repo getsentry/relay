@@ -242,6 +242,6 @@ impl Handler<FetchProjectState> for ProjectManager {
             error!("invariant violation: project state fetched twice for same project");
         }
 
-        Response::async(receiver.then(|state| state.map_err(|_| ())))
+        Response::async(receiver.map_err(|_| ()))
     }
 }
