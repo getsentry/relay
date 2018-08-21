@@ -159,7 +159,7 @@ impl Handler<GetPublicKey> for KeyManager {
             ActorResponse::async(
                 wrap_future::<_, Self>(self.upstream.send(request))
                     .map_err(|_, _, _| KeyError)
-                    .and_then(|response, actor, ctx| {
+                    .and_then(|response, actor, _ctx| {
                         let response = match response.map_err(|_| KeyError) {
                             Ok(response) => response,
                             Err(e) => return wrap_future(future::err(e)),
