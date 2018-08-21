@@ -127,8 +127,12 @@ pub struct GetProjectStatesResponse {
 impl UpstreamRequest for GetProjectStates {
     type Response = GetProjectStatesResponse;
 
-    fn get_upstream_request_target(&self) -> (Method, Cow<str>) {
-        (Method::POST, Cow::Borrowed("/api/0/relays/projectconfigs/"))
+    fn method(&self) -> Method {
+        Method::POST
+    }
+
+    fn path(&self) -> Cow<str> {
+        Cow::Borrowed("/api/0/relays/projectconfigs/")
     }
 }
 
