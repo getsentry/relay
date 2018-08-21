@@ -108,31 +108,31 @@ impl Actor for KeyManager {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct GetPublicKey {
+pub struct GetPublicKeys {
     pub relay_ids: Vec<RelayId>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GetPublicKeyResult {
+pub struct GetPublicKeysResult {
     pub public_keys: HashMap<RelayId, Option<PublicKey>>,
 }
 
-impl Message for GetPublicKey {
-    type Result = Result<GetPublicKeyResult, KeyError>;
+impl Message for GetPublicKeys {
+    type Result = Result<GetPublicKeysResult, KeyError>;
 }
 
-impl UpstreamRequest for GetPublicKey {
-    type Response = GetPublicKeyResult;
+impl UpstreamRequest for GetPublicKeys {
+    type Response = GetPublicKeysResult;
 
     fn get_upstream_request_target(&self) -> (Method, Cow<str>) {
         (Method::POST, Cow::Borrowed("/api/0/relays/publickeys/"))
     }
 }
 
-impl Handler<GetPublicKey> for KeyManager {
-    type Result = ActorResponse<Self, GetPublicKeyResult, KeyError>;
+impl Handler<GetPublicKeys> for KeyManager {
+    type Result = ActorResponse<Self, GetPublicKeysResult, KeyError>;
 
-    fn handle(&mut self, msg: GetPublicKey, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: GetPublicKeys, _ctx: &mut Context<Self>) -> Self::Result {
         let mut known_keys = HashMap::new();
         let mut unknown_ids = vec![];
 
@@ -148,11 +148,11 @@ impl Handler<GetPublicKey> for KeyManager {
         }
 
         if unknown_ids.is_empty() {
-            ActorResponse::reply(Ok(GetPublicKeyResult {
+            ActorResponse::reply(Ok(GetPublicKeysResult {
                 public_keys: known_keys,
             }))
         } else {
-            let request = SendRequest(GetPublicKey {
+            let request = SendRequest(GetPublicKeys {
                 relay_ids: unknown_ids,
             });
 
@@ -170,7 +170,7 @@ impl Handler<GetPublicKey> for KeyManager {
                             actor.keys.insert(id, KeyState::from_option(key));
                         }
 
-                        wrap_future(future::ok(GetPublicKeyResult {
+                        wrap_future(future::ok(GetPublicKeysResult {
                             public_keys: known_keys,
                         }))
                     }),
