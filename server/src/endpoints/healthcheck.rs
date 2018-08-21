@@ -1,8 +1,14 @@
 //! A simple healthcheck endpoint for the relay.
-use actix_web::{http::Method, HttpResponse};
+use actix::ResponseFuture;
+
+use actix_web::{http::Method, Error, HttpResponse};
+
+use futures::Future;
 
 use extractors::CurrentServiceState;
 use service::ServiceApp;
+
+use actors::upstream::IsAuthenticated;
 
 #[derive(Serialize)]
 struct HealthcheckResponse {
@@ -10,16 +16,24 @@ struct HealthcheckResponse {
 }
 
 #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
-fn healthcheck(state: CurrentServiceState) -> HttpResponse {
-    let resp = HealthcheckResponse {
-        is_healthy: state.is_healthy(),
-    };
-
-    if resp.is_healthy {
-        HttpResponse::Ok()
-    } else {
-        HttpResponse::ServiceUnavailable()
-    }.json(resp)
+fn healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error> {
+    Box::new(
+        state
+            .upstream_relay()
+            .send(IsAuthenticated)
+            .map_err(|_| ())
+            .and_then(move |is_authenticated| {
+                if state.trove_state().is_governed() && is_authenticated {
+                    Ok(HttpResponse::Ok().json(HealthcheckResponse { is_healthy: true }))
+                } else {
+                    Err(()).into()
+                }
+            })
+            .or_else(|_| {
+                Ok(HttpResponse::ServiceUnavailable()
+                    .json(HealthcheckResponse { is_healthy: false }))
+            }),
+    )
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

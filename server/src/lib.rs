@@ -26,6 +26,7 @@ extern crate sentry;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate chrono;
 extern crate listenfd;
 extern crate parking_lot;
 extern crate serde_json;

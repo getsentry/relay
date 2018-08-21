@@ -31,6 +31,7 @@ pub struct ServiceState {
     trove_state: Arc<TroveState>,
     key_manager: Addr<KeyManager>,
     project_manager: Addr<ProjectManager>,
+    upstream_relay: Addr<UpstreamRelay>,
     config: Arc<Config>,
 }
 
@@ -50,14 +51,14 @@ impl ServiceState {
         self.config.clone()
     }
 
-    /// Checks if the service is healthy.
-    pub fn is_healthy(&self) -> bool {
-        self.trove_state.is_healthy()
-    }
-
     /// Returns current key manager
     pub fn key_manager(&self) -> Addr<KeyManager> {
         self.key_manager.clone()
+    }
+
+    /// Returns actor for upstream relay
+    pub fn upstream_relay(&self) -> Addr<UpstreamRelay> {
+        self.upstream_relay.clone()
     }
 
     /// Returns current project manager
@@ -100,13 +101,14 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     let upstream_relay = UpstreamRelay::new(
         config.credentials().cloned(),
         config.upstream_descriptor().clone().into_owned(),
-        trove.state(),
+        config.aorta_auth_retry_interval(),
     ).start();
 
     let service_state = ServiceState {
         trove_state: trove.state(),
         key_manager: KeyManager::new(upstream_relay.clone()).start(),
         project_manager: ProjectManager::new(upstream_relay.clone()).start(),
+        upstream_relay,
         config: config.clone(),
     };
 

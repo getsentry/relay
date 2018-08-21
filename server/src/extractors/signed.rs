@@ -106,10 +106,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
                             .unpack(&body, &relay_sig, None)
                             .map_err(|_| SignatureError::BadSignature)
                             .map_err(Error::from)
-                            .map(|inner| SignedJson {
-                                inner,
-                                public_key,
-                            })
+                            .map(|inner| SignedJson { inner, public_key })
                     }))
                 }),
         )

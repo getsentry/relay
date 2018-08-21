@@ -18,15 +18,11 @@ use tokio_core::reactor::{Core, Handle, Remote};
 use semaphore_aorta::{AortaConfig, ApiErrorResponse, ApiRequest, ProjectState, RequestManager};
 use semaphore_common::ProjectId;
 
-use auth::{spawn_authenticator, AuthError, AuthState};
-
 /// Represents an event that can be sent to the governor.
 #[derive(Debug)]
 pub(crate) enum GovernorEvent {
     /// Tells the trove governor to shut down.
     Shutdown,
-    /// The trove authenticated successfully.
-    Authenticated,
 }
 
 /// Raised for errors that happen in the context of trove governing.
@@ -38,9 +34,6 @@ pub enum GovernorError {
     /// Raised if the event loop failed to spawn.
     #[fail(display = "cannot spawn event loop")]
     CannotSpawnEventLoop(#[cause] io::Error),
-    /// Raised if the authentication handler could not spawn.
-    #[fail(display = "governor could not start authentication")]
-    CannotSpawnAuthenticator(#[cause] AuthError),
     /// Raised if the governor panicked.
     #[fail(display = "governor thread panicked")]
     Panic,
@@ -69,7 +62,6 @@ pub struct TroveState {
     governor_tx: RwLock<Option<mpsc::UnboundedSender<GovernorEvent>>>,
     remote: RwLock<Option<Remote>>,
     request_manager: Arc<RequestManager>,
-    auth_state: RwLock<AuthState>,
 }
 
 /// Convenience context that never crosses threads.
@@ -190,7 +182,6 @@ impl Trove {
                 governor_tx: RwLock::new(None),
                 remote: RwLock::new(None),
                 request_manager: Arc::new(RequestManager::new(config)),
-                auth_state: RwLock::new(AuthState::Unknown),
             }),
             join_handle: Mutex::new(None),
         }
@@ -292,16 +283,6 @@ impl TroveState {
         self.config.clone()
     }
 
-    /// Returns the current auth state.
-    pub fn auth_state(&self) -> AuthState {
-        *self.auth_state.read()
-    }
-
-    /// Checks if the trove is healthy.
-    pub fn is_healthy(&self) -> bool {
-        self.is_governed() && self.auth_state().is_authenticated()
-    }
-
     /// Returns a project state if it exists.
     pub fn get_project_state(&self, project_id: ProjectId) -> Option<Arc<ProjectState>> {
         self.states.read().get(&project_id).cloned()
@@ -332,22 +313,6 @@ impl TroveState {
     /// Returns the current request manager.
     pub fn request_manager(&self) -> Arc<RequestManager> {
         self.request_manager.clone()
-    }
-
-    /// Transitions the auth state.
-    pub fn set_auth_state(&self, new_state: AuthState) {
-        let mut auth_state = self.auth_state.write();
-        let old_state = *auth_state;
-        if old_state != new_state {
-            info!("changing auth state: {:?} -> {:?}", old_state, new_state);
-            *auth_state = new_state;
-        }
-
-        // if we transition from non authenticated to authenticated
-        // we emit an event.
-        if !old_state.is_authenticated() && new_state.is_authenticated() {
-            self.emit_governor_event(GovernorEvent::Authenticated);
-        }
     }
 
     /// Emits an event to the governor.
@@ -382,8 +347,6 @@ fn run_governor(
     *state.remote.write() = Some(core.remote());
     debug!("spawned trove governor");
 
-    let ctx = TroveContext::new(core.handle(), state.clone());
-
     // spawn a stream that just listens in on the events sent into the
     // trove governor so we can figure out when to terminate the thread
     // or do similar things.
@@ -394,13 +357,9 @@ fn run_governor(
                     shutdown_tx.send(()).ok();
                 }
             }
-            GovernorEvent::Authenticated => (),
         }
         Ok(())
     }));
-
-    // spawn the authentication handler
-    spawn_authenticator(ctx.clone());
 
     core.run(shutdown_rx).ok();
     *state.remote.write() = None;
