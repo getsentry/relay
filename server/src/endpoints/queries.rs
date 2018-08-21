@@ -7,15 +7,15 @@ use futures::Future;
 use semaphore_aorta::ApiErrorResponse;
 use semaphore_aorta::RelayId;
 
-use actors::keys::{GetPublicKey, GetPublicKeyResult};
+use actors::keys::{GetPublicKeys, GetPublicKeysResult};
 use extractors::CurrentServiceState;
 use extractors::SignedJson;
 use service::ServiceApp;
 
 #[cfg_attr(feat = "cargo-clippy", allow(needless_pass_by_value))]
 fn get_public_keys(
-    (state, body): (CurrentServiceState, SignedJson<GetPublicKey>),
-) -> Box<Future<Item = Json<GetPublicKeyResult>, Error = Error>> {
+    (state, body): (CurrentServiceState, SignedJson<GetPublicKeys>),
+) -> Box<Future<Item = Json<GetPublicKeysResult>, Error = Error>> {
     let res = state.key_manager().send(body.into_inner());
 
     Box::new(

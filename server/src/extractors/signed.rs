@@ -17,7 +17,7 @@ use semaphore_aorta::ApiErrorResponse;
 use semaphore_aorta::PublicKey;
 use semaphore_aorta::RelayId;
 
-use actors::keys::GetPublicKey;
+use actors::keys::GetPublicKeys;
 use service::ServiceState;
 
 pub struct SignedJson<T> {
@@ -91,7 +91,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
         Box::new(
             req.state()
                 .key_manager()
-                .send(GetPublicKey {
+                .send(GetPublicKeys {
                     relay_ids: vec![relay_id.clone()],
                 })
                 .map_err(Error::from)
