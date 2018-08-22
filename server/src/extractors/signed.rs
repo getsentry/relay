@@ -1,14 +1,16 @@
 use actix::ResponseFuture;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use futures::Future;
+use sentry::Hub;
+use sentry_actix::ActixWebHubExt;
 use serde::de::DeserializeOwned;
 
 use semaphore_aorta::{ApiErrorResponse, PublicKey, RelayId};
-use sentry;
 
 use actors::keys::GetPublicKey;
 use service::ServiceState;
 
+#[derive(Debug)]
 pub struct SignedJson<T> {
     pub inner: T,
     pub public_key: PublicKey,
@@ -56,7 +58,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
                 .map_err(|_| SignatureError::MalformedHeader("X-Sentry-Relay-Id"))
         );
 
-        sentry::configure_scope(|scope| {
+        Hub::from_request(req).configure_scope(|scope| {
             scope.set_tag("relay_id", format!("{}", relay_id.simple())); // Dump out header value even if not string
         });
 
@@ -70,7 +72,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
             .and_then(|result| {
                 result?
                     .public_key
-                    .ok_or(Error::from(SignatureError::UnknownRelay))
+                    .ok_or_else(|| Error::from(SignatureError::UnknownRelay))
             })
             .join(req.body().map_err(Error::from))
             .and_then(move |(public_key, body)| {
