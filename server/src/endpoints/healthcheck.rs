@@ -26,7 +26,7 @@ fn healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error
                 if is_authenticated {
                     Ok(HttpResponse::Ok().json(HealthcheckResponse { is_healthy: true }))
                 } else {
-                    Err(()).into()
+                    Err(())
                 }
             })
             .or_else(|_| {

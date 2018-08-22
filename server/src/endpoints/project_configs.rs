@@ -14,9 +14,7 @@ fn get_project_configs(
         let public_key = public_key.clone();
         state
             .project_manager()
-            .send(GetProject {
-                id: project_id.clone(),
-            })
+            .send(GetProject { id: project_id })
             .map_err(Error::from)
             .and_then(|project| project.send(GetProjectState).map_err(Error::from))
             .map(move |project_state| {

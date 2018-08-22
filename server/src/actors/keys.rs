@@ -55,10 +55,9 @@ enum KeyState {
 impl KeyState {
     fn is_valid_cache(&self) -> bool {
         match *self {
-            KeyState::Exists {
-                public_key: _,
-                checked_at,
-            } => checked_at.elapsed().as_secs() < PUBLIC_KEY_EXPIRY,
+            KeyState::Exists { checked_at, .. } => {
+                checked_at.elapsed().as_secs() < PUBLIC_KEY_EXPIRY
+            }
             KeyState::DoesNotExist { checked_at } => {
                 checked_at.elapsed().as_secs() < MISSING_PUBLIC_KEY_EXPIRY
             }
@@ -67,10 +66,7 @@ impl KeyState {
 
     fn as_option(&self) -> Option<&PublicKey> {
         match *self {
-            KeyState::Exists {
-                ref public_key,
-                checked_at: _,
-            } => Some(public_key),
+            KeyState::Exists { ref public_key, .. } => Some(public_key),
             _ => None,
         }
     }
@@ -181,8 +177,8 @@ impl KeyManager {
 
         let receiver = self
             .key_channels
-            .entry(relay_id.clone())
-            .or_insert_with(|| KeyChannel::new())
+            .entry(relay_id)
+            .or_insert_with(KeyChannel::new)
             .receiver()
             .map(move |key| (relay_id, (*key).clone()))
             .map_err(|_| KeyError);
