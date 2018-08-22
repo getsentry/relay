@@ -47,9 +47,6 @@ path = "config"
 [dependencies.semaphore-server]
 path = "server"
 
-[dependencies.semaphore-trove]
-path = "trove"
-
 [target."cfg(not(windows))".dependencies]
 openssl-probe = "0.1.2"
 

@@ -34,7 +34,7 @@ use semaphore_aorta::Registration;
 use semaphore_aorta::UpstreamDescriptor;
 use semaphore_config::Credentials;
 
-/// Represents the current auth state of the trove.
+/// Represents the current auth state.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum AuthState {
     Unknown,

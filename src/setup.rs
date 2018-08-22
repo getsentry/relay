@@ -42,7 +42,6 @@ pub fn init_logging(config: &Config) {
                 "semaphore_config::",
                 "semaphore_common::",
                 "semaphore_server::",
-                "semaphore_trove::",
                 "sentry_relay::",
             ],
             release: sentry_crate_release!(),
@@ -68,7 +67,6 @@ pub fn init_logging(config: &Config) {
                  semaphore_config=DEBUG,\
                  semaphore_common=DEBUG,\
                  semaphore_server=DEBUG,\
-                 semaphore_trove=DEBUG,\
                  sentry_relay=DEBUG"
             }
             LevelFilter::Trace => "TRACE",

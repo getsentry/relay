@@ -160,7 +160,7 @@ impl ProjectState {
     /// that accessing the snapshot will panic until the data becomes available.
     ///
     /// The config is taken as `Arc` so we can share it effectively across
-    /// multiple project states and troves.
+    /// multiple project states.
     pub fn new(
         project_id: ProjectId,
         config: Arc<AortaConfig>,
@@ -196,18 +196,15 @@ impl ProjectState {
 
     /// The direct upstream that reported the snapshot.
     ///
-    /// Currently an relay only ever has one trove and that trove can only have
-    /// one upstream descriptor.  As a result of this, this descriptor will always
-    /// match the one of the trove which holds the project state.
+    /// Currently an relay only ever has one upstream manager. As a result of this, this descriptor
+    /// will always match the one of that actor which holds the project state.
     pub fn upstream(&self) -> &UpstreamDescriptor {
         &self.config.upstream
     }
 
     /// Returns the time of the last event received (but not forwarded).
     ///
-    /// This timestamp is used to indicate that the project has activity
-    /// for the trove.  As the trove needs to expire items it uses this
-    /// timestamp to expire.
+    /// This timestamp is used to indicate that the project has activity.
     pub fn last_event(&self) -> Option<DateTime<Utc>> {
         *self.last_event.read()
     }
