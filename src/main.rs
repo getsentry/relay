@@ -31,6 +31,7 @@ mod setup;
 mod utils;
 
 use std::env;
+use std::process;
 use std::time::Duration;
 
 pub fn main() {
@@ -43,6 +44,8 @@ pub fn main() {
         init_ssl_cert_env_vars();
     }
 
+    let mut exit_code = 0;
+
     // only print backtrace in console if we were requested before the
     // start of the app.  The envvar is overwritten by our own internal
     // sentry integration later.
@@ -52,6 +55,7 @@ pub fn main() {
     };
 
     if let Err(err) = cli::execute() {
+        exit_code = 1;
         println!("error: {}", err);
         for cause in err.iter_causes() {
             println!("  caused by: {}", cause);
@@ -67,4 +71,5 @@ pub fn main() {
     };
 
     sentry::drain_events(Some(Duration::from_secs(2)));
+    process::exit(exit_code);
 }
