@@ -3,7 +3,7 @@ use actix_web::middleware::cors::Cors;
 use actix_web::{http::Method, FromRequest, HttpResponse, Json, ResponseError};
 use uuid::Uuid;
 
-use extractors::{IncomingEvent, IncomingForeignEvent, ProjectRequest};
+use extractors::{IncomingEvent, ProjectRequest};
 use service::{ServiceApp, ServiceState};
 
 use semaphore_aorta::{ApiErrorResponse, StoreChangeset};
@@ -57,10 +57,6 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .max_age(3600)
         .resource(r"/api/{project:\d+}/store/", |r| {
             r.method(Method::POST).with(store_event::<IncomingEvent>);
-        })
-        .resource(r"/api/{project:\d+}/{store_type:[a-z][a-z0-9-]*}/", |r| {
-            r.method(Method::POST)
-                .with(store_event::<IncomingForeignEvent>);
         })
         .register()
 }
