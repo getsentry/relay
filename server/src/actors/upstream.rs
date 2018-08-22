@@ -14,6 +14,7 @@ use actix::ResponseFuture;
 
 use actix_web;
 use actix_web::client::ClientRequest;
+use actix_web::http::header;
 use actix_web::http::Method;
 use actix_web::HttpMessage;
 
@@ -21,8 +22,6 @@ use chrono::Duration;
 
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
-
-use http::header;
 
 use futures::Future;
 use futures::IntoFuture;
