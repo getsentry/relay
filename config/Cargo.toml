@@ -17,7 +17,7 @@ serde_derive = "1.0.70"
 serde_yaml = "0.7.5"
 url = "1.7.1"
 url_serde = "0.2.0"
-sentry = "0.5.4"
+sentry = "0.7.0"
 serde_json = "1.0.24"
 
 [dependencies.log]

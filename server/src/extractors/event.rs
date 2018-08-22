@@ -66,15 +66,15 @@ fn log_failed_payload(err: &EncodedEventPayloadError) {
         err.utf8_body().unwrap_or("<broken>")
     );
 
-    sentry::with_client_and_scope(|client, scope| {
-        let mut event = sentry::integrations::failure::event_from_fail(err);
-        let last = event.exceptions.len() - 1;
-        event.exceptions[last].ty = "BadEventPayload".into();
-        if let Some(body) = err.utf8_body() {
-            event.message = Some(format!("payload: {}", body));
-        };
-        client.capture_event(event, Some(scope));
-    });
+    // sentry::with_client_and_scope(|client, scope| {
+    //     let mut event = sentry::integrations::failure::event_from_fail(err);
+    //     let last = event.exceptions.len() - 1;
+    //     event.exceptions[last].ty = "BadEventPayload".into();
+    //     if let Some(body) = err.utf8_body() {
+    //         event.message = Some(format!("payload: {}", body));
+    //     };
+    //     client.capture_event(event, Some(scope));
+    // });
 }
 
 fn parse_header_origin<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Option<Url> {
