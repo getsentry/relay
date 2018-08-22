@@ -11,6 +11,7 @@ use sentry_actix::SentryMiddleware;
 use semaphore_aorta::AortaConfig;
 use semaphore_config::Config;
 
+use actors::events::EventProcessor;
 use actors::keys::KeyManager;
 use actors::project::ProjectManager;
 use actors::upstream::UpstreamRelay;
@@ -32,6 +33,7 @@ pub struct ServiceState {
     key_manager: Addr<KeyManager>,
     project_manager: Addr<ProjectManager>,
     upstream_relay: Addr<UpstreamRelay>,
+    event_processor: Addr<EventProcessor>,
     config: Arc<Config>,
 }
 
@@ -59,6 +61,11 @@ impl ServiceState {
     /// Returns current project manager
     pub fn project_manager(&self) -> Addr<ProjectManager> {
         self.project_manager.clone()
+    }
+
+    /// Returns a pool of event processors.
+    pub fn event_processor(&self) -> Addr<EventProcessor> {
+        self.event_processor.clone()
     }
 }
 
@@ -100,6 +107,8 @@ pub fn run(config: Config) -> Result<(), ServerError> {
         aorta_config,
         key_manager: KeyManager::new(upstream_relay.clone()).start(),
         project_manager: ProjectManager::new(upstream_relay.clone()).start(),
+        // TODO(ja): Make this a SyncArbiter
+        event_processor: EventProcessor::new().start(),
         upstream_relay,
         config: config.clone(),
     };
