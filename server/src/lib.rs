@@ -16,7 +16,6 @@ extern crate listenfd;
 extern crate log;
 #[cfg(feature = "with_ssl")]
 extern crate openssl;
-extern crate parking_lot;
 extern crate semaphore_aorta;
 #[macro_use]
 extern crate semaphore_common;
