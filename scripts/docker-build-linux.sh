@@ -42,7 +42,7 @@ docker run $DOCKER_RUN_OPTS \
 
 # Smoke test
 docker run $DOCKER_RUN_OPTS \
-  cargo run --release --target=${TARGET} -- --help
+  make test-process-event CARGO_ARGS="--release --target=${TARGET}"
 
 # Fix permissions for shared directories
 USER_ID=$(id -u)

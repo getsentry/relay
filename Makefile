@@ -1,3 +1,5 @@
+SHELL=/bin/bash
+
 all: test
 .PHONY: all
 
@@ -11,7 +13,8 @@ build:
 
 releasebuild:
 	cargo build --release --locked
-	cargo run --release -- --help
+	# Smoke test
+	@$(MAKE) test-process-event CARGO_ARGS="--release"
 .PHONY: releasebuild
 
 releasebuild-docker:
@@ -56,6 +59,14 @@ format-check:
 lint:
 	@cargo +nightly clippy --tests --all -- -D clippy
 .PHONY: lint
+
+test-process-event:
+	# Process a basic event and assert its output
+	bash -c 'diff \
+		<(cargo run ${CARGO_ARGS} -- process-event <fixtures/basic-event-input.json) \
+		fixtures/basic-event-output.json'
+	@echo 'OK'
+.PHONY: test-process-event
 
 devserver:
 	@systemfd --no-pid -s http::3000 -- cargo watch -x "run -- run"
