@@ -10,18 +10,8 @@ use actors::keys::GetPublicKey;
 use service::ServiceState;
 
 pub struct SignedJson<T> {
-    inner: T,
-    public_key: PublicKey,
-}
-
-impl<T> SignedJson<T> {
-    pub fn into_inner(self) -> T {
-        self.inner
-    }
-
-    pub fn public_key(&self) -> &PublicKey {
-        &self.public_key
-    }
+    pub inner: T,
+    pub public_key: PublicKey,
 }
 
 #[derive(Fail, Debug)]
