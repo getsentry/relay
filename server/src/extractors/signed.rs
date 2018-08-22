@@ -78,19 +78,17 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
             .key_manager()
             .send(GetPublicKey { relay_id })
             .map_err(Error::from)
-            .and_then(|result| result.map_err(Error::from))
             .and_then(|result| {
-                result
+                result?
                     .public_key
                     .ok_or(Error::from(SignatureError::UnknownRelay))
             })
-            .and_then(|public_key| {
-                raw_body.map_err(Error::from).and_then(move |body| {
-                    public_key
-                        .unpack(&body, &relay_sig, None)
-                        .map(|inner| SignedJson { inner, public_key })
-                        .map_err(|_| Error::from(SignatureError::BadSignature))
-                })
+            .join(raw_body.map_err(Error::from))
+            .and_then(move |(public_key, body)| {
+                public_key
+                    .unpack(&body, &relay_sig, None)
+                    .map(|inner| SignedJson { inner, public_key })
+                    .map_err(|_| Error::from(SignatureError::BadSignature))
             });
 
         Box::new(future)
