@@ -1,22 +1,20 @@
+extern crate chrono;
 extern crate clap;
-extern crate ctrlc;
+extern crate console;
 extern crate dialoguer;
+extern crate env_logger;
 extern crate failure;
 extern crate futures;
 #[macro_use]
 extern crate log;
-extern crate console;
-extern crate env_logger;
 #[cfg(not(windows))]
 extern crate openssl_probe;
-extern crate parking_lot;
 extern crate pretty_env_logger;
 #[macro_use]
 extern crate sentry;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate chrono;
 extern crate serde_json;
 extern crate uuid;
 

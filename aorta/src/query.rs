@@ -2,9 +2,8 @@ use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use hyper::Method;
 use parking_lot::RwLock;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
@@ -13,7 +12,6 @@ use uuid::Uuid;
 
 use semaphore_common::ProjectId;
 
-use api::ApiRequest;
 use config::AortaConfig;
 use projectstate::{ProjectState, ProjectStateSnapshot};
 

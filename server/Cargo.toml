@@ -28,7 +28,6 @@ lazy_static = "1.0.2"
 listenfd = "0.3.3"
 log = "0.4.4"
 openssl = { version = "0.10.11", optional = true }
-parking_lot = "0.6.3"
 regex = "1.0.2"
 sentry = "0.7.0"
 sentry-actix = "0.2.0"
