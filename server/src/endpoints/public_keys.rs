@@ -10,7 +10,7 @@ use service::ServiceApp;
 fn get_public_keys(
     (state, body): (CurrentServiceState, SignedJson<GetPublicKeys>),
 ) -> Box<Future<Item = Json<GetPublicKeysResult>, Error = Error>> {
-    let res = state.key_manager().send(body.into_inner());
+    let res = state.key_manager().send(body.inner);
 
     Box::new(
         res.map_err(Error::from)
