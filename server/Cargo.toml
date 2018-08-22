@@ -54,8 +54,5 @@ path = "../config"
 [dependencies.semaphore-common]
 path = "../common"
 
-[dependencies.semaphore-trove]
-path = "../trove"
-
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.42"

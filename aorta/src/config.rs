@@ -10,8 +10,7 @@ use upstream::UpstreamDescriptor;
 /// Holds common config values that affect the aorta behavior.
 ///
 /// This config is typically created by something and then passed down
-/// through the aorta functionality to affect how they behave.  This is
-/// in turn also used by the trove crate to manage the individual aortas.
+/// through the aorta functionality to affect how they behave.
 #[derive(Debug)]
 pub struct AortaConfig {
     /// How long it takes until a snapshot is considered expired.

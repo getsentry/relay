@@ -9,7 +9,6 @@ use listenfd::ListenFd;
 
 use semaphore_aorta::AortaConfig;
 use semaphore_config::Config;
-use semaphore_trove::{Trove, TroveState};
 
 use actors::keys::KeyManager;
 use actors::project::ProjectManager;
@@ -28,7 +27,7 @@ fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
 /// Server state.
 #[derive(Clone)]
 pub struct ServiceState {
-    trove_state: Arc<TroveState>,
+    aorta_config: Arc<AortaConfig>,
     key_manager: Addr<KeyManager>,
     project_manager: Addr<ProjectManager>,
     upstream_relay: Addr<UpstreamRelay>,
@@ -36,14 +35,9 @@ pub struct ServiceState {
 }
 
 impl ServiceState {
-    /// Returns an atomically counted reference to the trove state.
-    pub fn trove_state(&self) -> Arc<TroveState> {
-        self.trove_state.clone()
-    }
-
     /// Returns an atomically counted reference to the aorta config.
     pub fn aorta_config(&self) -> Arc<AortaConfig> {
-        self.trove_state.config().clone()
+        self.aorta_config.clone()
     }
 
     /// Returns an atomically counted reference to the config.
@@ -91,7 +85,7 @@ fn make_app(state: ServiceState) -> ServiceApp {
 /// Effectively this boots the server.
 pub fn run(config: Config) -> Result<(), ServerError> {
     let config = Arc::new(config);
-    let trove = Arc::new(Trove::new(config.make_aorta_config()));
+    let aorta_config = config.make_aorta_config();
 
     let sys = actix::System::new("relay");
 
@@ -102,7 +96,7 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     ).start();
 
     let service_state = ServiceState {
-        trove_state: trove.state(),
+        aorta_config,
         key_manager: KeyManager::new(upstream_relay.clone()).start(),
         project_manager: ProjectManager::new(upstream_relay.clone()).start(),
         upstream_relay,
