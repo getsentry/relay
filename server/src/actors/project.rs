@@ -1,24 +1,25 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::mem;
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
 use actix::fut::wrap_future;
-use actix::{Actor, ActorFuture, Addr, AsyncContext, Context, Handler, Message, Response};
-
+use actix::{Actor, ActorFuture, Addr, AsyncContext, Context, Handler, Message};
 use actix_web::http::Method;
 use actix_web::ResponseError;
-
 use futures::future::{self, Future, Shared};
 use futures::sync::oneshot;
+use url::Url;
 
 // TODO(ja): Move this here and rename to ProjectState
-use semaphore_aorta::ProjectStateSnapshot;
+use semaphore_aorta::{ProjectStateSnapshot, PublicKeyEventAction, PublicKeyStatus};
 use semaphore_common::ProjectId;
 
 use actors::upstream::{SendRequest, SendRequestError, UpstreamRelay, UpstreamRequest};
 use constants::BATCH_TIMEOUT;
+use utils::Response;
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -31,6 +32,74 @@ pub enum ProjectError {
 }
 
 impl ResponseError for ProjectError {}
+
+// TODO: Move this to a better place
+#[derive(Debug, Clone)]
+pub struct EventMetaData {
+    /// DSN public key used to authenticate.
+    pub public_key: String,
+
+    /// Value of the origin header in the incoming request, if present.
+    pub origin: Option<Url>,
+
+    /// IP address of the submitting remote.
+    pub remote_addr: Option<IpAddr>,
+
+    /// The client SDK that submitted the event.
+    pub sentry_client: Option<String>,
+}
+
+fn is_valid_origin(state: &ProjectStateSnapshot, origin: Option<&Url>) -> bool {
+    // Generally accept any event without an origin.
+    let origin = match origin {
+        Some(origin) => origin,
+        None => return true,
+    };
+
+    // If the list of allowed domains is empty, we accept any origin. Otherwise, we have to
+    // match with the whitelist.
+    let allowed = &state.config().allowed_domains;
+    !allowed.is_empty()
+        && allowed
+            .iter()
+            .any(|x| x.as_str() == "*" || Some(x.as_str()) == origin.host_str())
+}
+
+fn get_event_action(state: &ProjectStateSnapshot, meta: &EventMetaData) -> PublicKeyEventAction {
+    // Try to verify the request origin with the project config.
+    if !is_valid_origin(state, meta.origin.as_ref()) {
+        return PublicKeyEventAction::Discard;
+    }
+
+    // TODO: Use real config here.
+    if state.outdated(&Default::default()) {
+        // if the snapshot is out of date, we proceed as if it was still up to date. The
+        // upstream relay (or sentry) will still filter events.
+
+        // we assume it is unlikely to re-activate a disabled public key.
+        // thus we handle events pretending the config is still valid,
+        // except queueing events for unknown DSNs as they might have become
+        // available in the meanwhile.
+        match state.get_public_key_status(&meta.public_key) {
+            PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
+            PublicKeyStatus::Disabled => PublicKeyEventAction::Discard,
+            PublicKeyStatus::Unknown => PublicKeyEventAction::Send,
+        }
+    } else {
+        // only drop events if we know for sure the project is disabled.
+        if state.disabled() {
+            return PublicKeyEventAction::Discard;
+        }
+
+        // since the config has been fetched recently, we assume unknown
+        // public keys do not exist and drop events eagerly.
+        match state.get_public_key_status(&meta.public_key) {
+            PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
+            PublicKeyStatus::Disabled => PublicKeyEventAction::Discard,
+            PublicKeyStatus::Unknown => PublicKeyEventAction::Discard,
+        }
+    }
+}
 
 pub struct Project {
     id: ProjectId,
@@ -49,12 +118,16 @@ impl Project {
         }
     }
 
+    pub fn state(&self) -> Option<&ProjectStateSnapshot> {
+        self.state.as_ref().map(AsRef::as_ref)
+    }
+
     fn get_or_fetch_state(
         &mut self,
         context: &mut Context<Self>,
     ) -> Response<Arc<ProjectStateSnapshot>, ProjectError> {
         if let Some(ref state) = self.state {
-            return Response::reply(Ok(state.clone()));
+            return Response::ok(state.clone());
         }
 
         let channel = match self.state_channel {
@@ -133,6 +206,21 @@ impl UpstreamRequest for GetProjectStates {
 
     fn path(&self) -> Cow<str> {
         Cow::Borrowed("/api/0/relays/projectconfigs/")
+    }
+}
+
+pub struct GetEventAction(pub EventMetaData);
+
+impl Message for GetEventAction {
+    type Result = Result<PublicKeyEventAction, ProjectError>;
+}
+
+impl Handler<GetEventAction> for Project {
+    type Result = Response<PublicKeyEventAction, ProjectError>;
+
+    fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
+        self.get_or_fetch_state(context)
+            .map(|state| get_event_action(&state, &message.0))
     }
 }
 
