@@ -39,6 +39,20 @@ impl<T: 'static, E: 'static> Response<T, E> {
             Response::Async(future) => Response::async(future.map(f)),
         }
     }
+
+    pub fn and_then<U: 'static, F: 'static>(self, f: F) -> Response<U, E>
+    where
+        F: FnOnce(T) -> Response<U, E>,
+    {
+        match self {
+            Response::Reply(Ok(t)) => f(t),
+            Response::Reply(Err(e)) => Response::Reply(Err(e)),
+            Response::Async(future) => Response::async(future.and_then(|t| match f(t) {
+                Response::Reply(res) => Box::new(res.into_future()),
+                Response::Async(fut) => fut,
+            })),
+        }
+    }
 }
 
 impl<A, M, T: 'static, E: 'static> MessageResponse<A, M> for Response<T, E>
@@ -47,7 +61,7 @@ where
     M: Message<Result = Result<T, E>>,
     A::Context: AsyncContext<A>,
 {
-    fn handle<R: ResponseChannel<M>>(self, ctx: &mut A::Context, tx: Option<R>) {
+    fn handle<R: ResponseChannel<M>>(self, _context: &mut A::Context, tx: Option<R>) {
         match self {
             Response::Async(fut) => {
                 Arbiter::spawn(fut.then(move |res| {
