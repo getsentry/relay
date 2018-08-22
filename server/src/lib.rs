@@ -22,6 +22,7 @@ extern crate semaphore_aorta;
 extern crate semaphore_common;
 extern crate semaphore_config;
 extern crate sentry;
+extern crate sentry_actix;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -43,7 +44,6 @@ mod errors;
 mod extractors;
 mod middlewares;
 mod service;
-mod utils;
 
 pub use errors::*;
 pub use service::*;

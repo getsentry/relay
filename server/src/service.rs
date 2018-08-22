@@ -6,6 +6,7 @@ use actix::Addr;
 use actix_web::{server, App};
 use failure::ResultExt;
 use listenfd::ListenFd;
+use sentry_actix::SentryMiddleware;
 
 use semaphore_aorta::AortaConfig;
 use semaphore_config::Config;
@@ -15,7 +16,7 @@ use actors::project::ProjectManager;
 use actors::upstream::UpstreamRelay;
 use endpoints;
 use errors::{ServerError, ServerErrorKind};
-use middlewares::{AddCommonHeaders, CaptureSentryError, ErrorHandlers, Metrics};
+use middlewares::{AddCommonHeaders, ErrorHandlers, Metrics};
 
 fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
     info!("spawning http server");
@@ -66,8 +67,8 @@ pub type ServiceApp = App<ServiceState>;
 
 fn make_app(state: ServiceState) -> ServiceApp {
     let mut app = App::with_state(state)
+        .middleware(SentryMiddleware::new())
         .middleware(Metrics)
-        .middleware(CaptureSentryError)
         .middleware(AddCommonHeaders)
         .middleware(ErrorHandlers);
 
