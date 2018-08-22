@@ -12,7 +12,6 @@ use actix::AsyncContext;
 use actix::Context;
 use actix::Handler;
 use actix::Message;
-use actix::Response;
 
 use actix_web::http::Method;
 use actix_web::HttpResponse;
@@ -30,6 +29,7 @@ use actors::upstream::SendRequest;
 use actors::upstream::UpstreamRelay;
 use actors::upstream::UpstreamRequest;
 use constants::{BATCH_TIMEOUT, MISSING_PUBLIC_KEY_EXPIRY, PUBLIC_KEY_EXPIRY};
+use utils::Response;
 
 #[derive(Fail, Debug)]
 #[fail(display = "failed to fetch keys")]
@@ -112,11 +112,6 @@ impl KeyChannel {
     }
 }
 
-enum KeyResponse {
-    Reply(RelayId, Option<PublicKey>),
-    Async(Box<Future<Item = (RelayId, Option<PublicKey>), Error = KeyError>>),
-}
-
 pub struct KeyManager {
     upstream: Addr<UpstreamRelay>,
     keys: HashMap<RelayId, KeyState>,
@@ -171,10 +166,14 @@ impl KeyManager {
         context.spawn(future.drop_err());
     }
 
-    fn get_or_fetch_key(&mut self, relay_id: RelayId, context: &mut Context<Self>) -> KeyResponse {
+    fn get_or_fetch_key(
+        &mut self,
+        relay_id: RelayId,
+        context: &mut Context<Self>,
+    ) -> Response<(RelayId, Option<PublicKey>), KeyError> {
         if let Some(key) = self.keys.get(&relay_id) {
             if key.is_valid_cache() {
-                return KeyResponse::Reply(relay_id, key.as_option().cloned());
+                return Response::ok((relay_id, key.as_option().cloned()));
             }
         }
 
@@ -188,7 +187,7 @@ impl KeyManager {
             .map(move |key| (relay_id, (*key).clone()))
             .map_err(|_| KeyError);
 
-        KeyResponse::Async(Box::new(receiver))
+        Response::async(receiver)
     }
 }
 
@@ -222,14 +221,8 @@ impl Handler<GetPublicKey> for KeyManager {
     type Result = Response<GetPublicKeyResult, KeyError>;
 
     fn handle(&mut self, message: GetPublicKey, context: &mut Context<Self>) -> Self::Result {
-        match self.get_or_fetch_key(message.relay_id, context) {
-            KeyResponse::Reply(_id, public_key) => {
-                Response::reply(Ok(GetPublicKeyResult { public_key }))
-            }
-            KeyResponse::Async(fut) => {
-                Response::async(fut.map(|(_id, public_key)| GetPublicKeyResult { public_key }))
-            }
-        }
+        self.get_or_fetch_key(message.relay_id, context)
+            .map(|(_id, public_key)| GetPublicKeyResult { public_key })
     }
 }
 
@@ -268,11 +261,14 @@ impl Handler<GetPublicKeys> for KeyManager {
 
         for id in message.relay_ids {
             match self.get_or_fetch_key(id, context) {
-                KeyResponse::Reply(id, key) => {
+                Response::Async(fut) => {
+                    key_futures.push(fut);
+                }
+                Response::Reply(Ok((id, key))) => {
                     public_keys.insert(id, key);
                 }
-                KeyResponse::Async(fut) => {
-                    key_futures.push(fut);
+                Response::Reply(Err(_)) => {
+                    // Cannot happen
                 }
             }
         }
