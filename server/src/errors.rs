@@ -19,14 +19,6 @@ pub enum ServerErrorKind {
     #[fail(display = "listening failed")]
     ListenFailed,
 
-    /// Spawning the trove governor failed.
-    #[fail(display = "aorta trove governor spawn failed")]
-    TroveGovernSpawnFailed,
-
-    /// Abdicating the trove governor failed.
-    #[fail(display = "aorta trove governor shutdown failed")]
-    TroveGovernShutdownFailed,
-
     /// A TLS error ocurred
     #[fail(display = "could not initialize the TLS server")]
     TlsInitFailed,
