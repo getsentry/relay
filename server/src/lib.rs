@@ -32,7 +32,6 @@ extern crate uuid;
 extern crate libc;
 
 mod actors;
-mod body;
 mod constants;
 mod endpoints;
 mod errors;

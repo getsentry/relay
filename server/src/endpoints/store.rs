@@ -13,7 +13,7 @@ use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
 use actors::events::{StoreEvent, StoreEventResponse};
 use actors::project::{EventMetaData, GetEventAction, GetProject};
-use body::{StoreBody, StorePayloadError};
+use extractors::{StoreBody, StorePayloadError};
 use service::{ServiceApp, ServiceState};
 
 #[derive(Fail, Debug)]
