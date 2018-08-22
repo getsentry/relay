@@ -190,33 +190,6 @@ impl TroveState {
         self.config.clone()
     }
 
-    /// Returns a project state if it exists.
-    pub fn get_project_state(&self, project_id: ProjectId) -> Option<Arc<ProjectState>> {
-        self.states.read().get(&project_id).cloned()
-    }
-
-    /// Gets or creates the project state.
-    pub fn get_or_create_project_state(&self, project_id: ProjectId) -> Arc<ProjectState> {
-        // state already exists, return it.
-        {
-            let states = self.states.read();
-            if let Some(rv) = states.get(&project_id) {
-                return (*rv).clone();
-            }
-        }
-
-        // insert an empty state
-        {
-            let state = ProjectState::new(
-                project_id,
-                self.config.clone(),
-                self.request_manager.clone(),
-            );
-            self.states.write().insert(project_id, Arc::new(state));
-        }
-        (*self.states.read().get(&project_id).unwrap()).clone()
-    }
-
     /// Returns the current request manager.
     pub fn request_manager(&self) -> Arc<RequestManager> {
         self.request_manager.clone()
