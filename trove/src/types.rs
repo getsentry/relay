@@ -2,11 +2,9 @@ use std::sync::Arc;
 
 use hyper;
 use hyper::StatusCode;
-use parking_lot::RwLock;
 use serde_json;
-use tokio_core::reactor::Remote;
 
-use semaphore_aorta::{AortaConfig, ApiErrorResponse, RequestManager};
+use semaphore_aorta::{AortaConfig, ApiErrorResponse};
 
 /// Raised for API Errors
 #[derive(Debug, Fail)]
@@ -27,8 +25,6 @@ pub enum ApiError {
 #[derive(Debug)]
 pub struct TroveState {
     config: Arc<AortaConfig>,
-    remote: RwLock<Option<Remote>>,
-    request_manager: Arc<RequestManager>,
 }
 
 /// The trove holds project states and manages the upstream aorta.
@@ -49,8 +45,6 @@ impl Trove {
         Trove {
             state: Arc::new(TroveState {
                 config: config.clone(),
-                remote: RwLock::new(None),
-                request_manager: Arc::new(RequestManager::new(config)),
             }),
         }
     }
