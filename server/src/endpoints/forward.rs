@@ -2,9 +2,22 @@ use actix::ResponseFuture;
 use actix_web::client::ClientRequest;
 use actix_web::{AsyncResponder, Body, Error, HttpMessage, HttpRequest, HttpResponse};
 
+use actix_web::http::header;
+use actix_web::http::header::HeaderName;
+
 use futures::{Future, Stream};
 
 use service::{ServiceApp, ServiceState};
+
+static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
+    header::CONNECTION,
+    header::PROXY_AUTHENTICATE,
+    header::PROXY_AUTHORIZATION,
+    header::TE,
+    header::TRAILER,
+    header::TRANSFER_ENCODING,
+    header::UPGRADE,
+];
 
 fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
     let peer_addr = request
@@ -37,21 +50,52 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         .map(|pq| pq.as_str())
         .unwrap_or("");
 
-    let client_request = ClientRequest::build_from(request)
-        .uri(upstream.get_url(path_and_query))
-        .set_header("Host", upstream.host())
-        .set_header("X-Forwarded-For", get_forwarded_for(request))
-        .body(Body::Streaming(Box::new(request.payload().from_err())));
+    let mut forwarded_request = ClientRequest::build();
+    for (key, value) in request.headers() {
+        if HOP_BY_HOP_HEADERS.contains(key) {
+            continue;
+        }
+        forwarded_request.header(key.clone(), value.clone());
+    }
 
-    tryf!(client_request)
+    let forwarded_request = tryf!(
+        forwarded_request
+            .no_default_headers()
+            .disable_decompress()
+            .method(request.method().clone())
+            .uri(upstream.get_url(path_and_query))
+            .set_header("Host", upstream.host())
+            .set_header("X-Forwarded-For", get_forwarded_for(request))
+            .set_header("Connection", "close")
+            .body(if request.headers().get(header::CONTENT_TYPE).is_some() {
+                Body::Streaming(Box::new(request.payload().from_err()))
+            } else {
+                Body::Empty
+            })
+    );
+
+    forwarded_request
         .send()
         .map_err(Error::from)
-        .and_then(|resp| {
-            let mut response_builder = HttpResponse::build(resp.status());
-            for (key, value) in resp.headers() {
-                response_builder.header(key.clone(), value.clone());
+        .and_then(move |response| {
+            let mut forwarded_response = HttpResponse::build(response.status());
+
+            for (key, value) in response.headers() {
+                if HOP_BY_HOP_HEADERS.contains(key) {
+                    continue;
+                }
+                forwarded_response.header(key.clone(), value.clone());
             }
-            Ok(response_builder.body(Body::Streaming(Box::new(resp.payload().from_err()))))
+
+            Ok(
+                forwarded_response.body(
+                    if response.headers().get(header::CONTENT_TYPE).is_some() {
+                        Body::Streaming(Box::new(response.payload().from_err()))
+                    } else {
+                        Body::Empty
+                    },
+                ),
+            )
         })
         .responder()
 }

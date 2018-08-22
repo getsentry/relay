@@ -2,3 +2,4 @@ target
 .DS_Store
 .semaphore
 *.pyc
+.pytest_cache

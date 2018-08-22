@@ -8,7 +8,6 @@ dist
 build
 *.egg-info
 .eggs
-.pytest_cache
 
 # sdist
 version.txt
