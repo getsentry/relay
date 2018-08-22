@@ -51,18 +51,6 @@ impl<T: FromRequest<ServiceState> + 'static> ProjectRequest<T> {
         Ref::map(self.http_req.extensions(), |ext| ext.get().unwrap())
     }
 
-    /// Returns the current service state.
-    pub fn service_state(&self) -> &ServiceState {
-        self.http_req.state()
-    }
-
-    /// Gets or creates the project state.
-    pub fn get_or_create_project_state(&self) -> Arc<ProjectState> {
-        self.service_state()
-            .trove_state()
-            .get_or_create_project_state(self.project_id())
-    }
-
     /// Extracts the embedded payload.
     ///
     /// This can only be called once.  Panics if there is no payload.
