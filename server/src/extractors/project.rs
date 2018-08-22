@@ -1,11 +1,10 @@
 use std::cell::Ref;
-use std::sync::Arc;
 
 use actix_web::error::{Error, ResponseError};
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse};
 use futures::{future, Future};
 
-use semaphore_aorta::{ApiErrorResponse, ProjectState};
+use semaphore_aorta::{ApiErrorResponse};
 use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
 use service::ServiceState;
