@@ -31,10 +31,7 @@ fn store_event<I: FromRequest<ServiceState> + Into<StoreChangeset>>(
 
     metric!(counter(&format!("event.protocol.v{}", request.auth().version())) += 1);
 
-    if request
-        .get_or_create_project_state()
-        .store_changeset(changeset)
-    {
+    if unimplemented!() {
         metric!(counter("event.accepted") += 1);
         Ok(Json(StoreResponse { id: event_id }))
     } else {

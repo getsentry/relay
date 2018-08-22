@@ -1,5 +1,4 @@
 use std::cell::Ref;
-use std::sync::Arc;
 
 use actix_web::error::{Error, ResponseError};
 use actix_web::{http::header, FromRequest, HttpMessage, HttpRequest, HttpResponse, State};
@@ -54,26 +53,9 @@ pub struct ProjectRequest<T: FromRequest<ServiceState> + 'static> {
 }
 
 impl<T: FromRequest<ServiceState> + 'static> ProjectRequest<T> {
-    /// Returns the project identifier for this request.
-    pub fn project_id(&self) -> ProjectId {
-        *self.http_req.extensions().get().unwrap()
-    }
-
     /// Returns the auth info
     pub fn auth(&self) -> Ref<Auth> {
         Ref::map(self.http_req.extensions(), |ext| ext.get().unwrap())
-    }
-
-    /// Returns the current service state.
-    pub fn service_state(&self) -> &ServiceState {
-        self.http_req.state()
-    }
-
-    /// Gets or creates the project state.
-    pub fn get_or_create_project_state(&self) -> Arc<ProjectState> {
-        self.service_state()
-            .trove_state()
-            .get_or_create_project_state(self.project_id())
     }
 
     /// Extracts the embedded payload.
