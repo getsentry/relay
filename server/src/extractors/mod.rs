@@ -6,7 +6,7 @@ use failure::Fail;
 use futures::{future, Future};
 use url::Url;
 
-use semaphore_aorta::{ApiErrorResponse, EventMeta, EventVariant, ProjectState, StoreChangeset};
+use semaphore_aorta::{ApiErrorResponse, EventMeta, EventVariant, StoreChangeset};
 use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
 use body::{EncodedEvent, EncodedEventPayloadError};
