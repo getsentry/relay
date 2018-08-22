@@ -37,9 +37,9 @@ impl StorePayloadError {
     pub fn body(&self) -> Option<&[u8]> {
         match self {
             StorePayloadError::Overflow => None,
+            StorePayloadError::UnknownLength => None,
             StorePayloadError::Decode(_, ref body) => body.as_ref().map(|x| &x[..]),
             StorePayloadError::Zlib(_, ref body) => body.as_ref().map(|x| &x[..]),
-            // StorePayloadError::Deserialize(_, ref body) => body.as_ref().map(|x| &x[..]),
             StorePayloadError::Payload(_) => None,
         }
     }
