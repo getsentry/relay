@@ -18,18 +18,16 @@ debug = true
 lto = true
 
 [dependencies]
-failure = "0.1.1"
-uuid = "0.6.3"
-serde_json = "1.0.17"
-chrono = "0.4.2"
-serde_derive = "1.0.45"
-serde = "1.0.45"
+chrono = "0.4.5"
+failure = "0.1.2"
+serde = "1.0.72"
+serde_json = "1.0.26"
+serde_derive = "1.0.72"
+uuid = "0.6.5"
 
 [dependencies.semaphore-aorta]
 path = "../aorta"
 
 [patch.crates-io]
-sentry = { git = "https://github.com/getsentry/sentry-rust", rev = "0bf9723d4bbb1820033d4d6906407c0df0d59286" }
-sentry-types = { git = "https://github.com/getsentry/rust-sentry-types", rev = "3bb7f3847480676d753288b137e8f95a4f3af020" }
 serde = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
 serde_derive = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
