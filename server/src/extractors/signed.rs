@@ -1,23 +1,12 @@
 use actix::ResponseFuture;
-
-use actix_web::Error;
-use actix_web::FromRequest;
-use actix_web::HttpMessage;
-use actix_web::HttpRequest;
-use actix_web::HttpResponse;
-use actix_web::ResponseError;
-
+use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use futures::Future;
-
 use serde::de::DeserializeOwned;
 
+use semaphore_aorta::{ApiErrorResponse, PublicKey, RelayId};
 use sentry;
 
-use semaphore_aorta::ApiErrorResponse;
-use semaphore_aorta::PublicKey;
-use semaphore_aorta::RelayId;
-
-use actors::keys::GetPublicKeys;
+use actors::keys::GetPublicKey;
 use service::ServiceState;
 
 pub struct SignedJson<T> {
@@ -84,31 +73,26 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
         let relay_sig = extract_header!("X-Sentry-Relay-Signature").to_owned();
         let raw_body = req.body();
 
-        Box::new(
-            req.state()
-                .key_manager()
-                .send(GetPublicKeys {
-                    relay_ids: vec![relay_id.clone()],
+        let future = req
+            .state()
+            .key_manager()
+            .send(GetPublicKey { relay_id })
+            .map_err(Error::from)
+            .and_then(|result| result.map_err(Error::from))
+            .and_then(|result| {
+                result
+                    .public_key
+                    .ok_or(Error::from(SignatureError::UnknownRelay))
+            })
+            .and_then(|public_key| {
+                raw_body.map_err(Error::from).and_then(move |body| {
+                    public_key
+                        .unpack(&body, &relay_sig, None)
+                        .map(|inner| SignedJson { inner, public_key })
+                        .map_err(|_| Error::from(SignatureError::BadSignature))
                 })
-                .map_err(Error::from)
-                .and_then(|public_keys_response| public_keys_response.map_err(Error::from))
-                .and_then(move |mut public_keys| {
-                    public_keys
-                        .public_keys
-                        .remove(&relay_id)
-                        .expect("Relay ID not in response")
-                        .ok_or(SignatureError::UnknownRelay)
-                        .map_err(Error::from)
-                })
-                .and_then(move |public_key| {
-                    Box::new(raw_body.map_err(Error::from).and_then(move |body| {
-                        public_key
-                            .unpack(&body, &relay_sig, None)
-                            .map_err(|_| SignatureError::BadSignature)
-                            .map_err(Error::from)
-                            .map(|inner| SignedJson { inner, public_key })
-                    }))
-                }),
-        )
+            });
+
+        Box::new(future)
     }
 }
