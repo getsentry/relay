@@ -1,17 +1,13 @@
 use std::cell::Ref;
 use std::sync::Arc;
 
-use actix_web::dev::JsonBody;
-use actix_web::error::{Error, JsonPayloadError, PayloadError, ResponseError};
+use actix_web::error::{Error, ResponseError};
 use actix_web::{http::header, FromRequest, HttpMessage, HttpRequest, HttpResponse, State};
 use failure::Fail;
 use futures::{future, Future};
 use url::Url;
 
-use semaphore_aorta::{
-    ApiErrorResponse, EventMeta, EventVariant, ForeignEvent, ForeignPayload, ProjectState,
-    StoreChangeset,
-};
+use semaphore_aorta::{ApiErrorResponse, EventMeta, EventVariant, ProjectState, StoreChangeset};
 use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
 use body::{EncodedEvent, EncodedEventPayloadError};
@@ -28,12 +24,8 @@ pub enum BadProjectRequest {
     BadProject(#[cause] ProjectIdParseError),
     #[fail(display = "bad x-sentry-auth header")]
     BadAuth(#[cause] AuthParseError),
-    #[fail(display = "bad JSON payload")]
-    BadJson(#[cause] JsonPayloadError),
     #[fail(display = "bad event payload")]
     BadEvent(#[cause] EncodedEventPayloadError),
-    #[fail(display = "bad payload")]
-    BadPayload(#[cause] PayloadError),
     #[fail(display = "unsupported protocol version ({})", _0)]
     UnsupportedProtocolVersion(u16),
 }
@@ -258,78 +250,6 @@ impl FromRequest<ServiceState> for IncomingEvent {
             Box::new(future::err(
                 BadProjectRequest::UnsupportedProtocolVersion(auth.version()).into(),
             ))
-        }
-    }
-}
-
-/// Extracts a foreign event from the payload.
-pub struct IncomingForeignEvent(pub IncomingEvent);
-
-impl From<IncomingForeignEvent> for StoreChangeset {
-    fn from(inc: IncomingForeignEvent) -> StoreChangeset {
-        inc.0.into()
-    }
-}
-
-impl FromRequest<ServiceState> for IncomingForeignEvent {
-    type Config = ();
-    type Result = Box<Future<Item = Self, Error = Error>>;
-
-    #[inline]
-    fn from_request(req: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
-        let extensions = req.extensions();
-        let auth: &Auth = extensions.get().unwrap();
-        let max_payload = req.state().aorta_config().max_event_payload_size;
-
-        let meta = event_meta_from_req(req);
-        let store_type = req.match_info().get("store_type").unwrap().to_string();
-        let public_key = auth.public_key().to_string();
-        let headers = req
-            .headers()
-            .iter()
-            .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").into()))
-            .collect();
-
-        let is_json = match req.mime_type() {
-            Ok(Some(mime)) => mime.type_() == "application" && mime.subtype() == "json",
-            _ => false,
-        };
-
-        if is_json {
-            Box::new(
-                JsonBody::new(req)
-                    .limit(max_payload)
-                    .map_err(|e| BadProjectRequest::BadJson(e).into())
-                    .map(move |payload| {
-                        IncomingForeignEvent(IncomingEvent::new(
-                            EventVariant::Foreign(Box::new(ForeignEvent {
-                                store_type,
-                                headers,
-                                payload: ForeignPayload::Json(payload),
-                            })),
-                            meta,
-                            public_key,
-                        ))
-                    }),
-            )
-        } else {
-            Box::new(
-                req.clone()
-                    .body()
-                    .limit(max_payload)
-                    .map_err(|e| BadProjectRequest::BadPayload(e).into())
-                    .map(move |payload| {
-                        IncomingForeignEvent(IncomingEvent::new(
-                            EventVariant::Foreign(Box::new(ForeignEvent {
-                                store_type,
-                                headers,
-                                payload: ForeignPayload::Raw(payload.to_vec()),
-                            })),
-                            meta,
-                            public_key,
-                        ))
-                    }),
-            )
         }
     }
 }
