@@ -1,4 +1,5 @@
 pub mod forward;
 pub mod healthcheck;
-pub mod queries;
+pub mod project_configs;
+pub mod public_keys;
 pub mod store;
