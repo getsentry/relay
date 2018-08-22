@@ -71,7 +71,6 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
         });
 
         let relay_sig = extract_header!("X-Sentry-Relay-Signature").to_owned();
-        let raw_body = req.body();
 
         let future = req
             .state()
@@ -83,7 +82,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
                     .public_key
                     .ok_or(Error::from(SignatureError::UnknownRelay))
             })
-            .join(raw_body.map_err(Error::from))
+            .join(req.body().map_err(Error::from))
             .and_then(move |(public_key, body)| {
                 public_key
                     .unpack(&body, &relay_sig, None)
