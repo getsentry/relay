@@ -163,7 +163,7 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     dump_listen_infos(&server);
     info!("spawning relay server");
 
-    server.system_exit().start();
+    server.keep_alive(None).system_exit().start();
     let _ = sys.run();
 
     info!("relay shutdown complete");
