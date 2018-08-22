@@ -264,7 +264,7 @@ impl ProjectManager {
                                 .configs
                                 .remove(&id)
                                 .unwrap_or(None)
-                                .unwrap_or_else(|| ProjectStateSnapshot::missing());
+                                .unwrap_or_else(ProjectStateSnapshot::missing);
 
                             channel.send(state).ok();
                         }

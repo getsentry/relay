@@ -14,7 +14,7 @@ fn get_public_keys(
 
     Box::new(
         res.map_err(Error::from)
-            .and_then(|x| x.map_err(Error::from).map(|x| Json(x))),
+            .and_then(|x| x.map_err(Error::from).map(Json)),
     )
 }
 

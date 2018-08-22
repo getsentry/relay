@@ -10,7 +10,7 @@ fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
     let peer_addr = request
         .peer_addr()
         .map(|v| v.ip().to_string())
-        .unwrap_or_else(|| String::new());
+        .unwrap_or_else(String::new);
 
     let forwarded = request
         .headers()
