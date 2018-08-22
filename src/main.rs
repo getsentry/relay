@@ -30,6 +30,7 @@ mod cliapp;
 mod setup;
 mod utils;
 
+use sentry::Hub;
 use std::env;
 use std::process;
 use std::time::Duration;
@@ -70,6 +71,6 @@ pub fn main() {
         }
     };
 
-    sentry::drain_events(Some(Duration::from_secs(2)));
+    Hub::with(|hub| hub.drain_events(Some(Duration::from_secs(2))));
     process::exit(exit_code);
 }
