@@ -220,7 +220,7 @@ impl Handler<GetEventAction> for Project {
 
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
         self.get_or_fetch_state(context)
-            .map(|state| get_event_action(&state, &message.0))
+            .map(move |state| get_event_action(&state, &message.0))
     }
 }
 

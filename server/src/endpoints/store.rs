@@ -112,13 +112,15 @@ fn store_event(
     metric!(counter(&format!("event.protocol.v{}", auth.version())) += 1);
 
     let meta = meta_from_request(&request, &auth);
+    let config = request.state().aorta_config();
+    let event_processor = request.state().event_processor();
 
     let future = request
         .state()
         .project_manager()
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::InternalTimeout)
-        .and_then(|project| {
+        .and_then(move |project| {
             project
                 .send(GetEventAction(meta.clone()))
                 .map_err(BadStoreRequest::InternalTimeout)
@@ -129,15 +131,13 @@ fn store_event(
                         PublicKeyEventAction::Discard => Err(BadStoreRequest::StoreRejected),
                     },
                 )
-                .and_then(|_| {
+                .and_then(move |_| {
                     StoreBody::new(&request)
-                        .limit(request.state().aorta_config().max_event_payload_size)
+                        .limit(config.max_event_payload_size)
                         .map_err(BadStoreRequest::PayloadError)
                 })
-                .and_then(|data| {
-                    request
-                        .state()
-                        .event_processor()
+                .and_then(move |data| {
+                    event_processor
                         .send(StoreEvent {
                             meta,
                             data,
