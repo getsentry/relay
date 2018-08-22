@@ -23,7 +23,7 @@ fn healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error
             .send(IsAuthenticated)
             .map_err(|_| ())
             .and_then(move |is_authenticated| {
-                if state.trove_state().is_governed() && is_authenticated {
+                if is_authenticated {
                     Ok(HttpResponse::Ok().json(HealthcheckResponse { is_healthy: true }))
                 } else {
                     Err(()).into()

@@ -86,16 +86,12 @@ fn make_app(state: ServiceState) -> ServiceApp {
     app
 }
 
-/// Given a relay config spawns the server and lets it run until it stops.
+/// Given a relay config spawns the server together with all actors and lets them run forever.
 ///
-/// This not only spawning the server but also a governed trove in the
-/// background.  Effectively this boots the server.
+/// Effectively this boots the server.
 pub fn run(config: Config) -> Result<(), ServerError> {
     let config = Arc::new(config);
     let trove = Arc::new(Trove::new(config.make_aorta_config()));
-    trove
-        .govern()
-        .context(ServerErrorKind::TroveGovernSpawnFailed)?;
 
     let sys = actix::System::new("relay");
 
@@ -163,9 +159,6 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     server.system_exit().start();
     let _ = sys.run();
 
-    trove
-        .abdicate()
-        .context(ServerErrorKind::TroveGovernSpawnFailed)?;
     info!("relay shutdown complete");
 
     Ok(())
