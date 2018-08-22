@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
-use actix;
-use actix::Actor;
-use actix::Addr;
+use actix::{Actor, Addr, SyncArbiter, System};
 use actix_web::{server, App};
 use failure::ResultExt;
 use listenfd::ListenFd;
+use num_cpus;
 use sentry_actix::SentryMiddleware;
 
 use semaphore_aorta::AortaConfig;
@@ -95,7 +94,7 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     let config = Arc::new(config);
     let aorta_config = config.make_aorta_config();
 
-    let sys = actix::System::new("relay");
+    let sys = System::new("relay");
 
     let upstream_relay = UpstreamRelay::new(
         config.credentials().cloned(),
@@ -103,13 +102,17 @@ pub fn run(config: Config) -> Result<(), ServerError> {
         config.aorta_auth_retry_interval(),
     ).start();
 
+    // TODO: Make the number configurable via config file
+    let event_threads = num_cpus::get();
+
     let service_state = ServiceState {
         aorta_config,
+        upstream_relay: upstream_relay.clone(),
         key_manager: KeyManager::new(upstream_relay.clone()).start(),
         project_manager: ProjectManager::new(upstream_relay.clone()).start(),
-        // TODO(ja): Make this a SyncArbiter
-        event_processor: EventProcessor::new().start(),
-        upstream_relay,
+        event_processor: SyncArbiter::start(event_threads, move || {
+            EventProcessor::new(upstream_relay.clone())
+        }),
         config: config.clone(),
     };
 

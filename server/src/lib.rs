@@ -14,6 +14,7 @@ extern crate futures;
 extern crate listenfd;
 #[macro_use]
 extern crate log;
+extern crate num_cpus;
 #[cfg(feature = "with_ssl")]
 extern crate openssl;
 extern crate semaphore_aorta;

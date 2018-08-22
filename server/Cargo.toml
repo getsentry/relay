@@ -27,6 +27,7 @@ futures = "0.1.23"
 lazy_static = "1.0.2"
 listenfd = "0.3.3"
 log = "0.4.4"
+num_cpus = "1.8.0"
 openssl = { version = "0.10.11", optional = true }
 regex = "1.0.2"
 sentry = "0.7.0"
