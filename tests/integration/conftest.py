@@ -67,7 +67,7 @@ class Relay(SentryLike):
         self.process = process
 
     def _wait(self, url):
-        backoff = 0.5
+        backoff = 0.1
         while True:
             time.sleep(backoff)
             try:
