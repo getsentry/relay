@@ -8,6 +8,7 @@ from flask import request, Response
 
 def test_forwarding(relay, mini_sentry):
     should_compress_response = False
+    assert_data = None
 
     @mini_sentry.app.route("/test/reflect", methods=["POST"])
     def test():
@@ -15,10 +16,15 @@ def test_forwarding(relay, mini_sentry):
         if request.headers.get("Content-Encoding", "") == "gzip":
             data = gzip.decompress(data)
 
-        if not should_compress_response:
-            return data
+        assert data == assert_data
 
-        return Response(gzip.compress(data), headers={"Content-Encoding": "gzip"})
+        headers = {}
+
+        if should_compress_response:
+            data = gzip.compress(data)
+            headers["Content-Encoding"] = "gzip"
+
+        return Response(data, headers=headers)
 
     r1 = relay(mini_sentry)
     r1.wait_authenticated()
@@ -28,12 +34,12 @@ def test_forwarding(relay, mini_sentry):
     )
     def test_fuzzing(data, compress_request, compress_response):
         data = data.encode("utf-8")
-        headers = {
-            "Content-Type": "application/octet-stream",
-            "Content-Length": str(len(data)),
-        }
+        headers = {"Content-Type": "application/octet-stream"}
         nonlocal should_compress_response
         should_compress_response = compress_response
+
+        nonlocal assert_data
+        assert_data = data
 
         if compress_request:
             payload = gzip.compress(data)
