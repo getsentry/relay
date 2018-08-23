@@ -4,30 +4,12 @@ use std::collections::HashMap;
 use std::mem;
 use std::time::{Duration, Instant};
 
-use actix::fut::wrap_future;
-use actix::Actor;
-use actix::ActorFuture;
-use actix::Addr;
-use actix::AsyncContext;
-use actix::Context;
-use actix::Handler;
-use actix::Message;
+use actix::prelude::*;
+use actix_web::{http::Method, HttpResponse, ResponseError};
+use futures::{future, future::Shared, sync::oneshot, Future};
+use semaphore_aorta::{ApiErrorResponse, PublicKey, RelayId};
 
-use actix_web::http::Method;
-use actix_web::HttpResponse;
-use actix_web::ResponseError;
-
-use futures::future::Shared;
-use futures::sync::oneshot;
-use futures::{future, Future};
-
-use semaphore_aorta::ApiErrorResponse;
-use semaphore_aorta::PublicKey;
-use semaphore_aorta::RelayId;
-
-use actors::upstream::SendQuery;
-use actors::upstream::UpstreamQuery;
-use actors::upstream::UpstreamRelay;
+use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use constants::{BATCH_TIMEOUT, MISSING_PUBLIC_KEY_EXPIRY, PUBLIC_KEY_EXPIRY};
 use utils::Response;
 
@@ -136,7 +118,9 @@ impl KeyManager {
             relay_ids: channels.keys().cloned().collect(),
         };
 
-        let future = wrap_future::<_, Self>(self.upstream.send(SendQuery(request)))
+        self.upstream
+            .send(SendQuery(request))
+            .into_actor(self)
             .map_err(|_, _, _| KeyError)
             .and_then(|response, actor, _| {
                 match response {
@@ -156,10 +140,10 @@ impl KeyManager {
                     }
                 }
 
-                wrap_future(future::ok(()))
-            });
-
-        context.spawn(future.drop_err());
+                future::ok(()).into_actor(actor)
+            })
+            .drop_err()
+            .spawn(context);
     }
 
     fn get_or_fetch_key(

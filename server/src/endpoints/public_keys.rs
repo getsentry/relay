@@ -1,5 +1,5 @@
 use actix_web::{http::Method, Error, Json};
-use futures::Future;
+use futures::prelude::*;
 
 use actors::keys::{GetPublicKeys, GetPublicKeysResult};
 use extractors::CurrentServiceState;

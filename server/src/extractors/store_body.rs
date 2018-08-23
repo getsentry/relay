@@ -6,7 +6,7 @@ use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
 use base64::{self, DecodeError};
 use bytes::{Bytes, BytesMut};
 use flate2::read::ZlibDecoder;
-use futures::{Future, Poll, Stream};
+use futures::prelude::*;
 
 /// A set of errors that can occur during parsing json payloads
 #[derive(Fail, Debug)]

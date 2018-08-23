@@ -1,7 +1,7 @@
 use std::net::IpAddr;
 use std::sync::Arc;
 
-use actix::{Actor, Addr, Handler, Message, SyncContext};
+use actix::prelude::*;
 use bytes::Bytes;
 use url::Url;
 use uuid::Uuid;

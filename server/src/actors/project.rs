@@ -4,16 +4,10 @@ use std::mem;
 use std::sync::Arc;
 use std::time::Duration;
 
-use actix::fut::wrap_future;
-use actix::{
-    Actor, ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner, Handler, Message,
-    WrapFuture,
-};
-use actix_web::http::Method;
-use actix_web::ResponseError;
+use actix::prelude::*;
+use actix_web::{http::Method, ResponseError};
 use bytes::Bytes;
-use futures::future::{self, Future, Shared};
-use futures::sync::oneshot;
+use futures::{future, future::Shared, sync::oneshot, Future};
 use url::Url;
 
 use semaphore_aorta::{ProjectStateSnapshot, PublicKeyEventAction, PublicKeyStatus};
@@ -142,18 +136,19 @@ impl Project {
     ) -> Shared<oneshot::Receiver<Option<Arc<ProjectStateSnapshot>>>> {
         let (sender, receiver) = oneshot::channel();
 
-        let request = self.manager.send(FetchProjectState { id: self.id });
-        let future = wrap_future::<_, Self>(request)
+        self.manager
+            .send(FetchProjectState { id: self.id })
+            .into_actor(self)
             .and_then(move |state_result, actor, _context| {
                 actor.state_channel = None;
                 actor.state = state_result.map(Arc::new).ok();
 
                 sender.send(actor.state.clone()).ok();
-                wrap_future(future::ok(()))
+                future::ok(()).into_actor(actor)
             })
-            .drop_err();
+            .drop_err()
+            .spawn(context);
 
-        context.spawn(future);
         receiver.shared()
     }
 }
@@ -243,8 +238,7 @@ impl ProjectManager {
             projects: channels.keys().cloned().collect(),
         };
 
-        let future = self
-            .upstream
+        self.upstream
             .send(SendQuery(request))
             .map_err(|_| ProjectError::UpstreamFailed)
             .and_then(|response| {
@@ -269,9 +263,10 @@ impl ProjectManager {
                 }
 
                 Ok(())
-            });
-
-        context.spawn(wrap_future(future).drop_err());
+            })
+            .into_actor(self)
+            .drop_err()
+            .spawn(context);
     }
 }
 
