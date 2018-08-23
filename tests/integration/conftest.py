@@ -11,7 +11,7 @@ from pytest_localserver.http import WSGIServer
 
 from flask import Flask, request as flask_request, jsonify
 
-SEMAPHORE_BIN = [os.environ.get("SEMAPHORE_BIN") or 'target/debug/semaphore']
+SEMAPHORE_BIN = [os.environ.get("SEMAPHORE_BIN") or "target/debug/semaphore"]
 
 if os.environ.get("SEMAPHORE_AS_CARGO", "false") == "true":
     SEMAPHORE_BIN = ["cargo", "run", "--"]
@@ -20,6 +20,7 @@ if os.environ.get("SEMAPHORE_AS_CARGO", "false") == "true":
 @pytest.fixture
 def mini_sentry(request):
     app = Flask(__name__)
+    app.debug = True
     sentry = None
 
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
@@ -76,7 +77,8 @@ class Relay(SentryLike):
                 backoff *= 2
 
     def wait_authenticated(self):
-        self._wait(self.url + '/api/relay/healthcheck/')
+        self._wait(self.url + "/api/relay/healthcheck/")
+
 
 @pytest.fixture
 def relay(tmpdir, mini_sentry, request):
@@ -89,7 +91,7 @@ def relay(tmpdir, mini_sentry, request):
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(('127.0.0.1', 0))
+        s.bind(("127.0.0.1", 0))
         s.listen(1)
         port = s.getsockname()[1]
         s.close()
@@ -120,7 +122,9 @@ def relay(tmpdir, mini_sentry, request):
             )
         )
 
-        subprocess.check_call(SEMAPHORE_BIN + ["-c", str(config_dir), "credentials", "generate"])
+        subprocess.check_call(
+            SEMAPHORE_BIN + ["-c", str(config_dir), "credentials", "generate"]
+        )
         process = subprocess.Popen(SEMAPHORE_BIN + ["-c", str(config_dir), "run"])
         request.addfinalizer(process.kill)
 
