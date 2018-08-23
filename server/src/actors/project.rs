@@ -17,7 +17,7 @@ use url::Url;
 use semaphore_aorta::{ProjectStateSnapshot, PublicKeyEventAction, PublicKeyStatus};
 use semaphore_common::ProjectId;
 
-use actors::upstream::{SendRequest, SendRequestError, UpstreamRelay, UpstreamRequest};
+use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
 use constants::BATCH_TIMEOUT;
 use utils::Response;
 
@@ -28,7 +28,7 @@ pub enum ProjectError {
     #[fail(display = "failed to fetch project state")]
     FetchFailed,
     #[fail(display = "failed to fetch projects from upstream")]
-    UpstreamFailed(#[fail(cause)] SendRequestError),
+    UpstreamFailed(#[fail(cause)] UpstreamRequestError),
 }
 
 impl ResponseError for ProjectError {}
@@ -197,7 +197,7 @@ pub struct GetProjectStatesResponse {
     pub configs: HashMap<ProjectId, Option<ProjectStateSnapshot>>,
 }
 
-impl UpstreamRequest for GetProjectStates {
+impl UpstreamQuery for GetProjectStates {
     type Response = GetProjectStatesResponse;
 
     fn method(&self) -> Method {
@@ -254,7 +254,7 @@ impl ProjectManager {
 
         let future = self
             .upstream
-            .send(SendRequest(request))
+            .send(SendQuery(request))
             .map_err(|_| ProjectError::UpstreamFailed)
             .and_then(|response| {
                 match response {
