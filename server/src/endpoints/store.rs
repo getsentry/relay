@@ -198,6 +198,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
             "x-sentry-auth",
             "x-requested-with",
             "origin",
+            "referer",
             "accept",
             "content-type",
             "authentication",
