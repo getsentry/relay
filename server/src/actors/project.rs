@@ -204,7 +204,7 @@ impl UpstreamQuery for GetProjectStates {
         Method::POST
     }
 
-    fn path(&self) -> Cow<str> {
+    fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/projectconfigs/")
     }
 }
