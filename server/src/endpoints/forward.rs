@@ -3,6 +3,7 @@ use actix_web::client::ClientRequest;
 use actix_web::{AsyncResponder, Body, Error, HttpMessage, HttpRequest, HttpResponse};
 
 use actix_web::http::header;
+use actix_web::http::ContentEncoding;
 use actix_web::http::header::HeaderName;
 
 use futures::{Future, Stream};
@@ -61,7 +62,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
     let forwarded_request = tryf!(
         forwarded_request
             .no_default_headers()
-            .disable_decompress()
+            .disable_decompress() // Don't attempt to decompress body... we're just going to forward gzipped data as-is, including headers
             .method(request.method().clone())
             .uri(upstream.get_url(path_and_query))
             .set_header("Host", upstream.host())
@@ -79,6 +80,10 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         .map_err(Error::from)
         .and_then(move |response| {
             let mut forwarded_response = HttpResponse::build(response.status());
+            // Don't attempt to compress body... we're just going to forward gzipped data as-is,
+            // including headers If you remove this line while having
+            // ClientRequestBuilder.disable_decompress() active, the body will get gzipped twice
+            forwarded_response.content_encoding(ContentEncoding::Identity);
 
             for (key, value) in response.headers() {
                 if HOP_BY_HOP_HEADERS.contains(key) {

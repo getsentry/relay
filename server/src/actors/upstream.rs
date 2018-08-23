@@ -48,10 +48,10 @@ pub enum UpstreamRequestError {
     #[fail(display = "could not schedule request to upstream")]
     ScheduleFailed(#[cause] MailboxError),
 
-    #[fail(display = "could not parse json payload returned by upstream")]
+    #[fail(display = "could not parse json payload returned by upstream: {}", _0)]
     InvalidJson(#[cause] JsonPayloadError),
 
-    #[fail(display = "could not send request to upstream")]
+    #[fail(display = "could not send request to upstream: {}", _0)]
     SendFailed(#[cause] SendRequestError),
 
     #[fail(display = "failed to create upstream request: {}", _0)]
