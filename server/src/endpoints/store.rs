@@ -24,7 +24,7 @@ enum BadStoreRequest {
     BadAuth(#[cause] AuthParseError),
     #[fail(display = "unsupported protocol version ({})", _0)]
     UnsupportedProtocolVersion(u16),
-    #[fail(display = "internal error: failed to process request")]
+    #[fail(display = "timeout while processing request")]
     InternalTimeout(#[cause] MailboxError),
     #[fail(display = "failed to fetch project information")]
     ProjectFailed,

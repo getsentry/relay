@@ -25,9 +25,9 @@ use semaphore_aorta::ApiErrorResponse;
 use semaphore_aorta::PublicKey;
 use semaphore_aorta::RelayId;
 
-use actors::upstream::SendRequest;
+use actors::upstream::SendQuery;
+use actors::upstream::UpstreamQuery;
 use actors::upstream::UpstreamRelay;
-use actors::upstream::UpstreamRequest;
 use constants::{BATCH_TIMEOUT, MISSING_PUBLIC_KEY_EXPIRY, PUBLIC_KEY_EXPIRY};
 use utils::Response;
 
@@ -136,7 +136,7 @@ impl KeyManager {
             relay_ids: channels.keys().cloned().collect(),
         };
 
-        let future = wrap_future::<_, Self>(self.upstream.send(SendRequest(request)))
+        let future = wrap_future::<_, Self>(self.upstream.send(SendQuery(request)))
             .map_err(|_, _, _| KeyError)
             .and_then(|response, actor, _| {
                 match response {
@@ -236,7 +236,7 @@ impl Message for GetPublicKeys {
     type Result = Result<GetPublicKeysResult, KeyError>;
 }
 
-impl UpstreamRequest for GetPublicKeys {
+impl UpstreamQuery for GetPublicKeys {
     type Response = GetPublicKeysResult;
 
     fn method(&self) -> Method {
