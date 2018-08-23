@@ -113,6 +113,8 @@ impl Project {
             return Response::ok(state.clone());
         }
 
+        debug!("project {} state requested", self.id);
+
         let channel = match self.state_channel {
             Some(ref channel) => channel.clone(),
             None => {
@@ -135,13 +137,18 @@ impl Project {
         context: &mut Context<Self>,
     ) -> Shared<oneshot::Receiver<Option<Arc<ProjectStateSnapshot>>>> {
         let (sender, receiver) = oneshot::channel();
+        let id = self.id;
 
         self.manager
-            .send(FetchProjectState { id: self.id })
+            .send(FetchProjectState { id })
             .into_actor(self)
             .and_then(move |state_result, actor, _context| {
                 actor.state_channel = None;
                 actor.state = state_result.map(Arc::new).ok();
+
+                if actor.state.is_some() {
+                    debug!("project {} state updated", id);
+                }
 
                 sender.send(actor.state.clone()).ok();
                 future::ok(()).into_actor(actor)
@@ -155,6 +162,14 @@ impl Project {
 
 impl Actor for Project {
     type Context = Context<Self>;
+
+    fn started(&mut self, _ctx: &mut Self::Context) {
+        debug!("project {} initialized without state", self.id);
+    }
+
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        debug!("project {} removed from cache", self.id);
+    }
 }
 
 pub struct GetProjectState;
@@ -248,6 +263,7 @@ impl ProjectManager {
 
     pub fn fetch_states(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.state_channels, HashMap::new());
+        debug!("updating project states for {} projects", channels.len());
 
         let request = GetProjectStates {
             projects: channels.keys().cloned().collect(),
@@ -288,12 +304,12 @@ impl ProjectManager {
 impl Actor for ProjectManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, _ctx: &mut Context<Self>) {
-        info!("Project manager started");
+    fn started(&mut self, _ctx: &mut Self::Context) {
+        info!("project manager started");
     }
 
-    fn stopped(&mut self, _ctx: &mut Context<Self>) {
-        println!("Project manager stopped");
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        info!("project manager stopped");
     }
 }
 
@@ -333,7 +349,7 @@ impl Handler<FetchProjectState> for ProjectManager {
 
         let (sender, receiver) = oneshot::channel();
         if self.state_channels.insert(message.id, sender).is_some() {
-            error!("invariant violation: project state fetched twice for same project");
+            error!("project {} state fetched multiple times", message.id);
         }
 
         Response::async(receiver.map_err(|_| ()))

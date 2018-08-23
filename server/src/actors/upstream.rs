@@ -197,13 +197,13 @@ impl UpstreamRelay {
 impl Actor for UpstreamRelay {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut Context<Self>) {
+    fn started(&mut self, ctx: &mut Self::Context) {
         info!("Upstream relay started");
         ctx.spawn(self.authenticate());
     }
 
-    fn stopped(&mut self, _ctx: &mut Context<Self>) {
-        println!("Upstream relay stopped");
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        info!("Upstream relay stopped");
     }
 }
 
@@ -323,7 +323,7 @@ where
 {
     type Result = ResponseFuture<T, E>;
 
-    fn handle(&mut self, message: SendRequest<B, R>, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, message: SendRequest<B, R>, _ctx: &mut Self::Context) -> Self::Result {
         let SendRequest {
             method,
             path,
@@ -356,7 +356,7 @@ impl<T: UpstreamQuery> Message for SendQuery<T> {
 impl<T: UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelay {
     type Result = ResponseFuture<T::Response, UpstreamRequestError>;
 
-    fn handle(&mut self, message: SendQuery<T>, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, message: SendQuery<T>, _ctx: &mut Self::Context) -> Self::Result {
         tryf!(self.assert_authenticated());
         self.send_query(message.0)
     }
@@ -393,7 +393,7 @@ impl Message for IsAuthenticated {
 impl Handler<IsAuthenticated> for UpstreamRelay {
     type Result = bool;
 
-    fn handle(&mut self, _msg: IsAuthenticated, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, _msg: IsAuthenticated, _ctx: &mut Self::Context) -> Self::Result {
         self.auth_state.is_authenticated()
     }
 }

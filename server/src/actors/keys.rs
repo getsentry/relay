@@ -113,6 +113,7 @@ impl KeyManager {
 
     fn fetch_keys(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.key_channels, HashMap::new());
+        debug!("updating public keys for {} relays", channels.len());
 
         let request = GetPublicKeys {
             relay_ids: channels.keys().cloned().collect(),
@@ -128,6 +129,7 @@ impl KeyManager {
                         for (id, channel) in channels {
                             let key = response.public_keys.remove(&id).unwrap_or(None);
                             actor.keys.insert(id, KeyState::from_option(key.clone()));
+                            debug!("relay {} public key updated", id);
                             channel.send(key).ok();
                         }
                     }
@@ -157,6 +159,7 @@ impl KeyManager {
             }
         }
 
+        debug!("relay {} public key requested", relay_id);
         self.schedule_fetch(context);
 
         let receiver = self
@@ -174,12 +177,12 @@ impl KeyManager {
 impl Actor for KeyManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, _ctx: &mut Context<Self>) {
-        info!("Key manager started");
+    fn started(&mut self, _ctx: &mut Self::Context) {
+        info!("key manager started");
     }
 
-    fn stopped(&mut self, _ctx: &mut Context<Self>) {
-        println!("Key manager stopped");
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        info!("key manager stopped");
     }
 }
 
@@ -200,7 +203,7 @@ impl Message for GetPublicKey {
 impl Handler<GetPublicKey> for KeyManager {
     type Result = Response<GetPublicKeyResult, KeyError>;
 
-    fn handle(&mut self, message: GetPublicKey, context: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, message: GetPublicKey, context: &mut Self::Context) -> Self::Result {
         self.get_or_fetch_key(message.relay_id, context)
             .map(|(_id, public_key)| GetPublicKeyResult { public_key })
     }
@@ -235,7 +238,7 @@ impl UpstreamQuery for GetPublicKeys {
 impl Handler<GetPublicKeys> for KeyManager {
     type Result = Response<GetPublicKeysResult, KeyError>;
 
-    fn handle(&mut self, message: GetPublicKeys, context: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, message: GetPublicKeys, context: &mut Self::Context) -> Self::Result {
         let mut public_keys = HashMap::new();
         let mut key_futures = Vec::new();
 
