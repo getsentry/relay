@@ -53,7 +53,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
 
     let mut forwarded_request = ClientRequest::build();
     for (key, value) in request.headers() {
-        if HOP_BY_HOP_HEADERS.contains(key) {
+        if HOP_BY_HOP_HEADERS.contains(key) || key == header::CONTENT_ENCODING {
             continue;
         }
         forwarded_request.header(key.clone(), value.clone());
