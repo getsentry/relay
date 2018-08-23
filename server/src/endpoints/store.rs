@@ -192,19 +192,20 @@ fn store_event(
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    Cors::for_app(app)
-        .allowed_methods(vec!["POST"])
-        .allowed_headers(vec![
-            "x-sentry-auth",
-            "x-requested-with",
-            "origin",
-            "accept",
-            "content-type",
-            "authentication",
-        ])
-        .max_age(3600)
-        .resource(r"/api/{project:\d+}/store/", |r| {
-            r.method(Method::POST).with(store_event);
-        })
-        .register()
+    return app;
+    //Cors::for_app(app)
+        //.allowed_methods(vec!["POST"])
+        //.allowed_headers(vec![
+            //"x-sentry-auth",
+            //"x-requested-with",
+            //"origin",
+            //"accept",
+            //"content-type",
+            //"authentication",
+        //])
+        //.max_age(3600)
+        //.resource(r"/api/{project:\d+}/store/", |r| {
+            //r.method(Method::POST).with(store_event);
+        //})
+        //.register()
 }
