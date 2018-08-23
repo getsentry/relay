@@ -37,7 +37,12 @@ fn healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource("/api/relay/healthcheck/", |r| {
-        r.method(Method::GET).with(healthcheck);
+    app.scope("/api/relay", |scope| {
+        scope
+            .resource("/healthcheck/", |r| {
+                r.method(Method::GET).with(healthcheck);
+            })
+            // never forward /api/relay, as that prefix is used for stuff like healthchecks
+            .default_resource(|r| r.f(|_| HttpResponse::NotFound()))
     })
 }
