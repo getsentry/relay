@@ -116,14 +116,11 @@ impl UpstreamRelay {
         };
 
         info!("registering with upstream (upstream = {})", self.upstream);
-
         self.auth_state = AuthState::RegisterRequestChallenge;
 
-        Box::new(
-            wrap_future::<_, Self>(self.do_send_query(RegisterRequest::new(
-                &credentials.id,
-                &credentials.public_key,
-            ))).and_then(|challenge, actor, _ctx| {
+        let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
+        let future = wrap_future::<_, Self>(self.do_send_query(request))
+            .and_then(|challenge, actor, _ctx| {
                 info!("got register challenge (token = {})", challenge.token());
                 actor.auth_state = AuthState::RegisterChallengeResponse;
                 let challenge_response = challenge.create_response();
@@ -131,25 +128,26 @@ impl UpstreamRelay {
                 info!("sending register challenge response");
                 wrap_future(actor.do_send_query(challenge_response))
             })
-                .map(|_registration, actor, _ctx| {
-                    info!("relay successfully registered with upstream");
-                    actor.auth_state = AuthState::Registered;
-                    ()
-                })
-                .map_err(|err, actor, ctx| {
-                    // XXX: do not schedule retries for fatal errors
-                    error!("authentication encountered error: {}", &err);
-                    info!(
-                        "scheduling authentication retry in {} seconds",
-                        actor.auth_retry_interval.num_seconds()
-                    );
-                    actor.auth_state = AuthState::Error;
-                    ctx.run_later(actor.auth_retry_interval.to_std().unwrap(), |actor, ctx| {
-                        ctx.spawn(actor.authenticate());
-                    });
-                    ()
-                }),
-        )
+            .map(|_registration, actor, _ctx| {
+                info!("relay successfully registered with upstream");
+                actor.auth_state = AuthState::Registered;
+                ()
+            })
+            .map_err(|err, actor, ctx| {
+                // XXX: do not schedule retries for fatal errors
+                error!("authentication encountered error: {}", &err);
+                info!(
+                    "scheduling authentication retry in {} seconds",
+                    actor.auth_retry_interval.num_seconds()
+                );
+                actor.auth_state = AuthState::Error;
+                ctx.run_later(actor.auth_retry_interval.to_std().unwrap(), |actor, ctx| {
+                    ctx.spawn(actor.authenticate());
+                });
+                ()
+            });
+
+        Box::new(future)
     }
 
     fn do_send_query<T: UpstreamQuery>(&self, query: T) -> <Self as Handler<SendQuery<T>>>::Result {
