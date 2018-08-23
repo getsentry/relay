@@ -227,6 +227,138 @@ impl Actor for UpstreamRelay {
     }
 }
 
+pub trait RequestBuilder: 'static {
+    fn build_request(self, &mut ClientRequestBuilder) -> Result<ClientRequest, actix_web::Error>;
+}
+
+pub trait ResponseTransformer: 'static {
+    type Result: 'static;
+
+    fn transform_response(self, ClientResponse) -> Self::Result;
+}
+
+impl RequestBuilder for () {
+    fn build_request(
+        self,
+        builder: &mut ClientRequestBuilder,
+    ) -> Result<ClientRequest, actix_web::Error> {
+        builder.finish()
+    }
+}
+
+impl<F> RequestBuilder for F
+where
+    F: FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, actix_web::Error> + 'static,
+{
+    fn build_request(
+        self,
+        builder: &mut ClientRequestBuilder,
+    ) -> Result<ClientRequest, actix_web::Error> {
+        self(builder)
+    }
+}
+
+impl ResponseTransformer for () {
+    type Result = Result<(), UpstreamRequestError>;
+
+    fn transform_response(self, _: ClientResponse) -> Self::Result {
+        Ok(())
+    }
+}
+
+impl<F, T: 'static> ResponseTransformer for F
+where
+    F: FnOnce(ClientResponse) -> T + 'static,
+{
+    type Result = T;
+
+    fn transform_response(self, response: ClientResponse) -> Self::Result {
+        self(response)
+    }
+}
+
+pub struct SendRequest<B = (), T = ()> {
+    method: Method,
+    path: String,
+    builder: B,
+    transformer: T,
+}
+
+impl SendRequest {
+    pub fn new<S: Into<String>>(method: Method, path: S) -> Self {
+        SendRequest {
+            method,
+            path: path.into(),
+            builder: Default::default(),
+            transformer: Default::default(),
+        }
+    }
+
+    pub fn post<S: Into<String>>(path: S) -> Self {
+        Self::new(Method::POST, path)
+    }
+}
+
+impl<B, T> SendRequest<B, T> {
+    pub fn build<F>(self, callback: F) -> SendRequest<F, T>
+    where
+        F: FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, actix_web::Error> + 'static,
+    {
+        SendRequest {
+            method: self.method,
+            path: self.path,
+            builder: callback,
+            transformer: self.transformer,
+        }
+    }
+
+    pub fn respond<F>(self, callback: F) -> SendRequest<B, F>
+    where
+        F: FnOnce(ClientResponse) -> T + 'static,
+    {
+        SendRequest {
+            method: self.method,
+            path: self.path,
+            builder: self.builder,
+            transformer: callback,
+        }
+    }
+}
+
+impl<B, R, T: 'static, E: 'static> Message for SendRequest<B, R>
+where
+    R: ResponseTransformer,
+    R::Result: IntoFuture<Item = T, Error = E>,
+{
+    type Result = Result<T, E>;
+}
+
+impl<B, R, T: 'static, E: 'static> Handler<SendRequest<B, R>> for UpstreamRelay
+where
+    B: RequestBuilder,
+    R: ResponseTransformer,
+    R::Result: IntoFuture<Item = T, Error = E>,
+    T: Send,
+    E: From<UpstreamRequestError> + Send,
+{
+    type Result = ResponseFuture<T, E>;
+
+    fn handle(&mut self, message: SendRequest<B, R>, _ctx: &mut Context<Self>) -> Self::Result {
+        let SendRequest {
+            method,
+            path,
+            builder,
+            transformer,
+        } = message;
+
+        Box::new(
+            self.send_request(method, path, |b| builder.build_request(b))
+                .from_err()
+                .and_then(|r| transformer.transform_response(r)),
+        )
+    }
+}
+
 pub trait UpstreamQuery: Serialize {
     type Response: DeserializeOwned + 'static + Send;
 
