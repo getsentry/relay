@@ -37,6 +37,7 @@ build_script:
 
 test_script:
   - cargo test --all --release
+  - C:\MinGW\bin\mingw32-make test-process-event CARGO_ARGS="--release"
 
 on_success:
   - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%.exe .\target\release\semaphore.exe
