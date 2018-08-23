@@ -2,41 +2,18 @@
 use std::borrow::Cow;
 use std::str;
 
-use actix::fut::wrap_future;
-use actix::Actor;
-use actix::ActorFuture;
-use actix::AsyncContext;
-use actix::Context;
-use actix::Handler;
-use actix::MailboxError;
-use actix::Message;
-use actix::ResponseActFuture;
-use actix::ResponseFuture;
-
-use actix_web;
-use actix_web::client::ClientRequest;
-use actix_web::client::ClientRequestBuilder;
-use actix_web::client::ClientResponse;
-use actix_web::client::SendRequestError;
-use actix_web::error::JsonPayloadError;
-use actix_web::http::header;
-use actix_web::http::Method;
-use actix_web::http::StatusCode;
-use actix_web::HttpMessage;
-
+use actix::prelude::*;
+use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse, SendRequestError};
+use actix_web::http::{header, Method, StatusCode};
+use actix_web::{error::JsonPayloadError, Error as ActixError, HttpMessage};
 use chrono::Duration;
-
+use futures::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
-use futures::Future;
-use futures::IntoFuture;
-
-use semaphore_aorta::RegisterChallenge;
-use semaphore_aorta::RegisterRequest;
-use semaphore_aorta::RegisterResponse;
-use semaphore_aorta::Registration;
-use semaphore_aorta::UpstreamDescriptor;
+use semaphore_aorta::{
+    RegisterChallenge, RegisterRequest, RegisterResponse, Registration, UpstreamDescriptor,
+};
 use semaphore_config::Credentials;
 
 #[derive(Fail, Debug)]
@@ -57,7 +34,7 @@ pub enum UpstreamRequestError {
     SendFailed(#[cause] SendRequestError),
 
     #[fail(display = "failed to create upstream request: {}", _0)]
-    BuildFailed(actix_web::Error),
+    BuildFailed(ActixError),
 
     #[fail(display = "upstream request returned error {}", _0)]
     ResponseError(StatusCode),
@@ -117,7 +94,7 @@ impl UpstreamRelay {
             Some(ref x) => x,
             None => {
                 warn!("No credentials configured, not authenticating.");
-                return Box::new(wrap_future(Ok(()).into_future()));
+                return Box::new(Ok(()).into_future().into_actor(self));
             }
         };
 
@@ -125,14 +102,17 @@ impl UpstreamRelay {
         self.auth_state = AuthState::RegisterRequestChallenge;
 
         let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
-        let future = wrap_future::<_, Self>(self.send_query(request))
+
+        let future = self
+            .send_query(request)
+            .into_actor(self)
             .and_then(|challenge, actor, _ctx| {
                 info!("got register challenge (token = {})", challenge.token());
                 actor.auth_state = AuthState::RegisterChallengeResponse;
                 let challenge_response = challenge.create_response();
 
                 info!("sending register challenge response");
-                wrap_future(actor.send_query(challenge_response))
+                actor.send_query(challenge_response).into_actor(actor)
             })
             .map(|_registration, actor, _ctx| {
                 info!("relay successfully registered with upstream");
@@ -163,7 +143,7 @@ impl UpstreamRelay {
         build: F,
     ) -> ResponseFuture<ClientResponse, UpstreamRequestError>
     where
-        F: FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, actix_web::Error>,
+        F: FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>,
         P: AsRef<str>,
     {
         let mut builder = ClientRequest::build();
@@ -228,7 +208,7 @@ impl Actor for UpstreamRelay {
 }
 
 pub trait RequestBuilder: 'static {
-    fn build_request(self, &mut ClientRequestBuilder) -> Result<ClientRequest, actix_web::Error>;
+    fn build_request(self, &mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>;
 }
 
 pub trait ResponseTransformer: 'static {
@@ -241,19 +221,19 @@ impl RequestBuilder for () {
     fn build_request(
         self,
         builder: &mut ClientRequestBuilder,
-    ) -> Result<ClientRequest, actix_web::Error> {
+    ) -> Result<ClientRequest, ActixError> {
         builder.finish()
     }
 }
 
 impl<F> RequestBuilder for F
 where
-    F: FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, actix_web::Error> + 'static,
+    F: FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError> + 'static,
 {
     fn build_request(
         self,
         builder: &mut ClientRequestBuilder,
-    ) -> Result<ClientRequest, actix_web::Error> {
+    ) -> Result<ClientRequest, ActixError> {
         self(builder)
     }
 }
@@ -302,7 +282,7 @@ impl SendRequest {
 impl<B, T> SendRequest<B, T> {
     pub fn build<F>(self, callback: F) -> SendRequest<F, T>
     where
-        F: FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, actix_web::Error> + 'static,
+        F: FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError> + 'static,
     {
         SendRequest {
             method: self.method,

@@ -1,6 +1,6 @@
 use actix::dev::{MessageResponse, ResponseChannel};
-use actix::{Actor, Arbiter, AsyncContext, Message};
-use futures::{Future, IntoFuture};
+use actix::prelude::*;
+use futures::prelude::*;
 
 pub enum Response<T, E> {
     Reply(Result<T, E>),

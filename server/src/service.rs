@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use actix::{Actor, Addr, SyncArbiter, System};
+use actix::prelude::*;
 use actix_web::{server, App};
 use failure::ResultExt;
 use listenfd::ListenFd;

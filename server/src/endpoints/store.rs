@@ -2,11 +2,11 @@
 
 use std::sync::Arc;
 
-use actix::{MailboxError, ResponseFuture};
+use actix::prelude::*;
 use actix_web::http::{header, Method};
 use actix_web::middleware::cors::Cors;
 use actix_web::{HttpRequest, HttpResponse, Json, ResponseError};
-use futures::Future;
+use futures::prelude::*;
 use sentry::{self, Hub};
 use sentry_actix::ActixWebHubExt;
 use url::Url;

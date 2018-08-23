@@ -1,12 +1,8 @@
-use actix::ResponseFuture;
+use actix::prelude::*;
 use actix_web::client::ClientRequest;
+use actix_web::http::{header, header::HeaderName, ContentEncoding};
 use actix_web::{AsyncResponder, Body, Error, HttpMessage, HttpRequest, HttpResponse};
-
-use actix_web::http::header;
-use actix_web::http::header::HeaderName;
-use actix_web::http::ContentEncoding;
-
-use futures::{Future, Stream};
+use futures::prelude::*;
 
 use service::{ServiceApp, ServiceState};
 

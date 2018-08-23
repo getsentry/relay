@@ -1,9 +1,7 @@
 //! A simple healthcheck endpoint for the relay.
-use actix::ResponseFuture;
-
+use actix::prelude::*;
 use actix_web::{http::Method, Error, HttpResponse};
-
-use futures::Future;
+use futures::prelude::*;
 
 use extractors::CurrentServiceState;
 use service::ServiceApp;

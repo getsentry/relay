@@ -1,6 +1,6 @@
-use actix::ResponseFuture;
+use actix::prelude::*;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
-use futures::Future;
+use futures::prelude::*;
 use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::de::DeserializeOwned;
