@@ -78,7 +78,7 @@ class Relay(SentryLike):
                 backoff *= 2
 
     def wait_authenticated(self):
-        self._wait(self.url + '/api/0/relay/healthcheck/')
+        self._wait(self.url + '/api/relay/healthcheck/')
 
 @pytest.fixture
 def relay(tmpdir, mini_sentry, request):

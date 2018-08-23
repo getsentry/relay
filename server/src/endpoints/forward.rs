@@ -3,8 +3,8 @@ use actix_web::client::ClientRequest;
 use actix_web::{AsyncResponder, Body, Error, HttpMessage, HttpRequest, HttpResponse};
 
 use actix_web::http::header;
-use actix_web::http::ContentEncoding;
 use actix_web::http::header::HeaderName;
+use actix_web::http::ContentEncoding;
 
 use futures::{Future, Stream};
 
@@ -107,4 +107,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.default_resource(|r| r.f(forward_upstream))
+        .scope("/api/relay", |scope| {
+            scope.default_resource(|r| r.f(|_| HttpResponse::NotFound()))
+        })
 }
