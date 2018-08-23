@@ -25,7 +25,7 @@ doc:
 	@cargo doc
 .PHONY: doc
 
-test: cargotest pytest
+test: cargotest pytest integration-test
 .PHONY: test
 
 cargotest:
@@ -47,6 +47,12 @@ sdist:
 pytest:
 	@$(MAKE) -C py test
 .PHONY: pytest
+
+integration-test:
+	virtualenv -ppython3 tests/venv/
+	tests/venv/bin/pip install -U pytest pytest-localserver hypothesis requests flask
+	tests/venv/bin/pytest tests
+.PHONY: integration-test
 
 format:
 	@cargo fmt
