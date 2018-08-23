@@ -16,7 +16,7 @@ use semaphore_aorta::{ApiErrorResponse, PublicKeyEventAction};
 use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
 use actors::events::{EventMetaData, ProcessEvent, ProcessEventResponse};
-use actors::project::{GetEventAction, GetProject, SendProjectEvent};
+use actors::project::{GetEventAction, GetProject, QueueEvent};
 use extractors::{StoreBody, StorePayloadError};
 use service::{ServiceApp, ServiceState};
 
@@ -170,7 +170,7 @@ fn store_event(
                 .and_then(|result| result.map_err(|_| BadStoreRequest::ProcessingFailed))
                 .and_then(move |ProcessEventResponse { event_id, data }| {
                     project_manager
-                        .send(SendProjectEvent {
+                        .send(QueueEvent {
                             data: data,
                             meta,
                             project_id,

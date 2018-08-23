@@ -333,20 +333,20 @@ impl Handler<FetchProjectState> for ProjectManager {
 /// NOTE: This message is implemented on the project manager to ensure it completes even if the
 /// corresponding `Project` actor is stopped and its context dropped. Otherwise, we would drop
 /// events in a race condition between store and cleanup.
-pub struct SendProjectEvent {
+pub struct QueueEvent {
     pub data: Bytes,
     pub meta: Arc<EventMetaData>,
     pub project_id: ProjectId,
 }
 
-impl Message for SendProjectEvent {
+impl Message for QueueEvent {
     type Result = ();
 }
 
-impl Handler<SendProjectEvent> for ProjectManager {
+impl Handler<QueueEvent> for ProjectManager {
     type Result = ();
 
-    fn handle(&mut self, message: SendProjectEvent, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
         let request = SendRequest::post(format!("/api/{}/store/", message.project_id)).build(
             move |builder| {
                 if let Some(origin) = message.meta.origin() {
