@@ -110,9 +110,7 @@ pub fn run(config: Config) -> Result<(), ServerError> {
         upstream_relay: upstream_relay.clone(),
         key_manager: KeyManager::new(upstream_relay.clone()).start(),
         project_manager: ProjectManager::new(upstream_relay.clone()).start(),
-        event_processor: SyncArbiter::start(event_threads, move || {
-            EventProcessor::new(upstream_relay.clone())
-        }),
+        event_processor: SyncArbiter::start(event_threads, EventProcessor::new),
         config: config.clone(),
     };
 
