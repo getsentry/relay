@@ -99,7 +99,7 @@ fn meta_from_request<S>(request: &HttpRequest<S>, auth: Auth) -> EventMetaData {
 
 #[derive(Serialize)]
 struct StoreResponse {
-    id: Uuid,
+    id: Option<Uuid>,
 }
 
 fn store_event(
@@ -171,7 +171,7 @@ fn store_event(
                 .and_then(move |ProcessEventResponse { event_id, data }| {
                     project_manager
                         .send(QueueEvent {
-                            data: data,
+                            data,
                             meta,
                             project_id,
                         })

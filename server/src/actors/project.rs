@@ -11,7 +11,7 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 use url::Url;
 
 use semaphore_aorta::{ProjectStateSnapshot, PublicKeyEventAction, PublicKeyStatus};
-use semaphore_common::ProjectId;
+use semaphore_common::{processor::PiiConfig, ProjectId};
 
 use actors::events::EventMetaData;
 use actors::upstream::{
@@ -171,6 +171,38 @@ impl Handler<GetProjectState> for Project {
     }
 }
 
+pub struct GetEventAction {
+    pub meta: Arc<EventMetaData>,
+}
+
+impl Message for GetEventAction {
+    type Result = Result<PublicKeyEventAction, ProjectError>;
+}
+
+impl Handler<GetEventAction> for Project {
+    type Result = Response<PublicKeyEventAction, ProjectError>;
+
+    fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
+        self.get_or_fetch_state(context)
+            .map(move |state| get_event_action(&state, &message.meta))
+    }
+}
+
+pub struct GetPiiConfig;
+
+impl Message for GetPiiConfig {
+    type Result = Result<Option<PiiConfig>, ProjectError>;
+}
+
+impl Handler<GetPiiConfig> for Project {
+    type Result = Response<Option<PiiConfig>, ProjectError>;
+
+    fn handle(&mut self, _message: GetPiiConfig, context: &mut Self::Context) -> Self::Result {
+        // TODO: Implement actual fetching
+        self.get_or_fetch_state(context).map(|_state| None)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetProjectStates {
     pub projects: Vec<ProjectId>,
@@ -190,23 +222,6 @@ impl UpstreamQuery for GetProjectStates {
 
     fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/projectconfigs/")
-    }
-}
-
-pub struct GetEventAction {
-    pub meta: Arc<EventMetaData>,
-}
-
-impl Message for GetEventAction {
-    type Result = Result<PublicKeyEventAction, ProjectError>;
-}
-
-impl Handler<GetEventAction> for Project {
-    type Result = Response<PublicKeyEventAction, ProjectError>;
-
-    fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
-        self.get_or_fetch_state(context)
-            .map(move |state| get_event_action(&state, &message.meta))
     }
 }
 
