@@ -1,23 +1,28 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::mem;
-use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
 use actix::fut::wrap_future;
-use actix::{Actor, ActorFuture, Addr, AsyncContext, Context, Handler, Message};
+use actix::{
+    Actor, ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner, Handler, Message,
+    WrapFuture,
+};
 use actix_web::http::Method;
 use actix_web::ResponseError;
+use bytes::Bytes;
 use futures::future::{self, Future, Shared};
 use futures::sync::oneshot;
 use url::Url;
 
-// TODO(ja): Move this here and rename to ProjectState
 use semaphore_aorta::{ProjectStateSnapshot, PublicKeyEventAction, PublicKeyStatus};
 use semaphore_common::ProjectId;
 
-use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
+use actors::events::EventMetaData;
+use actors::upstream::{
+    SendQuery, SendRequest, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
+};
 use constants::BATCH_TIMEOUT;
 use utils::Response;
 
@@ -32,22 +37,6 @@ pub enum ProjectError {
 }
 
 impl ResponseError for ProjectError {}
-
-// TODO: Move this to a better place
-#[derive(Debug, Clone)]
-pub struct EventMetaData {
-    /// DSN public key used to authenticate.
-    pub public_key: String,
-
-    /// Value of the origin header in the incoming request, if present.
-    pub origin: Option<Url>,
-
-    /// IP address of the submitting remote.
-    pub remote_addr: Option<IpAddr>,
-
-    /// The client SDK that submitted the event.
-    pub sentry_client: Option<String>,
-}
 
 fn is_valid_origin(state: &ProjectStateSnapshot, origin: Option<&Url>) -> bool {
     // Generally accept any event without an origin.
@@ -67,7 +56,7 @@ fn is_valid_origin(state: &ProjectStateSnapshot, origin: Option<&Url>) -> bool {
 
 fn get_event_action(state: &ProjectStateSnapshot, meta: &EventMetaData) -> PublicKeyEventAction {
     // Try to verify the request origin with the project config.
-    if !is_valid_origin(state, meta.origin.as_ref()) {
+    if !is_valid_origin(state, meta.origin()) {
         return PublicKeyEventAction::Discard;
     }
 
@@ -80,7 +69,7 @@ fn get_event_action(state: &ProjectStateSnapshot, meta: &EventMetaData) -> Publi
         // thus we handle events pretending the config is still valid,
         // except queueing events for unknown DSNs as they might have become
         // available in the meanwhile.
-        match state.get_public_key_status(&meta.public_key) {
+        match state.get_public_key_status(&meta.auth().public_key()) {
             PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
             PublicKeyStatus::Disabled => PublicKeyEventAction::Discard,
             PublicKeyStatus::Unknown => PublicKeyEventAction::Send,
@@ -93,7 +82,7 @@ fn get_event_action(state: &ProjectStateSnapshot, meta: &EventMetaData) -> Publi
 
         // since the config has been fetched recently, we assume unknown
         // public keys do not exist and drop events eagerly.
-        match state.get_public_key_status(&meta.public_key) {
+        match state.get_public_key_status(&meta.auth().public_key()) {
             PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
             PublicKeyStatus::Disabled => PublicKeyEventAction::Discard,
             PublicKeyStatus::Unknown => PublicKeyEventAction::Discard,
@@ -209,7 +198,9 @@ impl UpstreamQuery for GetProjectStates {
     }
 }
 
-pub struct GetEventAction(pub EventMetaData);
+pub struct GetEventAction {
+    pub meta: Arc<EventMetaData>,
+}
 
 impl Message for GetEventAction {
     type Result = Result<PublicKeyEventAction, ProjectError>;
@@ -220,7 +211,7 @@ impl Handler<GetEventAction> for Project {
 
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
         self.get_or_fetch_state(context)
-            .map(move |state| get_event_action(&state, &message.0))
+            .map(move |state| get_event_action(&state, &message.meta))
     }
 }
 
@@ -336,5 +327,43 @@ impl Handler<FetchProjectState> for ProjectManager {
         }
 
         Response::async(receiver.map_err(|_| ()))
+    }
+}
+
+/// NOTE: This message is implemented on the project manager to ensure it completes even if the
+/// corresponding `Project` actor is stopped and its context dropped. Otherwise, we would drop
+/// events in a race condition between store and cleanup.
+pub struct SendProjectEvent {
+    pub data: Bytes,
+    pub meta: Arc<EventMetaData>,
+    pub project_id: ProjectId,
+}
+
+impl Message for SendProjectEvent {
+    type Result = ();
+}
+
+impl Handler<SendProjectEvent> for ProjectManager {
+    type Result = ();
+
+    fn handle(&mut self, message: SendProjectEvent, context: &mut Self::Context) -> Self::Result {
+        let request = SendRequest::post(format!("/api/{}/store/", message.project_id)).build(
+            move |builder| {
+                if let Some(origin) = message.meta.origin() {
+                    builder.header("Origin", origin.to_string());
+                }
+
+                builder
+                    .header("X-Sentry-Auth", message.meta.auth().to_string())
+                    .body(message.data)
+            },
+        );
+
+        self.upstream
+            .send(request)
+            .map(|_| ())
+            .into_actor(self)
+            .drop_err()
+            .spawn(context);
     }
 }
