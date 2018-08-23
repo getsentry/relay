@@ -55,25 +55,25 @@ impl Actor for EventProcessor {
     type Context = SyncContext<Self>;
 }
 
-pub struct StoreEvent {
-    pub meta: EventMetaData,
+pub struct ProcessEvent {
     pub data: Bytes,
+    pub meta: Arc<EventMetaData>,
     pub project: Addr<Project>,
 }
 
-#[derive(Serialize)]
-pub struct StoreEventResponse {
-    id: Uuid,
+pub struct ProcessEventResponse {
+    pub event_id: Uuid,
+    pub data: Bytes,
 }
 
-impl Message for StoreEvent {
-    type Result = Result<StoreEventResponse, ProcessingError>;
+impl Message for ProcessEvent {
+    type Result = Result<ProcessEventResponse, ProcessingError>;
 }
 
-impl Handler<StoreEvent> for EventProcessor {
-    type Result = Result<StoreEventResponse, ProcessingError>;
+impl Handler<ProcessEvent> for EventProcessor {
+    type Result = Result<ProcessEventResponse, ProcessingError>;
 
-    fn handle(&mut self, message: StoreEvent, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: ProcessEvent, context: &mut Self::Context) -> Self::Result {
         unimplemented!()
     }
 }

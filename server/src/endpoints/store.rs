@@ -1,4 +1,7 @@
 //! Handles event store requests.
+
+use std::sync::Arc;
+
 use actix::{MailboxError, ResponseFuture};
 use actix_web::http::{header, Method};
 use actix_web::middleware::cors::Cors;
@@ -7,14 +10,32 @@ use futures::Future;
 use sentry::{self, Hub};
 use sentry_actix::ActixWebHubExt;
 use url::Url;
+use uuid::Uuid;
 
 use semaphore_aorta::{ApiErrorResponse, PublicKeyEventAction};
 use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
-use actors::events::{StoreEvent, StoreEventResponse};
-use actors::project::{EventMetaData, GetEventAction, GetProject};
+use actors::events::{EventMetaData, ProcessEvent, ProcessEventResponse};
+use actors::project::{GetEventAction, GetProject, SendProjectEvent};
 use extractors::{StoreBody, StorePayloadError};
 use service::{ServiceApp, ServiceState};
+
+macro_rules! clone {
+    (@param _) => ( _ );
+    (@param $x:ident) => ( $x );
+    ($($n:ident),+ , || $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+            move || $body
+        }
+    );
+    ($($n:ident),+ , |$($p:tt),+| $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+            move |$(clone!(@param $p),)+| $body
+        }
+    );
+}
 
 #[derive(Fail, Debug)]
 enum BadStoreRequest {
@@ -67,19 +88,23 @@ fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Opti
         })
 }
 
-fn meta_from_request<S>(request: &HttpRequest<S>, auth: &Auth) -> EventMetaData {
+fn meta_from_request<S>(request: &HttpRequest<S>, auth: Auth) -> EventMetaData {
     EventMetaData {
-        public_key: String::new(),
+        auth,
         origin: parse_header_url(request, header::ORIGIN)
             .or_else(|| parse_header_url(request, header::REFERER)),
         remote_addr: request.peer_addr().map(|peer| peer.ip()),
-        sentry_client: auth.client_agent().map(|agent| agent.to_string()),
     }
+}
+
+#[derive(Serialize)]
+struct StoreResponse {
+    id: Uuid,
 }
 
 fn store_event(
     request: HttpRequest<ServiceState>,
-) -> ResponseFuture<Json<StoreEventResponse>, BadStoreRequest> {
+) -> ResponseFuture<Json<StoreResponse>, BadStoreRequest> {
     // Check auth and fail as early as possible
     let auth = tryf!(auth_from_request(&request));
 
@@ -111,18 +136,17 @@ fn store_event(
 
     metric!(counter(&format!("event.protocol.v{}", auth.version())) += 1);
 
-    let meta = meta_from_request(&request, &auth);
+    let meta = Arc::new(meta_from_request(&request, auth));
     let config = request.state().aorta_config();
     let event_processor = request.state().event_processor();
+    let project_manager = request.state().project_manager();
 
-    let future = request
-        .state()
-        .project_manager()
+    let future = project_manager
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::InternalTimeout)
         .and_then(move |project| {
             project
-                .send(GetEventAction(meta.clone()))
+                .send(GetEventAction { meta: meta.clone() })
                 .map_err(BadStoreRequest::InternalTimeout)
                 .and_then(
                     |action| match action.map_err(|_| BadStoreRequest::ProjectFailed)? {
@@ -136,16 +160,24 @@ fn store_event(
                         .limit(config.max_event_payload_size)
                         .map_err(BadStoreRequest::PayloadError)
                 })
-                .and_then(move |data| {
-                    event_processor
-                        .send(StoreEvent {
+                .and_then(clone!(project, meta, |data| event_processor
+                    .send(ProcessEvent {
+                        data,
+                        meta,
+                        project
+                    })
+                    .map_err(BadStoreRequest::InternalTimeout)))
+                .and_then(|result| result.map_err(|_| BadStoreRequest::ProcessingFailed))
+                .and_then(move |ProcessEventResponse { event_id, data }| {
+                    project_manager
+                        .send(SendProjectEvent {
+                            data: data,
                             meta,
-                            data,
-                            project,
+                            project_id,
                         })
                         .map_err(BadStoreRequest::InternalTimeout)
+                        .map(move |_| StoreResponse { id: event_id })
                 })
-                .and_then(|result| result.map_err(|_| BadStoreRequest::ProcessingFailed))
         })
         .map(|response| {
             metric!(counter("event.accepted") += 1);
