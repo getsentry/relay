@@ -37,7 +37,7 @@ fn healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource("/api/0/relay/healthcheck/", |r| {
+    app.resource("/api/relay/healthcheck/", |r| {
         r.method(Method::GET).with(healthcheck);
     })
 }
