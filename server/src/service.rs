@@ -4,13 +4,12 @@ use actix::prelude::*;
 use actix_web::{server, App};
 use failure::ResultExt;
 use listenfd::ListenFd;
-use num_cpus;
 use sentry_actix::SentryMiddleware;
 
 use semaphore_aorta::AortaConfig;
 use semaphore_config::Config;
 
-use actors::events::EventProcessor;
+use actors::events::EventManager;
 use actors::keys::KeyManager;
 use actors::project::ProjectManager;
 use actors::upstream::UpstreamRelay;
@@ -32,7 +31,7 @@ pub struct ServiceState {
     key_manager: Addr<KeyManager>,
     project_manager: Addr<ProjectManager>,
     upstream_relay: Addr<UpstreamRelay>,
-    event_processor: Addr<EventProcessor>,
+    event_manager: Addr<EventManager>,
     config: Arc<Config>,
 }
 
@@ -63,8 +62,8 @@ impl ServiceState {
     }
 
     /// Returns a pool of event processors.
-    pub fn event_processor(&self) -> Addr<EventProcessor> {
-        self.event_processor.clone()
+    pub fn event_manager(&self) -> Addr<EventManager> {
+        self.event_manager.clone()
     }
 }
 
@@ -102,15 +101,12 @@ pub fn run(config: Config) -> Result<(), ServerError> {
         config.aorta_auth_retry_interval(),
     ).start();
 
-    // TODO: Make the number configurable via config file
-    let event_threads = num_cpus::get();
-
     let service_state = ServiceState {
         aorta_config,
         upstream_relay: upstream_relay.clone(),
         key_manager: KeyManager::new(upstream_relay.clone()).start(),
         project_manager: ProjectManager::new(upstream_relay.clone()).start(),
-        event_processor: SyncArbiter::start(event_threads, EventProcessor::new),
+        event_manager: EventManager::new(upstream_relay.clone()).start(),
         config: config.clone(),
     };
 

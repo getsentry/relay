@@ -93,7 +93,7 @@ impl UpstreamRelay {
         let credentials = match self.credentials {
             Some(ref x) => x,
             None => {
-                warn!("No credentials configured, not authenticating.");
+                warn!("no credentials configured, not authenticating.");
                 return Box::new(Ok(()).into_future().into_actor(self));
             }
         };
@@ -198,12 +198,12 @@ impl Actor for UpstreamRelay {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        info!("Upstream relay started");
+        info!("upstream relay started");
         ctx.spawn(self.authenticate());
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("Upstream relay stopped");
+        info!("upstream relay stopped");
     }
 }
 

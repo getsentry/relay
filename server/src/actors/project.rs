@@ -6,17 +6,14 @@ use std::time::Duration;
 
 use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
-use bytes::Bytes;
 use futures::{future, future::Shared, sync::oneshot, Future};
 use url::Url;
 
-use semaphore_aorta::{ProjectStateSnapshot, PublicKeyEventAction, PublicKeyStatus};
+use semaphore_aorta::{ProjectStateSnapshot, PublicKeyStatus};
 use semaphore_common::{processor::PiiConfig, ProjectId};
 
 use actors::events::EventMetaData;
-use actors::upstream::{
-    SendQuery, SendRequest, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
-};
+use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
 use constants::BATCH_TIMEOUT;
 use utils::Response;
 
@@ -48,10 +45,10 @@ fn is_valid_origin(state: &ProjectStateSnapshot, origin: Option<&Url>) -> bool {
             .any(|x| x.as_str() == "*" || Some(x.as_str()) == origin.host_str())
 }
 
-fn get_event_action(state: &ProjectStateSnapshot, meta: &EventMetaData) -> PublicKeyEventAction {
+fn get_event_action(state: &ProjectStateSnapshot, meta: &EventMetaData) -> EventAction {
     // Try to verify the request origin with the project config.
     if !is_valid_origin(state, meta.origin()) {
-        return PublicKeyEventAction::Discard;
+        return EventAction::Discard;
     }
 
     // TODO: Use real config here.
@@ -64,22 +61,22 @@ fn get_event_action(state: &ProjectStateSnapshot, meta: &EventMetaData) -> Publi
         // except queueing events for unknown DSNs as they might have become
         // available in the meanwhile.
         match state.get_public_key_status(&meta.auth().public_key()) {
-            PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
-            PublicKeyStatus::Disabled => PublicKeyEventAction::Discard,
-            PublicKeyStatus::Unknown => PublicKeyEventAction::Send,
+            PublicKeyStatus::Enabled => EventAction::Accept,
+            PublicKeyStatus::Disabled => EventAction::Discard,
+            PublicKeyStatus::Unknown => EventAction::Accept,
         }
     } else {
         // only drop events if we know for sure the project is disabled.
         if state.disabled() {
-            return PublicKeyEventAction::Discard;
+            return EventAction::Discard;
         }
 
         // since the config has been fetched recently, we assume unknown
         // public keys do not exist and drop events eagerly.
         match state.get_public_key_status(&meta.auth().public_key()) {
-            PublicKeyStatus::Enabled => PublicKeyEventAction::Send,
-            PublicKeyStatus::Disabled => PublicKeyEventAction::Discard,
-            PublicKeyStatus::Unknown => PublicKeyEventAction::Discard,
+            PublicKeyStatus::Enabled => EventAction::Accept,
+            PublicKeyStatus::Disabled => EventAction::Discard,
+            PublicKeyStatus::Unknown => EventAction::Discard,
         }
     }
 }
@@ -172,6 +169,20 @@ impl Actor for Project {
     }
 }
 
+pub struct GetProjectId;
+
+impl Message for GetProjectId {
+    type Result = Option<ProjectId>;
+}
+
+impl Handler<GetProjectId> for Project {
+    type Result = Option<ProjectId>;
+
+    fn handle(&mut self, _message: GetProjectId, _context: &mut Context<Self>) -> Self::Result {
+        Some(self.id)
+    }
+}
+
 pub struct GetProjectState;
 
 impl Message for GetProjectState {
@@ -187,19 +198,50 @@ impl Handler<GetProjectState> for Project {
 }
 
 pub struct GetEventAction {
-    pub meta: Arc<EventMetaData>,
+    meta: Arc<EventMetaData>,
+    fetch: bool,
+}
+
+impl GetEventAction {
+    pub fn fetched(meta: Arc<EventMetaData>) -> Self {
+        GetEventAction { meta, fetch: true }
+    }
+
+    pub fn cached(meta: Arc<EventMetaData>) -> Self {
+        GetEventAction { meta, fetch: false }
+    }
+}
+
+/// Indicates what should happen to events based on their meta data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EventAction {
+    /// The event should be discarded.
+    Discard,
+    /// The event should be processed and sent to upstream.
+    Accept,
 }
 
 impl Message for GetEventAction {
-    type Result = Result<PublicKeyEventAction, ProjectError>;
+    type Result = Result<EventAction, ProjectError>;
 }
 
 impl Handler<GetEventAction> for Project {
-    type Result = Response<PublicKeyEventAction, ProjectError>;
+    type Result = Response<EventAction, ProjectError>;
 
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
-        self.get_or_fetch_state(context)
-            .map(move |state| get_event_action(&state, &message.meta))
+        if message.fetch {
+            // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
+            // This will return synchronously if the state is still cached.
+            self.get_or_fetch_state(context)
+                .map(move |state| get_event_action(&state, &message.meta))
+        } else {
+            // Fetching is not permitted (as part of the store request). In case the state is not
+            // cached, assume that the event can be accepted. The EventManager will later fetch the
+            // project state and reevaluate the event action.
+            Response::ok(self.state().map_or(EventAction::Accept, |state| {
+                get_event_action(&state, &message.meta)
+            }))
+        }
     }
 }
 
@@ -353,43 +395,5 @@ impl Handler<FetchProjectState> for ProjectManager {
         }
 
         Response::async(receiver.map_err(|_| ()))
-    }
-}
-
-/// NOTE: This message is implemented on the project manager to ensure it completes even if the
-/// corresponding `Project` actor is stopped and its context dropped. Otherwise, we would drop
-/// events in a race condition between store and cleanup.
-pub struct QueueEvent {
-    pub data: Bytes,
-    pub meta: Arc<EventMetaData>,
-    pub project_id: ProjectId,
-}
-
-impl Message for QueueEvent {
-    type Result = ();
-}
-
-impl Handler<QueueEvent> for ProjectManager {
-    type Result = ();
-
-    fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
-        let request = SendRequest::post(format!("/api/{}/store/", message.project_id)).build(
-            move |builder| {
-                if let Some(origin) = message.meta.origin() {
-                    builder.header("Origin", origin.to_string());
-                }
-
-                builder
-                    .header("X-Sentry-Auth", message.meta.auth().to_string())
-                    .body(message.data)
-            },
-        );
-
-        self.upstream
-            .send(request)
-            .map(|_| ())
-            .into_actor(self)
-            .drop_err()
-            .spawn(context);
     }
 }
