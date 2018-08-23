@@ -12,49 +12,39 @@ use sentry_actix::ActixWebHubExt;
 use url::Url;
 use uuid::Uuid;
 
-use semaphore_aorta::{ApiErrorResponse, PublicKeyEventAction};
+use semaphore_aorta::ApiErrorResponse;
 use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
-use actors::events::{EventMetaData, ProcessEvent, ProcessEventResponse};
-use actors::project::{GetEventAction, GetProject, QueueEvent};
+use actors::events::{EventMetaData, ProcessingError, QueueEvent};
+use actors::project::{EventAction, GetEventAction, GetProject};
 use extractors::{StoreBody, StorePayloadError};
 use service::{ServiceApp, ServiceState};
-
-macro_rules! clone {
-    (@param _) => ( _ );
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ , || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move || $body
-        }
-    );
-    ($($n:ident),+ , |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move |$(clone!(@param $p),)+| $body
-        }
-    );
-}
 
 #[derive(Fail, Debug)]
 enum BadStoreRequest {
     #[fail(display = "invalid project path parameter")]
     BadProject(#[cause] ProjectIdParseError),
+
     #[fail(display = "bad x-sentry-auth header")]
     BadAuth(#[cause] AuthParseError),
+
     #[fail(display = "unsupported protocol version ({})", _0)]
     UnsupportedProtocolVersion(u16),
-    #[fail(display = "timeout while processing request")]
-    InternalTimeout(#[cause] MailboxError),
+
+    #[fail(display = "could not schedule event processing")]
+    ScheduleFailed(#[cause] MailboxError),
+
     #[fail(display = "failed to fetch project information")]
     ProjectFailed,
+
     #[fail(display = "failed to process event")]
-    ProcessingFailed,
+    ProcessingFailed(#[cause] ProcessingError),
+
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
+
     #[fail(display = "event submission rejected")]
-    StoreRejected,
+    EventRejected,
 }
 
 impl ResponseError for BadStoreRequest {
@@ -64,7 +54,6 @@ impl ResponseError for BadStoreRequest {
 }
 
 fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadStoreRequest> {
-    // try auth from header
     let auth = req
         .headers()
         .get("x-sentry-auth")
@@ -99,7 +88,7 @@ fn meta_from_request<S>(request: &HttpRequest<S>, auth: Auth) -> EventMetaData {
 
 #[derive(Serialize)]
 struct StoreResponse {
-    id: Option<Uuid>,
+    id: Uuid,
 }
 
 fn store_event(
@@ -138,21 +127,20 @@ fn store_event(
 
     let meta = Arc::new(meta_from_request(&request, auth));
     let config = request.state().aorta_config();
-    let event_processor = request.state().event_processor();
+    let event_manager = request.state().event_manager();
     let project_manager = request.state().project_manager();
 
     let future = project_manager
         .send(GetProject { id: project_id })
-        .map_err(BadStoreRequest::InternalTimeout)
+        .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(move |project| {
             project
-                .send(GetEventAction { meta: meta.clone() })
-                .map_err(BadStoreRequest::InternalTimeout)
+                .send(GetEventAction::cached(meta.clone()))
+                .map_err(BadStoreRequest::ScheduleFailed)
                 .and_then(
                     |action| match action.map_err(|_| BadStoreRequest::ProjectFailed)? {
-                        PublicKeyEventAction::Send => Ok(()),
-                        PublicKeyEventAction::Queue => Ok(()), // TODO: Kill ::Queue
-                        PublicKeyEventAction::Discard => Err(BadStoreRequest::StoreRejected),
+                        EventAction::Accept => Ok(()),
+                        EventAction::Discard => Err(BadStoreRequest::EventRejected),
                     },
                 )
                 .and_then(move |_| {
@@ -160,23 +148,16 @@ fn store_event(
                         .limit(config.max_event_payload_size)
                         .map_err(BadStoreRequest::PayloadError)
                 })
-                .and_then(clone!(project, meta, |data| event_processor
-                    .send(ProcessEvent {
-                        data,
-                        meta,
-                        project
-                    })
-                    .map_err(BadStoreRequest::InternalTimeout)))
-                .and_then(|result| result.map_err(|_| BadStoreRequest::ProcessingFailed))
-                .and_then(move |ProcessEventResponse { event_id, data }| {
-                    project_manager
+                .and_then(move |data| {
+                    event_manager
                         .send(QueueEvent {
                             data,
                             meta,
-                            project_id,
+                            project,
                         })
-                        .map_err(BadStoreRequest::InternalTimeout)
-                        .map(move |_| StoreResponse { id: event_id })
+                        .map_err(BadStoreRequest::ScheduleFailed)
+                        .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
+                        .map(|id| StoreResponse { id })
                 })
         })
         .map(|response| {

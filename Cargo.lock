@@ -1675,6 +1675,7 @@ dependencies = [
  "sentry-actix 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.999 (git+https://github.com/mitsuhiko/serde?rev=880a8c0181ad7202950f24cc8f6872994913441d)",
  "serde_derive 1.0.999 (git+https://github.com/mitsuhiko/serde?rev=880a8c0181ad7202950f24cc8f6872994913441d)",
+ "serde_json 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 1.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
