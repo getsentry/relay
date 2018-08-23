@@ -19,6 +19,7 @@ use actix_web::client::SendRequestError;
 use actix_web::error::JsonPayloadError;
 use actix_web::http::header;
 use actix_web::http::Method;
+use actix_web::http::StatusCode;
 use actix_web::HttpMessage;
 
 use chrono::Duration;
@@ -55,6 +56,9 @@ pub enum UpstreamRequestError {
 
     #[fail(display = "failed to create upstream request: {}", _0)]
     BuildFailed(actix_web::Error),
+
+    #[fail(display = "upstream request returned error {}", _0)]
+    ResponseError(StatusCode),
 }
 
 /// Represents the current auth state.
@@ -174,6 +178,10 @@ impl UpstreamRelay {
         let future = tryf!(request)
             .send()
             .map_err(UpstreamRequestError::SendFailed)
+            .and_then(|response| match response.status() {
+                code if !code.is_success() => Err(UpstreamRequestError::ResponseError(code)),
+                _ => Ok(response),
+            })
             .and_then(|response| response.json().map_err(UpstreamRequestError::InvalidJson));
 
         Box::new(future)
