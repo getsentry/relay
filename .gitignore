@@ -3,3 +3,5 @@ target
 .semaphore
 *.pyc
 .pytest_cache
+.hypothesis
+tests/venv/

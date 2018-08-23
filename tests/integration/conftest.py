@@ -37,14 +37,10 @@ def mini_sentry(request):
         sentry.captured_events.append(flask_request.json)
         return jsonify({"event_id": uuid.uuid4().hex})
 
-    @app.route("/test")
-    def test():
-        return "ok"
-
     server = WSGIServer(application=app)
     server.start()
     request.addfinalizer(server.stop)
-    sentry = Sentry(server.server_address)
+    sentry = Sentry(server.server_address, app)
     return sentry
 
 
@@ -55,8 +51,9 @@ class SentryLike(object):
 
 
 class Sentry(SentryLike):
-    def __init__(self, server_address):
+    def __init__(self, server_address, app):
         self.server_address = server_address
+        self.app = app
         self.trusted_relays = []
         self.captured_events = []
 
@@ -69,11 +66,12 @@ class Relay(SentryLike):
     def _wait(self, url):
         backoff = 0.1
         while True:
-            time.sleep(backoff)
             try:
                 requests.get(url).raise_for_status()
-            except Exception:
-                if backoff > 1:
+                break
+            except Exception as e:
+                time.sleep(backoff)
+                if backoff > 0.5:
                     raise
                 backoff *= 2
 
@@ -123,9 +121,7 @@ def relay(tmpdir, mini_sentry, request):
         )
 
         subprocess.check_call(SEMAPHORE_BIN + ["-c", str(config_dir), "credentials", "generate"])
-
         process = subprocess.Popen(SEMAPHORE_BIN + ["-c", str(config_dir), "run"])
-
         request.addfinalizer(process.kill)
 
         return Relay(server_address, process)
