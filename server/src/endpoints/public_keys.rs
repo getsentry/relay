@@ -7,7 +7,8 @@ use service::ServiceApp;
 
 #[cfg_attr(feat = "cargo-clippy", allow(needless_pass_by_value))]
 fn get_public_keys(
-    (state, body): (CurrentServiceState, SignedJson<GetPublicKeys>),
+    state: CurrentServiceState,
+    body: SignedJson<GetPublicKeys>,
 ) -> Box<Future<Item = Json<GetPublicKeysResult>, Error = Error>> {
     let res = state.key_manager().send(body.inner);
 
