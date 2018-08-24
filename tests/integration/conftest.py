@@ -6,6 +6,10 @@ import socket
 import subprocess
 import time
 import requests
+import functools
+
+from hypothesis import given
+from hypothesis import strategies as st
 
 from pytest_localserver.http import WSGIServer
 
@@ -54,6 +58,10 @@ def mini_sentry(request):
         sentry.captured_events.append(flask_request.json)
         return jsonify({"event_id": uuid.uuid4().hex})
 
+    @app.route("/api/relay/healthcheck/")
+    def healthcheck():
+        return "ok"
+
     server = WSGIServer(application=app)
     server.start()
     request.addfinalizer(server.stop)
@@ -62,6 +70,8 @@ def mini_sentry(request):
 
 
 class SentryLike(object):
+    _healthcheck_passed = False
+
     @property
     def url(self):
         return "http://{}:{}".format(*self.server_address)
@@ -74,12 +84,19 @@ class SentryLike(object):
                 break
             except Exception as e:
                 time.sleep(backoff)
-                if backoff > 0.5:
+                if backoff > 3:
                     raise
                 backoff *= 2
 
     def wait_relay_healthcheck(self):
+        if self._healthcheck_passed:
+            return
+
         self._wait(self.url + "/api/relay/healthcheck/")
+        self._healthcheck_passed = True
+
+    def __repr__(self):
+        return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
 
 
 class Sentry(SentryLike):
@@ -88,12 +105,14 @@ class Sentry(SentryLike):
         self.app = app
         self.trusted_relays = []
         self.captured_events = []
+        self.upstream = None
 
 
 class Relay(SentryLike):
-    def __init__(self, server_address, process):
+    def __init__(self, server_address, process, upstream):
         self.server_address = server_address
         self.process = process
+        self.upstream = upstream
 
 
 @pytest.fixture
@@ -153,15 +172,16 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
         )
         process = background_process(SEMAPHORE_BIN + ["-c", str(dir), "run"])
 
-        return Relay((host, port), process)
+        return Relay((host, port), process, upstream)
 
     return inner
 
 
 class Gobetween(SentryLike):
-    def __init__(self, server_address, process):
+    def __init__(self, server_address, process, upstream):
         self.server_address = server_address
         self.process = process
+        self.upstream = upstream
 
 
 @pytest.fixture
@@ -207,6 +227,26 @@ def gobetween(background_process, random_port, config_dir):
             GOBETWEEN_BIN + ["from-file", "-fjson", str(config)]
         )
 
-        return Gobetween((host, port), process)
+        return Gobetween((host, port), process, upstreams)
 
     return inner
+
+
+@pytest.fixture
+def relay_chain_strategy(relay, mini_sentry, gobetween):
+    chain_cache = {}
+
+    def spawn_chain(chain):
+        if not chain:
+            return mini_sentry
+        chain = tuple(chain)
+        if chain in chain_cache:
+            return chain_cache[chain]
+
+        f, *rest = chain
+        rv = chain_cache[chain] = f(spawn_chain(rest))
+        return rv
+
+    return st.lists(st.one_of(st.just(relay), st.just(gobetween)), max_size=10).map(
+        spawn_chain
+    )

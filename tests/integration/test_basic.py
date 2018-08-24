@@ -6,7 +6,7 @@ import requests
 from flask import request, Response
 
 
-def test_forwarding(relay, mini_sentry, gobetween):
+def test_forwarding(mini_sentry, relay_chain_strategy):
     should_compress_response = False
     assert_data = None
 
@@ -26,14 +26,17 @@ def test_forwarding(relay, mini_sentry, gobetween):
 
         return Response(data, headers=headers)
 
-    r1 = relay(gobetween(relay(mini_sentry)))
-    r1.wait_relay_healthcheck()
-
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=5000)
     @given(
-        data=st.text(), compress_response=st.booleans(), compress_request=st.booleans()
+        relay=relay_chain_strategy,
+        data=st.text(),
+        compress_response=st.booleans(),
+        compress_request=st.booleans(),
     )
-    def test_fuzzing(data, compress_request, compress_response):
+    def test_fuzzing(relay, data, compress_request, compress_response):
+        print("TEST", relay)
+        relay.wait_relay_healthcheck()
+
         data = data.encode("utf-8")
         headers = {"Content-Type": "application/octet-stream"}
         nonlocal should_compress_response
@@ -48,14 +51,8 @@ def test_forwarding(relay, mini_sentry, gobetween):
         else:
             payload = data
 
-        sentry_response = requests.post(
-            mini_sentry.url + "/test/reflect", data=payload, headers=headers
-        )
-        sentry_response.raise_for_status()
-        assert sentry_response.content == data
-
         response = requests.post(
-            r1.url + "/test/reflect", data=payload, headers=headers
+            relay.url + "/test/reflect", data=payload, headers=headers
         )
         response.raise_for_status()
         assert response.content == data
