@@ -2,8 +2,9 @@ use chrono::Duration;
 use serde_json;
 use uuid::Uuid;
 
-use semaphore_aorta::{generate_key_pair, generate_relay_id, PublicKey, RegisterRequest,
-                      RegisterResponse, SecretKey};
+use semaphore_common::{
+    generate_key_pair, generate_relay_id, PublicKey, RegisterRequest, RegisterResponse, SecretKey,
+};
 
 use core::{SemaphoreBuf, SemaphoreStr, SemaphoreUuid};
 
