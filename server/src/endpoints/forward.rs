@@ -1,7 +1,7 @@
 use actix::prelude::*;
 use actix_web::client::ClientRequest;
 use actix_web::http::{header, header::HeaderName, ContentEncoding};
-use actix_web::{AsyncResponder, Body, Error, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use futures::prelude::*;
 
 use service::{ServiceApp, ServiceState};
@@ -47,7 +47,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         .map(|pq| pq.as_str())
         .unwrap_or("");
 
-    let mut forwarded_request = ClientRequest::build();
+    let mut forwarded_request_builder = ClientRequest::build();
     for (key, value) in request.headers() {
         // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
         // must not forward the content-encoding header, as the actix http client will do its own
@@ -58,24 +58,23 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         {
             continue;
         }
-        forwarded_request.header(key.clone(), value.clone());
+        forwarded_request_builder.header(key.clone(), value.clone());
     }
 
-    let forwarded_request = tryf!(
-        forwarded_request
-            .no_default_headers()
-            .disable_decompress()
-            .method(request.method().clone())
-            .uri(upstream.get_url(path_and_query))
-            .set_header("Host", upstream.host())
-            .set_header("X-Forwarded-For", get_forwarded_for(request))
-            .set_header("Connection", "close")
-            .body(if request.headers().get(header::CONTENT_TYPE).is_some() {
-                Body::Streaming(Box::new(request.payload().from_err()))
-            } else {
-                Body::Empty
-            })
-    );
+    forwarded_request_builder
+        .no_default_headers()
+        .disable_decompress()
+        .method(request.method().clone())
+        .uri(upstream.get_url(path_and_query))
+        .set_header("Host", upstream.host())
+        .set_header("X-Forwarded-For", get_forwarded_for(request))
+        .set_header("Connection", "close");
+
+    let forwarded_request = if request.headers().get(header::CONTENT_TYPE).is_some() {
+        tryf!(forwarded_request_builder.streaming(request.payload()))
+    } else {
+        tryf!(forwarded_request_builder.finish())
+    };
 
     forwarded_request
         .send()
@@ -99,15 +98,11 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
                 forwarded_response.header(key.clone(), value.clone());
             }
 
-            Ok(
-                forwarded_response.body(
-                    if response.headers().get(header::CONTENT_TYPE).is_some() {
-                        Body::Streaming(Box::new(response.payload().from_err()))
-                    } else {
-                        Body::Empty
-                    },
-                ),
-            )
+            Ok(if response.headers().get(header::CONTENT_TYPE).is_some() {
+                forwarded_response.streaming(response.payload())
+            } else {
+                forwarded_response.finish()
+            })
         })
         .responder()
 }
