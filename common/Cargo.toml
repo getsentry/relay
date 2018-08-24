@@ -15,7 +15,7 @@ chrono = "0.4.5"
 failure = "0.1.2"
 failure_derive = "0.1.2"
 lazy_static = "1.0.2"
-log = "0.4.4"
+log = { version = "0.4.4", features = ["serde"] }
 human-size = "0.4.0"
 marshal = { git = "https://github.com/getsentry/marshal", rev = "810d521dfbde1e2d0c1e63fbb2e226ef149a8883" }
 parking_lot = "0.6.3"
