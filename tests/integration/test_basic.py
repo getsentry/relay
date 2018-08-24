@@ -6,7 +6,7 @@ import requests
 from flask import request, Response
 
 
-def test_forwarding(relay, mini_sentry):
+def test_forwarding(relay, mini_sentry, gobetween):
     should_compress_response = False
     assert_data = None
 
@@ -26,8 +26,8 @@ def test_forwarding(relay, mini_sentry):
 
         return Response(data, headers=headers)
 
-    r1 = relay(mini_sentry)
-    r1.wait_authenticated()
+    r1 = relay(gobetween(relay(mini_sentry)))
+    r1.wait_relay_healthcheck()
 
     @settings(max_examples=50)
     @given(

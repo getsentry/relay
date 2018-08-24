@@ -16,6 +16,22 @@ SEMAPHORE_BIN = [os.environ.get("SEMAPHORE_BIN") or "target/debug/semaphore"]
 if os.environ.get("SEMAPHORE_AS_CARGO", "false") == "true":
     SEMAPHORE_BIN = ["cargo", "run", "--"]
 
+GOBETWEEN_BIN = [os.environ.get("GOBETWEEN_BIN") or "gobetween"]
+
+
+@pytest.fixture
+def random_port():
+    def inner():
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("127.0.0.1", 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+        s.close()
+        return port
+
+    return inner
+
 
 @pytest.fixture
 def mini_sentry(request):
@@ -50,6 +66,21 @@ class SentryLike(object):
     def url(self):
         return "http://{}:{}".format(*self.server_address)
 
+    def _wait(self, url):
+        backoff = 0.1
+        while True:
+            try:
+                requests.get(url).raise_for_status()
+                break
+            except Exception as e:
+                time.sleep(backoff)
+                if backoff > 0.5:
+                    raise
+                backoff *= 2
+
+    def wait_relay_healthcheck(self):
+        self._wait(self.url + "/api/relay/healthcheck/")
+
 
 class Sentry(SentryLike):
     def __init__(self, server_address, app):
@@ -64,48 +95,43 @@ class Relay(SentryLike):
         self.server_address = server_address
         self.process = process
 
-    def _wait(self, url):
-        backoff = 0.1
-        while True:
-            try:
-                requests.get(url).raise_for_status()
-                break
-            except Exception as e:
-                time.sleep(backoff)
-                if backoff > 0.5:
-                    raise
-                backoff *= 2
 
-    def wait_authenticated(self):
-        self._wait(self.url + "/api/relay/healthcheck/")
+@pytest.fixture
+def background_process(request):
+    def inner(*args, **kwargs):
+        p = subprocess.Popen(*args, **kwargs)
+        request.addfinalizer(p.kill)
+        return p
+
+    return inner
 
 
 @pytest.fixture
-def relay(tmpdir, mini_sentry, request):
-    i = 0
+def config_dir(tmpdir):
+    counters = {}
 
+    def inner(name):
+        counters.setdefault(name, 0)
+        counters[name] += 1
+        return tmpdir.mkdir("{}-{}".format(name, counters[name]))
+
+    return inner
+
+
+@pytest.fixture
+def relay(tmpdir, mini_sentry, request, random_port, background_process, config_dir):
     def inner(upstream):
-        nonlocal i
-        i += 1
-        name = "relay-config-{}".format(i)
+        host = "127.0.0.1"
+        port = random_port()
 
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("127.0.0.1", 0))
-        s.listen(1)
-        port = s.getsockname()[1]
-        s.close()
-
-        server_address = ("127.0.0.1", port)
-
-        config_dir = tmpdir.mkdir(name)
-        config_dir.join("config.yml").write(
+        dir = config_dir("relay")
+        dir.join("config.yml").write(
             json.dumps(
                 {
                     "relay": {
-                        "upstream": "http://{}:{}/".format(*upstream.server_address),
-                        "host": server_address[0],
-                        "port": server_address[1],
+                        "upstream": upstream.url,
+                        "host": host,
+                        "port": port,
                         "tls_port": None,
                         "tls_private_key": None,
                         "tls_cert": None,
@@ -123,11 +149,64 @@ def relay(tmpdir, mini_sentry, request):
         )
 
         subprocess.check_call(
-            SEMAPHORE_BIN + ["-c", str(config_dir), "credentials", "generate"]
+            SEMAPHORE_BIN + ["-c", str(dir), "credentials", "generate"]
         )
-        process = subprocess.Popen(SEMAPHORE_BIN + ["-c", str(config_dir), "run"])
-        request.addfinalizer(process.kill)
+        process = background_process(SEMAPHORE_BIN + ["-c", str(dir), "run"])
 
-        return Relay(server_address, process)
+        return Relay((host, port), process)
+
+    return inner
+
+
+class Gobetween(SentryLike):
+    def __init__(self, server_address, process):
+        self.server_address = server_address
+        self.process = process
+
+
+@pytest.fixture
+def gobetween(background_process, random_port, config_dir):
+    def inner(*upstreams):
+        host = "127.0.0.1"
+        port = random_port()
+
+        config = config_dir("gobetween").join("config.json")
+        config.write(
+            json.dumps(
+                {
+                    "logging": {"level": "debug", "output": "stdout"},
+                    "api": {
+                        "enabled": True,
+                        "bind": f"{host}:{random_port()}",
+                        "cors": False,
+                    },
+                    "defaults": {
+                        "max_connections": 0,
+                        "client_idle_timeout": "0",
+                        "backend_idle_timeout": "0",
+                        "backend_connection_timeout": "0",
+                    },
+                    "servers": {
+                        "sample": {
+                            "protocol": "tcp",
+                            "bind": f"{host}:{port}",
+                            "discovery": {
+                                "kind": "static",
+                                "static_list": [
+                                    f"{u.server_address[0]}:{u.server_address[1]}"
+                                    for u in upstreams
+                                ],
+                            },
+                        }
+                    },
+                }
+            )
+        )
+
+        process = background_process(
+            GOBETWEEN_BIN + ["from-file", "-fjson", str(config)]
+        )
+
+        return Gobetween((host, port), process)
 
     return inner
