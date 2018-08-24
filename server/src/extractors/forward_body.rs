@@ -1,11 +1,9 @@
-use std::io::{self, Read};
+use std::io::Read;
 use std::str;
 
 use actix_web::http::{header, StatusCode};
 use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
-use base64::{self, DecodeError};
 use bytes::{Bytes, BytesMut};
-use flate2::read::ZlibDecoder;
 use futures::prelude::*;
 
 /// A set of errors that can occur during parsing json payloads
@@ -19,14 +17,6 @@ pub enum ForwardPayloadError {
     #[fail(display = "payload length is unknown")]
     UnknownLength,
 
-    /// Base64 Decode error
-    #[fail(display = "failed to base64 decode payload")]
-    Decode(#[cause] DecodeError, Option<Bytes>),
-
-    /// zlib decode error
-    #[fail(display = "failed to decode zlib payload")]
-    Zlib(#[cause] io::Error, Option<Bytes>),
-
     /// Interal Payload streaming error
     #[fail(display = "failed to read request payload")]
     Payload(#[cause] PayloadError),
@@ -38,8 +28,6 @@ impl ForwardPayloadError {
         match self {
             ForwardPayloadError::Overflow => None,
             ForwardPayloadError::UnknownLength => None,
-            ForwardPayloadError::Decode(_, ref body) => body.as_ref().map(|x| &x[..]),
-            ForwardPayloadError::Zlib(_, ref body) => body.as_ref().map(|x| &x[..]),
             ForwardPayloadError::Payload(_) => None,
         }
     }
