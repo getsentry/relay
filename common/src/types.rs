@@ -39,8 +39,11 @@ impl ByteSize {
         macro_rules! try_multiple {
             ($ty:ty) => {
                 let v: SpecificSize<$ty> = bytes.into();
-                if v.value() == v.value().trunc() {
-                    return ByteSize(v.into());
+                #[cfg_attr(feature = "cargo-clippy", allow(float_cmp))]
+                {
+                    if v.value() == v.value().trunc() {
+                        return ByteSize(v.into());
+                    }
                 }
             };
         }
@@ -58,7 +61,7 @@ impl ByteSize {
 
     /// Create a byte size from megabytes
     pub fn from_megabytes(value: u64) -> ByteSize {
-        ByteSize::from_bytes(value * 1000_000)
+        ByteSize::from_bytes(value * 1_000_000)
     }
 
     /// Return the value in bytes.
@@ -73,7 +76,7 @@ impl_str_serialization!(ByteSize, "data size");
 #[test]
 fn test_byte_size() {
     let size: ByteSize = "42MiB".parse().unwrap();
-    assert_eq!(size.as_bytes(), 44040192);
+    assert_eq!(size.as_bytes(), 44_040_192);
     assert_eq!(size.to_string(), "42MiB");
 
     let size: ByteSize = ByteSize::from_kilobytes(1);
@@ -85,7 +88,7 @@ fn test_byte_size() {
     assert_eq!(size.to_string(), "1KiB");
 
     let size: ByteSize = ByteSize::from_megabytes(1);
-    assert_eq!(size.as_bytes(), 1000_000);
+    assert_eq!(size.as_bytes(), 1_000_000);
     assert_eq!(size.to_string(), "1MB");
 
     let size: ByteSize = ByteSize::from_bytes(1024 * 1024);
