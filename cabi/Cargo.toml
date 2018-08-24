@@ -25,8 +25,8 @@ serde_json = "1.0.26"
 serde_derive = "1.0.72"
 uuid = "0.6.5"
 
-[dependencies.semaphore-aorta]
-path = "../aorta"
+[dependencies.semaphore-common]
+path = "../common"
 
 [patch.crates-io]
 serde = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }

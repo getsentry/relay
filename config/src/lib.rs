@@ -15,9 +15,11 @@ extern crate serde_yaml;
 extern crate url;
 extern crate url_serde;
 
-extern crate semaphore_aorta;
+#[macro_use]
 extern crate semaphore_common;
 
 mod types;
+mod upstream;
 
 pub use types::*;
+pub use upstream::*;

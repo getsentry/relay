@@ -1,11 +1,9 @@
-use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 use std::sync::{Once, ONCE_INIT};
 
 use base64;
 use chrono::{DateTime, Duration, Utc};
-use hyper::Method;
 use rand::{thread_rng, RngCore};
 use rust_sodium;
 use rust_sodium::crypto::sign::ed25519 as sign_backend;
@@ -13,8 +11,6 @@ use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 use serde_json;
 use uuid::Uuid;
-
-use api::ApiRequest;
 
 static INIT_SODIUMOXIDE_RNG: Once = ONCE_INIT;
 
@@ -104,51 +100,10 @@ pub struct SecretKey {
     inner: sign_backend::SecretKey,
 }
 
-/// Represents a challenge request.
-///
-/// This is created if the relay signs in for the first time.  The server needs
-/// to respond to this challenge with a unique token that is then used to sign
-/// the response.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct RegisterRequest {
-    relay_id: RelayId,
-    public_key: PublicKey,
-}
-
-impl ApiRequest for RegisterRequest {
-    type Response = RegisterChallenge;
-
-    fn get_aorta_request_target(&self) -> (Method, Cow<str>) {
-        (Method::Post, Cow::Borrowed("relays/register/challenge/"))
-    }
-}
-
-/// Represents the response the server is supposed to send to a register request.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct RegisterChallenge {
-    relay_id: RelayId,
-    token: String,
-}
-
-/// Represents a response to a register challenge
-#[derive(Serialize, Deserialize, Debug)]
-pub struct RegisterResponse {
-    relay_id: RelayId,
-    token: String,
-}
-
 /// Reprensents the final registration.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Registration {
     relay_id: RelayId,
-}
-
-impl ApiRequest for RegisterResponse {
-    type Response = Registration;
-
-    fn get_aorta_request_target(&self) -> (Method, Cow<str>) {
-        (Method::Post, Cow::Borrowed("relays/register/response/"))
-    }
 }
 
 impl SecretKey {
@@ -367,6 +322,17 @@ pub fn generate_key_pair() -> (SecretKey, PublicKey) {
     })
 }
 
+/// Represents a challenge request.
+///
+/// This is created if the relay signs in for the first time.  The server needs
+/// to respond to this challenge with a unique token that is then used to sign
+/// the response.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RegisterRequest {
+    relay_id: RelayId,
+    public_key: PublicKey,
+}
+
 impl RegisterRequest {
     /// Creates a new request to register an relay upstream.
     pub fn new(relay_id: &RelayId, public_key: &PublicKey) -> RegisterRequest {
@@ -414,6 +380,13 @@ impl RegisterRequest {
     }
 }
 
+/// Represents the response the server is supposed to send to a register request.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RegisterChallenge {
+    relay_id: RelayId,
+    token: String,
+}
+
 impl RegisterChallenge {
     /// Returns the relay ID of the registering relay.
     pub fn relay_id(&self) -> &RelayId {
@@ -432,6 +405,13 @@ impl RegisterChallenge {
             token: self.token.clone(),
         }
     }
+}
+
+/// Represents a response to a register challenge
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RegisterResponse {
+    relay_id: RelayId,
+    token: String,
 }
 
 impl RegisterResponse {

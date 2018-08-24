@@ -4,9 +4,8 @@ use actix_web::error::Error;
 use actix_web::middleware::{Finished, Middleware, Response, Started};
 use actix_web::{http::header, Body, HttpRequest, HttpResponse};
 
-use semaphore_aorta::ApiErrorResponse;
-
 use constants::SERVER;
+use utils::ApiErrorResponse;
 
 /// Basic metrics
 pub struct Metrics;

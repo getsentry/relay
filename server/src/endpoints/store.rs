@@ -12,13 +12,13 @@ use sentry_actix::ActixWebHubExt;
 use url::Url;
 use uuid::Uuid;
 
-use semaphore_aorta::ApiErrorResponse;
 use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
 use actors::events::{EventMetaData, ProcessingError, QueueEvent};
 use actors::project::{EventAction, GetEventAction, GetProject};
 use extractors::{StoreBody, StorePayloadError};
 use service::{ServiceApp, ServiceState};
+use utils::ApiErrorResponse;
 
 #[derive(Fail, Debug)]
 enum BadStoreRequest {
@@ -126,7 +126,7 @@ fn store_event(
     metric!(counter(&format!("event.protocol.v{}", auth.version())) += 1);
 
     let meta = Arc::new(meta_from_request(&request, auth));
-    let config = request.state().aorta_config();
+    let config = request.state().config();
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_manager();
 
@@ -145,7 +145,7 @@ fn store_event(
                 )
                 .and_then(move |_| {
                     StoreBody::new(&request)
-                        .limit(config.max_event_payload_size)
+                        .limit(config.aorta_max_event_payload_size())
                         .map_err(BadStoreRequest::PayloadError)
                 })
                 .and_then(move |data| {

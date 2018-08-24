@@ -6,11 +6,13 @@ use std::time::Duration;
 
 use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
+use chrono::{DateTime, Utc};
 use futures::{future, future::Shared, sync::oneshot, Future};
 use url::Url;
+use uuid::Uuid;
 
-use semaphore_aorta::{ProjectStateSnapshot, PublicKeyStatus};
-use semaphore_common::{processor::PiiConfig, ProjectId};
+use semaphore_common::{processor::PiiConfig, ProjectId, PublicKey};
+use semaphore_config::Config;
 
 use actors::events::EventMetaData;
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
@@ -52,7 +54,7 @@ fn get_event_action(state: &ProjectStateSnapshot, meta: &EventMetaData) -> Event
     }
 
     // TODO: Use real config here.
-    if state.outdated(&Default::default()) {
+    if state.outdated(&unimplemented!()) {
         // if the snapshot is out of date, we proceed as if it was still up to date. The
         // upstream relay (or sentry) will still filter events.
 
@@ -180,6 +182,109 @@ impl Handler<GetProjectId> for Project {
 
     fn handle(&mut self, _message: GetProjectId, _context: &mut Context<Self>) -> Self::Result {
         Some(self.id)
+    }
+}
+
+/// A helper enum indicating the public key state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PublicKeyStatus {
+    /// The state of the public key is not known.
+    ///
+    /// This can indicate that the key is not yet known or that the
+    /// key just does not exist.  We can not tell these two cases
+    /// apart as there is always a lag since the last update from the
+    /// upstream server.  As such the project state uses a heuristic
+    /// to decide if it should treat a key as not existing or just
+    /// not yet known.
+    Unknown,
+    /// This key is known but was disabled.
+    Disabled,
+    /// This key is known and is enabled.
+    Enabled,
+}
+
+/// These are config values that the user can modify in the UI.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectConfig {
+    /// URLs that are permitted for cross original JavaScript requests.
+    pub allowed_domains: Vec<String>,
+    /// List of relay public keys that are permitted to access this project.
+    pub trusted_relays: Vec<PublicKey>,
+}
+
+/// The project state snapshot represents a known server state of
+/// a project.
+///
+/// This is generally used by an indirection of `ProjectState` which
+/// manages a view over it which supports concurrent updates in the
+/// background.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectStateSnapshot {
+    /// The timestamp of when the snapshot was received.
+    pub last_fetch: DateTime<Utc>,
+    /// The timestamp of when the last snapshot was changed.
+    ///
+    /// This might be `None` in some rare cases like where snapshots
+    /// are faked locally.
+    pub last_change: Option<DateTime<Utc>>,
+    /// Indicates that the project is disabled.
+    pub disabled: bool,
+    /// A container of known public keys in the project.
+    pub public_keys: HashMap<String, bool>,
+    /// The project's slug if available.
+    pub slug: Option<String>,
+    /// The project's current config
+    pub config: ProjectConfig,
+    /// The project state's revision id.
+    pub rev: Option<Uuid>,
+}
+
+impl ProjectStateSnapshot {
+    /// Project state for a missing project.
+    pub fn missing() -> Self {
+        ProjectStateSnapshot {
+            last_fetch: Utc::now(),
+            last_change: None,
+            disabled: true,
+            public_keys: HashMap::new(),
+            slug: None,
+            config: Default::default(),
+            rev: None,
+        }
+    }
+
+    /// Returns the current status of a key.
+    pub fn get_public_key_status(&self, public_key: &str) -> PublicKeyStatus {
+        match self.public_keys.get(public_key) {
+            Some(&true) => PublicKeyStatus::Enabled,
+            Some(&false) => PublicKeyStatus::Disabled,
+            None => PublicKeyStatus::Unknown,
+        }
+    }
+
+    /// Checks if a public key is enabled.
+    pub fn public_key_is_enabled(&self, public_key: &str) -> bool {
+        self.get_public_key_status(public_key) == PublicKeyStatus::Enabled
+    }
+
+    /// Returns `true` if the entire project should be considered
+    /// disabled (blackholed, deleted etc.).
+    pub fn disabled(&self) -> bool {
+        self.disabled
+    }
+
+    /// Returns true if the snapshot is outdated.
+    pub fn outdated(&self, config: &Config) -> bool {
+        // TODO(armin): change this to a value from the config
+        // self.last_fetch < Utc::now() - config.snapshot_expiry
+        unimplemented!()
+    }
+
+    /// Returns the project config.
+    pub fn config(&self) -> &ProjectConfig {
+        &self.config
     }
 }
 

@@ -5,7 +5,6 @@ use std::io;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use chrono::Duration;
 use failure::{Backtrace, Context, Fail};
@@ -17,10 +16,9 @@ use serde::ser::Serialize;
 use serde_json;
 use serde_yaml;
 
-use semaphore_aorta::{
-    generate_key_pair, generate_relay_id, AortaConfig, PublicKey, RelayId, SecretKey,
-    UpstreamDescriptor,
-};
+use semaphore_common::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
+
+use upstream::UpstreamDescriptor;
 
 /// Indicates config related errors.
 #[derive(Debug)]
@@ -577,21 +575,6 @@ impl Config {
     /// Returns the maximum size of an event payload in bytes.
     pub fn aorta_max_event_payload_size(&self) -> usize {
         self.values.aorta.max_event_payload_size as usize
-    }
-
-    /// Return a new aorta config based on this config file.
-    pub fn make_aorta_config(&self) -> Arc<AortaConfig> {
-        Arc::new(AortaConfig {
-            snapshot_expiry: self.aorta_snapshot_expiry(),
-            auth_retry_interval: self.aorta_auth_retry_interval(),
-            changeset_buffer_interval: self.aorta_changeset_buffer_interval(),
-            pending_events_timeout: self.aorta_pending_events_timeout(),
-            max_event_payload_size: self.aorta_max_event_payload_size(),
-            upstream: self.upstream_descriptor().clone().into_owned(),
-            relay_id: Some(*self.relay_id()),
-            secret_key: Some(self.secret_key().clone()),
-            public_key: Some(self.public_key().clone()),
-        })
     }
 
     /// Return the Sentry DSN if reporting to Sentry is enabled.
