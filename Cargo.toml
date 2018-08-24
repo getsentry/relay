@@ -22,7 +22,7 @@ failure = "0.1.2"
 pretty_env_logger = "0.2.4"
 futures = "0.1.23"
 log = { version = "0.4.4", features = ["serde"] }
-sentry = "0.7.0"
+sentry = "0.8.0"
 dialoguer = "0.1.0"
 uuid = "0.6.5"
 console = "0.6.1"
