@@ -5,10 +5,11 @@ use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::de::DeserializeOwned;
 
-use semaphore_aorta::{ApiErrorResponse, PublicKey, RelayId};
+use semaphore_common::{PublicKey, RelayId};
 
 use actors::keys::GetPublicKey;
 use service::ServiceState;
+use utils::ApiErrorResponse;
 
 #[derive(Debug)]
 pub struct SignedJson<T> {
