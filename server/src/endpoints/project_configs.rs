@@ -7,7 +7,8 @@ use service::ServiceApp;
 
 #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 fn get_project_configs(
-    (state, body): (CurrentServiceState, SignedJson<GetProjectStates>),
+    state: CurrentServiceState,
+    body: SignedJson<GetProjectStates>,
 ) -> Box<Future<Item = Json<GetProjectStatesResponse>, Error = Error>> {
     let public_key = body.public_key;
     let futures = body.inner.projects.into_iter().map(move |project_id| {
