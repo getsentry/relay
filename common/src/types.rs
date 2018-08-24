@@ -1,6 +1,8 @@
 use std::fmt;
 use std::str;
 
+use serde::{de, ser::Serializer, Serialize};
+
 pub use human_size::ParsingError as ByteSizeParseError;
 use human_size::{Byte, Kibibyte, Kilobyte, Mebibyte, Megabyte, Size, SpecificSize};
 
@@ -71,7 +73,55 @@ impl ByteSize {
     }
 }
 
-impl_str_serialization!(ByteSize, "data size");
+impl Serialize for ByteSize {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> de::Deserialize<'de> for ByteSize {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        struct V;
+
+        impl<'de> de::Visitor<'de> for V {
+            type Value = ByteSize;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("data size")
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<ByteSize, E>
+            where
+                E: de::Error,
+            {
+                Ok(ByteSize::from_bytes(value))
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<ByteSize, E>
+            where
+                E: de::Error,
+            {
+                value
+                    .parse()
+                    .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(value), &self))
+            }
+        }
+
+        deserializer.deserialize_str(V)
+    }
+}
+
+impl From<u64> for ByteSize {
+    fn from(value: u64) -> ByteSize {
+        ByteSize::from_bytes(value)
+    }
+}
 
 #[test]
 fn test_byte_size() {
