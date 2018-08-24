@@ -51,7 +51,7 @@ pytest:
 tests/venv/bin/python: Makefile
 	rm -rf tests/venv
 	virtualenv -ppython3 tests/venv
-	tests/venv/bin/pip install -U pytest pytest-localserver hypothesis requests flask
+	tests/venv/bin/pip install -U pytest pytest-localserver hypothesis requests flask sentry-sdk
 
 integration-test: tests/venv/bin/python
 	cargo build
