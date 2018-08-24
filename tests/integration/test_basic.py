@@ -3,6 +3,8 @@ from hypothesis import strategies as st
 import gzip
 import requests
 
+import sentry_sdk
+
 from flask import request, Response
 
 
@@ -34,7 +36,6 @@ def test_forwarding(mini_sentry, relay_chain_strategy):
         compress_request=st.booleans(),
     )
     def test_fuzzing(relay, data, compress_request, compress_response):
-        print("TEST", relay)
         relay.wait_relay_healthcheck()
 
         data = data.encode("utf-8")
@@ -58,3 +59,27 @@ def test_forwarding(mini_sentry, relay_chain_strategy):
         assert response.content == data
 
     test_fuzzing()
+
+
+def test_store(mini_sentry, relay_chain_strategy):
+    @given(relay=relay_chain_strategy)
+    def test_store(relay):
+        print("TEST", relay)
+        relay.wait_relay_healthcheck()
+
+        while not mini_sentry.captured_events.empty():
+            mini_sentry.captured_events.get()
+
+        client = sentry_sdk.Client(relay.dsn)
+        hub = sentry_sdk.Hub(client)
+        hub.add_breadcrumb(message="i like bread")
+        hub.capture_message("hü")
+        client.drain_events()
+
+        event = mini_sentry.captured_events.get()
+        assert mini_sentry.captured_events.empty()
+
+        assert event["breadcrumbs"] == [{"message": "i like bread"}]
+        assert event["message"] == "hü"
+
+    test_store()

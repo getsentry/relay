@@ -6,7 +6,10 @@ import socket
 import subprocess
 import time
 import requests
+import gzip
 import functools
+
+from queue import Queue
 
 from hypothesis import given
 from hypothesis import strategies as st
@@ -55,7 +58,12 @@ def mini_sentry(request):
 
     @app.route("/api/<project>/store/", methods=["POST"])
     def store_event(project):
-        sentry.captured_events.append(flask_request.json)
+        if flask_request.headers["Content-Encoding"] == "gzip":
+            data = gzip.decompress(flask_request.data)
+        else:
+            data = flask_request.data
+
+        sentry.captured_events.put(json.loads(data))
         return jsonify({"event_id": uuid.uuid4().hex})
 
     @app.route("/api/relay/healthcheck/")
@@ -84,7 +92,7 @@ class SentryLike(object):
                 break
             except Exception as e:
                 time.sleep(backoff)
-                if backoff > 3:
+                if backoff > 10:
                     raise
                 backoff *= 2
 
@@ -95,6 +103,13 @@ class SentryLike(object):
         self._wait(self.url + "/api/relay/healthcheck/")
         self._healthcheck_passed = True
 
+    @property
+    def dsn(self):
+        upstream = self.upstream
+        if isinstance(upstream, tuple):
+            upstream = upstream[0]
+        return upstream.dsn
+
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
 
@@ -104,8 +119,15 @@ class Sentry(SentryLike):
         self.server_address = server_address
         self.app = app
         self.trusted_relays = []
-        self.captured_events = []
+        self.captured_events = Queue()
         self.upstream = None
+
+    @property
+    def dsn(self):
+        # bogus, we never check the DSN
+        return "http://31a5a894b4524f74a9a8d0e27e21ba91@{}:{}/42".format(
+            *self.server_address
+        )
 
 
 class Relay(SentryLike):
@@ -155,14 +177,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                         "tls_private_key": None,
                         "tls_cert": None,
                     },
-                    "sentry": {
-                        "dsn": (
-                            # bogus, we never check the DSN
-                            "http://31a5a894b4524f74a9a8d0e27e21ba91@{}:{}/42".format(
-                                *mini_sentry.server_address
-                            )
-                        )
-                    },
+                    "sentry": {"dsn": mini_sentry.dsn},
                 }
             )
         )
