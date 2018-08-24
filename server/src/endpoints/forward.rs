@@ -16,6 +16,8 @@ static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
     header::UPGRADE,
 ];
 
+static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[header::CONTENT_ENCODING, header::CONTENT_LENGTH];
+
 fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
     let peer_addr = request
         .peer_addr()
@@ -52,10 +54,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
         // must not forward the content-encoding header, as the actix http client will do its own
         // content encoding. Also remove content-length because it's likely wrong.
-        if HOP_BY_HOP_HEADERS.contains(key)
-            || key == header::CONTENT_ENCODING
-            || key == header::CONTENT_LENGTH
-        {
+        if HOP_BY_HOP_HEADERS.contains(key) || IGNORED_REQUEST_HEADERS.contains(key) {
             continue;
         }
         forwarded_request_builder.header(key.clone(), value.clone());
