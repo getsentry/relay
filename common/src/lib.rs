@@ -31,7 +31,6 @@ pub mod metrics;
 
 mod auth;
 mod types;
-mod utils;
 
 pub use auth::*;
 pub use marshal::processor;
