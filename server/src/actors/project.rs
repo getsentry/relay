@@ -33,8 +33,8 @@ pub struct Project {
     id: ProjectId,
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
-    state: Option<Arc<ProjectStateSnapshot>>,
-    state_channel: Option<Shared<oneshot::Receiver<Option<Arc<ProjectStateSnapshot>>>>>,
+    state: Option<Arc<ProjectState>>,
+    state_channel: Option<Shared<oneshot::Receiver<Option<Arc<ProjectState>>>>>,
 }
 
 impl Project {
@@ -48,14 +48,14 @@ impl Project {
         }
     }
 
-    pub fn state(&self) -> Option<&ProjectStateSnapshot> {
+    pub fn state(&self) -> Option<&ProjectState> {
         self.state.as_ref().map(AsRef::as_ref)
     }
 
     fn get_or_fetch_state(
         &mut self,
         context: &mut Context<Self>,
-    ) -> Response<Arc<ProjectStateSnapshot>, ProjectError> {
+    ) -> Response<Arc<ProjectState>, ProjectError> {
         if let Some(ref state) = self.state {
             return Response::ok(state.clone());
         }
@@ -82,7 +82,7 @@ impl Project {
     fn fetch_state(
         &mut self,
         context: &mut Context<Self>,
-    ) -> Shared<oneshot::Receiver<Option<Arc<ProjectStateSnapshot>>>> {
+    ) -> Shared<oneshot::Receiver<Option<Arc<ProjectState>>>> {
         let (sender, receiver) = oneshot::channel();
         let id = self.id;
 
@@ -161,20 +161,15 @@ pub struct ProjectConfig {
     pub trusted_relays: Vec<PublicKey>,
 }
 
-/// The project state snapshot represents a known server state of
-/// a project.
-///
-/// This is generally used by an indirection of `ProjectState` which
-/// manages a view over it which supports concurrent updates in the
-/// background.
+/// The project state is a cached server state of a project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProjectStateSnapshot {
-    /// The timestamp of when the snapshot was received.
+pub struct ProjectState {
+    /// The timestamp of when the state was received.
     pub last_fetch: DateTime<Utc>,
-    /// The timestamp of when the last snapshot was changed.
+    /// The timestamp of when the state was last changed.
     ///
-    /// This might be `None` in some rare cases like where snapshots
+    /// This might be `None` in some rare cases like where states
     /// are faked locally.
     pub last_change: Option<DateTime<Utc>>,
     /// Indicates that the project is disabled.
@@ -189,10 +184,10 @@ pub struct ProjectStateSnapshot {
     pub rev: Option<Uuid>,
 }
 
-impl ProjectStateSnapshot {
+impl ProjectState {
     /// Project state for a missing project.
     pub fn missing() -> Self {
-        ProjectStateSnapshot {
+        ProjectState {
             last_fetch: Utc::now(),
             last_change: None,
             disabled: true,
@@ -265,7 +260,7 @@ impl ProjectStateSnapshot {
 
         // TODO: Use real config here.
         if self.outdated(config) {
-            // if the snapshot is out of date, we proceed as if it was still up to date. The
+            // if the state is out of date, we proceed as if it was still up to date. The
             // upstream relay (or sentry) will still filter events.
 
             // we assume it is unlikely to re-activate a disabled public key.
@@ -297,11 +292,11 @@ impl ProjectStateSnapshot {
 pub struct GetProjectState;
 
 impl Message for GetProjectState {
-    type Result = Result<Arc<ProjectStateSnapshot>, ProjectError>;
+    type Result = Result<Arc<ProjectState>, ProjectError>;
 }
 
 impl Handler<GetProjectState> for Project {
-    type Result = Response<Arc<ProjectStateSnapshot>, ProjectError>;
+    type Result = Response<Arc<ProjectState>, ProjectError>;
 
     fn handle(&mut self, _message: GetProjectState, context: &mut Context<Self>) -> Self::Result {
         self.get_or_fetch_state(context)
@@ -379,7 +374,7 @@ pub struct GetProjectStates {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetProjectStatesResponse {
-    pub configs: HashMap<ProjectId, Option<ProjectStateSnapshot>>,
+    pub configs: HashMap<ProjectId, Option<ProjectState>>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -398,7 +393,7 @@ pub struct ProjectCache {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
-    state_channels: HashMap<ProjectId, oneshot::Sender<ProjectStateSnapshot>>,
+    state_channels: HashMap<ProjectId, oneshot::Sender<ProjectState>>,
 }
 
 impl ProjectCache {
@@ -436,7 +431,7 @@ impl ProjectCache {
                                 .configs
                                 .remove(&id)
                                 .unwrap_or(None)
-                                .unwrap_or_else(ProjectStateSnapshot::missing);
+                                .unwrap_or_else(ProjectState::missing);
 
                             channel.send(state).ok();
                         }
@@ -495,11 +490,11 @@ pub struct FetchProjectState {
 }
 
 impl Message for FetchProjectState {
-    type Result = Result<ProjectStateSnapshot, ()>;
+    type Result = Result<ProjectState, ()>;
 }
 
 impl Handler<FetchProjectState> for ProjectCache {
-    type Result = Response<ProjectStateSnapshot, ()>;
+    type Result = Response<ProjectState, ()>;
 
     fn handle(&mut self, message: FetchProjectState, ctx: &mut Self::Context) -> Self::Result {
         self.schedule_fetch(ctx);
