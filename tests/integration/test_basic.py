@@ -76,7 +76,7 @@ def test_store(mini_sentry, relay_chain_strategy):
         hub.capture_message("hü")
         client.drain_events()
 
-        event = mini_sentry.captured_events.get()
+        event = mini_sentry.captured_events.get(timeout=5)
         assert mini_sentry.captured_events.empty()
 
         assert event["breadcrumbs"] == [{"message": "i like bread"}]
