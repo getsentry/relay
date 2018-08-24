@@ -1,4 +1,3 @@
-use std::io::Read;
 use std::str;
 
 use actix_web::http::{header, StatusCode};
