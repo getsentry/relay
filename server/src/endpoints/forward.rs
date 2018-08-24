@@ -52,9 +52,10 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
         // must not forward the content-encoding header, as the actix http client will do its own
         // content encoding. Also remove content-length because it's likely wrong.
-        if HOP_BY_HOP_HEADERS.contains(key) ||
-            key == header::CONTENT_ENCODING ||
-            key == header::CONTENT_LENGTH {
+        if HOP_BY_HOP_HEADERS.contains(key)
+            || key == header::CONTENT_ENCODING
+            || key == header::CONTENT_LENGTH
+        {
             continue;
         }
         forwarded_request.header(key.clone(), value.clone());
