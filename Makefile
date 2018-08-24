@@ -48,10 +48,13 @@ pytest:
 	@$(MAKE) -C py test
 .PHONY: pytest
 
-integration-test:
-	virtualenv -ppython3 tests/venv/
+tests/venv/bin/python: Makefile
+	rm -rf tests/venv
+	virtualenv -ppython3 tests/venv
 	tests/venv/bin/pip install -U pytest pytest-localserver hypothesis requests flask
-	tests/venv/bin/pytest tests
+
+integration-test: tests/venv/bin/python
+	@tests/venv/bin/pytest tests
 .PHONY: integration-test
 
 format:
