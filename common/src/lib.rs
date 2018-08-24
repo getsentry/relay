@@ -13,10 +13,12 @@ extern crate sentry_types;
 extern crate serde;
 extern crate serde_json;
 extern crate url;
+extern crate human_size;
 
 #[macro_use]
 mod macros;
 mod utils;
+mod types;
 #[macro_use]
 pub mod metrics;
 
@@ -27,3 +29,4 @@ pub use sentry_types::{
 };
 
 pub use utils::*;
+pub use types::*;

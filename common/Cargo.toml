@@ -22,3 +22,4 @@ cadence = "0.15.1"
 parking_lot = "0.6.3"
 log = "0.4.3"
 marshal = { git = "https://github.com/getsentry/marshal", rev = "810d521dfbde1e2d0c1e63fbb2e226ef149a8883" }
+human-size = "0.4.0"
