@@ -51,6 +51,13 @@ matrix:
       env: SUITE=pytest
       install: easy_install virtualenv
 
+    # Integration tests
+    - os: linux
+      env: SUITE=integration-test
+    - os: osx
+      env: SUITE=integration-test
+      install: easy_install virtualenv
+
     # Rust builds
     - os: linux
       language: generic
