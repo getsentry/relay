@@ -67,7 +67,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
 
         let future = req
             .state()
-            .key_manager()
+            .key_cache()
             .send(GetPublicKey { relay_id })
             .map_err(Error::from)
             .and_then(|result| {

@@ -5,8 +5,8 @@ use std::io;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use chrono::Duration;
 use failure::{Backtrace, Context, Fail};
 use log;
 // Dsn must be imported from sentry and not sentry-types for compatibility with sentry::init!
@@ -53,7 +53,7 @@ impl fmt::Display for ConfigError {
 }
 
 impl ConfigError {
-    fn new<P: AsRef<Path>>(p: P, inner: Context<ConfigErrorKind>) -> ConfigError {
+    fn new<P: AsRef<Path>>(p: P, inner: Context<ConfigErrorKind>) -> Self {
         ConfigError {
             filename: p.as_ref().to_path_buf(),
             inner,
@@ -177,19 +177,28 @@ struct Limits {
     max_api_dif_upload_size: ByteSize,
 }
 
-/// Controls the aorta.
+/// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Aorta {
-    /// The number of seconds after which a relay is considered outdated.
-    snapshot_expiry: u32,
+struct Auth {
     /// The number of seconds between auth attempts.
-    auth_retry_interval: u32,
-    /// The number of seconds that the relay should buffer changesets for.
-    changeset_buffer_interval: u32,
-    /// The number of seconds for which an event shoudl be buffered until the
-    /// initial config arrives.
-    pending_events_timeout: u32,
+    retry_interval: u32,
+    /// The maximum number of retries before shutting down.
+    max_retries: u32,
+}
+
+/// Controls internal caching behavior.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct Cache {
+    /// The cache timeout for project configurations in seconds.
+    project_expiry: u32,
+    /// The cache timeout for downstream relay info (public keys) in seconds.
+    relay_expiry: u32,
+    /// The cache timeout for non-existing entries.
+    miss_expiry: u32,
+    /// The number of seconds to buffer batched queries before sending them upstream.
+    batch_interval: u32,
 }
 
 /// Controls interal reporting to Sentry.
@@ -201,7 +210,7 @@ struct Sentry {
 }
 
 impl Default for Relay {
-    fn default() -> Relay {
+    fn default() -> Self {
         Relay {
             upstream: "https://ingest.sentry.io/"
                 .parse::<UpstreamDescriptor>()
@@ -216,7 +225,7 @@ impl Default for Relay {
 }
 
 impl Default for Logging {
-    fn default() -> Logging {
+    fn default() -> Self {
         Logging {
             level: log::LevelFilter::Info,
             log_failed_payloads: false,
@@ -227,7 +236,7 @@ impl Default for Logging {
 }
 
 impl Default for Metrics {
-    fn default() -> Metrics {
+    fn default() -> Self {
         Metrics {
             statsd: None,
             prefix: "sentry.relay".into(),
@@ -236,7 +245,7 @@ impl Default for Metrics {
 }
 
 impl Default for Limits {
-    fn default() -> Limits {
+    fn default() -> Self {
         Limits {
             max_event_payload_size: ByteSize::from_kilobytes(256),
             max_api_payload_size: ByteSize::from_megabytes(20),
@@ -246,19 +255,28 @@ impl Default for Limits {
     }
 }
 
-impl Default for Aorta {
-    fn default() -> Aorta {
-        Aorta {
-            snapshot_expiry: 60,
-            auth_retry_interval: 15,
-            changeset_buffer_interval: 2,
-            pending_events_timeout: 60,
+impl Default for Auth {
+    fn default() -> Self {
+        Auth {
+            retry_interval: 15,
+            max_retries: 3,
+        }
+    }
+}
+
+impl Default for Cache {
+    fn default() -> Self {
+        Cache {
+            project_expiry: 300,
+            relay_expiry: 3600,
+            miss_expiry: 60,
+            batch_interval: 5,
         }
     }
 }
 
 impl Default for Sentry {
-    fn default() -> Sentry {
+    fn default() -> Self {
         Sentry {
             dsn: "https://1bb6015c9e064924890685d6311e0344@sentry.io/1195971"
                 .parse()
@@ -273,7 +291,9 @@ struct ConfigValues {
     #[serde(default)]
     relay: Relay,
     #[serde(default)]
-    aorta: Aorta,
+    auth: Auth,
+    #[serde(default)]
+    cache: Cache,
     #[serde(default)]
     limits: Limits,
     #[serde(default)]
@@ -577,23 +597,35 @@ impl Config {
         &self.values.metrics.prefix
     }
 
-    /// Returns the aorta snapshot expiry.
-    pub fn aorta_snapshot_expiry(&self) -> Duration {
-        Duration::seconds(self.values.aorta.snapshot_expiry.into())
+    /// Returns the upstream authentication retry interval.
+    pub fn auth_retry_interval(&self) -> Duration {
+        Duration::from_secs(self.values.auth.retry_interval.into())
     }
 
-    /// Returns the aorta auth retry interval.
-    pub fn aorta_auth_retry_interval(&self) -> Duration {
-        Duration::seconds(self.values.aorta.auth_retry_interval.into())
-    }
-    /// Returns the aorta changeset buffer interval.
-    pub fn aorta_changeset_buffer_interval(&self) -> Duration {
-        Duration::seconds(self.values.aorta.changeset_buffer_interval.into())
+    /// Returns the maximum number of auth retries.
+    pub fn auth_max_retries(&self) -> u32 {
+        self.values.auth.max_retries
     }
 
-    /// Returns the timeout for pending events.
-    pub fn aorta_pending_events_timeout(&self) -> Duration {
-        Duration::seconds(self.values.aorta.pending_events_timeout.into())
+    /// Returns the expiry timeout for cached projects.
+    pub fn project_cache_expiry(&self) -> Duration {
+        Duration::from_secs(self.values.cache.project_expiry.into())
+    }
+
+    /// Returns the expiry timeout for cached relay infos (public keys).
+    pub fn relay_cache_expiry(&self) -> Duration {
+        Duration::from_secs(self.values.cache.relay_expiry.into())
+    }
+
+    /// Returns the expiry timeout for cached misses before trying to refetch.
+    pub fn cache_miss_expiry(&self) -> Duration {
+        Duration::from_secs(self.values.cache.miss_expiry.into())
+    }
+
+    /// Returns the number of seconds during which batchable queries are collected before sending
+    /// them in a single request.
+    pub fn query_batch_interval(&self) -> Duration {
+        Duration::from_secs(self.values.cache.batch_interval.into())
     }
 
     /// Returns the maximum size of an event payload in bytes.

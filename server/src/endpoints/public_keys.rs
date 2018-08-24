@@ -10,7 +10,7 @@ fn get_public_keys(
     state: CurrentServiceState,
     body: SignedJson<GetPublicKeys>,
 ) -> Box<Future<Item = Json<GetPublicKeysResult>, Error = Error>> {
-    let res = state.key_manager().send(body.inner);
+    let res = state.key_cache().send(body.inner);
 
     Box::new(
         res.map_err(Error::from)

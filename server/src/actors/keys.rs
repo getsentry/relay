@@ -2,16 +2,16 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::mem;
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+use std::time::Instant;
 
 use actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, ResponseError};
 use futures::{future, future::Shared, sync::oneshot, Future};
 
-use semaphore_common::{PublicKey, RelayId};
+use semaphore_common::{Config, PublicKey, RelayId};
 
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
-use constants::{BATCH_TIMEOUT, MISSING_PUBLIC_KEY_EXPIRY, PUBLIC_KEY_EXPIRY};
 use utils::{ApiErrorResponse, Response};
 
 #[derive(Fail, Debug)]
@@ -36,13 +36,13 @@ enum KeyState {
 }
 
 impl KeyState {
-    fn is_valid_cache(&self) -> bool {
+    fn is_valid_cache(&self, config: &Config) -> bool {
         match *self {
             KeyState::Exists { checked_at, .. } => {
-                checked_at.elapsed().as_secs() < PUBLIC_KEY_EXPIRY
+                checked_at.elapsed() < config.relay_cache_expiry()
             }
             KeyState::DoesNotExist { checked_at } => {
-                checked_at.elapsed().as_secs() < MISSING_PUBLIC_KEY_EXPIRY
+                checked_at.elapsed() < config.cache_miss_expiry()
             }
         }
     }
@@ -91,15 +91,17 @@ impl KeyChannel {
     }
 }
 
-pub struct KeyManager {
+pub struct KeyCache {
+    config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     keys: HashMap<RelayId, KeyState>,
     key_channels: HashMap<RelayId, KeyChannel>,
 }
 
-impl KeyManager {
-    pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
-        KeyManager {
+impl KeyCache {
+    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+        KeyCache {
+            config,
             upstream,
             keys: HashMap::new(),
             key_channels: HashMap::new(),
@@ -108,7 +110,7 @@ impl KeyManager {
 
     fn schedule_fetch(&mut self, context: &mut Context<Self>) {
         if self.key_channels.is_empty() {
-            context.run_later(Duration::from_secs(BATCH_TIMEOUT), Self::fetch_keys);
+            context.run_later(self.config.query_batch_interval(), Self::fetch_keys);
         }
     }
 
@@ -155,7 +157,7 @@ impl KeyManager {
         context: &mut Context<Self>,
     ) -> Response<(RelayId, Option<PublicKey>), KeyError> {
         if let Some(key) = self.keys.get(&relay_id) {
-            if key.is_valid_cache() {
+            if key.is_valid_cache(&self.config) {
                 return Response::ok((relay_id, key.as_option().cloned()));
             }
         }
@@ -175,7 +177,7 @@ impl KeyManager {
     }
 }
 
-impl Actor for KeyManager {
+impl Actor for KeyCache {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
@@ -201,7 +203,7 @@ impl Message for GetPublicKey {
     type Result = Result<GetPublicKeyResult, KeyError>;
 }
 
-impl Handler<GetPublicKey> for KeyManager {
+impl Handler<GetPublicKey> for KeyCache {
     type Result = Response<GetPublicKeyResult, KeyError>;
 
     fn handle(&mut self, message: GetPublicKey, context: &mut Self::Context) -> Self::Result {
@@ -236,7 +238,7 @@ impl UpstreamQuery for GetPublicKeys {
     }
 }
 
-impl Handler<GetPublicKeys> for KeyManager {
+impl Handler<GetPublicKeys> for KeyCache {
     type Result = Response<GetPublicKeysResult, KeyError>;
 
     fn handle(&mut self, message: GetPublicKeys, context: &mut Self::Context) -> Self::Result {

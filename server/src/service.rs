@@ -9,8 +9,8 @@ use sentry_actix::SentryMiddleware;
 use semaphore_common::Config;
 
 use actors::events::EventManager;
-use actors::keys::KeyManager;
-use actors::project::ProjectManager;
+use actors::keys::KeyCache;
+use actors::project::ProjectCache;
 use actors::upstream::UpstreamRelay;
 use endpoints;
 use errors::{ServerError, ServerErrorKind};
@@ -27,8 +27,8 @@ fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
 #[derive(Clone)]
 pub struct ServiceState {
     config: Arc<Config>,
-    key_manager: Addr<KeyManager>,
-    project_manager: Addr<ProjectManager>,
+    key_cache: Addr<KeyCache>,
+    project_cache: Addr<ProjectCache>,
     upstream_relay: Addr<UpstreamRelay>,
     event_manager: Addr<EventManager>,
 }
@@ -39,22 +39,22 @@ impl ServiceState {
         self.config.clone()
     }
 
-    /// Returns current key manager
-    pub fn key_manager(&self) -> Addr<KeyManager> {
-        self.key_manager.clone()
+    /// Returns the current relay public key cache.
+    pub fn key_cache(&self) -> Addr<KeyCache> {
+        self.key_cache.clone()
     }
 
-    /// Returns actor for upstream relay
+    /// Returns the actor for upstream relay.
     pub fn upstream_relay(&self) -> Addr<UpstreamRelay> {
         self.upstream_relay.clone()
     }
 
-    /// Returns current project manager
-    pub fn project_manager(&self) -> Addr<ProjectManager> {
-        self.project_manager.clone()
+    /// Returns the current project cache.
+    pub fn project_cache(&self) -> Addr<ProjectCache> {
+        self.project_cache.clone()
     }
 
-    /// Returns a pool of event processors.
+    /// Returns the current event manager.
     pub fn event_manager(&self) -> Addr<EventManager> {
         self.event_manager.clone()
     }
@@ -86,17 +86,13 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     let config = Arc::new(config);
     let sys = System::new("relay");
 
-    let upstream_relay = UpstreamRelay::new(
-        config.credentials().cloned(),
-        config.upstream_descriptor().clone().into_owned(),
-        config.aorta_auth_retry_interval(),
-    ).start();
+    let upstream_relay = UpstreamRelay::new(config.clone()).start();
 
     let service_state = ServiceState {
         config: config.clone(),
         upstream_relay: upstream_relay.clone(),
-        key_manager: KeyManager::new(upstream_relay.clone()).start(),
-        project_manager: ProjectManager::new(upstream_relay.clone()).start(),
+        key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
+        project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
         event_manager: EventManager::new(upstream_relay.clone()).start(),
     };
 
