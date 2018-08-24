@@ -1,4 +1,4 @@
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 import gzip
 import requests
@@ -29,6 +29,7 @@ def test_forwarding(relay, mini_sentry):
     r1 = relay(mini_sentry)
     r1.wait_authenticated()
 
+    @settings(max_examples=50)
     @given(
         data=st.text(), compress_response=st.booleans(), compress_request=st.booleans()
     )
