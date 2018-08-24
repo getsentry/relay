@@ -145,7 +145,7 @@ fn store_event(
                 )
                 .and_then(move |_| {
                     StoreBody::new(&request)
-                        .limit(config.aorta_max_event_payload_size())
+                        .limit(config.max_event_payload_size())
                         .map_err(BadStoreRequest::PayloadError)
                 })
                 .and_then(move |data| {

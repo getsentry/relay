@@ -30,7 +30,13 @@ impl fmt::Display for ByteSize {
 
 impl fmt::Debug for ByteSize {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ByteSize({})", self)
+        pub struct Helper<'a>(&'a ByteSize);
+        impl<'a> fmt::Debug for Helper<'a> {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "{}", self.0)
+            }
+        }
+        f.debug_tuple("ByteSize").field(&Helper(self)).finish()
     }
 }
 
