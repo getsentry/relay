@@ -24,6 +24,8 @@ use upstream::UpstreamDescriptor;
 pub struct ProjectConfig {
     /// URLs that are permitted for cross original JavaScript requests.
     pub allowed_domains: Vec<String>,
+    /// List of relay public keys that are permitted to access this project.
+    pub trusted_relays: Vec<PublicKey>,
 }
 
 /// The project state snapshot represents a known server state of
@@ -50,8 +52,6 @@ pub struct ProjectStateSnapshot {
     pub slug: Option<String>,
     /// The project's current config
     pub config: ProjectConfig,
-    /// List of relay public keys that are permitted to access this project.
-    pub trusted_relays: Vec<PublicKey>,
     /// The project state's revision id.
     pub rev: Option<Uuid>,
 }
@@ -119,7 +119,6 @@ impl ProjectStateSnapshot {
             public_keys: HashMap::new(),
             slug: None,
             config: Default::default(),
-            trusted_relays: vec![],
             rev: None,
         }
     }
