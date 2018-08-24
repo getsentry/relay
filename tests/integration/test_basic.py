@@ -62,6 +62,35 @@ def test_forwarding(mini_sentry, relay_chain_strategy):
 
 
 def test_store(mini_sentry, relay_chain_strategy):
+    mini_sentry.project_configs[42] = {
+        "publicKeys": {"31a5a894b4524f74a9a8d0e27e21ba91": True},
+        "rev": "5ceaea8c919811e8ae7daae9fe877901",
+        "disabled": False,
+        "lastFetch": "2018-08-24T17:29:04.426Z",
+        "lastChange": "2018-07-27T12:27:01.481Z",
+        "config": {
+            "allowedDomains": ["*"],
+            "trustedRelays": [],
+            "piiConfig": {
+                "rules": {},
+                "applications": {
+                    "freeform": ["@email", "@mac", "@creditcard", "@userpath"],
+                    "username": ["@userpath"],
+                    "ip": [],
+                    "databag": [
+                        "@email",
+                        "@mac",
+                        "@creditcard",
+                        "@userpath",
+                        "@password",
+                    ],
+                    "email": ["@email"],
+                },
+            },
+        },
+        "slug": "python",
+    }
+
     @given(relay=relay_chain_strategy)
     def test_store(relay):
         print("TEST", relay)
@@ -70,7 +99,7 @@ def test_store(mini_sentry, relay_chain_strategy):
         while not mini_sentry.captured_events.empty():
             mini_sentry.captured_events.get()
 
-        client = sentry_sdk.Client(relay.dsn)
+        client = sentry_sdk.Client(relay.dsn, default_integrations=False)
         hub = sentry_sdk.Hub(client)
         hub.add_breadcrumb(message="i like bread")
         hub.capture_message("hü")

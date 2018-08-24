@@ -7,15 +7,11 @@ import subprocess
 import time
 import requests
 import gzip
-import functools
 
 from queue import Queue
 
-from hypothesis import given
 from hypothesis import strategies as st
-
 from pytest_localserver.http import WSGIServer
-
 from flask import Flask, request as flask_request, jsonify
 
 SEMAPHORE_BIN = [os.environ.get("SEMAPHORE_BIN") or "target/debug/semaphore"]
@@ -46,19 +42,28 @@ def mini_sentry(request):
     app.debug = True
     sentry = None
 
+    test_failures = []
+    authenticated_relays = {}
+
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
     def get_challenge():
-        return jsonify(
-            {"token": "123", "relay_id": flask_request.headers["x-sentry-relay-id"]}
-        )
+        relay_id = flask_request.json["relay_id"]
+        public_key = flask_request.json["public_key"]
+        authenticated_relays[relay_id] = public_key
+
+        assert relay_id == flask_request.headers["x-sentry-relay-id"]
+        return jsonify({"token": "123", "relay_id": relay_id})
 
     @app.route("/api/0/relays/register/response/", methods=["POST"])
     def check_challenge():
-        return jsonify({"relay_id": flask_request.headers["x-sentry-relay-id"]})
+        relay_id = flask_request.json["relay_id"]
+        assert relay_id == flask_request.headers["x-sentry-relay-id"]
+        assert relay_id in authenticated_relays
+        return jsonify({"relay_id": relay_id})
 
     @app.route("/api/<project>/store/", methods=["POST"])
     def store_event(project):
-        if flask_request.headers["Content-Encoding"] == "gzip":
+        if flask_request.headers.get("Content-Encoding", "") == "gzip":
             data = gzip.decompress(flask_request.data)
         else:
             data = flask_request.data
@@ -66,9 +71,36 @@ def mini_sentry(request):
         sentry.captured_events.put(json.loads(data))
         return jsonify({"event_id": uuid.uuid4().hex})
 
+    @app.route("/api/0/relays/projectconfigs/", methods=["POST"])
+    def get_project_config():
+        rv = {}
+        for project_id in flask_request.json["projects"]:
+            rv[project_id] = sentry.project_configs[int(project_id)]
+
+        return jsonify(configs=rv)
+
+    @app.route("/api/0/relays/publickeys/", methods=["POST"])
+    def public_keys():
+        ids = flask_request.json["relay_ids"]
+        rv = {}
+        for id in ids:
+            rv[id] = authenticated_relays[id]
+
+        return jsonify(public_keys=rv)
+
     @app.route("/api/relay/healthcheck/")
     def healthcheck():
         return "ok"
+
+    @app.errorhandler(Exception)
+    def fail(e):
+        test_failures.append((flask_request.url, e))
+        raise e
+
+    @request.addfinalizer
+    def reraise_test_failures():
+        if test_failures:
+            raise AssertionError(f"Exceptions happened in mini_sentry: {test_failures}")
 
     server = WSGIServer(application=app)
     server.start()
@@ -103,24 +135,8 @@ class SentryLike(object):
         self._wait(self.url + "/api/relay/healthcheck/")
         self._healthcheck_passed = True
 
-    @property
-    def dsn(self):
-        upstream = self.upstream
-        if isinstance(upstream, tuple):
-            upstream = upstream[0]
-        return upstream.dsn
-
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
-
-
-class Sentry(SentryLike):
-    def __init__(self, server_address, app):
-        self.server_address = server_address
-        self.app = app
-        self.trusted_relays = []
-        self.captured_events = Queue()
-        self.upstream = None
 
     @property
     def dsn(self):
@@ -128,6 +144,15 @@ class Sentry(SentryLike):
         return "http://31a5a894b4524f74a9a8d0e27e21ba91@{}:{}/42".format(
             *self.server_address
         )
+
+
+class Sentry(SentryLike):
+    def __init__(self, server_address, app):
+        self.server_address = server_address
+        self.app = app
+        self.project_configs = {}
+        self.captured_events = Queue()
+        self.upstream = None
 
 
 class Relay(SentryLike):
