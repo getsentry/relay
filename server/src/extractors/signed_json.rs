@@ -60,7 +60,8 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
         );
 
         Hub::from_request(req).configure_scope(|scope| {
-            scope.set_tag("relay_id", format!("{}", relay_id.to_string())); // Dump out header value even if not string
+            // Dump out header value even if not string
+            scope.set_tag("relay_id", relay_id.to_string());
         });
 
         let relay_sig = extract_header!("X-Sentry-Relay-Signature").to_owned();
