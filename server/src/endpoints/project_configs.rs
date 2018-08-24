@@ -21,7 +21,7 @@ fn get_project_configs(
                 let project_state = project_state.ok()?;
                 // If public key is known (even if rate-limited, which is Some(false)), it has
                 // access to the project config
-                if project_state.trusted_relays.contains(&public_key) {
+                if project_state.config.trusted_relays.contains(&public_key) {
                     Some((*project_state).clone())
                 } else {
                     None
