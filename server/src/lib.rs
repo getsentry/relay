@@ -22,7 +22,6 @@ extern crate listenfd;
 extern crate num_cpus;
 #[cfg(feature = "with_ssl")]
 extern crate openssl;
-extern crate semaphore_config;
 extern crate sentry;
 extern crate sentry_actix;
 extern crate serde;

@@ -22,6 +22,8 @@ extern crate rust_sodium;
 extern crate sentry_types;
 extern crate serde;
 extern crate serde_json;
+extern crate serde_yaml;
+extern crate url;
 extern crate uuid;
 
 #[macro_use]
@@ -30,12 +32,17 @@ mod macros;
 pub mod metrics;
 
 mod auth;
+mod config;
 mod types;
+mod upstream;
 
 pub use auth::*;
+pub use config::*;
+pub use types::*;
+pub use upstream::*;
+
 pub use marshal::processor;
 pub use marshal::protocol as v8;
 pub use sentry_types::{
     Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError, Scheme,
 };
-pub use types::*;

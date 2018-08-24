@@ -11,8 +11,7 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 use url::Url;
 use uuid::Uuid;
 
-use semaphore_common::{processor::PiiConfig, ProjectId, PublicKey};
-use semaphore_config::Config;
+use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey};
 
 use actors::events::EventMetaData;
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};

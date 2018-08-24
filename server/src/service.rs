@@ -6,7 +6,7 @@ use failure::ResultExt;
 use listenfd::ListenFd;
 use sentry_actix::SentryMiddleware;
 
-use semaphore_config::Config;
+use semaphore_common::Config;
 
 use actors::events::EventManager;
 use actors::keys::KeyManager;
