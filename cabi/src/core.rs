@@ -5,11 +5,11 @@ use std::ptr;
 use std::slice;
 use std::str;
 
-use utils::{set_panic_hook, Panic, LAST_ERROR};
-
 use failure::Error;
-use semaphore_aorta::{KeyParseError, UnpackError};
+use semaphore_common::{KeyParseError, UnpackError};
 use uuid::Uuid;
+
+use utils::{set_panic_hook, Panic, LAST_ERROR};
 
 /// Represents a uuid.
 #[repr(C)]
@@ -39,10 +39,12 @@ pub enum SemaphoreErrorCode {
     NoError = 0,
     Panic = 1,
     Unknown = 2,
-    // semaphore_aorta::auth::KeyParseError
+
+    // semaphore_common::auth::KeyParseError
     KeyParseErrorBadEncoding = 1000,
     KeyParseErrorBadKey = 1001,
-    // semaphore_aorta::auth::UnpackError
+
+    // semaphore_common::auth::UnpackError
     UnpackErrorBadSignature = 1003,
     UnpackErrorBadPayload = 1004,
     UnpackErrorSignatureExpired = 1005,
@@ -51,7 +53,7 @@ pub enum SemaphoreErrorCode {
 impl SemaphoreErrorCode {
     /// This maps all errors that can possibly happen.
     pub fn from_error(error: &Error) -> SemaphoreErrorCode {
-        for cause in error.causes() {
+        for cause in error.iter_chain() {
             if let Some(..) = cause.downcast_ref::<Panic>() {
                 return SemaphoreErrorCode::Panic;
             }
@@ -203,7 +205,7 @@ pub unsafe extern "C" fn semaphore_err_get_last_message() -> SemaphoreStr {
     LAST_ERROR.with(|e| {
         if let Some(ref err) = *e.borrow() {
             let mut msg = err.to_string();
-            for cause in err.causes().skip(1) {
+            for cause in err.iter_chain().skip(1) {
                 write!(&mut msg, "\n  caused by: {}", cause).ok();
             }
             SemaphoreStr::from_string(msg)

@@ -1,8 +1,6 @@
 //! Common functionality for the sentry relay.
 #![warn(missing_docs)]
 
-// #[macro_use]
-// extern crate base64_serde;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -24,7 +22,6 @@ extern crate rust_sodium;
 extern crate sentry_types;
 extern crate serde;
 extern crate serde_json;
-extern crate url;
 extern crate uuid;
 
 #[macro_use]

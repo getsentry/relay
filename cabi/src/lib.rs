@@ -1,7 +1,7 @@
 extern crate chrono;
 #[macro_use]
 extern crate failure;
-extern crate semaphore_aorta;
+extern crate semaphore_common;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -11,8 +11,8 @@ extern crate uuid;
 #[macro_use]
 mod utils;
 
-mod aorta;
+mod auth;
 mod core;
 
-pub use aorta::*;
+pub use auth::*;
 pub use core::*;
