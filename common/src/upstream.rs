@@ -4,9 +4,8 @@ use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::str::FromStr;
 
+use sentry_types::{Dsn, Scheme};
 use url::Url;
-
-use semaphore_common::{Dsn, Scheme};
 
 /// Indicates failures in the upstream error api.
 #[derive(Fail, Debug)]
@@ -162,7 +161,6 @@ impl_str_serialization!(UpstreamDescriptor<'static>, "a sentry upstream URL");
 #[cfg(test)]
 mod test {
     use super::*;
-    use semaphore_common::Dsn;
 
     #[test]
     fn test_basic_parsing() {

@@ -8,14 +8,16 @@ use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 use uuid::Uuid;
 
-use semaphore_aorta::EventV8;
 use semaphore_common::processor::PiiConfig;
-use semaphore_config::{Config, Credentials, MinimalConfig};
+use semaphore_common::v8::{Annotated, Event};
+use semaphore_common::{Config, Credentials, MinimalConfig};
 use semaphore_server;
 
 use cliapp::make_app;
 use setup;
 use utils;
+
+type EventV8 = Annotated<Event>;
 
 /// Runs the command line application.
 pub fn execute() -> Result<(), Error> {
