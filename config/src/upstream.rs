@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use url::Url;
 
-use semaphore_common::{Dsn, ProjectId, Scheme};
+use semaphore_common::{Dsn, Scheme};
 
 /// Indicates failures in the upstream error api.
 #[derive(Fail, Debug)]
@@ -79,20 +79,6 @@ impl<'a> UpstreamDescriptor<'a> {
     /// Returns a URL relative to the upstream.
     pub fn get_url(&self, path: &str) -> Url {
         format!("{}{}", self, path.trim_left_matches(&['/'][..]))
-            .parse()
-            .unwrap()
-    }
-
-    /// Returns the API base URL.
-    pub fn get_api_url(&self, path: &str) -> Url {
-        format!("{}api/0/{}", self, path.trim_left_matches(&['/'][..]))
-            .parse()
-            .unwrap()
-    }
-
-    /// Returns the API store endpoint URL
-    pub fn get_store_url(&self, project_id: ProjectId) -> Url {
-        format!("{}api/{}/store/", self, project_id)
             .parse()
             .unwrap()
     }

@@ -7,11 +7,12 @@ use std::time::{Duration, Instant};
 use actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, ResponseError};
 use futures::{future, future::Shared, sync::oneshot, Future};
-use semaphore_aorta::{ApiErrorResponse, PublicKey, RelayId};
+
+use semaphore_common::{PublicKey, RelayId};
 
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use constants::{BATCH_TIMEOUT, MISSING_PUBLIC_KEY_EXPIRY, PUBLIC_KEY_EXPIRY};
-use utils::Response;
+use utils::{ApiErrorResponse, Response};
 
 #[derive(Fail, Debug)]
 #[fail(display = "failed to fetch keys")]

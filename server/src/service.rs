@@ -6,7 +6,6 @@ use failure::ResultExt;
 use listenfd::ListenFd;
 use sentry_actix::SentryMiddleware;
 
-use semaphore_aorta::AortaConfig;
 use semaphore_config::Config;
 
 use actors::events::EventManager;
@@ -27,20 +26,14 @@ fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
 /// Server state.
 #[derive(Clone)]
 pub struct ServiceState {
-    aorta_config: Arc<AortaConfig>,
+    config: Arc<Config>,
     key_manager: Addr<KeyManager>,
     project_manager: Addr<ProjectManager>,
     upstream_relay: Addr<UpstreamRelay>,
     event_manager: Addr<EventManager>,
-    config: Arc<Config>,
 }
 
 impl ServiceState {
-    /// Returns an atomically counted reference to the aorta config.
-    pub fn aorta_config(&self) -> Arc<AortaConfig> {
-        self.aorta_config.clone()
-    }
-
     /// Returns an atomically counted reference to the config.
     pub fn config(&self) -> Arc<Config> {
         self.config.clone()
@@ -91,8 +84,6 @@ fn make_app(state: ServiceState) -> ServiceApp {
 /// Effectively this boots the server.
 pub fn run(config: Config) -> Result<(), ServerError> {
     let config = Arc::new(config);
-    let aorta_config = config.make_aorta_config();
-
     let sys = System::new("relay");
 
     let upstream_relay = UpstreamRelay::new(
@@ -102,12 +93,11 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     ).start();
 
     let service_state = ServiceState {
-        aorta_config,
+        config: config.clone(),
         upstream_relay: upstream_relay.clone(),
         key_manager: KeyManager::new(upstream_relay.clone()).start(),
         project_manager: ProjectManager::new(upstream_relay.clone()).start(),
         event_manager: EventManager::new(upstream_relay.clone()).start(),
-        config: config.clone(),
     };
 
     let mut server = server::new(move || make_app(service_state.clone()));
