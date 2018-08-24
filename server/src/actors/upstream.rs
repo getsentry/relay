@@ -1,19 +1,18 @@
 //! This actor can be used for sending signed requests to the upstream relay.
 use std::borrow::Cow;
 use std::str;
+use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse, SendRequestError};
 use actix_web::http::{header, Method, StatusCode};
 use actix_web::{error::JsonPayloadError, Error as ActixError, HttpMessage};
-use chrono::Duration;
 use futures::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use semaphore_common::{
-    Credentials, RegisterChallenge, RegisterRequest, RegisterResponse, Registration,
-    UpstreamDescriptor,
+    Config, RegisterChallenge, RegisterRequest, RegisterResponse, Registration,
 };
 
 #[derive(Fail, Debug)]
@@ -61,22 +60,14 @@ impl AuthState {
 }
 
 pub struct UpstreamRelay {
-    credentials: Option<Credentials>,
-    upstream: UpstreamDescriptor<'static>,
-    auth_retry_interval: Duration,
+    config: Arc<Config>,
     auth_state: AuthState,
 }
 
 impl UpstreamRelay {
-    pub fn new(
-        credentials: Option<Credentials>,
-        upstream: UpstreamDescriptor<'static>,
-        auth_retry_interval: Duration,
-    ) -> Self {
+    pub fn new(config: Arc<Config>) -> Self {
         UpstreamRelay {
-            credentials,
-            upstream,
-            auth_retry_interval,
+            config,
             auth_state: AuthState::Unknown,
         }
     }
@@ -90,15 +81,18 @@ impl UpstreamRelay {
     }
 
     fn authenticate(&mut self) -> ResponseActFuture<Self, (), ()> {
-        let credentials = match self.credentials {
-            Some(ref x) => x,
+        let credentials = match self.config.credentials() {
+            Some(x) => x,
             None => {
                 warn!("no credentials configured, not authenticating.");
                 return Box::new(Ok(()).into_future().into_actor(self));
             }
         };
 
-        info!("registering with upstream (upstream = {})", self.upstream);
+        info!(
+            "registering with upstream (upstream = {})",
+            self.config.upstream_descriptor()
+        );
         self.auth_state = AuthState::RegisterRequestChallenge;
 
         let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
@@ -120,16 +114,20 @@ impl UpstreamRelay {
                 ()
             })
             .map_err(|err, actor, ctx| {
+                let interval = actor.config.auth_retry_interval();
+
                 // XXX: do not schedule retries for fatal errors
                 error!("authentication encountered error: {}", &err);
                 info!(
                     "scheduling authentication retry in {} seconds",
-                    actor.auth_retry_interval.num_seconds()
+                    interval.as_secs()
                 );
+
                 actor.auth_state = AuthState::Error;
-                ctx.run_later(actor.auth_retry_interval.to_std().unwrap(), |actor, ctx| {
+                ctx.run_later(interval, |actor, ctx| {
                     ctx.spawn(actor.authenticate());
                 });
+
                 ()
             });
 
@@ -149,9 +147,9 @@ impl UpstreamRelay {
         let mut builder = ClientRequest::build();
         builder
             .method(method)
-            .uri(self.upstream.get_url(path.as_ref()));
+            .uri(self.config.upstream_descriptor().get_url(path.as_ref()));
 
-        if let Some(ref credentials) = self.credentials {
+        if let Some(ref credentials) = self.config.credentials() {
             builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
         }
 
@@ -175,8 +173,8 @@ impl UpstreamRelay {
         let path = query.path();
 
         let credentials = tryf!(
-            self.credentials
-                .as_ref()
+            self.config
+                .credentials()
                 .ok_or(UpstreamRequestError::NoCredentials)
         );
 

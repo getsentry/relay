@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::SystemTime;
 
 use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
@@ -15,7 +15,6 @@ use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey};
 
 use actors::events::EventMetaData;
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
-use constants::BATCH_TIMEOUT;
 use utils::Response;
 
 #[derive(Fail, Debug)]
@@ -30,69 +29,19 @@ pub enum ProjectError {
 
 impl ResponseError for ProjectError {}
 
-fn is_valid_origin(state: &ProjectStateSnapshot, origin: Option<&Url>) -> bool {
-    // Generally accept any event without an origin.
-    let origin = match origin {
-        Some(origin) => origin,
-        None => return true,
-    };
-
-    // If the list of allowed domains is empty, we accept any origin. Otherwise, we have to
-    // match with the whitelist.
-    let allowed = &state.config().allowed_domains;
-    !allowed.is_empty()
-        && allowed
-            .iter()
-            .any(|x| x.as_str() == "*" || Some(x.as_str()) == origin.host_str())
-}
-
-fn get_event_action(state: &ProjectStateSnapshot, meta: &EventMetaData) -> EventAction {
-    // Try to verify the request origin with the project config.
-    if !is_valid_origin(state, meta.origin()) {
-        return EventAction::Discard;
-    }
-
-    // TODO: Use real config here.
-    if state.outdated(&unimplemented!()) {
-        // if the snapshot is out of date, we proceed as if it was still up to date. The
-        // upstream relay (or sentry) will still filter events.
-
-        // we assume it is unlikely to re-activate a disabled public key.
-        // thus we handle events pretending the config is still valid,
-        // except queueing events for unknown DSNs as they might have become
-        // available in the meanwhile.
-        match state.get_public_key_status(&meta.auth().public_key()) {
-            PublicKeyStatus::Enabled => EventAction::Accept,
-            PublicKeyStatus::Disabled => EventAction::Discard,
-            PublicKeyStatus::Unknown => EventAction::Accept,
-        }
-    } else {
-        // only drop events if we know for sure the project is disabled.
-        if state.disabled() {
-            return EventAction::Discard;
-        }
-
-        // since the config has been fetched recently, we assume unknown
-        // public keys do not exist and drop events eagerly.
-        match state.get_public_key_status(&meta.auth().public_key()) {
-            PublicKeyStatus::Enabled => EventAction::Accept,
-            PublicKeyStatus::Disabled => EventAction::Discard,
-            PublicKeyStatus::Unknown => EventAction::Discard,
-        }
-    }
-}
-
 pub struct Project {
     id: ProjectId,
-    manager: Addr<ProjectManager>,
+    config: Arc<Config>,
+    manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectStateSnapshot>>,
     state_channel: Option<Shared<oneshot::Receiver<Option<Arc<ProjectStateSnapshot>>>>>,
 }
 
 impl Project {
-    pub fn new(id: ProjectId, manager: Addr<ProjectManager>) -> Self {
+    pub fn new(id: ProjectId, config: Arc<Config>, manager: Addr<ProjectCache>) -> Self {
         Project {
             id,
+            config,
             manager,
             state: None,
             state_channel: None,
@@ -274,16 +223,74 @@ impl ProjectStateSnapshot {
         self.disabled
     }
 
-    /// Returns true if the snapshot is outdated.
+    /// Returns whether this state is outdated and needs to be refetched.
     pub fn outdated(&self, config: &Config) -> bool {
-        // TODO(armin): change this to a value from the config
-        // self.last_fetch < Utc::now() - config.snapshot_expiry
-        unimplemented!()
+        SystemTime::from(self.last_fetch)
+            .elapsed()
+            .map(|e| match self.slug {
+                Some(_) => e > config.project_cache_expiry(),
+                None => e > config.cache_miss_expiry(),
+            })
+            .unwrap_or(false)
     }
 
     /// Returns the project config.
     pub fn config(&self) -> &ProjectConfig {
         &self.config
+    }
+
+    /// Checks if this origin is allowed for this project.
+    fn is_valid_origin(&self, origin: Option<&Url>) -> bool {
+        // Generally accept any event without an origin.
+        let origin = match origin {
+            Some(origin) => origin,
+            None => return true,
+        };
+
+        // If the list of allowed domains is empty, we accept any origin. Otherwise, we have to
+        // match with the whitelist.
+        let allowed = &self.config().allowed_domains;
+        !allowed.is_empty()
+            && allowed
+                .iter()
+                .any(|x| x.as_str() == "*" || Some(x.as_str()) == origin.host_str())
+    }
+
+    /// Determines whether the given event should be accepted or dropped.
+    pub fn get_event_action(&self, meta: &EventMetaData, config: &Config) -> EventAction {
+        // Try to verify the request origin with the project config.
+        if !self.is_valid_origin(meta.origin()) {
+            return EventAction::Discard;
+        }
+
+        // TODO: Use real config here.
+        if self.outdated(config) {
+            // if the snapshot is out of date, we proceed as if it was still up to date. The
+            // upstream relay (or sentry) will still filter events.
+
+            // we assume it is unlikely to re-activate a disabled public key.
+            // thus we handle events pretending the config is still valid,
+            // except queueing events for unknown DSNs as they might have become
+            // available in the meanwhile.
+            match self.get_public_key_status(meta.auth().public_key()) {
+                PublicKeyStatus::Enabled => EventAction::Accept,
+                PublicKeyStatus::Disabled => EventAction::Discard,
+                PublicKeyStatus::Unknown => EventAction::Accept,
+            }
+        } else {
+            // only drop events if we know for sure the project is disabled.
+            if self.disabled() {
+                return EventAction::Discard;
+            }
+
+            // since the config has been fetched recently, we assume unknown
+            // public keys do not exist and drop events eagerly.
+            match self.get_public_key_status(meta.auth().public_key()) {
+                PublicKeyStatus::Enabled => EventAction::Accept,
+                PublicKeyStatus::Disabled => EventAction::Discard,
+                PublicKeyStatus::Unknown => EventAction::Discard,
+            }
+        }
     }
 }
 
@@ -336,14 +343,15 @@ impl Handler<GetEventAction> for Project {
         if message.fetch {
             // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
             // This will return synchronously if the state is still cached.
+            let config = self.config.clone();
             self.get_or_fetch_state(context)
-                .map(move |state| get_event_action(&state, &message.meta))
+                .map(move |state| state.get_event_action(&message.meta, &config))
         } else {
             // Fetching is not permitted (as part of the store request). In case the state is not
             // cached, assume that the event can be accepted. The EventManager will later fetch the
             // project state and reevaluate the event action.
             Response::ok(self.state().map_or(EventAction::Accept, |state| {
-                get_event_action(&state, &message.meta)
+                state.get_event_action(&message.meta, &self.config)
             }))
         }
     }
@@ -386,15 +394,17 @@ impl UpstreamQuery for GetProjectStates {
     }
 }
 
-pub struct ProjectManager {
+pub struct ProjectCache {
+    config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
     state_channels: HashMap<ProjectId, oneshot::Sender<ProjectStateSnapshot>>,
 }
 
-impl ProjectManager {
-    pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
-        ProjectManager {
+impl ProjectCache {
+    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+        ProjectCache {
+            config,
             upstream,
             projects: HashMap::new(),
             state_channels: HashMap::new(),
@@ -403,7 +413,7 @@ impl ProjectManager {
 
     pub fn schedule_fetch(&mut self, context: &mut Context<Self>) {
         if self.state_channels.is_empty() {
-            context.run_later(Duration::from_secs(BATCH_TIMEOUT), Self::fetch_states);
+            context.run_later(self.config.query_batch_interval(), Self::fetch_states);
         }
     }
 
@@ -447,7 +457,7 @@ impl ProjectManager {
     }
 }
 
-impl Actor for ProjectManager {
+impl Actor for ProjectCache {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
@@ -468,13 +478,14 @@ impl Message for GetProject {
     type Result = Addr<Project>;
 }
 
-impl Handler<GetProject> for ProjectManager {
+impl Handler<GetProject> for ProjectCache {
     type Result = Addr<Project>;
 
     fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
+        let config = self.config.clone();
         self.projects
             .entry(message.id)
-            .or_insert_with(|| Project::new(message.id, context.address()).start())
+            .or_insert_with(|| Project::new(message.id, config, context.address()).start())
             .clone()
     }
 }
@@ -487,7 +498,7 @@ impl Message for FetchProjectState {
     type Result = Result<ProjectStateSnapshot, ()>;
 }
 
-impl Handler<FetchProjectState> for ProjectManager {
+impl Handler<FetchProjectState> for ProjectCache {
     type Result = Response<ProjectStateSnapshot, ()>;
 
     fn handle(&mut self, message: FetchProjectState, ctx: &mut Self::Context) -> Self::Result {

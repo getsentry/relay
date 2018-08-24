@@ -128,7 +128,7 @@ fn store_event(
     let meta = Arc::new(meta_from_request(&request, auth));
     let config = request.state().config();
     let event_manager = request.state().event_manager();
-    let project_manager = request.state().project_manager();
+    let project_manager = request.state().project_cache();
 
     let future = project_manager
         .send(GetProject { id: project_id })
