@@ -1,9 +1,8 @@
-use std::str;
 use std::fmt;
+use std::str;
 
-use human_size::{SpecificSize, Byte, Kilobyte, Megabyte, Mebibyte, Kibibyte, Size};
 pub use human_size::ParsingError as ByteSizeParseError;
-
+use human_size::{Byte, Kibibyte, Kilobyte, Mebibyte, Megabyte, Size, SpecificSize};
 
 /// Represents a size in bytes.
 pub struct ByteSize(Size);
@@ -13,7 +12,9 @@ impl str::FromStr for ByteSize {
 
     fn from_str(value: &str) -> Result<ByteSize, Self::Err> {
         if let Ok(value) = value.parse::<u64>() {
-            return Ok(ByteSize(SpecificSize::new(value as f64, Byte).unwrap().into()));
+            return Ok(ByteSize(
+                SpecificSize::new(value as f64, Byte).unwrap().into(),
+            ));
         }
         value.parse().map(ByteSize)
     }
@@ -39,9 +40,9 @@ impl ByteSize {
             ($ty:ty) => {
                 let v: SpecificSize<$ty> = bytes.into();
                 if v.value() == v.value().trunc() {
-                    return ByteSize(v.into())
+                    return ByteSize(v.into());
                 }
-            }
+            };
         }
         try_multiple!(Megabyte);
         try_multiple!(Mebibyte);
