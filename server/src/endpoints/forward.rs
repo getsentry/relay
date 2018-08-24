@@ -4,8 +4,8 @@ use actix_web::http::{header, header::HeaderName, ContentEncoding};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use futures::prelude::*;
 
-use service::{ServiceApp, ServiceState};
 use extractors::ForwardBody;
+use service::{ServiceApp, ServiceState};
 
 static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
     header::CONNECTION,
@@ -72,12 +72,8 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
     ForwardBody::new(request)
         .limit(config.max_api_payload_size())
         .map_err(Error::from)
-        .and_then(move |data| {
-            forwarded_request_builder.body(data).map_err(Error::from)
-        })
-        .and_then(move |request| {
-            request.send().map_err(Error::from)
-        })
+        .and_then(move |data| forwarded_request_builder.body(data).map_err(Error::from))
+        .and_then(move |request| request.send().map_err(Error::from))
         .and_then(move |response| {
             let mut forwarded_response = HttpResponse::build(response.status());
             // For the response body we're able to disable all automatic decompression and
