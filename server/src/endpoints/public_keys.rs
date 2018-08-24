@@ -5,7 +5,7 @@ use actors::keys::{GetPublicKeys, GetPublicKeysResult};
 use extractors::{CurrentServiceState, SignedJson};
 use service::ServiceApp;
 
-#[cfg_attr(feat = "cargo-clippy", allow(needless_pass_by_value))]
+#[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 fn get_public_keys(
     state: CurrentServiceState,
     body: SignedJson<GetPublicKeys>,
