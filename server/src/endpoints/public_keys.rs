@@ -2,8 +2,7 @@ use actix_web::{http::Method, Error, Json};
 use futures::prelude::*;
 
 use actors::keys::{GetPublicKeys, GetPublicKeysResult};
-use extractors::CurrentServiceState;
-use extractors::SignedJson;
+use extractors::{CurrentServiceState, SignedJson};
 use service::ServiceApp;
 
 #[cfg_attr(feat = "cargo-clippy", allow(needless_pass_by_value))]
