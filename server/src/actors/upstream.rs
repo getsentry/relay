@@ -152,7 +152,7 @@ impl UpstreamRelay {
             .uri(self.upstream.get_url(path.as_ref()));
 
         if let Some(ref credentials) = self.credentials {
-            builder.header("X-Sentry-Relay-Id", credentials.id.simple().to_string());
+            builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
         }
 
         let request = tryf!(build(&mut builder).map_err(UpstreamRequestError::BuildFailed));
