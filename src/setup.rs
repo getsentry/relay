@@ -11,8 +11,7 @@ use pretty_env_logger;
 use sentry;
 use serde_json;
 
-use semaphore_common::metrics;
-use semaphore_config::{Config, LogFormat};
+use semaphore_common::{metrics, Config, LogFormat};
 
 /// Print spawn infos to the log.
 pub fn dump_spawn_infos(config: &Config) {
@@ -33,21 +32,21 @@ pub fn dump_credentials(config: &Config) {
 
 /// Initialize the logging system.
 pub fn init_logging(config: &Config) {
-    sentry::init((
-        config.sentry_dsn(),
-        sentry::ClientOptions {
-            in_app_include: vec![
-                "semaphore_common::",
-                "semaphore_aorta::",
-                "semaphore_config::",
-                "semaphore_common::",
-                "semaphore_server::",
-                "sentry_relay::",
-            ],
-            release: sentry_crate_release!(),
-            ..Default::default()
-        },
-    ));
+    sentry::init(sentry::ClientOptions {
+        dsn: config
+            .sentry_dsn()
+            .map(|dsn| dsn.to_string().parse().unwrap()),
+        in_app_include: vec![
+            "semaphore_common::",
+            "semaphore_aorta::",
+            "semaphore_config::",
+            "semaphore_common::",
+            "semaphore_server::",
+            "sentry_relay::",
+        ],
+        release: sentry_crate_release!(),
+        ..Default::default()
+    });
 
     if config.enable_backtraces() {
         env::set_var("RUST_BACKTRACE", "1");

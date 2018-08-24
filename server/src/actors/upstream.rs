@@ -11,8 +11,10 @@ use futures::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
-use semaphore_common::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
-use semaphore_config::{Credentials, UpstreamDescriptor};
+use semaphore_common::{
+    Credentials, RegisterChallenge, RegisterRequest, RegisterResponse, Registration,
+    UpstreamDescriptor,
+};
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {

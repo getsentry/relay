@@ -35,9 +35,6 @@ serde_json = "1.0.26"
 [dependencies.semaphore-common]
 path = "common"
 
-[dependencies.semaphore-config]
-path = "config"
-
 [dependencies.semaphore-server]
 path = "server"
 
