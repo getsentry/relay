@@ -1,6 +1,9 @@
+import gzip
+from datetime import datetime
+
 from hypothesis import given, settings
 from hypothesis import strategies as st
-import gzip
+
 import requests
 
 import sentry_sdk
@@ -61,7 +64,12 @@ def test_forwarding(mini_sentry, relay_chain_strategy):
     test_fuzzing()
 
 
-def test_store(mini_sentry, relay_chain_strategy):
+def test_store(mini_sentry, relay, gobetween):
+    r0 = relay(mini_sentry)
+    r = relay(r0)
+
+    trusted_relays = [r0.public_key, r.public_key]
+
     mini_sentry.project_configs[42] = {
         "publicKeys": {"31a5a894b4524f74a9a8d0e27e21ba91": True},
         "rev": "5ceaea8c919811e8ae7daae9fe877901",
@@ -70,7 +78,7 @@ def test_store(mini_sentry, relay_chain_strategy):
         "lastChange": "2018-07-27T12:27:01.481Z",
         "config": {
             "allowedDomains": ["*"],
-            "trustedRelays": [],
+            "trustedRelays": trusted_relays,
             "piiConfig": {
                 "rules": {},
                 "applications": {
@@ -91,27 +99,24 @@ def test_store(mini_sentry, relay_chain_strategy):
         "slug": "python",
     }
 
-    @given(relay=relay_chain_strategy)
-    def test_store(relay):
-        print("TEST", relay)
-        relay.wait_relay_healthcheck()
+    r.wait_relay_healthcheck()
 
-        while not mini_sentry.captured_events.empty():
-            mini_sentry.captured_events.get()
+    client = sentry_sdk.Client(r.dsn, default_integrations=False)
+    hub = sentry_sdk.Hub(client)
+    hub.add_breadcrumb(level="info", message="i like bread", timestamp=datetime.now())
+    hub.capture_message("hü")
+    client.drain_events()
 
-        client = sentry_sdk.Client(relay.dsn, default_integrations=False)
-        hub = sentry_sdk.Hub(client)
-        hub.add_breadcrumb(message="i like bread")
-        hub.capture_message("hü")
-        client.drain_events()
+    event = mini_sentry.captured_events.get(timeout=30)
+    assert mini_sentry.captured_events.empty()
 
-        event = mini_sentry.captured_events.get(timeout=5)
-        assert mini_sentry.captured_events.empty()
+    if isinstance(event["breadcrumbs"], dict):
+        crumbs = event["breadcrumbs"]["values"]
+    else:
+        crumbs = event["breadcrumbs"]
 
-        assert event["breadcrumbs"] == [{"message": "i like bread"}]
-        assert event["message"] == "hü"
-
-    test_store()
+    assert any(crumb["message"] == "i like bread" for crumb in crumbs)
+    assert event["message"] == "hü"
 
 
 def test_limits(mini_sentry, relay):

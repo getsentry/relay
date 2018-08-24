@@ -106,7 +106,7 @@ def mini_sentry(request):
         if test_failures:
             raise AssertionError(f"Exceptions happened in mini_sentry: {test_failures}")
 
-    server = WSGIServer(application=app)
+    server = WSGIServer(application=app, threaded=True)
     server.start()
     request.addfinalizer(server.stop)
     sentry = Sentry(server.server_address, app)
@@ -160,10 +160,12 @@ class Sentry(SentryLike):
 
 
 class Relay(SentryLike):
-    def __init__(self, server_address, process, upstream):
+    def __init__(self, server_address, process, upstream, public_key, relay_id):
         self.server_address = server_address
         self.process = process
         self.upstream = upstream
+        self.public_key = public_key
+        self.relay_id = relay_id
 
 
 @pytest.fixture
@@ -214,12 +216,25 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
             )
         )
 
-        subprocess.check_call(
+        output = subprocess.check_output(
             SEMAPHORE_BIN + ["-c", str(dir), "credentials", "generate"]
         )
+
         process = background_process(SEMAPHORE_BIN + ["-c", str(dir), "run"])
 
-        return Relay((host, port), process, upstream)
+        public_key = None
+        relay_id = None
+
+        for line in output.splitlines():
+            if b"public key" in line:
+                public_key = line.split()[-1].decode("ascii")
+            if b"relay id" in line:
+                relay_id = line.split()[-1].decode("ascii")
+
+        assert public_key
+        assert relay_id
+
+        return Relay((host, port), process, upstream, public_key, relay_id)
 
     return inner
 
