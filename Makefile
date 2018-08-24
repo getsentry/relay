@@ -54,6 +54,7 @@ tests/venv/bin/python: Makefile
 	tests/venv/bin/pip install -U pytest pytest-localserver hypothesis requests flask
 
 integration-test: tests/venv/bin/python
+	cargo build
 	@tests/venv/bin/pytest tests
 .PHONY: integration-test
 
