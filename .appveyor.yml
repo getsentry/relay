@@ -12,6 +12,7 @@ cache:
 environment:
   ZEUS_HOOK_BASE:
     secure: dcqtt6sxxBV0tDkXmPZOyz96KWmjtSz6ZqRd9mw9GXC/C4Zcwqofxt2Kh4EP7hPEFIewRRl6xkhW53HgItdt7iVmFSHuufpGoSpzse8cgg3zfE08f/u0a2EOvuRjdtoi4E/9Znrj2HY+CC+G4j2UKWzp6EcSc++qbgSMl1h6zMs=
+  CARGO_HTTP_CHECK_REVOKE: false
   matrix:
 #    - channel: stable
 #      arch: i686
