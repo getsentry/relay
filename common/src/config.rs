@@ -17,6 +17,7 @@ use serde_json;
 use serde_yaml;
 
 use auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
+use types::ByteSize;
 use upstream::UpstreamDescriptor;
 
 /// Indicates config related errors.
@@ -162,6 +163,20 @@ struct Metrics {
     prefix: String,
 }
 
+/// Controls various limits
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct Limits {
+    /// The maximum payload size for events.
+    max_event_payload_size: ByteSize,
+    /// The maximum payload size for general API requests.
+    max_api_payload_size: ByteSize,
+    /// The maximum payload size for file uploads and chunks.
+    max_api_file_upload_size: ByteSize,
+    /// The maximum payload size for difs
+    max_api_dif_upload_size: ByteSize,
+}
+
 /// Controls the aorta.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -175,8 +190,6 @@ struct Aorta {
     /// The number of seconds for which an event shoudl be buffered until the
     /// initial config arrives.
     pending_events_timeout: u32,
-    /// The maximum payload size for events.
-    max_event_payload_size: u32,
 }
 
 /// Controls interal reporting to Sentry.
@@ -222,6 +235,17 @@ impl Default for Metrics {
     }
 }
 
+impl Default for Limits {
+    fn default() -> Limits {
+        Limits {
+            max_event_payload_size: ByteSize::from_kilobytes(256),
+            max_api_payload_size: ByteSize::from_megabytes(20),
+            max_api_file_upload_size: ByteSize::from_megabytes(40),
+            max_api_dif_upload_size: ByteSize::from_megabytes(150),
+        }
+    }
+}
+
 impl Default for Aorta {
     fn default() -> Aorta {
         Aorta {
@@ -229,7 +253,6 @@ impl Default for Aorta {
             auth_retry_interval: 15,
             changeset_buffer_interval: 2,
             pending_events_timeout: 60,
-            max_event_payload_size: 524_288,
         }
     }
 }
@@ -251,6 +274,8 @@ struct ConfigValues {
     relay: Relay,
     #[serde(default)]
     aorta: Aorta,
+    #[serde(default)]
+    limits: Limits,
     #[serde(default)]
     logging: Logging,
     #[serde(default)]
@@ -572,8 +597,23 @@ impl Config {
     }
 
     /// Returns the maximum size of an event payload in bytes.
-    pub fn aorta_max_event_payload_size(&self) -> usize {
-        self.values.aorta.max_event_payload_size as usize
+    pub fn max_event_payload_size(&self) -> usize {
+        self.values.limits.max_event_payload_size.as_bytes() as usize
+    }
+
+    /// Returns the maximum payload size for general API requests.
+    pub fn max_api_payload_size(&self) -> usize {
+        self.values.limits.max_api_payload_size.as_bytes() as usize
+    }
+
+    /// Returns the maximum payload size for file uploads and chunks.
+    pub fn max_api_file_upload_size(&self) -> usize {
+        self.values.limits.max_api_file_upload_size.as_bytes() as usize
+    }
+
+    /// Returns the maximum payload size for difs
+    pub fn max_api_dif_upload_size(&self) -> usize {
+        self.values.limits.max_api_dif_upload_size.as_bytes() as usize
     }
 
     /// Return the Sentry DSN if reporting to Sentry is enabled.
