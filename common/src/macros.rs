@@ -58,3 +58,17 @@ macro_rules! tryf {
         }
     };
 }
+
+/// Allows the user to use a very simple version of `await` for chaining futures.
+#[macro_export]
+macro_rules! and_then {
+    (let $target:pat = await $expr:expr; $($rest:tt)*) => {
+        (|| $expr)().into_future().and_then(move |$target| { and_then!($($rest)*) })
+    };
+
+    ($stuff:expr; $($rest:tt)*) => { {$stuff; and_then!($($rest)*)} };
+    ($stuff:stmt; $($rest:tt)*) => { {$stuff; and_then!($($rest)*)} };
+
+    ($expr:expr) => ($expr);
+    () => ()
+}

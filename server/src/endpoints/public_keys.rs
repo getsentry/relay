@@ -10,12 +10,10 @@ fn get_public_keys(
     state: CurrentServiceState,
     body: SignedJson<GetPublicKeys>,
 ) -> Box<Future<Item = Json<GetPublicKeysResult>, Error = Error>> {
-    let res = state.key_cache().send(body.inner);
-
-    Box::new(
-        res.map_err(Error::from)
-            .and_then(|x| x.map_err(Error::from).map(Json)),
-    )
+    Box::new(and_then! {
+        let res = await state.key_cache().send(body.inner).map_err(Error::from);
+        res.map_err(Error::from).map(Json)
+    })
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
