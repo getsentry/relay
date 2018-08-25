@@ -173,6 +173,7 @@ fn store_event(
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
+    // XXX: does not handle the legacy /api/store/ endpoint
     Cors::for_app(app)
         .allowed_methods(vec!["POST"])
         .allowed_headers(vec![

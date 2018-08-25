@@ -18,6 +18,7 @@ extern crate human_size;
 extern crate marshal;
 extern crate parking_lot;
 extern crate rand;
+extern crate regex;
 extern crate rust_sodium;
 extern crate sentry_types;
 extern crate serde;
@@ -35,11 +36,13 @@ mod auth;
 mod config;
 mod types;
 mod upstream;
+mod utils;
 
 pub use auth::*;
 pub use config::*;
 pub use types::*;
 pub use upstream::*;
+pub use utils::*;
 
 pub use marshal::processor;
 pub use marshal::protocol as v8;

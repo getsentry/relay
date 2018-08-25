@@ -28,6 +28,8 @@ extern crate serde;
 extern crate serde_json;
 extern crate url;
 extern crate uuid;
+#[macro_use]
+extern crate lazy_static;
 
 #[cfg(not(windows))]
 extern crate libc;

@@ -12,7 +12,7 @@ from queue import Queue
 
 from hypothesis import strategies as st
 from pytest_localserver.http import WSGIServer
-from flask import Flask, request as flask_request, jsonify
+from flask import Flask, request as flask_request, jsonify, Response
 
 SEMAPHORE_BIN = [os.environ.get("SEMAPHORE_BIN") or "target/debug/semaphore"]
 
@@ -44,6 +44,10 @@ def mini_sentry(request):
 
     test_failures = []
     authenticated_relays = {}
+
+    @app.route("/api/0/projects/<org>/<project>/releases/<release>/files/", methods=["POST"])
+    def dummy_upload(**opts):
+        return Response(flask_request.data, content_type='application/octet-stream')
 
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
     def get_challenge():
@@ -203,6 +207,9 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                         "tls_cert": None,
                     },
                     "sentry": {"dsn": mini_sentry.dsn},
+                    "limits": {
+                        "max_api_file_upload_size": "1MiB",
+                    }
                 }
             )
         )
