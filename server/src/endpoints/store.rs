@@ -130,46 +130,48 @@ fn store_event(
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
 
-    let future = {and_then! {
-        let project = await project_manager
-            .send(GetProject { id: project_id })
-            .map_err(BadStoreRequest::ScheduleFailed);
+    let future = and_then!({
+        let project = await[project_manager
+                                .send(GetProject { id: project_id })
+                                .map_err(BadStoreRequest::ScheduleFailed)];
 
-        let action = await project
-            .send(GetEventAction::cached(meta.clone()))
-            .map_err(BadStoreRequest::ScheduleFailed);
+        let action = await[project
+                               .send(GetEventAction::cached(meta.clone()))
+                               .map_err(BadStoreRequest::ScheduleFailed)];
 
-        let _ = await (match action.map_err(|_| BadStoreRequest::ProjectFailed)? {
-            EventAction::Accept => Ok(()),
-            EventAction::Discard => Err(BadStoreRequest::EventRejected),
-        });
+        let _ = await[match action.map_err(|_| BadStoreRequest::ProjectFailed)? {
+                          EventAction::Accept => Ok(()),
+                          EventAction::Discard => Err(BadStoreRequest::EventRejected),
+                      }];
 
-        let data = await StoreBody::new(&request)
-            .limit(config.max_event_payload_size())
-            .map_err(BadStoreRequest::PayloadError);
+        let data = await[StoreBody::new(&request)
+                             .limit(config.max_event_payload_size())
+                             .map_err(BadStoreRequest::PayloadError)];
 
-        let result = await event_manager
-            .send(QueueEvent {
-                data,
-                meta,
-                project,
-            })
-            .map_err(BadStoreRequest::ScheduleFailed);
+        let result = await[event_manager
+                               .send(QueueEvent {
+                                   data,
+                                   meta,
+                                   project,
+                               })
+                               .map_err(BadStoreRequest::ScheduleFailed)];
 
         result
             .map_err(BadStoreRequest::ProcessingFailed)
             .map(|id| StoreResponse { id })
-    }};
+    });
 
-    Box::new(future
-        .map(|response| {
-            metric!(counter("event.accepted") += 1);
-            Json(response)
-        })
-        .map_err(|error| {
-            metric!(counter("event.rejected") += 1);
-            error
-        }))
+    Box::new(
+        future
+            .map(|response| {
+                metric!(counter("event.accepted") += 1);
+                Json(response)
+            })
+            .map_err(|error| {
+                metric!(counter("event.rejected") += 1);
+                error
+            }),
+    )
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

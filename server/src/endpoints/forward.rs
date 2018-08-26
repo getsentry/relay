@@ -41,7 +41,7 @@ fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
 }
 
 fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpResponse, Error> {
-    {and_then! {
+    and_then!({
         let config = request.state().config();
         let upstream = config.upstream_descriptor();
 
@@ -52,7 +52,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
             .unwrap_or("");
 
         let mut forwarded_request_builder = ClientRequest::build();
-        for (key, value) in request.headers() {
+        (for (key, value) in request.headers() {
             // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
             // must not forward the content-encoding header, as the actix http client will do its own
             // content encoding. Also remove content-length because it's likely wrong.
@@ -60,7 +60,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
                 continue;
             }
             forwarded_request_builder.header(key.clone(), value.clone());
-        };
+        });
 
         forwarded_request_builder
             .no_default_headers()
@@ -71,13 +71,13 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
             .set_header("X-Forwarded-For", get_forwarded_for(request))
             .set_header("Connection", "close");
 
-        let data = await ForwardBody::new(request)
-            .limit(config.max_api_payload_size())
-            .map_err(Error::from);
+        let data = await[ForwardBody::new(request)
+                             .limit(config.max_api_payload_size())
+                             .map_err(Error::from)];
 
-        let request = await forwarded_request_builder.body(data).map_err(Error::from);
+        let request = await[forwarded_request_builder.body(data).map_err(Error::from)];
 
-        let response = await request.send().map_err(Error::from);
+        let response = await[request.send().map_err(Error::from)];
 
         let mut forwarded_response = HttpResponse::build(response.status());
         // For the response body we're able to disable all automatic decompression and
@@ -89,20 +89,20 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         //    again
         forwarded_response.content_encoding(ContentEncoding::Identity);
 
-        for (key, value) in response.headers() {
+        (for (key, value) in response.headers() {
             // 2. Just pass content-length, content-encoding etc through
             if HOP_BY_HOP_HEADERS.contains(key) {
                 continue;
             }
             forwarded_response.header(key.clone(), value.clone());
-        };
+        });
 
         Ok(if response.headers().get(header::CONTENT_TYPE).is_some() {
             forwarded_response.streaming(response.payload())
         } else {
             forwarded_response.finish()
         })
-    }}.responder()
+    }).responder()
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
