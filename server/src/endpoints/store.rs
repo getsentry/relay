@@ -131,30 +131,38 @@ fn store_event(
     let project_manager = request.state().project_cache();
 
     let future = and_then!({
-        let project = await[project_manager
-                                .send(GetProject { id: project_id })
-                                .map_err(BadStoreRequest::ScheduleFailed)];
+        let project = await!(
+            project_manager
+                .send(GetProject { id: project_id })
+                .map_err(BadStoreRequest::ScheduleFailed)
+        );
 
-        let action = await[project
-                               .send(GetEventAction::cached(meta.clone()))
-                               .map_err(BadStoreRequest::ScheduleFailed)];
+        let action = await!(
+            project
+                .send(GetEventAction::cached(meta.clone()))
+                .map_err(BadStoreRequest::ScheduleFailed)
+        );
 
-        let _ = await[match action.map_err(|_| BadStoreRequest::ProjectFailed)? {
-                          EventAction::Accept => Ok(()),
-                          EventAction::Discard => Err(BadStoreRequest::EventRejected),
-                      }];
+        await!(match action.map_err(|_| BadStoreRequest::ProjectFailed)? {
+            EventAction::Discard => Err(BadStoreRequest::EventRejected),
+            _ => Ok(()),
+        });
 
-        let data = await[StoreBody::new(&request)
-                             .limit(config.max_event_payload_size())
-                             .map_err(BadStoreRequest::PayloadError)];
+        let data = await!(
+            StoreBody::new(&request)
+                .limit(config.max_event_payload_size())
+                .map_err(BadStoreRequest::PayloadError)
+        );
 
-        let result = await[event_manager
-                               .send(QueueEvent {
-                                   data,
-                                   meta,
-                                   project,
-                               })
-                               .map_err(BadStoreRequest::ScheduleFailed)];
+        let result = await!(
+            event_manager
+                .send(QueueEvent {
+                    data,
+                    meta,
+                    project,
+                })
+                .map_err(BadStoreRequest::ScheduleFailed)
+        );
 
         result
             .map_err(BadStoreRequest::ProcessingFailed)

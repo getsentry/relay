@@ -11,8 +11,9 @@ fn get_public_keys(
     body: SignedJson<GetPublicKeys>,
 ) -> Box<Future<Item = Json<GetPublicKeysResult>, Error = Error>> {
     Box::new(and_then!({
-        let res = await[state.key_cache().send(body.inner).map_err(Error::from)];
-        res.map_err(Error::from).map(Json)
+        let result = await!(state.key_cache().send(body.inner));
+        let body = await!(result);
+        Ok(Json(body))
     }))
 }
 

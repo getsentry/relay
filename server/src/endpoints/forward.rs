@@ -71,13 +71,11 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
             .set_header("X-Forwarded-For", get_forwarded_for(request))
             .set_header("Connection", "close");
 
-        let data = await[ForwardBody::new(request)
-                             .limit(config.max_api_payload_size())
-                             .map_err(Error::from)];
+        let data = await!(ForwardBody::new(request).limit(config.max_api_payload_size()));
 
-        let request = await[forwarded_request_builder.body(data).map_err(Error::from)];
+        let request = await!(forwarded_request_builder.body(data));
 
-        let response = await[request.send().map_err(Error::from)];
+        let response = await!(request.send());
 
         let mut forwarded_response = HttpResponse::build(response.status());
         // For the response body we're able to disable all automatic decompression and
