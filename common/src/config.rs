@@ -197,7 +197,7 @@ struct Cache {
     relay_expiry: u32,
     /// The cache timeout for non-existing entries.
     miss_expiry: u32,
-    /// The number of seconds to buffer batched queries before sending them upstream.
+    /// The buffer timeout for batched queries before sending them upstream in ms.
     batch_interval: u32,
 }
 
@@ -270,7 +270,7 @@ impl Default for Cache {
             project_expiry: 300,
             relay_expiry: 3600,
             miss_expiry: 60,
-            batch_interval: 5,
+            batch_interval: 100,
         }
     }
 }
@@ -625,7 +625,7 @@ impl Config {
     /// Returns the number of seconds during which batchable queries are collected before sending
     /// them in a single request.
     pub fn query_batch_interval(&self) -> Duration {
-        Duration::from_secs(self.values.cache.batch_interval.into())
+        Duration::from_millis(self.values.cache.batch_interval.into())
     }
 
     /// Returns the maximum size of an event payload in bytes.
