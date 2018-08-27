@@ -203,7 +203,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                         "tls_private_key": None,
                         "tls_cert": None,
                     },
-                    "sentry": {"dsn": mini_sentry.dsn},
+                    "sentry": {"enabled": False},
                     "limits": {"max_api_file_upload_size": "1MiB"},
                     "cache": {"batch_interval": 0},
                 }
