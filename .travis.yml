@@ -1,6 +1,4 @@
 language: rust
-services:
-  - docker
 
 cache:
   directories:
@@ -47,20 +45,24 @@ matrix:
     # Python tests
     - os: linux
       env: SUITE=pytest
-    - os: osx
-      env: SUITE=pytest
-      install: easy_install virtualenv
 
     # Integration tests
     - os: linux
-      env: SUITE=integration-test
-    - os: osx
-      env: SUITE=integration-test
-      install: easy_install virtualenv
+      env: PYTHON=python3.7 SUITE=integration-test
+      language: python
+      python: '3.7'
+      dist: xenial
+      sudo: true
+      install:
+        - curl https://sh.rustup.rs -sSf | sh -s -- -y
+        - export PATH=$PATH:$HOME/.cargo/bin
+        - wget https://github.com/yyyar/gobetween/releases/download/0.6.0/gobetween_0.6.0_linux_amd64.tar.gz -O - | tar xz; mv gobetween $HOME/.cargo/bin
 
     # Rust builds
     - os: linux
       language: generic
+      services:
+        - docker
       env:
         - SUITE=releasebuild-docker
         - BUILD_ARCH=x86_64
