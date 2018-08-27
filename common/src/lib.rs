@@ -1,15 +1,6 @@
 //! Common functionality for the sentry relay.
 #![warn(missing_docs)]
 
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate failure_derive;
-#[macro_use]
-extern crate serde_derive;
-
 extern crate base64;
 extern crate cadence;
 extern crate chrono;
@@ -27,6 +18,15 @@ extern crate serde_yaml;
 extern crate sha2;
 extern crate url;
 extern crate uuid;
+
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate failure_derive;
+#[macro_use]
+extern crate serde_derive;
 
 #[macro_use]
 mod macros;
