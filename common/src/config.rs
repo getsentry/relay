@@ -205,7 +205,7 @@ struct Cache {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Sentry {
-    dsn: Dsn,
+    dsn: Option<Dsn>,
     enabled: bool,
 }
 
@@ -278,9 +278,7 @@ impl Default for Cache {
 impl Default for Sentry {
     fn default() -> Self {
         Sentry {
-            dsn: "https://1bb6015c9e064924890685d6311e0344@sentry.io/1195971"
-                .parse()
-                .unwrap(),
+            dsn: None,
             enabled: false,
         }
     }
@@ -651,7 +649,7 @@ impl Config {
     /// Return the Sentry DSN if reporting to Sentry is enabled.
     pub fn sentry_dsn(&self) -> Option<&Dsn> {
         if self.values.sentry.enabled {
-            Some(&self.values.sentry.dsn)
+            self.values.sentry.dsn.as_ref()
         } else {
             None
         }
