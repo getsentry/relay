@@ -112,3 +112,20 @@ def test_store(mini_sentry, relay_chain_strategy):
         assert event["message"] == "hü"
 
     test_store()
+
+
+def test_limits(mini_sentry, relay):
+    relay = relay(mini_sentry)
+    relay.wait_relay_healthcheck()
+
+    response = requests.post(
+        relay.url + "/api/0/projects/a/b/releases/1.0/files/", data='Hello',
+        headers = {'Content-Type': 'text/plain'}
+    )
+    assert response.content == b'Hello'
+
+    response = requests.post(
+        relay.url + "/api/0/projects/a/b/releases/1.0/files/", data=b'x' * (1024 * 1024 * 2),
+        headers = {'Content-Type': 'text/plain'}
+    )
+    assert response.status_code == 413

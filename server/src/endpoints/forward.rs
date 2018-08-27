@@ -5,6 +5,7 @@ use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use futures::prelude::*;
 
 use extractors::ForwardBody;
+use semaphore_common::{Config, GlobMatcher};
 use service::{ServiceApp, ServiceState};
 
 static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
@@ -18,6 +19,24 @@ static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
 ];
 
 static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[header::CONTENT_ENCODING, header::CONTENT_LENGTH];
+
+#[derive(Clone, Copy, Debug)]
+enum SpecialRoute {
+    FileUpload,
+    ChunkUpload,
+}
+
+lazy_static! {
+    static ref SPECIAL_ROUTES: GlobMatcher<SpecialRoute> = {
+        let mut m = GlobMatcher::new();
+        // file uploads / legacy dsym uploads
+        m.add("/api/0/projects/*/*/releases/*/files/", SpecialRoute::FileUpload);
+        m.add("/api/0/projects/*/*/releases/*/dsyms/", SpecialRoute::FileUpload);
+        // new chunk uploads
+        m.add("/api/0/organizations/*/chunk-upload/", SpecialRoute::ChunkUpload);
+        m
+    };
+}
 
 fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
     let peer_addr = request
@@ -40,9 +59,18 @@ fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
     }
 }
 
+fn get_limit_for_path(path: &str, config: &Config) -> usize {
+    match SPECIAL_ROUTES.test(path) {
+        Some(SpecialRoute::FileUpload) => config.max_api_file_upload_size(),
+        Some(SpecialRoute::ChunkUpload) => config.max_api_chunk_upload_size(),
+        None => config.max_api_payload_size(),
+    }
+}
+
 fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpResponse, Error> {
     let config = request.state().config();
     let upstream = config.upstream_descriptor();
+    let limit = get_limit_for_path(request.path(), &config);
 
     let path_and_query = request
         .uri()
@@ -70,7 +98,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         .set_header("Connection", "close");
 
     ForwardBody::new(request)
-        .limit(config.max_api_payload_size())
+        .limit(limit)
         .map_err(Error::from)
         .and_then(move |data| forwarded_request_builder.body(data).map_err(Error::from))
         .and_then(move |request| request.send().map_err(Error::from))

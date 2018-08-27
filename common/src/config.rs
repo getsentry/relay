@@ -173,8 +173,8 @@ struct Limits {
     max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
     max_api_file_upload_size: ByteSize,
-    /// The maximum payload size for difs
-    max_api_dif_upload_size: ByteSize,
+    /// The maximum payload size for chunks
+    max_api_chunk_upload_size: ByteSize,
 }
 
 /// Controls authentication with upstream.
@@ -250,7 +250,7 @@ impl Default for Limits {
             max_event_payload_size: ByteSize::from_kilobytes(256),
             max_api_payload_size: ByteSize::from_megabytes(20),
             max_api_file_upload_size: ByteSize::from_megabytes(40),
-            max_api_dif_upload_size: ByteSize::from_megabytes(150),
+            max_api_chunk_upload_size: ByteSize::from_megabytes(100),
         }
     }
 }
@@ -643,9 +643,9 @@ impl Config {
         self.values.limits.max_api_file_upload_size.as_bytes() as usize
     }
 
-    /// Returns the maximum payload size for difs
-    pub fn max_api_dif_upload_size(&self) -> usize {
-        self.values.limits.max_api_dif_upload_size.as_bytes() as usize
+    /// Returns the maximum payload size for chunks
+    pub fn max_api_chunk_upload_size(&self) -> usize {
+        self.values.limits.max_api_chunk_upload_size.as_bytes() as usize
     }
 
     /// Return the Sentry DSN if reporting to Sentry is enabled.
