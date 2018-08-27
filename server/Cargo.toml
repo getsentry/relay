@@ -37,6 +37,7 @@ serde_derive = "1.0.74"
 serde_json = "1.0.26"
 url = "1.7.1"
 uuid = { version = "0.6.5", features = ["v4"] }
+parking_lot = "0.6.3"
 
 [dependencies.semaphore-common]
 path = "../common"
