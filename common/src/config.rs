@@ -281,7 +281,7 @@ impl Default for Sentry {
             dsn: "https://1bb6015c9e064924890685d6311e0344@sentry.io/1195971"
                 .parse()
                 .unwrap(),
-            enabled: true,
+            enabled: false,
         }
     }
 }
