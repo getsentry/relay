@@ -19,6 +19,7 @@ if os.environ.get("SEMAPHORE_AS_CARGO", "false") == "true":
     SEMAPHORE_BIN = ["cargo", "run", "--"]
 
 GOBETWEEN_BIN = [os.environ.get("GOBETWEEN_BIN") or "gobetween"]
+HAPROXY_BIN = [os.environ.get("HAPROXY_BIN") or "haproxy"]
 
 
 @pytest.fixture
@@ -303,13 +304,61 @@ def gobetween(background_process, random_port, config_dir):
     return inner
 
 
+class HAProxy(SentryLike):
+    def __init__(self, server_address, process, upstream):
+        self.server_address = server_address
+        self.process = process
+        self.upstream = upstream
+
+
+@pytest.fixture
+def haproxy(background_process, random_port, config_dir):
+    def inner(*upstreams):
+        host = "127.0.0.1"
+        port = random_port()
+
+        config = config_dir("haproxy").join("config")
+
+        config_lines = [
+            f"defaults",
+            f"    mode http",
+            f"    timeout connect 25000ms",
+            f"    timeout client 25000ms",
+            f"    timeout server 25000ms",
+            f"    timeout queue 25000ms",
+            f"    timeout http-request 25000ms",
+            f"    timeout http-keep-alive 25000ms",
+            f"    option forwardfor",
+            f"    option redispatch",
+            f"frontend defaultFront",
+            f"    bind {host}:{port}",
+            f"    default_backend defaultBack",
+            f"backend defaultBack",
+            f"    balance roundrobin",
+        ]
+
+        for i, upstream in enumerate(upstreams):
+            upstream_host, upstream_port = upstream.server_address
+            config_lines.append(
+                f"    server sentryUpstream{i} {upstream_host}:{upstream_port} no-check"
+            )
+
+        config.write("\n".join(config_lines))
+
+        process = background_process(HAPROXY_BIN + ["-f", str(config)])
+
+        return HAProxy((host, port), process, upstreams)
+
+    return inner
+
+
 @pytest.fixture(
     params=[
-        lambda s, r, g: r(s),
-        lambda s, r, g: r(r(s)),
-        lambda s, r, g: r(g(r(g(s)))),
-        lambda s, r, g: g(r(g(s))),
+        lambda s, r, g, h: r(s),
+        lambda s, r, g, h: r(r(s)),
+        lambda s, r, g, h: r(h(r(g(s)))),
+        lambda s, r, g, h: r(g(r(h(s)))),
     ]
 )
-def relay_chain(request, mini_sentry, relay, gobetween):
-    return lambda: request.param(mini_sentry, relay, gobetween)
+def relay_chain(request, mini_sentry, relay, gobetween, haproxy):
+    return lambda: request.param(mini_sentry, relay, gobetween, haproxy)
