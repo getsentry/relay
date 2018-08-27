@@ -30,7 +30,8 @@ def test_forwarding(compress_request, compress_response, mini_sentry, relay_chai
 
         return Response(_data, headers=headers)
 
-    relay_chain.wait_relay_healthcheck()
+    relay = relay_chain()
+    relay.wait_relay_healthcheck()
 
     headers = {"Content-Type": "application/octet-stream"}
 
@@ -40,18 +41,14 @@ def test_forwarding(compress_request, compress_response, mini_sentry, relay_chai
     else:
         payload = data
 
-    response = requests.post(
-        relay_chain.url + "/test/reflect", data=payload, headers=headers
-    )
+    response = requests.post(relay.url + "/test/reflect", data=payload, headers=headers)
     response.raise_for_status()
     assert response.content == data
 
 
-def test_store(mini_sentry, relay, gobetween):
-    r0 = relay(mini_sentry)
-    r = relay(r0)
-
-    trusted_relays = [r0.public_key, r.public_key]
+def test_store(mini_sentry, relay_chain):
+    relay = relay_chain()
+    trusted_relays = list(relay.iter_public_keys())
 
     mini_sentry.project_configs[42] = {
         "publicKeys": {"31a5a894b4524f74a9a8d0e27e21ba91": True},
@@ -82,9 +79,9 @@ def test_store(mini_sentry, relay, gobetween):
         "slug": "python",
     }
 
-    r.wait_relay_healthcheck()
+    relay.wait_relay_healthcheck()
 
-    client = sentry_sdk.Client(r.dsn, default_integrations=False)
+    client = sentry_sdk.Client(relay.dsn, default_integrations=False)
     hub = sentry_sdk.Hub(client)
     hub.add_breadcrumb(level="info", message="i like bread", timestamp=datetime.now())
     hub.capture_message("hü")

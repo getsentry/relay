@@ -144,6 +144,19 @@ class SentryLike(object):
             *self.server_address
         )
 
+    def iter_public_keys(self):
+        try:
+            yield self.public_key
+        except AttributeError:
+            pass
+
+        if self.upstream is not None:
+            if isinstance(self.upstream, tuple):
+                for upstream in self.upstream:
+                    yield from upstream.iter_public_keys()
+            else:
+                yield from self.upstream.iter_public_keys()
+
 
 class Sentry(SentryLike):
     def __init__(self, server_address, app):
@@ -296,4 +309,4 @@ def gobetween(background_process, random_port, config_dir):
     ]
 )
 def relay_chain(request, mini_sentry, relay, gobetween):
-    return request.param(mini_sentry, relay, gobetween)
+    return lambda: request.param(mini_sentry, relay, gobetween)
