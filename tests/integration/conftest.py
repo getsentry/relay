@@ -61,8 +61,13 @@ def mini_sentry(request):
         assert relay_id in authenticated_relays
         return jsonify({"relay_id": relay_id})
 
-    @app.route("/api/<project>/store/", methods=["POST"])
-    def store_event(project):
+    @app.route("/api/666/store/", methods=["POST"])
+    def store_internal_error_event():
+        test_failures.append(AssertionError("Relay sent us event"))
+        return jsonify({"event_id": uuid.uuid4().hex})
+
+    @app.route("/api/42/store/", methods=["POST"])
+    def store_event():
         if flask_request.headers.get("Content-Encoding", "") == "gzip":
             data = gzip.decompress(flask_request.data)
         else:
@@ -70,6 +75,10 @@ def mini_sentry(request):
 
         sentry.captured_events.put(json.loads(data))
         return jsonify({"event_id": uuid.uuid4().hex})
+
+    @app.route("/api/<project>/store/", methods=["POST"])
+    def store_event_catchall(project):
+        raise AssertionError(f"Unknown project: {project}")
 
     @app.route("/api/0/relays/projectconfigs/", methods=["POST"])
     def get_project_config():
@@ -144,6 +153,7 @@ class SentryLike(object):
 
     @property
     def dsn(self):
+        """DSN for which you will find the events in self.captured_events"""
         # bogus, we never check the DSN
         return "http://{}@{}:{}/42".format(self.dsn_public_key, *self.server_address)
 
@@ -168,6 +178,11 @@ class Sentry(SentryLike):
         self.project_configs = {}
         self.captured_events = Queue()
         self.upstream = None
+
+    @property
+    def internal_error_dsn(self):
+        """DSN whose events make the test fail."""
+        return "http://{}@{}:{}/666".format(self.dsn_public_key, *self.server_address)
 
 
 class Relay(SentryLike):
@@ -219,7 +234,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                         "tls_private_key": None,
                         "tls_cert": None,
                     },
-                    "sentry": {"enabled": False},
+                    "sentry": {"dsn": mini_sentry.internal_error_dsn},
                     "limits": {"max_api_file_upload_size": "1MiB"},
                     "cache": {"batch_interval": 0},
                 }
