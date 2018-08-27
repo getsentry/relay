@@ -1,12 +1,13 @@
 extern crate chrono;
-#[macro_use]
-extern crate failure;
 extern crate semaphore_common;
 extern crate serde;
-#[macro_use]
-extern crate serde_derive;
 extern crate serde_json;
 extern crate uuid;
+
+#[macro_use]
+extern crate failure;
+#[macro_use]
+extern crate serde_derive;
 
 #[macro_use]
 mod utils;

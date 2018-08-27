@@ -1,15 +1,6 @@
 //! Implements basics for the protocol.
 #![warn(missing_docs)]
 
-#[macro_use]
-extern crate failure_derive;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate semaphore_common;
-#[macro_use]
-extern crate serde_derive;
-
 extern crate actix;
 extern crate actix_web;
 extern crate base64;
@@ -28,6 +19,15 @@ extern crate serde;
 extern crate serde_json;
 extern crate url;
 extern crate uuid;
+
+#[macro_use]
+extern crate failure_derive;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate semaphore_common;
+#[macro_use]
+extern crate serde_derive;
 #[macro_use]
 extern crate lazy_static;
 

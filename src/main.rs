@@ -5,18 +5,19 @@ extern crate dialoguer;
 extern crate env_logger;
 extern crate failure;
 extern crate futures;
-#[macro_use]
-extern crate log;
 #[cfg(not(windows))]
 extern crate openssl_probe;
 extern crate pretty_env_logger;
-#[macro_use]
-extern crate sentry;
 extern crate serde;
-#[macro_use]
-extern crate serde_derive;
 extern crate serde_json;
 extern crate uuid;
+
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate sentry;
+#[macro_use]
+extern crate serde_derive;
 
 extern crate semaphore_common;
 extern crate semaphore_server;
