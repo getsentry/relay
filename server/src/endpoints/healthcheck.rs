@@ -15,23 +15,19 @@ struct HealthcheckResponse {
 
 #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 fn healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error> {
-    Box::new(
-        state
-            .upstream_relay()
-            .send(IsAuthenticated)
-            .map_err(|_| ())
-            .and_then(move |is_authenticated| {
-                if is_authenticated {
-                    Ok(HttpResponse::Ok().json(HealthcheckResponse { is_healthy: true }))
-                } else {
-                    Err(())
-                }
-            })
-            .or_else(|_| {
-                Ok(HttpResponse::ServiceUnavailable()
-                    .json(HealthcheckResponse { is_healthy: false }))
-            }),
-    )
+    let future = and_then!({
+        let is_authenticated = await!(state.upstream_relay().send(IsAuthenticated).map_err(|_| ()));
+
+        if is_authenticated {
+            Ok(HttpResponse::Ok().json(HealthcheckResponse { is_healthy: true }))
+        } else {
+            Err(())
+        }
+    }).or_else(|_| {
+        Ok(HttpResponse::ServiceUnavailable().json(HealthcheckResponse { is_healthy: false }))
+    });
+
+    Box::new(future)
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
