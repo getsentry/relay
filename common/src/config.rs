@@ -20,13 +20,6 @@ use auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use types::ByteSize;
 use upstream::UpstreamDescriptor;
 
-/// Indicates config related errors.
-#[derive(Debug)]
-pub struct ConfigError {
-    filename: PathBuf,
-    inner: Context<ConfigErrorKind>,
-}
-
 macro_rules! ctry {
     ($expr:expr, $kind:expr, $path:expr) => {
         match $expr {
@@ -36,20 +29,11 @@ macro_rules! ctry {
     };
 }
 
-impl Fail for ConfigError {
-    fn cause(&self) -> Option<&Fail> {
-        self.inner.cause()
-    }
-
-    fn backtrace(&self) -> Option<&Backtrace> {
-        self.inner.backtrace()
-    }
-}
-
-impl fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} (file {})", self.inner, self.filename().display())
-    }
+/// Indicates config related errors.
+#[derive(Debug)]
+pub struct ConfigError {
+    filename: PathBuf,
+    inner: Context<ConfigErrorKind>,
 }
 
 impl ConfigError {
@@ -68,6 +52,22 @@ impl ConfigError {
     /// Returns the error kind of the error.
     pub fn kind(&self) -> ConfigErrorKind {
         *self.inner.get_context()
+    }
+}
+
+impl Fail for ConfigError {
+    fn cause(&self) -> Option<&Fail> {
+        self.inner.cause()
+    }
+
+    fn backtrace(&self) -> Option<&Backtrace> {
+        self.inner.backtrace()
+    }
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} (file {})", self.inner, self.filename().display())
     }
 }
 
@@ -99,6 +99,15 @@ pub struct Credentials {
     pub id: RelayId,
 }
 
+impl ConfigObject for Credentials {
+    fn format() -> ConfigFormat {
+        ConfigFormat::Json
+    }
+    fn name() -> &'static str {
+        "credentials"
+    }
+}
+
 /// Relay specific configuration values.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -117,21 +126,19 @@ pub struct Relay {
     pub tls_cert: Option<PathBuf>,
 }
 
-/// Controls interal reporting to Sentry.
-#[derive(Serialize, Deserialize, Debug, Default)]
-#[serde(default)]
-pub struct MinimalSentry {
-    /// Set to true to enable sentry reporting to the default dsn.
-    pub enabled: bool,
-}
-
-/// Minimal version of a config for dumping out.
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct MinimalConfig {
-    /// The relay part of the config.
-    pub relay: Relay,
-    /// Turn on crash reporting?
-    pub sentry: MinimalSentry,
+impl Default for Relay {
+    fn default() -> Self {
+        Relay {
+            upstream: "https://ingest.sentry.io/"
+                .parse::<UpstreamDescriptor>()
+                .unwrap(),
+            host: "127.0.0.1".parse().unwrap(),
+            port: 3000,
+            tls_port: None,
+            tls_private_key: None,
+            tls_cert: None,
+        }
+    }
 }
 
 /// Controls the log format
@@ -162,6 +169,17 @@ struct Logging {
     enable_backtraces: bool,
 }
 
+impl Default for Logging {
+    fn default() -> Self {
+        Logging {
+            level: log::LevelFilter::Info,
+            log_failed_payloads: false,
+            format: LogFormat::Auto,
+            enable_backtraces: true,
+        }
+    }
+}
+
 /// Control the metrics.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -171,6 +189,15 @@ struct Metrics {
     statsd: Option<String>,
     /// The prefix that should be added to all metrics.
     prefix: String,
+}
+
+impl Default for Metrics {
+    fn default() -> Self {
+        Metrics {
+            statsd: None,
+            prefix: "sentry.relay".into(),
+        }
+    }
 }
 
 /// Controls various limits
@@ -187,6 +214,17 @@ struct Limits {
     max_api_chunk_upload_size: ByteSize,
 }
 
+impl Default for Limits {
+    fn default() -> Self {
+        Limits {
+            max_event_payload_size: ByteSize::from_kilobytes(256),
+            max_api_payload_size: ByteSize::from_megabytes(20),
+            max_api_file_upload_size: ByteSize::from_megabytes(40),
+            max_api_chunk_upload_size: ByteSize::from_megabytes(100),
+        }
+    }
+}
+
 /// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -197,6 +235,16 @@ struct Http {
     retry_interval: u32,
     /// The maximum number of retries for failed upstream requests.
     max_retries: u32,
+}
+
+impl Default for Http {
+    fn default() -> Self {
+        Http {
+            timeout: 5,
+            retry_interval: 15,
+            max_retries: 3,
+        }
+    }
 }
 
 /// Controls internal caching behavior.
@@ -213,70 +261,6 @@ struct Cache {
     batch_interval: u32,
 }
 
-/// Controls interal reporting to Sentry.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-struct Sentry {
-    dsn: Option<Dsn>,
-    enabled: bool,
-}
-
-impl Default for Relay {
-    fn default() -> Self {
-        Relay {
-            upstream: "https://ingest.sentry.io/"
-                .parse::<UpstreamDescriptor>()
-                .unwrap(),
-            host: "127.0.0.1".parse().unwrap(),
-            port: 3000,
-            tls_port: None,
-            tls_private_key: None,
-            tls_cert: None,
-        }
-    }
-}
-
-impl Default for Logging {
-    fn default() -> Self {
-        Logging {
-            level: log::LevelFilter::Info,
-            log_failed_payloads: false,
-            format: LogFormat::Auto,
-            enable_backtraces: true,
-        }
-    }
-}
-
-impl Default for Metrics {
-    fn default() -> Self {
-        Metrics {
-            statsd: None,
-            prefix: "sentry.relay".into(),
-        }
-    }
-}
-
-impl Default for Limits {
-    fn default() -> Self {
-        Limits {
-            max_event_payload_size: ByteSize::from_kilobytes(256),
-            max_api_payload_size: ByteSize::from_megabytes(20),
-            max_api_file_upload_size: ByteSize::from_megabytes(40),
-            max_api_chunk_upload_size: ByteSize::from_megabytes(100),
-        }
-    }
-}
-
-impl Default for Http {
-    fn default() -> Self {
-        Http {
-            timeout: 5,
-            retry_interval: 15,
-            max_retries: 3,
-        }
-    }
-}
-
 impl Default for Cache {
     fn default() -> Self {
         Cache {
@@ -288,6 +272,14 @@ impl Default for Cache {
     }
 }
 
+/// Controls interal reporting to Sentry.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct Sentry {
+    dsn: Option<Dsn>,
+    enabled: bool,
+}
+
 impl Default for Sentry {
     fn default() -> Self {
         Sentry {
@@ -296,6 +288,47 @@ impl Default for Sentry {
                 .ok(),
             enabled: false,
         }
+    }
+}
+
+/// Controls interal reporting to Sentry.
+#[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
+pub struct MinimalSentry {
+    /// Set to true to enable sentry reporting to the default dsn.
+    pub enabled: bool,
+}
+
+/// Minimal version of a config for dumping out.
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct MinimalConfig {
+    /// The relay part of the config.
+    pub relay: Relay,
+    /// Turn on crash reporting?
+    pub sentry: MinimalSentry,
+}
+
+impl MinimalConfig {
+    /// Saves the config in the given config folder as config.yml
+    pub fn save_in_folder<P: AsRef<Path>>(&self, p: P) -> Result<(), ConfigError> {
+        if fs::metadata(p.as_ref()).is_err() {
+            ctry!(
+                fs::create_dir_all(p.as_ref()),
+                ConfigErrorKind::CouldNotOpenFile,
+                p.as_ref()
+            );
+        }
+        self.save(p.as_ref())
+    }
+}
+
+impl ConfigObject for MinimalConfig {
+    fn format() -> ConfigFormat {
+        ConfigFormat::Yaml
+    }
+
+    fn name() -> &'static str {
+        "config"
     }
 }
 
@@ -317,6 +350,15 @@ struct ConfigValues {
     sentry: Sentry,
 }
 
+impl ConfigObject for ConfigValues {
+    fn format() -> ConfigFormat {
+        ConfigFormat::Yaml
+    }
+    fn name() -> &'static str {
+        "config"
+    }
+}
+
 /// Config struct.
 pub struct Config {
     values: ConfigValues,
@@ -330,105 +372,6 @@ impl fmt::Debug for Config {
             .field("path", &self.path)
             .field("values", &self.values)
             .finish()
-    }
-}
-
-enum ConfigFormat {
-    Yaml,
-    Json,
-}
-
-impl ConfigFormat {
-    pub fn extension(&self) -> &'static str {
-        match self {
-            ConfigFormat::Yaml => "yml",
-            ConfigFormat::Json => "json",
-        }
-    }
-}
-
-trait ConfigObject: DeserializeOwned + Serialize {
-    fn format() -> ConfigFormat;
-    fn name() -> &'static str;
-    fn path(base: &Path) -> PathBuf {
-        base.join(format!("{}.{}", Self::name(), Self::format().extension()))
-    }
-
-    fn load(base: &Path) -> Result<Self, ConfigError> {
-        let path = Self::path(base);
-        let f = ctry!(
-            fs::File::open(&path),
-            ConfigErrorKind::CouldNotOpenFile,
-            &path
-        );
-        Ok(match Self::format() {
-            ConfigFormat::Yaml => ctry!(
-                serde_yaml::from_reader(io::BufReader::new(f)),
-                ConfigErrorKind::BadYaml,
-                &path
-            ),
-            ConfigFormat::Json => ctry!(
-                serde_json::from_reader(io::BufReader::new(f)),
-                ConfigErrorKind::BadYaml,
-                &path
-            ),
-        })
-    }
-
-    fn save(&self, base: &Path) -> Result<(), ConfigError> {
-        let path = Self::path(base);
-        let mut options = fs::OpenOptions::new();
-        options.write(true).truncate(true).create(true);
-
-        // Remove all non-user permissions for the newly created file
-        #[cfg(not(windows))]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-
-        let mut f = ctry!(
-            options.open(&path),
-            ConfigErrorKind::CouldNotWriteFile,
-            &path
-        );
-
-        match Self::format() {
-            ConfigFormat::Yaml => {
-                ctry!(
-                    serde_yaml::to_writer(&mut f, self),
-                    ConfigErrorKind::BadYaml,
-                    &path
-                );
-            }
-            ConfigFormat::Json => {
-                ctry!(
-                    serde_json::to_writer_pretty(&mut f, self),
-                    ConfigErrorKind::BadYaml,
-                    &path
-                );
-            }
-        }
-        f.write_all(b"\n").ok();
-        Ok(())
-    }
-}
-
-impl ConfigObject for Credentials {
-    fn format() -> ConfigFormat {
-        ConfigFormat::Json
-    }
-    fn name() -> &'static str {
-        "credentials"
-    }
-}
-
-impl ConfigObject for ConfigValues {
-    fn format() -> ConfigFormat {
-        ConfigFormat::Yaml
-    }
-    fn name() -> &'static str {
-        "config"
     }
 }
 
@@ -676,25 +619,83 @@ impl Config {
     }
 }
 
-impl MinimalConfig {
-    /// Saves the config in the given config folder as config.yml
-    pub fn save_in_folder<P: AsRef<Path>>(&self, p: P) -> Result<(), ConfigError> {
-        if fs::metadata(p.as_ref()).is_err() {
-            ctry!(
-                fs::create_dir_all(p.as_ref()),
-                ConfigErrorKind::CouldNotOpenFile,
-                p.as_ref()
-            );
+enum ConfigFormat {
+    Yaml,
+    Json,
+}
+
+impl ConfigFormat {
+    pub fn extension(&self) -> &'static str {
+        match self {
+            ConfigFormat::Yaml => "yml",
+            ConfigFormat::Json => "json",
         }
-        self.save(p.as_ref())
     }
 }
 
-impl ConfigObject for MinimalConfig {
-    fn format() -> ConfigFormat {
-        ConfigFormat::Yaml
+trait ConfigObject: DeserializeOwned + Serialize {
+    fn format() -> ConfigFormat;
+    fn name() -> &'static str;
+    fn path(base: &Path) -> PathBuf {
+        base.join(format!("{}.{}", Self::name(), Self::format().extension()))
     }
-    fn name() -> &'static str {
-        "config"
+
+    fn load(base: &Path) -> Result<Self, ConfigError> {
+        let path = Self::path(base);
+        let f = ctry!(
+            fs::File::open(&path),
+            ConfigErrorKind::CouldNotOpenFile,
+            &path
+        );
+        Ok(match Self::format() {
+            ConfigFormat::Yaml => ctry!(
+                serde_yaml::from_reader(io::BufReader::new(f)),
+                ConfigErrorKind::BadYaml,
+                &path
+            ),
+            ConfigFormat::Json => ctry!(
+                serde_json::from_reader(io::BufReader::new(f)),
+                ConfigErrorKind::BadYaml,
+                &path
+            ),
+        })
+    }
+
+    fn save(&self, base: &Path) -> Result<(), ConfigError> {
+        let path = Self::path(base);
+        let mut options = fs::OpenOptions::new();
+        options.write(true).truncate(true).create(true);
+
+        // Remove all non-user permissions for the newly created file
+        #[cfg(not(windows))]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+
+        let mut f = ctry!(
+            options.open(&path),
+            ConfigErrorKind::CouldNotWriteFile,
+            &path
+        );
+
+        match Self::format() {
+            ConfigFormat::Yaml => {
+                ctry!(
+                    serde_yaml::to_writer(&mut f, self),
+                    ConfigErrorKind::BadYaml,
+                    &path
+                );
+            }
+            ConfigFormat::Json => {
+                ctry!(
+                    serde_json::to_writer_pretty(&mut f, self),
+                    ConfigErrorKind::BadYaml,
+                    &path
+                );
+            }
+        }
+        f.write_all(b"\n").ok();
+        Ok(())
     }
 }
