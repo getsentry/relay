@@ -112,11 +112,7 @@ def test_store(mini_sentry, relay_chain):
     event = mini_sentry.captured_events.get(timeout=30)
     assert mini_sentry.captured_events.empty()
 
-    if isinstance(event["breadcrumbs"], dict):
-        crumbs = event["breadcrumbs"]["values"]
-    else:
-        crumbs = event["breadcrumbs"]
-
+    crumbs = event["breadcrumbs"]["values"]
     assert any(crumb["message"] == "i like bread" for crumb in crumbs)
     assert event["message"] == "hü"
 
