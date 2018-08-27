@@ -73,7 +73,7 @@ def test_store(mini_sentry, relay_chain):
     trusted_relays = list(relay.iter_public_keys())
 
     mini_sentry.project_configs[42] = {
-        "publicKeys": {"31a5a894b4524f74a9a8d0e27e21ba91": True},
+        "publicKeys": {relay.dsn_public_key: True},
         "rev": "5ceaea8c919811e8ae7daae9fe877901",
         "disabled": False,
         "lastFetch": "2018-08-24T17:29:04.426Z",
@@ -151,7 +151,7 @@ def test_store_node_base64(mini_sentry, relay_chain):
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = {
-        "publicKeys": {"31a5a894b4524f74a9a8d0e27e21ba91": True},
+        "publicKeys": {relay.dsn_public_key: True},
         "rev": "5ceaea8c919811e8ae7daae9fe877901",
         "disabled": False,
         "lastFetch": "2018-08-24T17:29:04.426Z",
@@ -189,7 +189,7 @@ def test_store_node_base64(mini_sentry, relay_chain):
             "X-Sentry-Auth": (
                 "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
                 "sentry_client=raven-node/2.6.3, "
-                "sentry_key=31a5a894b4524f74a9a8d0e27e21ba91"
+                "sentry_key={}".format(relay.dsn_public_key)
             ),
         },
     )

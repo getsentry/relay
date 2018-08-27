@@ -138,11 +138,13 @@ class SentryLike(object):
         return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
 
     @property
+    def dsn_public_key(self):
+        return "31a5a894b4524f74a9a8d0e27e21ba91"
+
+    @property
     def dsn(self):
         # bogus, we never check the DSN
-        return "http://31a5a894b4524f74a9a8d0e27e21ba91@{}:{}/42".format(
-            *self.server_address
-        )
+        return "http://{}@{}:{}/42".format(self.dsn_public_key, *self.server_address)
 
     def iter_public_keys(self):
         try:
