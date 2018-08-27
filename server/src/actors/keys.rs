@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, ResponseError};
@@ -96,6 +96,7 @@ pub struct KeyCache {
     upstream: Addr<UpstreamRelay>,
     keys: HashMap<RelayId, KeyState>,
     key_channels: HashMap<RelayId, KeyChannel>,
+    attempts: i32,
 }
 
 impl KeyCache {
@@ -105,18 +106,19 @@ impl KeyCache {
             upstream,
             keys: HashMap::new(),
             key_channels: HashMap::new(),
-        }
-    }
-
-    fn schedule_fetch(&mut self, context: &mut Context<Self>) {
-        if self.key_channels.is_empty() {
-            context.run_later(self.config.query_batch_interval(), Self::fetch_keys);
+            attempts: -1,
         }
     }
 
     fn fetch_keys(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.key_channels, HashMap::new());
-        debug!("updating public keys for {} relays", channels.len());
+        self.attempts += 1;
+
+        debug!(
+            "updating public keys for {} relays (attempt {})",
+            channels.len(),
+            self.attempts,
+        );
 
         let request = GetPublicKeys {
             relay_ids: channels.keys().cloned().collect(),
@@ -126,7 +128,7 @@ impl KeyCache {
             .send(SendQuery(request))
             .into_actor(self)
             .map_err(|_, _, _| KeyError)
-            .and_then(|response, actor, _| {
+            .and_then(|response, actor, context| {
                 match response {
                     Ok(mut response) => {
                         for (id, channel) in channels {
@@ -135,14 +137,29 @@ impl KeyCache {
                             debug!("relay {} public key updated", id);
                             channel.send(key).ok();
                         }
+
+                        // We have successfully handled a request and can reset the retry count. It
+                        // will be set to -1 only if there are no more key_channels to try,
+                        // otherwise the next
+                        actor.attempts = 0;
                     }
                     Err(error) => {
+                        // Put the channels back into the queue. We will retry again shortly.
+                        actor.key_channels.extend(channels);
                         error!("error fetching public keys: {}", error);
-
-                        // NOTE: We're dropping `channels` here, which closes the receiver on the
-                        // other end with a `oneshot::Canceled` error which gets mapped to a
-                        // `KeyError`.
                     }
+                }
+
+                if !actor.key_channels.is_empty() {
+                    // There are more key_channels, either due to an error or due to newly scheduled
+                    // requests. Reschedule an upstream request with exponential backoff in addition
+                    // to the default batch interval.
+                    let timeout = actor.config.query_batch_interval()
+                        + Duration::from_secs(1) * 2u32.pow(actor.attempts as u32 - 1);
+                    context.run_later(timeout, Self::fetch_keys);
+                } else {
+                    // Since there are no more open channels, we can reset now.
+                    actor.attempts = -1;
                 }
 
                 future::ok(()).into_actor(actor)
@@ -163,7 +180,10 @@ impl KeyCache {
         }
 
         debug!("relay {} public key requested", relay_id);
-        self.schedule_fetch(context);
+        if self.attempts < 0 {
+            self.attempts = 0;
+            context.run_later(self.config.query_batch_interval(), Self::fetch_keys);
+        }
 
         let receiver = self
             .key_channels

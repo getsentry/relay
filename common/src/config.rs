@@ -231,18 +231,15 @@ impl Default for Limits {
 struct Http {
     /// Timeout for upstream requests in seconds.
     timeout: u32,
-    /// Interval between failed request retries in seconds.
-    retry_interval: u32,
-    /// The maximum number of retries for failed upstream requests.
-    max_retries: u32,
+    /// Maximum interval between failed request retries in seconds.
+    max_retry_interval: u32,
 }
 
 impl Default for Http {
     fn default() -> Self {
         Http {
             timeout: 5,
-            retry_interval: 15,
-            max_retries: 3,
+            max_retry_interval: 60,
         }
     }
 }
@@ -255,6 +252,8 @@ struct Cache {
     project_expiry: u32,
     /// The cache timeout for downstream relay info (public keys) in seconds.
     relay_expiry: u32,
+    /// The cache timeout for events (store) before dropping them.
+    event_expiry: u32,
     /// The cache timeout for non-existing entries.
     miss_expiry: u32,
     /// The buffer timeout for batched queries before sending them upstream in ms.
@@ -264,10 +263,11 @@ struct Cache {
 impl Default for Cache {
     fn default() -> Self {
         Cache {
-            project_expiry: 300,
-            relay_expiry: 3600,
-            miss_expiry: 60,
-            batch_interval: 100,
+            project_expiry: 300, // 5 minutes
+            relay_expiry: 3600,  // 1 hour
+            event_expiry: 600,   // 10 minutes
+            miss_expiry: 60,     // 1 minute
+            batch_interval: 100, // 100ms
         }
     }
 }
@@ -559,13 +559,8 @@ impl Config {
     }
 
     /// Returns the failed upstream request retry interval.
-    pub fn http_retry_interval(&self) -> Duration {
-        Duration::from_secs(self.values.http.retry_interval.into())
-    }
-
-    /// Returns the maximum number of request retries.
-    pub fn http_max_retries(&self) -> u32 {
-        self.values.http.max_retries
+    pub fn http_max_retry_interval(&self) -> Duration {
+        Duration::from_secs(self.values.http.max_retry_interval.into())
     }
 
     /// Returns the expiry timeout for cached projects.
@@ -576,6 +571,11 @@ impl Config {
     /// Returns the expiry timeout for cached relay infos (public keys).
     pub fn relay_cache_expiry(&self) -> Duration {
         Duration::from_secs(self.values.cache.relay_expiry.into())
+    }
+
+    /// Returns the timeout for buffered events (due to upstream errors).
+    pub fn event_buffer_expiry(&self) -> Duration {
+        Duration::from_secs(self.values.cache.event_expiry.into())
     }
 
     /// Returns the expiry timeout for cached misses before trying to refetch.
