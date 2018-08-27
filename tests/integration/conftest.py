@@ -10,9 +10,8 @@ import gzip
 
 from queue import Queue
 
-from hypothesis import strategies as st
 from pytest_localserver.http import WSGIServer
-from flask import Flask, request as flask_request, jsonify, Response
+from flask import Flask, request as flask_request, jsonify
 
 SEMAPHORE_BIN = [os.environ.get("SEMAPHORE_BIN") or "target/debug/semaphore"]
 
@@ -205,9 +204,8 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                         "tls_cert": None,
                     },
                     "sentry": {"dsn": mini_sentry.dsn},
-                    "limits": {
-                        "max_api_file_upload_size": "1MiB",
-                    }
+                    "limits": {"max_api_file_upload_size": "1MiB"},
+                    "cache": {"batch_interval": 0},
                 }
             )
         )
@@ -290,21 +288,12 @@ def gobetween(background_process, random_port, config_dir):
     return inner
 
 
-@pytest.fixture
-def relay_chain_strategy(relay, mini_sentry, gobetween):
-    chain_cache = {}
-
-    def spawn_chain(chain):
-        if not chain:
-            return mini_sentry
-        chain = tuple(chain)
-        if chain in chain_cache:
-            return chain_cache[chain]
-
-        f, *rest = chain
-        rv = chain_cache[chain] = f(spawn_chain(rest))
-        return rv
-
-    return st.lists(st.one_of(st.just(relay), st.just(gobetween)), max_size=10).map(
-        spawn_chain
-    )
+@pytest.fixture(
+    params=[
+        lambda s, r, g: r(s),
+        lambda s, r, g: r(r(s)),
+        lambda s, r, g: r(g(r(g(s)))),
+    ]
+)
+def relay_chain(request, mini_sentry, relay, gobetween):
+    return request.param(mini_sentry, relay, gobetween)

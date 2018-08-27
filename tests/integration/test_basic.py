@@ -1,8 +1,6 @@
+import pytest
 import gzip
 from datetime import datetime
-
-from hypothesis import given, settings
-from hypothesis import strategies as st
 
 import requests
 
@@ -11,57 +9,42 @@ import sentry_sdk
 from flask import request, Response
 
 
-def test_forwarding(mini_sentry, relay_chain_strategy):
-    should_compress_response = False
-    assert_data = None
+@pytest.mark.parametrize("compress_request", (True, False))
+@pytest.mark.parametrize("compress_response", (True, False))
+def test_forwarding(compress_request, compress_response, mini_sentry, relay_chain):
+    data = b"foobar"
 
     @mini_sentry.app.route("/test/reflect", methods=["POST"])
     def test():
-        data = request.data
+        _data = request.data
         if request.headers.get("Content-Encoding", "") == "gzip":
-            data = gzip.decompress(data)
+            _data = gzip.decompress(_data)
 
-        assert data == assert_data
+        assert _data == data
 
         headers = {}
 
-        if should_compress_response:
-            data = gzip.compress(data)
+        if compress_response:
+            _data = gzip.compress(_data)
             headers["Content-Encoding"] = "gzip"
 
-        return Response(data, headers=headers)
+        return Response(_data, headers=headers)
 
-    @settings(max_examples=50, deadline=5000)
-    @given(
-        relay=relay_chain_strategy,
-        data=st.text(),
-        compress_response=st.booleans(),
-        compress_request=st.booleans(),
+    relay_chain.wait_relay_healthcheck()
+
+    headers = {"Content-Type": "application/octet-stream"}
+
+    if compress_request:
+        payload = gzip.compress(data)
+        headers["Content-Encoding"] = "gzip"
+    else:
+        payload = data
+
+    response = requests.post(
+        relay_chain.url + "/test/reflect", data=payload, headers=headers
     )
-    def test_fuzzing(relay, data, compress_request, compress_response):
-        relay.wait_relay_healthcheck()
-
-        data = data.encode("utf-8")
-        headers = {"Content-Type": "application/octet-stream"}
-        nonlocal should_compress_response
-        should_compress_response = compress_response
-
-        nonlocal assert_data
-        assert_data = data
-
-        if compress_request:
-            payload = gzip.compress(data)
-            headers["Content-Encoding"] = "gzip"
-        else:
-            payload = data
-
-        response = requests.post(
-            relay.url + "/test/reflect", data=payload, headers=headers
-        )
-        response.raise_for_status()
-        assert response.content == data
-
-    test_fuzzing()
+    response.raise_for_status()
+    assert response.content == data
 
 
 def test_store(mini_sentry, relay, gobetween):
@@ -120,21 +103,25 @@ def test_store(mini_sentry, relay, gobetween):
 
 
 def test_limits(mini_sentry, relay):
-    @mini_sentry.app.route("/api/0/projects/<org>/<project>/releases/<release>/files/", methods=["POST"])
+    @mini_sentry.app.route(
+        "/api/0/projects/<org>/<project>/releases/<release>/files/", methods=["POST"]
+    )
     def dummy_upload(**opts):
-        return Response(request.data, content_type='application/octet-stream')
+        return Response(request.data, content_type="application/octet-stream")
 
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
 
     response = requests.post(
-        relay.url + "/api/0/projects/a/b/releases/1.0/files/", data='Hello',
-        headers = {'Content-Type': 'text/plain'}
+        relay.url + "/api/0/projects/a/b/releases/1.0/files/",
+        data="Hello",
+        headers={"Content-Type": "text/plain"},
     )
-    assert response.content == b'Hello'
+    assert response.content == b"Hello"
 
     response = requests.post(
-        relay.url + "/api/0/projects/a/b/releases/1.0/files/", data=b'x' * (1024 * 1024 * 2),
-        headers = {'Content-Type': 'text/plain'}
+        relay.url + "/api/0/projects/a/b/releases/1.0/files/",
+        data=b"x" * (1024 * 1024 * 2),
+        headers={"Content-Type": "text/plain"},
     )
     assert response.status_code == 413
