@@ -611,7 +611,7 @@ impl Config {
     }
 
     /// Returns the maximum number of request retries.
-    pub fn auth_max_retries(&self) -> u32 {
+    pub fn http_max_retries(&self) -> u32 {
         self.values.http.max_retries
     }
 
