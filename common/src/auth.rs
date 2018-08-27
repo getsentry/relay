@@ -148,7 +148,7 @@ impl SecretKey {
 
 impl PartialEq for SecretKey {
     fn eq(&self, other: &SecretKey) -> bool {
-        &self.inner.to_bytes()[..] == &other.inner.to_bytes()[..]
+        self.inner.to_bytes()[..] == other.inner.to_bytes()[..]
     }
 }
 
@@ -277,7 +277,7 @@ impl PublicKey {
 
 impl PartialEq for PublicKey {
     fn eq(&self, other: &PublicKey) -> bool {
-        &self.inner.to_bytes()[..] == &other.inner.to_bytes()[..]
+        self.inner.to_bytes()[..] == other.inner.to_bytes()[..]
     }
 }
 
