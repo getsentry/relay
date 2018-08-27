@@ -306,6 +306,7 @@ def gobetween(background_process, random_port, config_dir):
         lambda s, r, g: r(s),
         lambda s, r, g: r(r(s)),
         lambda s, r, g: r(g(r(g(s)))),
+        lambda s, r, g: g(r(g(s))),
     ]
 )
 def relay_chain(request, mini_sentry, relay, gobetween):
