@@ -11,10 +11,12 @@ from flask import request, Response
 
 @pytest.mark.parametrize("compress_request", (True, False))
 @pytest.mark.parametrize("compress_response", (True, False))
-def test_forwarding(compress_request, compress_response, mini_sentry, relay_chain):
+def test_forwarding_content_encoding(
+    compress_request, compress_response, mini_sentry, relay_chain
+):
     data = b"foobar"
 
-    @mini_sentry.app.route("/test/reflect", methods=["POST"])
+    @mini_sentry.app.route("/api/test/reflect", methods=["POST"])
     def test():
         _data = request.data
         if request.headers.get("Content-Encoding", "") == "gzip":
@@ -41,9 +43,29 @@ def test_forwarding(compress_request, compress_response, mini_sentry, relay_chai
     else:
         payload = data
 
-    response = requests.post(relay.url + "/test/reflect", data=payload, headers=headers)
+    response = requests.post(
+        relay.url + "/api/test/reflect", data=payload, headers=headers
+    )
     response.raise_for_status()
     assert response.content == data
+
+
+def test_forwarding_routes(mini_sentry, relay):
+    r = relay(mini_sentry)
+
+    @mini_sentry.app.route("/")
+    @mini_sentry.app.route("/<path:x>")
+    def hi(x=None):
+        return "ok"
+
+    r.wait_relay_healthcheck()
+
+    assert requests.get(r.url + "/").status_code == 404
+    assert requests.get(r.url + "/foo").status_code == 404
+    assert requests.get(r.url + "/foo/bar").status_code == 404
+    assert requests.get(r.url + "/api/").status_code == 404
+    assert requests.get(r.url + "/api/foo").status_code == 200
+    assert requests.get(r.url + "/api/foo/bar").status_code == 200
 
 
 def test_store(mini_sentry, relay_chain):

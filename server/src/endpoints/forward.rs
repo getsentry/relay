@@ -132,5 +132,9 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.default_resource(|r| r.f(forward_upstream))
+    app.scope("/api", |scope| {
+        scope
+            .resource("/", |r| r.f(|_| HttpResponse::NotFound()))
+            .default_resource(|r| r.f(forward_upstream))
+    })
 }
