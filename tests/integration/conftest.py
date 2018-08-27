@@ -10,9 +10,8 @@ import gzip
 
 from queue import Queue
 
-from hypothesis import strategies as st
 from pytest_localserver.http import WSGIServer
-from flask import Flask, request as flask_request, jsonify, Response
+from flask import Flask, request as flask_request, jsonify
 
 SEMAPHORE_BIN = [os.environ.get("SEMAPHORE_BIN") or "target/debug/semaphore"]
 
@@ -44,10 +43,6 @@ def mini_sentry(request):
 
     test_failures = []
     authenticated_relays = {}
-
-    @app.route("/api/0/projects/<org>/<project>/releases/<release>/files/", methods=["POST"])
-    def dummy_upload(**opts):
-        return Response(flask_request.data, content_type='application/octet-stream')
 
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
     def get_challenge():
@@ -106,7 +101,7 @@ def mini_sentry(request):
         if test_failures:
             raise AssertionError(f"Exceptions happened in mini_sentry: {test_failures}")
 
-    server = WSGIServer(application=app)
+    server = WSGIServer(application=app, threaded=True)
     server.start()
     request.addfinalizer(server.stop)
     sentry = Sentry(server.server_address, app)
@@ -149,6 +144,19 @@ class SentryLike(object):
             *self.server_address
         )
 
+    def iter_public_keys(self):
+        try:
+            yield self.public_key
+        except AttributeError:
+            pass
+
+        if self.upstream is not None:
+            if isinstance(self.upstream, tuple):
+                for upstream in self.upstream:
+                    yield from upstream.iter_public_keys()
+            else:
+                yield from self.upstream.iter_public_keys()
+
 
 class Sentry(SentryLike):
     def __init__(self, server_address, app):
@@ -160,10 +168,12 @@ class Sentry(SentryLike):
 
 
 class Relay(SentryLike):
-    def __init__(self, server_address, process, upstream):
+    def __init__(self, server_address, process, upstream, public_key, relay_id):
         self.server_address = server_address
         self.process = process
         self.upstream = upstream
+        self.public_key = public_key
+        self.relay_id = relay_id
 
 
 @pytest.fixture
@@ -206,20 +216,32 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                         "tls_private_key": None,
                         "tls_cert": None,
                     },
-                    "sentry": {"dsn": mini_sentry.dsn},
-                    "limits": {
-                        "max_api_file_upload_size": "1MiB",
-                    }
+                    "sentry": {"enabled": False},
+                    "limits": {"max_api_file_upload_size": "1MiB"},
+                    "cache": {"batch_interval": 0},
                 }
             )
         )
 
-        subprocess.check_call(
+        output = subprocess.check_output(
             SEMAPHORE_BIN + ["-c", str(dir), "credentials", "generate"]
         )
+
         process = background_process(SEMAPHORE_BIN + ["-c", str(dir), "run"])
 
-        return Relay((host, port), process, upstream)
+        public_key = None
+        relay_id = None
+
+        for line in output.splitlines():
+            if b"public key" in line:
+                public_key = line.split()[-1].decode("ascii")
+            if b"relay id" in line:
+                relay_id = line.split()[-1].decode("ascii")
+
+        assert public_key
+        assert relay_id
+
+        return Relay((host, port), process, upstream, public_key, relay_id)
 
     return inner
 
@@ -279,21 +301,12 @@ def gobetween(background_process, random_port, config_dir):
     return inner
 
 
-@pytest.fixture
-def relay_chain_strategy(relay, mini_sentry, gobetween):
-    chain_cache = {}
-
-    def spawn_chain(chain):
-        if not chain:
-            return mini_sentry
-        chain = tuple(chain)
-        if chain in chain_cache:
-            return chain_cache[chain]
-
-        f, *rest = chain
-        rv = chain_cache[chain] = f(spawn_chain(rest))
-        return rv
-
-    return st.lists(st.one_of(st.just(relay), st.just(gobetween)), max_size=10).map(
-        spawn_chain
-    )
+@pytest.fixture(
+    params=[
+        lambda s, r, g: r(s),
+        lambda s, r, g: r(r(s)),
+        lambda s, r, g: r(g(r(g(s)))),
+    ]
+)
+def relay_chain(request, mini_sentry, relay, gobetween):
+    return lambda: request.param(mini_sentry, relay, gobetween)

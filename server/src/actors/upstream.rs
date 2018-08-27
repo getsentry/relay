@@ -114,7 +114,7 @@ impl UpstreamRelay {
                 ()
             })
             .map_err(|err, actor, ctx| {
-                let interval = actor.config.auth_retry_interval();
+                let interval = actor.config.http_retry_interval();
 
                 // XXX: do not schedule retries for fatal errors
                 error!("authentication encountered error: {}", &err);
@@ -183,6 +183,7 @@ impl UpstreamRelay {
         let future =
             self.send_request(method, path, |builder| {
                 builder
+                    .timeout(self.config.http_timeout())
                     .header("X-Sentry-Relay-Signature", signature)
                     .header(header::CONTENT_TYPE, "application/json")
                     .body(json)

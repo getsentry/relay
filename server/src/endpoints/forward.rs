@@ -88,6 +88,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         }
         forwarded_request_builder.header(key.clone(), value.clone());
     }
+
     forwarded_request_builder
         .no_default_headers()
         .disable_decompress()
@@ -95,7 +96,8 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         .uri(upstream.get_url(path_and_query))
         .set_header("Host", upstream.host())
         .set_header("X-Forwarded-For", get_forwarded_for(request))
-        .set_header("Connection", "close");
+        .set_header("Connection", "close")
+        .timeout(config.http_timeout());
 
     ForwardBody::new(request)
         .limit(limit)
@@ -104,13 +106,12 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         .and_then(move |request| request.send().map_err(Error::from))
         .and_then(move |response| {
             let mut forwarded_response = HttpResponse::build(response.status());
+
             // For the response body we're able to disable all automatic decompression and
             // compression done by actix-web or actix' http client.
             //
             // 0. use ClientRequestBuilder::disable_decompress() (see above)
-            //
-            // 1. Set content-encoding to identity such that actix-web will not attempt to compress
-            //    again
+            // 1. Set content-encoding to identity such that actix-web will not to compress again
             forwarded_response.content_encoding(ContentEncoding::Identity);
 
             for (key, value) in response.headers() {

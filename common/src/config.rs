@@ -180,10 +180,12 @@ struct Limits {
 /// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Auth {
-    /// The number of seconds between auth attempts.
+struct Http {
+    /// Timeout for upstream requests in seconds.
+    timeout: u32,
+    /// Interval between failed request retries in seconds.
     retry_interval: u32,
-    /// The maximum number of retries before shutting down.
+    /// The maximum number of retries for failed upstream requests.
     max_retries: u32,
 }
 
@@ -197,7 +199,7 @@ struct Cache {
     relay_expiry: u32,
     /// The cache timeout for non-existing entries.
     miss_expiry: u32,
-    /// The number of seconds to buffer batched queries before sending them upstream.
+    /// The buffer timeout for batched queries before sending them upstream in ms.
     batch_interval: u32,
 }
 
@@ -255,9 +257,10 @@ impl Default for Limits {
     }
 }
 
-impl Default for Auth {
+impl Default for Http {
     fn default() -> Self {
-        Auth {
+        Http {
+            timeout: 5,
             retry_interval: 15,
             max_retries: 3,
         }
@@ -270,7 +273,7 @@ impl Default for Cache {
             project_expiry: 300,
             relay_expiry: 3600,
             miss_expiry: 60,
-            batch_interval: 5,
+            batch_interval: 100,
         }
     }
 }
@@ -291,7 +294,7 @@ struct ConfigValues {
     #[serde(default)]
     relay: Relay,
     #[serde(default)]
-    auth: Auth,
+    http: Http,
     #[serde(default)]
     cache: Cache,
     #[serde(default)]
@@ -597,14 +600,19 @@ impl Config {
         &self.values.metrics.prefix
     }
 
-    /// Returns the upstream authentication retry interval.
-    pub fn auth_retry_interval(&self) -> Duration {
-        Duration::from_secs(self.values.auth.retry_interval.into())
+    /// Returns the default timeout for all upstream HTTP requests.
+    pub fn http_timeout(&self) -> Duration {
+        Duration::from_secs(self.values.http.timeout.into())
     }
 
-    /// Returns the maximum number of auth retries.
-    pub fn auth_max_retries(&self) -> u32 {
-        self.values.auth.max_retries
+    /// Returns the failed upstream request retry interval.
+    pub fn http_retry_interval(&self) -> Duration {
+        Duration::from_secs(self.values.http.retry_interval.into())
+    }
+
+    /// Returns the maximum number of request retries.
+    pub fn http_max_retries(&self) -> u32 {
+        self.values.http.max_retries
     }
 
     /// Returns the expiry timeout for cached projects.
@@ -625,7 +633,7 @@ impl Config {
     /// Returns the number of seconds during which batchable queries are collected before sending
     /// them in a single request.
     pub fn query_batch_interval(&self) -> Duration {
-        Duration::from_secs(self.values.cache.batch_interval.into())
+        Duration::from_millis(self.values.cache.batch_interval.into())
     }
 
     /// Returns the maximum size of an event payload in bytes.
