@@ -45,10 +45,6 @@ def mini_sentry(request):
     test_failures = []
     authenticated_relays = {}
 
-    @app.route("/api/0/projects/<org>/<project>/releases/<release>/files/", methods=["POST"])
-    def dummy_upload(**opts):
-        return Response(flask_request.data, content_type='application/octet-stream')
-
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
     def get_challenge():
         relay_id = flask_request.json["relay_id"]

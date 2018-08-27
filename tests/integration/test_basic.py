@@ -120,6 +120,10 @@ def test_store(mini_sentry, relay, gobetween):
 
 
 def test_limits(mini_sentry, relay):
+    @mini_sentry.app.route("/api/0/projects/<org>/<project>/releases/<release>/files/", methods=["POST"])
+    def dummy_upload(**opts):
+        return Response(request.data, content_type='application/octet-stream')
+
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
 
