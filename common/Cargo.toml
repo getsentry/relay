@@ -20,7 +20,6 @@ human-size = "0.4.0"
 marshal = { git = "https://github.com/getsentry/marshal", rev = "810d521dfbde1e2d0c1e63fbb2e226ef149a8883" }
 parking_lot = "0.6.3"
 rand = "0.5.5"
-rust_sodium = "0.9.0"
 sentry-types = "0.6.2"
 serde = "1.0.74"
 serde_derive = "1.0.74"
@@ -28,3 +27,5 @@ serde_json = "1.0.26"
 serde_yaml = "0.8.1"
 url = "1.7.1"
 uuid = { version = "0.6.5", features = ["v4", "serde"] }
+ed25519-dalek = "0.8.0"
+sha2 = "0.7.1"

@@ -1,30 +1,18 @@
 use std::fmt;
 use std::str::FromStr;
-use std::sync::{Once, ONCE_INIT};
 
 use base64;
 use chrono::{DateTime, Duration, Utc};
-use rand::{thread_rng, RngCore};
-use rust_sodium;
-use rust_sodium::crypto::sign::ed25519 as sign_backend;
+use ed25519_dalek;
+use rand::{thread_rng, OsRng, RngCore};
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 use serde_json;
+use sha2::Sha512;
 use uuid::Uuid;
-
-static INIT_SODIUMOXIDE_RNG: Once = ONCE_INIT;
 
 /// Alias for relay IDs (UUIDs)
 pub type RelayId = Uuid;
-
-/// Calls to rust_sodium that need the RNG need to go through this
-/// wrapper as otherwise thread safety cannot be guarnateed.
-fn with_sodiumoxide_rng<T, F: FnOnce() -> T>(cb: F) -> T {
-    INIT_SODIUMOXIDE_RNG.call_once(|| {
-        rust_sodium::init().ok();
-    });
-    cb()
-}
 
 /// Raised if a key could not be parsed.
 #[derive(Debug, Fail, PartialEq, Eq, Hash)]
@@ -87,7 +75,7 @@ impl Default for SignatureHeader {
 /// on the wire as opaque ascii encoded strings of arbitrary format or length.
 #[derive(Clone)]
 pub struct PublicKey {
-    inner: sign_backend::PublicKey,
+    inner: ed25519_dalek::PublicKey,
 }
 
 /// Represents the secret key of an relay.
@@ -95,9 +83,16 @@ pub struct PublicKey {
 /// Secret keys are based on ed25519 but this should be considered an
 /// implementation detail for now.  We only ever represent public keys
 /// on the wire as opaque ascii encoded strings of arbitrary format or length.
-#[derive(Clone)]
 pub struct SecretKey {
-    inner: sign_backend::SecretKey,
+    inner: ed25519_dalek::Keypair,
+}
+
+impl Clone for SecretKey {
+    fn clone(&self) -> SecretKey {
+        SecretKey {
+            inner: ed25519_dalek::Keypair::from_bytes(&self.inner.to_bytes()[..]).unwrap(),
+        }
+    }
 }
 
 /// Reprensents the final registration.
@@ -125,8 +120,8 @@ impl SecretKey {
         let header_encoded = base64::encode_config(&header[..], base64::URL_SAFE_NO_PAD);
         header.push(b'\x00');
         header.extend_from_slice(data);
-        let sig = sign_backend::sign_detached(&header, &self.inner);
-        let mut sig_encoded = base64::encode_config(&sig.0[..], base64::URL_SAFE_NO_PAD);
+        let sig = self.inner.sign::<Sha512>(&header);
+        let mut sig_encoded = base64::encode_config(&sig.to_bytes()[..], base64::URL_SAFE_NO_PAD);
         sig_encoded.push('.');
         sig_encoded.push_str(&header_encoded);
         sig_encoded
@@ -153,7 +148,7 @@ impl SecretKey {
 
 impl PartialEq for SecretKey {
     fn eq(&self, other: &SecretKey) -> bool {
-        self.inner.0[..] == other.inner.0[..]
+        self.inner.to_bytes()[..] == other.inner.to_bytes()[..]
     }
 }
 
@@ -167,19 +162,35 @@ impl FromStr for SecretKey {
             Ok(bytes) => bytes,
             _ => return Err(KeyParseError::BadEncoding),
         };
+
         Ok(SecretKey {
-            inner: sign_backend::SecretKey::from_slice(&bytes).ok_or(KeyParseError::BadKey)?,
+            inner: if bytes.len() == 64 {
+                ed25519_dalek::Keypair::from_bytes(&bytes).map_err(|_| KeyParseError::BadKey)?
+            } else {
+                let secret = ed25519_dalek::SecretKey::from_bytes(&bytes)
+                    .map_err(|_| KeyParseError::BadKey)?;
+                let public = ed25519_dalek::PublicKey::from_secret::<Sha512>(&secret);
+                ed25519_dalek::Keypair { secret, public }
+            },
         })
     }
 }
 
 impl fmt::Display for SecretKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            base64::encode_config(&self.inner.0[..], base64::URL_SAFE_NO_PAD)
-        )
+        if f.alternate() {
+            write!(
+                f,
+                "{}",
+                base64::encode_config(&self.inner.to_bytes()[..], base64::URL_SAFE_NO_PAD)
+            )
+        } else {
+            write!(
+                f,
+                "{}",
+                base64::encode_config(&self.inner.secret.to_bytes()[..], base64::URL_SAFE_NO_PAD)
+            )
+        }
     }
 }
 
@@ -195,16 +206,12 @@ impl PublicKey {
     /// Verifies the signature and returns the embedded signature
     /// header.
     pub fn verify_meta(&self, data: &[u8], sig: &str) -> Option<SignatureHeader> {
-        let mut sig_arr = [0u8; sign_backend::SIGNATUREBYTES];
         let mut iter = sig.splitn(2, '.');
         let sig_bytes = match iter.next() {
             Some(sig_encoded) => base64::decode_config(sig_encoded, base64::URL_SAFE_NO_PAD).ok()?,
             None => return None,
         };
-        if sig_bytes.len() != sig_arr.len() {
-            return None;
-        }
-        sig_arr.clone_from_slice(&sig_bytes);
+        let sig = ed25519_dalek::Signature::from_bytes(&sig_bytes).ok()?;
 
         let header = match iter.next() {
             Some(header_encoded) => {
@@ -215,8 +222,7 @@ impl PublicKey {
         let mut to_verify = header.clone();
         to_verify.push(b'\x00');
         to_verify.extend_from_slice(data);
-        if sign_backend::verify_detached(&sign_backend::Signature(sig_arr), &to_verify, &self.inner)
-        {
+        if self.inner.verify::<Sha512>(&to_verify, &sig).is_ok() {
             serde_json::from_slice(&header).ok()
         } else {
             None
@@ -271,7 +277,7 @@ impl PublicKey {
 
 impl PartialEq for PublicKey {
     fn eq(&self, other: &PublicKey) -> bool {
-        self.inner.0[..] == other.inner.0[..]
+        self.inner.to_bytes()[..] == other.inner.to_bytes()[..]
     }
 }
 
@@ -286,7 +292,7 @@ impl FromStr for PublicKey {
             _ => return Err(KeyParseError::BadEncoding),
         };
         Ok(PublicKey {
-            inner: sign_backend::PublicKey::from_slice(&bytes).ok_or(KeyParseError::BadKey)?,
+            inner: ed25519_dalek::PublicKey::from_bytes(&bytes).map_err(|_| KeyParseError::BadKey)?,
         })
     }
 }
@@ -296,7 +302,7 @@ impl fmt::Display for PublicKey {
         write!(
             f,
             "{}",
-            base64::encode_config(&self.inner.0[..], base64::URL_SAFE_NO_PAD)
+            base64::encode_config(&self.inner.to_bytes()[..], base64::URL_SAFE_NO_PAD)
         )
     }
 }
@@ -316,10 +322,10 @@ pub fn generate_relay_id() -> RelayId {
 
 /// Generates a secret + public key pair.
 pub fn generate_key_pair() -> (SecretKey, PublicKey) {
-    with_sodiumoxide_rng(|| {
-        let (pk, sk) = sign_backend::gen_keypair();
-        (SecretKey { inner: sk }, PublicKey { inner: pk })
-    })
+    let mut csprng = OsRng::new().unwrap();
+    let kp = ed25519_dalek::Keypair::generate::<Sha512, _>(&mut csprng);
+    let pk = ed25519_dalek::PublicKey::from_bytes(&kp.public.as_bytes()[..]).unwrap();
+    (SecretKey { inner: kp }, PublicKey { inner: pk })
 }
 
 /// Represents a challenge request.
@@ -443,6 +449,10 @@ fn test_keys() {
 
     assert_eq!(
         sk.to_string(),
+        "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU"
+    );
+    assert_eq!(
+        format!("{:#}", sk),
         "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
     );
     assert_eq!(
@@ -476,11 +486,7 @@ fn test_serializing() {
         .unwrap();
 
     let sk_json = serde_json::to_string(&sk).unwrap();
-    assert_eq!(
-        sk_json,
-        "\"OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMW\
-         iMLtSE86J3N9Peo5CBP1YQHDUkApQ\""
-    );
+    assert_eq!(sk_json, "\"OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU\"");
 
     let pk_json = serde_json::to_string(&pk).unwrap();
     assert_eq!(pk_json, "\"JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU\"");

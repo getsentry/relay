@@ -13,16 +13,17 @@ extern crate serde_derive;
 extern crate base64;
 extern crate cadence;
 extern crate chrono;
+extern crate ed25519_dalek;
 extern crate failure;
 extern crate human_size;
 extern crate marshal;
 extern crate parking_lot;
 extern crate rand;
-extern crate rust_sodium;
 extern crate sentry_types;
 extern crate serde;
 extern crate serde_json;
 extern crate serde_yaml;
+extern crate sha2;
 extern crate url;
 extern crate uuid;
 
