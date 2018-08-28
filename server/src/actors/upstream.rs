@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use semaphore_common::{
-    Config, RegisterChallenge, RegisterRequest, RegisterResponse, Registration,
+    Config, RegisterChallenge, RegisterRequest, RegisterResponse, Registration, RetryBackoff,
 };
 
 #[derive(Fail, Debug)]
@@ -60,6 +60,7 @@ impl AuthState {
 }
 
 pub struct UpstreamRelay {
+    backoff: RetryBackoff,
     config: Arc<Config>,
     auth_state: AuthState,
 }
@@ -67,6 +68,7 @@ pub struct UpstreamRelay {
 impl UpstreamRelay {
     pub fn new(config: Arc<Config>) -> Self {
         UpstreamRelay {
+            backoff: RetryBackoff::from_config(&config),
             config,
             auth_state: AuthState::Unknown,
         }
@@ -78,60 +80,6 @@ impl UpstreamRelay {
         } else {
             Ok(())
         }
-    }
-
-    fn authenticate(&mut self) -> ResponseActFuture<Self, (), ()> {
-        let credentials = match self.config.credentials() {
-            Some(x) => x,
-            None => {
-                warn!("no credentials configured, not authenticating.");
-                return Box::new(Ok(()).into_future().into_actor(self));
-            }
-        };
-
-        info!(
-            "registering with upstream (upstream = {})",
-            self.config.upstream_descriptor()
-        );
-        self.auth_state = AuthState::RegisterRequestChallenge;
-
-        let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
-
-        let future = self
-            .send_query(request)
-            .into_actor(self)
-            .and_then(|challenge, actor, _ctx| {
-                info!("got register challenge (token = {})", challenge.token());
-                actor.auth_state = AuthState::RegisterChallengeResponse;
-                let challenge_response = challenge.create_response();
-
-                info!("sending register challenge response");
-                actor.send_query(challenge_response).into_actor(actor)
-            })
-            .map(|_registration, actor, _ctx| {
-                info!("relay successfully registered with upstream");
-                actor.auth_state = AuthState::Registered;
-                ()
-            })
-            .map_err(|err, actor, ctx| {
-                let interval = actor.config.http_retry_interval();
-
-                // XXX: do not schedule retries for fatal errors
-                error!("authentication encountered error: {}", &err);
-                info!(
-                    "scheduling authentication retry in {} seconds",
-                    interval.as_secs()
-                );
-
-                actor.auth_state = AuthState::Error;
-                ctx.run_later(interval, |actor, ctx| {
-                    ctx.spawn(actor.authenticate());
-                });
-
-                ()
-            });
-
-        Box::new(future)
     }
 
     fn send_request<P, F>(
@@ -196,13 +144,90 @@ impl UpstreamRelay {
 impl Actor for UpstreamRelay {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut Self::Context) {
+    fn started(&mut self, context: &mut Self::Context) {
         info!("upstream relay started");
-        ctx.spawn(self.authenticate());
+
+        self.backoff.reset();
+        context.notify(Authenticate);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         info!("upstream relay stopped");
+    }
+}
+
+struct Authenticate;
+
+impl Message for Authenticate {
+    type Result = Result<(), ()>;
+}
+
+impl Handler<Authenticate> for UpstreamRelay {
+    type Result = ResponseActFuture<Self, (), ()>;
+
+    fn handle(&mut self, _msg: Authenticate, _ctx: &mut Self::Context) -> Self::Result {
+        let credentials = match self.config.credentials() {
+            Some(x) => x,
+            None => {
+                warn!("no credentials configured, not authenticating.");
+                return Box::new(Err(()).into_future().into_actor(self));
+            }
+        };
+
+        info!(
+            "registering with upstream ({})",
+            self.config.upstream_descriptor()
+        );
+
+        self.auth_state = AuthState::RegisterRequestChallenge;
+        let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
+
+        let future = self
+            .send_query(request)
+            .into_actor(self)
+            .and_then(|challenge, actor, _context| {
+                info!("got register challenge (token = {})", challenge.token());
+                actor.auth_state = AuthState::RegisterChallengeResponse;
+                let challenge_response = challenge.create_response();
+
+                info!("sending register challenge response");
+                actor.send_query(challenge_response).into_actor(actor)
+            })
+            .map(|_, actor, _context| {
+                info!("relay successfully registered with upstream");
+                actor.auth_state = AuthState::Registered;
+                ()
+            })
+            .map_err(|err, actor, context| {
+                error!("authentication encountered error: {}", err);
+
+                let interval = actor.backoff.next_backoff();
+                info!(
+                    "scheduling authentication retry in {} seconds",
+                    interval.as_secs()
+                );
+
+                actor.auth_state = AuthState::Error;
+                context.notify_later(Authenticate, interval);
+
+                ()
+            });
+
+        Box::new(future)
+    }
+}
+
+pub struct IsAuthenticated;
+
+impl Message for IsAuthenticated {
+    type Result = bool;
+}
+
+impl Handler<IsAuthenticated> for UpstreamRelay {
+    type Result = bool;
+
+    fn handle(&mut self, _msg: IsAuthenticated, _ctx: &mut Self::Context) -> Self::Result {
+        self.auth_state.is_authenticated()
     }
 }
 
@@ -380,19 +405,5 @@ impl UpstreamQuery for RegisterResponse {
     }
     fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/register/response/")
-    }
-}
-
-pub struct IsAuthenticated;
-
-impl Message for IsAuthenticated {
-    type Result = bool;
-}
-
-impl Handler<IsAuthenticated> for UpstreamRelay {
-    type Result = bool;
-
-    fn handle(&mut self, _msg: IsAuthenticated, _ctx: &mut Self::Context) -> Self::Result {
-        self.auth_state.is_authenticated()
     }
 }

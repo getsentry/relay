@@ -1,6 +1,7 @@
 //! Common functionality for the sentry relay.
 #![warn(missing_docs)]
 
+extern crate backoff;
 extern crate base64;
 extern crate cadence;
 extern crate chrono;
@@ -35,12 +36,14 @@ pub mod metrics;
 
 mod auth;
 mod config;
+mod retry;
 mod types;
 mod upstream;
 mod utils;
 
 pub use auth::*;
 pub use config::*;
+pub use retry::*;
 pub use types::*;
 pub use upstream::*;
 pub use utils::*;

@@ -3,13 +3,13 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, ResponseError};
 use futures::{future, future::Shared, sync::oneshot, Future};
 
-use semaphore_common::{Config, PublicKey, RelayId};
+use semaphore_common::{Config, PublicKey, RelayId, RetryBackoff};
 
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use utils::{ApiErrorResponse, Response};
@@ -92,6 +92,7 @@ impl KeyChannel {
 }
 
 pub struct KeyCache {
+    backoff: RetryBackoff,
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     keys: HashMap<RelayId, KeyState>,
@@ -101,6 +102,7 @@ pub struct KeyCache {
 impl KeyCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         KeyCache {
+            backoff: RetryBackoff::from_config(&config),
             config,
             upstream,
             keys: HashMap::new(),
@@ -108,15 +110,25 @@ impl KeyCache {
         }
     }
 
-    fn schedule_fetch(&mut self, context: &mut Context<Self>) {
-        if self.key_channels.is_empty() {
-            context.run_later(self.config.query_batch_interval(), Self::fetch_keys);
-        }
+    /// Returns the backoff timeout for a batched upstream query.
+    ///
+    /// If previous queries succeeded, this will be the general batch interval. Additionally, an
+    /// exponentially increasing backoff is used for retrying the upstream request.
+    fn next_backoff(&mut self) -> Duration {
+        self.config.query_batch_interval() + self.backoff.next_backoff()
     }
 
+    /// Executes an upstream request to fetch public keys.
+    ///
+    /// This assumes that currently no request is running. If the upstream request fails or new
+    /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_keys(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.key_channels, HashMap::new());
-        debug!("updating public keys for {} relays", channels.len());
+        debug!(
+            "updating public keys for {} relays (attempt {})",
+            channels.len(),
+            self.backoff.attempt(),
+        );
 
         let request = GetPublicKeys {
             relay_ids: channels.keys().cloned().collect(),
@@ -126,9 +138,11 @@ impl KeyCache {
             .send(SendQuery(request))
             .into_actor(self)
             .map_err(|_, _, _| KeyError)
-            .and_then(|response, actor, _| {
+            .and_then(|response, actor, context| {
                 match response {
                     Ok(mut response) => {
+                        actor.backoff.reset();
+
                         for (id, channel) in channels {
                             let key = response.public_keys.remove(&id).unwrap_or(None);
                             actor.keys.insert(id, KeyState::from_option(key.clone()));
@@ -137,12 +151,15 @@ impl KeyCache {
                         }
                     }
                     Err(error) => {
+                        // Put the channels back into the queue, in addition to channels that have
+                        // been pushed in the meanwhile. We will retry again shortly.
+                        actor.key_channels.extend(channels);
                         error!("error fetching public keys: {}", error);
-
-                        // NOTE: We're dropping `channels` here, which closes the receiver on the
-                        // other end with a `oneshot::Canceled` error which gets mapped to a
-                        // `KeyError`.
                     }
+                }
+
+                if !actor.key_channels.is_empty() {
+                    context.run_later(actor.next_backoff(), Self::fetch_keys);
                 }
 
                 future::ok(()).into_actor(actor)
@@ -163,7 +180,10 @@ impl KeyCache {
         }
 
         debug!("relay {} public key requested", relay_id);
-        self.schedule_fetch(context);
+        if !self.backoff.started() {
+            self.backoff.reset();
+            context.run_later(self.next_backoff(), Self::fetch_keys);
+        }
 
         let receiver = self
             .key_channels

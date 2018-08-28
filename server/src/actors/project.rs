@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
@@ -11,7 +11,7 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 use url::Url;
 use uuid::Uuid;
 
-use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey};
+use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff};
 
 use actors::events::EventMetaData;
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
@@ -390,6 +390,7 @@ impl UpstreamQuery for GetProjectStates {
 }
 
 pub struct ProjectCache {
+    backoff: RetryBackoff,
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
@@ -399,6 +400,7 @@ pub struct ProjectCache {
 impl ProjectCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         ProjectCache {
+            backoff: RetryBackoff::from_config(&config),
             config,
             upstream,
             projects: HashMap::new(),
@@ -406,15 +408,25 @@ impl ProjectCache {
         }
     }
 
-    pub fn schedule_fetch(&mut self, context: &mut Context<Self>) {
-        if self.state_channels.is_empty() {
-            context.run_later(self.config.query_batch_interval(), Self::fetch_states);
-        }
+    /// Returns the backoff timeout for a batched upstream query.
+    ///
+    /// If previous queries succeeded, this will be the general batch interval. Additionally, an
+    /// exponentially increasing backoff is used for retrying the upstream request.
+    fn next_backoff(&mut self) -> Duration {
+        self.config.query_batch_interval() + self.backoff.next_backoff()
     }
 
+    /// Executes an upstream request to fetch project configs.
+    ///
+    /// This assumes that currently no request is running. If the upstream request fails or new
+    /// channels are pushed in the meanwhile, this will reschedule automatically.
     pub fn fetch_states(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.state_channels, HashMap::new());
-        debug!("updating project states for {} projects", channels.len());
+        debug!(
+            "updating project states for {} projects (attempt {})",
+            channels.len(),
+            self.backoff.attempt(),
+        );
 
         let request = GetProjectStates {
             projects: channels.keys().cloned().collect(),
@@ -423,9 +435,12 @@ impl ProjectCache {
         self.upstream
             .send(SendQuery(request))
             .map_err(|_| ProjectError::UpstreamFailed)
-            .and_then(|response| {
+            .into_actor(self)
+            .and_then(|response, actor, context| {
                 match response {
                     Ok(mut response) => {
+                        actor.backoff.reset();
+
                         for (id, channel) in channels {
                             let state = response
                                 .configs
@@ -437,16 +452,19 @@ impl ProjectCache {
                         }
                     }
                     Err(error) => {
+                        // Put the channels back into the queue, in addition to channels that have
+                        // been pushed in the meanwhile. We will retry again shortly.
+                        actor.state_channels.extend(channels);
                         error!("error fetching project states: {}", error);
-
-                        // NOTE: We're dropping `channels` here, which closes the receiver on the
-                        // other end. Project actors will interpret this as fetch failure.
                     }
                 }
 
-                Ok(())
+                if !actor.state_channels.is_empty() {
+                    context.run_later(actor.next_backoff(), Self::fetch_states);
+                }
+
+                future::ok(()).into_actor(actor)
             })
-            .into_actor(self)
             .drop_err()
             .spawn(context);
     }
@@ -496,8 +514,11 @@ impl Message for FetchProjectState {
 impl Handler<FetchProjectState> for ProjectCache {
     type Result = Response<ProjectState, ()>;
 
-    fn handle(&mut self, message: FetchProjectState, ctx: &mut Self::Context) -> Self::Result {
-        self.schedule_fetch(ctx);
+    fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
+        if !self.backoff.started() {
+            self.backoff.reset();
+            context.run_later(self.next_backoff(), Self::fetch_states);
+        }
 
         let (sender, receiver) = oneshot::channel();
         if self.state_channels.insert(message.id, sender).is_some() {
