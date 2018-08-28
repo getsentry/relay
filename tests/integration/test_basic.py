@@ -142,7 +142,9 @@ def test_limits(mini_sentry, relay):
             headers={"Content-Type": "text/plain"},
         )
     except requests.exceptions.ConnectionError as e:
-        if e.errno != errno.ECONNRESET:
+        if e.errno not in (errno.ECONNRESET, errno.EPIPE):
+            # XXX: Aborting response during chunked upload sometimes goes
+            # wrong.
             raise
     else:
         assert response.status_code == 413
