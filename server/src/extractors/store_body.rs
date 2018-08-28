@@ -1,5 +1,4 @@
 use std::io::{self, Read};
-use std::str;
 
 use actix_web::http::{header, StatusCode};
 use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
@@ -21,33 +20,15 @@ pub enum StorePayloadError {
 
     /// Base64 Decode error
     #[fail(display = "failed to base64 decode payload")]
-    Decode(#[cause] DecodeError, Option<Bytes>),
+    Decode(#[cause] DecodeError),
 
     /// zlib decode error
     #[fail(display = "failed to decode zlib payload")]
-    Zlib(#[cause] io::Error, Option<Bytes>),
+    Zlib(#[cause] io::Error),
 
     /// Interal Payload streaming error
     #[fail(display = "failed to read request payload")]
     Payload(#[cause] PayloadError),
-}
-
-impl StorePayloadError {
-    /// Returns the body of the error if available.
-    pub fn body(&self) -> Option<&[u8]> {
-        match self {
-            StorePayloadError::Overflow => None,
-            StorePayloadError::UnknownLength => None,
-            StorePayloadError::Decode(_, ref body) => body.as_ref().map(|x| &x[..]),
-            StorePayloadError::Zlib(_, ref body) => body.as_ref().map(|x| &x[..]),
-            StorePayloadError::Payload(_) => None,
-        }
-    }
-
-    /// Returns the body of the error as utf-8 string
-    pub fn utf8_body(&self) -> Option<&str> {
-        self.body().and_then(|val| str::from_utf8(val).ok())
-    }
 }
 
 impl ResponseError for StorePayloadError {
@@ -163,13 +144,12 @@ where
 
                 // TODO: Switch to a streaming decoder
                 // see https://github.com/alicemaz/rust-base64/pull/56
-                let binary_body = base64::decode(&body)
-                    .map_err(|err| StorePayloadError::Decode(err, Some(body.freeze())))?;
+                let binary_body = base64::decode(&body).map_err(StorePayloadError::Decode)?;
                 let mut decode_stream = ZlibDecoder::new(binary_body.as_slice());
                 let mut bytes = vec![];
                 decode_stream
                     .read_to_end(&mut bytes)
-                    .map_err(|err| StorePayloadError::Zlib(err, None))?;
+                    .map_err(StorePayloadError::Zlib)?;
 
                 Ok(BytesMut::from(bytes))
             })

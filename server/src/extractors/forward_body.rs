@@ -1,5 +1,3 @@
-use std::str;
-
 use actix_web::http::{header, StatusCode};
 use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
 use bytes::{Bytes, BytesMut};
@@ -19,22 +17,6 @@ pub enum ForwardPayloadError {
     /// Interal Payload streaming error
     #[fail(display = "failed to read request payload")]
     Payload(#[cause] PayloadError),
-}
-
-impl ForwardPayloadError {
-    /// Returns the body of the error if available.
-    pub fn body(&self) -> Option<&[u8]> {
-        match self {
-            ForwardPayloadError::Overflow => None,
-            ForwardPayloadError::UnknownLength => None,
-            ForwardPayloadError::Payload(_) => None,
-        }
-    }
-
-    /// Returns the body of the error as utf-8 string
-    pub fn utf8_body(&self) -> Option<&str> {
-        self.body().and_then(|val| str::from_utf8(val).ok())
-    }
 }
 
 impl ResponseError for ForwardPayloadError {

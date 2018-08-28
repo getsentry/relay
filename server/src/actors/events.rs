@@ -106,7 +106,7 @@ impl Actor for EventProcessor {
 }
 
 struct ProcessEvent {
-    pub data: Bytes,
+    pub data: Arc<Bytes>,
     pub meta: Arc<EventMetaData>,
     pub event_id: Uuid,
     pub pii_config: Option<PiiConfig>,
@@ -181,7 +181,7 @@ struct EventIdHelper {
 }
 
 pub struct QueueEvent {
-    pub data: Bytes,
+    pub data: Arc<Bytes>,
     pub meta: Arc<EventMetaData>,
     pub project: Addr<Project>,
 }
@@ -218,7 +218,7 @@ impl Handler<QueueEvent> for EventManager {
 }
 
 struct HandleEvent {
-    pub data: Bytes,
+    pub data: Arc<Bytes>,
     pub meta: Arc<EventMetaData>,
     pub project: Addr<Project>,
     pub event_id: Uuid,
@@ -288,6 +288,7 @@ impl Handler<HandleEvent> for EventManager {
             })
             .map_err(move |error| {
                 error!("error processing event {}: {}", event_id, error);
+                metric!(counter("event.rejected") += 1);
                 ()
             });
 
