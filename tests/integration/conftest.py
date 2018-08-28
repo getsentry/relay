@@ -19,6 +19,7 @@ if os.environ.get("SEMAPHORE_AS_CARGO", "false") == "true":
     SEMAPHORE_BIN = ["cargo", "run", "--"]
 
 GOBETWEEN_BIN = [os.environ.get("GOBETWEEN_BIN") or "gobetween"]
+HAPROXY_BIN = [os.environ.get("HAPROXY_BIN") or "haproxy"]
 
 
 @pytest.fixture
@@ -60,8 +61,13 @@ def mini_sentry(request):
         assert relay_id in authenticated_relays
         return jsonify({"relay_id": relay_id})
 
-    @app.route("/api/<project>/store/", methods=["POST"])
-    def store_event(project):
+    @app.route("/api/666/store/", methods=["POST"])
+    def store_internal_error_event():
+        test_failures.append(AssertionError("Relay sent us event"))
+        return jsonify({"event_id": uuid.uuid4().hex})
+
+    @app.route("/api/42/store/", methods=["POST"])
+    def store_event():
         if flask_request.headers.get("Content-Encoding", "") == "gzip":
             data = gzip.decompress(flask_request.data)
         else:
@@ -69,6 +75,10 @@ def mini_sentry(request):
 
         sentry.captured_events.put(json.loads(data))
         return jsonify({"event_id": uuid.uuid4().hex})
+
+    @app.route("/api/<project>/store/", methods=["POST"])
+    def store_event_catchall(project):
+        raise AssertionError(f"Unknown project: {project}")
 
     @app.route("/api/0/relays/projectconfigs/", methods=["POST"])
     def get_project_config():
@@ -86,10 +96,6 @@ def mini_sentry(request):
             rv[id] = authenticated_relays[id]
 
         return jsonify(public_keys=rv)
-
-    @app.route("/api/relay/healthcheck/")
-    def healthcheck():
-        return "ok"
 
     @app.errorhandler(Exception)
     def fail(e):
@@ -138,11 +144,14 @@ class SentryLike(object):
         return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
 
     @property
+    def dsn_public_key(self):
+        return "31a5a894b4524f74a9a8d0e27e21ba91"
+
+    @property
     def dsn(self):
+        """DSN for which you will find the events in self.captured_events"""
         # bogus, we never check the DSN
-        return "http://31a5a894b4524f74a9a8d0e27e21ba91@{}:{}/42".format(
-            *self.server_address
-        )
+        return "http://{}@{}:{}/42".format(self.dsn_public_key, *self.server_address)
 
     def iter_public_keys(self):
         try:
@@ -165,6 +174,11 @@ class Sentry(SentryLike):
         self.project_configs = {}
         self.captured_events = Queue()
         self.upstream = None
+
+    @property
+    def internal_error_dsn(self):
+        """DSN whose events make the test fail."""
+        return "http://{}@{}:{}/666".format(self.dsn_public_key, *self.server_address)
 
 
 class Relay(SentryLike):
@@ -216,7 +230,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                         "tls_private_key": None,
                         "tls_cert": None,
                     },
-                    "sentry": {"enabled": False},
+                    "sentry": {"dsn": mini_sentry.internal_error_dsn},
                     "limits": {"max_api_file_upload_size": "1MiB"},
                     "cache": {"batch_interval": 0},
                 }
@@ -301,12 +315,61 @@ def gobetween(background_process, random_port, config_dir):
     return inner
 
 
+class HAProxy(SentryLike):
+    def __init__(self, server_address, process, upstream):
+        self.server_address = server_address
+        self.process = process
+        self.upstream = upstream
+
+
+@pytest.fixture
+def haproxy(background_process, random_port, config_dir):
+    def inner(*upstreams):
+        host = "127.0.0.1"
+        port = random_port()
+
+        config = config_dir("haproxy").join("config")
+
+        config_lines = [
+            f"defaults",
+            f"    mode http",
+            f"    timeout connect 25000ms",
+            f"    timeout client 25000ms",
+            f"    timeout server 25000ms",
+            f"    timeout queue 25000ms",
+            f"    timeout http-request 25000ms",
+            f"    timeout http-keep-alive 25000ms",
+            f"    option forwardfor",
+            f"    option redispatch",
+            f"frontend defaultFront",
+            f"    bind {host}:{port}",
+            f"    default_backend defaultBack",
+            f"backend defaultBack",
+            f"    balance roundrobin",
+        ]
+
+        for i, upstream in enumerate(upstreams):
+            upstream_host, upstream_port = upstream.server_address
+            config_lines.append(
+                f"    server sentryUpstream{i} {upstream_host}:{upstream_port} no-check"
+            )
+
+        config.write("\n".join(config_lines))
+
+        process = background_process(HAPROXY_BIN + ["-f", str(config)])
+
+        return HAProxy((host, port), process, upstreams)
+
+    return inner
+
+
 @pytest.fixture(
     params=[
-        lambda s, r, g: r(s),
-        lambda s, r, g: r(r(s)),
-        lambda s, r, g: r(g(r(g(s)))),
+        lambda s, r, g, h: r(s),
+        lambda s, r, g, h: r(r(s)),
+        lambda s, r, g, h: r(h(r(g(s)))),
+        lambda s, r, g, h: r(g(r(h(s)))),
     ]
 )
-def relay_chain(request, mini_sentry, relay, gobetween):
-    return lambda: request.param(mini_sentry, relay, gobetween)
+def relay_chain(request, mini_sentry, relay, gobetween, haproxy):
+    return lambda: request.param(mini_sentry, relay, gobetween, haproxy)
