@@ -95,14 +95,6 @@ impl EventProcessor {
 
 impl Actor for EventProcessor {
     type Context = SyncContext<Self>;
-
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        info!("event processing worker started");
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("event processing worker stopped");
-    }
 }
 
 struct ProcessEvent {
@@ -155,9 +147,12 @@ impl EventManager {
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
 
+        info!("starting {} event processing workers", thread_count);
+        let processor = SyncArbiter::start(thread_count, EventProcessor::new);
+
         EventManager {
             upstream,
-            processor: SyncArbiter::start(thread_count, EventProcessor::new),
+            processor,
         }
     }
 }
