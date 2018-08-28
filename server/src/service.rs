@@ -93,7 +93,7 @@ pub fn run(config: Config) -> Result<(), ServerError> {
         upstream_relay: upstream_relay.clone(),
         key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
         project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
-        event_manager: EventManager::new(upstream_relay.clone()).start(),
+        event_manager: EventManager::new(config.clone(), upstream_relay.clone()).start(),
     };
 
     let mut server = server::new(move || make_app(service_state.clone()));

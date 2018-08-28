@@ -290,7 +290,6 @@ impl Handler<HandleEvent> for EventManager {
             .map_err(move |error, _, _| {
                 error!("error processing event {}: {}", event_id, error);
                 metric!(counter("event.rejected") += 1);
-                ()
             });
 
         Box::new(future)

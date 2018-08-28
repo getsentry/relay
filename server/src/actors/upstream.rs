@@ -196,7 +196,6 @@ impl Handler<Authenticate> for UpstreamRelay {
             .map(|_, actor, _context| {
                 debug!("relay successfully registered with upstream");
                 actor.auth_state = AuthState::Registered;
-                ()
             })
             .map_err(|err, actor, context| {
                 error!("authentication encountered error: {}", err);
@@ -209,8 +208,6 @@ impl Handler<Authenticate> for UpstreamRelay {
 
                 actor.auth_state = AuthState::Error;
                 context.notify_later(Authenticate, interval);
-
-                ()
             });
 
         Box::new(future)
