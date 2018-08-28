@@ -3,13 +3,13 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, ResponseError};
 use futures::{future, future::Shared, sync::oneshot, Future};
 
-use semaphore_common::{Config, PublicKey, RelayId};
+use semaphore_common::{Config, PublicKey, RelayId, RetryBackoff};
 
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use utils::{ApiErrorResponse, Response};
@@ -92,32 +92,30 @@ impl KeyChannel {
 }
 
 pub struct KeyCache {
+    backoff: RetryBackoff,
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     keys: HashMap<RelayId, KeyState>,
     key_channels: HashMap<RelayId, KeyChannel>,
-    batch_attempts: i32,
 }
 
 impl KeyCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         KeyCache {
+            backoff: RetryBackoff::from_config(&config),
             config,
             upstream,
             keys: HashMap::new(),
             key_channels: HashMap::new(),
-            batch_attempts: -1,
         }
     }
 
     fn fetch_keys(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.key_channels, HashMap::new());
-        self.batch_attempts += 1;
-
         debug!(
             "updating public keys for {} relays (attempt {})",
             channels.len(),
-            self.batch_attempts,
+            self.backoff.attempt(),
         );
 
         let request = GetPublicKeys {
@@ -131,17 +129,14 @@ impl KeyCache {
             .and_then(|response, actor, context| {
                 match response {
                     Ok(mut response) => {
+                        actor.backoff.reset();
+
                         for (id, channel) in channels {
                             let key = response.public_keys.remove(&id).unwrap_or(None);
                             actor.keys.insert(id, KeyState::from_option(key.clone()));
                             debug!("relay {} public key updated", id);
                             channel.send(key).ok();
                         }
-
-                        // We have successfully handled a request and can reset the retry count. It
-                        // will be set to -1 only if there are no more key_channels to try,
-                        // otherwise the next
-                        actor.batch_attempts = 0;
                     }
                     Err(error) => {
                         // Put the channels back into the queue, in addition to channels that have
@@ -151,19 +146,8 @@ impl KeyCache {
                     }
                 }
 
-                if actor.key_channels.is_empty() {
-                    // Since there are no more open channels (nothing we still want to fetch), we
-                    // can reset now.
-                    actor.batch_attempts = -1;
-                } else {
-                    // There are more key_channels, either due to an error or due to newly scheduled
-                    // requests. Reschedule an upstream request with exponential backoff in addition
-                    // to the default batch interval. If our attempt count is zero (due to a
-                    // successfully completed upstream request), the backoff will be zero and the
-                    // total delay query_batch_interval.
-                    let timeout = actor.config.query_batch_interval()
-                        + Duration::from_secs(1) * 2u32.pow(actor.batch_attempts as u32 - 1);
-                    context.run_later(timeout, Self::fetch_keys);
+                if !actor.key_channels.is_empty() {
+                    context.run_later(actor.backoff.next(), Self::fetch_keys);
                 }
 
                 future::ok(()).into_actor(actor)
@@ -184,11 +168,9 @@ impl KeyCache {
         }
 
         debug!("relay {} public key requested", relay_id);
-        if self.batch_attempts < 0 {
-            // We have not started a batch request yet, so we spawn one and set the attempt counter
-            // to zero. This indicates that the request has spawned but not yet started.
-            self.batch_attempts = 0;
-            context.run_later(self.config.query_batch_interval(), Self::fetch_keys);
+        if !self.backoff.started() {
+            self.backoff.reset();
+            context.run_later(self.backoff.next(), Self::fetch_keys);
         }
 
         let receiver = self
