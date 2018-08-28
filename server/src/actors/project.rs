@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
@@ -408,6 +408,18 @@ impl ProjectCache {
         }
     }
 
+    /// Returns the backoff timeout for a batched upstream query.
+    ///
+    /// If previous queries succeeded, this will be the general batch timeout. Additionally, an
+    /// exponentially increasing backoff is used for retrying the upstream request.
+    fn next_backoff(&mut self) -> Duration {
+        self.config.http_timeout() + self.backoff.next()
+    }
+
+    /// Executes an upstream request to fetch project configs.
+    ///
+    /// This assumes that currently no request is running. If the upstream request fails or new
+    /// channels are pushed in the meanwhile, this will reschedule automatically.
     pub fn fetch_states(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.state_channels, HashMap::new());
         debug!(
@@ -448,7 +460,7 @@ impl ProjectCache {
                 }
 
                 if !actor.state_channels.is_empty() {
-                    context.run_later(actor.backoff.next(), Self::fetch_states);
+                    context.run_later(actor.next_backoff(), Self::fetch_states);
                 }
 
                 future::ok(()).into_actor(actor)
@@ -505,7 +517,7 @@ impl Handler<FetchProjectState> for ProjectCache {
     fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
         if !self.backoff.started() {
             self.backoff.reset();
-            context.run_later(self.backoff.next(), Self::fetch_states);
+            context.run_later(self.next_backoff(), Self::fetch_states);
         }
 
         let (sender, receiver) = oneshot::channel();

@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, ResponseError};
@@ -110,6 +110,18 @@ impl KeyCache {
         }
     }
 
+    /// Returns the backoff timeout for a batched upstream query.
+    ///
+    /// If previous queries succeeded, this will be the general batch timeout. Additionally, an
+    /// exponentially increasing backoff is used for retrying the upstream request.
+    fn next_backoff(&mut self) -> Duration {
+        self.config.http_timeout() + self.backoff.next()
+    }
+
+    /// Executes an upstream request to fetch public keys.
+    ///
+    /// This assumes that currently no request is running. If the upstream request fails or new
+    /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_keys(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.key_channels, HashMap::new());
         debug!(
@@ -147,7 +159,7 @@ impl KeyCache {
                 }
 
                 if !actor.key_channels.is_empty() {
-                    context.run_later(actor.backoff.next(), Self::fetch_keys);
+                    context.run_later(actor.next_backoff(), Self::fetch_keys);
                 }
 
                 future::ok(()).into_actor(actor)
@@ -170,7 +182,7 @@ impl KeyCache {
         debug!("relay {} public key requested", relay_id);
         if !self.backoff.started() {
             self.backoff.reset();
-            context.run_later(self.backoff.next(), Self::fetch_keys);
+            context.run_later(self.next_backoff(), Self::fetch_keys);
         }
 
         let receiver = self
