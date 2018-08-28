@@ -1,5 +1,7 @@
 import errno
 import gzip
+import socket
+import time
 
 from datetime import datetime
 
@@ -7,7 +9,7 @@ import pytest
 import requests
 import sentry_sdk
 
-from flask import request, Response
+from flask import Response, request, jsonify
 
 
 @pytest.mark.parametrize("compress_request", (True, False))
@@ -71,37 +73,7 @@ def test_forwarding_routes(mini_sentry, relay):
 
 def test_store(mini_sentry, relay_chain):
     relay = relay_chain()
-    trusted_relays = list(relay.iter_public_keys())
-
-    mini_sentry.project_configs[42] = {
-        "publicKeys": {relay.dsn_public_key: True},
-        "rev": "5ceaea8c919811e8ae7daae9fe877901",
-        "disabled": False,
-        "lastFetch": "2018-08-24T17:29:04.426Z",
-        "lastChange": "2018-07-27T12:27:01.481Z",
-        "config": {
-            "allowedDomains": ["*"],
-            "trustedRelays": trusted_relays,
-            "piiConfig": {
-                "rules": {},
-                "applications": {
-                    "freeform": ["@email", "@mac", "@creditcard", "@userpath"],
-                    "username": ["@userpath"],
-                    "ip": [],
-                    "databag": [
-                        "@email",
-                        "@mac",
-                        "@creditcard",
-                        "@userpath",
-                        "@password",
-                    ],
-                    "email": ["@email"],
-                },
-            },
-        },
-        "slug": "python",
-    }
-
+    mini_sentry.project_configs[42] = relay.basic_project_config()
     relay.wait_relay_healthcheck()
 
     client = sentry_sdk.Client(relay.dsn, default_integrations=False)
@@ -154,34 +126,7 @@ def test_store_node_base64(mini_sentry, relay_chain):
     relay = relay_chain()
     relay.wait_relay_healthcheck()
 
-    mini_sentry.project_configs[42] = {
-        "publicKeys": {relay.dsn_public_key: True},
-        "rev": "5ceaea8c919811e8ae7daae9fe877901",
-        "disabled": False,
-        "lastFetch": "2018-08-24T17:29:04.426Z",
-        "lastChange": "2018-07-27T12:27:01.481Z",
-        "config": {
-            "allowedDomains": ["*"],
-            "trustedRelays": list(relay.iter_public_keys()),
-            "piiConfig": {
-                "rules": {},
-                "applications": {
-                    "freeform": ["@email", "@mac", "@creditcard", "@userpath"],
-                    "username": ["@userpath"],
-                    "ip": [],
-                    "databag": [
-                        "@email",
-                        "@mac",
-                        "@creditcard",
-                        "@userpath",
-                        "@password",
-                    ],
-                    "email": ["@email"],
-                },
-            },
-        },
-        "slug": "python",
-    }
+    mini_sentry.project_configs[42] = relay.basic_project_config()
 
     payload = b"eJytVctu2zAQ/BWDFzuAJYt6WVIfaAsE6KFBi6K3IjAoiXIYSyRLUm7cwP/eJaXEcZr0Bd/E5e7OzJIc3aKOak3WFBXoXCmhislOTDqiNmiO6E1FpWGCo+LrLTI7eZ8Fm1vS9nZ9SNeGVBujSAXhW9QoAq1dZcNaymEF2aUQRkOOXHFRU/9aQ13LOOUCFSkO56gSrf2O5qjpeTWAI963rf+ScMF3nej1ayhifEWkREVDWk3nqBN13/4KgPbzv4bHOb6Hx+kRPihTppf/DTukPVKbRwe44AjuYkhXPb8gjP8Gdfz4C7Q4Xz4z2xFs1QpSnwQqCZKDsPAIy6jdAPfhZGDpASwKnxJ2Ml1p+qcDW9EbQ7mGmPaH2hOgJg8exdOolegkNPlnuIVUbEsMXZhOLuy19TRfMF7Tm0d3555AGB8R+Fhe08o88zCN6h9ScH1hWyoKhLmBUYE3gIuoyWeypXzyaqLot54pOpsqG5ievYB0t+dDQcPWs+mVMVIXi0WSZDQgASF108Q4xqSMaUmDKkuzrEzD5E29Vgx8jSpvWQZ5sizxMgqbKCMJDYPEp73P10psfCYWGE/PfMbhibftzGGiSyvYUVzZGQD7kQaRplf0/M4WZ5x+nzg/nE1HG5yeuRZSaPNA5uX+cr+HrmAQXJO78bmRTIiZPDnHHtiDj+6hiqz18AXdFLHm6kymQNvMx9iP4GBRqSipK9V3pc0d3Fk76Dmyg6XaDD2GE3FJbs7QJvRTaGJFiw2zfQM/8jEEDOto7YkeSlHsBy7mXN4bbR4yIRpYuj2rYR3B2i67OnGNQ1dTqZ00Y3Zo11dEUV49iDDtlX3TWMkI+9hPrSaYwJaq1Xhd35Mfb70LUr0Dlt4nJTycwOOuSGv/VCDErByDNE/iZZLXQY3zOAnDvElpjJcJTXCUZSEZZYGMTlqKAc68IPPC5RccwQUvgsDdUmGPxJKx/GVLTCNUZ39Fzt5/AgZYWKw="  # noqa
 
@@ -203,3 +148,46 @@ def test_store_node_base64(mini_sentry, relay_chain):
     assert mini_sentry.captured_events.empty()
 
     assert event["message"] == "Error: yo mark"
+
+
+@pytest.mark.parametrize("failure_type", ["timeout", "socketerror"])
+def test_query_retry(failure_type, mini_sentry, relay):
+    retry_count = 0
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        nonlocal retry_count
+        retry_count += 1
+        print("RETRY", retry_count)
+
+        if retry_count < 2:
+            if failure_type == "timeout":
+                time.sleep(50)  # ensure timeout
+            elif failure_type == "socketerror":
+                raise socket.error()
+            else:
+                assert False
+
+            return "ok"  # never read by client
+        else:
+            return jsonify(configs={"42": relay.basic_project_config()})
+
+    relay = relay(mini_sentry)
+    relay.wait_relay_healthcheck()
+
+    client = sentry_sdk.Client(relay.dsn, default_integrations=False)
+    hub = sentry_sdk.Hub(client)
+    hub.capture_message("hü")
+    client.drain_events()
+
+    event = mini_sentry.captured_events.get(timeout=3600)
+    assert mini_sentry.captured_events.empty()
+
+    assert event["message"] == "hü"
+
+    assert retry_count == 2
+
+    if mini_sentry.test_failures:
+        (_, error), = mini_sentry.test_failures
+        assert isinstance(error, socket.error)
+        mini_sentry.test_failures.clear()

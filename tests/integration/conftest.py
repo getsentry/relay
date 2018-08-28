@@ -42,7 +42,6 @@ def mini_sentry(request):
     app.debug = True
     sentry = None
 
-    test_failures = []
     authenticated_relays = {}
 
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
@@ -63,7 +62,7 @@ def mini_sentry(request):
 
     @app.route("/api/666/store/", methods=["POST"])
     def store_internal_error_event():
-        test_failures.append(AssertionError("Relay sent us event"))
+        sentry.test_failures.append(AssertionError("Relay sent us event"))
         return jsonify({"event_id": uuid.uuid4().hex})
 
     @app.route("/api/42/store/", methods=["POST"])
@@ -99,12 +98,12 @@ def mini_sentry(request):
 
     @app.errorhandler(Exception)
     def fail(e):
-        test_failures.append((flask_request.url, e))
+        sentry.test_failures.append((flask_request.url, e))
         raise e
 
     @request.addfinalizer
     def reraise_test_failures():
-        if test_failures:
+        if sentry.test_failures:
             raise AssertionError(f"Exceptions happened in mini_sentry: {test_failures}")
 
     server = WSGIServer(application=app, threaded=True)
@@ -166,6 +165,36 @@ class SentryLike(object):
             else:
                 yield from self.upstream.iter_public_keys()
 
+    def basic_project_config(self):
+        return {
+            "publicKeys": {self.dsn_public_key: True},
+            "rev": "5ceaea8c919811e8ae7daae9fe877901",
+            "disabled": False,
+            "lastFetch": "2018-08-24T17:29:04.426Z",
+            "lastChange": "2018-07-27T12:27:01.481Z",
+            "config": {
+                "allowedDomains": ["*"],
+                "trustedRelays": list(self.iter_public_keys()),
+                "piiConfig": {
+                    "rules": {},
+                    "applications": {
+                        "freeform": ["@email", "@mac", "@creditcard", "@userpath"],
+                        "username": ["@userpath"],
+                        "ip": [],
+                        "databag": [
+                            "@email",
+                            "@mac",
+                            "@creditcard",
+                            "@userpath",
+                            "@password",
+                        ],
+                        "email": ["@email"],
+                    },
+                },
+            },
+            "slug": "python",
+        }
+
 
 class Sentry(SentryLike):
     def __init__(self, server_address, app):
@@ -173,6 +202,7 @@ class Sentry(SentryLike):
         self.app = app
         self.project_configs = {}
         self.captured_events = Queue()
+        self.test_failures = []
         self.upstream = None
 
     @property
@@ -233,6 +263,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                     "sentry": {"dsn": mini_sentry.internal_error_dsn},
                     "limits": {"max_api_file_upload_size": "1MiB"},
                     "cache": {"batch_interval": 0},
+                    "logging": {"level": "debug"},
                 }
             )
         )
