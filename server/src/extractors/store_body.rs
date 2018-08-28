@@ -1,5 +1,6 @@
 use std::io::{self, Read};
 
+use actix::ResponseFuture;
 use actix_web::http::{header, StatusCode};
 use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
 use base64::{self, DecodeError};
@@ -56,7 +57,7 @@ pub struct StoreBody<T: HttpMessage> {
     length: Option<usize>,
     stream: Option<T::Stream>,
     err: Option<StorePayloadError>,
-    fut: Option<Box<Future<Item = Bytes, Error = StorePayloadError>>>,
+    fut: Option<ResponseFuture<Bytes, StorePayloadError>>,
 }
 
 impl<T: HttpMessage> StoreBody<T> {

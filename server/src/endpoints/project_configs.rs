@@ -1,3 +1,4 @@
+use actix::prelude::*;
 use actix_web::{http::Method, Error, Json};
 use futures::{future, Future};
 
@@ -9,7 +10,7 @@ use service::ServiceApp;
 fn get_project_configs(
     state: CurrentServiceState,
     body: SignedJson<GetProjectStates>,
-) -> Box<Future<Item = Json<GetProjectStatesResponse>, Error = Error>> {
+) -> ResponseFuture<Json<GetProjectStatesResponse>, Error> {
     let public_key = body.public_key;
     let futures = body.inner.projects.into_iter().map(move |project_id| {
         let public_key = public_key.clone();

@@ -7,7 +7,7 @@ use futures::prelude::*;
 
 pub enum Response<T, E> {
     Reply(Result<T, E>),
-    Async(Box<Future<Item = T, Error = E>>),
+    Async(ResponseFuture<T, E>),
 }
 
 impl<T, E> Response<T, E> {

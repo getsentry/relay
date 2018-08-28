@@ -1,3 +1,4 @@
+use actix::ResponseFuture;
 use actix_web::http::{header, StatusCode};
 use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
 use bytes::{Bytes, BytesMut};
@@ -44,7 +45,7 @@ pub struct ForwardBody<T: HttpMessage> {
     length: Option<usize>,
     stream: Option<T::Stream>,
     err: Option<ForwardPayloadError>,
-    fut: Option<Box<Future<Item = Bytes, Error = ForwardPayloadError>>>,
+    fut: Option<ResponseFuture<Bytes, ForwardPayloadError>>,
 }
 
 impl<T: HttpMessage> ForwardBody<T> {
