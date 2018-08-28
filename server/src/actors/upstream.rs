@@ -201,7 +201,7 @@ impl Handler<Authenticate> for UpstreamRelay {
             .map_err(|err, actor, context| {
                 error!("authentication encountered error: {}", err);
 
-                let interval = actor.backoff.next();
+                let interval = actor.backoff.next_backoff();
                 info!(
                     "scheduling authentication retry in {} seconds",
                     interval.as_secs()

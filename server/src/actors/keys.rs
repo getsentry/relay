@@ -112,10 +112,10 @@ impl KeyCache {
 
     /// Returns the backoff timeout for a batched upstream query.
     ///
-    /// If previous queries succeeded, this will be the general batch timeout. Additionally, an
+    /// If previous queries succeeded, this will be the general batch interval. Additionally, an
     /// exponentially increasing backoff is used for retrying the upstream request.
     fn next_backoff(&mut self) -> Duration {
-        self.config.http_timeout() + self.backoff.next()
+        self.config.query_batch_interval() + self.backoff.next_backoff()
     }
 
     /// Executes an upstream request to fetch public keys.

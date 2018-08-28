@@ -12,6 +12,7 @@ const DEFAULT_RANDOMIZATION: f64 = 0.0;
 /// Initial interval in milliseconds (1 second).
 const INITIAL_INTERVAL: u64 = 1000;
 
+/// A retry interval generator that increases timeouts with exponential backoff.
 pub struct RetryBackoff {
     backoff: ExponentialBackoff,
     attempt: usize,
@@ -54,7 +55,7 @@ impl RetryBackoff {
     }
 
     /// Returns the next backoff duration.
-    pub fn next(&mut self) -> Duration {
+    pub fn next_backoff(&mut self) -> Duration {
         let duration = match self.attempt {
             0 => Duration::new(0, 0),
             _ => self.backoff.next_backoff().unwrap(),
