@@ -22,6 +22,10 @@ pub enum ServerErrorKind {
     /// A TLS error ocurred
     #[fail(display = "could not initialize the TLS server")]
     TlsInitFailed,
+
+    /// TLS support was not compiled in
+    #[fail(display = "compile with the `with_ssl` feature to enable SSL support.")]
+    TlsNotSupported,
 }
 
 impl Fail for ServerError {

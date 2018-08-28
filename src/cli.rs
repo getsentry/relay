@@ -197,17 +197,17 @@ pub fn init_config<'a, P: AsRef<Path>>(
             utils::prompt_value("listen interface", &mut mincfg.relay.host)?;
             utils::prompt_value("listen port", &mut mincfg.relay.port)?;
 
-            if Confirmation::new("do you want to configure TLS").interact()? {
+            if Confirmation::new("do you want listen to TLS").interact()? {
                 let mut port = mincfg.relay.port.saturating_add(443);
                 utils::prompt_value("tls port", &mut port)?;
                 mincfg.relay.tls_port = Some(port);
-                mincfg.relay.tls_private_key = Some(PathBuf::from(
-                    utils::prompt_value_no_default::<String>("tls private key path")?,
-                ));
-                mincfg.relay.tls_cert =
+                mincfg.relay.tls_identity_path =
                     Some(PathBuf::from(utils::prompt_value_no_default::<String>(
-                        "tls certificate path",
+                        "path to your DER-encoded PKCS #12 archive",
                     )?));
+                mincfg.relay.tls_identity_password = Some(
+                    utils::prompt_value_no_default::<String>("password for your PKCS #12 archive")?,
+                );
             }
         }
 
