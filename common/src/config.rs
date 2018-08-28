@@ -117,11 +117,21 @@ pub struct Relay {
     pub tls_cert: Option<PathBuf>,
 }
 
+/// Controls interal reporting to Sentry.
+#[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
+pub struct MinimalSentry {
+    /// Set to true to enable sentry reporting to the default dsn.
+    pub enabled: bool,
+}
+
 /// Minimal version of a config for dumping out.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct MinimalConfig {
     /// The relay part of the config.
     pub relay: Relay,
+    /// Turn on crash reporting?
+    pub sentry: MinimalSentry,
 }
 
 /// Controls the log format
@@ -281,7 +291,9 @@ impl Default for Cache {
 impl Default for Sentry {
     fn default() -> Self {
         Sentry {
-            dsn: None,
+            dsn: "https://0cc4a37e5aab4da58366266a87a95740@sentry.io/1269704"
+                .parse()
+                .ok(),
             enabled: false,
         }
     }

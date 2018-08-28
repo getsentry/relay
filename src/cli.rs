@@ -211,6 +211,13 @@ pub fn init_config<'a, P: AsRef<Path>>(
             }
         }
 
+        println!("Do you want to enable the internal crash reporting?");
+        mincfg.sentry.enabled = Select::new()
+            .default(0)
+            .item("yes, share relay internal crash reports with sentry.io")
+            .item("no, do not share crash reports")
+            .interact()? == 0;
+
         mincfg.save_in_folder(&config_path)?;
         done_something = true;
     }
