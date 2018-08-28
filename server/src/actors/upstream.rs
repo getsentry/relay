@@ -186,15 +186,15 @@ impl Handler<Authenticate> for UpstreamRelay {
             .send_query(request)
             .into_actor(self)
             .and_then(|challenge, actor, _context| {
-                info!("got register challenge (token = {})", challenge.token());
+                debug!("got register challenge (token = {})", challenge.token());
                 actor.auth_state = AuthState::RegisterChallengeResponse;
                 let challenge_response = challenge.create_response();
 
-                info!("sending register challenge response");
+                debug!("sending register challenge response");
                 actor.send_query(challenge_response).into_actor(actor)
             })
             .map(|_, actor, _context| {
-                info!("relay successfully registered with upstream");
+                debug!("relay successfully registered with upstream");
                 actor.auth_state = AuthState::Registered;
                 ()
             })
@@ -202,7 +202,7 @@ impl Handler<Authenticate> for UpstreamRelay {
                 error!("authentication encountered error: {}", err);
 
                 let interval = actor.backoff.next_backoff();
-                info!(
+                debug!(
                     "scheduling authentication retry in {} seconds",
                     interval.as_secs()
                 );
