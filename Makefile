@@ -51,11 +51,11 @@ pytest:
 tests/venv/bin/python: Makefile
 	rm -rf tests/venv
 	virtualenv -ppython3 tests/venv
-	tests/venv/bin/pip install -U pytest pytest-localserver requests flask sentry-sdk
+	tests/venv/bin/pip install -U pytest pytest-localserver requests flask sentry-sdk pytest-rerunfailures pytest-xdist
 
 integration-test: tests/venv/bin/python
 	cargo build
-	@tests/venv/bin/pytest tests
+	@tests/venv/bin/pytest tests -n12 --reruns 5
 .PHONY: integration-test
 
 format:
