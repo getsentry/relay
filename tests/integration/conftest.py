@@ -97,10 +97,6 @@ def mini_sentry(request):
 
         return jsonify(public_keys=rv)
 
-    @app.route("/api/relay/healthcheck/")
-    def healthcheck():
-        return "ok"
-
     @app.errorhandler(Exception)
     def fail(e):
         test_failures.append((flask_request.url, e))

@@ -1,9 +1,10 @@
-import pytest
+import errno
 import gzip
+
 from datetime import datetime
 
+import pytest
 import requests
-
 import sentry_sdk
 
 from flask import request, Response
@@ -134,12 +135,17 @@ def test_limits(mini_sentry, relay):
     )
     assert response.content == b"Hello"
 
-    response = requests.post(
-        relay.url + "/api/0/projects/a/b/releases/1.0/files/",
-        data=b"x" * (1024 * 1024 * 2),
-        headers={"Content-Type": "text/plain"},
-    )
-    assert response.status_code == 413
+    try:
+        response = requests.post(
+            relay.url + "/api/0/projects/a/b/releases/1.0/files/",
+            data=b"x" * (1024 * 1024 * 2),
+            headers={"Content-Type": "text/plain"},
+        )
+    except requests.exceptions.ConnectionError as e:
+        if e.errno != errno.ECONNRESET:
+            raise
+    else:
+        assert response.status_code == 413
 
 
 def test_store_node_base64(mini_sentry, relay_chain):
