@@ -166,7 +166,7 @@ fn store_event(
 
                     event_manager
                         .send(QueueEvent {
-                            data: data,
+                            data,
                             meta,
                             project,
                         })
