@@ -1,3 +1,4 @@
+use actix::ResponseFuture;
 use actix_web::{http::Method, Error, Json};
 use futures::prelude::*;
 
@@ -9,13 +10,14 @@ use service::ServiceApp;
 fn get_public_keys(
     state: CurrentServiceState,
     body: SignedJson<GetPublicKeys>,
-) -> Box<Future<Item = Json<GetPublicKeysResult>, Error = Error>> {
-    let res = state.key_cache().send(body.inner);
+) -> ResponseFuture<Json<GetPublicKeysResult>, Error> {
+    let future = state
+        .key_cache()
+        .send(body.inner)
+        .map_err(Error::from)
+        .and_then(|x| x.map_err(Error::from).map(Json));
 
-    Box::new(
-        res.map_err(Error::from)
-            .and_then(|x| x.map_err(Error::from).map(Json)),
-    )
+    Box::new(future)
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
