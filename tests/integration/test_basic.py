@@ -127,21 +127,8 @@ def test_store_node_base64(mini_sentry, relay_chain):
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
-
     payload = b"eJytVctu2zAQ/BWDFzuAJYt6WVIfaAsE6KFBi6K3IjAoiXIYSyRLUm7cwP/eJaXEcZr0Bd/E5e7OzJIc3aKOak3WFBXoXCmhislOTDqiNmiO6E1FpWGCo+LrLTI7eZ8Fm1vS9nZ9SNeGVBujSAXhW9QoAq1dZcNaymEF2aUQRkOOXHFRU/9aQ13LOOUCFSkO56gSrf2O5qjpeTWAI963rf+ScMF3nej1ayhifEWkREVDWk3nqBN13/4KgPbzv4bHOb6Hx+kRPihTppf/DTukPVKbRwe44AjuYkhXPb8gjP8Gdfz4C7Q4Xz4z2xFs1QpSnwQqCZKDsPAIy6jdAPfhZGDpASwKnxJ2Ml1p+qcDW9EbQ7mGmPaH2hOgJg8exdOolegkNPlnuIVUbEsMXZhOLuy19TRfMF7Tm0d3555AGB8R+Fhe08o88zCN6h9ScH1hWyoKhLmBUYE3gIuoyWeypXzyaqLot54pOpsqG5ievYB0t+dDQcPWs+mVMVIXi0WSZDQgASF108Q4xqSMaUmDKkuzrEzD5E29Vgx8jSpvWQZ5sizxMgqbKCMJDYPEp73P10psfCYWGE/PfMbhibftzGGiSyvYUVzZGQD7kQaRplf0/M4WZ5x+nzg/nE1HG5yeuRZSaPNA5uX+cr+HrmAQXJO78bmRTIiZPDnHHtiDj+6hiqz18AXdFLHm6kymQNvMx9iP4GBRqSipK9V3pc0d3Fk76Dmyg6XaDD2GE3FJbs7QJvRTaGJFiw2zfQM/8jEEDOto7YkeSlHsBy7mXN4bbR4yIRpYuj2rYR3B2i67OnGNQ1dTqZ00Y3Zo11dEUV49iDDtlX3TWMkI+9hPrSaYwJaq1Xhd35Mfb70LUr0Dlt4nJTycwOOuSGv/VCDErByDNE/iZZLXQY3zOAnDvElpjJcJTXCUZSEZZYGMTlqKAc68IPPC5RccwQUvgsDdUmGPxJKx/GVLTCNUZ39Fzt5/AgZYWKw="  # noqa
-
-    response = requests.post(
-        relay.url + "/api/42/store/",
-        data=payload,
-        headers={
-            "Content-Type": "application/octet-stream",
-            "X-Sentry-Auth": (
-                "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
-                "sentry_client=raven-node/2.6.3, "
-                "sentry_key={}".format(relay.dsn_public_key)
-            ),
-        },
-    )
+    response = relay.send_event(42, payload)
     response.raise_for_status()
 
     event = mini_sentry.captured_events.get(timeout=10)
@@ -155,20 +142,7 @@ def test_store_pii_stripping(mini_sentry, relay):
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
-
-    response = requests.post(
-        relay.url + "/api/42/store/",
-        data='{"message":"test@mail.org"}',
-        headers={
-            "Content-Type": "application/octet-stream",
-            "X-Sentry-Auth": (
-                "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
-                "sentry_client=raven-node/2.6.3, "
-                "sentry_key={}".format(relay.dsn_public_key)
-            ),
-        },
-    )
-    response.raise_for_status()
+    relay.send_event(42, {"message": "test@mail.org"}).raise_for_status()
 
     event = mini_sentry.captured_events.get(timeout=10)
     assert mini_sentry.captured_events.empty()
