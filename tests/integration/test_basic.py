@@ -151,6 +151,30 @@ def test_store_pii_stripping(mini_sentry, relay):
     assert event["message"] == "[email]"
 
 
+def test_event_timeout(mini_sentry, relay):
+    from time import sleep
+
+    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        sleep(1.5)
+        return get_project_config_original()
+
+    relay = relay(mini_sentry, {'cache': {'event_expiry': 1}})
+    relay.wait_relay_healthcheck()
+
+    mini_sentry.project_configs[42] = relay.basic_project_config()
+
+    relay.send_event(42, {"message": "invalid"}).raise_for_status()
+    sleep(1)
+    relay.send_event(42, {"message": "correct"}).raise_for_status()
+
+    event = mini_sentry.captured_events.get(timeout=1)
+    assert event["message"] == "correct"
+    assert mini_sentry.captured_events.empty()
+
+
 @pytest.mark.parametrize("failure_type", ["timeout", "socketerror"])
 def test_query_retry(failure_type, mini_sentry, relay):
     retry_count = 0
