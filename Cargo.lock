@@ -938,7 +938,7 @@ dependencies = [
 [[package]]
 name = "marshal"
 version = "0.1.0"
-source = "git+https://github.com/getsentry/marshal?rev=810d521dfbde1e2d0c1e63fbb2e226ef149a8883#810d521dfbde1e2d0c1e63fbb2e226ef149a8883"
+source = "git+https://github.com/getsentry/marshal?rev=692fa3b83ecee7d9ed3e2fbfe3ac8576cea0d5ab#692fa3b83ecee7d9ed3e2fbfe3ac8576cea0d5ab"
 dependencies = [
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "cookie 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -947,7 +947,7 @@ dependencies = [
  "failure_derive 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hmac 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "marshal_derive 0.1.0 (git+https://github.com/getsentry/marshal?rev=810d521dfbde1e2d0c1e63fbb2e226ef149a8883)",
+ "marshal_derive 0.1.0 (git+https://github.com/getsentry/marshal?rev=692fa3b83ecee7d9ed3e2fbfe3ac8576cea0d5ab)",
  "queryst 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.999 (git+https://github.com/mitsuhiko/serde?rev=880a8c0181ad7202950f24cc8f6872994913441d)",
@@ -961,7 +961,7 @@ dependencies = [
 [[package]]
 name = "marshal_derive"
 version = "0.1.0"
-source = "git+https://github.com/getsentry/marshal?rev=810d521dfbde1e2d0c1e63fbb2e226ef149a8883#810d521dfbde1e2d0c1e63fbb2e226ef149a8883"
+source = "git+https://github.com/getsentry/marshal?rev=692fa3b83ecee7d9ed3e2fbfe3ac8576cea0d5ab#692fa3b83ecee7d9ed3e2fbfe3ac8576cea0d5ab"
 dependencies = [
  "proc-macro2 0.4.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1499,7 +1499,7 @@ dependencies = [
  "human-size 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "marshal 0.1.0 (git+https://github.com/getsentry/marshal?rev=810d521dfbde1e2d0c1e63fbb2e226ef149a8883)",
+ "marshal 0.1.0 (git+https://github.com/getsentry/marshal?rev=692fa3b83ecee7d9ed3e2fbfe3ac8576cea0d5ab)",
  "parking_lot 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2447,8 +2447,8 @@ dependencies = [
 "checksum lock_api 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "949826a5ccf18c1b3a7c3d57692778d21768b79e46eb9dd07bfc4c2160036c54"
 "checksum log 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)" = "cba860f648db8e6f269df990180c2217f333472b4a6e901e97446858487971e2"
 "checksum lru-cache 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4d06ff7ff06f729ce5f4e227876cb88d10bc59cd4ae1e09fbb2bde15c850dc21"
-"checksum marshal 0.1.0 (git+https://github.com/getsentry/marshal?rev=810d521dfbde1e2d0c1e63fbb2e226ef149a8883)" = "<none>"
-"checksum marshal_derive 0.1.0 (git+https://github.com/getsentry/marshal?rev=810d521dfbde1e2d0c1e63fbb2e226ef149a8883)" = "<none>"
+"checksum marshal 0.1.0 (git+https://github.com/getsentry/marshal?rev=692fa3b83ecee7d9ed3e2fbfe3ac8576cea0d5ab)" = "<none>"
+"checksum marshal_derive 0.1.0 (git+https://github.com/getsentry/marshal?rev=692fa3b83ecee7d9ed3e2fbfe3ac8576cea0d5ab)" = "<none>"
 "checksum matches 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "7ffc5c5338469d4d3ea17d269fa8ea3512ad247247c30bd2df69e68309ed0a08"
 "checksum memchr 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a3b4142ab8738a78c51896f704f83c11df047ff1bda9a92a661aa6361552d93d"
 "checksum memoffset 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0f9dc261e2b62d7a622bf416ea3c5245cdd5d9a7fcc428c0d06804dfce1775b3"

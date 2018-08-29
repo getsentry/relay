@@ -9,12 +9,11 @@ use serde_json;
 use url::Url;
 use uuid::Uuid;
 
-use semaphore_common::processor::PiiConfig;
 use semaphore_common::v8::{self, Annotated, Event};
 use semaphore_common::Auth;
 
 use actors::project::{
-    EventAction, GetEventAction, GetPiiConfig, GetProjectId, Project, ProjectError,
+    EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError, ProjectState,
 };
 use actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 
@@ -101,7 +100,7 @@ struct ProcessEvent {
     pub data: Arc<Bytes>,
     pub meta: Arc<EventMetaData>,
     pub event_id: Uuid,
-    pub pii_config: Option<PiiConfig>,
+    pub project_state: Arc<ProjectState>,
 }
 
 struct ProcessEventResponse {
@@ -123,8 +122,8 @@ impl Handler<ProcessEvent> for EventProcessor {
             event.id.set_value(Some(Some(message.event_id)))
         }
 
-        let processed_event = match message.pii_config {
-            Some(pii_config) => pii_config.processor().process_root_value(event),
+        let processed_event = match message.project_state.config.pii_config {
+            Some(ref pii_config) => pii_config.processor().process_root_value(event),
             None => event,
         };
 
@@ -245,15 +244,15 @@ impl Handler<HandleEvent> for EventManager {
                 EventAction::Discard => Err(ProcessingError::EventRejected),
             })
             .and_then(clone!(project, |_| project
-                .send(GetPiiConfig)
+                .send(GetProjectState)
                 .map_err(ProcessingError::ScheduleFailed)
                 .and_then(|result| result.map_err(ProcessingError::PiiFailed))))
-            .and_then(clone!(meta, event_id, |pii_config| processor
+            .and_then(clone!(meta, event_id, |project_state| processor
                 .send(ProcessEvent {
                     data,
                     meta,
                     event_id,
-                    pii_config,
+                    project_state,
                 })
                 .map_err(ProcessingError::ScheduleFailed)
                 .flatten()))

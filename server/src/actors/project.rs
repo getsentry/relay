@@ -159,6 +159,8 @@ pub struct ProjectConfig {
     pub allowed_domains: Vec<String>,
     /// List of relay public keys that are permitted to access this project.
     pub trusted_relays: Vec<PublicKey>,
+    /// Configuration for PII stripping.
+    pub pii_config: Option<PiiConfig>,
 }
 
 /// The project state is a cached server state of a project.
@@ -349,21 +351,6 @@ impl Handler<GetEventAction> for Project {
                 state.get_event_action(&message.meta, &self.config)
             }))
         }
-    }
-}
-
-pub struct GetPiiConfig;
-
-impl Message for GetPiiConfig {
-    type Result = Result<Option<PiiConfig>, ProjectError>;
-}
-
-impl Handler<GetPiiConfig> for Project {
-    type Result = Response<Option<PiiConfig>, ProjectError>;
-
-    fn handle(&mut self, _message: GetPiiConfig, context: &mut Self::Context) -> Self::Result {
-        // TODO: Implement actual fetching
-        self.get_or_fetch_state(context).map(|_state| None)
     }
 }
 

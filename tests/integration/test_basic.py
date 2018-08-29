@@ -150,6 +150,33 @@ def test_store_node_base64(mini_sentry, relay_chain):
     assert event["message"] == "Error: yo mark"
 
 
+def test_store_pii_stripping(mini_sentry, relay):
+    relay = relay(mini_sentry)
+    relay.wait_relay_healthcheck()
+
+    mini_sentry.project_configs[42] = relay.basic_project_config()
+
+    response = requests.post(
+        relay.url + "/api/42/store/",
+        data='{"message":"test@mail.org"}',
+        headers={
+            "Content-Type": "application/octet-stream",
+            "X-Sentry-Auth": (
+                "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
+                "sentry_client=raven-node/2.6.3, "
+                "sentry_key={}".format(relay.dsn_public_key)
+            ),
+        },
+    )
+    response.raise_for_status()
+
+    event = mini_sentry.captured_events.get(timeout=10)
+    assert mini_sentry.captured_events.empty()
+
+    # Email should be stripped:
+    assert event["message"] == "[email]"
+
+
 @pytest.mark.parametrize("failure_type", ["timeout", "socketerror"])
 def test_query_retry(failure_type, mini_sentry, relay):
     retry_count = 0
