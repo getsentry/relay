@@ -287,6 +287,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
             "limits": {"max_api_file_upload_size": "1MiB"},
             "cache": {"batch_interval": 0},
             "logging": {"level": "debug"},
+            "http": {"timeout": 2},
         }
 
         if options is not None:
