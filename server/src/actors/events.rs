@@ -295,6 +295,7 @@ impl Handler<HandleEvent> for EventManager {
             })
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
+            .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(move |error, _, _| {
                 error!("error processing event {}: {}", event_id, error);
                 metric!(counter("event.rejected") += 1);
