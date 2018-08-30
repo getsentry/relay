@@ -22,7 +22,7 @@ impl ResponseError for BadEventMeta {
 }
 
 #[derive(Debug, Clone)]
-pub struct EventMetaData {
+pub struct EventMeta {
     /// Authentication information (DSN and client)..
     pub auth: Auth,
 
@@ -36,7 +36,7 @@ pub struct EventMetaData {
     pub forwarded_for: String,
 }
 
-impl EventMetaData {
+impl EventMeta {
     pub fn auth(&self) -> &Auth {
         &self.auth
     }
@@ -78,12 +78,12 @@ fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Opti
         })
 }
 
-impl<S> FromRequest<S> for EventMetaData {
+impl<S> FromRequest<S> for EventMeta {
     type Config = ();
     type Result = Result<Self, BadEventMeta>;
 
     fn from_request(request: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
-        Ok(EventMetaData {
+        Ok(EventMeta {
             auth: auth_from_request(request)?,
             origin: parse_header_url(request, header::ORIGIN)
                 .or_else(|| parse_header_url(request, header::REFERER)),

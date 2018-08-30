@@ -19,7 +19,7 @@ use semaphore_common::{ProjectId, ProjectIdParseError};
 use actors::events::{ProcessingError, QueueEvent};
 use actors::project::{EventAction, GetEventAction, GetProject};
 use body::{StoreBody, StorePayloadError};
-use extractors::EventMetaData;
+use extractors::EventMeta;
 use service::{ServiceApp, ServiceState};
 use utils::ApiErrorResponse;
 
@@ -59,7 +59,7 @@ struct StoreResponse {
 }
 
 fn store_event(
-    meta: EventMetaData,
+    meta: EventMeta,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<Json<StoreResponse>, BadStoreRequest> {
     // For now, we only handle <= v8 and drop everything else

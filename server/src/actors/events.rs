@@ -14,7 +14,7 @@ use actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError, ProjectState,
 };
 use actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
-use extractors::EventMetaData;
+use extractors::EventMeta;
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -74,7 +74,7 @@ impl Actor for EventProcessor {
 
 struct ProcessEvent {
     pub data: Arc<Bytes>,
-    pub meta: Arc<EventMetaData>,
+    pub meta: Arc<EventMeta>,
     pub event_id: Uuid,
     pub project_state: Arc<ProjectState>,
 }
@@ -154,7 +154,7 @@ struct EventIdHelper {
 
 pub struct QueueEvent {
     pub data: Arc<Bytes>,
-    pub meta: Arc<EventMetaData>,
+    pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
 }
 
@@ -191,7 +191,7 @@ impl Handler<QueueEvent> for EventManager {
 
 struct HandleEvent {
     pub data: Arc<Bytes>,
-    pub meta: Arc<EventMetaData>,
+    pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
     pub event_id: Uuid,
 }
