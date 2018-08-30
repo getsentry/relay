@@ -83,8 +83,7 @@ def test_store(mini_sentry, relay_chain):
     hub.capture_message("hü")
     client.drain_events()
 
-    event = mini_sentry.captured_events.get(timeout=30)
-    assert mini_sentry.captured_events.empty()
+    event = mini_sentry.captured_events.get(timeout=1)
 
     crumbs = event["breadcrumbs"]["values"]
     assert any(crumb["message"] == "i like bread" for crumb in crumbs)
@@ -132,8 +131,7 @@ def test_store_node_base64(mini_sentry, relay_chain):
     response = relay.send_event(42, payload)
     response.raise_for_status()
 
-    event = mini_sentry.captured_events.get(timeout=10)
-    assert mini_sentry.captured_events.empty()
+    event = mini_sentry.captured_events.get(timeout=1)
 
     assert event["message"] == "Error: yo mark"
 
@@ -145,8 +143,7 @@ def test_store_pii_stripping(mini_sentry, relay):
     mini_sentry.project_configs[42] = relay.basic_project_config()
     relay.send_event(42, {"message": "test@mail.org"}).raise_for_status()
 
-    event = mini_sentry.captured_events.get(timeout=10)
-    assert mini_sentry.captured_events.empty()
+    event = mini_sentry.captured_events.get(timeout=1)
 
     # Email should be stripped:
     assert event["message"] == "[email]"
@@ -172,7 +169,7 @@ def test_event_timeout(mini_sentry, relay):
     relay.send_event(42, {"message": "correct"}).raise_for_status()
 
     assert mini_sentry.captured_events.get(timeout=1)["message"] == "correct"
-    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=2))
+    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
 
 @pytest.mark.parametrize("failure_type", ["timeout", "socketerror"])
@@ -205,11 +202,8 @@ def test_query_retry(failure_type, mini_sentry, relay):
     hub.capture_message("hü")
     client.drain_events()
 
-    event = mini_sentry.captured_events.get(timeout=3600)
-    assert mini_sentry.captured_events.empty()
-
+    event = mini_sentry.captured_events.get(timeout=5)
     assert event["message"] == "hü"
-
     assert retry_count == 2
 
     if mini_sentry.test_failures:
