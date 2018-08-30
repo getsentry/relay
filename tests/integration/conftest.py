@@ -195,6 +195,32 @@ class SentryLike(object):
             "slug": "python",
         }
 
+    def send_event(self, project_id, payload=None):
+        content_type = None
+        if payload is None:
+            payload = {"message": "Hello, World!"}
+
+        if isinstance(payload, bytes):
+            content_type = 'application/octet-stream'
+
+        if isinstance(payload, dict):
+            payload = json.dumps(payload)
+            content_type = 'application/json'
+
+        return requests.post(
+            self.url + "/api/%s/store/" % project_id,
+            data=payload,
+            headers={
+                "Content-Type": content_type,
+                "X-Sentry-Auth": (
+                    "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
+                    "sentry_client=raven-node/2.6.3, "
+                    "sentry_key={}".format(self.dsn_public_key)
+                ),
+            },
+        )
+
+
 
 class Sentry(SentryLike):
     def __init__(self, server_address, app):
@@ -244,29 +270,31 @@ def config_dir(tmpdir):
 
 @pytest.fixture
 def relay(tmpdir, mini_sentry, request, random_port, background_process, config_dir):
-    def inner(upstream):
+    def inner(upstream, options=None):
         host = "127.0.0.1"
         port = random_port()
 
+        default_opts = {
+            "relay": {
+                "upstream": upstream.url,
+                "host": host,
+                "port": port,
+                "tls_port": None,
+                "tls_private_key": None,
+                "tls_cert": None,
+            },
+            "sentry": {"dsn": mini_sentry.internal_error_dsn},
+            "limits": {"max_api_file_upload_size": "1MiB"},
+            "cache": {"batch_interval": 0},
+            "logging": {"level": "debug"},
+        }
+
+        if options is not None:
+            for key in options:
+                default_opts.setdefault(key, {}).update(options[key])
+
         dir = config_dir("relay")
-        dir.join("config.yml").write(
-            json.dumps(
-                {
-                    "relay": {
-                        "upstream": upstream.url,
-                        "host": host,
-                        "port": port,
-                        "tls_port": None,
-                        "tls_private_key": None,
-                        "tls_cert": None,
-                    },
-                    "sentry": {"dsn": mini_sentry.internal_error_dsn},
-                    "limits": {"max_api_file_upload_size": "1MiB"},
-                    "cache": {"batch_interval": 0},
-                    "logging": {"level": "debug"},
-                }
-            )
-        )
+        dir.join("config.yml").write(json.dumps(default_opts))
 
         output = subprocess.check_output(
             SEMAPHORE_BIN + ["-c", str(dir), "credentials", "generate"]

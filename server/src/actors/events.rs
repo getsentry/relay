@@ -10,7 +10,7 @@ use url::Url;
 use uuid::Uuid;
 
 use semaphore_common::v8::{self, Annotated, Event};
-use semaphore_common::Auth;
+use semaphore_common::{Auth, Config};
 
 use actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError, ProjectState,
@@ -56,6 +56,9 @@ pub enum ProcessingError {
 
     #[fail(display = "could not send event to upstream")]
     SendFailed(#[cause] UpstreamRequestError),
+
+    #[fail(display = "event exceeded its configured lifetime")]
+    Timeout,
 }
 
 #[derive(Debug, Clone)]
@@ -137,12 +140,13 @@ impl Handler<ProcessEvent> for EventProcessor {
 }
 
 pub struct EventManager {
+    config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     processor: Addr<EventProcessor>,
 }
 
 impl EventManager {
-    pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
 
@@ -150,6 +154,7 @@ impl EventManager {
         let processor = SyncArbiter::start(thread_count, EventProcessor::new);
 
         EventManager {
+            config,
             upstream,
             processor,
         }
@@ -223,7 +228,7 @@ impl Message for HandleEvent {
 }
 
 impl Handler<HandleEvent> for EventManager {
-    type Result = ResponseFuture<(), ()>;
+    type Result = ResponseActFuture<Self, (), ()>;
 
     fn handle(&mut self, message: HandleEvent, _context: &mut Self::Context) -> Self::Result {
         let upstream = self.upstream.clone();
@@ -280,10 +285,11 @@ impl Handler<HandleEvent> for EventManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::SendFailed))
             })
-            .map_err(move |error| {
+            .into_actor(self)
+            .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
+            .map_err(move |error, _, _| {
                 error!("error processing event {}: {}", event_id, error);
                 metric!(counter("event.rejected") += 1);
-                ()
             });
 
         Box::new(future)

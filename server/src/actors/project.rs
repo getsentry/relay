@@ -260,7 +260,6 @@ impl ProjectState {
             return EventAction::Discard;
         }
 
-        // TODO: Use real config here.
         if self.outdated(config) {
             // if the state is out of date, we proceed as if it was still up to date. The
             // upstream relay (or sentry) will still filter events.
