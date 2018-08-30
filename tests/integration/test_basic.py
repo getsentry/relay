@@ -2,6 +2,7 @@ import errno
 import gzip
 import socket
 import time
+import queue
 
 from datetime import datetime
 
@@ -171,7 +172,7 @@ def test_event_timeout(mini_sentry, relay):
     relay.send_event(42, {"message": "correct"}).raise_for_status()
 
     assert mini_sentry.captured_events.get(timeout=1)["message"] == "correct"
-    assert mini_sentry.captured_events.get(timeout=1) is None
+    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=2))
 
 
 @pytest.mark.parametrize("failure_type", ["timeout", "socketerror"])
