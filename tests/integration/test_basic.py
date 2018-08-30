@@ -156,7 +156,7 @@ def test_event_timeout(mini_sentry, relay):
 
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
-        sleep(1.5)
+        sleep(1.5) # Causes the first event to drop, but not the second one
         return get_project_config_original()
 
     relay = relay(mini_sentry, {'cache': {'event_expiry': 1}})
@@ -165,7 +165,7 @@ def test_event_timeout(mini_sentry, relay):
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
     relay.send_event(42, {"message": "invalid"}).raise_for_status()
-    sleep(1)
+    sleep(1) # Sleep so that the second event also has to wait but succeeds
     relay.send_event(42, {"message": "correct"}).raise_for_status()
 
     assert mini_sentry.captured_events.get(timeout=1)["message"] == "correct"
@@ -202,7 +202,8 @@ def test_query_retry(failure_type, mini_sentry, relay):
     hub.capture_message("hü")
     client.drain_events()
 
-    event = mini_sentry.captured_events.get(timeout=5)
+    # relay's http timeout is 2 seconds, and retry interval 1s * 1.5^n
+    event = mini_sentry.captured_events.get(timeout=4)
     assert event["message"] == "hü"
     assert retry_count == 2
 
