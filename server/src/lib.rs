@@ -38,11 +38,9 @@ extern crate libc;
 mod actors;
 mod constants;
 mod endpoints;
-mod errors;
 mod extractors;
 mod middlewares;
 mod service;
 mod utils;
 
-pub use errors::*;
 pub use service::*;
