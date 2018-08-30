@@ -174,12 +174,8 @@ fn store_event(
                         })
                         .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
-                        .map(|id| StoreResponse { id })
+                        .map(|id| Json(StoreResponse { id }))
                 })
-        })
-        .map(|response| {
-            metric!(counter("event.accepted") += 1);
-            Json(response)
         })
         .map_err(move |error| {
             if log_failed_payloads {
