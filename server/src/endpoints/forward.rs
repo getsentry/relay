@@ -4,7 +4,7 @@ use actix_web::http::{header, header::HeaderName, ContentEncoding};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use futures::prelude::*;
 
-use extractors::ForwardBody;
+use body::ForwardBody;
 use semaphore_common::{Config, GlobMatcher};
 use service::{ServiceApp, ServiceState};
 

@@ -19,8 +19,8 @@ use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
 use actors::events::{EventMetaData, ProcessingError, QueueEvent};
 use actors::project::{EventAction, GetEventAction, GetProject};
+use body::{StoreBody, StorePayloadError};
 use endpoints::forward::get_forwarded_for;
-use extractors::{StoreBody, StorePayloadError};
 use service::{ServiceApp, ServiceState};
 use utils::ApiErrorResponse;
 

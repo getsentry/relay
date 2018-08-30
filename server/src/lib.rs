@@ -36,6 +36,7 @@ extern crate lazy_static;
 extern crate libc;
 
 mod actors;
+mod body;
 mod constants;
 mod endpoints;
 mod extractors;
