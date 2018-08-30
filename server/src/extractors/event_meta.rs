@@ -24,16 +24,16 @@ impl ResponseError for BadEventMeta {
 #[derive(Debug, Clone)]
 pub struct EventMeta {
     /// Authentication information (DSN and client)..
-    pub auth: Auth,
+    auth: Auth,
 
     /// Value of the origin header in the incoming request, if present.
-    pub origin: Option<Url>,
+    origin: Option<Url>,
 
     /// IP address of the submitting remote.
-    pub remote_addr: Option<IpAddr>,
+    remote_addr: Option<IpAddr>,
 
     /// The full chain of request forward addresses, including the `remote_addr`.
-    pub forwarded_for: String,
+    forwarded_for: String,
 }
 
 impl EventMeta {
