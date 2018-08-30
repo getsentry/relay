@@ -13,8 +13,8 @@ use uuid::Uuid;
 
 use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff};
 
-use actors::events::EventMetaData;
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
+use extractors::EventMetaData;
 use utils::Response;
 
 #[derive(Fail, Debug)]

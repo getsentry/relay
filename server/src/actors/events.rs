@@ -1,4 +1,3 @@
-use std::net::IpAddr;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -6,16 +5,16 @@ use bytes::Bytes;
 use futures::prelude::*;
 use num_cpus;
 use serde_json;
-use url::Url;
 use uuid::Uuid;
 
 use semaphore_common::v8::{self, Annotated, Event};
-use semaphore_common::{Auth, Config};
+use semaphore_common::Config;
 
 use actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError, ProjectState,
 };
 use actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
+use extractors::EventMetaData;
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -59,39 +58,6 @@ pub enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
-}
-
-#[derive(Debug, Clone)]
-pub struct EventMetaData {
-    /// Authentication information (DSN and client)..
-    pub auth: Auth,
-
-    /// Value of the origin header in the incoming request, if present.
-    pub origin: Option<Url>,
-
-    /// IP address of the submitting remote.
-    pub remote_addr: Option<IpAddr>,
-
-    /// The full chain of request forward addresses, including the `remote_addr`.
-    pub forwarded_for: String,
-}
-
-impl EventMetaData {
-    pub fn auth(&self) -> &Auth {
-        &self.auth
-    }
-
-    pub fn origin(&self) -> Option<&Url> {
-        self.origin.as_ref()
-    }
-
-    pub fn remote_addr(&self) -> Option<IpAddr> {
-        self.remote_addr
-    }
-
-    pub fn forwarded_for(&self) -> &str {
-        &self.forwarded_for
-    }
 }
 
 struct EventProcessor;
