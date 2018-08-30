@@ -13,8 +13,8 @@ use uuid::Uuid;
 
 use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff};
 
-use actors::events::EventMetaData;
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
+use extractors::EventMeta;
 use utils::Response;
 
 #[derive(Fail, Debug)]
@@ -254,7 +254,7 @@ impl ProjectState {
     }
 
     /// Determines whether the given event should be accepted or dropped.
-    pub fn get_event_action(&self, meta: &EventMetaData, config: &Config) -> EventAction {
+    pub fn get_event_action(&self, meta: &EventMeta, config: &Config) -> EventAction {
         // Try to verify the request origin with the project config.
         if !self.is_valid_origin(meta.origin()) {
             return EventAction::Discard;
@@ -305,16 +305,16 @@ impl Handler<GetProjectState> for Project {
 }
 
 pub struct GetEventAction {
-    meta: Arc<EventMetaData>,
+    meta: Arc<EventMeta>,
     fetch: bool,
 }
 
 impl GetEventAction {
-    pub fn fetched(meta: Arc<EventMetaData>) -> Self {
+    pub fn fetched(meta: Arc<EventMeta>) -> Self {
         GetEventAction { meta, fetch: true }
     }
 
-    pub fn cached(meta: Arc<EventMetaData>) -> Self {
+    pub fn cached(meta: Arc<EventMeta>) -> Self {
         GetEventAction { meta, fetch: false }
     }
 }

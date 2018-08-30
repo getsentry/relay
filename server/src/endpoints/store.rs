@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use actix::prelude::*;
-use actix_web::http::{header, Method};
+use actix_web::http::Method;
 use actix_web::middleware::cors::Cors;
 use actix_web::{HttpRequest, HttpResponse, Json, ResponseError};
 use bytes::Bytes;
@@ -12,15 +12,14 @@ use parking_lot::Mutex;
 use sentry::integrations::failure::event_from_fail;
 use sentry::{self, Hub};
 use sentry_actix::ActixWebHubExt;
-use url::Url;
 use uuid::Uuid;
 
-use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
+use semaphore_common::{ProjectId, ProjectIdParseError};
 
-use actors::events::{EventMetaData, ProcessingError, QueueEvent};
+use actors::events::{ProcessingError, QueueEvent};
 use actors::project::{EventAction, GetEventAction, GetProject};
-use endpoints::forward::get_forwarded_for;
-use extractors::{StoreBody, StorePayloadError};
+use body::{StoreBody, StorePayloadError};
+use extractors::EventMeta;
 use service::{ServiceApp, ServiceState};
 use utils::ApiErrorResponse;
 
@@ -28,9 +27,6 @@ use utils::ApiErrorResponse;
 enum BadStoreRequest {
     #[fail(display = "invalid project path parameter")]
     BadProject(#[cause] ProjectIdParseError),
-
-    #[fail(display = "bad x-sentry-auth header")]
-    BadAuth(#[cause] AuthParseError),
 
     #[fail(display = "unsupported protocol version ({})", _0)]
     UnsupportedProtocolVersion(u16),
@@ -57,56 +53,20 @@ impl ResponseError for BadStoreRequest {
     }
 }
 
-fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadStoreRequest> {
-    let auth = req
-        .headers()
-        .get("x-sentry-auth")
-        .and_then(|x| x.to_str().ok());
-
-    if let Some(auth) = auth {
-        return auth.parse::<Auth>().map_err(BadStoreRequest::BadAuth);
-    }
-
-    Auth::from_querystring(req.query_string().as_bytes()).map_err(BadStoreRequest::BadAuth)
-}
-
-fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Option<Url> {
-    req.headers()
-        .get(header)
-        .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.parse::<Url>().ok())
-        .and_then(|u| match u.scheme() {
-            "http" | "https" => Some(u),
-            _ => None,
-        })
-}
-
-fn meta_from_request<S>(request: &HttpRequest<S>, auth: Auth) -> EventMetaData {
-    EventMetaData {
-        auth,
-        origin: parse_header_url(request, header::ORIGIN)
-            .or_else(|| parse_header_url(request, header::REFERER)),
-        remote_addr: request.peer_addr().map(|peer| peer.ip()),
-        forwarded_for: get_forwarded_for(request),
-    }
-}
-
 #[derive(Serialize)]
 struct StoreResponse {
     id: Uuid,
 }
 
 fn store_event(
+    meta: EventMeta,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<Json<StoreResponse>, BadStoreRequest> {
-    // Check auth and fail as early as possible
-    let auth = tryf!(auth_from_request(&request));
-
     // For now, we only handle <= v8 and drop everything else
-    if auth.version() > 8 {
+    if meta.auth().version() > 8 {
         // TODO: Delegate to forward_upstream here
         tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(
-            auth.version()
+            meta.auth().version()
         )));
     }
 
@@ -128,9 +88,9 @@ fn store_event(
         }));
     });
 
-    metric!(counter(&format!("event.protocol.v{}", auth.version())) += 1);
+    metric!(counter(&format!("event.protocol.v{}", meta.auth().version())) += 1);
 
-    let meta = Arc::new(meta_from_request(&request, auth));
+    let meta = Arc::new(meta);
     let config = request.state().config();
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
