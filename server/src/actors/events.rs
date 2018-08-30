@@ -71,6 +71,9 @@ pub struct EventMetaData {
 
     /// IP address of the submitting remote.
     pub remote_addr: Option<IpAddr>,
+
+    /// The full chain of request forward addresses, including the `remote_addr`.
+    pub forwarded_for: String,
 }
 
 impl EventMetaData {
@@ -84,6 +87,10 @@ impl EventMetaData {
 
     pub fn remote_addr(&self) -> Option<IpAddr> {
         self.remote_addr
+    }
+
+    pub fn forwarded_for(&self) -> &str {
+        &self.forwarded_for
     }
 }
 
@@ -276,6 +283,7 @@ impl Handler<HandleEvent> for EventManager {
 
                         builder
                             .header("X-Sentry-Auth", meta.auth().to_string())
+                            .header("X-Forwarded-For", meta.forwarded_for())
                             .body(processed.data)
                     },
                 );

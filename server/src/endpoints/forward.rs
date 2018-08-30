@@ -38,7 +38,7 @@ lazy_static! {
     };
 }
 
-fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
+pub fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
     let peer_addr = request
         .peer_addr()
         .map(|v| v.ip().to_string())

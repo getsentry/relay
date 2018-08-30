@@ -19,6 +19,7 @@ use semaphore_common::{Auth, AuthParseError, ProjectId, ProjectIdParseError};
 
 use actors::events::{EventMetaData, ProcessingError, QueueEvent};
 use actors::project::{EventAction, GetEventAction, GetProject};
+use endpoints::forward::get_forwarded_for;
 use extractors::{StoreBody, StorePayloadError};
 use service::{ServiceApp, ServiceState};
 use utils::ApiErrorResponse;
@@ -86,6 +87,7 @@ fn meta_from_request<S>(request: &HttpRequest<S>, auth: Auth) -> EventMetaData {
         origin: parse_header_url(request, header::ORIGIN)
             .or_else(|| parse_header_url(request, header::REFERER)),
         remote_addr: request.peer_addr().map(|peer| peer.ip()),
+        forwarded_for: get_forwarded_for(request),
     }
 }
 
@@ -208,6 +210,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .allowed_headers(vec![
             "x-sentry-auth",
             "x-requested-with",
+            "x-forwarded-for",
             "origin",
             "referer",
             "accept",
