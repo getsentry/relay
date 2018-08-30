@@ -5,6 +5,7 @@ use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use futures::prelude::*;
 
 use body::ForwardBody;
+use extractors::ForwardedFor;
 use semaphore_common::{Config, GlobMatcher};
 use service::{ServiceApp, ServiceState};
 
@@ -36,27 +37,6 @@ lazy_static! {
         m.add("/api/0/organizations/*/chunk-upload/", SpecialRoute::ChunkUpload);
         m
     };
-}
-
-pub fn get_forwarded_for<S>(request: &HttpRequest<S>) -> String {
-    let peer_addr = request
-        .peer_addr()
-        .map(|v| v.ip().to_string())
-        .unwrap_or_else(String::new);
-
-    let forwarded = request
-        .headers()
-        .get("X-Forwarded-For")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if forwarded.is_empty() {
-        peer_addr
-    } else if peer_addr.is_empty() {
-        forwarded.to_string()
-    } else {
-        format!("{}, {}", peer_addr, forwarded)
-    }
 }
 
 fn get_limit_for_path(path: &str, config: &Config) -> usize {
@@ -95,7 +75,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         .method(request.method().clone())
         .uri(upstream.get_url(path_and_query))
         .set_header("Host", upstream.host())
-        .set_header("X-Forwarded-For", get_forwarded_for(request))
+        .set_header("X-Forwarded-For", ForwardedFor::from(request))
         .set_header("Connection", "close")
         .timeout(config.http_timeout());
 

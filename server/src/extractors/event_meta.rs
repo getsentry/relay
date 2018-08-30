@@ -6,7 +6,7 @@ use url::Url;
 
 use semaphore_common::{Auth, AuthParseError};
 
-use endpoints::forward::get_forwarded_for;
+use extractors::ForwardedFor;
 use utils::ApiErrorResponse;
 
 #[derive(Debug, Fail)]
@@ -88,7 +88,7 @@ impl<S> FromRequest<S> for EventMeta {
             origin: parse_header_url(request, header::ORIGIN)
                 .or_else(|| parse_header_url(request, header::REFERER)),
             remote_addr: request.peer_addr().map(|peer| peer.ip()),
-            forwarded_for: get_forwarded_for(request),
+            forwarded_for: ForwardedFor::from(request).into_inner(),
         })
     }
 }
