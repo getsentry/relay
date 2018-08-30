@@ -170,9 +170,8 @@ def test_event_timeout(mini_sentry, relay):
     sleep(1)
     relay.send_event(42, {"message": "correct"}).raise_for_status()
 
-    event = mini_sentry.captured_events.get(timeout=1)
-    assert event["message"] == "correct"
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_events.get(timeout=1)["message"] == "correct"
+    assert mini_sentry.captured_events.get(timeout=1) is None
 
 
 @pytest.mark.parametrize("failure_type", ["timeout", "socketerror"])
