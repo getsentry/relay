@@ -120,10 +120,10 @@ pub struct Relay {
     pub port: u16,
     /// Optional port to bind for the encrypted relay HTTPS server.
     pub tls_port: Option<u16>,
-    /// The path to the private key to use for TLS
-    pub tls_private_key: Option<PathBuf>,
-    /// The path to the certificate chain to use for TLS
-    pub tls_cert: Option<PathBuf>,
+    /// The path to the identity (DER-encoded PKCS12) to use for TLS
+    pub tls_identity_path: Option<PathBuf>,
+    /// Password for the PKCS12 archive
+    pub tls_identity_password: Option<String>,
 }
 
 impl Default for Relay {
@@ -135,8 +135,8 @@ impl Default for Relay {
             host: "127.0.0.1".parse().unwrap(),
             port: 3000,
             tls_port: None,
-            tls_private_key: None,
-            tls_cert: None,
+            tls_identity_path: None,
+            tls_identity_password: None,
         }
     }
 }
@@ -491,7 +491,7 @@ impl Config {
 
     /// Returns the TLS listen address.
     pub fn tls_listen_addr(&self) -> Option<SocketAddr> {
-        if self.values.relay.tls_private_key.is_some() && self.values.relay.tls_cert.is_some() {
+        if self.values.relay.tls_identity_path.is_some() {
             let port = self.values.relay.tls_port.unwrap_or(3443);
             Some((self.values.relay.host, port).into())
         } else {
@@ -499,18 +499,22 @@ impl Config {
         }
     }
 
-    /// Returns the path to the private key
-    pub fn tls_private_key_path(&self) -> Option<&Path> {
+    /// Returns the path to the identity bundle
+    pub fn tls_identity_path(&self) -> Option<&Path> {
         self.values
             .relay
-            .tls_private_key
+            .tls_identity_path
             .as_ref()
             .map(|x| x.as_path())
     }
 
-    /// Returns the path to the cert
-    pub fn tls_certificate_path(&self) -> Option<&Path> {
-        self.values.relay.tls_cert.as_ref().map(|x| x.as_path())
+    /// Returns the password for the identity bundle
+    pub fn tls_identity_password(&self) -> Option<&str> {
+        self.values
+            .relay
+            .tls_identity_password
+            .as_ref()
+            .map(|x| &**x)
     }
 
     /// Returns the log level.

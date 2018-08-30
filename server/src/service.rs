@@ -112,31 +112,38 @@ pub fn run(config: Config) -> Result<(), ServerError> {
 
     #[cfg(feature = "with_ssl")]
     {
-        use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-
-        if let (Some(addr), Some(pk), Some(cert)) = (
+        if let (Some(addr), Some(path), Some(password)) = (
             config.tls_listen_addr(),
-            config.tls_private_key_path(),
-            config.tls_certificate_path(),
+            config.tls_identity_path(),
+            config.tls_identity_password(),
         ) {
-            let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())
+            use native_tls::{Identity, TlsAcceptor};
+            use std::fs::File;
+            use std::io::Read;
+
+            let mut file = File::open(path).unwrap();
+            let mut data = vec![];
+            file.read_to_end(&mut data).unwrap();
+            let identity =
+                Identity::from_pkcs12(&data, password).context(ServerErrorKind::TlsInitFailed)?;
+
+            let acceptor = TlsAcceptor::builder(identity)
+                .build()
                 .context(ServerErrorKind::TlsInitFailed)?;
-            builder
-                .set_private_key_file(&pk, SslFiletype::PEM)
-                .context(ServerErrorKind::TlsInitFailed)?;
-            builder
-                .set_certificate_chain_file(&cert)
-                .context(ServerErrorKind::TlsInitFailed)?;
-            server = if let Some(listener) = listenfd
-                .take_tcp_listener(1)
-                .context(ServerErrorKind::BindFailed)?
-            {
-                server.listen_ssl(listener)?
-            } else {
-                server
-                    .bind_ssl(config.listen_addr(), builder)
-                    .context(ServerErrorKind::BindFailed)?
-            };
+
+            server = server
+                .bind_tls(addr, acceptor)
+                .context(ServerErrorKind::BindFailed)?;
+        }
+    }
+
+    #[cfg(not(feature = "with_ssl"))]
+    {
+        if config.tls_listen_addr().is_some()
+            || config.tls_identity_path().is_some()
+            || config.tls_identity_password().is_some()
+        {
+            Err(ServerErrorKind::TlsNotSupported)?;
         }
     }
 

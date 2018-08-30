@@ -84,6 +84,14 @@ relay:
     $ cargo install systemfd cargo-watch
     $ make devserver
 
+### SSL
+
+The repository contains a SSL-certificate + private key for development
+purposes. It comes in two formats: Once as a `(.pem, .cert)`-pair, once as
+`.pfx` (PKCS #12) file.
+
+The password for the `.pfx` file is `password`.
+
 ### Release management
 
 Use the `./scripts/bump-version.sh` script to bump versions:
