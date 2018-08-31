@@ -36,8 +36,8 @@ uuid = { version = "0.6.5", features = ["v4"] }
 parking_lot = "0.6.3"
 native-tls = { version = "0.2.1", optional = true }
 
-[dependencies.semaphore-common]
-path = "../common"
-
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.43"
+
+[patch.crates-io]
+actix-web = { git = "https://github.com/actix/actix-web", rev = "5906971b6d98103bbcaf7dd0dc643798b2806233" }
