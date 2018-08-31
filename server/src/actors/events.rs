@@ -120,6 +120,7 @@ impl ProcessEvent {
     }
 
     fn process(&self) -> Result<ProcessEventResponse, ProcessingError> {
+        trace!("processing event {}", self.event_id);
         let mut event = Annotated::<Event>::from_json_bytes(&self.data).map_err(|error| {
             if self.log_failed_payloads {
                 let mut event = event_from_fail(&error);
@@ -238,6 +239,7 @@ impl Handler<QueueEvent> for EventManager {
             event_id,
         });
 
+        trace!("queued event {}", event_id);
         Ok(event_id)
     }
 }
@@ -301,7 +303,7 @@ impl Handler<HandleEvent> for EventManager {
                         .send(GetProjectState)
                         .map_err(ProcessingError::ScheduleFailed)
                         .and_then(|result| result.map_err(ProcessingError::PiiFailed))))
-                    .and_then(clone!(meta, event_id, data, |project_state| processor
+                    .and_then(clone!(meta, |project_state| processor
                         .send(ProcessEvent {
                             data,
                             meta,
@@ -314,6 +316,7 @@ impl Handler<HandleEvent> for EventManager {
                         .map_err(ProcessingError::ScheduleFailed)
                         .flatten()))
                     .and_then(move |processed| {
+                        trace!("sending event {}", event_id);
                         let request = SendRequest::post(format!("/api/{}/store/", project_id))
                             .build(move |builder| {
                                 if let Some(origin) = meta.origin() {
@@ -339,7 +342,7 @@ impl Handler<HandleEvent> for EventManager {
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(move |error, _, _| {
-                error!("error processing event {}: {}", event_id, error);
+                warn!("error processing event {}: {}", event_id, error);
                 metric!(counter("event.rejected") += 1);
             });
 
