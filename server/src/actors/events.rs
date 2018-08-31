@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use actix::prelude::*;
 use bytes::Bytes;
@@ -80,6 +81,7 @@ struct ProcessEvent {
     pub project_id: ProjectId,
     pub project_state: Arc<ProjectState>,
     pub log_failed_payloads: bool,
+    pub start_time: Instant,
 }
 
 impl ProcessEvent {
@@ -116,6 +118,34 @@ impl ProcessEvent {
                 .insert("remote_addr".to_string(), remote_addr.to_string().into());
         }
     }
+
+    fn process(&self) -> Result<ProcessEventResponse, ProcessingError> {
+        let mut event = Annotated::<Event>::from_json_bytes(&self.data).map_err(|error| {
+            if self.log_failed_payloads {
+                let mut event = event_from_fail(&error);
+                self.add_to_sentry_event(&mut event);
+                sentry::capture_event(event);
+            }
+
+            ProcessingError::InvalidJson(error)
+        })?;
+
+        if let Some(event) = event.value_mut() {
+            event.id.set_value(Some(Some(self.event_id)))
+        }
+
+        let processed_event = match self.project_state.config.pii_config {
+            Some(ref pii_config) => pii_config.processor().process_root_value(event),
+            None => event,
+        };
+
+        let data = processed_event
+            .to_json()
+            .map_err(ProcessingError::SerializeFailed)?
+            .into();
+
+        Ok(ProcessEventResponse { data })
+    }
 }
 
 struct ProcessEventResponse {
@@ -130,31 +160,8 @@ impl Handler<ProcessEvent> for EventProcessor {
     type Result = Result<ProcessEventResponse, ProcessingError>;
 
     fn handle(&mut self, message: ProcessEvent, _context: &mut Self::Context) -> Self::Result {
-        let mut event = Annotated::<Event>::from_json_bytes(&message.data).map_err(|error| {
-            if message.log_failed_payloads {
-                let mut event = event_from_fail(&error);
-                message.add_to_sentry_event(&mut event);
-                sentry::capture_event(event);
-            }
-
-            ProcessingError::InvalidJson(error)
-        })?;
-
-        if let Some(event) = event.value_mut() {
-            event.id.set_value(Some(Some(message.event_id)))
-        }
-
-        let processed_event = match message.project_state.config.pii_config {
-            Some(ref pii_config) => pii_config.processor().process_root_value(event),
-            None => event,
-        };
-
-        let data = processed_event
-            .to_json()
-            .map_err(ProcessingError::SerializeFailed)?
-            .into();
-
-        Ok(ProcessEventResponse { data })
+        metric!(timer("event.wait_time") = message.start_time.elapsed());
+        metric!(timer("event.processing_time"), { message.process() })
     }
 }
 
@@ -250,6 +257,23 @@ impl Handler<HandleEvent> for EventManager {
     type Result = ResponseActFuture<Self, (), ()>;
 
     fn handle(&mut self, message: HandleEvent, _context: &mut Self::Context) -> Self::Result {
+        // We measure three timers while handling events, once they have been initially accepted:
+        //
+        // 1. `event.wait_time`: The time we take to get all dependencies for events before
+        //    they actually start processing. This includes scheduling overheads, project config
+        //    fetching, batched requests and congestions in the sync processor arbiter. This does
+        //    not include delays in the incoming request (body upload) and skips all events that are
+        //    fast-rejected.
+        //
+        // 2. `event.processing_time`: The time the sync processor takes to parse the event payload,
+        //    apply normalizations, strip PII and finally re-serialize it into a byte stream. This
+        //    is recorded directly in the EventProcessor.
+        //
+        // 3. `event.total_time`: The full time an event takes from being initially accepted up to
+        //    being sent to the upstream (including delays in the upstream). This can be regarded
+        //    the total time an event spent in this relay, corrected by incoming network delays.
+        let start_time = Instant::now();
+
         let upstream = self.upstream.clone();
         let processor = self.processor.clone();
         let log_failed_payloads = self.config.log_failed_payloads();
@@ -285,6 +309,7 @@ impl Handler<HandleEvent> for EventManager {
                             project_id,
                             project_state,
                             log_failed_payloads,
+                            start_time,
                         })
                         .map_err(ProcessingError::ScheduleFailed)
                         .flatten()))
@@ -305,6 +330,9 @@ impl Handler<HandleEvent> for EventManager {
                             .send(request)
                             .map_err(ProcessingError::ScheduleFailed)
                             .and_then(|result| result.map_err(ProcessingError::SendFailed))
+                            .inspect(move |_| {
+                                metric!(timer("event.total_time") = start_time.elapsed())
+                            })
                     })
             })
             .into_actor(self)
