@@ -35,7 +35,6 @@ extern crate lazy_static;
 #[cfg(not(windows))]
 extern crate libc;
 
-mod actors;
 mod body;
 mod constants;
 mod endpoints;
