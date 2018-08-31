@@ -1,29 +1,14 @@
-//! Implements basics for the protocol.
-#![warn(missing_docs)]
-
 extern crate actix;
-extern crate actix_web;
 extern crate futures;
-extern crate parking_lot;
-extern crate url;
+extern crate actix_web;
 
 use actix::prelude::*;
 use actix_web::{server, App};
 
-/// The actix app type for the relay web service.
-type ServiceApp = App<()>;
-
-fn make_app() -> ServiceApp {
-    let app = App::with_state(());
-
-    app.resource("/api/", |r| r.f(|_| HttpResponse::NotFound()))
-        .handler("/api", forward_upstream)
-}
-
 use actix_web::client::ClientRequest;
 use actix_web::{AsyncResponder, Error, HttpRequest, HttpResponse};
-use futures::prelude::*;
 
+use futures::prelude::*;
 
 fn forward_upstream(request: &HttpRequest<()>) -> ResponseFuture<HttpResponse, Error> {
     let mut forwarded_request_builder = ClientRequest::build();
@@ -41,16 +26,15 @@ fn forward_upstream(request: &HttpRequest<()>) -> ResponseFuture<HttpResponse, E
         .responder()
 }
 
-/// Given a relay config spawns the server together with all actors and lets them run forever.
-///
-/// Effectively this boots the server.
 pub fn run() {
     let sys = System::new("relay");
 
-    let mut server = server::new(move || make_app());
+    let mut server = server::new(|| {
+        App::with_state(())
+            .handler("/api", forward_upstream)
+    });
 
     server = server.bind("localhost:3000").unwrap();
-
     server.system_exit().start();
     let _ = sys.run();
 }
