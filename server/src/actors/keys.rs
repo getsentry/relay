@@ -201,11 +201,11 @@ impl Actor for KeyCache {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        info!("key manager started");
+        info!("key cache started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("key manager stopped");
+        info!("key cache stopped");
     }
 }
 

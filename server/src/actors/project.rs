@@ -460,11 +460,11 @@ impl Actor for ProjectCache {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        info!("project manager started");
+        info!("project cache started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("project manager stopped");
+        info!("project cache stopped");
     }
 }
 
