@@ -237,8 +237,8 @@ impl Handler<HandleEvent> for EventManager {
 
         let future = project
             .send(GetProjectId)
+            .map(|one| one.into_inner())
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(|option| option.ok_or(ProcessingError::ProjectFailed))
             .and_then(move |project_id| {
                 project
                     .send(GetEventAction::fetched(meta.clone()))
