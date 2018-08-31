@@ -14,8 +14,6 @@ extern crate listenfd;
 extern crate native_tls;
 extern crate num_cpus;
 extern crate parking_lot;
-extern crate sentry;
-extern crate sentry_actix;
 extern crate serde;
 extern crate serde_json;
 extern crate url;

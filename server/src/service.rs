@@ -6,7 +6,6 @@ use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
-use sentry_actix::SentryMiddleware;
 
 use semaphore_common::Config;
 
@@ -133,7 +132,7 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     dump_listen_infos(&server);
     info!("spawning relay server");
 
-    server.keep_alive(None).system_exit().start();
+    server.system_exit().start();
     let _ = sys.run();
 
     info!("relay shutdown complete");
