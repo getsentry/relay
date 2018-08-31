@@ -9,71 +9,6 @@ use listenfd::ListenFd;
 
 use semaphore_common::Config;
 
-use endpoints;
-
-/// Common error type for the relay server.
-#[derive(Debug)]
-pub struct ServerError {
-    inner: Context<ServerErrorKind>,
-}
-
-/// Indicates the type of failure of the server.
-#[derive(Debug, Fail, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum ServerErrorKind {
-    /// Binding failed.
-    #[fail(display = "bind to interface failed")]
-    BindFailed,
-
-    /// Listening on the HTTP socket failed.
-    #[fail(display = "listening failed")]
-    ListenFailed,
-
-    /// A TLS error ocurred
-    #[fail(display = "could not initialize the TLS server")]
-    TlsInitFailed,
-
-    /// TLS support was not compiled in
-    #[fail(display = "compile with the `with_ssl` feature to enable SSL support.")]
-    TlsNotSupported,
-}
-
-impl Fail for ServerError {
-    fn cause(&self) -> Option<&Fail> {
-        self.inner.cause()
-    }
-
-    fn backtrace(&self) -> Option<&Backtrace> {
-        self.inner.backtrace()
-    }
-}
-
-impl fmt::Display for ServerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.inner, f)
-    }
-}
-
-impl ServerError {
-    /// Returns the error kind of the error.
-    pub fn kind(&self) -> ServerErrorKind {
-        *self.inner.get_context()
-    }
-}
-
-impl From<ServerErrorKind> for ServerError {
-    fn from(kind: ServerErrorKind) -> ServerError {
-        ServerError {
-            inner: Context::new(kind),
-        }
-    }
-}
-
-impl From<Context<ServerErrorKind>> for ServerError {
-    fn from(inner: Context<ServerErrorKind>) -> ServerError {
-        ServerError { inner }
-    }
-}
-
 /// Server state.
 #[derive(Clone)]
 pub struct ServiceState {
@@ -91,23 +26,49 @@ impl ServiceState {
 pub type ServiceApp = App<ServiceState>;
 
 fn make_app(state: ServiceState) -> ServiceApp {
-    let mut app = App::with_state(state);
+    let app = App::with_state(state);
 
-    app = endpoints::forward::configure_app(app);
-    app
+    app.resource("/api/", |r| r.f(|_| HttpResponse::NotFound()))
+        .handler("/api", forward_upstream)
 }
 
-fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
-    info!("spawning http server");
-    for (addr, scheme) in server.addrs_with_scheme() {
-        info!("  listening on: {}://{}/", scheme, addr);
-    }
+use actix::prelude::*;
+use actix_web::client::ClientRequest;
+use actix_web::http::{header, header::HeaderName};
+use actix_web::{AsyncResponder, Error, HttpRequest, HttpResponse};
+use futures::prelude::*;
+
+
+fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpResponse, Error> {
+    let config = request.state().config();
+    let upstream = config.upstream_descriptor();
+
+    let path_and_query = request
+        .uri()
+        .path_and_query()
+        .map(|pq| pq.as_str())
+        .unwrap_or("");
+
+    let mut forwarded_request_builder = ClientRequest::build();
+    forwarded_request_builder
+        .method(request.method().clone())
+        .uri(upstream.get_url(path_and_query))
+        .header("Connection", "close")
+        .timeout(config.http_timeout());
+
+    forwarded_request_builder.finish().unwrap()
+        .send().map_err(Error::from)
+        .and_then(move |response| {
+            let mut forwarded_response = HttpResponse::build(response.status());
+            Ok(forwarded_response.finish())
+        })
+        .responder()
 }
 
 /// Given a relay config spawns the server together with all actors and lets them run forever.
 ///
 /// Effectively this boots the server.
-pub fn run(config: Config) -> Result<(), ServerError> {
+pub fn run(config: Config) {
     let config = Arc::new(config);
     let sys = System::new("relay");
 
@@ -116,26 +77,14 @@ pub fn run(config: Config) -> Result<(), ServerError> {
     };
 
     let mut server = server::new(move || make_app(service_state.clone()));
-    let mut listenfd = ListenFd::from_env();
 
-    server = if let Some(listener) = listenfd
-        .take_tcp_listener(0)
-        .context(ServerErrorKind::BindFailed)?
-    {
-        server.listen(listener)
-    } else {
-        server
-            .bind(config.listen_addr())
-            .context(ServerErrorKind::BindFailed)?
-    };
+    server = server
+            .bind(config.listen_addr()).unwrap();
 
-    dump_listen_infos(&server);
     info!("spawning relay server");
 
     server.system_exit().start();
     let _ = sys.run();
 
     info!("relay shutdown complete");
-
-    Ok(())
 }

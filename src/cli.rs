@@ -306,6 +306,6 @@ pub fn run<'a>(config: Config, _matches: &ArgMatches<'a>) -> Result<(), Error> {
     }
     setup::dump_spawn_infos(&config);
     setup::init_metrics(&config)?;
-    semaphore_server::run(config)?;
+    semaphore_server::run(config);
     Ok(())
 }
