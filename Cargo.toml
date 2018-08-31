@@ -47,5 +47,6 @@ clap = { version = "2.32.0", default-features = false }
 [patch.crates-io]
 serde = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
 serde_derive = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
+actix-web = { git = "https://github.com/actix/actix-web", rev = "5906971b6d98103bbcaf7dd0dc643798b2806233" }
 
 [workspace]
