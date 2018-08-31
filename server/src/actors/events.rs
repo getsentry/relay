@@ -82,6 +82,42 @@ struct ProcessEvent {
     pub log_failed_payloads: bool,
 }
 
+impl ProcessEvent {
+    fn add_to_sentry_event(&self, event: &mut sentry::protocol::Event) {
+        // Inject the body payload for debugging purposes and identify the exception
+        event.message = Some(format!("body: {}", String::from_utf8_lossy(&self.data)));
+        if let Some(exception) = event.exceptions.last_mut() {
+            exception.ty = "BadEventPayload".into();
+        }
+
+        // Identify the project as user to make payload errors indexable by customer
+        event.user = Some(sentry::User {
+            id: Some(self.project_id.to_string()),
+            ..Default::default()
+        });
+
+        // Inject all available meta as extra
+        event.extra.insert(
+            "sentry_auth".to_string(),
+            self.meta.auth().to_string().into(),
+        );
+        event.extra.insert(
+            "forwarded_for".to_string(),
+            self.meta.forwarded_for().into(),
+        );
+        if let Some(origin) = self.meta.origin() {
+            event
+                .extra
+                .insert("origin".to_string(), origin.to_string().into());
+        }
+        if let Some(remote_addr) = self.meta.remote_addr() {
+            event
+                .extra
+                .insert("remote_addr".to_string(), remote_addr.to_string().into());
+        }
+    }
+}
+
 struct ProcessEventResponse {
     pub data: Bytes,
 }
@@ -97,17 +133,7 @@ impl Handler<ProcessEvent> for EventProcessor {
         let mut event = Annotated::<Event>::from_json_bytes(&message.data).map_err(|error| {
             if message.log_failed_payloads {
                 let mut event = event_from_fail(&error);
-
-                event.message = Some(format!("body: {}", String::from_utf8_lossy(&message.data)));
-                if let Some(exception) = event.exceptions.last_mut() {
-                    exception.ty = "BadEventPayload".into();
-                }
-
-                event.user = Some(sentry::User {
-                    id: Some(message.project_id.to_string()),
-                    ..Default::default()
-                });
-
+                message.add_to_sentry_event(&mut event);
                 sentry::capture_event(event);
             }
 
