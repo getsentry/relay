@@ -81,10 +81,6 @@ pub fn run(config: Config) {
     server = server
             .bind(config.listen_addr()).unwrap();
 
-    info!("spawning relay server");
-
     server.system_exit().start();
     let _ = sys.run();
-
-    info!("relay shutdown complete");
 }

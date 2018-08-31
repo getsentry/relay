@@ -19,21 +19,11 @@ extern crate serde_json;
 extern crate url;
 extern crate uuid;
 
-#[macro_use]
-extern crate failure_derive;
-#[macro_use]
-extern crate log;
-#[macro_use]
 extern crate semaphore_common;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate lazy_static;
 
 #[cfg(not(windows))]
 extern crate libc;
 
-mod constants;
 mod service;
 
 pub use service::*;
