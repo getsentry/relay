@@ -11,7 +11,6 @@ use sentry_actix::SentryMiddleware;
 use semaphore_common::Config;
 
 use endpoints;
-use middlewares::{AddCommonHeaders, ErrorHandlers, Metrics};
 
 /// Common error type for the relay server.
 #[derive(Debug)]
@@ -93,11 +92,7 @@ impl ServiceState {
 pub type ServiceApp = App<ServiceState>;
 
 fn make_app(state: ServiceState) -> ServiceApp {
-    let mut app = App::with_state(state)
-        .middleware(SentryMiddleware::new())
-        .middleware(Metrics)
-        .middleware(AddCommonHeaders)
-        .middleware(ErrorHandlers);
+    let mut app = App::with_state(state);
 
     app = endpoints::forward::configure_app(app);
     app

@@ -38,9 +38,6 @@ extern crate libc;
 mod body;
 mod constants;
 mod endpoints;
-mod extractors;
-mod middlewares;
 mod service;
-mod utils;
 
 pub use service::*;
