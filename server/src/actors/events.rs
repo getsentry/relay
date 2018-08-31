@@ -4,11 +4,12 @@ use actix::prelude::*;
 use bytes::Bytes;
 use futures::prelude::*;
 use num_cpus;
+use sentry::{self, integrations::failure::event_from_fail};
 use serde_json;
 use uuid::Uuid;
 
 use semaphore_common::v8::{self, Annotated, Event};
-use semaphore_common::Config;
+use semaphore_common::{Config, ProjectId};
 
 use actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError, ProjectState,
@@ -73,10 +74,48 @@ impl Actor for EventProcessor {
 }
 
 struct ProcessEvent {
-    pub data: Arc<Bytes>,
+    pub data: Bytes,
     pub meta: Arc<EventMeta>,
     pub event_id: Uuid,
+    pub project_id: ProjectId,
     pub project_state: Arc<ProjectState>,
+    pub log_failed_payloads: bool,
+}
+
+impl ProcessEvent {
+    fn add_to_sentry_event(&self, event: &mut sentry::protocol::Event) {
+        // Inject the body payload for debugging purposes and identify the exception
+        event.message = Some(format!("body: {}", String::from_utf8_lossy(&self.data)));
+        if let Some(exception) = event.exceptions.last_mut() {
+            exception.ty = "BadEventPayload".into();
+        }
+
+        // Identify the project as user to make payload errors indexable by customer
+        event.user = Some(sentry::User {
+            id: Some(self.project_id.to_string()),
+            ..Default::default()
+        });
+
+        // Inject all available meta as extra
+        event.extra.insert(
+            "sentry_auth".to_string(),
+            self.meta.auth().to_string().into(),
+        );
+        event.extra.insert(
+            "forwarded_for".to_string(),
+            self.meta.forwarded_for().into(),
+        );
+        if let Some(origin) = self.meta.origin() {
+            event
+                .extra
+                .insert("origin".to_string(), origin.to_string().into());
+        }
+        if let Some(remote_addr) = self.meta.remote_addr() {
+            event
+                .extra
+                .insert("remote_addr".to_string(), remote_addr.to_string().into());
+        }
+    }
 }
 
 struct ProcessEventResponse {
@@ -91,8 +130,15 @@ impl Handler<ProcessEvent> for EventProcessor {
     type Result = Result<ProcessEventResponse, ProcessingError>;
 
     fn handle(&mut self, message: ProcessEvent, _context: &mut Self::Context) -> Self::Result {
-        let mut event = Annotated::<Event>::from_json_bytes(&message.data)
-            .map_err(ProcessingError::InvalidJson)?;
+        let mut event = Annotated::<Event>::from_json_bytes(&message.data).map_err(|error| {
+            if message.log_failed_payloads {
+                let mut event = event_from_fail(&error);
+                message.add_to_sentry_event(&mut event);
+                sentry::capture_event(event);
+            }
+
+            ProcessingError::InvalidJson(error)
+        })?;
 
         if let Some(event) = event.value_mut() {
             event.id.set_value(Some(Some(message.event_id)))
@@ -153,7 +199,7 @@ struct EventIdHelper {
 }
 
 pub struct QueueEvent {
-    pub data: Arc<Bytes>,
+    pub data: Bytes,
     pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
 }
@@ -190,7 +236,7 @@ impl Handler<QueueEvent> for EventManager {
 }
 
 struct HandleEvent {
-    pub data: Arc<Bytes>,
+    pub data: Bytes,
     pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
     pub event_id: Uuid,
@@ -206,6 +252,7 @@ impl Handler<HandleEvent> for EventManager {
     fn handle(&mut self, message: HandleEvent, _context: &mut Self::Context) -> Self::Result {
         let upstream = self.upstream.clone();
         let processor = self.processor.clone();
+        let log_failed_payloads = self.config.log_failed_payloads();
 
         let HandleEvent {
             data,
@@ -215,49 +262,50 @@ impl Handler<HandleEvent> for EventManager {
         } = message;
 
         let future = project
-            .send(GetEventAction::fetched(meta.clone()))
+            .send(GetProjectId)
+            .map(|one| one.into_inner())
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(|action| match action.map_err(ProcessingError::PiiFailed)? {
-                EventAction::Accept => Ok(()),
-                EventAction::Discard => Err(ProcessingError::EventRejected),
-            })
-            .and_then(clone!(project, |_| project
-                .send(GetProjectState)
-                .map_err(ProcessingError::ScheduleFailed)
-                .and_then(|result| result.map_err(ProcessingError::PiiFailed))))
-            .and_then(clone!(meta, event_id, |project_state| processor
-                .send(ProcessEvent {
-                    data,
-                    meta,
-                    event_id,
-                    project_state,
-                })
-                .map_err(ProcessingError::ScheduleFailed)
-                .flatten()))
-            .join(
+            .and_then(move |project_id| {
                 project
-                    .send(GetProjectId)
+                    .send(GetEventAction::fetched(meta.clone()))
                     .map_err(ProcessingError::ScheduleFailed)
-                    .and_then(|option| option.ok_or(ProcessingError::ProjectFailed)),
-            )
-            .and_then(move |(processed, project_id)| {
-                let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
-                    move |builder| {
-                        if let Some(origin) = meta.origin() {
-                            builder.header("Origin", origin.to_string());
-                        }
+                    .and_then(|action| match action.map_err(ProcessingError::PiiFailed)? {
+                        EventAction::Accept => Ok(()),
+                        EventAction::Discard => Err(ProcessingError::EventRejected),
+                    })
+                    .and_then(clone!(project, |_| project
+                        .send(GetProjectState)
+                        .map_err(ProcessingError::ScheduleFailed)
+                        .and_then(|result| result.map_err(ProcessingError::PiiFailed))))
+                    .and_then(clone!(meta, event_id, data, |project_state| processor
+                        .send(ProcessEvent {
+                            data,
+                            meta,
+                            event_id,
+                            project_id,
+                            project_state,
+                            log_failed_payloads,
+                        })
+                        .map_err(ProcessingError::ScheduleFailed)
+                        .flatten()))
+                    .and_then(move |processed| {
+                        let request = SendRequest::post(format!("/api/{}/store/", project_id))
+                            .build(move |builder| {
+                                if let Some(origin) = meta.origin() {
+                                    builder.header("Origin", origin.to_string());
+                                }
 
-                        builder
-                            .header("X-Sentry-Auth", meta.auth().to_string())
-                            .header("X-Forwarded-For", meta.forwarded_for())
-                            .body(processed.data)
-                    },
-                );
+                                builder
+                                    .header("X-Sentry-Auth", meta.auth().to_string())
+                                    .header("X-Forwarded-For", meta.forwarded_for())
+                                    .body(processed.data)
+                            });
 
-                upstream
-                    .send(request)
-                    .map_err(ProcessingError::ScheduleFailed)
-                    .and_then(|result| result.map_err(ProcessingError::SendFailed))
+                        upstream
+                            .send(request)
+                            .map_err(ProcessingError::ScheduleFailed)
+                            .and_then(|result| result.map_err(ProcessingError::SendFailed))
+                    })
             })
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)

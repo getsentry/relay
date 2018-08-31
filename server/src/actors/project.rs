@@ -15,7 +15,7 @@ use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, Retry
 
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
 use extractors::EventMeta;
-use utils::Response;
+use utils::{One, Response};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -122,14 +122,14 @@ impl Actor for Project {
 pub struct GetProjectId;
 
 impl Message for GetProjectId {
-    type Result = Option<ProjectId>;
+    type Result = One<ProjectId>;
 }
 
 impl Handler<GetProjectId> for Project {
-    type Result = Option<ProjectId>;
+    type Result = One<ProjectId>;
 
     fn handle(&mut self, _message: GetProjectId, _context: &mut Context<Self>) -> Self::Result {
-        Some(self.id)
+        One(self.id)
     }
 }
 

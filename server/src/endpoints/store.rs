@@ -6,10 +6,7 @@ use actix::prelude::*;
 use actix_web::http::Method;
 use actix_web::middleware::cors::Cors;
 use actix_web::{HttpRequest, HttpResponse, Json, ResponseError};
-use bytes::Bytes;
 use futures::prelude::*;
-use parking_lot::Mutex;
-use sentry::integrations::failure::event_from_fail;
 use sentry::{self, Hub};
 use sentry_actix::ActixWebHubExt;
 use uuid::Uuid;
@@ -95,10 +92,6 @@ fn store_event(
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
 
-    let log_failed_payloads = request.state().config().log_failed_payloads();
-    let read_data = Arc::new(Mutex::new(None::<Arc<Bytes>>));
-    let set_read_data = read_data.clone();
-
     let future = project_manager
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
@@ -118,14 +111,6 @@ fn store_event(
                         .map_err(BadStoreRequest::PayloadError)
                 })
                 .and_then(move |data| {
-                    let data = Arc::new(data);
-
-                    // in case we log failed payloads we stash the data away so that the
-                    // error reporting can access it later.
-                    if log_failed_payloads {
-                        *set_read_data.lock() = Some(data.clone());
-                    }
-
                     event_manager
                         .send(QueueEvent {
                             data,
@@ -138,20 +123,6 @@ fn store_event(
                 })
         })
         .map_err(move |error| {
-            if log_failed_payloads {
-                if let BadStoreRequest::ProcessingFailed(ProcessingError::InvalidJson(ref err)) =
-                    error
-                {
-                    let mut event = event_from_fail(err);
-                    let last = event.exceptions.len() - 1;
-                    event.exceptions[last].ty = "BadEventPayload".into();
-                    if let Some(ref body) = *read_data.lock() {
-                        event.message =
-                            Some(format!("payload: {}", String::from_utf8_lossy(&body)));
-                    };
-                    hub.capture_event(event);
-                }
-            }
             metric!(counter("event.rejected") += 1);
             error
         });
