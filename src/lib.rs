@@ -11,14 +11,15 @@ use actix_web::{AsyncResponder, Error, HttpRequest, HttpResponse};
 use futures::prelude::*;
 
 fn forward_upstream(request: &HttpRequest<()>) -> ResponseFuture<HttpResponse, Error> {
-    let mut forwarded_request_builder = ClientRequest::build();
-    forwarded_request_builder
+    ClientRequest::build()
         .method(request.method().clone())
-        .uri("http://localhost:9000/api/foo")
-        .header("Connection", "close");
-
-    forwarded_request_builder.finish().unwrap()
-        .send().map_err(Error::from)
+        .uri("http://localhost:3000/level2")
+        .header("Connection", "close")
+        .finish().unwrap()
+        .send().map_err(|e| {
+            println!("{:?}", e);
+            Error::from(e)
+        })
         .and_then(move |response| {
             let mut forwarded_response = HttpResponse::build(response.status());
             Ok(forwarded_response.finish())
@@ -31,7 +32,7 @@ pub fn run() {
 
     let mut server = server::new(|| {
         App::with_state(())
-            .handler("/api", forward_upstream)
+            .handler("/", forward_upstream)
     });
 
     server = server.bind("localhost:3000").unwrap();
