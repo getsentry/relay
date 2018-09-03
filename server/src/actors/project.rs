@@ -209,11 +209,6 @@ impl ProjectState {
         }
     }
 
-    /// Checks if a public key is enabled.
-    pub fn public_key_is_enabled(&self, public_key: &str) -> bool {
-        self.get_public_key_status(public_key) == PublicKeyStatus::Enabled
-    }
-
     /// Returns `true` if the entire project should be considered
     /// disabled (blackholed, deleted etc.).
     pub fn disabled(&self) -> bool {

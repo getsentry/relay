@@ -46,9 +46,6 @@ pub enum ProcessingError {
     #[fail(display = "failed to resolve PII config for project")]
     PiiFailed(#[cause] ProjectError),
 
-    #[fail(display = "failed to resolve project information")]
-    ProjectFailed,
-
     #[fail(display = "event submission rejected")]
     EventRejected,
 

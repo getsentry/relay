@@ -23,9 +23,6 @@ pub enum UpstreamRequestError {
     #[fail(display = "attempted to send upstream request without credentials configured")]
     NoCredentials,
 
-    #[fail(display = "could not schedule request to upstream")]
-    ScheduleFailed(#[cause] MailboxError),
-
     #[fail(display = "could not parse json payload returned by upstream: {}", _0)]
     InvalidJson(#[cause] JsonPayloadError),
 
@@ -310,18 +307,6 @@ impl<B, T> SendRequest<B, T> {
             path: self.path,
             builder: callback,
             transformer: self.transformer,
-        }
-    }
-
-    pub fn respond<F>(self, callback: F) -> SendRequest<B, F>
-    where
-        F: FnOnce(ClientResponse) -> T + 'static,
-    {
-        SendRequest {
-            method: self.method,
-            path: self.path,
-            builder: self.builder,
-            transformer: callback,
         }
     }
 }
