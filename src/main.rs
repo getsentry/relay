@@ -30,7 +30,6 @@ mod utils;
 use sentry::Hub;
 use std::env;
 use std::process;
-use std::time::Duration;
 
 pub fn main() {
     // on non windows machines we want to initialize the openssl envvars based on
@@ -68,6 +67,6 @@ pub fn main() {
         }
     };
 
-    Hub::with(|hub| hub.drain_events(Some(Duration::from_secs(2))));
+    Hub::current().client().map(|x| x.close(None));
     process::exit(exit_code);
 }

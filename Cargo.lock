@@ -813,10 +813,11 @@ dependencies = [
 
 [[package]]
 name = "im"
-version = "10.2.0"
+version = "12.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "typenum 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1531,7 +1532,7 @@ dependencies = [
  "pretty_env_logger 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "semaphore-common 0.1.3",
  "semaphore-server 0.1.3",
- "sentry 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sentry 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.999 (git+https://github.com/mitsuhiko/serde?rev=880a8c0181ad7202950f24cc8f6872994913441d)",
  "serde_derive 1.0.999 (git+https://github.com/mitsuhiko/serde?rev=880a8c0181ad7202950f24cc8f6872994913441d)",
  "serde_json 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1589,8 +1590,8 @@ dependencies = [
  "parking_lot 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "semaphore-common 0.1.3",
- "sentry 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sentry-actix 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sentry 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sentry-actix 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.999 (git+https://github.com/mitsuhiko/serde?rev=880a8c0181ad7202950f24cc8f6872994913441d)",
  "serde_derive 1.0.999 (git+https://github.com/mitsuhiko/serde?rev=880a8c0181ad7202950f24cc8f6872994913441d)",
  "serde_json 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1613,15 +1614,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "sentry"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "backtrace 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "fragile 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hostname 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "im 10.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "im 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1630,8 +1630,6 @@ dependencies = [
  "reqwest 0.8.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "sentry-types 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde 1.0.999 (git+https://github.com/mitsuhiko/serde?rev=880a8c0181ad7202950f24cc8f6872994913441d)",
- "serde_json 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "uname 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 1.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1639,12 +1637,13 @@ dependencies = [
 
 [[package]]
 name = "sentry-actix"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "actix-web 0.7.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sentry 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fragile 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sentry 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -2495,7 +2494,7 @@ dependencies = [
 "checksum hyper 0.11.27 (registry+https://github.com/rust-lang/crates.io-index)" = "34a590ca09d341e94cddf8e5af0bbccde205d5fbc2fa3c09dd67c7f85cea59d7"
 "checksum hyper-tls 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "ffb1bd5e518d3065840ab315dbbf44e4420e5f7d80e2cb93fa6ffffc50522378"
 "checksum idna 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "38f09e0f0b1fb55fdee1f17470ad800da77af5186a1a76c026b679358b7e844e"
-"checksum im 10.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "006e5c34d6fc287f91a90f53f19a8a859bade826e3153b137b8e1022ea54250b"
+"checksum im 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1ca4b379f0383e3a502dfdd6a9424fd9707633160d5215bb42d7e00db8a056ab"
 "checksum indexmap 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "08173ba1e906efb6538785a8844dd496f5d34f0a2d88038e95195172fc667220"
 "checksum iovec 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "dbe6e417e7d0975db6512b90796e8ce223145ac4e33c377e4a42882a0e88bb08"
 "checksum ipconfig 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "fccb81dd962b29a25de46c4f46e497b75117aa816468b6fff7a63a598a192394"
@@ -2577,8 +2576,8 @@ dependencies = [
 "checksum security-framework-sys 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ab01dfbe5756785b5b4d46e0289e5a18071dfa9a7c2b24213ea00b9ef9b665bf"
 "checksum semver 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1d7eb9ef2c18661902cc47e535f9bc51b78acd254da71d375c2f6720d9a40403"
 "checksum semver-parser 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
-"checksum sentry 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ccd9e608c3d0280552f3d1e1e29d0f2bbfee4790319c36e28bd39d17517a0e12"
-"checksum sentry-actix 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "da8fe1ce0ff9a6dfc6a836f479c3901974915fc24c41c2c18e5847843f237a2a"
+"checksum sentry 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "14e82466efe89eee77f9571419eb46d7333ffc64150ae394d33ff6a1d5ec604b"
+"checksum sentry-actix 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0fba737760debf5dbe6b15f7b6f89e29c4e4e03594dfa858878bda3bd7f9ee50"
 "checksum sentry-types 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)" = "63ec44abb8ae8afcb83575e623bac74ca3bc8359d3fc002027f13eb292e08d2b"
 "checksum sentry-types 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a1c8cdab0d68ff97aecb92077821683b065a5fef9ca40575152b2727ed07a041"
 "checksum serde 1.0.999 (git+https://github.com/mitsuhiko/serde?rev=880a8c0181ad7202950f24cc8f6872994913441d)" = "<none>"
