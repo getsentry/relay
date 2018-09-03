@@ -29,8 +29,13 @@ test: cargotest pytest integration-test
 .PHONY: test
 
 cargotest:
-	@cargo test --all
+	@cargo build --all
 .PHONY: cargotest
+
+cargotest-cov:
+	@cargo tarpaulin -v --all --out Xml
+	@bash <(curl -s https://codecov.io/bash)
+.PHONY: cargotest-cov
 
 manylinux:
 	@scripts/docker-manylinux.sh
