@@ -67,7 +67,7 @@ format-check:
 .PHONY: format-check
 
 lint:
-	@cargo +nightly clippy --tests --all -- -D clippy
+	@cargo +nightly clippy --tests --all -- -D clippy::all
 .PHONY: lint
 
 test-process-event:
