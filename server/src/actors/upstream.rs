@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use std::str;
 use std::sync::Arc;
 
+use actix::fut;
 use actix::prelude::*;
 use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse, SendRequestError};
 use actix_web::http::{header, Method, StatusCode};
@@ -22,9 +23,6 @@ pub enum UpstreamRequestError {
 
     #[fail(display = "attempted to send upstream request without credentials configured")]
     NoCredentials,
-
-    #[fail(display = "could not schedule request to upstream")]
-    ScheduleFailed(#[cause] MailboxError),
 
     #[fail(display = "could not parse json payload returned by upstream: {}", _0)]
     InvalidJson(#[cause] JsonPayloadError),
@@ -170,7 +168,7 @@ impl Handler<Authenticate> for UpstreamRelay {
             Some(x) => x,
             None => {
                 warn!("no credentials configured, not authenticating.");
-                return Box::new(Err(()).into_future().into_actor(self));
+                return Box::new(fut::err(()));
             }
         };
 
@@ -185,29 +183,29 @@ impl Handler<Authenticate> for UpstreamRelay {
         let future = self
             .send_query(request)
             .into_actor(self)
-            .and_then(|challenge, actor, _context| {
+            .and_then(|challenge, slf, _ctx| {
                 debug!("got register challenge (token = {})", challenge.token());
-                actor.auth_state = AuthState::RegisterChallengeResponse;
+                slf.auth_state = AuthState::RegisterChallengeResponse;
                 let challenge_response = challenge.create_response();
 
                 debug!("sending register challenge response");
-                actor.send_query(challenge_response).into_actor(actor)
+                slf.send_query(challenge_response).into_actor(slf)
             })
-            .map(|_, actor, _context| {
+            .map(|_, slf, _ctx| {
                 debug!("relay successfully registered with upstream");
-                actor.auth_state = AuthState::Registered;
+                slf.auth_state = AuthState::Registered;
             })
-            .map_err(|err, actor, context| {
+            .map_err(|err, slf, ctx| {
                 error!("authentication encountered error: {}", err);
 
-                let interval = actor.backoff.next_backoff();
+                let interval = slf.backoff.next_backoff();
                 debug!(
                     "scheduling authentication retry in {} seconds",
                     interval.as_secs()
                 );
 
-                actor.auth_state = AuthState::Error;
-                context.notify_later(Authenticate, interval);
+                slf.auth_state = AuthState::Error;
+                ctx.notify_later(Authenticate, interval);
             });
 
         Box::new(future)
@@ -310,18 +308,6 @@ impl<B, T> SendRequest<B, T> {
             path: self.path,
             builder: callback,
             transformer: self.transformer,
-        }
-    }
-
-    pub fn respond<F>(self, callback: F) -> SendRequest<B, F>
-    where
-        F: FnOnce(ClientResponse) -> T + 'static,
-    {
-        SendRequest {
-            method: self.method,
-            path: self.path,
-            builder: self.builder,
-            transformer: callback,
         }
     }
 }

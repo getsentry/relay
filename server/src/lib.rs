@@ -44,4 +44,16 @@ mod middlewares;
 mod service;
 mod utils;
 
-pub use service::*;
+use actors::controller::Controller;
+use actors::server::Server;
+use semaphore_common::Config;
+
+pub use actors::controller::ServerError;
+
+/// Runs a relay web server and spawns all internal worker threads.
+///
+/// This effectively boots the entire server application. It blocks the current thread until a
+/// shutdown signal is received or a fatal error happens.
+pub fn run(config: Config) -> Result<(), ServerError> {
+    Controller::run(|| Server::start(config))
+}

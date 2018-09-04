@@ -14,6 +14,7 @@ use actors::events::EventManager;
 use actors::keys::KeyCache;
 use actors::project::ProjectCache;
 use actors::upstream::UpstreamRelay;
+use constants::SHUTDOWN_TIMEOUT;
 use endpoints;
 use middlewares::{AddCommonHeaders, ErrorHandlers, Metrics};
 
@@ -91,6 +92,20 @@ pub struct ServiceState {
 }
 
 impl ServiceState {
+    /// Starts all services and returns addresses to all of them.
+    pub fn start(config: Config) -> Self {
+        let config = Arc::new(config);
+        let upstream_relay = UpstreamRelay::new(config.clone()).start();
+
+        ServiceState {
+            config: config.clone(),
+            upstream_relay: upstream_relay.clone(),
+            key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
+            project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
+            event_manager: EventManager::new(config.clone(), upstream_relay.clone()).start(),
+        }
+    }
+
     /// Returns an atomically counted reference to the config.
     pub fn config(&self) -> Arc<Config> {
         self.config.clone()
@@ -143,81 +158,88 @@ fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
     }
 }
 
-/// Given a relay config spawns the server together with all actors and lets them run forever.
-///
-/// Effectively this boots the server.
-pub fn run(config: Config) -> Result<(), ServerError> {
-    let config = Arc::new(config);
-    let sys = System::new("relay");
-
-    let upstream_relay = UpstreamRelay::new(config.clone()).start();
-
-    let service_state = ServiceState {
-        config: config.clone(),
-        upstream_relay: upstream_relay.clone(),
-        key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
-        project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
-        event_manager: EventManager::new(config.clone(), upstream_relay.clone()).start(),
-    };
-
-    let mut server = server::new(move || make_app(service_state.clone()));
-    let mut listenfd = ListenFd::from_env();
-
-    server = if let Some(listener) = listenfd
+fn listen<H>(
+    server: server::HttpServer<H>,
+    config: &Config,
+) -> Result<server::HttpServer<H>, ServerError>
+where
+    H: server::IntoHttpHandler + 'static,
+{
+    Ok(match ListenFd::from_env()
         .take_tcp_listener(0)
         .context(ServerErrorKind::BindFailed)?
     {
-        server.listen(listener)
-    } else {
-        server
+        Some(listener) => server.listen(listener),
+        None => server
             .bind(config.listen_addr())
-            .context(ServerErrorKind::BindFailed)?
-    };
+            .context(ServerErrorKind::BindFailed)?,
+    })
+}
 
-    #[cfg(feature = "with_ssl")]
-    {
-        if let (Some(addr), Some(path), Some(password)) = (
-            config.tls_listen_addr(),
-            config.tls_identity_path(),
-            config.tls_identity_password(),
-        ) {
-            use native_tls::{Identity, TlsAcceptor};
-            use std::fs::File;
-            use std::io::Read;
+#[cfg(feature = "with_ssl")]
+fn listen_ssl<H>(
+    mut server: server::HttpServer<H>,
+    config: &Config,
+) -> Result<server::HttpServer<H>, ServerError>
+where
+    H: server::IntoHttpHandler + 'static,
+{
+    if let (Some(addr), Some(path), Some(password)) = (
+        config.tls_listen_addr(),
+        config.tls_identity_path(),
+        config.tls_identity_password(),
+    ) {
+        use native_tls::{Identity, TlsAcceptor};
+        use std::fs::File;
+        use std::io::Read;
 
-            let mut file = File::open(path).unwrap();
-            let mut data = vec![];
-            file.read_to_end(&mut data).unwrap();
-            let identity =
-                Identity::from_pkcs12(&data, password).context(ServerErrorKind::TlsInitFailed)?;
+        let mut file = File::open(path).unwrap();
+        let mut data = vec![];
+        file.read_to_end(&mut data).unwrap();
+        let identity =
+            Identity::from_pkcs12(&data, password).context(ServerErrorKind::TlsInitFailed)?;
 
-            let acceptor = TlsAcceptor::builder(identity)
-                .build()
-                .context(ServerErrorKind::TlsInitFailed)?;
+        let acceptor = TlsAcceptor::builder(identity)
+            .build()
+            .context(ServerErrorKind::TlsInitFailed)?;
 
-            server = server
-                .bind_tls(addr, acceptor)
-                .context(ServerErrorKind::BindFailed)?;
-        }
+        server = server
+            .bind_tls(addr, acceptor)
+            .context(ServerErrorKind::BindFailed)?;
     }
 
-    #[cfg(not(feature = "with_ssl"))]
+    Ok(server)
+}
+
+#[cfg(not(feature = "with_ssl"))]
+fn listen_ssl<H>(
+    server: server::HttpServer<H>,
+    config: &Config,
+) -> Result<server::HttpServer<H>, ServerError>
+where
+    H: server::IntoHttpHandler + 'static,
+{
+    if config.tls_listen_addr().is_some()
+        || config.tls_identity_path().is_some()
+        || config.tls_identity_password().is_some()
     {
-        if config.tls_listen_addr().is_some()
-            || config.tls_identity_path().is_some()
-            || config.tls_identity_password().is_some()
-        {
-            Err(ServerErrorKind::TlsNotSupported)?;
-        }
+        Err(ServerErrorKind::TlsNotSupported)
+    } else {
+        Ok(server)
     }
+}
+
+/// Given a relay config spawns the server together with all actors and lets them run forever.
+///
+/// Effectively this boots the server.
+pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, ServerError> {
+    let config = state.config();
+    let mut server = server::new(move || make_app(state.clone()));
+    server = server.shutdown_timeout(SHUTDOWN_TIMEOUT).disable_signals();
+
+    server = listen(server, &config)?;
+    server = listen_ssl(server, &config)?;
 
     dump_listen_infos(&server);
-    info!("spawning relay server");
-
-    server.keep_alive(None).system_exit().start();
-    let _ = sys.run();
-
-    info!("relay shutdown complete");
-
-    Ok(())
+    Ok(server.start().recipient())
 }

@@ -12,11 +12,13 @@ use uuid::Uuid;
 use semaphore_common::v8::{self, Annotated, Event};
 use semaphore_common::{Config, ProjectId};
 
+use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError, ProjectState,
 };
 use actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use extractors::EventMeta;
+use utils::{SyncActorFuture, SyncHandle};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -46,9 +48,6 @@ pub enum ProcessingError {
     #[fail(display = "failed to resolve PII config for project")]
     PiiFailed(#[cause] ProjectError),
 
-    #[fail(display = "failed to resolve project information")]
-    ProjectFailed,
-
     #[fail(display = "event submission rejected")]
     EventRejected,
 
@@ -60,6 +59,9 @@ pub enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
+
+    #[fail(display = "shutdown timer expired")]
+    Shutdown,
 }
 
 struct EventProcessor;
@@ -170,6 +172,7 @@ pub struct EventManager {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     processor: Addr<EventProcessor>,
+    shutdown: SyncHandle,
 }
 
 impl EventManager {
@@ -184,6 +187,7 @@ impl EventManager {
             config,
             upstream,
             processor,
+            shutdown: SyncHandle::new(),
         }
     }
 }
@@ -191,8 +195,9 @@ impl EventManager {
 impl Actor for EventManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, _ctx: &mut Self::Context) {
+    fn started(&mut self, context: &mut Self::Context) {
         info!("event manager started");
+        Controller::from_registry().do_send(Subscribe(context.address().recipient()));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -340,6 +345,7 @@ impl Handler<HandleEvent> for EventManager {
             })
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
+            .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(move |error, _, _| {
                 warn!("error processing event {}: {}", event_id, error);
@@ -347,5 +353,18 @@ impl Handler<HandleEvent> for EventManager {
             });
 
         Box::new(future)
+    }
+}
+
+impl Handler<Shutdown> for EventManager {
+    type Result = ResponseFuture<(), TimeoutError>;
+
+    fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
+        match message.timeout {
+            Some(timeout) => self.shutdown.start(timeout),
+            None => self.shutdown.now(),
+        }
+
+        Box::new(self.shutdown.clone())
     }
 }
