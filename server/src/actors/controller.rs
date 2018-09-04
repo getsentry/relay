@@ -6,6 +6,8 @@ use actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
 
+use constants::SHUTDOWN_TIMEOUT;
+
 pub use service::ServerError;
 pub use utils::TimeoutError;
 
@@ -70,7 +72,7 @@ impl Controller {
 impl Default for Controller {
     fn default() -> Self {
         Controller {
-            timeout: Duration::from_secs(5),
+            timeout: Duration::from_secs(SHUTDOWN_TIMEOUT.into()),
             subscribers: Vec::new(),
         }
     }

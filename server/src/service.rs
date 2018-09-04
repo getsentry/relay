@@ -14,6 +14,7 @@ use actors::events::EventManager;
 use actors::keys::KeyCache;
 use actors::project::ProjectCache;
 use actors::upstream::UpstreamRelay;
+use constants::SHUTDOWN_TIMEOUT;
 use endpoints;
 use middlewares::{AddCommonHeaders, ErrorHandlers, Metrics};
 
@@ -234,6 +235,8 @@ where
 pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, ServerError> {
     let config = state.config();
     let mut server = server::new(move || make_app(state.clone()));
+    server = server.shutdown_timeout(SHUTDOWN_TIMEOUT);
+
     server = listen(server, &config)?;
     server = listen_ssl(server, &config)?;
 
