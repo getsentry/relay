@@ -13,10 +13,10 @@ use uuid::Uuid;
 
 use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff};
 
+use actors::controller::{Shutdown, TimeoutError};
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
 use extractors::EventMeta;
-use shutdown::{Shutdown, SyncActorFuture, SyncHandle, TimeoutError};
-use utils::{One, Response};
+use utils::{One, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {

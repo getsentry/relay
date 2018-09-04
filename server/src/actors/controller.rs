@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use actix::prelude::*;
 use actix_web::server::StopServer;
 
@@ -6,6 +8,7 @@ use semaphore_common::Config;
 use service::{self, ServiceState};
 
 pub use service::ServerError;
+pub use utils::TimeoutError;
 
 pub struct Controller {
     services: ServiceState,
@@ -37,4 +40,12 @@ impl Controller {
 
 impl Actor for Controller {
     type Context = Context<Self>;
+}
+
+pub struct Shutdown {
+    pub timeout: Option<Duration>,
+}
+
+impl Message for Shutdown {
+    type Result = Result<(), TimeoutError>;
 }

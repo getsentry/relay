@@ -10,14 +10,6 @@ use parking_lot::RwLock;
 #[fail(display = "timed out")]
 pub struct TimeoutError;
 
-pub struct Shutdown {
-    pub timeout: Option<Duration>,
-}
-
-impl Message for Shutdown {
-    type Result = Result<(), TimeoutError>;
-}
-
 #[derive(Debug)]
 struct SyncHandleInner {
     count: AtomicUsize,

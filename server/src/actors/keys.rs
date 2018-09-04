@@ -11,9 +11,9 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 
 use semaphore_common::{Config, PublicKey, RelayId, RetryBackoff};
 
+use actors::controller::{Shutdown, TimeoutError};
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
-use shutdown::{Shutdown, SyncActorFuture, SyncHandle, TimeoutError};
-use utils::{ApiErrorResponse, Response};
+use utils::{ApiErrorResponse, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 #[fail(display = "failed to fetch keys")]

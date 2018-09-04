@@ -12,12 +12,13 @@ use uuid::Uuid;
 use semaphore_common::v8::{self, Annotated, Event};
 use semaphore_common::{Config, ProjectId};
 
+use actors::controller::{Shutdown, TimeoutError};
 use actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError, ProjectState,
 };
 use actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use extractors::EventMeta;
-use shutdown::{Shutdown, SyncActorFuture, SyncHandle, TimeoutError};
+use utils::{SyncActorFuture, SyncHandle};
 
 macro_rules! clone {
     (@param _) => ( _ );
