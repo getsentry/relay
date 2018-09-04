@@ -9,8 +9,8 @@ use futures::prelude::*;
 pub use service::ServerError;
 pub use utils::TimeoutError;
 
-#[derive(Default)]
 pub struct Controller {
+    timeout: Duration,
     subscribers: Vec<Recipient<Shutdown>>,
 }
 
@@ -67,6 +67,15 @@ impl Controller {
     }
 }
 
+impl Default for Controller {
+    fn default() -> Self {
+        Controller {
+            timeout: Duration::from_secs(5),
+            subscribers: Vec::new(),
+        }
+    }
+}
+
 impl Actor for Controller {
     type Context = Context<Self>;
 
@@ -94,7 +103,7 @@ impl Handler<signal::Signal> for Controller {
                 self.shutdown(context, None);
             }
             signal::SignalType::Term => {
-                let timeout = Duration::from_secs(5); // TODO(ja)
+                let timeout = self.timeout;
                 info!("SIGTERM received, stopping in {}s", timeout.as_secs());
                 self.shutdown(context, Some(timeout));
             }
