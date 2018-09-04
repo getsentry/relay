@@ -211,3 +211,28 @@ def test_query_retry(failure_type, mini_sentry, relay):
         (_, error), = mini_sentry.test_failures
         assert isinstance(error, socket.error)
         mini_sentry.test_failures.clear()
+
+
+def test_local_project_config(mini_sentry, relay):
+    config = mini_sentry.basic_project_config()
+    del config['lastChange']
+    del config['lastFetch']
+    del config['rev']
+
+    relay = relay(mini_sentry, {
+        'projects': {
+            'configs': {
+                '42': config
+            }
+        }
+    })
+
+    relay.wait_relay_healthcheck()
+
+    client = sentry_sdk.Client(relay.dsn, default_integrations=False)
+    hub = sentry_sdk.Hub(client)
+    hub.capture_message("hü")
+    client.drain_events()
+
+    event = mini_sentry.captured_events.get(timeout=4)
+    assert event["message"] == "hü"
