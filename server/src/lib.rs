@@ -45,6 +45,7 @@ mod service;
 mod utils;
 
 use actors::controller::Controller;
+use actors::server::Server;
 use semaphore_common::Config;
 
 pub use actors::controller::ServerError;
@@ -54,5 +55,5 @@ pub use actors::controller::ServerError;
 /// This effectively boots the entire server application. It blocks the current thread until a
 /// shutdown signal is received or a fatal error happens.
 pub fn run(config: Config) -> Result<(), ServerError> {
-    Controller::run(config)
+    Controller::run(|| Server::start(config))
 }

@@ -3,36 +3,35 @@ use std::time::Duration;
 use actix::actors::signal;
 use actix::fut;
 use actix::prelude::*;
-use actix_web::server::StopServer;
 use futures::future;
 use futures::prelude::*;
-
-use semaphore_common::Config;
-
-use service::{self, ServiceState};
 
 pub use service::ServerError;
 pub use utils::TimeoutError;
 
+#[derive(Default)]
 pub struct Controller {
-    http_server: Recipient<StopServer>,
     subscribers: Vec<Recipient<Shutdown>>,
 }
 
 impl Controller {
-    pub fn start(config: Config) -> Result<Addr<Self>, ServerError> {
-        let controller = Controller {
-            http_server: service::start(ServiceState::start(config))?,
-            subscribers: Vec::new(),
-        };
-
-        Ok(controller.start())
-    }
-
-    pub fn run(config: Config) -> Result<(), ServerError> {
+    pub fn run<F, R, E>(factory: F) -> Result<(), E>
+    where
+        F: FnOnce() -> Result<R, E>,
+    {
         let sys = System::new("relay");
-        Self::start(config)?;
 
+        // Run the factory and exit early if an error happens. The return value of the factory is
+        // discarded for convenience, to allow shorthand notations.
+        factory()?;
+
+        // Ensure that the controller starts if no actor has started it yet. It will register with
+        // `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the
+        // controller will not be instanciated and our system will not listen for signals.
+        Controller::from_registry();
+
+        // All actors have started successfully. Run the system, which blocks the current thread
+        // until a signal arrives or `Controller::stop` is called.
         info!("relay server starting");
         sys.run();
         info!("relay shutdown complete");
@@ -72,15 +71,14 @@ impl Actor for Controller {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        // Subscribe for process signals. This will emit the appropriate shutdown events
         signal::ProcessSignals::from_registry()
             .do_send(signal::Subscribe(context.address().recipient()));
-
-        // Register for our own shutdown events to shut down the managed actix-web http server
-        let recipient = context.address().recipient();
-        context.notify(Subscribe(recipient));
     }
 }
+
+impl Supervised for Controller {}
+
+impl SystemService for Controller {}
 
 impl Handler<signal::Signal> for Controller {
     type Result = ();
@@ -125,23 +123,4 @@ pub struct Shutdown {
 
 impl Message for Shutdown {
     type Result = Result<(), TimeoutError>;
-}
-
-impl Handler<Shutdown> for Controller {
-    type Result = ResponseFuture<(), TimeoutError>;
-
-    fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
-        let graceful = message.timeout.is_some();
-
-        // We assume graceful shutdown if we're given a timeout. The actix-web http server is
-        // configured with the same timeout, so it will match. Unfortunately, we have to drop any
-        // errors  and replace them with the generic `TimeoutError`.
-        let future = self
-            .http_server
-            .send(StopServer { graceful })
-            .map_err(|_| TimeoutError)
-            .and_then(|result| result.map_err(|_| TimeoutError));
-
-        Box::new(future)
-    }
 }
