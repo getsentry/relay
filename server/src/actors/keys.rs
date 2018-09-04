@@ -12,7 +12,7 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 
 use semaphore_common::{Config, PublicKey, RelayId, RetryBackoff};
 
-use actors::controller::{Shutdown, TimeoutError};
+use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use utils::{ApiErrorResponse, Response, SyncActorFuture, SyncHandle};
 
@@ -208,8 +208,9 @@ impl KeyCache {
 impl Actor for KeyCache {
     type Context = Context<Self>;
 
-    fn started(&mut self, _ctx: &mut Self::Context) {
+    fn started(&mut self, context: &mut Self::Context) {
         info!("key cache started");
+        Controller::from_registry().do_send(Subscribe(context.address().recipient()));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {

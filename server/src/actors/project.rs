@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff};
 
-use actors::controller::{Shutdown, TimeoutError};
+use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use extractors::EventMeta;
 use utils::{One, Response, SyncActorFuture, SyncHandle};
@@ -467,8 +467,9 @@ impl ProjectCache {
 impl Actor for ProjectCache {
     type Context = Context<Self>;
 
-    fn started(&mut self, _ctx: &mut Self::Context) {
+    fn started(&mut self, context: &mut Self::Context) {
         info!("project cache started");
+        Controller::from_registry().do_send(Subscribe(context.address().recipient()));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {

@@ -12,7 +12,7 @@ use uuid::Uuid;
 use semaphore_common::v8::{self, Annotated, Event};
 use semaphore_common::{Config, ProjectId};
 
-use actors::controller::{Shutdown, TimeoutError};
+use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError, ProjectState,
 };
@@ -195,8 +195,9 @@ impl EventManager {
 impl Actor for EventManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, _ctx: &mut Self::Context) {
+    fn started(&mut self, context: &mut Self::Context) {
         info!("event manager started");
+        Controller::from_registry().do_send(Subscribe(context.address().recipient()));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
