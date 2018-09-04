@@ -235,7 +235,7 @@ where
 pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, ServerError> {
     let config = state.config();
     let mut server = server::new(move || make_app(state.clone()));
-    server = server.shutdown_timeout(SHUTDOWN_TIMEOUT);
+    server = server.shutdown_timeout(SHUTDOWN_TIMEOUT).disable_signals();
 
     server = listen(server, &config)?;
     server = listen_ssl(server, &config)?;
