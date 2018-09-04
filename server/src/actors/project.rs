@@ -4,10 +4,11 @@ use std::mem;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
+use actix::fut;
 use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
 use chrono::{DateTime, Utc};
-use futures::{future, future::Shared, sync::oneshot, Future};
+use futures::{future::Shared, sync::oneshot, Future};
 use url::Url;
 use uuid::Uuid;
 
@@ -104,7 +105,7 @@ impl Project {
                 }
 
                 sender.send(slf.state.clone()).ok();
-                future::ok(()).into_actor(slf)
+                fut::ok(())
             })
             .drop_err()
             .spawn(context);
@@ -455,7 +456,7 @@ impl ProjectCache {
                     ctx.run_later(slf.next_backoff(), Self::fetch_states);
                 }
 
-                future::ok(()).into_actor(slf)
+                fut::ok(())
             })
             .sync(&self.shutdown, ProjectError::Shutdown)
             .drop_err()

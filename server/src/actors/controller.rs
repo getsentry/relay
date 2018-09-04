@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use actix::actors::signal;
+use actix::fut;
 use actix::prelude::*;
 use actix_web::server::StopServer;
 use futures::future;
@@ -61,7 +62,7 @@ impl Controller {
             .into_actor(self)
             .and_then(|_, slf, ctx| {
                 slf.stop(ctx);
-                future::ok(()).into_actor(slf)
+                fut::ok(())
             })
             .spawn(context);
     }

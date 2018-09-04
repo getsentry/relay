@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use std::str;
 use std::sync::Arc;
 
+use actix::fut;
 use actix::prelude::*;
 use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse, SendRequestError};
 use actix_web::http::{header, Method, StatusCode};
@@ -167,7 +168,7 @@ impl Handler<Authenticate> for UpstreamRelay {
             Some(x) => x,
             None => {
                 warn!("no credentials configured, not authenticating.");
-                return Box::new(Err(()).into_future().into_actor(self));
+                return Box::new(fut::err(()));
             }
         };
 

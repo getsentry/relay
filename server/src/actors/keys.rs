@@ -5,6 +5,7 @@ use std::mem;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use actix::fut;
 use actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, ResponseError};
 use futures::{future, future::Shared, sync::oneshot, Future};
@@ -168,7 +169,7 @@ impl KeyCache {
                     ctx.run_later(slf.next_backoff(), Self::fetch_keys);
                 }
 
-                future::ok(()).into_actor(slf)
+                fut::ok(())
             })
             .sync(&self.shutdown, KeyError)
             .drop_err()
