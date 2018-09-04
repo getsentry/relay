@@ -42,6 +42,7 @@ mod endpoints;
 mod extractors;
 mod middlewares;
 mod service;
+mod shutdown;
 mod utils;
 
 use actors::controller::Controller;
