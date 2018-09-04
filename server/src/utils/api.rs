@@ -1,6 +1,5 @@
 use std::fmt;
 
-use actix::prelude::*;
 use failure::Fail;
 
 /// An error response from an api.

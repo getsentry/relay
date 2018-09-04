@@ -32,11 +32,11 @@ impl SyncHandleInner {
         self.timeout.read().map_or(false, |t| Instant::now() >= t)
     }
 
-    pub fn acquire(&mut self) {
+    pub fn acquire(&self) {
         self.count.fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn release(&mut self) {
+    pub fn release(&self) {
         self.count.fetch_sub(1, Ordering::Relaxed);
     }
 }
@@ -53,14 +53,14 @@ impl SyncHandle {
         }
     }
 
-    pub fn start(&mut self, timeout: Duration) {
+    pub fn start(&self, timeout: Duration) {
         self.inner
             .timeout
             .write()
             .get_or_insert_with(|| Instant::now() + timeout);
     }
 
-    pub fn now(&mut self) {
+    pub fn now(&self) {
         *self.inner.timeout.write() = Some(Instant::now())
     }
 
@@ -107,9 +107,11 @@ pub struct SyncedFuture<F, E> {
 
 impl<F, E> SyncedFuture<F, E> {
     pub fn new(inner: F, handle: &SyncHandle, error: E) -> Self {
-        handle.inner.acquire();
+        let handle = handle.inner.clone();
+        handle.acquire();
+
         SyncedFuture {
-            handle: handle.inner.clone(),
+            handle,
             inner,
             error: Some(error),
         }
