@@ -1,7 +1,10 @@
 use std::time::Duration;
 
+use actix::actors::signal;
 use actix::prelude::*;
 use actix_web::server::StopServer;
+use futures::future;
+use futures::prelude::*;
 
 use semaphore_common::Config;
 
@@ -10,20 +13,25 @@ use service::{self, ServiceState};
 pub use service::ServerError;
 pub use utils::TimeoutError;
 
+#[derive(Debug, Fail)]
+pub enum ControllerError {
+    #[fail(display = "could schedule http server shutdown")]
+    ServerStopFailed,
+}
+
 pub struct Controller {
-    services: ServiceState,
     http_server: Recipient<StopServer>,
+    subscribers: Vec<Recipient<Shutdown>>,
 }
 
 impl Controller {
     pub fn start(config: Config) -> Result<Addr<Self>, ServerError> {
-        let services = ServiceState::start(config);
-        let http_server = service::start(services.clone())?;
+        let controller = Controller {
+            http_server: service::start(ServiceState::start(config))?,
+            subscribers: Vec::new(),
+        };
 
-        Ok(Controller {
-            services,
-            http_server,
-        }.start())
+        Ok(controller.start())
     }
 
     pub fn run(config: Config) -> Result<(), ServerError> {
@@ -36,10 +44,74 @@ impl Controller {
 
         Ok(())
     }
+
+    pub fn stop(&mut self, context: &mut Context<Self>) {
+        context.run_later(Duration::from_millis(100), |_, _| System::current().stop());
+    }
+
+    fn shutdown(&mut self, context: &mut Context<Self>, timeout: Option<Duration>) {
+        let futures: Vec<_> = self
+            .subscribers
+            .iter()
+            .map(|recipient| recipient.send(Shutdown { timeout }))
+            .collect();
+
+        future::join_all(futures)
+            .into_actor(self)
+            .then(|_, actor, context| future::ok(actor.stop(context)).into_actor(actor))
+            .spawn(context);
+    }
 }
 
 impl Actor for Controller {
     type Context = Context<Self>;
+
+    fn started(&mut self, context: &mut Self::Context) {
+        // Subscribe for process signals. This will emit the appropriate shutdown events
+        signal::ProcessSignals::from_registry()
+            .do_send(signal::Subscribe(context.address().recipient()));
+
+        // Register for our own shutdown events to shut down the managed actix-web http server
+        let recipient = context.address().recipient();
+        context.notify(Subscribe(recipient));
+    }
+}
+
+impl Handler<signal::Signal> for Controller {
+    type Result = ();
+
+    fn handle(&mut self, message: signal::Signal, context: &mut Self::Context) -> Self::Result {
+        match message.0 {
+            signal::SignalType::Int => {
+                info!("SIGINT received, exiting");
+                self.shutdown(context, None);
+            }
+            signal::SignalType::Quit => {
+                info!("SIGQUIT received, exiting");
+                self.shutdown(context, None);
+            }
+            signal::SignalType::Term => {
+                let timeout = Duration::from_secs(5); // TODO(ja)
+                info!("SIGTERM received, stopping in {}s", timeout.as_secs());
+                self.shutdown(context, Some(timeout));
+            }
+            _ => (),
+        }
+    }
+}
+
+pub struct Subscribe(pub Recipient<Shutdown>);
+
+impl Message for Subscribe {
+    type Result = ();
+}
+
+impl Handler<Subscribe> for Controller {
+    type Result = ();
+
+    fn handle(&mut self, message: Subscribe, _context: &mut Self::Context) -> Self::Result {
+        self.subscribers.push(message.0)
+    }
 }
 
 pub struct Shutdown {
@@ -48,4 +120,23 @@ pub struct Shutdown {
 
 impl Message for Shutdown {
     type Result = Result<(), TimeoutError>;
+}
+
+impl Handler<Shutdown> for Controller {
+    type Result = ResponseFuture<(), TimeoutError>;
+
+    fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
+        let graceful = message.timeout.is_some();
+
+        // We assume graceful shutdown if we're given a timeout. The actix-web http server is
+        // configured with the same timeout, so it will match. Unfortunately, we have to drop any
+        // errors  and replace them with the generic `TimeoutError`.
+        let future = self
+            .http_server
+            .send(StopServer { graceful })
+            .map_err(|_| TimeoutError)
+            .and_then(|result| result.map_err(|_| TimeoutError));
+
+        Box::new(future)
+    }
 }
