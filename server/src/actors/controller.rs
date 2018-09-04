@@ -13,12 +13,6 @@ use service::{self, ServiceState};
 pub use service::ServerError;
 pub use utils::TimeoutError;
 
-#[derive(Debug, Fail)]
-pub enum ControllerError {
-    #[fail(display = "could schedule http server shutdown")]
-    ServerStopFailed,
-}
-
 pub struct Controller {
     http_server: Recipient<StopServer>,
     subscribers: Vec<Recipient<Shutdown>>,
@@ -50,15 +44,22 @@ impl Controller {
     }
 
     fn shutdown(&mut self, context: &mut Context<Self>, timeout: Option<Duration>) {
+        // Send a shutdown signal to all registered subscribers (including self). They will report
+        // when the shutdown has completed. Note that we ignore all errors to make sure that we
+        // don't cancel the shutdown of other actors if one actor fails.
         let futures: Vec<_> = self
             .subscribers
             .iter()
             .map(|recipient| recipient.send(Shutdown { timeout }))
+            .map(|future| future.then(|_| Ok(())))
             .collect();
 
+        // Once all shutdowns have completed, we can schedule a stop of the actix system. It is
+        // performed with a slight delay to give pending synced futures a chance to perform their
+        // error handlers.
         future::join_all(futures)
             .into_actor(self)
-            .then(|_, actor, context| future::ok(actor.stop(context)).into_actor(actor))
+            .and_then(|_, actor, context| future::ok(actor.stop(context)).into_actor(actor))
             .spawn(context);
     }
 }

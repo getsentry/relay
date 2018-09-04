@@ -14,7 +14,7 @@ use uuid::Uuid;
 use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff};
 
 use actors::controller::{Shutdown, TimeoutError};
-use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
+use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use extractors::EventMeta;
 use utils::{One, Response, SyncActorFuture, SyncHandle};
 
@@ -28,9 +28,6 @@ pub enum ProjectError {
 
     #[fail(display = "could not schedule project fetching")]
     ScheduleFailed(#[cause] MailboxError),
-
-    #[fail(display = "failed to fetch projects from upstream")]
-    UpstreamFailed(#[fail(cause)] UpstreamRequestError),
 
     #[fail(display = "shutdown timer expired")]
     Shutdown,
