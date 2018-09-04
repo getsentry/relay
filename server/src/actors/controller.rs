@@ -59,7 +59,10 @@ impl Controller {
         // error handlers.
         future::join_all(futures)
             .into_actor(self)
-            .and_then(|_, actor, context| future::ok(actor.stop(context)).into_actor(actor))
+            .and_then(|_, slf, ctx| {
+                slf.stop(ctx);
+                future::ok(()).into_actor(slf)
+            })
             .spawn(context);
     }
 }

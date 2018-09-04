@@ -141,14 +141,14 @@ impl KeyCache {
             .send(SendQuery(request))
             .map_err(|_| KeyError)
             .into_actor(self)
-            .and_then(|response, actor, context| {
+            .and_then(|response, slf, ctx| {
                 match response {
                     Ok(mut response) => {
-                        actor.backoff.reset();
+                        slf.backoff.reset();
 
                         for (id, channel) in channels {
                             let key = response.public_keys.remove(&id).unwrap_or(None);
-                            actor.keys.insert(id, KeyState::from_option(key.clone()));
+                            slf.keys.insert(id, KeyState::from_option(key.clone()));
                             debug!("relay {} public key updated", id);
                             channel.send(key).ok();
                         }
@@ -156,19 +156,19 @@ impl KeyCache {
                     Err(error) => {
                         error!("error fetching public keys: {}", error);
 
-                        if !actor.shutdown.started() {
+                        if !slf.shutdown.started() {
                             // Put the channels back into the queue, in addition to channels that have
                             // been pushed in the meanwhile. We will retry again shortly.
-                            actor.key_channels.extend(channels);
+                            slf.key_channels.extend(channels);
                         }
                     }
                 }
 
-                if !actor.key_channels.is_empty() && !actor.shutdown.started() {
-                    context.run_later(actor.next_backoff(), Self::fetch_keys);
+                if !slf.key_channels.is_empty() && !slf.shutdown.started() {
+                    ctx.run_later(slf.next_backoff(), Self::fetch_keys);
                 }
 
-                future::ok(()).into_actor(actor)
+                future::ok(()).into_actor(slf)
             })
             .sync(&self.shutdown, KeyError)
             .drop_err()

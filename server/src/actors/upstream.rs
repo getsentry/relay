@@ -182,29 +182,29 @@ impl Handler<Authenticate> for UpstreamRelay {
         let future = self
             .send_query(request)
             .into_actor(self)
-            .and_then(|challenge, actor, _context| {
+            .and_then(|challenge, slf, _ctx| {
                 debug!("got register challenge (token = {})", challenge.token());
-                actor.auth_state = AuthState::RegisterChallengeResponse;
+                slf.auth_state = AuthState::RegisterChallengeResponse;
                 let challenge_response = challenge.create_response();
 
                 debug!("sending register challenge response");
-                actor.send_query(challenge_response).into_actor(actor)
+                slf.send_query(challenge_response).into_actor(slf)
             })
-            .map(|_, actor, _context| {
+            .map(|_, slf, _ctx| {
                 debug!("relay successfully registered with upstream");
-                actor.auth_state = AuthState::Registered;
+                slf.auth_state = AuthState::Registered;
             })
-            .map_err(|err, actor, context| {
+            .map_err(|err, slf, ctx| {
                 error!("authentication encountered error: {}", err);
 
-                let interval = actor.backoff.next_backoff();
+                let interval = slf.backoff.next_backoff();
                 debug!(
                     "scheduling authentication retry in {} seconds",
                     interval.as_secs()
                 );
 
-                actor.auth_state = AuthState::Error;
-                context.notify_later(Authenticate, interval);
+                slf.auth_state = AuthState::Error;
+                ctx.notify_later(Authenticate, interval);
             });
 
         Box::new(future)

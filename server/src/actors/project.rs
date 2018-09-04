@@ -95,16 +95,16 @@ impl Project {
         self.manager
             .send(FetchProjectState { id })
             .into_actor(self)
-            .and_then(move |state_result, actor, _context| {
-                actor.state_channel = None;
-                actor.state = state_result.map(Arc::new).ok();
+            .and_then(move |state_result, slf, _ctx| {
+                slf.state_channel = None;
+                slf.state = state_result.map(Arc::new).ok();
 
-                if actor.state.is_some() {
+                if slf.state.is_some() {
                     debug!("project {} state updated", id);
                 }
 
-                sender.send(actor.state.clone()).ok();
-                future::ok(()).into_actor(actor)
+                sender.send(slf.state.clone()).ok();
+                future::ok(()).into_actor(slf)
             })
             .drop_err()
             .spawn(context);
@@ -425,10 +425,10 @@ impl ProjectCache {
             .send(SendQuery(request))
             .map_err(ProjectError::ScheduleFailed)
             .into_actor(self)
-            .and_then(|response, actor, context| {
+            .and_then(|response, slf, ctx| {
                 match response {
                     Ok(mut response) => {
-                        actor.backoff.reset();
+                        slf.backoff.reset();
 
                         for (id, channel) in channels {
                             let state = response
@@ -443,19 +443,19 @@ impl ProjectCache {
                     Err(error) => {
                         error!("error fetching project states: {}", error);
 
-                        if !actor.shutdown.started() {
+                        if !slf.shutdown.started() {
                             // Put the channels back into the queue, in addition to channels that have
                             // been pushed in the meanwhile. We will retry again shortly.
-                            actor.state_channels.extend(channels);
+                            slf.state_channels.extend(channels);
                         }
                     }
                 }
 
-                if !actor.state_channels.is_empty() && !actor.shutdown.started() {
-                    context.run_later(actor.next_backoff(), Self::fetch_states);
+                if !slf.state_channels.is_empty() && !slf.shutdown.started() {
+                    ctx.run_later(slf.next_backoff(), Self::fetch_states);
                 }
 
-                future::ok(()).into_actor(actor)
+                future::ok(()).into_actor(slf)
             })
             .sync(&self.shutdown, ProjectError::Shutdown)
             .drop_err()
