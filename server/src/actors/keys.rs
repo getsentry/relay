@@ -12,6 +12,7 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 use semaphore_common::{Config, PublicKey, RelayId, RetryBackoff};
 
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+use shutdown::{Shutdown, SyncActorFuture, SyncHandle, TimeoutError};
 use utils::{ApiErrorResponse, Response};
 
 #[derive(Fail, Debug)]
@@ -97,6 +98,7 @@ pub struct KeyCache {
     upstream: Addr<UpstreamRelay>,
     keys: HashMap<RelayId, KeyState>,
     key_channels: HashMap<RelayId, KeyChannel>,
+    shutdown: SyncHandle,
 }
 
 impl KeyCache {
@@ -107,6 +109,7 @@ impl KeyCache {
             upstream,
             keys: HashMap::new(),
             key_channels: HashMap::new(),
+            shutdown: SyncHandle::new(),
         }
     }
 
@@ -136,8 +139,8 @@ impl KeyCache {
 
         self.upstream
             .send(SendQuery(request))
+            .map_err(|_| KeyError)
             .into_actor(self)
-            .map_err(|_, _, _| KeyError)
             .and_then(|response, actor, context| {
                 match response {
                     Ok(mut response) => {
@@ -151,19 +154,23 @@ impl KeyCache {
                         }
                     }
                     Err(error) => {
-                        // Put the channels back into the queue, in addition to channels that have
-                        // been pushed in the meanwhile. We will retry again shortly.
-                        actor.key_channels.extend(channels);
                         error!("error fetching public keys: {}", error);
+
+                        if !actor.shutdown.started() {
+                            // Put the channels back into the queue, in addition to channels that have
+                            // been pushed in the meanwhile. We will retry again shortly.
+                            actor.key_channels.extend(channels);
+                        }
                     }
                 }
 
-                if !actor.key_channels.is_empty() {
+                if !actor.key_channels.is_empty() && !actor.shutdown.started() {
                     context.run_later(actor.next_backoff(), Self::fetch_keys);
                 }
 
                 future::ok(()).into_actor(actor)
             })
+            .sync(&self.shutdown, KeyError)
             .drop_err()
             .spawn(context);
     }
@@ -289,5 +296,18 @@ impl Handler<GetPublicKeys> for KeyCache {
         });
 
         Response::async(future)
+    }
+}
+
+impl Handler<Shutdown> for KeyCache {
+    type Result = ResponseFuture<(), TimeoutError>;
+
+    fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
+        match message.timeout {
+            Some(timeout) => self.shutdown.start(timeout),
+            None => self.shutdown.now(),
+        }
+
+        Box::new(self.shutdown.clone())
     }
 }

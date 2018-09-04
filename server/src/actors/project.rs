@@ -15,16 +15,25 @@ use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, Retry
 
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError};
 use extractors::EventMeta;
+use shutdown::{Shutdown, SyncActorFuture, SyncHandle, TimeoutError};
 use utils::{One, Response};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
     #[fail(display = "project state request canceled")]
     Canceled,
+
     #[fail(display = "failed to fetch project state")]
     FetchFailed,
+
+    #[fail(display = "could not schedule project fetching")]
+    ScheduleFailed(#[cause] MailboxError),
+
     #[fail(display = "failed to fetch projects from upstream")]
     UpstreamFailed(#[fail(cause)] UpstreamRequestError),
+
+    #[fail(display = "shutdown timer expired")]
+    Shutdown,
 }
 
 impl ResponseError for ProjectError {}
@@ -376,6 +385,7 @@ pub struct ProjectCache {
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
     state_channels: HashMap<ProjectId, oneshot::Sender<ProjectState>>,
+    shutdown: SyncHandle,
 }
 
 impl ProjectCache {
@@ -386,6 +396,7 @@ impl ProjectCache {
             upstream,
             projects: HashMap::new(),
             state_channels: HashMap::new(),
+            shutdown: SyncHandle::new(),
         }
     }
 
@@ -415,7 +426,7 @@ impl ProjectCache {
 
         self.upstream
             .send(SendQuery(request))
-            .map_err(|_| ProjectError::UpstreamFailed)
+            .map_err(ProjectError::ScheduleFailed)
             .into_actor(self)
             .and_then(|response, actor, context| {
                 match response {
@@ -433,19 +444,23 @@ impl ProjectCache {
                         }
                     }
                     Err(error) => {
-                        // Put the channels back into the queue, in addition to channels that have
-                        // been pushed in the meanwhile. We will retry again shortly.
-                        actor.state_channels.extend(channels);
                         error!("error fetching project states: {}", error);
+
+                        if !actor.shutdown.started() {
+                            // Put the channels back into the queue, in addition to channels that have
+                            // been pushed in the meanwhile. We will retry again shortly.
+                            actor.state_channels.extend(channels);
+                        }
                     }
                 }
 
-                if !actor.state_channels.is_empty() {
+                if !actor.state_channels.is_empty() && !actor.shutdown.started() {
                     context.run_later(actor.next_backoff(), Self::fetch_states);
                 }
 
                 future::ok(()).into_actor(actor)
             })
+            .sync(&self.shutdown, ProjectError::Shutdown)
             .drop_err()
             .spawn(context);
     }
@@ -507,5 +522,18 @@ impl Handler<FetchProjectState> for ProjectCache {
         }
 
         Response::async(receiver.map_err(|_| ()))
+    }
+}
+
+impl Handler<Shutdown> for ProjectCache {
+    type Result = ResponseFuture<(), TimeoutError>;
+
+    fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
+        match message.timeout {
+            Some(timeout) => self.shutdown.start(timeout),
+            None => self.shutdown.now(),
+        }
+
+        Box::new(self.shutdown.clone())
     }
 }
