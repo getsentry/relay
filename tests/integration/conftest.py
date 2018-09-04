@@ -105,7 +105,7 @@ def mini_sentry(request):
     @request.addfinalizer
     def reraise_test_failures():
         if sentry.test_failures:
-            raise AssertionError(f"Exceptions happened in mini_sentry: {sentry.est_failures}")
+            raise AssertionError(f"Exceptions happened in mini_sentry: {sentry.test_failures}")
 
     server = WSGIServer(application=app, threaded=True)
     server.start()
