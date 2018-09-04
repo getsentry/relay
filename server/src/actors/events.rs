@@ -17,6 +17,7 @@ use actors::project::{
 };
 use actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use extractors::EventMeta;
+use shutdown::{Shutdown, SyncActorFuture, SyncHandle, TimeoutError};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -57,6 +58,9 @@ pub enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
+
+    #[fail(display = "shutdown timer expired")]
+    Shutdown,
 }
 
 struct EventProcessor;
@@ -167,6 +171,7 @@ pub struct EventManager {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     processor: Addr<EventProcessor>,
+    shutdown: SyncHandle,
 }
 
 impl EventManager {
@@ -181,6 +186,7 @@ impl EventManager {
             config,
             upstream,
             processor,
+            shutdown: SyncHandle::new(),
         }
     }
 }
@@ -337,6 +343,7 @@ impl Handler<HandleEvent> for EventManager {
             })
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
+            .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(move |error, _, _| {
                 warn!("error processing event {}: {}", event_id, error);
@@ -344,5 +351,18 @@ impl Handler<HandleEvent> for EventManager {
             });
 
         Box::new(future)
+    }
+}
+
+impl Handler<Shutdown> for EventManager {
+    type Result = ResponseFuture<(), TimeoutError>;
+
+    fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
+        match message.timeout {
+            Some(timeout) => self.shutdown.start(timeout),
+            None => self.shutdown.now(),
+        }
+
+        Box::new(self.shutdown.clone())
     }
 }
