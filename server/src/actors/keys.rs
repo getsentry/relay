@@ -14,7 +14,7 @@ use semaphore_common::{Config, PublicKey, RelayId, RetryBackoff};
 
 use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
-use utils::{ApiErrorResponse, Response, SyncActorFuture, SyncHandle};
+use utils::{self, ApiErrorResponse, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 #[fail(display = "failed to fetch keys")]
@@ -122,6 +122,13 @@ impl KeyCache {
         self.config.query_batch_interval() + self.backoff.next_backoff()
     }
 
+    /// Schedules a batched upstream query with exponential backoff.
+    fn schedule_fetch(&mut self, context: &mut Context<Self>) {
+        utils::run_later(self.next_backoff(), Self::fetch_keys)
+            .sync(&self.shutdown, ())
+            .spawn(context)
+    }
+
     /// Executes an upstream request to fetch public keys.
     ///
     /// This assumes that currently no request is running. If the upstream request fails or new
@@ -166,7 +173,7 @@ impl KeyCache {
                 }
 
                 if !slf.key_channels.is_empty() && !slf.shutdown.requested() {
-                    ctx.run_later(slf.next_backoff(), Self::fetch_keys);
+                    slf.schedule_fetch(ctx);
                 }
 
                 fut::ok(())
@@ -190,7 +197,7 @@ impl KeyCache {
         debug!("relay {} public key requested", relay_id);
         if !self.backoff.started() {
             self.backoff.reset();
-            context.run_later(self.next_backoff(), Self::fetch_keys);
+            self.schedule_fetch(context);
         }
 
         let receiver = self

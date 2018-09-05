@@ -42,8 +42,11 @@ pub enum ProcessingError {
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] v8::Error),
 
-    #[fail(display = "could not schedule project fetching")]
+    #[fail(display = "could not schedule project fetch")]
     ScheduleFailed(#[cause] MailboxError),
+
+    #[fail(display = "failed to determine event action")]
+    NoAction(#[cause] ProjectError),
 
     #[fail(display = "failed to resolve PII config for project")]
     PiiFailed(#[cause] ProjectError),
@@ -300,7 +303,7 @@ impl Handler<HandleEvent> for EventManager {
                 project
                     .send(GetEventAction::fetched(meta.clone()))
                     .map_err(ProcessingError::ScheduleFailed)
-                    .and_then(|action| match action.map_err(ProcessingError::PiiFailed)? {
+                    .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                         EventAction::Accept => Ok(()),
                         EventAction::Discard => Err(ProcessingError::EventRejected),
                     })
