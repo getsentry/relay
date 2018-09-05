@@ -310,11 +310,13 @@ pub struct ProjectConfig {
 #[serde(rename_all = "camelCase")]
 pub struct StaticProjectState {
     /// Indicates that the project is disabled.
+    #[serde(default)]
     pub disabled: bool,
     /// A container of known public keys in the project.
     pub public_keys: HashMap<String, bool>,
     /// The project's slug if configured.
-    pub slug: String,
+    #[serde(default)]
+    pub slug: Option<String>,
     /// The project's current config.
     pub config: ProjectConfig,
 }

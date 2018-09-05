@@ -215,14 +215,15 @@ def test_query_retry(failure_type, mini_sentry, relay):
 
 def test_local_project_config(mini_sentry, relay):
     config = mini_sentry.basic_project_config()
-    del config['lastChange']
-    del config['lastFetch']
-    del config['rev']
 
     relay = relay(mini_sentry, {
         'projects': {
             'configs': {
-                '42': config
+                '42': {
+                    # remove defaults to assert they work
+                    'publicKeys': config['publicKeys'],
+                    'config': config['config'],
+                }
             }
         }
     })
