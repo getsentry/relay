@@ -1,13 +1,13 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use actix::prelude::*;
-use futures::future::{Either, Shared};
+use futures::future::Shared;
 use futures::prelude::*;
 use futures::sync::oneshot;
 use parking_lot::RwLock;
-use tokio_timer::Delay;
+use tokio_timer::Timeout;
 
 #[derive(Debug, Fail, Copy, Clone, Eq, PartialEq)]
 #[fail(display = "timed out")]
@@ -49,7 +49,7 @@ pub struct SyncHandle {
     inner: Arc<SyncHandleInner>,
     timeout_tx: Option<oneshot::Sender<()>>,
     timeout_rx: Shared<oneshot::Receiver<()>>,
-    future: Option<Shared<ResponseFuture<(), TimeoutError>>>,
+    future: Option<Shared<ResponseFuture<(), ()>>>,
 }
 
 impl SyncHandle {
@@ -81,19 +81,11 @@ impl SyncHandle {
                 *self.inner.sync_tx.write() = Some(sync_tx);
                 self.inner.check();
 
-                let future = sync_rx.select2(Delay::new(Instant::now() + timeout)).then(
-                    move |result| match result {
-                        Ok(Either::A(_)) => Ok(()),
-                        Ok(Either::B(_)) => {
-                            timeout_tx.send(()).ok();
-                            Err(TimeoutError)
-                        }
-                        Err(_) => unreachable!(),
-                    },
-                );
+                let future = Box::new(Timeout::new(sync_rx, timeout).map_err(|_| {
+                    timeout_tx.send(()).ok();
+                })) as ResponseFuture<(), ()>;
 
-                let shared = (Box::new(future) as ResponseFuture<_, _>).shared();
-                self.future.get_or_insert(shared)
+                self.future.get_or_insert(future.shared())
             }
         };
 
