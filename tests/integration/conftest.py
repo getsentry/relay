@@ -2,6 +2,7 @@ import os
 import uuid
 import pytest
 import json
+import signal
 import socket
 import subprocess
 import time
@@ -245,6 +246,15 @@ class Relay(SentryLike):
         self.public_key = public_key
         self.relay_id = relay_id
 
+    def shutdown(self, graceful=True):
+        sig = signal.SIGTERM if graceful else signal.SIGINT
+        self.process.send_signal(sig)
+
+        try:
+            self.process.wait(12)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            raise
 
 @pytest.fixture
 def background_process(request):
