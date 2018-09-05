@@ -289,7 +289,6 @@ def config_dir(tmpdir):
 @pytest.fixture
 def relay(tmpdir, mini_sentry, request, random_port, background_process, config_dir):
     def inner(upstream, options=None, use_ssl=False):
-        host = "127.0.0.1"
         port = random_port()
 
         tls_port = tls_identity_path = tls_identity_password = None
@@ -302,7 +301,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
         default_opts = {
             "relay": {
                 "upstream": upstream.url,
-                "host": host,
+                "host": "127.0.0.1",
                 "port": port,
                 "tls_port": tls_port,
                 "tls_identity_path": tls_identity_path,
@@ -340,7 +339,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
         assert public_key
         assert relay_id
 
-        return Relay((host, port if not use_ssl else tls_port), process, upstream, public_key, relay_id, use_ssl)
+        return Relay(("localhost", port if not use_ssl else tls_port), process, upstream, public_key, relay_id, use_ssl)
 
     return inner
 
@@ -358,7 +357,6 @@ def gobetween(background_process, random_port, config_dir):
         if shutil.which(GOBETWEEN_BIN[0]) is None:
             pytest.skip("Gobetween not installed")
 
-        host = "127.0.0.1"
         port = random_port()
 
         config = config_dir("gobetween").join("config.json")
@@ -368,7 +366,7 @@ def gobetween(background_process, random_port, config_dir):
                     "logging": {"level": "debug", "output": "stdout"},
                     "api": {
                         "enabled": True,
-                        "bind": f"{host}:{random_port()}",
+                        "bind": f"127.0.0.1:{random_port()}",
                         "cors": False,
                     },
                     "defaults": {
@@ -380,7 +378,7 @@ def gobetween(background_process, random_port, config_dir):
                     "servers": {
                         "sample": {
                             "protocol": "tcp",
-                            "bind": f"{host}:{port}",
+                            "bind": f"127.0.0.1:{port}",
                             "discovery": {
                                 "kind": "static",
                                 "static_list": [
@@ -398,7 +396,7 @@ def gobetween(background_process, random_port, config_dir):
             GOBETWEEN_BIN + ["from-file", "-fjson", str(config)]
         )
 
-        return Gobetween((host, port), process, upstreams)
+        return Gobetween(("localhost", port), process, upstreams)
 
     return inner
 
@@ -416,7 +414,6 @@ def haproxy(background_process, random_port, config_dir):
         if shutil.which(HAPROXY_BIN[0]) is None:
             pytest.skip("HAProxy not installed")
 
-        host = "127.0.0.1"
         port = random_port()
 
         config = config_dir("haproxy").join("config")
@@ -433,7 +430,7 @@ def haproxy(background_process, random_port, config_dir):
             f"    option forwardfor",
             f"    option redispatch",
             f"frontend defaultFront",
-            f"    bind {host}:{port}",
+            f"    bind 127.0.0.1:{port}",
             f"    default_backend defaultBack",
             f"backend defaultBack",
             f"    balance roundrobin",
@@ -449,7 +446,7 @@ def haproxy(background_process, random_port, config_dir):
 
         process = background_process(HAPROXY_BIN + ["-f", str(config)])
 
-        return HAProxy((host, port), process, upstreams)
+        return HAProxy(("localhost", port), process, upstreams)
 
     return inner
 
