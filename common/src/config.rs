@@ -233,6 +233,8 @@ struct Http {
     timeout: u32,
     /// Maximum interval between failed request retries in seconds.
     max_retry_interval: u32,
+    /// Array of certificates to additionally trust when sending HTTPS requests.
+    tls_trust_roots: Vec<PathBuf>,
 }
 
 impl Default for Http {
@@ -240,6 +242,7 @@ impl Default for Http {
         Http {
             timeout: 5,
             max_retry_interval: 60,
+            tls_trust_roots: vec![],
         }
     }
 }
@@ -565,6 +568,11 @@ impl Config {
     /// Returns the failed upstream request retry interval.
     pub fn http_max_retry_interval(&self) -> Duration {
         Duration::from_secs(self.values.http.max_retry_interval.into())
+    }
+
+    /// Returns certificates to additionally trust when sending HTTPS requests.
+    pub fn http_tls_trust_roots(&self) -> &[PathBuf] {
+        &*self.values.http.tls_trust_roots
     }
 
     /// Returns the expiry timeout for cached projects.
