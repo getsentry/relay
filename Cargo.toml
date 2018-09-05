@@ -21,7 +21,7 @@ clap = { version = "2.32.0", default-features = false, features = ["wrap_help"] 
 failure = "0.1.2"
 pretty_env_logger = "0.2.4"
 futures = "0.1.23"
-log = { version = "0.4.4", features = ["serde"] }
+log = { version = "0.4.5", features = ["serde"] }
 sentry = "0.9.0"
 dialoguer = "0.1.0"
 uuid = "0.6.5"
@@ -47,5 +47,6 @@ clap = { version = "2.32.0", default-features = false }
 [patch.crates-io]
 serde = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
 serde_derive = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
+actix-web = { git = "https://github.com/actix/actix-web", rev = "86fdbb47a59f7b963ed2d03720420d22a2732c50" }
 
 [workspace]
