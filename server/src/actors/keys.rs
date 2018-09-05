@@ -157,7 +157,7 @@ impl KeyCache {
                     Err(error) => {
                         error!("error fetching public keys: {}", error);
 
-                        if !slf.shutdown.started() {
+                        if !slf.shutdown.requested() {
                             // Put the channels back into the queue, in addition to channels that have
                             // been pushed in the meanwhile. We will retry again shortly.
                             slf.key_channels.extend(channels);
@@ -165,7 +165,7 @@ impl KeyCache {
                     }
                 }
 
-                if !slf.key_channels.is_empty() && !slf.shutdown.started() {
+                if !slf.key_channels.is_empty() && !slf.shutdown.requested() {
                     ctx.run_later(slf.next_backoff(), Self::fetch_keys);
                 }
 
@@ -306,10 +306,8 @@ impl Handler<Shutdown> for KeyCache {
 
     fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
         match message.timeout {
-            Some(timeout) => self.shutdown.start(timeout),
+            Some(timeout) => self.shutdown.timeout(timeout),
             None => self.shutdown.now(),
         }
-
-        Box::new(self.shutdown.clone())
     }
 }

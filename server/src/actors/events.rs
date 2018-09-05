@@ -361,10 +361,8 @@ impl Handler<Shutdown> for EventManager {
 
     fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
         match message.timeout {
-            Some(timeout) => self.shutdown.start(timeout),
+            Some(timeout) => self.shutdown.timeout(timeout),
             None => self.shutdown.now(),
         }
-
-        Box::new(self.shutdown.clone())
     }
 }
