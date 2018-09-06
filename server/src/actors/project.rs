@@ -17,7 +17,7 @@ use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, Retry
 use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use extractors::EventMeta;
-use utils::{self, One, Response, SyncActorFuture, SyncHandle};
+use utils::{self, LogError, One, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -449,7 +449,7 @@ impl ProjectCache {
                         }
                     }
                     Err(error) => {
-                        error!("error fetching project states: {}", error);
+                        error!("error fetching project states: {}", LogError(&error));
 
                         if !slf.shutdown.requested() {
                             // Put the channels back into the queue, in addition to channels that have

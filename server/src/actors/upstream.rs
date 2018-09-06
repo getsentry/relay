@@ -16,6 +16,8 @@ use semaphore_common::{
     Config, RegisterChallenge, RegisterRequest, RegisterResponse, Registration, RetryBackoff,
 };
 
+use utils::LogError;
+
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
     #[fail(display = "attempted to send request while not yet authenticated")]
@@ -24,10 +26,10 @@ pub enum UpstreamRequestError {
     #[fail(display = "attempted to send upstream request without credentials configured")]
     NoCredentials,
 
-    #[fail(display = "could not parse json payload returned by upstream: {}", _0)]
+    #[fail(display = "could not parse json payload returned by upstream")]
     InvalidJson(#[cause] JsonPayloadError),
 
-    #[fail(display = "could not send request to upstream: {}", _0)]
+    #[fail(display = "could not send request to upstream")]
     SendFailed(#[cause] SendRequestError),
 
     #[fail(display = "failed to create upstream request: {}", _0)]
@@ -167,7 +169,7 @@ impl Handler<Authenticate> for UpstreamRelay {
         let credentials = match self.config.credentials() {
             Some(x) => x,
             None => {
-                warn!("no credentials configured, not authenticating.");
+                warn!("no credentials configured, not authenticating");
                 return Box::new(fut::err(()));
             }
         };
@@ -196,7 +198,7 @@ impl Handler<Authenticate> for UpstreamRelay {
                 slf.auth_state = AuthState::Registered;
             })
             .map_err(|err, slf, ctx| {
-                error!("authentication encountered error: {}", err);
+                error!("authentication encountered error: {}", LogError(&err));
 
                 let interval = slf.backoff.next_backoff();
                 debug!(

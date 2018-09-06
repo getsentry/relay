@@ -18,7 +18,7 @@ use actors::project::{
 };
 use actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use extractors::EventMeta;
-use utils::{SyncActorFuture, SyncHandle};
+use utils::{LogError, SyncActorFuture, SyncHandle};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -351,7 +351,7 @@ impl Handler<HandleEvent> for EventManager {
             .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(move |error, _, _| {
-                warn!("error processing event {}: {}", event_id, error);
+                warn!("error processing event {}: {}", event_id, LogError(&error));
                 metric!(counter("event.rejected") += 1);
             });
 
