@@ -14,7 +14,7 @@ use semaphore_common::{Config, PublicKey, RelayId, RetryBackoff};
 
 use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
-use utils::{self, ApiErrorResponse, Response, SyncActorFuture, SyncHandle};
+use utils::{self, ApiErrorResponse, LogError, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 #[fail(display = "failed to fetch keys")]
@@ -162,7 +162,7 @@ impl KeyCache {
                         }
                     }
                     Err(error) => {
-                        error!("error fetching public keys: {}", error);
+                        error!("error fetching public keys: {}", LogError(&error));
 
                         if !slf.shutdown.requested() {
                             // Put the channels back into the queue, in addition to channels that have

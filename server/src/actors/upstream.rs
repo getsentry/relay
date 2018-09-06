@@ -16,6 +16,8 @@ use semaphore_common::{
     Config, RegisterChallenge, RegisterRequest, RegisterResponse, Registration, RetryBackoff,
 };
 
+use utils::LogError;
+
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
     #[fail(display = "attempted to send request while not yet authenticated")]
@@ -196,7 +198,7 @@ impl Handler<Authenticate> for UpstreamRelay {
                 slf.auth_state = AuthState::Registered;
             })
             .map_err(|err, slf, ctx| {
-                error!("authentication encountered error: {}", err);
+                error!("authentication encountered error: {}", LogError(&err));
 
                 let interval = slf.backoff.next_backoff();
                 debug!(
