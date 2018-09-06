@@ -459,7 +459,7 @@ impl ProjectCache {
                     }
                 }
 
-                if !slf.state_channels.is_empty() && !slf.shutdown.requested() {
+                if !slf.state_channels.is_empty() {
                     slf.schedule_fetch(ctx);
                 }
 

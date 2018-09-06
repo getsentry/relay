@@ -172,7 +172,7 @@ impl KeyCache {
                     }
                 }
 
-                if !slf.key_channels.is_empty() && !slf.shutdown.requested() {
+                if !slf.key_channels.is_empty() {
                     slf.schedule_fetch(ctx);
                 }
 
