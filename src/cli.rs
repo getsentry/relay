@@ -298,12 +298,6 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
 }
 
 pub fn run<'a>(config: Config, _matches: &ArgMatches<'a>) -> Result<(), Error> {
-    if !config.has_credentials() {
-        return Err(err_msg(
-            "relay has no stored credentials. Generate some \
-             with \"semaphore credentials generate\" first.",
-        ));
-    }
     setup::dump_spawn_infos(&config);
     setup::init_metrics(&config)?;
     semaphore_server::run(config)?;

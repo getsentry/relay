@@ -187,6 +187,14 @@ impl KeyCache {
             }
         }
 
+        if self.config.credentials().is_none() {
+            error!(
+                "No credentials configured. Relay {} cannot send requests to this relay.",
+                relay_id
+            );
+            return Response::ok((relay_id, None));
+        }
+
         debug!("relay {} public key requested", relay_id);
         if !self.backoff.started() {
             self.backoff.reset();

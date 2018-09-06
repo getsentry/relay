@@ -505,18 +505,18 @@ impl Config {
     }
 
     /// Returns the secret key if set.
-    pub fn secret_key(&self) -> &SecretKey {
-        &self.credentials.as_ref().unwrap().secret_key
+    pub fn secret_key(&self) -> Option<&SecretKey> {
+        self.credentials.as_ref().map(|x| &x.secret_key)
     }
 
     /// Returns the public key if set.
-    pub fn public_key(&self) -> &PublicKey {
-        &self.credentials.as_ref().unwrap().public_key
+    pub fn public_key(&self) -> Option<&PublicKey> {
+        self.credentials.as_ref().map(|x| &x.public_key)
     }
 
     /// Returns the relay ID.
-    pub fn relay_id(&self) -> &RelayId {
-        &self.credentials.as_ref().unwrap().id
+    pub fn relay_id(&self) -> Option<&RelayId> {
+        self.credentials.as_ref().map(|x| &x.id)
     }
 
     /// Returns the upstream target as descriptor.

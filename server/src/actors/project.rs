@@ -64,7 +64,13 @@ impl Project {
         context: &mut Context<Self>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
         if let Some(state) = self.config.projects().configs.get(&self.id) {
-            self.state = Some(Arc::new(ProjectState::FromLocalConfig(state.clone())));
+            return Response::ok(Arc::new(ProjectState::FromLocalConfig(state.clone())));
+        }
+
+        if self.config.credentials().is_none() {
+            error!("No credentials configured. Configure project {} in your config.yml",
+                   self.id);
+            return Response::ok(Arc::new(ProjectState::missing()));
         }
 
         if let Some(ref state) = self.state {
