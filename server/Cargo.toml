@@ -15,9 +15,9 @@ with_ssl = ["native-tls", "actix-web/tls"]
 
 [dependencies]
 actix = "0.7.4"
-actix-web = { version = "0.7.4", default-features = false, features = ["brotli", "flate2-c"] }
+actix-web = { version = "0.7.5", default-features = false, features = ["brotli", "flate2-c"] }
 base64 = "0.9.2"
-bytes = "0.4.9"
+bytes = "0.4.10"
 chrono = { version = "0.4.6", features = ["serde"] }
 clap = "2.32.0"
 failure = "0.1.2"
@@ -26,18 +26,19 @@ flate2 = "1.0.2"
 futures = "0.1.23"
 lazy_static = "1.1.0"
 listenfd = "0.3.3"
-log = "0.4.4"
+log = "0.4.5"
+native-tls = { version = "0.2.1", optional = true }
 num_cpus = "1.8.0"
+parking_lot = "0.6.4"
 regex = "1.0.4"
 sentry = "0.9.0"
 sentry-actix = "0.4.0"
 serde = "1.0.76"
 serde_derive = "1.0.76"
 serde_json = "1.0.26"
+tokio-timer = "0.2.6"
 url = "1.7.1"
 uuid = { version = "0.6.5", features = ["v4"] }
-parking_lot = "0.6.3"
-native-tls = { version = "0.2.1", optional = true }
 
 [dependencies.semaphore-common]
 path = "../common"

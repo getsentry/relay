@@ -36,14 +36,7 @@ pub fn init_logging(config: &Config) {
         dsn: config
             .sentry_dsn()
             .map(|dsn| dsn.to_string().parse().unwrap()),
-        in_app_include: vec![
-            "semaphore_common::",
-            "semaphore_aorta::",
-            "semaphore_config::",
-            "semaphore_common::",
-            "semaphore_server::",
-            "sentry_relay::",
-        ],
+        in_app_include: vec!["semaphore_common::", "semaphore_server::", "semaphore::"],
         release: sentry_crate_release!(),
         ..Default::default()
     });
@@ -53,7 +46,7 @@ pub fn init_logging(config: &Config) {
     }
 
     if env::var("RUST_LOG").is_err() {
-        let mut log = match config.log_level_filter() {
+        let log = match config.log_level_filter() {
             LevelFilter::Off => "",
             LevelFilter::Error => "ERROR",
             LevelFilter::Warn => "WARN",
@@ -62,18 +55,17 @@ pub fn init_logging(config: &Config) {
                 "INFO,\
                  actix_web::pipeline=DEBUG,\
                  semaphore_common=DEBUG,\
-                 semaphore_aorta=DEBUG,\
-                 semaphore_config=DEBUG,\
-                 semaphore_common=DEBUG,\
                  semaphore_server=DEBUG,\
-                 sentry_relay=DEBUG"
+                 semaphore=DEBUG"
             }
-            LevelFilter::Trace => "TRACE",
+            LevelFilter::Trace => {
+                "INFO,\
+                 actix_web::pipeline=DEBUG,\
+                 semaphore_common=TRACE,\
+                 semaphore_server=TRACE,\
+                 semaphore=TRACE"
+            }
         }.to_string();
-
-        if config.log_failed_payloads() {
-            log.push_str(",semaphore_server::payloads::failed=DEBUG");
-        }
 
         env::set_var("RUST_LOG", log);
     }

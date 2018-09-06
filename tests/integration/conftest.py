@@ -2,6 +2,7 @@ import os
 import uuid
 import pytest
 import json
+import signal
 import socket
 import subprocess
 import time
@@ -246,6 +247,15 @@ class Relay(SentryLike):
         self.public_key = public_key
         self.relay_id = relay_id
 
+    def shutdown(self, graceful=True):
+        sig = signal.SIGTERM if graceful else signal.SIGINT
+        self.process.send_signal(sig)
+
+        try:
+            self.process.wait(12)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            raise
 
 @pytest.fixture
 def background_process(request):
@@ -287,7 +297,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
             "sentry": {"dsn": mini_sentry.internal_error_dsn},
             "limits": {"max_api_file_upload_size": "1MiB"},
             "cache": {"batch_interval": 0},
-            "logging": {"level": "debug"},
+            "logging": {"level": "trace"},
             "http": {"timeout": 2},
         }
 

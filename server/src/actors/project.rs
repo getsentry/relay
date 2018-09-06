@@ -17,7 +17,7 @@ use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, Retry
 use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use extractors::EventMeta;
-use utils::{One, Response, SyncActorFuture, SyncHandle};
+use utils::{self, One, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -406,11 +406,18 @@ impl ProjectCache {
         self.config.query_batch_interval() + self.backoff.next_backoff()
     }
 
+    /// Schedules a batched upstream query with exponential backoff.
+    fn schedule_fetch(&mut self, context: &mut Context<Self>) {
+        utils::run_later(self.next_backoff(), Self::fetch_states)
+            .sync(&self.shutdown, ())
+            .spawn(context)
+    }
+
     /// Executes an upstream request to fetch project configs.
     ///
     /// This assumes that currently no request is running. If the upstream request fails or new
     /// channels are pushed in the meanwhile, this will reschedule automatically.
-    pub fn fetch_states(&mut self, context: &mut Context<Self>) {
+    fn fetch_states(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.state_channels, HashMap::new());
         debug!(
             "updating project states for {} projects (attempt {})",
@@ -444,7 +451,7 @@ impl ProjectCache {
                     Err(error) => {
                         error!("error fetching project states: {}", error);
 
-                        if !slf.shutdown.started() {
+                        if !slf.shutdown.requested() {
                             // Put the channels back into the queue, in addition to channels that have
                             // been pushed in the meanwhile. We will retry again shortly.
                             slf.state_channels.extend(channels);
@@ -452,8 +459,8 @@ impl ProjectCache {
                     }
                 }
 
-                if !slf.state_channels.is_empty() && !slf.shutdown.started() {
-                    ctx.run_later(slf.next_backoff(), Self::fetch_states);
+                if !slf.state_channels.is_empty() {
+                    slf.schedule_fetch(ctx);
                 }
 
                 fut::ok(())
@@ -512,7 +519,7 @@ impl Handler<FetchProjectState> for ProjectCache {
     fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
         if !self.backoff.started() {
             self.backoff.reset();
-            context.run_later(self.next_backoff(), Self::fetch_states);
+            self.schedule_fetch(context);
         }
 
         let (sender, receiver) = oneshot::channel();
@@ -529,10 +536,8 @@ impl Handler<Shutdown> for ProjectCache {
 
     fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
         match message.timeout {
-            Some(timeout) => self.shutdown.start(timeout),
+            Some(timeout) => self.shutdown.timeout(timeout),
             None => self.shutdown.now(),
         }
-
-        Box::new(self.shutdown.clone())
     }
 }

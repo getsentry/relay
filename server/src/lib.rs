@@ -18,6 +18,7 @@ extern crate sentry;
 extern crate sentry_actix;
 extern crate serde;
 extern crate serde_json;
+extern crate tokio_timer;
 extern crate url;
 extern crate uuid;
 
