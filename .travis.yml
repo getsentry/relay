@@ -68,6 +68,8 @@ matrix:
         - sudo add-apt-repository ppa:vbernat/haproxy-1.8 -y
         - sudo apt-get update
         - sudo apt-get install haproxy -y
+        - sudo cp ./relay_dev.cert /usr/local/share/ca-certificates/relay_dev.crt
+        - sudo update-ca-certificates
 
     # Rust builds
     - name: "release: semaphore[linux]"
