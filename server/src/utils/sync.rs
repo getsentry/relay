@@ -130,7 +130,7 @@ impl<F, E> SyncedFuture<F, E> {
             Err(e) => Err(e),
             Ok(Async::Ready(v)) => Ok(Async::Ready(v)),
             Ok(Async::NotReady) => match timeout.poll() {
-                Err(_) => unreachable!(),
+                Err(_) => Err(self.error.take().unwrap()),
                 Ok(Async::Ready(_)) => Err(self.error.take().unwrap()),
                 Ok(Async::NotReady) => {
                     self.inner = Some((future, timeout));
