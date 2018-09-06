@@ -81,7 +81,7 @@ def test_store(mini_sentry, relay_chain):
     hub = sentry_sdk.Hub(client)
     hub.add_breadcrumb(level="info", message="i like bread", timestamp=datetime.now())
     hub.capture_message("hü")
-    client.drain_events()
+    client.close()
 
     event = mini_sentry.captured_events.get(timeout=1)
 
@@ -200,7 +200,7 @@ def test_query_retry(failure_type, mini_sentry, relay):
     client = sentry_sdk.Client(relay.dsn, default_integrations=False)
     hub = sentry_sdk.Hub(client)
     hub.capture_message("hü")
-    client.drain_events()
+    client.close()
 
     # relay's http timeout is 2 seconds, and retry interval 1s * 1.5^n
     event = mini_sentry.captured_events.get(timeout=4)
