@@ -7,6 +7,7 @@ import subprocess
 import time
 import requests
 import gzip
+import shutil
 
 from queue import Queue
 
@@ -330,6 +331,9 @@ class Gobetween(SentryLike):
 @pytest.fixture
 def gobetween(background_process, random_port, config_dir):
     def inner(*upstreams):
+        if shutil.which(GOBETWEEN_BIN[0]) is None:
+            pytest.skip("Gobetween not installed")
+
         host = "127.0.0.1"
         port = random_port()
 
@@ -385,6 +389,9 @@ class HAProxy(SentryLike):
 @pytest.fixture
 def haproxy(background_process, random_port, config_dir):
     def inner(*upstreams):
+        if shutil.which(HAPROXY_BIN[0]) is None:
+            pytest.skip("HAProxy not installed")
+
         host = "127.0.0.1"
         port = random_port()
 
