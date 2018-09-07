@@ -6,7 +6,13 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd -r semaphore && useradd -r -m -g semaphore semaphore
+ENV \
+  SEMAPHORE_UID=10001 \
+  SEMAPHORE_GID=10001
+
+# Create a new user and group with fixed uid/gid
+RUN groupadd --system semaphore --gid $SEMAPHORE_GID \
+  && useradd --system --gid semaphore --uid $SEMAPHORE_UID semaphore
 
 WORKDIR /work
 VOLUME /etc/semaphore
