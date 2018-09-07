@@ -29,7 +29,7 @@ test: cargotest pytest integration-test
 .PHONY: test
 
 cargotest:
-	@cargo build --all
+	@cargo test --all
 .PHONY: cargotest
 
 cargotest-cov:
