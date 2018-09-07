@@ -43,10 +43,12 @@ matrix:
     - name: "test: semaphore[linux]"
       os: linux
       env: SUITE=cargotest-cov
-      rust: nightly
+      addons:
+        apt:
+          packages:
+            - libssl-dev
       install:
-        - sudo apt-get update && sudo apt-get install libssl-dev pkg-config cmake zlib1g-dev
-        - RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
+        - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
     - name: "test: semaphore[macos]"
       os: osx
       env: SUITE=cargotest
