@@ -6,8 +6,8 @@ import queue
 
 from datetime import datetime
 
-import pytest
 import requests
+import pytest
 import sentry_sdk
 
 from flask import Response, request, jsonify
@@ -47,8 +47,9 @@ def test_forwarding_content_encoding(
     else:
         payload = data
 
-    response = requests.post(
-        relay.url + "/api/test/reflect", data=payload, headers=headers
+    response = relay.request(
+        "post",
+        "/api/test/reflect", data=payload, headers=headers
     )
     response.raise_for_status()
     assert response.content == data
@@ -64,12 +65,12 @@ def test_forwarding_routes(mini_sentry, relay):
 
     r.wait_relay_healthcheck()
 
-    assert requests.get(r.url + "/").status_code == 404
-    assert requests.get(r.url + "/foo").status_code == 404
-    assert requests.get(r.url + "/foo/bar").status_code == 404
-    assert requests.get(r.url + "/api/").status_code == 404
-    assert requests.get(r.url + "/api/foo").status_code == 200
-    assert requests.get(r.url + "/api/foo/bar").status_code == 200
+    assert r.request("get", "/").status_code == 404
+    assert r.request("get", "/foo").status_code == 404
+    assert r.request("get", "/foo/bar").status_code == 404
+    assert r.request("get", "/api/").status_code == 404
+    assert r.request("get", "/api/foo").status_code == 200
+    assert r.request("get", "/api/foo/bar").status_code == 200
 
 
 def test_store(mini_sentry, relay_chain):
@@ -100,16 +101,18 @@ def test_limits(mini_sentry, relay):
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
 
-    response = requests.post(
-        relay.url + "/api/0/projects/a/b/releases/1.0/files/",
+    response = relay.request(
+        "post",
+        "/api/0/projects/a/b/releases/1.0/files/",
         data="Hello",
         headers={"Content-Type": "text/plain"},
     )
     assert response.content == b"Hello"
 
     try:
-        response = requests.post(
-            relay.url + "/api/0/projects/a/b/releases/1.0/files/",
+        response = relay.request(
+            "post",
+            "/api/0/projects/a/b/releases/1.0/files/",
             data=b"x" * (1024 * 1024 * 2),
             headers={"Content-Type": "text/plain"},
         )

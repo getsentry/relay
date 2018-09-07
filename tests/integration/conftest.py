@@ -23,6 +23,8 @@ if os.environ.get("SEMAPHORE_AS_CARGO", "false") == "true":
 GOBETWEEN_BIN = [os.environ.get("GOBETWEEN_BIN") or "gobetween"]
 HAPROXY_BIN = [os.environ.get("HAPROXY_BIN") or "haproxy"]
 
+CERTS_PATH = os.path.join(os.path.dirname(__file__), '../../')
+
 
 @pytest.fixture
 def random_port():
@@ -117,16 +119,24 @@ def mini_sentry(request):
 
 class SentryLike(object):
     _healthcheck_passed = False
+    use_ssl = False
 
     @property
     def url(self):
-        return "http://{}:{}".format(*self.server_address)
+        return "http{}://{}:{}".format(
+            "s" if self.use_ssl else "",
+            *self.server_address
+        )
+
+    def request(self, method, path, **kwargs):
+        kwargs.setdefault('verify', CERTS_PATH + './localhost.crt')
+        return requests.request(method, self.url + path, **kwargs)
 
     def _wait(self, url):
         backoff = 0.1
         while True:
             try:
-                requests.get(url).raise_for_status()
+                self.request("get", url).raise_for_status()
                 break
             except Exception as e:
                 time.sleep(backoff)
@@ -138,7 +148,7 @@ class SentryLike(object):
         if self._healthcheck_passed:
             return
 
-        self._wait(self.url + "/api/relay/healthcheck/")
+        self._wait("/api/relay/healthcheck/")
         self._healthcheck_passed = True
 
     def __repr__(self):
@@ -152,7 +162,7 @@ class SentryLike(object):
     def dsn(self):
         """DSN for which you will find the events in self.captured_events"""
         # bogus, we never check the DSN
-        return "http://{}@{}:{}/42".format(self.dsn_public_key, *self.server_address)
+        return "http{}://{}@{}:{}/42".format("s" if self.use_ssl else "", self.dsn_public_key, *self.server_address)
 
     def iter_public_keys(self):
         try:
@@ -209,8 +219,9 @@ class SentryLike(object):
             payload = json.dumps(payload)
             content_type = 'application/json'
 
-        return requests.post(
-            self.url + "/api/%s/store/" % project_id,
+        return self.request(
+            "post",
+            "/api/%s/store/" % project_id,
             data=payload,
             headers={
                 "Content-Type": content_type,
@@ -240,12 +251,13 @@ class Sentry(SentryLike):
 
 
 class Relay(SentryLike):
-    def __init__(self, server_address, process, upstream, public_key, relay_id):
+    def __init__(self, server_address, process, upstream, public_key, relay_id, use_ssl):
         self.server_address = server_address
         self.process = process
         self.upstream = upstream
         self.public_key = public_key
         self.relay_id = relay_id
+        self.use_ssl = use_ssl
 
     def shutdown(self, graceful=True):
         sig = signal.SIGTERM if graceful else signal.SIGINT
@@ -281,24 +293,30 @@ def config_dir(tmpdir):
 
 @pytest.fixture
 def relay(tmpdir, mini_sentry, request, random_port, background_process, config_dir):
-    def inner(upstream, options=None):
-        host = "127.0.0.1"
+    def inner(upstream, options=None, use_ssl=False):
         port = random_port()
+
+        tls_port = tls_identity_path = tls_identity_password = None
+
+        if use_ssl:
+            tls_port = random_port()
+            tls_identity_path = './localhost.pfx'
+            tls_identity_password = 'password'
 
         default_opts = {
             "relay": {
                 "upstream": upstream.url,
-                "host": host,
+                "host": "127.0.0.1",
                 "port": port,
-                "tls_port": None,
-                "tls_private_key": None,
-                "tls_cert": None,
+                "tls_port": tls_port,
+                "tls_identity_path": tls_identity_path,
+                "tls_identity_password": tls_identity_password,
             },
             "sentry": {"dsn": mini_sentry.internal_error_dsn},
             "limits": {"max_api_file_upload_size": "1MiB"},
             "cache": {"batch_interval": 0},
             "logging": {"level": "trace"},
-            "http": {"timeout": 2},
+            "http": {"timeout": 2, 'tls_trust_roots': [os.path.join(CERTS_PATH, './localhost.crt')]},
         }
 
         if options is not None:
@@ -326,7 +344,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
         assert public_key
         assert relay_id
 
-        return Relay((host, port), process, upstream, public_key, relay_id)
+        return Relay(("localhost", port if not use_ssl else tls_port), process, upstream, public_key, relay_id, use_ssl)
 
     return inner
 
@@ -344,7 +362,6 @@ def gobetween(background_process, random_port, config_dir):
         if shutil.which(GOBETWEEN_BIN[0]) is None:
             pytest.skip("Gobetween not installed")
 
-        host = "127.0.0.1"
         port = random_port()
 
         config = config_dir("gobetween").join("config.json")
@@ -354,7 +371,7 @@ def gobetween(background_process, random_port, config_dir):
                     "logging": {"level": "debug", "output": "stdout"},
                     "api": {
                         "enabled": True,
-                        "bind": f"{host}:{random_port()}",
+                        "bind": f"127.0.0.1:{random_port()}",
                         "cors": False,
                     },
                     "defaults": {
@@ -366,7 +383,7 @@ def gobetween(background_process, random_port, config_dir):
                     "servers": {
                         "sample": {
                             "protocol": "tcp",
-                            "bind": f"{host}:{port}",
+                            "bind": f"127.0.0.1:{port}",
                             "discovery": {
                                 "kind": "static",
                                 "static_list": [
@@ -384,7 +401,7 @@ def gobetween(background_process, random_port, config_dir):
             GOBETWEEN_BIN + ["from-file", "-fjson", str(config)]
         )
 
-        return Gobetween((host, port), process, upstreams)
+        return Gobetween(("localhost", port), process, upstreams)
 
     return inner
 
@@ -402,7 +419,6 @@ def haproxy(background_process, random_port, config_dir):
         if shutil.which(HAPROXY_BIN[0]) is None:
             pytest.skip("HAProxy not installed")
 
-        host = "127.0.0.1"
         port = random_port()
 
         config = config_dir("haproxy").join("config")
@@ -419,7 +435,7 @@ def haproxy(background_process, random_port, config_dir):
             f"    option forwardfor",
             f"    option redispatch",
             f"frontend defaultFront",
-            f"    bind {host}:{port}",
+            f"    bind 127.0.0.1:{port}",
             f"    default_backend defaultBack",
             f"backend defaultBack",
             f"    balance roundrobin",
@@ -435,7 +451,7 @@ def haproxy(background_process, random_port, config_dir):
 
         process = background_process(HAPROXY_BIN + ["-f", str(config)])
 
-        return HAProxy((host, port), process, upstreams)
+        return HAProxy(("localhost", port), process, upstreams)
 
     return inner
 
@@ -444,6 +460,7 @@ def haproxy(background_process, random_port, config_dir):
     params=[
         lambda s, r, g, h: r(s),
         lambda s, r, g, h: r(r(s)),
+        lambda s, r, g, h: r(r(s, use_ssl=True)),
         lambda s, r, g, h: r(h(r(g(s)))),
         lambda s, r, g, h: r(g(r(h(s)))),
     ]

@@ -2,6 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use actix::prelude::*;
+use actix_web::client::ClientConnector;
 use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
@@ -177,6 +178,36 @@ where
 }
 
 #[cfg(feature = "with_ssl")]
+fn get_http_client_connector(config: &Config) -> Result<ClientConnector, ServerError> {
+    use native_tls;
+    use std::fs;
+    use std::io::Read;
+
+    let mut connector = native_tls::TlsConnector::builder();
+
+    for path in config.http_tls_trust_roots() {
+        let mut file = fs::File::open(path).context(ServerErrorKind::TlsInitFailed)?;
+        let mut buf = vec![];
+        file.read_to_end(&mut buf)
+            .context(ServerErrorKind::TlsInitFailed)?;
+        let cert = native_tls::Certificate::from_pem(&buf).context(ServerErrorKind::TlsInitFailed)?;
+        connector.add_root_certificate(cert);
+    }
+
+    Ok(ClientConnector::with_connector(
+        connector
+            .build()
+            .context(ServerErrorKind::TlsInitFailed)?
+            .into(),
+    ))
+}
+
+#[cfg(not(feature = "with_ssl"))]
+fn get_http_client_connector(_config: &Config) -> Result<ClientConnector, ServerError> {
+    Ok(ClientConnector::default())
+}
+
+#[cfg(feature = "with_ssl")]
 fn listen_ssl<H>(
     mut server: server::HttpServer<H>,
     config: &Config,
@@ -193,9 +224,10 @@ where
         use std::fs::File;
         use std::io::Read;
 
-        let mut file = File::open(path).unwrap();
+        let mut file = File::open(path).context(ServerErrorKind::TlsInitFailed)?;
         let mut data = vec![];
-        file.read_to_end(&mut data).unwrap();
+        file.read_to_end(&mut data)
+            .context(ServerErrorKind::TlsInitFailed)?;
         let identity =
             Identity::from_pkcs12(&data, password).context(ServerErrorKind::TlsInitFailed)?;
 
@@ -236,6 +268,8 @@ pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, Serve
     let config = state.config();
     let mut server = server::new(move || make_app(state.clone()));
     server = server.shutdown_timeout(SHUTDOWN_TIMEOUT).disable_signals();
+
+    let _connector = get_http_client_connector(&config)?.start();
 
     server = listen(server, &config)?;
     server = listen_ssl(server, &config)?;
