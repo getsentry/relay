@@ -43,6 +43,7 @@ matrix:
     - name: "test: semaphore[linux]"
       os: linux
       env: SUITE=cargotest-cov
+      sudo: required
       addons:
         apt:
           packages:
@@ -64,7 +65,7 @@ matrix:
       os: linux
       env: PYTHON=python3.7 SUITE=integration-test
       language: python
-      python: '3.7'
+      python: "3.7"
       dist: xenial
       addons:
         apt:
