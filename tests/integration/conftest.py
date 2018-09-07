@@ -295,7 +295,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
 
         if use_ssl:
             tls_port = random_port()
-            tls_identity_path = './relay_dev.pfx'
+            tls_identity_path = './localhost.pfx'
             tls_identity_password = 'password'
 
         default_opts = {
