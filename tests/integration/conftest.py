@@ -128,11 +128,15 @@ class SentryLike(object):
             *self.server_address
         )
 
+    def request(self, method, path, **kwargs):
+        kwargs.setdefault('verify', CERTS_PATH + './localhost.crt')
+        return requests.request(method, self.url + path, **kwargs)
+
     def _wait(self, url):
         backoff = 0.1
         while True:
             try:
-                requests.get(url).raise_for_status()
+                self.request("get", url).raise_for_status()
                 break
             except Exception as e:
                 time.sleep(backoff)
@@ -144,7 +148,7 @@ class SentryLike(object):
         if self._healthcheck_passed:
             return
 
-        self._wait(self.url + "/api/relay/healthcheck/")
+        self._wait("/api/relay/healthcheck/")
         self._healthcheck_passed = True
 
     def __repr__(self):
@@ -215,8 +219,9 @@ class SentryLike(object):
             payload = json.dumps(payload)
             content_type = 'application/json'
 
-        return requests.post(
-            self.url + "/api/%s/store/" % project_id,
+        return self.request(
+            "post",
+            "/api/%s/store/" % project_id,
             data=payload,
             headers={
                 "Content-Type": content_type,
