@@ -68,8 +68,10 @@ impl Project {
         }
 
         if self.config.credentials().is_none() {
-            error!("No credentials configured. Configure project {} in your config.yml",
-                   self.id);
+            error!(
+                "No credentials configured. Configure project {} in your config.yml",
+                self.id
+            );
             return Response::ok(Arc::new(ProjectState::missing()));
         }
 
