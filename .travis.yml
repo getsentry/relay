@@ -47,7 +47,6 @@ matrix:
       install:
         - sudo apt-get update && sudo apt-get install libssl-dev pkg-config cmake zlib1g-dev
         - RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
-        - cargo build --all
     - name: "test: semaphore[macos]"
       os: osx
       env: SUITE=cargotest
