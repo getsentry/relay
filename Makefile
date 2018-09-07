@@ -32,6 +32,11 @@ cargotest:
 	@cargo test --all
 .PHONY: cargotest
 
+cargotest-cov:
+	@cargo tarpaulin -v --skip-clean --all --out Xml
+	@bash <(curl -s https://codecov.io/bash)
+.PHONY: cargotest-cov
+
 manylinux:
 	@scripts/docker-manylinux.sh
 .PHONY: manylinux

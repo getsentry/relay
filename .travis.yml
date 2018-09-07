@@ -6,6 +6,7 @@ cache:
     - py/venv
     - $HOME/.cargo
     - $TRAVIS_BUILD_DIR/target
+  timeout: 1200
 
 git:
   depth: 1
@@ -41,8 +42,14 @@ matrix:
     # Rust tests
     - name: "test: semaphore[linux]"
       os: linux
-      env: SUITE=cargotest
-      install: cargo build --all
+      env: SUITE=cargotest-cov
+      sudo: required
+      addons:
+        apt:
+          packages:
+            - libssl-dev
+      install:
+        - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
     - name: "test: semaphore[macos]"
       os: osx
       env: SUITE=cargotest
@@ -58,7 +65,8 @@ matrix:
       os: linux
       env: PYTHON=python3.7 SUITE=integration-test
       language: python
-      python: '3.7'
+      python: "3.7"
+      # https://github.com/travis-ci/travis-ci/issues/9831
       dist: xenial
       sudo: true
       install:
