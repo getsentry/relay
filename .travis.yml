@@ -69,17 +69,13 @@ matrix:
       # https://github.com/travis-ci/travis-ci/issues/9831
       dist: xenial
       sudo: true
-      addons:
-        apt:
-          sources:
-            - sourceline: ppa:vbernat/haproxy-1.8
-          packages:
-            - haproxy
-
       install:
         - curl https://sh.rustup.rs -sSf | sh -s -- -y
         - export PATH=$PATH:$HOME/.cargo/bin
         - wget https://github.com/yyyar/gobetween/releases/download/0.6.0/gobetween_0.6.0_linux_amd64.tar.gz -O - | tar xz; mv gobetween $HOME/.cargo/bin
+        - sudo add-apt-repository ppa:vbernat/haproxy-1.8 -y
+        - sudo apt-get update
+        - sudo apt-get install haproxy -y
 
     # Rust builds
     - name: "release: semaphore[linux]"
