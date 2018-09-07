@@ -33,7 +33,7 @@ cargotest:
 .PHONY: cargotest
 
 cargotest-cov:
-	@cargo tarpaulin -v --all --out Xml
+	@cargo tarpaulin -v --skip-clean --all --out Xml
 	@bash <(curl -s https://codecov.io/bash)
 .PHONY: cargotest-cov
 
