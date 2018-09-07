@@ -270,7 +270,7 @@ def test_local_project_config(mini_sentry, relay):
     client = sentry_sdk.Client(relay.dsn, default_integrations=False)
     hub = sentry_sdk.Hub(client)
     hub.capture_message("hü")
-    client.drain_events()
+    client.close()
 
     event = mini_sentry.captured_events.get(timeout=4)
     assert event["message"] == "hü"
