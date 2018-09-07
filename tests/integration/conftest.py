@@ -3,11 +3,13 @@ import os
 import uuid
 import pytest
 import json
+import signal
 import socket
 import subprocess
 import time
 import requests
 import gzip
+import shutil
 
 from queue import Queue
 
@@ -246,6 +248,15 @@ class Relay(SentryLike):
         self.public_key = public_key
         self.relay_id = relay_id
 
+    def shutdown(self, graceful=True):
+        sig = signal.SIGTERM if graceful else signal.SIGINT
+        self.process.send_signal(sig)
+
+        try:
+            self.process.wait(12)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            raise
 
 @pytest.fixture
 def background_process(request):
@@ -287,7 +298,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
             "sentry": {"dsn": mini_sentry.internal_error_dsn},
             "limits": {"max_api_file_upload_size": "1MiB"},
             "cache": {"batch_interval": 0},
-            "logging": {"level": "debug"},
+            "logging": {"level": "trace"},
             "http": {"timeout": 2},
         }
 
@@ -331,6 +342,9 @@ class Gobetween(SentryLike):
 @pytest.fixture
 def gobetween(background_process, random_port, config_dir):
     def inner(*upstreams):
+        if shutil.which(GOBETWEEN_BIN[0]) is None:
+            pytest.skip("Gobetween not installed")
+
         host = "127.0.0.1"
         port = random_port()
 
@@ -386,6 +400,9 @@ class HAProxy(SentryLike):
 @pytest.fixture
 def haproxy(background_process, random_port, config_dir):
     def inner(*upstreams):
+        if shutil.which(HAPROXY_BIN[0]) is None:
+            pytest.skip("HAProxy not installed")
+
         host = "127.0.0.1"
         port = random_port()
 

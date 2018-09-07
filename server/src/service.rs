@@ -40,7 +40,7 @@ pub enum ServerErrorKind {
     TlsInitFailed,
 
     /// TLS support was not compiled in
-    #[fail(display = "compile with the `with_ssl` feature to enable SSL support.")]
+    #[fail(display = "compile with the `with_ssl` feature to enable SSL support")]
     TlsNotSupported,
 }
 

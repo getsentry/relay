@@ -18,7 +18,7 @@ use actors::project::{
 };
 use actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use extractors::EventMeta;
-use utils::{SyncActorFuture, SyncHandle};
+use utils::{LogError, SyncActorFuture, SyncHandle};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -42,8 +42,11 @@ pub enum ProcessingError {
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] v8::Error),
 
-    #[fail(display = "could not schedule project fetching")]
+    #[fail(display = "could not schedule project fetch")]
     ScheduleFailed(#[cause] MailboxError),
+
+    #[fail(display = "failed to determine event action")]
+    NoAction(#[cause] ProjectError),
 
     #[fail(display = "failed to resolve PII config for project")]
     PiiFailed(#[cause] ProjectError),
@@ -300,7 +303,7 @@ impl Handler<HandleEvent> for EventManager {
                 project
                     .send(GetEventAction::fetched(meta.clone()))
                     .map_err(ProcessingError::ScheduleFailed)
-                    .and_then(|action| match action.map_err(ProcessingError::PiiFailed)? {
+                    .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                         EventAction::Accept => Ok(()),
                         EventAction::Discard => Err(ProcessingError::EventRejected),
                     })
@@ -348,7 +351,7 @@ impl Handler<HandleEvent> for EventManager {
             .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(move |error, _, _| {
-                warn!("error processing event {}: {}", event_id, error);
+                warn!("error processing event {}: {}", event_id, LogError(&error));
                 metric!(counter("event.rejected") += 1);
             });
 
@@ -361,10 +364,8 @@ impl Handler<Shutdown> for EventManager {
 
     fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
         match message.timeout {
-            Some(timeout) => self.shutdown.start(timeout),
+            Some(timeout) => self.shutdown.timeout(timeout),
             None => self.shutdown.now(),
         }
-
-        Box::new(self.shutdown.clone())
     }
 }

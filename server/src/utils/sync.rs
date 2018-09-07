@@ -1,35 +1,30 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use actix::prelude::*;
+use futures::future::Shared;
 use futures::prelude::*;
+use futures::sync::oneshot;
 use parking_lot::RwLock;
+use tokio_timer::Timeout;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Fail, Copy, Clone, Eq, PartialEq)]
 #[fail(display = "timed out")]
 pub struct TimeoutError;
 
 #[derive(Debug)]
 struct SyncHandleInner {
     count: AtomicUsize,
-    timeout: RwLock<Option<Instant>>,
+    sync_tx: RwLock<Option<oneshot::Sender<()>>>,
 }
 
 impl SyncHandleInner {
-    fn new() -> Self {
+    pub fn new() -> Self {
         SyncHandleInner {
             count: AtomicUsize::new(0),
-            timeout: RwLock::new(None),
+            sync_tx: RwLock::new(None),
         }
-    }
-
-    pub fn remaining(&self) -> usize {
-        self.count.load(Ordering::Relaxed)
-    }
-
-    pub fn timed_out(&self) -> bool {
-        self.timeout.read().map_or(false, |t| Instant::now() >= t)
     }
 
     pub fn acquire(&self) {
@@ -38,83 +33,120 @@ impl SyncHandleInner {
 
     pub fn release(&self) {
         self.count.fetch_sub(1, Ordering::Relaxed);
+        self.check();
+    }
+
+    fn check(&self) {
+        if self.count.load(Ordering::Acquire) == 0 {
+            if let Some(tx) = self.sync_tx.write().take() {
+                tx.send(()).ok();
+            }
+        }
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct SyncHandle {
     inner: Arc<SyncHandleInner>,
+    timeout_tx: Option<oneshot::Sender<()>>,
+    timeout_rx: Shared<oneshot::Receiver<()>>,
+    future: Option<Shared<ResponseFuture<(), ()>>>,
 }
 
 impl SyncHandle {
     pub fn new() -> Self {
+        let (sender, receiver) = oneshot::channel();
+
         SyncHandle {
             inner: Arc::new(SyncHandleInner::new()),
+            timeout_tx: Some(sender),
+            timeout_rx: receiver.shared(),
+            future: None,
         }
     }
 
-    pub fn start(&self, timeout: Duration) {
-        self.inner
-            .timeout
-            .write()
-            .get_or_insert_with(|| Instant::now() + timeout);
+    pub fn now(&mut self) -> ResponseFuture<(), TimeoutError> {
+        self.timeout(Duration::new(0, 0))
     }
 
-    pub fn now(&self) {
-        *self.inner.timeout.write() = Some(Instant::now())
+    pub fn timeout(&mut self, timeout: Duration) -> ResponseFuture<(), TimeoutError> {
+        let future = match self.future {
+            Some(ref future) => future,
+            None => {
+                let timeout_tx = self
+                    .timeout_tx
+                    .take()
+                    .expect("SyncHandle future created twice");
+
+                let (sync_tx, sync_rx) = oneshot::channel();
+                *self.inner.sync_tx.write() = Some(sync_tx);
+                self.inner.check();
+
+                let future = Box::new(Timeout::new(sync_rx, timeout).map_err(|_| {
+                    timeout_tx.send(()).ok();
+                })) as ResponseFuture<(), ()>;
+
+                self.future.get_or_insert(future.shared())
+            }
+        };
+
+        Box::new(future.clone().then(|result| match result {
+            Ok(_) => Ok(()),
+            Err(_) => Err(TimeoutError),
+        }))
     }
 
-    pub fn started(&self) -> bool {
-        self.inner.timeout.read().is_some()
-    }
-
-    pub fn succeeded(&self) -> bool {
-        self.inner.remaining() == 0
-    }
-
-    pub fn timed_out(&self) -> bool {
-        self.inner.timed_out()
-    }
-}
-
-impl Default for SyncHandle {
-    fn default() -> Self {
-        SyncHandle::new()
-    }
-}
-
-impl Future for SyncHandle {
-    type Item = ();
-    type Error = TimeoutError;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if self.succeeded() {
-            Ok(Async::Ready(()))
-        } else if self.timed_out() {
-            Err(TimeoutError)
-        } else {
-            Ok(Async::NotReady)
-        }
+    pub fn requested(&self) -> bool {
+        self.future.is_some()
     }
 }
 
 #[derive(Debug)]
 pub struct SyncedFuture<F, E> {
-    handle: Arc<SyncHandleInner>,
-    inner: F,
+    sync: Arc<SyncHandleInner>,
+    inner: Option<(F, Shared<oneshot::Receiver<()>>)>,
     error: Option<E>,
 }
 
 impl<F, E> SyncedFuture<F, E> {
     pub fn new(inner: F, handle: &SyncHandle, error: E) -> Self {
-        let handle = handle.inner.clone();
-        handle.acquire();
+        handle.inner.acquire();
 
         SyncedFuture {
-            handle,
-            inner,
+            sync: handle.inner.clone(),
+            inner: Some((inner, handle.timeout_rx.clone())),
             error: Some(error),
         }
+    }
+
+    fn poll<P, R>(&mut self, poll: P) -> Poll<R, E>
+    where
+        P: FnOnce(&mut F) -> Poll<R, E>,
+    {
+        // NOTE: This implementation is taken from `futures::future::Select2`. We cannot use that
+        // here directly since `ActorFuture` does not offer the same functionality.
+        let (mut future, mut timeout) = self.inner.take().expect("cannot poll SyncedFuture twice");
+
+        let result = match poll(&mut future) {
+            Err(e) => Err(e),
+            Ok(Async::Ready(v)) => Ok(Async::Ready(v)),
+            Ok(Async::NotReady) => match timeout.poll() {
+                Err(_) => {
+                    error!("synced future spawned after timeout expired");
+                    Err(self.error.take().unwrap())
+                }
+                Ok(Async::Ready(_)) => Err(self.error.take().unwrap()),
+                Ok(Async::NotReady) => {
+                    self.inner = Some((future, timeout));
+                    Ok(Async::NotReady)
+                }
+            },
+        };
+
+        if self.inner.is_none() {
+            self.sync.release();
+        }
+
+        result
     }
 }
 
@@ -126,15 +158,7 @@ where
     type Error = F::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if self.handle.timed_out() {
-            return Err(self.error.take().unwrap());
-        }
-
-        let poll = self.inner.poll();
-        if let Ok(Async::Ready(_)) = &poll {
-            self.handle.release();
-        }
-        poll
+        self.poll(F::poll)
     }
 }
 
@@ -151,15 +175,7 @@ where
         srv: &mut Self::Actor,
         ctx: &mut <Self::Actor as Actor>::Context,
     ) -> Poll<Self::Item, Self::Error> {
-        if self.handle.timed_out() {
-            return Err(self.error.take().unwrap());
-        }
-
-        let poll = self.inner.poll(srv, ctx);
-        if let Ok(Async::Ready(_)) = &poll {
-            self.handle.release();
-        }
-        poll
+        self.poll(|future| future.poll(srv, ctx))
     }
 }
 

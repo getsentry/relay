@@ -51,7 +51,7 @@ pytest:
 tests/venv/bin/python: Makefile
 	rm -rf tests/venv
 	virtualenv -ppython3 tests/venv
-	tests/venv/bin/pip install -U pytest pytest-localserver requests flask sentry-sdk pytest-rerunfailures pytest-xdist
+	tests/venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist
 
 integration-test: tests/venv/bin/python
 	cargo build
