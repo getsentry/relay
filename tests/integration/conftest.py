@@ -24,6 +24,9 @@ GOBETWEEN_BIN = [os.environ.get("GOBETWEEN_BIN") or "gobetween"]
 HAPROXY_BIN = [os.environ.get("HAPROXY_BIN") or "haproxy"]
 
 
+session = requests.session()
+
+
 @pytest.fixture
 def random_port():
     def inner():
@@ -122,11 +125,11 @@ class SentryLike(object):
     def url(self):
         return "http://{}:{}".format(*self.server_address)
 
-    def _wait(self, url):
+    def _wait(self, path):
         backoff = 0.1
         while True:
             try:
-                requests.get(url).raise_for_status()
+                self.get(path).raise_for_status()
                 break
             except Exception as e:
                 time.sleep(backoff)
@@ -138,7 +141,7 @@ class SentryLike(object):
         if self._healthcheck_passed:
             return
 
-        self._wait(self.url + "/api/relay/healthcheck/")
+        self._wait("/api/relay/healthcheck/")
         self._healthcheck_passed = True
 
     def __repr__(self):
@@ -209,8 +212,8 @@ class SentryLike(object):
             payload = json.dumps(payload)
             content_type = 'application/json'
 
-        return requests.post(
-            self.url + "/api/%s/store/" % project_id,
+        return self.post(
+            "/api/%s/store/" % project_id,
             data=payload,
             headers={
                 "Content-Type": content_type,
@@ -222,6 +225,15 @@ class SentryLike(object):
             },
         )
 
+    def request(self, method, path, **kwargs):
+        assert path.startswith("/")
+        return session.request(method, self.url + path, **kwargs)
+
+    def post(self, path, **kwargs):
+        return self.request("post", path, **kwargs)
+
+    def get(self, path, **kwargs):
+        return self.request("get", path, **kwargs)
 
 
 class Sentry(SentryLike):
@@ -247,8 +259,7 @@ class Relay(SentryLike):
         self.public_key = public_key
         self.relay_id = relay_id
 
-    def shutdown(self, graceful=True):
-        sig = signal.SIGTERM if graceful else signal.SIGINT
+    def shutdown(self, sig=signal.SIGKILL):
         self.process.send_signal(sig)
 
         try:
