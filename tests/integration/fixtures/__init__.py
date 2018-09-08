@@ -2,6 +2,7 @@ import json
 import time
 
 import requests
+import sentry_sdk
 
 session = requests.session()
 
@@ -89,29 +90,29 @@ class SentryLike(object):
         }
 
     def send_event(self, project_id, payload=None):
-        content_type = None
         if payload is None:
             payload = {"message": "Hello, World!"}
 
-        if isinstance(payload, bytes):
-            content_type = "application/octet-stream"
-
         if isinstance(payload, dict):
-            payload = json.dumps(payload)
-            content_type = "application/json"
-
-        return self.post(
-            "/api/%s/store/" % project_id,
-            data=payload,
-            headers={
-                "Content-Type": content_type,
-                "X-Sentry-Auth": (
-                    "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
-                    "sentry_client=raven-node/2.6.3, "
-                    "sentry_key={}".format(self.dsn_public_key)
-                ),
-            },
-        )
+            client = sentry_sdk.Client(self.dsn, default_integrations=False)
+            client.capture_event(payload)
+            client.close()
+        elif isinstance(payload, bytes):
+            response = self.post(
+                "/api/%s/store/" % project_id,
+                data=payload,
+                headers={
+                    "Content-Type": "application/octet-stream",
+                    "X-Sentry-Auth": (
+                        "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
+                        "sentry_client=raven-node/2.6.3, "
+                        "sentry_key={}".format(self.dsn_public_key)
+                    ),
+                },
+            )
+            response.raise_for_status()
+        else:
+            raise ValueError(f"Invalid type {type(payload)} for payload.")
 
     def request(self, method, path, **kwargs):
         assert path.startswith("/")

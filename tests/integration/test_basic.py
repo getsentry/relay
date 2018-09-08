@@ -9,7 +9,6 @@ from datetime import datetime
 
 import pytest
 import requests
-import sentry_sdk
 
 from flask import Response, request, jsonify
 
@@ -76,17 +75,10 @@ def test_store(mini_sentry, relay_chain):
     mini_sentry.project_configs[42] = relay.basic_project_config()
     relay.wait_relay_healthcheck()
 
-    client = sentry_sdk.Client(relay.dsn, default_integrations=False)
-    hub = sentry_sdk.Hub(client)
-    hub.add_breadcrumb(level="info", message="i like bread", timestamp=datetime.now())
-    hub.capture_message("hü")
-    client.close()
-
+    relay.send_event(42)
     event = mini_sentry.captured_events.get(timeout=1)
 
-    crumbs = event["breadcrumbs"]["values"]
-    assert any(crumb["message"] == "i like bread" for crumb in crumbs)
-    assert event["message"] == "hü"
+    assert event["message"] == "Hello, World!"
 
 
 def test_limits(mini_sentry, relay):
@@ -127,8 +119,7 @@ def test_store_node_base64(mini_sentry, relay_chain):
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
     payload = b"eJytVctu2zAQ/BWDFzuAJYt6WVIfaAsE6KFBi6K3IjAoiXIYSyRLUm7cwP/eJaXEcZr0Bd/E5e7OzJIc3aKOak3WFBXoXCmhislOTDqiNmiO6E1FpWGCo+LrLTI7eZ8Fm1vS9nZ9SNeGVBujSAXhW9QoAq1dZcNaymEF2aUQRkOOXHFRU/9aQ13LOOUCFSkO56gSrf2O5qjpeTWAI963rf+ScMF3nej1ayhifEWkREVDWk3nqBN13/4KgPbzv4bHOb6Hx+kRPihTppf/DTukPVKbRwe44AjuYkhXPb8gjP8Gdfz4C7Q4Xz4z2xFs1QpSnwQqCZKDsPAIy6jdAPfhZGDpASwKnxJ2Ml1p+qcDW9EbQ7mGmPaH2hOgJg8exdOolegkNPlnuIVUbEsMXZhOLuy19TRfMF7Tm0d3555AGB8R+Fhe08o88zCN6h9ScH1hWyoKhLmBUYE3gIuoyWeypXzyaqLot54pOpsqG5ievYB0t+dDQcPWs+mVMVIXi0WSZDQgASF108Q4xqSMaUmDKkuzrEzD5E29Vgx8jSpvWQZ5sizxMgqbKCMJDYPEp73P10psfCYWGE/PfMbhibftzGGiSyvYUVzZGQD7kQaRplf0/M4WZ5x+nzg/nE1HG5yeuRZSaPNA5uX+cr+HrmAQXJO78bmRTIiZPDnHHtiDj+6hiqz18AXdFLHm6kymQNvMx9iP4GBRqSipK9V3pc0d3Fk76Dmyg6XaDD2GE3FJbs7QJvRTaGJFiw2zfQM/8jEEDOto7YkeSlHsBy7mXN4bbR4yIRpYuj2rYR3B2i67OnGNQ1dTqZ00Y3Zo11dEUV49iDDtlX3TWMkI+9hPrSaYwJaq1Xhd35Mfb70LUr0Dlt4nJTycwOOuSGv/VCDErByDNE/iZZLXQY3zOAnDvElpjJcJTXCUZSEZZYGMTlqKAc68IPPC5RccwQUvgsDdUmGPxJKx/GVLTCNUZ39Fzt5/AgZYWKw="  # noqa
-    response = relay.send_event(42, payload)
-    response.raise_for_status()
+    relay.send_event(42, payload)
 
     event = mini_sentry.captured_events.get(timeout=1)
 
@@ -140,7 +131,7 @@ def test_store_pii_stripping(mini_sentry, relay):
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.send_event(42, {"message": "test@mail.org"}).raise_for_status()
+    relay.send_event(42, {"message": "test@mail.org"})
 
     event = mini_sentry.captured_events.get(timeout=1)
 
@@ -163,9 +154,9 @@ def test_event_timeout(mini_sentry, relay):
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
-    relay.send_event(42, {"message": "invalid"}).raise_for_status()
+    relay.send_event(42, {"message": "invalid"})
     sleep(1)  # Sleep so that the second event also has to wait but succeeds
-    relay.send_event(42, {"message": "correct"}).raise_for_status()
+    relay.send_event(42, {"message": "correct"})
 
     assert mini_sentry.captured_events.get(timeout=1)["message"] == "correct"
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
@@ -185,10 +176,10 @@ def test_graceful_shutdown(mini_sentry, relay):
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.send_event(42, {"message": "hello, world"}).raise_for_status()
+    relay.send_event(42)
 
     relay.shutdown(sig=signal.SIGTERM)
-    assert mini_sentry.captured_events.get(timeout=0)["message"] == "hello, world"
+    assert mini_sentry.captured_events.get(timeout=0)["message"] == "Hello, World!"
 
 
 def test_forced_shutdown(mini_sentry, relay):
@@ -205,7 +196,7 @@ def test_forced_shutdown(mini_sentry, relay):
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.send_event(42, {"message": "hello, world"}).raise_for_status()
+    relay.send_event(42)
 
     relay.shutdown(sig=signal.SIGINT)
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
@@ -236,14 +227,11 @@ def test_query_retry(failure_type, mini_sentry, relay):
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
 
-    client = sentry_sdk.Client(relay.dsn, default_integrations=False)
-    hub = sentry_sdk.Hub(client)
-    hub.capture_message("hü")
-    client.close()
+    relay.send_event(42)
 
     # relay's http timeout is 2 seconds, and retry interval 1s * 1.5^n
     event = mini_sentry.captured_events.get(timeout=4)
-    assert event["message"] == "hü"
+    assert event["message"] == "Hello, World!"
     assert retry_count == 2
 
     if mini_sentry.test_failures:
