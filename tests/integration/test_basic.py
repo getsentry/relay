@@ -48,9 +48,7 @@ def test_forwarding_content_encoding(
     else:
         payload = data
 
-    response = relay.post(
-        "/api/test/reflect", data=payload, headers=headers
-    )
+    response = relay.post("/api/test/reflect", data=payload, headers=headers)
     response.raise_for_status()
     assert response.content == data
 
@@ -154,18 +152,19 @@ def test_event_timeout(mini_sentry, relay):
     from time import sleep
 
     get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
-        sleep(1.5) # Causes the first event to drop, but not the second one
+        sleep(1.5)  # Causes the first event to drop, but not the second one
         return get_project_config_original()
 
-    relay = relay(mini_sentry, {'cache': {'event_expiry': 1}})
+    relay = relay(mini_sentry, {"cache": {"event_expiry": 1}})
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
     relay.send_event(42, {"message": "invalid"}).raise_for_status()
-    sleep(1) # Sleep so that the second event also has to wait but succeeds
+    sleep(1)  # Sleep so that the second event also has to wait but succeeds
     relay.send_event(42, {"message": "correct"}).raise_for_status()
 
     assert mini_sentry.captured_events.get(timeout=1)["message"] == "correct"
@@ -176,9 +175,10 @@ def test_graceful_shutdown(mini_sentry, relay):
     from time import sleep
 
     get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
-        sleep(1) # Causes the process to wait for one second before shutting down
+        sleep(1)  # Causes the process to wait for one second before shutting down
         return get_project_config_original()
 
     relay = relay(mini_sentry)
@@ -195,9 +195,10 @@ def test_forced_shutdown(mini_sentry, relay):
     from time import sleep
 
     get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
-        sleep(1) # Causes the process to wait for one second before shutting down
+        sleep(1)  # Causes the process to wait for one second before shutting down
         return get_project_config_original()
 
     relay = relay(mini_sentry)
