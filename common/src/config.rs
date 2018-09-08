@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::fmt;
 use std::fs;
@@ -9,8 +10,9 @@ use std::time::Duration;
 
 use failure::{Backtrace, Context, Fail};
 use log;
+use marshal::processor::PiiConfig;
 // Dsn must be imported from sentry and not sentry-types for compatibility with sentry::init!
-use sentry_types::Dsn;
+use sentry_types::{Dsn, ProjectId};
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 use serde_json;
@@ -291,6 +293,42 @@ impl Default for Sentry {
     }
 }
 
+/// These are config values that the user can modify in the UI.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectConfig {
+    /// URLs that are permitted for cross original JavaScript requests.
+    pub allowed_domains: Vec<String>,
+    /// List of relay public keys that are permitted to access this project.
+    pub trusted_relays: Vec<PublicKey>,
+    /// Configuration for PII stripping.
+    pub pii_config: Option<PiiConfig>,
+}
+
+/// Project state that was hardcoded by the user in the local config
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StaticProjectState {
+    /// Indicates that the project is disabled.
+    #[serde(default)]
+    pub disabled: bool,
+    /// A container of known public keys in the project.
+    pub public_keys: HashMap<String, bool>,
+    /// The project's slug if configured.
+    #[serde(default)]
+    pub slug: Option<String>,
+    /// The project's current config.
+    pub config: ProjectConfig,
+}
+
+/// Local overrides for project state
+#[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
+pub struct Projects {
+    /// The overridden projects
+    pub configs: HashMap<ProjectId, StaticProjectState>,
+}
+
 /// Controls interal reporting to Sentry.
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
@@ -348,6 +386,8 @@ struct ConfigValues {
     metrics: Metrics,
     #[serde(default)]
     sentry: Sentry,
+    #[serde(default)]
+    projects: Projects,
 }
 
 impl ConfigObject for ConfigValues {
@@ -465,18 +505,18 @@ impl Config {
     }
 
     /// Returns the secret key if set.
-    pub fn secret_key(&self) -> &SecretKey {
-        &self.credentials.as_ref().unwrap().secret_key
+    pub fn secret_key(&self) -> Option<&SecretKey> {
+        self.credentials.as_ref().map(|x| &x.secret_key)
     }
 
     /// Returns the public key if set.
-    pub fn public_key(&self) -> &PublicKey {
-        &self.credentials.as_ref().unwrap().public_key
+    pub fn public_key(&self) -> Option<&PublicKey> {
+        self.credentials.as_ref().map(|x| &x.public_key)
     }
 
     /// Returns the relay ID.
-    pub fn relay_id(&self) -> &RelayId {
-        &self.credentials.as_ref().unwrap().id
+    pub fn relay_id(&self) -> Option<&RelayId> {
+        self.credentials.as_ref().map(|x| &x.id)
     }
 
     /// Returns the upstream target as descriptor.
@@ -620,6 +660,11 @@ impl Config {
         } else {
             None
         }
+    }
+
+    /// Return local project state overrides
+    pub fn projects(&self) -> &Projects {
+        &self.values.projects
     }
 }
 

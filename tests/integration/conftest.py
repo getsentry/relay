@@ -1,3 +1,4 @@
+import datetime
 import os
 import uuid
 import pytest
@@ -106,7 +107,7 @@ def mini_sentry(request):
     @request.addfinalizer
     def reraise_test_failures():
         if sentry.test_failures:
-            raise AssertionError(f"Exceptions happened in mini_sentry: {test_failures}")
+            raise AssertionError(f"Exceptions happened in mini_sentry: {sentry.test_failures}")
 
     server = WSGIServer(application=app, threaded=True)
     server.start()
@@ -172,8 +173,8 @@ class SentryLike(object):
             "publicKeys": {self.dsn_public_key: True},
             "rev": "5ceaea8c919811e8ae7daae9fe877901",
             "disabled": False,
-            "lastFetch": "2018-08-24T17:29:04.426Z",
-            "lastChange": "2018-07-27T12:27:01.481Z",
+            "lastFetch": datetime.datetime.now().isoformat(),
+            "lastChange": datetime.datetime.now().isoformat(),
             "config": {
                 "allowedDomains": ["*"],
                 "trustedRelays": list(self.iter_public_keys()),

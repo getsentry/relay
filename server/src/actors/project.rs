@@ -12,7 +12,7 @@ use futures::{future::Shared, sync::oneshot, Future};
 use url::Url;
 use uuid::Uuid;
 
-use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff};
+use semaphore_common::{Config, ProjectConfig, ProjectId, RetryBackoff, StaticProjectState};
 
 use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
@@ -63,8 +63,22 @@ impl Project {
         &mut self,
         context: &mut Context<Self>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
+        if let Some(state) = self.config.projects().configs.get(&self.id) {
+            return Response::ok(Arc::new(ProjectState::FromLocalConfig(state.clone())));
+        }
+
+        if self.config.credentials().is_none() {
+            error!(
+                "No credentials configured. Configure project {} in your config.yml",
+                self.id
+            );
+            return Response::ok(Arc::new(ProjectState::missing()));
+        }
+
         if let Some(ref state) = self.state {
-            return Response::ok(state.clone());
+            if !state.outdated(&self.config) {
+                return Response::ok(state.clone());
+            }
         }
 
         debug!("project {} state requested", self.id);
@@ -158,58 +172,60 @@ pub enum PublicKeyStatus {
     Enabled,
 }
 
-/// These are config values that the user can modify in the UI.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectConfig {
-    /// URLs that are permitted for cross original JavaScript requests.
-    pub allowed_domains: Vec<String>,
-    /// List of relay public keys that are permitted to access this project.
-    pub trusted_relays: Vec<PublicKey>,
-    /// Configuration for PII stripping.
-    pub pii_config: Option<PiiConfig>,
-}
-
-/// The project state is a cached server state of a project.
+/// Project state that came from upstream
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProjectState {
+pub struct FetchedProjectState {
     /// The timestamp of when the state was received.
     pub last_fetch: DateTime<Utc>,
     /// The timestamp of when the state was last changed.
-    ///
-    /// This might be `None` in some rare cases like where states
-    /// are faked locally.
-    pub last_change: Option<DateTime<Utc>>,
+    pub last_change: DateTime<Utc>,
     /// Indicates that the project is disabled.
     pub disabled: bool,
     /// A container of known public keys in the project.
     pub public_keys: HashMap<String, bool>,
-    /// The project's slug if available.
-    pub slug: Option<String>,
-    /// The project's current config
+    /// The project's slug.
+    pub slug: String,
+    /// The project's current config.
     pub config: ProjectConfig,
     /// The project state's revision id.
     pub rev: Option<Uuid>,
 }
 
+/// The project state is a cached server state of a project.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
+pub enum ProjectState {
+    /// Project state that came from upstream
+    FromServer(FetchedProjectState),
+    /// Project state that was set through the local config
+    FromLocalConfig(StaticProjectState),
+    /// Missing project state, used when project state was not fetched yet.
+    #[serde(rename_all = "camelCase")]
+    Missing {
+        /// The timestamp of when the state was checked.
+        last_fetch: DateTime<Utc>,
+    },
+}
+
 impl ProjectState {
     /// Project state for a missing project.
     pub fn missing() -> Self {
-        ProjectState {
+        ProjectState::Missing {
             last_fetch: Utc::now(),
-            last_change: None,
-            disabled: true,
-            public_keys: HashMap::new(),
-            slug: None,
-            config: Default::default(),
-            rev: None,
         }
     }
 
     /// Returns the current status of a key.
     pub fn get_public_key_status(&self, public_key: &str) -> PublicKeyStatus {
-        match self.public_keys.get(public_key) {
+        let public_keys = match *self {
+            ProjectState::FromServer(ref x) => &x.public_keys,
+            ProjectState::FromLocalConfig(ref x) => &x.public_keys,
+            ProjectState::Missing { .. } => return PublicKeyStatus::Unknown,
+        };
+
+        match public_keys.get(public_key) {
             Some(&true) => PublicKeyStatus::Enabled,
             Some(&false) => PublicKeyStatus::Disabled,
             None => PublicKeyStatus::Unknown,
@@ -219,27 +235,43 @@ impl ProjectState {
     /// Returns `true` if the entire project should be considered
     /// disabled (blackholed, deleted etc.).
     pub fn disabled(&self) -> bool {
-        self.disabled
+        match *self {
+            ProjectState::Missing { .. } => true,
+            ProjectState::FromServer(ref x) => x.disabled,
+            ProjectState::FromLocalConfig(ref x) => x.disabled,
+        }
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
     pub fn outdated(&self, config: &Config) -> bool {
-        SystemTime::from(self.last_fetch)
-            .elapsed()
-            .map(|e| match self.slug {
-                Some(_) => e > config.project_cache_expiry(),
-                None => e > config.cache_miss_expiry(),
-            })
-            .unwrap_or(false)
+        let elapsed = |dt| SystemTime::from(dt).elapsed().ok();
+
+        match *self {
+            ProjectState::FromLocalConfig(_) => false,
+            ProjectState::FromServer(ref x) => elapsed(x.last_fetch)
+                .map(|lf| lf > config.project_cache_expiry())
+                .unwrap_or(false),
+            ProjectState::Missing { ref last_fetch } => elapsed(*last_fetch)
+                .map(|lf| lf > config.cache_miss_expiry())
+                .unwrap_or(false),
+        }
     }
 
     /// Returns the project config.
     pub fn config(&self) -> &ProjectConfig {
-        &self.config
+        lazy_static! {
+            static ref DUMMY_CONFIG: ProjectConfig = ProjectConfig::default();
+        }
+
+        match *self {
+            ProjectState::FromServer(ref x) => &x.config,
+            ProjectState::FromLocalConfig(ref x) => &x.config,
+            ProjectState::Missing { .. } => &*DUMMY_CONFIG,
+        }
     }
 
     /// Checks if this origin is allowed for this project.
-    fn is_valid_origin(&self, origin: Option<&Url>) -> bool {
+    pub fn is_valid_origin(&self, origin: Option<&Url>) -> bool {
         // Generally accept any event without an origin.
         let origin = match origin {
             Some(origin) => origin,

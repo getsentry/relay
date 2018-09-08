@@ -140,7 +140,7 @@ impl ProcessEvent {
             event.id.set_value(Some(Some(self.event_id)))
         }
 
-        let processed_event = match self.project_state.config.pii_config {
+        let processed_event = match self.project_state.config().pii_config {
             Some(ref pii_config) => pii_config.processor().process_root_value(event),
             None => event,
         };
