@@ -1,3 +1,9 @@
+//! Defines an actor to control system run and shutdown.
+//!
+//! See the [`Controller`] struct for more information.
+//!
+//! [`Controller`]: struct.Controller.html
+
 use std::time::Duration;
 
 use actix::actors::signal;
@@ -11,12 +17,65 @@ use crate::constants::SHUTDOWN_TIMEOUT;
 pub use crate::service::ServerError;
 pub use crate::utils::TimeoutError;
 
+/// Actor to start and gracefully stop an actix system.
+///
+/// This actor contains a static `run` method which will run an actix system and block the current
+/// thread until the system shuts down again.
+///
+/// To shut down more gracefully, other actors can register with the [`Subscribe`] message. When a
+/// shutdown signal is sent to the process, they will receive a [`Shutdown`] message with an
+/// optional timeout. They can respond with a future, after which they will be stopped. Once all
+/// registered actors have stopped successfully, the entire system will stop.
+///
+/// ### Example
+///
+/// ```ignore
+/// # extern crate actix;
+/// # use actix::prelude::*;
+/// struct MyActor;
+///
+/// impl Actor for MyActor {
+///     type Context = Context<Self>;
+///
+///     fn started(&mut self, context: &mut Self::Context) {
+///         Controller::from_registry()
+///             .do_send(Subscribe(context.address().recipient()));
+///     }
+/// }
+///
+/// impl Handler<Shutdown> for MyActor {
+///     type Result = Result<(), TimeoutError>;
+///
+///     fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
+///         // Implement custom logic here
+///         Ok(())
+///     }
+/// }
+///
+/// fn main() {
+///     Controller::run(|| {
+///         MyActor.start();
+///         # System::current().stop()
+///     })
+/// }
+/// ```
+///
+/// [`Subscribe`]: struct.Subscribe.html
+/// [`Shutdown`]: struct.Shutdown.html
 pub struct Controller {
+    /// Configured timeout for graceful shutdowns.
     timeout: Duration,
+    /// Subscribed actors for the shutdown message.
     subscribers: Vec<Recipient<Shutdown>>,
 }
 
 impl Controller {
+    /// Starts an actix system and runs the `factory` to start actors.
+    ///
+    /// The factory may be used to start actors in the actix system before it runs. If the factory
+    /// returns an error, the actix system is not started and instead an error returned. Otherwise,
+    /// the system blocks the current thread until a shutdown signal is sent to the server and all
+    /// actors have completed a graceful shutdown.
     pub fn run<F, R, E>(factory: F) -> Result<(), E>
     where
         F: FnOnce() -> Result<R, E>,
@@ -41,10 +100,18 @@ impl Controller {
         Ok(())
     }
 
+    /// Stops the current system immediately without sending a shutdown signal.
     pub fn stop(&mut self, context: &mut Context<Self>) {
+        // Delay the shutdown for 100ms to allow synchronized futures to execute their error
+        // handlers. Once `System::stop` is called, futures won't be polled anymore and we will not
+        // be able to print error messages.
         context.run_later(Duration::from_millis(100), |_, _| System::current().stop());
     }
 
+    /// Performs a graceful shutdown with the given timeout.
+    ///
+    /// This sends a `Shutdown` message to all subscribed actors and waits for them to finish. As
+    /// soon as all actors have completed, `Controller::stop` is called.
     fn shutdown(&mut self, context: &mut Context<Self>, timeout: Option<Duration>) {
         // Send a shutdown signal to all registered subscribers (including self). They will report
         // when the shutdown has completed. Note that we ignore all errors to make sure that we
@@ -113,6 +180,9 @@ impl Handler<signal::Signal> for Controller {
     }
 }
 
+/// Subscribtion message for [`Shutdown`] events.
+///
+/// [`Shutdown`]: struct.Shutdown.html
 pub struct Subscribe(pub Recipient<Shutdown>);
 
 impl Message for Subscribe {
@@ -127,7 +197,18 @@ impl Handler<Subscribe> for Controller {
     }
 }
 
+/// Shutdown request message sent by the [`Controller`] to subscribed actors.
+///
+/// The specified timeout is only a hint to the implementor of this message. A handler has to
+/// ensure that it doesn't take significantly longer to resolve the future. Ideally, open work is
+/// persisted or finished in an orderly manner but no new requests are accepted anymore.
+///
+/// The implementor may indicate a timeout by responding with `Err(TimeoutError)`. At the moment,
+/// this does not have any consequences for the shutdown.
+///
+/// [`Controller`]: struct.Controller.html
 pub struct Shutdown {
+    /// The timeout for this shutdown. `None` indicates an immediate forced shutdown.
     pub timeout: Option<Duration>,
 }
 
