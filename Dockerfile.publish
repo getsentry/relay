@@ -14,8 +14,10 @@ ENV \
 RUN groupadd --system semaphore --gid $SEMAPHORE_GID \
   && useradd --system --gid semaphore --uid $SEMAPHORE_UID semaphore
 
+RUN mkdir /work /etc/semaphore \
+  && chown semaphore:semaphore /work /etc/semaphore
+VOLUME ["/work", "/etc/semaphore"]
 WORKDIR /work
-VOLUME /etc/semaphore
 
 EXPOSE 3000
 
