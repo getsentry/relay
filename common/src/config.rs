@@ -10,7 +10,7 @@ use std::time::Duration;
 use failure::{Backtrace, Context, Fail};
 use log;
 // Dsn must be imported from sentry and not sentry-types for compatibility with sentry::init!
-use sentry_types::Dsn;
+use sentry_types::{Dsn, ProjectId};
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 use serde_json;
@@ -124,6 +124,8 @@ pub struct Relay {
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive
     pub tls_identity_password: Option<String>,
+    /// Configure size of CPU pool used for background jobs (HTTP server runs on different pool)
+    pub worker_threads: Option<usize>,
 }
 
 impl Default for Relay {
@@ -137,6 +139,7 @@ impl Default for Relay {
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
+            worker_threads: None,
         }
     }
 }
@@ -465,18 +468,18 @@ impl Config {
     }
 
     /// Returns the secret key if set.
-    pub fn secret_key(&self) -> &SecretKey {
-        &self.credentials.as_ref().unwrap().secret_key
+    pub fn secret_key(&self) -> Option<&SecretKey> {
+        self.credentials.as_ref().map(|x| &x.secret_key)
     }
 
     /// Returns the public key if set.
-    pub fn public_key(&self) -> &PublicKey {
-        &self.credentials.as_ref().unwrap().public_key
+    pub fn public_key(&self) -> Option<&PublicKey> {
+        self.credentials.as_ref().map(|x| &x.public_key)
     }
 
     /// Returns the relay ID.
-    pub fn relay_id(&self) -> &RelayId {
-        &self.credentials.as_ref().unwrap().id
+    pub fn relay_id(&self) -> Option<&RelayId> {
+        self.credentials.as_ref().map(|x| &x.id)
     }
 
     /// Returns the upstream target as descriptor.
@@ -515,6 +518,11 @@ impl Config {
             .tls_identity_password
             .as_ref()
             .map(|x| &**x)
+    }
+
+    /// Returns the amount of threads to use for background CPU pool.
+    pub fn worker_threads(&self) -> usize {
+        self.values.relay.worker_threads.unwrap_or(20)
     }
 
     /// Returns the log level.
@@ -620,6 +628,11 @@ impl Config {
         } else {
             None
         }
+    }
+
+    /// Get filename for static project config
+    pub fn project_config_path(&self, id: ProjectId) -> PathBuf {
+        self.path.join(format!("projects/{}.json", id))
     }
 }
 

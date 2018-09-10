@@ -1,5 +1,8 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fs;
+use std::io;
+use std::io::{ErrorKind, Read};
 use std::mem;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -8,7 +11,13 @@ use actix::fut;
 use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
 use chrono::{DateTime, Utc};
-use futures::{future::Shared, sync::oneshot, Future};
+use futures::{
+    future::{Either, Shared},
+    sync::oneshot,
+    Future, IntoFuture,
+};
+use futures_cpupool::CpuPool;
+use serde_json;
 use url::Url;
 use uuid::Uuid;
 
@@ -27,6 +36,12 @@ pub enum ProjectError {
     #[fail(display = "failed to fetch project state")]
     FetchFailed,
 
+    #[fail(display = "failed to read project state from disk")]
+    ReadFailed(#[cause] io::Error),
+
+    #[fail(display = "failed to read project json from disk")]
+    ReadDeserializeFailed(#[cause] serde_json::Error),
+
     #[fail(display = "could not schedule project fetching")]
     ScheduleFailed(#[cause] MailboxError),
 
@@ -36,38 +51,57 @@ pub enum ProjectError {
 
 impl ResponseError for ProjectError {}
 
+#[derive(Clone, Copy, Debug)]
+enum StateSource {
+    FromUpstream,
+    FromDisk,
+}
+
 pub struct Project {
     id: ProjectId,
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
-    state: Option<Arc<ProjectState>>,
+    cpu_pool: CpuPool,
+    state: Option<(Arc<ProjectState>, StateSource)>,
     state_channel: Option<Shared<oneshot::Receiver<Option<Arc<ProjectState>>>>>,
 }
 
 impl Project {
-    pub fn new(id: ProjectId, config: Arc<Config>, manager: Addr<ProjectCache>) -> Self {
+    pub fn new(
+        id: ProjectId,
+        config: Arc<Config>,
+        cpu_pool: CpuPool,
+        manager: Addr<ProjectCache>,
+    ) -> Self {
         Project {
             id,
             config,
             manager,
+            cpu_pool,
             state: None,
             state_channel: None,
         }
     }
 
     pub fn state(&self) -> Option<&ProjectState> {
-        self.state.as_ref().map(AsRef::as_ref)
+        self.state.as_ref().map(|(ref state, _)| state.as_ref())
     }
 
     fn get_or_fetch_state(
         &mut self,
         context: &mut Context<Self>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
-        if let Some(ref state) = self.state {
-            return Response::ok(state.clone());
-        }
+        trace!("project {} state requested", self.id);
 
-        debug!("project {} state requested", self.id);
+        if let Some((ref state, _)) = self.state {
+            if !state.outdated(&self.config) {
+                trace!("Fresh cache for project {}", self.id);
+                return Response::ok(state.clone());
+            }
+            trace!("Outdated cache for project {}, fetching", self.id);
+        } else {
+            trace!("No cache for project {}, fetching", self.id);
+        }
 
         let channel = match self.state_channel {
             Some(ref channel) => channel.clone(),
@@ -86,6 +120,51 @@ impl Project {
         ))
     }
 
+    fn read_state_from_disk(
+        &mut self,
+    ) -> impl Future<Item = Option<Arc<ProjectState>>, Error = ProjectError> {
+        let state_file_path = self.config.project_config_path(self.id);
+        let slf_state = self.state.clone();
+
+        self.cpu_pool.spawn_fn(move || {
+            let mut file = match fs::File::open(state_file_path.clone()) {
+                Ok(x) => x,
+                Err(error) => {
+                    if error.kind() == ErrorKind::NotFound {
+                        debug!("No static project state found at {:?}", state_file_path);
+                        return Ok(None);
+                    } else {
+                        Err(ProjectError::ReadFailed(error))?
+                    }
+                }
+            };
+
+            let metadata = file.metadata().map_err(ProjectError::ReadFailed)?;
+            let mtime =
+                DateTime::<Utc>::from(metadata.modified().map_err(ProjectError::ReadFailed)?);
+
+            if let Some((ref state, StateSource::FromDisk)) = slf_state {
+                if let Some(last_change) = state.last_change {
+                    if mtime <= last_change {
+                        return Ok(Some(state.clone()));
+                    }
+                }
+            }
+
+            let mut buf = vec![];
+            file.read_to_end(&mut buf)
+                .map_err(ProjectError::ReadFailed)?;
+
+            let mut state: ProjectState =
+                serde_json::from_slice(&buf).map_err(ProjectError::ReadDeserializeFailed)?;
+            if state.last_change.is_some() {
+                warn!("The lastChange parameter is ignored for static project configs.");
+            }
+            state.last_change = Some(mtime);
+            Ok(Some(Arc::new(state)))
+        })
+    }
+
     fn fetch_state(
         &mut self,
         context: &mut Context<Self>,
@@ -93,21 +172,54 @@ impl Project {
         let (sender, receiver) = oneshot::channel();
         let id = self.id;
 
-        self.manager
-            .send(FetchProjectState { id })
+        self.read_state_from_disk()
             .into_actor(self)
+            .and_then(move |state, slf, _ctx| {
+                if let Some(state) = state {
+                    Either::A(Ok(Some((state, StateSource::FromDisk))).into_future())
+                        .into_actor(slf)
+                } else {
+                    Either::B(if slf.config.credentials().is_none() {
+                        error!(
+                                "No credentials configured. Configure project {} in your projects folder at {:?}",
+                                id,
+                                slf.config.project_config_path(id)
+                            );
+                        Either::A(
+                            Ok(Some((
+                                Arc::new(ProjectState::missing()),
+                                StateSource::FromUpstream,
+                            ))).into_future(),
+                        )
+                    } else {
+                        Either::B(
+                            slf.manager
+                                .send(FetchProjectState { id })
+                                .map_err(|_| ProjectError::FetchFailed)
+                                .map(|state| {
+                                    Some((Arc::new(state.ok()?), StateSource::FromUpstream))
+                                }),
+                        )
+                    }).into_actor(slf)
+                }
+            })
+            .map_err(|error, slf, _ctx| {
+                error!(
+                    "Error while fetching project state for {}: {:?}",
+                    slf.id, error
+                );
+            })
             .and_then(move |state_result, slf, _ctx| {
                 slf.state_channel = None;
-                slf.state = state_result.map(Arc::new).ok();
+                slf.state = state_result;
 
                 if slf.state.is_some() {
                     debug!("project {} state updated", id);
                 }
 
-                sender.send(slf.state.clone()).ok();
+                sender.send(slf.state.as_ref().map(|x| x.0.clone())).ok();
                 fut::ok(())
             })
-            .drop_err()
             .spawn(context);
 
         receiver.shared()
@@ -175,13 +287,16 @@ pub struct ProjectConfig {
 #[serde(rename_all = "camelCase")]
 pub struct ProjectState {
     /// The timestamp of when the state was received.
+    #[serde(default = "Utc::now")]
     pub last_fetch: DateTime<Utc>,
     /// The timestamp of when the state was last changed.
     ///
     /// This might be `None` in some rare cases like where states
     /// are faked locally.
+    #[serde(default)]
     pub last_change: Option<DateTime<Utc>>,
     /// Indicates that the project is disabled.
+    #[serde(default)]
     pub disabled: bool,
     /// A container of known public keys in the project.
     pub public_keys: HashMap<String, bool>,
@@ -190,6 +305,7 @@ pub struct ProjectState {
     /// The project's current config
     pub config: ProjectConfig,
     /// The project state's revision id.
+    #[serde(default)]
     pub rev: Option<Uuid>,
 }
 
@@ -226,9 +342,14 @@ impl ProjectState {
     pub fn outdated(&self, config: &Config) -> bool {
         SystemTime::from(self.last_fetch)
             .elapsed()
-            .map(|e| match self.slug {
-                Some(_) => e > config.project_cache_expiry(),
-                None => e > config.cache_miss_expiry(),
+            .map(|e| {
+                println!("{:?}", self.last_change);
+                match self.last_change {
+                    // detect whether it's a "missing" project state
+                    // TODO(markus): Make own enum variant out of this?
+                    Some(_) => e > config.project_cache_expiry(),
+                    None => e > config.cache_miss_expiry(),
+                }
             })
             .unwrap_or(false)
     }
@@ -380,6 +501,7 @@ impl UpstreamQuery for GetProjectStates {
 pub struct ProjectCache {
     backoff: RetryBackoff,
     config: Arc<Config>,
+    cpu_pool: CpuPool,
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
     state_channels: HashMap<ProjectId, oneshot::Sender<ProjectState>>,
@@ -387,10 +509,11 @@ pub struct ProjectCache {
 }
 
 impl ProjectCache {
-    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(config: Arc<Config>, cpu_pool: CpuPool, upstream: Addr<UpstreamRelay>) -> Self {
         ProjectCache {
             backoff: RetryBackoff::from_config(&config),
             config,
+            cpu_pool,
             upstream,
             projects: HashMap::new(),
             state_channels: HashMap::new(),
@@ -498,9 +621,12 @@ impl Handler<GetProject> for ProjectCache {
 
     fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
         let config = self.config.clone();
+        let cpu_pool = self.cpu_pool.clone();
         self.projects
             .entry(message.id)
-            .or_insert_with(|| Project::new(message.id, config, context.address()).start())
+            .or_insert_with(|| {
+                Project::new(message.id, config, cpu_pool, context.address()).start()
+            })
             .clone()
     }
 }

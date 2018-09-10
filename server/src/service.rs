@@ -5,6 +5,7 @@ use actix::prelude::*;
 use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
+use futures_cpupool::CpuPool;
 use listenfd::ListenFd;
 use sentry_actix::SentryMiddleware;
 
@@ -97,11 +98,17 @@ impl ServiceState {
         let config = Arc::new(config);
         let upstream_relay = UpstreamRelay::new(config.clone()).start();
 
+        let cpu_pool = CpuPool::new((*config).worker_threads());
+
         ServiceState {
             config: config.clone(),
             upstream_relay: upstream_relay.clone(),
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
-            project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
+            project_cache: ProjectCache::new(
+                config.clone(),
+                cpu_pool.clone(),
+                upstream_relay.clone(),
+            ).start(),
             event_manager: EventManager::new(config.clone(), upstream_relay.clone()).start(),
         }
     }
