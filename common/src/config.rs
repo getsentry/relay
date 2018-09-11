@@ -632,7 +632,7 @@ impl Config {
 
     /// Get filename for static project config
     pub fn project_config_path(&self, id: ProjectId) -> PathBuf {
-        self.path.join(format!("projects/{}.json", id))
+        self.path.join("projects/").join(format!("{}.json", id))
     }
 }
 
