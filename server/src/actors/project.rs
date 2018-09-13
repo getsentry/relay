@@ -520,7 +520,7 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectId, Arc<
             continue;
         }
 
-        if path.extension().map(|x| x == "json").unwrap_or(false) {
+        if path.extension().map(|x| x != "json").unwrap_or(true) {
             warn!("skipping {:?}, file extension must be .json", path);
             continue;
         }
