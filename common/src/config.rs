@@ -631,7 +631,7 @@ impl Config {
 
     /// Get filename for static project config
     pub fn project_configs_path(&self) -> PathBuf {
-        self.path.join("projects/")
+        self.path.join("projects")
     }
 }
 
