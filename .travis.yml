@@ -33,11 +33,8 @@ matrix:
     # Linters
     - name: "check: codestyle"
       env: SUITE=format-check
-      install: rustup component add rustfmt-preview
     - name: "check: lint"
       env: SUITE=lint
-      install: rustup component add clippy-preview
-      rust: nightly
 
     # Rust tests
     - name: "test: semaphore[linux]"
@@ -89,21 +86,21 @@ matrix:
       after_success:
         - npm install -g @zeus-ci/cli
         - zeus upload -t "application/octet-stream"
-                      -n semaphore-Linux-x86_64
-                      target/x86_64-unknown-linux-gnu/release/semaphore
+          -n semaphore-Linux-x86_64
+          target/x86_64-unknown-linux-gnu/release/semaphore
         # Build and push image to Dockerhub, on master branch only
         - bash scripts/push-docker-image.sh
 
-#    - os: linux
-#      language: generic
-#      env:
-#        - SUITE=releasebuild-docker
-#        - BUILD_ARCH=i686
-#      after_success:
-#        - npm install -g @zeus-ci/cli
-#        - zeus upload -t "application/octet-stream"
-#                      -n semaphore-Linux-i686
-#                      target/i686-unknown-linux-gnu/release/semaphore
+    #    - os: linux
+    #      language: generic
+    #      env:
+    #        - SUITE=releasebuild-docker
+    #        - BUILD_ARCH=i686
+    #      after_success:
+    #        - npm install -g @zeus-ci/cli
+    #        - zeus upload -t "application/octet-stream"
+    #                      -n semaphore-Linux-i686
+    #                      target/i686-unknown-linux-gnu/release/semaphore
 
     - name: "release: semaphore[macos]"
       os: osx
@@ -112,8 +109,8 @@ matrix:
       after_success:
         - npm install -g @zeus-ci/cli
         - zeus upload -t "application/octet-stream"
-                      -n semaphore-Darwin-x86_64
-                      target/release/semaphore
+          -n semaphore-Darwin-x86_64
+          target/release/semaphore
 
     # Python builds
     - name: "release: libsemaphore[linux-x86]"
