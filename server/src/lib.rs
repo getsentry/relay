@@ -9,6 +9,7 @@ extern crate chrono;
 extern crate failure;
 extern crate flate2;
 extern crate futures;
+extern crate futures_cpupool;
 extern crate listenfd;
 #[cfg(feature = "with_ssl")]
 extern crate native_tls;

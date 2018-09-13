@@ -1581,6 +1581,7 @@ dependencies = [
  "failure_derive 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "flate2 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.23 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-cpupool 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "listenfd 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
