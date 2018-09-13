@@ -53,8 +53,8 @@ impl ResponseError for ProjectError {}
 
 #[derive(Clone, Copy, Debug)]
 enum StateSource {
-    FromUpstream,
-    FromDisk,
+    Upstream,
+    Disk,
 }
 
 pub struct Project {
@@ -143,7 +143,7 @@ impl Project {
             let mtime =
                 DateTime::<Utc>::from(metadata.modified().map_err(ProjectError::ReadFailed)?);
 
-            if let Some((ref state, StateSource::FromDisk)) = slf_state {
+            if let Some((ref state, StateSource::Disk)) = slf_state {
                 if let Some(last_change) = state.last_change {
                     if mtime <= last_change {
                         return Ok(Some(state.clone()));
@@ -176,7 +176,7 @@ impl Project {
             .into_actor(self)
             .and_then(move |state, slf, _ctx| {
                 if let Some(state) = state {
-                    Either::A(Ok(Some((state, StateSource::FromDisk))).into_future())
+                    Either::A(Ok(Some((state, StateSource::Disk))).into_future())
                         .into_actor(slf)
                 } else {
                     Either::B(if slf.config.credentials().is_none() {
@@ -188,7 +188,7 @@ impl Project {
                         Either::A(
                             Ok(Some((
                                 Arc::new(ProjectState::missing()),
-                                StateSource::FromUpstream,
+                                StateSource::Upstream,
                             ))).into_future(),
                         )
                     } else {
@@ -197,7 +197,7 @@ impl Project {
                                 .send(FetchProjectState { id })
                                 .map_err(|_| ProjectError::FetchFailed)
                                 .map(|state| {
-                                    Some((Arc::new(state.ok()?), StateSource::FromUpstream))
+                                    Some((Arc::new(state.ok()?), StateSource::Upstream))
                                 }),
                         )
                     }).into_actor(slf)
