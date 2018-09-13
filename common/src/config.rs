@@ -269,7 +269,7 @@ impl Default for Cache {
             event_expiry: 600,   // 10 minutes
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
-            file_interval: 10,   // 1 minute
+            file_interval: 10,   // 10 seconds
         }
     }
 }
