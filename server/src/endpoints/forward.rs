@@ -107,8 +107,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
             } else {
                 forwarded_response.finish()
             })
-        })
-        .responder()
+        }).responder()
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

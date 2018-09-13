@@ -75,8 +75,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
                 result?
                     .public_key
                     .ok_or_else(|| Error::from(SignatureError::UnknownRelay))
-            })
-            .join(req.body().map_err(Error::from))
+            }).join(req.body().map_err(Error::from))
             .and_then(move |(public_key, body)| {
                 public_key
                     .unpack(&body, &relay_sig, None)

@@ -28,8 +28,7 @@ fn get_project_configs(
                 } else {
                     None
                 }
-            })
-            .map(move |project_state| (project_id, project_state))
+            }).map(move |project_state| (project_id, project_state))
     });
 
     Box::new(future::join_all(futures).map(|mut project_states| {
