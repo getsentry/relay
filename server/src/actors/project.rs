@@ -1,7 +1,11 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fs;
+use std::io;
 use std::mem;
+use std::path::Path;
 use std::sync::Arc;
+use std::thread;
 use std::time::{Duration, SystemTime};
 
 use actix::fut;
@@ -9,6 +13,7 @@ use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
 use chrono::{DateTime, Utc};
 use futures::{future::Shared, sync::oneshot, Future};
+use serde_json;
 use url::Url;
 use uuid::Uuid;
 
@@ -42,6 +47,7 @@ pub struct Project {
     manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Option<Arc<ProjectState>>>>>,
+    is_local: bool,
 }
 
 impl Project {
@@ -52,6 +58,7 @@ impl Project {
             manager,
             state: None,
             state_channel: None,
+            is_local: false,
         }
     }
 
@@ -64,7 +71,11 @@ impl Project {
         context: &mut Context<Self>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
         if let Some(ref state) = self.state {
-            return Response::ok(state.clone());
+            // In case the state is fetched from a local file, don't use own caching logic. Rely on
+            // `ProjectCache#local_states` for caching.
+            if !self.is_local && !state.outdated(&self.config) {
+                return Response::ok(state.clone());
+            }
         }
 
         debug!("project {} state requested", self.id);
@@ -98,7 +109,11 @@ impl Project {
             .into_actor(self)
             .and_then(move |state_result, slf, _ctx| {
                 slf.state_channel = None;
-                slf.state = state_result.map(Arc::new).ok();
+                slf.is_local = state_result
+                    .as_ref()
+                    .map(|resp| resp.is_local)
+                    .unwrap_or(false);
+                slf.state = state_result.map(|resp| resp.state).ok();
 
                 if slf.state.is_some() {
                     debug!("project {} state updated", id);
@@ -175,21 +190,28 @@ pub struct ProjectConfig {
 #[serde(rename_all = "camelCase")]
 pub struct ProjectState {
     /// The timestamp of when the state was received.
+    #[serde(default = "Utc::now")]
     pub last_fetch: DateTime<Utc>,
     /// The timestamp of when the state was last changed.
     ///
     /// This might be `None` in some rare cases like where states
     /// are faked locally.
+    #[serde(default)]
     pub last_change: Option<DateTime<Utc>>,
     /// Indicates that the project is disabled.
+    #[serde(default)]
     pub disabled: bool,
     /// A container of known public keys in the project.
+    #[serde(default)]
     pub public_keys: HashMap<String, bool>,
     /// The project's slug if available.
+    #[serde(default)]
     pub slug: Option<String>,
     /// The project's current config
+    #[serde(default)]
     pub config: ProjectConfig,
     /// The project state's revision id.
+    #[serde(default)]
     pub rev: Option<Uuid>,
 }
 
@@ -382,6 +404,7 @@ pub struct ProjectCache {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
+    local_states: HashMap<ProjectId, Arc<ProjectState>>,
     state_channels: HashMap<ProjectId, oneshot::Sender<ProjectState>>,
     shutdown: SyncHandle,
 }
@@ -393,6 +416,7 @@ impl ProjectCache {
             config,
             upstream,
             projects: HashMap::new(),
+            local_states: HashMap::new(),
             state_channels: HashMap::new(),
             shutdown: SyncHandle::new(),
         }
@@ -471,16 +495,118 @@ impl ProjectCache {
     }
 }
 
+fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectId, Arc<ProjectState>>> {
+    let mut states = HashMap::new();
+
+    let directory = match fs::read_dir(projects_path) {
+        Ok(directory) => directory,
+        Err(error) => {
+            return match error.kind() {
+                io::ErrorKind::NotFound => Ok(states),
+                _ => Err(error),
+            };
+        }
+    };
+
+    // only printed when directory even exists.
+    debug!("Loading local states from directory {:?}", projects_path);
+
+    for entry in directory {
+        let entry = entry?;
+        let path = entry.path();
+
+        if !entry.metadata()?.is_file() {
+            warn!("skipping {:?}, not a file", path);
+            continue;
+        }
+
+        if path.extension().map(|x| x == "json").unwrap_or(false) {
+            warn!("skipping {:?}, file extension must be .json", path);
+            continue;
+        }
+
+        let id = match path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .and_then(|stem| stem.parse().ok())
+        {
+            Some(id) => id,
+            None => {
+                warn!("skipping {:?}, filename is not a valid project id", path);
+                continue;
+            }
+        };
+
+        let state = serde_json::from_reader(io::BufReader::new(fs::File::open(path)?))?;
+        states.insert(id, Arc::new(state));
+    }
+
+    Ok(states)
+}
+
+fn poll_local_states(
+    manager: Addr<ProjectCache>,
+    config: Arc<Config>,
+) -> impl Future<Item = (), Error = ()> {
+    let (sender, receiver) = oneshot::channel();
+
+    let _ = thread::spawn(move || {
+        let path = config.project_configs_path();
+        let mut sender = Some(sender);
+
+        loop {
+            match load_local_states(&path) {
+                Ok(states) => {
+                    manager.do_send(UpdateLocalStates { states });
+                    sender.take().map(|sender| sender.send(()).ok());
+                }
+                Err(error) => error!(
+                    "failed to load static project configs: {}",
+                    LogError(&error)
+                ),
+            }
+
+            thread::sleep(config.local_cache_interval());
+        }
+    });
+
+    receiver.map_err(|_| ())
+}
+
 impl Actor for ProjectCache {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
         info!("project cache started");
         Controller::from_registry().do_send(Subscribe(context.address().recipient()));
+
+        // Start the background thread that reads the local states from disk.
+        // `poll_local_states` returns a future that resolves as soon as the first read is done.
+        poll_local_states(context.address(), self.config.clone())
+            .into_actor(self)
+            // Block entire actor on first local state read, such that we don't e.g. drop events on
+            // startup
+            .wait(context);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         info!("project cache stopped");
+    }
+}
+
+struct UpdateLocalStates {
+    states: HashMap<ProjectId, Arc<ProjectState>>,
+}
+
+impl Message for UpdateLocalStates {
+    type Result = ();
+}
+
+impl Handler<UpdateLocalStates> for ProjectCache {
+    type Result = ();
+
+    fn handle(&mut self, message: UpdateLocalStates, _context: &mut Context<Self>) -> Self::Result {
+        self.local_states = message.states;
     }
 }
 
@@ -505,16 +631,21 @@ impl Handler<GetProject> for ProjectCache {
     }
 }
 
-pub struct FetchProjectState {
+struct FetchProjectState {
     id: ProjectId,
 }
 
+struct ProjectStateResponse {
+    state: Arc<ProjectState>,
+    is_local: bool,
+}
+
 impl Message for FetchProjectState {
-    type Result = Result<ProjectState, ()>;
+    type Result = Result<ProjectStateResponse, ()>;
 }
 
 impl Handler<FetchProjectState> for ProjectCache {
-    type Result = Response<ProjectState, ()>;
+    type Result = Response<ProjectStateResponse, ()>;
 
     fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
         if !self.backoff.started() {
@@ -522,12 +653,26 @@ impl Handler<FetchProjectState> for ProjectCache {
             self.schedule_fetch(context);
         }
 
+        if let Some(state) = self.local_states.get(&message.id) {
+            return Response::ok(ProjectStateResponse {
+                state: state.clone(),
+                is_local: true,
+            });
+        }
+
         let (sender, receiver) = oneshot::channel();
         if self.state_channels.insert(message.id, sender).is_some() {
             error!("project {} state fetched multiple times", message.id);
         }
 
-        Response::async(receiver.map_err(|_| ()))
+        Response::async(
+            receiver
+                .map(|state| ProjectStateResponse {
+                    state: Arc::new(state),
+                    is_local: false,
+                })
+                .map_err(|_| ()),
+        )
     }
 }
 
