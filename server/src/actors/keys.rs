@@ -177,8 +177,7 @@ impl KeyCache {
                 }
 
                 fut::ok(())
-            })
-            .sync(&self.shutdown, KeyError)
+            }).sync(&self.shutdown, KeyError)
             .drop_err()
             .spawn(context);
     }
@@ -192,6 +191,14 @@ impl KeyCache {
             if key.is_valid_cache(&self.config) {
                 return Response::ok((relay_id, key.as_option().cloned()));
             }
+        }
+
+        if self.config.credentials().is_none() {
+            error!(
+                "No credentials configured. Relay {} cannot send requests to this relay.",
+                relay_id
+            );
+            return Response::ok((relay_id, None));
         }
 
         debug!("relay {} public key requested", relay_id);

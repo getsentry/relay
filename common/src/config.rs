@@ -9,7 +9,6 @@ use std::time::Duration;
 
 use failure::{Backtrace, Context, Fail};
 use log;
-// Dsn must be imported from sentry and not sentry-types for compatibility with sentry::init!
 use sentry_types::Dsn;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
@@ -258,6 +257,8 @@ struct Cache {
     miss_expiry: u32,
     /// The buffer timeout for batched queries before sending them upstream in ms.
     batch_interval: u32,
+    /// Interval for watching local cache override files in seconds.
+    file_interval: u32,
 }
 
 impl Default for Cache {
@@ -268,6 +269,7 @@ impl Default for Cache {
             event_expiry: 600,   // 10 minutes
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
+            file_interval: 10,   // 10 seconds
         }
     }
 }
@@ -465,18 +467,18 @@ impl Config {
     }
 
     /// Returns the secret key if set.
-    pub fn secret_key(&self) -> &SecretKey {
-        &self.credentials.as_ref().unwrap().secret_key
+    pub fn secret_key(&self) -> Option<&SecretKey> {
+        self.credentials.as_ref().map(|x| &x.secret_key)
     }
 
     /// Returns the public key if set.
-    pub fn public_key(&self) -> &PublicKey {
-        &self.credentials.as_ref().unwrap().public_key
+    pub fn public_key(&self) -> Option<&PublicKey> {
+        self.credentials.as_ref().map(|x| &x.public_key)
     }
 
     /// Returns the relay ID.
-    pub fn relay_id(&self) -> &RelayId {
-        &self.credentials.as_ref().unwrap().id
+    pub fn relay_id(&self) -> Option<&RelayId> {
+        self.credentials.as_ref().map(|x| &x.id)
     }
 
     /// Returns the upstream target as descriptor.
@@ -593,6 +595,11 @@ impl Config {
         Duration::from_millis(self.values.cache.batch_interval.into())
     }
 
+    /// Returns the interval in seconds in which local project configurations should be reloaded.
+    pub fn local_cache_interval(&self) -> Duration {
+        Duration::from_secs(self.values.cache.file_interval.into())
+    }
+
     /// Returns the maximum size of an event payload in bytes.
     pub fn max_event_payload_size(&self) -> usize {
         self.values.limits.max_event_payload_size.as_bytes() as usize
@@ -620,6 +627,11 @@ impl Config {
         } else {
             None
         }
+    }
+
+    /// Get filename for static project config
+    pub fn project_configs_path(&self) -> PathBuf {
+        self.path.join("projects")
     }
 }
 

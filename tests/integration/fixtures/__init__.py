@@ -1,3 +1,4 @@
+import datetime
 import time
 
 import requests
@@ -63,8 +64,8 @@ class SentryLike(object):
             "publicKeys": {self.dsn_public_key: True},
             "rev": "5ceaea8c919811e8ae7daae9fe877901",
             "disabled": False,
-            "lastFetch": "2018-08-24T17:29:04.426Z",
-            "lastChange": "2018-07-27T12:27:01.481Z",
+            "lastFetch": datetime.datetime.utcnow().isoformat() + "Z",
+            "lastChange": datetime.datetime.utcnow().isoformat() + "Z",
             "config": {
                 "allowedDomains": ["*"],
                 "trustedRelays": list(self.iter_public_keys()),

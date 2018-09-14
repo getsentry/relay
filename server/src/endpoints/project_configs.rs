@@ -26,6 +26,10 @@ fn get_project_configs(
                 if project_state.config.trusted_relays.contains(&public_key) {
                     Some((*project_state).clone())
                 } else {
+                    debug!(
+                        "Public key {} does not have access to project {}",
+                        public_key, project_id
+                    );
                     None
                 }
             }).map(move |project_state| (project_id, project_state))

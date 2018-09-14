@@ -20,15 +20,28 @@ pub fn dump_spawn_infos(config: &Config) {
         "launching relay from config folder {}",
         config.path().display()
     );
-    info!("  relay id: {}", config.relay_id());
-    info!("  public key: {}", config.public_key());
+
+    match config.relay_id() {
+        Some(id) => info!("  relay id: {}", id),
+        None => info!("  relay id: -"),
+    };
+    match config.public_key() {
+        Some(key) => info!("  public key: {}", key),
+        None => info!("  public key: -"),
+    };
     info!("  log level: {}", config.log_level_filter());
 }
 
 /// Dumps out credential info.
 pub fn dump_credentials(config: &Config) {
-    println!("  relay id: {}", config.relay_id());
-    println!("  public key: {}", config.public_key());
+    match config.relay_id() {
+        Some(id) => println!("  relay id: {}", id),
+        None => println!("  relay id: -"),
+    };
+    match config.public_key() {
+        Some(key) => println!("  public key: {}", key),
+        None => println!("  public key: -"),
+    };
 }
 
 /// Initialize the logging system.

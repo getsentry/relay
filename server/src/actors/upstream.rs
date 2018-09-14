@@ -169,7 +169,10 @@ impl Handler<Authenticate> for UpstreamRelay {
         let credentials = match self.config.credentials() {
             Some(x) => x,
             None => {
-                warn!("no credentials configured, not authenticating");
+                warn!(
+                    "no credentials configured, not authenticating. \
+                     Other relays will not be able to use this relay."
+                );
                 return Box::new(fut::err(()));
             }
         };

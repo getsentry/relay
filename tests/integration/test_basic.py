@@ -1,7 +1,8 @@
-import socket
-import time
+import json
 import queue
 import signal
+import socket
+import time
 
 import pytest
 
@@ -84,3 +85,28 @@ def test_query_retry(failure_type, mini_sentry, relay):
         (_, error), = mini_sentry.test_failures
         assert isinstance(error, socket.error)
         mini_sentry.test_failures.clear()
+
+
+def test_local_project_config(mini_sentry, relay):
+    config = mini_sentry.basic_project_config()
+    relay = relay(mini_sentry, {"cache": {"file_interval": 1}})
+    relay.config_dir.mkdir("projects").join("42.json").write(
+        json.dumps(
+            {
+                # remove defaults to assert they work
+                "publicKeys": config["publicKeys"],
+                "config": config["config"],
+            }
+        )
+    )
+
+    relay.wait_relay_healthcheck()
+    relay.send_event(42)
+    event = mini_sentry.captured_events.get(timeout=1)
+    assert event["message"] == "Hello, World!"
+
+    relay.config_dir.join("projects").join("42.json").write(json.dumps({"disabled": True}))
+    time.sleep(5)
+
+    relay.send_event(42)
+    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))

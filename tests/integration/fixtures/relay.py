@@ -14,12 +14,15 @@ if os.environ.get("SEMAPHORE_AS_CARGO", "false") == "true":
 
 
 class Relay(SentryLike):
-    def __init__(self, server_address, process, upstream, public_key, relay_id):
+    def __init__(
+        self, server_address, process, upstream, public_key, relay_id, config_dir
+    ):
         self.server_address = server_address
         self.process = process
         self.upstream = upstream
         self.public_key = public_key
         self.relay_id = relay_id
+        self.config_dir = config_dir
 
     def shutdown(self, sig=signal.SIGKILL):
         self.process.send_signal(sig)
@@ -78,6 +81,6 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
         assert public_key
         assert relay_id
 
-        return Relay((host, port), process, upstream, public_key, relay_id)
+        return Relay((host, port), process, upstream, public_key, relay_id, dir)
 
     return inner
