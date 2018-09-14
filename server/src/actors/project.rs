@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cmp;
 use std::collections::HashMap;
 use std::fs;
 use std::io;
@@ -44,6 +45,7 @@ pub struct Project {
     manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
+    retry_after: Instant,
     is_local: bool,
 }
 
@@ -55,6 +57,7 @@ impl Project {
             manager,
             state: None,
             state_channel: None,
+            retry_after: Instant::now(),
             is_local: false,
         }
     }
@@ -355,6 +358,13 @@ impl Handler<GetEventAction> for Project {
     type Result = Response<EventAction, ProjectError>;
 
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
+        // Check for an eventual rate limit. Note that we have to ensure that the computation of the
+        // backoff duration must yield a positive number or it would otherwise panic.
+        let now = Instant::now();
+        if now < self.retry_after {
+            return Response::ok(EventAction::RateLimit((now - self.retry_after).as_secs()));
+        }
+
         if message.fetch {
             // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
             // This will return synchronously if the state is still cached.
@@ -369,6 +379,24 @@ impl Handler<GetEventAction> for Project {
                 state.get_event_action(&message.meta, &self.config)
             }))
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct RetryAfter {
+    pub secs: u64,
+}
+
+impl Message for RetryAfter {
+    type Result = ();
+}
+
+impl Handler<RetryAfter> for Project {
+    type Result = ();
+
+    fn handle(&mut self, message: RetryAfter, _context: &mut Self::Context) -> Self::Result {
+        let retry_after = Instant::now() + Duration::from_secs(message.secs);
+        self.retry_after = cmp::max(self.retry_after, retry_after);
     }
 }
 

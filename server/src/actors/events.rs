@@ -14,7 +14,8 @@ use semaphore_common::{Config, ProjectId};
 
 use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::project::{
-    EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError, ProjectState,
+    EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
+    ProjectState, RetryAfter,
 };
 use actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use extractors::EventMeta;
@@ -59,6 +60,9 @@ pub enum ProcessingError {
 
     #[fail(display = "could not send event to upstream")]
     SendFailed(#[cause] UpstreamRequestError),
+
+    #[fail(display = "sending failed due to rate limit for {}s", _0)]
+    RateLimited(u64),
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
@@ -306,7 +310,7 @@ impl Handler<HandleEvent> for EventManager {
                     .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                         EventAction::Accept => Ok(()),
                         EventAction::Discard => Err(ProcessingError::EventRejected),
-                        EventAction::RateLimit(_) => Err(ProcessingError::EventRejected),
+                        EventAction::RateLimit(s) => Err(ProcessingError::RateLimited(s)),
                     })
                     .and_then(clone!(project, |_| project
                         .send(GetProjectState)
@@ -341,7 +345,13 @@ impl Handler<HandleEvent> for EventManager {
                         upstream
                             .send(request)
                             .map_err(ProcessingError::ScheduleFailed)
-                            .and_then(|result| result.map_err(ProcessingError::SendFailed))
+                            .and_then(move |result| result.map_err(move |error| match error {
+                                UpstreamRequestError::RateLimited(secs) => {
+                                    project.do_send(RetryAfter { secs });
+                                    ProcessingError::RateLimited(secs)
+                                },
+                                other => ProcessingError::SendFailed(other),
+                            }))
                             .inspect(move |_| {
                                 metric!(timer("event.total_time") = start_time.elapsed())
                             })

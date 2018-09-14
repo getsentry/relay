@@ -35,6 +35,9 @@ pub enum UpstreamRequestError {
     #[fail(display = "failed to create upstream request: {}", _0)]
     BuildFailed(ActixError),
 
+    #[fail(display = "upstream requests rate limited for {}s", _0)]
+    RateLimited(u64),
+
     #[fail(display = "upstream request returned error {}", _0)]
     ResponseError(StatusCode),
 }
@@ -106,6 +109,7 @@ impl UpstreamRelay {
             .send()
             .map_err(UpstreamRequestError::SendFailed)
             .and_then(|response| match response.status() {
+                StatusCode::TOO_MANY_REQUESTS => Err(UpstreamRequestError::RateLimited(0)),
                 code if !code.is_success() => Err(UpstreamRequestError::ResponseError(code)),
                 _ => Ok(response),
             });
