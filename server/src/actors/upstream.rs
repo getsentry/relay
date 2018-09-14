@@ -118,7 +118,8 @@ impl UpstreamRelay {
                         .unwrap_or(0f64)
                         .max(0f64);
 
-                    Err(UpstreamRequestError::RateLimited(retry_after as u64))
+                    // Compensate for the missing subsec part by adding 1s
+                    Err(UpstreamRequestError::RateLimited(retry_after as u64 + 1))
                 }
                 code if !code.is_success() => Err(UpstreamRequestError::ResponseError(code)),
                 _ => Ok(response),

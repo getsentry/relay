@@ -362,7 +362,9 @@ impl Handler<GetEventAction> for Project {
         // backoff duration must yield a positive number or it would otherwise panic.
         let now = Instant::now();
         if now < self.retry_after {
-            return Response::ok(EventAction::RetryAfter((now - self.retry_after).as_secs()));
+            // Compensate for the missing subsec part by adding 1s
+            let secs = (self.retry_after - now).as_secs() + 1;
+            return Response::ok(EventAction::RetryAfter(secs));
         }
 
         if message.fetch {
