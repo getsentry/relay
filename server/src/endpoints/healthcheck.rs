@@ -26,8 +26,7 @@ fn healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error
                 } else {
                     Err(())
                 }
-            })
-            .or_else(|_| {
+            }).or_else(|_| {
                 Ok(HttpResponse::ServiceUnavailable()
                     .json(HealthcheckResponse { is_healthy: false }))
             }),

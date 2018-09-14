@@ -216,7 +216,8 @@ pub fn init_config<'a, P: AsRef<Path>>(
             .default(0)
             .item("yes, share relay internal crash reports with sentry.io")
             .item("no, do not share crash reports")
-            .interact()? == 0;
+            .interact()?
+            == 0;
 
         mincfg.save_in_folder(&config_path)?;
         done_something = true;

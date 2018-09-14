@@ -208,7 +208,9 @@ impl PublicKey {
     pub fn verify_meta(&self, data: &[u8], sig: &str) -> Option<SignatureHeader> {
         let mut iter = sig.splitn(2, '.');
         let sig_bytes = match iter.next() {
-            Some(sig_encoded) => base64::decode_config(sig_encoded, base64::URL_SAFE_NO_PAD).ok()?,
+            Some(sig_encoded) => {
+                base64::decode_config(sig_encoded, base64::URL_SAFE_NO_PAD).ok()?
+            }
             None => return None,
         };
         let sig = ed25519_dalek::Signature::from_bytes(&sig_bytes).ok()?;
@@ -292,7 +294,8 @@ impl FromStr for PublicKey {
             _ => return Err(KeyParseError::BadEncoding),
         };
         Ok(PublicKey {
-            inner: ed25519_dalek::PublicKey::from_bytes(&bytes).map_err(|_| KeyParseError::BadKey)?,
+            inner: ed25519_dalek::PublicKey::from_bytes(&bytes)
+                .map_err(|_| KeyParseError::BadKey)?,
         })
     }
 }
