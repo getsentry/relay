@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use semaphore_common::{ProjectId, ProjectIdParseError};
 
-use actors::events::{ProcessingError, QueueEvent};
+use actors::events::{EventError, QueueEvent};
 use actors::project::{EventAction, GetEventAction, GetProject, ProjectError};
 use body::{StoreBody, StorePayloadError};
 use extractors::EventMeta;
@@ -35,7 +35,7 @@ enum BadStoreRequest {
     ProjectFailed(#[cause] ProjectError),
 
     #[fail(display = "failed to process event")]
-    ProcessingFailed(#[cause] ProcessingError),
+    ProcessingFailed(#[cause] EventError),
 
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
@@ -60,8 +60,8 @@ impl ResponseError for BadStoreRequest {
                     .header("Retry-After", secs.to_string())
                     .json(&body)
             }
-            BadStoreRequest::ScheduleFailed(_) => {
-                // This error indicates that something's wrong with our actor system, most likely
+            BadStoreRequest::ScheduleFailed(_) | BadStoreRequest::ProjectFailed(_) => {
+                // These errors indicate that something's wrong with our actor system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
                 HttpResponse::ServiceUnavailable().json(&body)

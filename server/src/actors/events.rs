@@ -39,8 +39,14 @@ macro_rules! clone {
 }
 
 #[derive(Debug, Fail)]
-pub enum ProcessingError {
+pub enum EventError {
     #[fail(display = "invalid JSON data")]
+    InvalidJson(#[cause] v8::Error),
+}
+
+#[derive(Debug, Fail)]
+enum ProcessingError {
+    #[fail(display = "invalid event data")]
     InvalidJson(#[cause] v8::Error),
 
     #[fail(display = "could not schedule project fetch")]
@@ -225,11 +231,11 @@ pub struct QueueEvent {
 }
 
 impl Message for QueueEvent {
-    type Result = Result<Uuid, ProcessingError>;
+    type Result = Result<Uuid, EventError>;
 }
 
 impl Handler<QueueEvent> for EventManager {
-    type Result = Result<Uuid, ProcessingError>;
+    type Result = Result<Uuid, EventError>;
 
     fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
         // Ensure that the event has a UUID. It will be returned from this message and from the
@@ -238,7 +244,7 @@ impl Handler<QueueEvent> for EventManager {
         // is invalid, processing can be skipped altogether.
         let event_id = serde_json::from_slice::<EventIdHelper>(&message.data)
             .map(|event| event.id)
-            .map_err(ProcessingError::InvalidJson)?
+            .map_err(EventError::InvalidJson)?
             .unwrap_or_else(Uuid::new_v4);
 
         // Actual event handling is performed asynchronously in a separate future. The lifetime of
