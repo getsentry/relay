@@ -1,6 +1,7 @@
 use std::env;
 use std::io;
 use std::io::Write;
+use std::mem;
 
 use chrono::{DateTime, Utc};
 use console;
@@ -45,7 +46,7 @@ pub fn dump_credentials(config: &Config) {
 
 /// Initialize the logging system.
 pub fn init_logging(config: &Config) {
-    sentry::init(sentry::ClientOptions {
+    let guard = sentry::init(sentry::ClientOptions {
         dsn: config
             .sentry_dsn()
             .map(|dsn| dsn.to_string().parse().unwrap()),
@@ -53,6 +54,8 @@ pub fn init_logging(config: &Config) {
         release: sentry_crate_release!(),
         ..Default::default()
     });
+
+    mem::forget(guard);
 
     if config.enable_backtraces() {
         env::set_var("RUST_BACKTRACE", "1");

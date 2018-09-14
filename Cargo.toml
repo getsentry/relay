@@ -20,17 +20,17 @@ debug = true
 clap = { version = "2.32.0", default-features = false, features = ["wrap_help"] }
 failure = "0.1.2"
 pretty_env_logger = "0.2.4"
-futures = "0.1.23"
+futures = "0.1.24"
 log = { version = "0.4.5", features = ["serde"] }
-sentry = "0.9.0"
+sentry = "0.10.0"
 dialoguer = "0.1.0"
-uuid = "0.6.5"
-console = "0.6.1"
+uuid = "0.7.0"
+console = "0.6.2"
 env_logger = "0.5.13"
 chrono = "0.4.6"
-serde_derive = "1.0.76"
-serde = "1.0.76"
-serde_json = "1.0.26"
+serde_derive = "1.0.78"
+serde = "1.0.78"
+serde_json = "1.0.27"
 
 [dependencies.semaphore-common]
 path = "common"

@@ -284,7 +284,7 @@ pub unsafe extern "C" fn semaphore_buf_free(b: *mut SemaphoreBuf) {
 /// Returns true if the uuid is nil
 #[no_mangle]
 pub unsafe extern "C" fn semaphore_uuid_is_nil(uuid: *const SemaphoreUuid) -> bool {
-    if let Ok(uuid) = Uuid::from_bytes(&(*uuid).data[..]) {
+    if let Ok(uuid) = Uuid::from_slice(&(*uuid).data[..]) {
         uuid == Uuid::nil()
     } else {
         false
@@ -297,6 +297,6 @@ pub unsafe extern "C" fn semaphore_uuid_is_nil(uuid: *const SemaphoreUuid) -> bo
 /// `semaphore_cstr_free`.
 #[no_mangle]
 pub unsafe extern "C" fn semaphore_uuid_to_str(uuid: *const SemaphoreUuid) -> SemaphoreStr {
-    let uuid = Uuid::from_bytes(&(*uuid).data[..]).unwrap_or(Uuid::nil());
-    SemaphoreStr::from_string(uuid.hyphenated().to_string())
+    let uuid = Uuid::from_slice(&(*uuid).data[..]).unwrap_or(Uuid::nil());
+    SemaphoreStr::from_string(uuid.to_hyphenated_ref().to_string())
 }

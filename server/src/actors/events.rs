@@ -93,7 +93,7 @@ impl ProcessEvent {
     fn add_to_sentry_event(&self, event: &mut sentry::protocol::Event) {
         // Inject the body payload for debugging purposes and identify the exception
         event.message = Some(format!("body: {}", String::from_utf8_lossy(&self.data)));
-        if let Some(exception) = event.exceptions.last_mut() {
+        if let Some(exception) = event.exception.last_mut() {
             exception.ty = "BadEventPayload".into();
         }
 
