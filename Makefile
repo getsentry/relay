@@ -64,15 +64,18 @@ integration-test: tests/venv/bin/python
 .PHONY: integration-test
 
 format:
+	@rustup component add rustfmt-preview 2> /dev/null
 	@cargo fmt
 .PHONY: format
 
 format-check:
+	@rustup component add rustfmt-preview 2> /dev/null
 	@cargo fmt -- --check
 .PHONY: format-check
 
 lint:
-	@cargo +nightly clippy --tests --all -- -D clippy::all
+	@rustup component add clippy-preview 2> /dev/null
+	@cargo clippy --tests --all -- -D clippy
 .PHONY: lint
 
 test-process-event:

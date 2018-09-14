@@ -30,16 +30,20 @@ script: make $SUITE
 matrix:
   fast_finish: true
   include:
-    # Linters
+    # -------------------------------------
+    # STATIC ANALYSIS
+    # -------------------------------------
+
     - name: "check: codestyle"
       env: SUITE=format-check
-      install: rustup component add rustfmt-preview
+
     - name: "check: lint"
       env: SUITE=lint
-      install: rustup component add clippy-preview
-      rust: nightly
 
-    # Rust tests
+    # -------------------------------------
+    # RUST TESTS
+    # -------------------------------------
+
     - name: "test: semaphore[linux]"
       os: linux
       env: SUITE=cargotest-cov
@@ -48,19 +52,27 @@ matrix:
         apt:
           packages:
             - libssl-dev
+      rust: nightly
       install:
         - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
+
     - name: "test: semaphore[macos]"
       os: osx
       env: SUITE=cargotest
       install: cargo build --all
 
-    # Python tests
+    # -------------------------------------
+    # PYTHON LIBRARY TESTS
+    # -------------------------------------
+
     - name: "test: libsemaphore"
       os: linux
       env: SUITE=pytest
 
-    # Integration tests
+    # -------------------------------------
+    # EXECUTALE INTEGRATION TESTS
+    # -------------------------------------
+
     - name: "integration-test: semaphore"
       os: linux
       env: PYTHON=python3.7 SUITE=integration-test
@@ -77,7 +89,10 @@ matrix:
         - sudo apt-get update
         - sudo apt-get install haproxy -y
 
-    # Rust builds
+    # -------------------------------------
+    # RUST RELEASE BUILDS
+    # -------------------------------------
+
     - name: "release: semaphore[linux]"
       os: linux
       language: generic
@@ -88,22 +103,20 @@ matrix:
         - BUILD_ARCH=x86_64
       after_success:
         - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/octet-stream"
-                      -n semaphore-Linux-x86_64
-                      target/x86_64-unknown-linux-gnu/release/semaphore
+        - zeus upload -t "application/octet-stream" -n semaphore-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/semaphore
         # Build and push image to Dockerhub, on master branch only
         - bash scripts/push-docker-image.sh
 
-#    - os: linux
-#      language: generic
-#      env:
-#        - SUITE=releasebuild-docker
-#        - BUILD_ARCH=i686
-#      after_success:
-#        - npm install -g @zeus-ci/cli
-#        - zeus upload -t "application/octet-stream"
-#                      -n semaphore-Linux-i686
-#                      target/i686-unknown-linux-gnu/release/semaphore
+    # - os: linux
+    #   language: generic
+    #   env:
+    #     - SUITE=releasebuild-docker
+    #     - BUILD_ARCH=i686
+    #   after_success:
+    #     - npm install -g @zeus-ci/cli
+    #     - zeus upload -t "application/octet-stream"
+    #                   -n semaphore-Linux-i686
+    #                   target/i686-unknown-linux-gnu/release/semaphore
 
     - name: "release: semaphore[macos]"
       os: osx
@@ -111,11 +124,12 @@ matrix:
       env: SUITE=releasebuild
       after_success:
         - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/octet-stream"
-                      -n semaphore-Darwin-x86_64
-                      target/release/semaphore
+        - zeus upload -t "application/octet-stream" -n semaphore-Darwin-x86_64 target/release/semaphore
 
-    # Python builds
+    # -------------------------------------
+    # PYTHON RELEASE BUILDS
+    # -------------------------------------
+
     - name: "release: libsemaphore[linux-x86]"
       os: linux
       sudo: required
@@ -124,6 +138,7 @@ matrix:
       after_success:
         - npm install -g @zeus-ci/cli
         - zeus upload -t "application/zip+wheel" py/dist/*
+
     - name: "release: libsemaphore[linux-x86_64]"
       sudo: required
       env: SUITE=manylinux BUILD_ARCH=x86_64
@@ -131,6 +146,7 @@ matrix:
       after_success:
         - npm install -g @zeus-ci/cli
         - zeus upload -t "application/zip+wheel" py/dist/*
+
     - name: "release: libsemaphore[macos]"
       os: osx
       osx_image: xcode7.3
@@ -138,6 +154,7 @@ matrix:
       after_success:
         - npm install -g @zeus-ci/cli
         - zeus upload -t "application/zip+wheel" py/dist/*
+
     - name: "release: libsemaphore[sdist]"
       os: linux
       sudo: required

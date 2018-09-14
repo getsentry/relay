@@ -125,8 +125,7 @@ where
                     body.extend_from_slice(&chunk);
                     Ok(body)
                 }
-            })
-            .map(|x| x.freeze());
+            }).map(|x| x.freeze());
 
         self.fut = Some(Box::new(future));
 

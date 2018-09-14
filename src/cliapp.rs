@@ -25,12 +25,10 @@ pub fn make_app() -> App<'static, 'static> {
                 .short("c")
                 .global(true)
                 .help("The path to the config folder."),
-        )
-        .subcommand(App::new("run").about("Run the relay").after_help(
+        ).subcommand(App::new("run").about("Run the relay").after_help(
             "This runs the relay in the foreground until it's shut down.  It will bind \
              to the port and network interface configured in the config file.",
-        ))
-        .subcommand(
+        )).subcommand(
             App::new("credentials")
                 .setting(AppSettings::SubcommandRequiredElseHelp)
                 .about("Manage the relay credentials")
@@ -44,8 +42,7 @@ pub fn make_app() -> App<'static, 'static> {
                      long as they use different relay IDs.  Once a relay (as identified \
                      by the ID) has signed in with a certain key it cannot be changed \
                      any more.",
-                )
-                .subcommand(
+                ).subcommand(
                     App::new("generate")
                         .about("Generate new credentials")
                         .after_help(
@@ -53,32 +50,27 @@ pub fn make_app() -> App<'static, 'static> {
                              them.  In case the relay already has credentials stored \
                              this command will error unless the '--overwrite' option \
                              has been passed.",
-                        )
-                        .arg(
+                        ).arg(
                             Arg::with_name("overwrite")
                                 .long("overwrite")
                                 .help("Overwrite already existing credentials instead of failing"),
                         ),
-                )
-                .subcommand(
+                ).subcommand(
                     App::new("remove")
                         .about("Remove credentials")
                         .after_help(
                             "This command removes already stored credentials from the \
                              relay.",
-                        )
-                        .arg(
+                        ).arg(
                             Arg::with_name("yes")
                                 .long("yes")
                                 .help("Do not prompt for confirmation"),
                         ),
-                )
-                .subcommand(
+                ).subcommand(
                     App::new("show")
                         .about("Show currently stored credentials.")
                         .after_help("This prints out the agent ID and public key."),
-                )
-                .subcommand(
+                ).subcommand(
                     App::new("set")
                         .about("Set new credentials")
                         .after_help(
@@ -87,24 +79,21 @@ pub fn make_app() -> App<'static, 'static> {
                              provided that part of the credentials are overwritten.  If \
                              no credentials are stored yet at all and no parameters are \
                              supplied the command will prompt for the appropriate values.",
-                        )
-                        .arg(
+                        ).arg(
                             Arg::with_name("secret_key")
                                 .long("secret-key")
                                 .short("s")
                                 .value_name("KEY")
                                 .requires("public_key")
                                 .help("The secret key to set"),
-                        )
-                        .arg(
+                        ).arg(
                             Arg::with_name("public_key")
                                 .long("public-key")
                                 .short("p")
                                 .value_name("KEY")
                                 .requires("secret_key")
                                 .help("The public key to set"),
-                        )
-                        .arg(
+                        ).arg(
                             Arg::with_name("id")
                                 .long("id")
                                 .short("i")
@@ -112,16 +101,14 @@ pub fn make_app() -> App<'static, 'static> {
                                 .help("The relay ID to set"),
                         ),
                 ),
-        )
-        .subcommand(
+        ).subcommand(
             App::new("config")
                 .about("Manage the relay config")
                 .after_help(
                     "This command provides basic config management.  It can be \
                      used primarily to initialize a new relay config and to \
                      print out the current config.",
-                )
-                .setting(AppSettings::SubcommandRequiredElseHelp)
+                ).setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommand(
                     App::new("init")
                         .about("Initialize a new relay config")
@@ -131,8 +118,7 @@ pub fn make_app() -> App<'static, 'static> {
                              files.  It will create an initial config as well as \
                              set of credentials.",
                         ),
-                )
-                .subcommand(
+                ).subcommand(
                     App::new("show")
                         .about("Show the entire config out for debugging purposes")
                         .after_help(
@@ -142,8 +128,7 @@ pub fn make_app() -> App<'static, 'static> {
                              a debug format can also be specific which is useful \
                              to understand how the relay interprets the individual \
                              values.",
-                        )
-                        .arg(
+                        ).arg(
                             Arg::with_name("format")
                                 .short("f")
                                 .long("format")
@@ -152,36 +137,31 @@ pub fn make_app() -> App<'static, 'static> {
                                 .help("The output format"),
                         ),
                 ),
-        )
-        .subcommand(
+        ).subcommand(
             App::new("process-event")
                 .about("Processes a single event piped in")
                 .after_help(
                     "This takes an event on stdin and puts the processed event to stdout. \
                      Optionally an additional PII processing config can be supplied.  This is \
                      primarily useful for PII config testing as well as SDK integration tests.",
-                )
-                .arg(
+                ).arg(
                     Arg::with_name("pretty")
                         .long("pretty")
                         .help("Pretty print the output JSON"),
-                )
-                .arg(
+                ).arg(
                     Arg::with_name("pii_config")
                         .long("pii-config")
                         .value_name("PATH")
                         .help("The path to a PII processing config"),
                 ),
-        )
-        .subcommand(
+        ).subcommand(
             App::new("generate-completions")
                 .about("Generate shell completion file")
                 .after_help(
                     "This generates a completions file for the shell of choice. \
                      The default selection will be an educated guess for the currently \
                      running shell.",
-                )
-                .arg(
+                ).arg(
                     Arg::with_name("format")
                         .short("f")
                         .long("format")
