@@ -485,8 +485,7 @@ impl ProjectCache {
                 }
 
                 fut::ok(())
-            })
-            .sync(&self.shutdown, ProjectError::Shutdown)
+            }).sync(&self.shutdown, ProjectError::Shutdown)
             .drop_err()
             .spawn(context);
     }
@@ -667,8 +666,7 @@ impl Handler<FetchProjectState> for ProjectCache {
                 .map(|state| ProjectStateResponse {
                     state: Arc::new(state),
                     is_local: false,
-                })
-                .map_err(|_| ()),
+                }).map_err(|_| ()),
         )
     }
 }
