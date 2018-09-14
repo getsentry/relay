@@ -6,7 +6,7 @@ use std::mem;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use actix::fut;
 use actix::prelude::*;
@@ -341,6 +341,8 @@ impl GetEventAction {
 pub enum EventAction {
     /// The event should be discarded.
     Discard,
+    /// The event should be discarded and the client should back off for some time.
+    RateLimit(u64),
     /// The event should be processed and sent to upstream.
     Accept,
 }

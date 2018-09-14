@@ -306,6 +306,7 @@ impl Handler<HandleEvent> for EventManager {
                     .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                         EventAction::Accept => Ok(()),
                         EventAction::Discard => Err(ProcessingError::EventRejected),
+                        EventAction::RateLimit(_) => Err(ProcessingError::EventRejected),
                     })
                     .and_then(clone!(project, |_| project
                         .send(GetProjectState)

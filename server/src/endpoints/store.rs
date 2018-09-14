@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use actix::prelude::*;
-use actix_web::http::Method;
+use actix_web::http::{Method, StatusCode};
 use actix_web::middleware::cors::Cors;
 use actix_web::{HttpRequest, HttpResponse, Json, ResponseError};
 use futures::prelude::*;
@@ -14,7 +14,7 @@ use uuid::Uuid;
 use semaphore_common::{ProjectId, ProjectIdParseError};
 
 use actors::events::{ProcessingError, QueueEvent};
-use actors::project::{EventAction, GetEventAction, GetProject};
+use actors::project::{EventAction, GetEventAction, GetProject, ProjectError};
 use body::{StoreBody, StorePayloadError};
 use extractors::EventMeta;
 use service::{ServiceApp, ServiceState};
@@ -32,7 +32,7 @@ enum BadStoreRequest {
     ScheduleFailed(#[cause] MailboxError),
 
     #[fail(display = "failed to fetch project information")]
-    ProjectFailed,
+    ProjectFailed(#[cause] ProjectError),
 
     #[fail(display = "failed to process event")]
     ProcessingFailed(#[cause] ProcessingError),
@@ -40,13 +40,38 @@ enum BadStoreRequest {
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
 
+    #[fail(display = "event rejected due to rate limiting")]
+    RateLimited(u64),
+
     #[fail(display = "event submission rejected")]
     EventRejected,
 }
 
 impl ResponseError for BadStoreRequest {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::BadRequest().json(&ApiErrorResponse::from_fail(self))
+        let body = ApiErrorResponse::from_fail(self);
+
+        match self {
+            BadStoreRequest::RateLimited(secs) => {
+                // For rate limits, we return a special status code and indicate the client to hold
+                // off until the rate limit period has expired. Currently, we only support the
+                // delay-seconds variant of the Rate-Limit header.
+                HttpResponse::build(StatusCode::TOO_MANY_REQUESTS)
+                    .header("Retry-After", secs.to_string())
+                    .json(&body)
+            }
+            BadStoreRequest::ScheduleFailed(_) => {
+                // This error indicates that something's wrong with our actor system, most likely
+                // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
+                // client. It might retry event submission at a later time.
+                HttpResponse::ServiceUnavailable().json(&body)
+            }
+            _ => {
+                // In all other cases, we indicate a generic bad request to the client and render
+                // the cause. This was likely the client's fault.
+                HttpResponse::BadRequest().json(&body)
+            }
+        }
     }
 }
 
@@ -100,8 +125,9 @@ fn store_event(
                 .send(GetEventAction::cached(meta.clone()))
                 .map_err(BadStoreRequest::ScheduleFailed)
                 .and_then(
-                    |action| match action.map_err(|_| BadStoreRequest::ProjectFailed)? {
+                    |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
                         EventAction::Accept => Ok(()),
+                        EventAction::RateLimit(secs) => Err(BadStoreRequest::RateLimited(secs)),
                         EventAction::Discard => Err(BadStoreRequest::EventRejected),
                     },
                 ).and_then(move |_| {
