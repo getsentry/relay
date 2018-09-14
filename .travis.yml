@@ -52,9 +52,9 @@ matrix:
         apt:
           packages:
             - libssl-dev
+      rust: nightly
       install:
-        - rustup toolchain add nightly
-        - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo +nightly install --force cargo-tarpaulin
+        - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
 
     - name: "test: semaphore[macos]"
       os: osx
