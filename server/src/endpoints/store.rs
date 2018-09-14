@@ -127,7 +127,7 @@ fn store_event(
                 .and_then(
                     |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
                         EventAction::Accept => Ok(()),
-                        EventAction::RateLimit(secs) => Err(BadStoreRequest::RateLimited(secs)),
+                        EventAction::RetryAfter(secs) => Err(BadStoreRequest::RateLimited(secs)),
                         EventAction::Discard => Err(BadStoreRequest::EventRejected),
                     },
                 ).and_then(move |_| {

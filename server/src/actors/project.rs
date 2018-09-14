@@ -345,7 +345,7 @@ pub enum EventAction {
     /// The event should be discarded.
     Discard,
     /// The event should be discarded and the client should back off for some time.
-    RateLimit(u64),
+    RetryAfter(u64),
     /// The event should be processed and sent to upstream.
     Accept,
 }
@@ -362,7 +362,7 @@ impl Handler<GetEventAction> for Project {
         // backoff duration must yield a positive number or it would otherwise panic.
         let now = Instant::now();
         if now < self.retry_after {
-            return Response::ok(EventAction::RateLimit((now - self.retry_after).as_secs()));
+            return Response::ok(EventAction::RetryAfter((now - self.retry_after).as_secs()));
         }
 
         if message.fetch {
