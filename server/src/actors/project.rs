@@ -26,10 +26,7 @@ use utils::{self, LogError, One, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
-    #[fail(display = "project state request canceled")]
-    Canceled,
-
-    #[fail(display = "failed to fetch project state")]
+    #[fail(display = "failed to fetch project state from upstream")]
     FetchFailed,
 
     #[fail(display = "could not schedule project fetching")]
@@ -46,7 +43,7 @@ pub struct Project {
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectState>>,
-    state_channel: Option<Shared<oneshot::Receiver<Option<Arc<ProjectState>>>>>,
+    state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
     is_local: bool,
 }
 
@@ -89,18 +86,17 @@ impl Project {
             }
         };
 
-        Response::async(channel.map_err(|_| ProjectError::Canceled).and_then(
-            |option| match *option {
-                Some(ref state) => Ok(state.clone()),
-                None => Err(ProjectError::FetchFailed),
-            },
-        ))
+        let future = channel
+            .map(|shared| (*shared).clone())
+            .map_err(|_| ProjectError::FetchFailed);
+
+        Response::async(future)
     }
 
     fn fetch_state(
         &mut self,
         context: &mut Context<Self>,
-    ) -> Shared<oneshot::Receiver<Option<Arc<ProjectState>>>> {
+    ) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
         let (sender, receiver) = oneshot::channel();
         let id = self.id;
 
@@ -115,11 +111,11 @@ impl Project {
                     .unwrap_or(false);
                 slf.state = state_result.map(|resp| resp.state).ok();
 
-                if slf.state.is_some() {
+                if let Some(ref state) = slf.state {
                     debug!("project {} state updated", id);
+                    sender.send(state.clone()).ok();
                 }
 
-                sender.send(slf.state.clone()).ok();
                 fut::ok(())
             }).drop_err()
             .spawn(context);
