@@ -109,7 +109,17 @@ impl UpstreamRelay {
             .send()
             .map_err(UpstreamRequestError::SendFailed)
             .and_then(|response| match response.status() {
-                StatusCode::TOO_MANY_REQUESTS => Err(UpstreamRequestError::RateLimited(0)),
+                StatusCode::TOO_MANY_REQUESTS => {
+                    let retry_after = response
+                        .headers()
+                        .get(header::RETRY_AFTER)
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|s| s.parse::<f64>().ok())
+                        .unwrap_or(0f64)
+                        .max(0f64);
+
+                    Err(UpstreamRequestError::RateLimited(retry_after as u64))
+                }
                 code if !code.is_success() => Err(UpstreamRequestError::ResponseError(code)),
                 _ => Ok(response),
             });
