@@ -1,0 +1,27 @@
+#!/bin/bash
+set -eu
+# Required environment variables:
+#   SENTRY_API_TOKEN: Legacy Sentry API token
+
+VERSION="${1:-}"
+SENTRY_PROJECT="sentry/relay"
+
+if [ -z "${VERSION}" ]; then
+  echo 'No version specified' && exit 1
+fi
+
+
+if [ -z "${SENTRY_API_TOKEN:-}" ]; then
+  echo 'No Sentry API token found' && exit 1
+fi
+
+echo 'Creating a new release...'
+curl \
+	-X POST \
+	-H "Content-Type: application/json" \
+	-u "${SENTRY_API_TOKEN}":"" \
+	--data "{\"version\":\"${VERSION}\"}" \
+  "https://sentry.io/api/0/projects/${SENTRY_PROJECT}/releases/"
+
+echo
+echo 'Release created.'
