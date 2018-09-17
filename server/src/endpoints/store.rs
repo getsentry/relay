@@ -40,7 +40,7 @@ enum BadStoreRequest {
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
 
-    #[fail(display = "event rejected due to rate limiting")]
+    #[fail(display = "event rejected due to rate limit ({}s)", _0)]
     RateLimited(u64),
 
     #[fail(display = "event submission rejected")]

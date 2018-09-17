@@ -116,10 +116,10 @@ impl UpstreamRelay {
                         .and_then(|v| v.to_str().ok())
                         .and_then(|s| s.parse::<f64>().ok())
                         .unwrap_or(0f64)
-                        .max(0f64);
+                        .max(0f64)
+                        .ceil();
 
-                    // Compensate for the missing subsec part by adding 1s
-                    Err(UpstreamRequestError::RateLimited(retry_after as u64 + 1))
+                    Err(UpstreamRequestError::RateLimited(retry_after as u64))
                 }
                 code if !code.is_success() => Err(UpstreamRequestError::ResponseError(code)),
                 _ => Ok(response),

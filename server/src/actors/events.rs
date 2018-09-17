@@ -67,7 +67,7 @@ enum ProcessingError {
     #[fail(display = "could not send event to upstream")]
     SendFailed(#[cause] UpstreamRequestError),
 
-    #[fail(display = "sending failed due to rate limit for {}s", _0)]
+    #[fail(display = "sending failed due to rate limit ({}s)", _0)]
     RateLimited(u64),
 
     #[fail(display = "event exceeded its configured lifetime")]
