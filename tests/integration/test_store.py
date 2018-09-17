@@ -61,3 +61,38 @@ def test_event_timeout(mini_sentry, relay):
 
     assert mini_sentry.captured_events.get(timeout=1)["message"] == "correct"
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+
+
+def test_rate_limit(mini_sentry, relay):
+    from time import sleep, time
+
+    store_event_original = mini_sentry.app.view_functions["store_event"]
+
+    rate_limit_sent = False
+    @mini_sentry.app.endpoint("store_event")
+    def store_event():
+        # Only send a rate limit header for the first request. If relay sends a
+        # second request to mini_sentry, we want to see it so we can log an error.
+        nonlocal rate_limit_sent
+        if rate_limit_sent:
+            store_event_original()
+        else:
+            rate_limit_sent = True
+            return '', 429, { "retry-after": "2" }
+
+    relay = relay(mini_sentry)
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[42] = relay.basic_project_config()
+
+    # This message should return the initial 429 and start rate limiting
+    relay.send_event(42, {"message": "rate limit"})
+
+    # This event should get dropped by relay. We expect 429 here
+    sleep(1)
+    relay.send_event(42, {"message": "invalid"})
+
+    # This event should arrive
+    sleep(2)
+    relay.send_event(42, {"message": "correct"})
+
+    assert mini_sentry.captured_events.get(timeout=1)["message"] == "correct"

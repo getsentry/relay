@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cmp;
 use std::collections::HashMap;
 use std::fs;
 use std::io;
@@ -6,7 +7,7 @@ use std::mem;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use actix::fut;
 use actix::prelude::*;
@@ -26,10 +27,7 @@ use utils::{self, LogError, One, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
-    #[fail(display = "project state request canceled")]
-    Canceled,
-
-    #[fail(display = "failed to fetch project state")]
+    #[fail(display = "failed to fetch project state from upstream")]
     FetchFailed,
 
     #[fail(display = "could not schedule project fetching")]
@@ -46,7 +44,8 @@ pub struct Project {
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectState>>,
-    state_channel: Option<Shared<oneshot::Receiver<Option<Arc<ProjectState>>>>>,
+    state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
+    retry_after: Instant,
     is_local: bool,
 }
 
@@ -58,6 +57,7 @@ impl Project {
             manager,
             state: None,
             state_channel: None,
+            retry_after: Instant::now(),
             is_local: false,
         }
     }
@@ -89,18 +89,17 @@ impl Project {
             }
         };
 
-        Response::async(channel.map_err(|_| ProjectError::Canceled).and_then(
-            |option| match *option {
-                Some(ref state) => Ok(state.clone()),
-                None => Err(ProjectError::FetchFailed),
-            },
-        ))
+        let future = channel
+            .map(|shared| (*shared).clone())
+            .map_err(|_| ProjectError::FetchFailed);
+
+        Response::async(future)
     }
 
     fn fetch_state(
         &mut self,
         context: &mut Context<Self>,
-    ) -> Shared<oneshot::Receiver<Option<Arc<ProjectState>>>> {
+    ) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
         let (sender, receiver) = oneshot::channel();
         let id = self.id;
 
@@ -115,11 +114,11 @@ impl Project {
                     .unwrap_or(false);
                 slf.state = state_result.map(|resp| resp.state).ok();
 
-                if slf.state.is_some() {
+                if let Some(ref state) = slf.state {
                     debug!("project {} state updated", id);
+                    sender.send(state.clone()).ok();
                 }
 
-                sender.send(slf.state.clone()).ok();
                 fut::ok(())
             }).drop_err()
             .spawn(context);
@@ -345,6 +344,8 @@ impl GetEventAction {
 pub enum EventAction {
     /// The event should be discarded.
     Discard,
+    /// The event should be discarded and the client should back off for some time.
+    RetryAfter(u64),
     /// The event should be processed and sent to upstream.
     Accept,
 }
@@ -357,6 +358,15 @@ impl Handler<GetEventAction> for Project {
     type Result = Response<EventAction, ProjectError>;
 
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
+        // Check for an eventual rate limit. Note that we have to ensure that the computation of the
+        // backoff duration must yield a positive number or it would otherwise panic.
+        let now = Instant::now();
+        if now < self.retry_after {
+            // Compensate for the missing subsec part by adding 1s
+            let secs = (self.retry_after - now).as_secs() + 1;
+            return Response::ok(EventAction::RetryAfter(secs));
+        }
+
         if message.fetch {
             // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
             // This will return synchronously if the state is still cached.
@@ -371,6 +381,24 @@ impl Handler<GetEventAction> for Project {
                 state.get_event_action(&message.meta, &self.config)
             }))
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct RetryAfter {
+    pub secs: u64,
+}
+
+impl Message for RetryAfter {
+    type Result = ();
+}
+
+impl Handler<RetryAfter> for Project {
+    type Result = ();
+
+    fn handle(&mut self, message: RetryAfter, _context: &mut Self::Context) -> Self::Result {
+        let retry_after = Instant::now() + Duration::from_secs(message.secs);
+        self.retry_after = cmp::max(self.retry_after, retry_after);
     }
 }
 

@@ -14,7 +14,8 @@ use semaphore_common::{Config, ProjectId};
 
 use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::project::{
-    EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError, ProjectState,
+    EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
+    ProjectState, RetryAfter,
 };
 use actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use extractors::EventMeta;
@@ -38,8 +39,14 @@ macro_rules! clone {
 }
 
 #[derive(Debug, Fail)]
-pub enum ProcessingError {
+pub enum EventError {
     #[fail(display = "invalid JSON data")]
+    InvalidJson(#[cause] v8::Error),
+}
+
+#[derive(Debug, Fail)]
+enum ProcessingError {
+    #[fail(display = "invalid event data")]
     InvalidJson(#[cause] v8::Error),
 
     #[fail(display = "could not schedule project fetch")]
@@ -59,6 +66,9 @@ pub enum ProcessingError {
 
     #[fail(display = "could not send event to upstream")]
     SendFailed(#[cause] UpstreamRequestError),
+
+    #[fail(display = "sending failed due to rate limit ({}s)", _0)]
+    RateLimited(u64),
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
@@ -221,11 +231,11 @@ pub struct QueueEvent {
 }
 
 impl Message for QueueEvent {
-    type Result = Result<Uuid, ProcessingError>;
+    type Result = Result<Uuid, EventError>;
 }
 
 impl Handler<QueueEvent> for EventManager {
-    type Result = Result<Uuid, ProcessingError>;
+    type Result = Result<Uuid, EventError>;
 
     fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
         // Ensure that the event has a UUID. It will be returned from this message and from the
@@ -234,7 +244,7 @@ impl Handler<QueueEvent> for EventManager {
         // is invalid, processing can be skipped altogether.
         let event_id = serde_json::from_slice::<EventIdHelper>(&message.data)
             .map(|event| event.id)
-            .map_err(ProcessingError::InvalidJson)?
+            .map_err(EventError::InvalidJson)?
             .unwrap_or_else(Uuid::new_v4);
 
         // Actual event handling is performed asynchronously in a separate future. The lifetime of
@@ -305,6 +315,7 @@ impl Handler<HandleEvent> for EventManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                         EventAction::Accept => Ok(()),
+                        EventAction::RetryAfter(s) => Err(ProcessingError::RateLimited(s)),
                         EventAction::Discard => Err(ProcessingError::EventRejected),
                     })
                     .and_then(clone!(project, |_| project
@@ -340,7 +351,13 @@ impl Handler<HandleEvent> for EventManager {
                         upstream
                             .send(request)
                             .map_err(ProcessingError::ScheduleFailed)
-                            .and_then(|result| result.map_err(ProcessingError::SendFailed))
+                            .and_then(move |result| result.map_err(move |error| match error {
+                                UpstreamRequestError::RateLimited(secs) => {
+                                    project.do_send(RetryAfter { secs });
+                                    ProcessingError::RateLimited(secs)
+                                },
+                                other => ProcessingError::SendFailed(other),
+                            }))
                             .inspect(move |_| {
                                 metric!(timer("event.total_time") = start_time.elapsed())
                             })

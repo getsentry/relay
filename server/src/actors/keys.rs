@@ -18,7 +18,16 @@ use utils::{self, ApiErrorResponse, LogError, Response, SyncActorFuture, SyncHan
 
 #[derive(Fail, Debug)]
 #[fail(display = "failed to fetch keys")]
-pub struct KeyError;
+pub enum KeyError {
+    #[fail(display = "failed to fetch relay key from upstream")]
+    FetchFailed,
+
+    #[fail(display = "could not schedule key fetching")]
+    ScheduleFailed(#[cause] MailboxError),
+
+    #[fail(display = "shutdown timer expired")]
+    Shutdown,
+}
 
 impl ResponseError for KeyError {
     fn error_response(&self) -> HttpResponse {
@@ -147,7 +156,7 @@ impl KeyCache {
 
         self.upstream
             .send(SendQuery(request))
-            .map_err(|_| KeyError)
+            .map_err(KeyError::ScheduleFailed)
             .into_actor(self)
             .and_then(|response, slf, ctx| {
                 match response {
@@ -177,7 +186,7 @@ impl KeyCache {
                 }
 
                 fut::ok(())
-            }).sync(&self.shutdown, KeyError)
+            }).sync(&self.shutdown, KeyError::Shutdown)
             .drop_err()
             .spawn(context);
     }
@@ -213,7 +222,7 @@ impl KeyCache {
             .or_insert_with(KeyChannel::new)
             .receiver()
             .map(move |key| (relay_id, (*key).clone()))
-            .map_err(|_| KeyError);
+            .map_err(|_| KeyError::FetchFailed);
 
         Response::async(receiver)
     }
