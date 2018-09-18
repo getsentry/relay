@@ -39,7 +39,7 @@ impl<'a, S> From<&'a HttpRequest<S>> for ForwardedFor {
         } else if peer_addr.is_empty() {
             forwarded.to_string()
         } else {
-            format!("{}, {}", peer_addr, forwarded)
+            format!("{}, {}", forwarded, peer_addr)
         })
     }
 }

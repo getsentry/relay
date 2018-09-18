@@ -345,6 +345,7 @@ impl Handler<HandleEvent> for EventManager {
                                 builder
                                     .header("X-Sentry-Auth", meta.auth().to_string())
                                     .header("X-Forwarded-For", meta.forwarded_for())
+                                    .header("Content-Type", "application/json")
                                     .body(processed.data)
                             });
 
