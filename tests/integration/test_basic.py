@@ -95,7 +95,11 @@ def test_local_project_config(mini_sentry, relay):
             {
                 # remove defaults to assert they work
                 "publicKeys": config["publicKeys"],
-                "config": config["config"],
+                "config": {
+                    "allowedDomains": ["*"],
+                    "trustedRelays": [],
+                    "piiConfig": {}
+                }
             }
         )
     )
