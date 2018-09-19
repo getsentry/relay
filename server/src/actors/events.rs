@@ -7,10 +7,9 @@ use futures::prelude::*;
 use num_cpus;
 use sentry::{self, integrations::failure::event_from_fail};
 use serde_json;
-use uuid::Uuid;
 
 use semaphore_common::v8::{self, Annotated, Event};
-use semaphore_common::{Config, ProjectId};
+use semaphore_common::{Config, ProjectId, Uuid};
 
 use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::project::{

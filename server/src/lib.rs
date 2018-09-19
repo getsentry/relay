@@ -20,7 +20,6 @@ extern crate serde;
 extern crate serde_json;
 extern crate tokio_timer;
 extern crate url;
-extern crate uuid;
 
 #[macro_use]
 extern crate failure_derive;

@@ -5,11 +5,11 @@ use base64;
 use chrono::{DateTime, Duration, Utc};
 use ed25519_dalek;
 use rand::{thread_rng, OsRng, RngCore};
+use sentry_types::Uuid;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 use serde_json;
 use sha2::Sha512;
-use uuid::Uuid;
 
 /// Alias for relay IDs (UUIDs)
 pub type RelayId = Uuid;

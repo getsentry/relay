@@ -1,9 +1,9 @@
 use chrono::Duration;
 use serde_json;
-use uuid::Uuid;
 
 use semaphore_common::{
     generate_key_pair, generate_relay_id, PublicKey, RegisterRequest, RegisterResponse, SecretKey,
+    Uuid,
 };
 
 use core::{SemaphoreBuf, SemaphoreStr, SemaphoreUuid};
@@ -26,8 +26,8 @@ pub struct SemaphoreRegisterRequest;
 
 ffi_fn! {
     /// Parses a public key from a string.
-    unsafe fn semaphore_publickey_parse(s: &SemaphoreStr) -> Result<*mut SemaphorePublicKey> {
-        let public_key: PublicKey = s.as_str().parse()?;
+    unsafe fn semaphore_publickey_parse(s: *const SemaphoreStr) -> Result<*mut SemaphorePublicKey> {
+        let public_key: PublicKey = (*s).as_str().parse()?;
         Ok(Box::into_raw(Box::new(public_key)) as *mut SemaphorePublicKey)
     }
 }

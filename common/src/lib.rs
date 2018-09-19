@@ -18,7 +18,6 @@ extern crate serde_json;
 extern crate serde_yaml;
 extern crate sha2;
 extern crate url;
-extern crate uuid;
 
 #[macro_use]
 extern crate lazy_static;
@@ -51,5 +50,5 @@ pub use utils::*;
 pub use marshal::processor;
 pub use marshal::protocol as v8;
 pub use sentry_types::{
-    Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError, Scheme,
+    Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError, Scheme, Uuid,
 };

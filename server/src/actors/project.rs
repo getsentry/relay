@@ -16,9 +16,8 @@ use chrono::{DateTime, Utc};
 use futures::{future::Shared, sync::oneshot, Future};
 use serde_json;
 use url::Url;
-use uuid::Uuid;
 
-use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff};
+use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff, Uuid};
 
 use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};

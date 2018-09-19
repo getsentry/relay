@@ -2,7 +2,6 @@ extern crate chrono;
 extern crate semaphore_common;
 extern crate serde;
 extern crate serde_json;
-extern crate uuid;
 
 #[macro_use]
 extern crate failure;

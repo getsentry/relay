@@ -10,7 +10,6 @@ extern crate openssl_probe;
 extern crate pretty_env_logger;
 extern crate serde;
 extern crate serde_json;
-extern crate uuid;
 
 #[macro_use]
 extern crate log;

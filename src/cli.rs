@@ -6,11 +6,10 @@ use std::path::{Path, PathBuf};
 use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
-use uuid::Uuid;
 
 use semaphore_common::processor::PiiConfig;
 use semaphore_common::v8::{Annotated, Event};
-use semaphore_common::{Config, Credentials, MinimalConfig};
+use semaphore_common::{Config, Credentials, MinimalConfig, Uuid};
 use semaphore_server;
 
 use cliapp::make_app;

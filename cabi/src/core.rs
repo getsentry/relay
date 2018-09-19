@@ -6,8 +6,7 @@ use std::slice;
 use std::str;
 
 use failure::Error;
-use semaphore_common::{KeyParseError, UnpackError};
-use uuid::Uuid;
+use semaphore_common::{KeyParseError, UnpackError, Uuid};
 
 use utils::{set_panic_hook, Panic, LAST_ERROR};
 

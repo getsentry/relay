@@ -9,9 +9,8 @@ use actix_web::{HttpRequest, HttpResponse, Json, ResponseError};
 use futures::prelude::*;
 use sentry::{self, Hub};
 use sentry_actix::ActixWebHubExt;
-use uuid::Uuid;
 
-use semaphore_common::{ProjectId, ProjectIdParseError};
+use semaphore_common::{ProjectId, ProjectIdParseError, Uuid};
 
 use actors::events::{EventError, QueueEvent};
 use actors::project::{EventAction, GetEventAction, GetProject, ProjectError};
