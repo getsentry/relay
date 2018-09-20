@@ -37,7 +37,7 @@ typedef struct SemaphoreSecretKey SemaphoreSecretKey;
  */
 typedef struct {
   uint8_t *data;
-  size_t len;
+  uintptr_t len;
   bool owned;
 } SemaphoreBuf;
 
@@ -46,7 +46,7 @@ typedef struct {
  */
 typedef struct {
   char *data;
-  size_t len;
+  uintptr_t len;
   bool owned;
 } SemaphoreStr;
 
@@ -77,8 +77,8 @@ void semaphore_buf_free(SemaphoreBuf *b);
  * Creates a challenge from a register request and returns JSON.
  */
 SemaphoreStr semaphore_create_register_challenge(const SemaphoreBuf *data,
-                                         const SemaphoreStr *signature,
-                                         uint32_t max_age);
+                                                 const SemaphoreStr *signature,
+                                                 uint32_t max_age);
 
 /*
  * Clears the last error.
@@ -144,15 +144,17 @@ SemaphoreStr semaphore_publickey_to_string(const SemaphorePublicKey *spk);
 /*
  * Verifies a signature
  */
-bool semaphore_publickey_verify(const SemaphorePublicKey *spk, const SemaphoreBuf *data, const SemaphoreStr *sig);
+bool semaphore_publickey_verify(const SemaphorePublicKey *spk,
+                                const SemaphoreBuf *data,
+                                const SemaphoreStr *sig);
 
 /*
  * Verifies a signature
  */
 bool semaphore_publickey_verify_timestamp(const SemaphorePublicKey *spk,
-                                      const SemaphoreBuf *data,
-                                      const SemaphoreStr *sig,
-                                      uint32_t max_age);
+                                          const SemaphoreBuf *data,
+                                          const SemaphoreStr *sig,
+                                          uint32_t max_age);
 
 /*
  * Frees a secret key.
@@ -173,6 +175,8 @@ SemaphoreStr semaphore_secretkey_sign(const SemaphoreSecretKey *spk, const Semap
  * Converts a secret key into a string.
  */
 SemaphoreStr semaphore_secretkey_to_string(const SemaphoreSecretKey *spk);
+
+SemaphoreStr semaphore_split_chunks(const SemaphoreStr *string, const SemaphoreStr *remarks);
 
 /*
  * Frees a semaphore str.
@@ -208,8 +212,8 @@ SemaphoreStr semaphore_uuid_to_str(const SemaphoreUuid *uuid);
  * Validates a register response.
  */
 SemaphoreStr semaphore_validate_register_response(const SemaphorePublicKey *pk,
-                                          const SemaphoreBuf *data,
-                                          const SemaphoreStr *signature,
-                                          uint32_t max_age);
+                                                  const SemaphoreBuf *data,
+                                                  const SemaphoreStr *signature,
+                                                  uint32_t max_age);
 
 #endif /* SEMAPHORE_H_INCLUDED */
