@@ -1,5 +1,5 @@
 ---
-minVersion: '0.5.2'
+minVersion: '0.6.0'
 github:
   owner: getsentry
   repo: semaphore
@@ -13,3 +13,13 @@ targets:
     includeNames: /^semaphore-(Darwin|Linux|Windows).*$/i
     config:
       canonical: "app:semaphore"
+  - name: gcs
+    bucket: sentry-sdk-assets
+    includeNames: /^semaphore-(Darwin|Windows|Linux).*$/
+    paths:
+      - path: /semaphore/{{version}}/
+        metadata:
+          cacheControl: 'public, max-age=2592000'
+      - path: /semaphore/latest/
+        metadata:
+          cacheControl: 'public, max-age=600'
