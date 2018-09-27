@@ -1,8 +1,15 @@
 ---
+minVersion: '0.5.2'
 github:
   owner: getsentry
   repo: semaphore
-targets:
-  - name: github
-  - name: pypi
 changelogPolicy: simple
+targets:
+  - name: pypi
+  - name: github
+  - name: registry
+    type: app
+    urlTemplate: "https://downloads.sentry-cdn.com/semaphore/{{version}}/{{file}}"
+    includeNames: /^semaphore-(Darwin|Linux|Windows).*$/i
+    config:
+      canonical: "app:semaphore"
