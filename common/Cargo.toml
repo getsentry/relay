@@ -6,7 +6,7 @@ homepage = "https://github.com/getsentry/semaphore"
 license = "MIT"
 name = "semaphore-common"
 repository = "https://github.com/getsentry/semaphore"
-version = "0.1.3"
+version = "0.2.0"
 
 [dependencies]
 backoff = "0.1.2"
