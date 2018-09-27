@@ -86,6 +86,18 @@ impl Default for SemaphoreStr {
     }
 }
 
+impl From<String> for SemaphoreStr {
+    fn from(string: String) -> SemaphoreStr {
+        SemaphoreStr::from_string(string)
+    }
+}
+
+impl<'a> From<&'a str> for SemaphoreStr {
+    fn from(string: &str) -> SemaphoreStr {
+        SemaphoreStr::new(string)
+    }
+}
+
 impl SemaphoreStr {
     pub fn new(s: &str) -> SemaphoreStr {
         SemaphoreStr {
@@ -137,6 +149,12 @@ impl Default for SemaphoreBuf {
             len: 0,
             owned: false,
         }
+    }
+}
+
+impl From<Uuid> for SemaphoreUuid {
+    fn from(uuid: Uuid) -> SemaphoreUuid {
+        SemaphoreUuid::new(uuid)
     }
 }
 
