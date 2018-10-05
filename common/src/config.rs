@@ -127,38 +127,15 @@ pub struct Relay {
 
 impl Default for Relay {
     fn default() -> Self {
-        let minimal = MinimalRelay::default();
         Relay {
-            upstream: minimal.upstream,
-            host: minimal.host,
-            port: minimal.port,
-            tls_port: None,
-            tls_identity_path: None,
-            tls_identity_password: None,
-        }
-    }
-}
-
-/// Relay specific configuration values.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-pub struct MinimalRelay {
-    /// The upstream relay or sentry instance.
-    pub upstream: UpstreamDescriptor<'static>,
-    /// The host the relay should bind to (network interface)
-    pub host: IpAddr,
-    /// The port to bind for the unencrypted relay HTTP server.
-    pub port: u16,
-}
-
-impl Default for MinimalRelay {
-    fn default() -> Self {
-        MinimalRelay {
             upstream: "https://ingest.sentry.io/"
                 .parse::<UpstreamDescriptor>()
                 .unwrap(),
             host: "127.0.0.1".parse().unwrap(),
             port: 3000,
+            tls_port: None,
+            tls_identity_path: None,
+            tls_identity_password: None,
         }
     }
 }
@@ -331,7 +308,7 @@ pub struct MinimalSentry {
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct MinimalConfig {
     /// The relay part of the config.
-    pub relay: MinimalRelay,
+    pub relay: Relay,
     /// Turn on crash reporting?
     pub sentry: MinimalSentry,
 }
