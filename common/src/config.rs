@@ -113,15 +113,15 @@ impl ConfigObject for Credentials {
 pub struct Relay {
     /// The upstream relay or sentry instance.
     pub upstream: UpstreamDescriptor<'static>,
-    /// The host the relay should bind to (network interface)
+    /// The host the relay should bind to (network interface).
     pub host: IpAddr,
     /// The port to bind for the unencrypted relay HTTP server.
     pub port: u16,
     /// Optional port to bind for the encrypted relay HTTPS server.
     pub tls_port: Option<u16>,
-    /// The path to the identity (DER-encoded PKCS12) to use for TLS
+    /// The path to the identity (DER-encoded PKCS12) to use for TLS.
     pub tls_identity_path: Option<PathBuf>,
-    /// Password for the PKCS12 archive
+    /// Password for the PKCS12 archive.
     pub tls_identity_password: Option<String>,
 }
 
@@ -232,6 +232,8 @@ struct Http {
     timeout: u32,
     /// Maximum interval between failed request retries in seconds.
     max_retry_interval: u32,
+    /// The custom HTTP Host header to send to the upstream.
+    host_header: Option<String>,
 }
 
 impl Default for Http {
@@ -239,6 +241,7 @@ impl Default for Http {
         Http {
             timeout: 5,
             max_retry_interval: 60,
+            host_header: None,
         }
     }
 }
@@ -486,6 +489,11 @@ impl Config {
         &self.values.relay.upstream
     }
 
+    /// Returns the custom HTTP "Host" header.
+    pub fn http_host_header(&self) -> Option<&str> {
+        self.values.http.host_header.as_ref().map(|x| x.as_str())
+    }
+
     /// Returns the listen address.
     pub fn listen_addr(&self) -> SocketAddr {
         (self.values.relay.host, self.values.relay.port).into()
@@ -516,7 +524,7 @@ impl Config {
             .relay
             .tls_identity_password
             .as_ref()
-            .map(|x| &**x)
+            .map(|x| x.as_str())
     }
 
     /// Returns the log level.

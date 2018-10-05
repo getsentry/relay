@@ -95,10 +95,16 @@ impl UpstreamRelay {
         F: FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>,
         P: AsRef<str>,
     {
+        let host_header = self
+            .config
+            .http_host_header()
+            .unwrap_or_else(|| self.config.upstream_descriptor().host());
+
         let mut builder = ClientRequest::build();
         builder
             .method(method)
-            .uri(self.config.upstream_descriptor().get_url(path.as_ref()));
+            .uri(self.config.upstream_descriptor().get_url(path.as_ref()))
+            .set_header("Host", host_header);
 
         if let Some(ref credentials) = self.config.credentials() {
             builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
