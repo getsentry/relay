@@ -69,12 +69,13 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         forwarded_request_builder.header(key.clone(), value.clone());
     }
 
+    let host_header = config.http_host_header().unwrap_or_else(|| upstream.host());
     forwarded_request_builder
         .no_default_headers()
         .disable_decompress()
         .method(request.method().clone())
         .uri(upstream.get_url(path_and_query))
-        .set_header("Host", upstream.host())
+        .set_header("Host", host_header)
         .set_header("X-Forwarded-For", ForwardedFor::from(request))
         .set_header("Connection", "close")
         .timeout(config.http_timeout());
