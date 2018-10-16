@@ -1,0 +1,292 @@
+#![recursion_limit = "128"]
+extern crate syn;
+
+#[macro_use]
+extern crate synstructure;
+#[macro_use]
+extern crate quote;
+extern crate proc_macro2;
+
+use proc_macro2::{TokenStream, Span};
+use quote::ToTokens;
+use syn::{Lit, Meta, MetaNameValue, NestedMeta, LitStr, Ident};
+
+decl_derive!([MetaStructure, attributes(metastructure)] => process_metastructure);
+
+/*
+fn process_wrapper_struct_derive(
+    s: synstructure::Structure,
+) -> Result<TokenStream, synstructure::Structure> {
+    // The next few blocks are for finding out whether the given type is of the form:
+    // struct Foo(Bar)  (tuple struct with a single field)
+
+    if s.variants().len() != 1 {
+        // We have more than one variant (e.g. `enum Foo { A, B }`)
+        return Err(s);
+    }
+
+    if s.variants()[0].bindings().len() != 1 {
+        // The single variant has multiple fields
+        // e.g. `struct Foo(Bar, Baz)`
+        //      `enum Foo { A(X, Y) }`
+        return Err(s);
+    }
+
+    if let Some(_) = s.variants()[0].bindings()[0].ast().ident {
+        // The variant has a name
+        // e.g. `struct Foo { bar: Bar }` instead of `struct Foo(Bar)`
+        return Err(s);
+    }
+
+    // At this point we know we have a struct of the form:
+    // struct Foo(Bar)
+    //
+    // Those structs get special treatment: Bar does not need to be wrapped in Annnotated, and no
+    // #[metastructure] is necessary on the value.
+    //
+    // It basically works like a type alias.
+
+    // Last check: It's a programming error to add `#[metastructure]` to the single
+    // field, because it does not do anything.
+    //
+    // e.g.
+    // `struct Foo(#[metastructure] Annnotated<Bar>)` is useless
+    // `struct Foo(Bar)` is how it's supposed to be used
+    for attr in &s.variants()[0].bindings()[0].ast().attrs {
+        if let Some(meta) = attr.interpret_meta() {
+            if meta.name() == "metastructure" {
+                panic!("Single-field tuple structs are treated as type aliases");
+            }
+        }
+    }
+
+    let name = &s.ast().ident;
+
+    Ok(s.gen_impl(quote! {
+        use processor as __processor;
+        use protocol as __protocol;
+
+        gen impl __processor::ProcessAnnotatedValue for @Self {
+            fn metastructure(
+                __annotated: __protocol::Annotated<Self>,
+                __processor: &__processor::Processor,
+                __info: &__processor::ValueInfo
+            ) -> __protocol::Annotated<Self> {
+                __processor::ProcessAnnotatedValue::metastructure(
+                    __annotated.map(|x| x.0),
+                    __processor,
+                    __info
+                ).map(#name)
+            }
+        }
+    }))
+}
+*/
+
+fn process_metastructure(s: synstructure::Structure) -> TokenStream {
+    /*
+    let s = match process_wrapper_struct_derive(s) {
+        Ok(stream) => return stream,
+        Err(s) => s,
+    };
+    */
+
+    let variants = s.variants();
+    if variants.len() != 1 {
+        panic!("Can only derive structs");
+    }
+
+    let mut variant = variants[0].clone();
+    for binding in variant.bindings_mut() {
+        binding.style = synstructure::BindStyle::MoveMut;
+    }
+    let mut to_structure_body = TokenStream::new();
+    let mut to_value_body = TokenStream::new();
+    let mut process_body = TokenStream::new();
+    let mut process_func = None;
+
+    for attr in &s.ast().attrs {
+        let meta = match attr.interpret_meta() {
+            Some(meta) => meta,
+            None => continue,
+        };
+        if meta.name() != "metastructure" {
+            continue;
+        }
+
+        if let Meta::List(metalist) = meta {
+            for nested_meta in metalist.nested {
+                match nested_meta {
+                    NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
+                    NestedMeta::Meta(meta) => match meta {
+                        Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
+                            if ident == "process_func" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        process_func = Some(litstr.value());
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for field");
+                                    }
+                                }
+                            } else {
+                                panic!("Unknown attribute")
+                            }
+                        }
+                        _ => panic!("Unsupported attribute")
+                    }
+                }
+            }
+        }
+    }
+
+    for bi in variant.bindings() {
+        let mut additional_properties = false;
+        let mut field_name = bi.ast().ident.as_ref().unwrap().to_string();
+        let mut required = false;
+        for attr in &bi.ast().attrs {
+            let meta = match attr.interpret_meta() {
+                Some(meta) => meta,
+                None => continue,
+            };
+            if meta.name() != "metastructure" {
+                continue;
+            }
+
+            if let Meta::List(metalist) = meta {
+                for nested_meta in metalist.nested {
+                    match nested_meta {
+                        NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
+                        NestedMeta::Meta(meta) => match meta {
+                            Meta::Word(ident) => {
+                                if ident == "additional_properties" {
+                                    additional_properties = true;
+                                } else {
+                                    panic!("Unknown attribute {}", ident);
+                                }
+                            }
+                            Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
+                                if ident == "field" {
+                                    match lit {
+                                        Lit::Str(litstr) => {
+                                            field_name = litstr.value();
+                                        }
+                                        _ => {
+                                            panic!("Got non string literal for field");
+                                        }
+                                    }
+                                } else if ident == "required" {
+                                    match lit {
+                                        Lit::Bool(litbool) => {
+                                            required = litbool.value;
+                                        }
+                                        _ => {
+                                            panic!("Got non bool literal for required");
+                                        }
+                                    }
+                                }
+                            }
+                            other => {
+                                panic!("Unexpected or bad attribute {}", other.name());
+                            }
+                        },
+                    }
+                }
+            }
+        }
+
+        let field_name = LitStr::new(&field_name, Span::call_site());
+
+        if additional_properties {
+            (quote! {
+                let #bi = __obj;
+            }).to_tokens(&mut to_structure_body);
+            (quote! {
+                __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, __processor::MetaStructure::metastructure_to_metavalue(__value))));
+            }).to_tokens(&mut to_value_body);
+        } else {
+            (quote! {
+                let #bi = __processor::MetaStructure::metastructure_from_metavalue(
+                    __obj.remove(#field_name));
+            }).to_tokens(&mut to_structure_body);
+            if required {
+                (quote! {
+                    #bi.require_value();
+                }).to_tokens(&mut to_structure_body);
+            }
+            (quote! {
+                __map.insert(#field_name, __processor::MetaStructure::metastructure_to_metavalue(#bi));
+            }).to_tokens(&mut to_value_body);
+        }
+        (quote! {
+            let #bi = __processor::MetaStructure::process(#bi, __processor, __state);
+        }).to_tokens(&mut process_body);
+    }
+
+    let mut variant = variant.clone();
+    for binding in variant.bindings_mut() {
+        binding.style = synstructure::BindStyle::Move;
+    }
+    let to_value_pat = variant.pat();
+    let to_structure_assemble_pat = variant.pat();
+
+    let invoke_process_func = process_func.map(|func_name| {
+        let func_name = Ident::new(&func_name, Span::call_site());
+        quote! {
+            let __result = __processor.#func_name(__result, __state);
+        }
+    });
+
+    s.gen_impl(quote! {
+        use processor as __processor;
+        use types as __types;
+
+        gen impl __processor::MetaStructure for @Self {
+            fn metastructure_from_metavalue(
+                __metavalue: __protocol::MetaValue
+            ) -> __protocol::Annotated<Self> {
+                match __metavalue {
+                    __types::MetaValue::Object(__obj, __meta) => {
+                        #to_structure_body;
+                        __protocol::Annnotated(#to_structure_assemble_pat, __meta)
+                    }
+                    __other => {
+                        // TODO: add error
+                        __protocol::Annnotated(None, __other.into_meta())
+                    }
+                }
+            }
+
+            fn metastructure_to_metavalue(
+                __metastructure: __protocol::Annotated<Self>
+            ) -> __protocol::MetaValue {
+                let __protocol::Annotated(__value, __meta) = __metastructure;
+                let mut __map = ::std::collections::BTreeMap::new();
+                if let Some(__value) = __value {
+                    let #to_value_pat = __value;
+                    #to_value_body;
+                    __protocol::MetaValue::Object(__map, __meta)
+                } else {
+                    __protocol::MetaValue::Null(__meta)
+                }
+            }
+
+            fn process<P: __processor::Processor>(
+                __metastructure: __processor::Annotated<Self>,
+                __processor: &P,
+                __state: __protocol::ProcessingState
+            ) -> __processor::Annnotated<Self> {
+                let __protocol::Annotated(__value, __meta) = __metastructure;
+                let __result = if let Some(__value) = __value {
+                    let #to_value_pat = __value;
+                    #process_body;
+                    __protocol::Annnotated(Some(#to_structure_assemble_pat), __meta)
+                } else {
+                    __protocol::Annnotated(None, __meta)
+                };
+                #invoke_process_func
+                __result
+            }
+        }
+    })
+}
