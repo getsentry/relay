@@ -41,7 +41,7 @@ fn process_wrapper_struct_derive(
     // At this point we know we have a struct of the form:
     // struct Foo(Bar)
     //
-    // Those structs get special treatment: Bar does not need to be wrapped in Annnotated, and no
+    // Those structs get special treatment: Bar does not need to be wrapped in Annotated, and no
     // #[metastructure] is necessary on the value.
     //
     // It basically works like a type alias.
@@ -50,7 +50,7 @@ fn process_wrapper_struct_derive(
     // field, because it does not do anything.
     //
     // e.g.
-    // `struct Foo(#[metastructure] Annnotated<Bar>)` is useless
+    // `struct Foo(#[metastructure] Annotated<Bar>)` is useless
     // `struct Foo(Bar)` is how it's supposed to be used
     for attr in &s.variants()[0].bindings()[0].ast().attrs {
         if let Some(meta) = attr.interpret_meta() {
@@ -64,14 +64,14 @@ fn process_wrapper_struct_derive(
 
     Ok(s.gen_impl(quote! {
         use processor as __processor;
-        use protocol as __protocol;
+        use protocol as __meta;
 
         gen impl __processor::ProcessAnnotatedValue for @Self {
             fn metastructure(
-                __annotated: __protocol::Annotated<Self>,
+                __annotated: __meta::Annotated<Self>,
                 __processor: &__processor::Processor,
                 __info: &__processor::ValueInfo
-            ) -> __protocol::Annotated<Self> {
+            ) -> __meta::Annotated<Self> {
                 __processor::ProcessAnnotatedValue::metastructure(
                     __annotated.map(|x| x.0),
                     __processor,
@@ -177,8 +177,12 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                                     }
                                 } else if ident == "required" {
                                     match lit {
-                                        Lit::Bool(litbool) => {
-                                            required = litbool.value;
+                                        Lit::Str(litstr) => {
+                                            match litstr.value().as_str() {
+                                                "true" => required = true,
+                                                "false" => required = false,
+                                                other => panic!("Unknown value {}", other),
+                                            }
                                         }
                                         _ => {
                                             panic!("Got non bool literal for required");
@@ -199,28 +203,34 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
 
         if additional_properties {
             (quote! {
-                let #bi = __obj;
+                let #bi = __obj.into_iter().map(|(__key, __value)| (__key, __processor::MetaStructure::metastructure_from_metavalue(__value))).collect();
             }).to_tokens(&mut to_structure_body);
             (quote! {
                 __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, __processor::MetaStructure::metastructure_to_metavalue(__value))));
             }).to_tokens(&mut to_value_body);
+            (quote! {
+                let #bi = #bi.into_iter().map(|(__key, __value)| {
+                    let __value = __processor::MetaStructure::process(__value, __processor, __state.enter(&__key));
+                    (__key, __value)
+                }).collect();
+            }).to_tokens(&mut process_body);
         } else {
             (quote! {
                 let #bi = __processor::MetaStructure::metastructure_from_metavalue(
-                    __obj.remove(#field_name));
+                    __obj.remove(#field_name).unwrap_or_else(|| MetaValue::Null(__meta::Meta::default())));
             }).to_tokens(&mut to_structure_body);
             if required {
                 (quote! {
-                    #bi.require_value();
+                    let #bi = #bi.require_value();
                 }).to_tokens(&mut to_structure_body);
             }
             (quote! {
-                __map.insert(#field_name, __processor::MetaStructure::metastructure_to_metavalue(#bi));
+                __map.insert(#field_name.to_string(), __processor::MetaStructure::metastructure_to_metavalue(#bi));
             }).to_tokens(&mut to_value_body);
+            (quote! {
+                let #bi = __processor::MetaStructure::process(#bi, __processor, __state.enter(#field_name));
+            }).to_tokens(&mut process_body);
         }
-        (quote! {
-            let #bi = __processor::MetaStructure::process(#bi, __processor, __state);
-        }).to_tokens(&mut process_body);
     }
 
     let mut variant = variant.clone();
@@ -240,49 +250,50 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
     s.gen_impl(quote! {
         use processor as __processor;
         use types as __types;
+        use meta as __meta;
 
         gen impl __processor::MetaStructure for @Self {
             fn metastructure_from_metavalue(
-                __metavalue: __protocol::MetaValue
-            ) -> __protocol::Annotated<Self> {
+                __metavalue: __meta::MetaValue
+            ) -> __meta::Annotated<Self> {
                 match __metavalue {
-                    __types::MetaValue::Object(__obj, __meta) => {
+                    __types::MetaValue::Object(mut __obj, __meta) => {
                         #to_structure_body;
-                        __protocol::Annnotated(#to_structure_assemble_pat, __meta)
+                        __meta::Annotated(Some(#to_structure_assemble_pat), __meta)
                     }
                     __other => {
                         // TODO: add error
-                        __protocol::Annnotated(None, __other.into_meta())
+                        __meta::Annotated(None, __other.into_meta())
                     }
                 }
             }
 
             fn metastructure_to_metavalue(
-                __metastructure: __protocol::Annotated<Self>
-            ) -> __protocol::MetaValue {
-                let __protocol::Annotated(__value, __meta) = __metastructure;
-                let mut __map = ::std::collections::BTreeMap::new();
+                __metastructure: __meta::Annotated<Self>
+            ) -> __meta::MetaValue {
+                let __meta::Annotated(__value, __meta) = __metastructure;
                 if let Some(__value) = __value {
+                    let mut __map = ::std::collections::BTreeMap::new();
                     let #to_value_pat = __value;
                     #to_value_body;
-                    __protocol::MetaValue::Object(__map, __meta)
+                    __meta::MetaValue::Object(__map, __meta)
                 } else {
-                    __protocol::MetaValue::Null(__meta)
+                    __meta::MetaValue::Null(__meta)
                 }
             }
 
             fn process<P: __processor::Processor>(
-                __metastructure: __processor::Annotated<Self>,
+                __metastructure: __meta::Annotated<Self>,
                 __processor: &P,
-                __state: __protocol::ProcessingState
-            ) -> __processor::Annnotated<Self> {
-                let __protocol::Annotated(__value, __meta) = __metastructure;
+                __state: __processor::ProcessingState
+            ) -> __meta::Annotated<Self> {
+                let __meta::Annotated(__value, __meta) = __metastructure;
                 let __result = if let Some(__value) = __value {
                     let #to_value_pat = __value;
                     #process_body;
-                    __protocol::Annnotated(Some(#to_structure_assemble_pat), __meta)
+                    __meta::Annotated(Some(#to_structure_assemble_pat), __meta)
                 } else {
-                    __protocol::Annnotated(None, __meta)
+                    __meta::Annotated(None, __meta)
                 };
                 #invoke_process_func
                 __result
