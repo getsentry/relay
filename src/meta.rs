@@ -1,19 +1,10 @@
 //! Event meta data.
 
-use std::borrow;
-use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::iter::FromIterator;
-use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::de::{self, Deserialize, Deserializer, IgnoredAny};
 use serde::ser::{Serialize, SerializeSeq, Serializer};
-use serde_json;
-
-/// Internal synchronization for meta data serialization.
-thread_local!(static SERIALIZE_META: AtomicBool = AtomicBool::new(false));
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
 pub type Range = (usize, usize);

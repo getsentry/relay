@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use uuid::Uuid;
 
-use meta::{Annotated, Meta, Value};
+use meta::{Annotated, Value};
 use types::{Event, Exception, Frame, Stacktrace};
 
 #[derive(Debug, Clone)]
