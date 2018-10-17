@@ -203,10 +203,10 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
 
         if additional_properties {
             (quote! {
-                let #bi = __obj.into_iter().map(|(__key, __value)| (__key, __processor::MetaStructure::metastructure_from_metavalue(__value))).collect();
+                let #bi = __obj.into_iter().map(|(__key, __value)| (__key, __processor::MetaStructure::from_value(__value))).collect();
             }).to_tokens(&mut to_structure_body);
             (quote! {
-                __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, __processor::MetaStructure::metastructure_to_metavalue(__value))));
+                __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, __processor::MetaStructure::to_value(__value))));
             }).to_tokens(&mut to_value_body);
             (quote! {
                 let #bi = #bi.into_iter().map(|(__key, __value)| {
@@ -216,8 +216,8 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
             }).to_tokens(&mut process_body);
         } else {
             (quote! {
-                let #bi = __processor::MetaStructure::metastructure_from_metavalue(
-                    __obj.remove(#field_name).unwrap_or_else(|| MetaValue::Null(__meta::Meta::default())));
+                let #bi = __processor::MetaStructure::from_value(
+                    __obj.remove(#field_name).unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())));
             }).to_tokens(&mut to_structure_body);
             if required {
                 (quote! {
@@ -225,7 +225,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                 }).to_tokens(&mut to_structure_body);
             }
             (quote! {
-                __map.insert(#field_name.to_string(), __processor::MetaStructure::metastructure_to_metavalue(#bi));
+                __map.insert(#field_name.to_string(), __processor::MetaStructure::to_value(#bi));
             }).to_tokens(&mut to_value_body);
             (quote! {
                 let #bi = __processor::MetaStructure::process(#bi, __processor, __state.enter(#field_name));
@@ -253,41 +253,45 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
         use meta as __meta;
 
         gen impl __processor::MetaStructure for @Self {
-            fn metastructure_from_metavalue(
-                __metavalue: __meta::MetaValue
+            fn from_value(
+                __value: __meta::Annotated<__meta::Value>,
             ) -> __meta::Annotated<Self> {
-                match __metavalue {
-                    __types::MetaValue::Object(mut __obj, __meta) => {
+                match __value {
+                    __meta::Annotated(Some(__meta::Value::Object(mut __obj)), __meta) => {
                         #to_structure_body;
                         __meta::Annotated(Some(#to_structure_assemble_pat), __meta)
                     }
-                    __other => {
+                    __meta::Annotated(None, __meta) => {
+                        // TODO: hook?
+                        __meta::Annotated(None, __meta)
+                    }
+                    __meta::Annotated(_, __meta) => {
                         // TODO: add error
-                        __meta::Annotated(None, __other.into_meta())
+                        __meta::Annotated(None, __meta)
                     }
                 }
             }
 
-            fn metastructure_to_metavalue(
-                __metastructure: __meta::Annotated<Self>
-            ) -> __meta::MetaValue {
-                let __meta::Annotated(__value, __meta) = __metastructure;
+            fn to_value(
+                __value: __meta::Annotated<Self>
+            ) -> __meta::Annotated<__meta::Value> {
+                let __meta::Annotated(__value, __meta) = __value;
                 if let Some(__value) = __value {
                     let mut __map = ::std::collections::BTreeMap::new();
                     let #to_value_pat = __value;
                     #to_value_body;
-                    __meta::MetaValue::Object(__map, __meta)
+                    __meta::Annotated(Some(__meta::Value::Object(__map)), __meta)
                 } else {
-                    __meta::MetaValue::Null(__meta)
+                    __meta::Annotated(None, __meta)
                 }
             }
 
             fn process<P: __processor::Processor>(
-                __metastructure: __meta::Annotated<Self>,
+                __value: __meta::Annotated<Self>,
                 __processor: &P,
                 __state: __processor::ProcessingState
             ) -> __meta::Annotated<Self> {
-                let __meta::Annotated(__value, __meta) = __metastructure;
+                let __meta::Annotated(__value, __meta) = __value;
                 let __result = if let Some(__value) = __value {
                     let #to_value_pat = __value;
                     #process_body;

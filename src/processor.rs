@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use uuid::Uuid;
 
-use meta::{Annotated, Meta, MetaValue};
-use types::{Event, Exception, Frame, Stacktrace, Value};
+use meta::{Annotated, Meta, Value};
+use types::{Event, Exception, Frame, Stacktrace};
 
 #[derive(Debug, Clone)]
 pub struct ProcessingState {
@@ -58,10 +58,10 @@ pub trait Processor {
 }
 
 pub trait MetaStructure {
-    fn metastructure_from_metavalue(value: MetaValue) -> Annotated<Self>
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
     where
         Self: Sized;
-    fn metastructure_to_metavalue(value: Annotated<Self>) -> MetaValue
+    fn to_value(value: Annotated<Self>) -> Annotated<Value>
     where
         Self: Sized;
     #[inline(always)]
@@ -83,19 +83,20 @@ macro_rules! primitive_meta_structure {
     ($type:ident, $meta_type:ident) => {
         impl MetaStructure for $type {
             #[inline(always)]
-            fn metastructure_from_metavalue(value: MetaValue) -> Annotated<Self> {
+            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
-                    MetaValue::$meta_type(value, meta) => Annotated(Some(value), meta),
-                    MetaValue::Null(meta) => Annotated(None, meta),
+                    Annotated(Some(Value::$meta_type(value)), meta) => Annotated(Some(value), meta),
+                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+                    Annotated(None, meta) => Annotated(None, meta),
                     // TODO: add error
-                    other => Annotated(None, other.into_meta()),
+                    Annotated(_, meta) => Annotated(None, meta),
                 }
             }
             #[inline(always)]
-            fn metastructure_to_metavalue(value: Annotated<Self>) -> MetaValue {
+            fn to_value(value: Annotated<Self>) -> Annotated<Value> {
                 match value {
-                    Annotated(Some(value), meta) => MetaValue::$meta_type(value, meta),
-                    Annotated(None, meta) => MetaValue::Null(meta),
+                    Annotated(Some(value), meta) => Annotated(Some(Value::$meta_type(value)), meta),
+                    Annotated(None, meta) => Annotated(None, meta),
                 }
             }
         }
@@ -106,23 +107,28 @@ macro_rules! primitive_meta_structure_through_string {
     ($type:ident) => {
         impl MetaStructure for $type {
             #[inline(always)]
-            fn metastructure_from_metavalue(value: MetaValue) -> Annotated<Self> {
+            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
-                    MetaValue::String(value, meta) => match value.parse() {
-                        Ok(value) => Annotated(Some(value), meta),
-                        // TODO: add error
-                        Err(_err) => Annotated(None, meta),
-                    },
-                    MetaValue::Null(meta) => Annotated(None, meta),
+                    Annotated(Some(Value::String(value)), meta) => {
+                        match value.parse() {
+                            Ok(value) => Annotated(Some(value), meta),
+                            // TODO: add error
+                            Err(_err) => Annotated(None, meta),
+                        }
+                    }
+                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+                    Annotated(None, meta) => Annotated(None, meta),
                     // TODO: add error
-                    other => Annotated(None, other.into_meta()),
+                    Annotated(_, meta) => Annotated(None, meta),
                 }
             }
             #[inline(always)]
-            fn metastructure_to_metavalue(value: Annotated<Self>) -> MetaValue {
+            fn to_value(value: Annotated<Self>) -> Annotated<Value> {
                 match value {
-                    Annotated(Some(value), meta) => MetaValue::String(value.to_string(), meta),
-                    Annotated(None, meta) => MetaValue::Null(meta),
+                    Annotated(Some(value), meta) => {
+                        Annotated(Some(Value::String(value.to_string())), meta)
+                    }
+                    Annotated(None, meta) => Annotated(None, meta),
                 }
             }
         }
@@ -141,77 +147,75 @@ primitive_meta_structure!(i64, I64);
 primitive_meta_structure_through_string!(Uuid);
 
 impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
-    fn metastructure_from_metavalue(value: MetaValue) -> Annotated<Self> {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            MetaValue::Array(items, meta) => Annotated(
-                Some(
-                    items
-                        .into_iter()
-                        .map(MetaStructure::metastructure_from_metavalue)
-                        .collect(),
-                ),
+            Annotated(Some(Value::Array(items)), meta) => Annotated(
+                Some(items.into_iter().map(MetaStructure::from_value).collect()),
                 meta,
             ),
-            MetaValue::Null(meta) => Annotated(None, meta),
+            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(None, meta) => Annotated(None, meta),
             // TODO: add error
-            other => Annotated(None, other.into_meta()),
+            Annotated(_, meta) => Annotated(None, meta),
         }
     }
     #[inline(always)]
-    fn metastructure_to_metavalue(value: Annotated<Self>) -> MetaValue {
+    fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
-            Annotated(Some(value), meta) => MetaValue::Array(
-                value
-                    .into_iter()
-                    .map(MetaStructure::metastructure_to_metavalue)
-                    .collect(),
+            Annotated(Some(value), meta) => Annotated(
+                Some(Value::Array(
+                    value.into_iter().map(MetaStructure::to_value).collect(),
+                )),
                 meta,
             ),
-            Annotated(None, meta) => MetaValue::Null(meta),
+            Annotated(None, meta) => Annotated(None, meta),
         }
     }
 }
 
 impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
-    fn metastructure_from_metavalue(value: MetaValue) -> Annotated<Self> {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            MetaValue::Object(items, meta) => Annotated(
+            Annotated(Some(Value::Object(items)), meta) => Annotated(
                 Some(
                     items
                         .into_iter()
-                        .map(|(k, v)| (k, MetaStructure::metastructure_from_metavalue(v)))
+                        .map(|(k, v)| (k, MetaStructure::from_value(v)))
                         .collect(),
                 ),
                 meta,
             ),
-            MetaValue::Null(meta) => Annotated(None, meta),
+            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(None, meta) => Annotated(None, meta),
             // TODO: add error
-            other => Annotated(None, other.into_meta()),
+            Annotated(_, meta) => Annotated(None, meta),
         }
     }
     #[inline(always)]
-    fn metastructure_to_metavalue(value: Annotated<Self>) -> MetaValue {
+    fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
-            Annotated(Some(value), meta) => MetaValue::Object(
-                value
-                    .into_iter()
-                    .map(|(k, v)| (k, MetaStructure::metastructure_to_metavalue(v)))
-                    .collect(),
+            Annotated(Some(value), meta) => Annotated(
+                Some(Value::Object(
+                    value
+                        .into_iter()
+                        .map(|(k, v)| (k, MetaStructure::to_value(v)))
+                        .collect(),
+                )),
                 meta,
             ),
-            Annotated(None, meta) => MetaValue::Null(meta),
+            Annotated(None, meta) => Annotated(None, meta),
         }
     }
 }
 
 impl MetaStructure for Value {
     #[inline(always)]
-    fn metastructure_from_metavalue(value: MetaValue) -> Annotated<Value> {
-        value.into()
+    fn from_value(value: Annotated<Value>) -> Annotated<Value> {
+        value
     }
     #[inline(always)]
-    fn metastructure_to_metavalue(value: Annotated<Value>) -> MetaValue {
-        value.into()
+    fn to_value(value: Annotated<Value>) -> Annotated<Value> {
+        value
     }
     #[inline(always)]
     fn process<P: Processor>(
@@ -219,30 +223,8 @@ impl MetaStructure for Value {
         processor: &P,
         state: ProcessingState,
     ) -> Annotated<Self> {
-        match value {
-            Annotated(Some(Value::Array(items)), meta) => Annotated(
-                Some(Value::Array(
-                    items
-                        .into_iter()
-                        .enumerate()
-                        .map(|(idx, value)| {
-                            MetaStructure::process(value, processor, state.enter_item(idx))
-                        }).collect(),
-                )),
-                meta,
-            ),
-            Annotated(Some(Value::Object(items)), meta) => Annotated(
-                Some(Value::Object(
-                    items
-                        .into_iter()
-                        .map(|(k, v)| {
-                            let v = MetaStructure::process(v, processor, state.enter(&k));
-                            (k, v)
-                        }).collect(),
-                )),
-                meta,
-            ),
-            other => other,
-        }
+        let _processor = processor;
+        let _state = state;
+        value
     }
 }

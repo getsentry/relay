@@ -12,8 +12,6 @@ use serde::de::{self, Deserialize, Deserializer, IgnoredAny};
 use serde::ser::{Serialize, SerializeSeq, Serializer};
 use serde_json;
 
-use types::Value;
-
 /// Internal synchronization for meta data serialization.
 thread_local!(static SERIALIZE_META: AtomicBool = AtomicBool::new(false));
 
@@ -271,97 +269,19 @@ impl<T> Annotated<T> {
 }
 
 #[derive(Debug, Clone)]
-pub enum MetaValue {
-    Null(Meta),
-    I8(i8, Meta),
-    I16(i16, Meta),
-    I32(i32, Meta),
-    I64(i64, Meta),
-    U8(u8, Meta),
-    U16(u16, Meta),
-    U32(u32, Meta),
-    U64(u64, Meta),
-    F32(f32, Meta),
-    F64(f64, Meta),
-    String(String, Meta),
-    Array(Vec<MetaValue>, Meta),
-    Object(BTreeMap<String, MetaValue>, Meta),
-}
-
-impl MetaValue {
-    /// Extracts the meta of the value and discards the rest.
-    pub fn into_meta(self) -> Meta {
-        match self {
-            MetaValue::Null(meta) => meta,
-            MetaValue::U8(_, meta) => meta,
-            MetaValue::U16(_, meta) => meta,
-            MetaValue::U32(_, meta) => meta,
-            MetaValue::U64(_, meta) => meta,
-            MetaValue::I8(_, meta) => meta,
-            MetaValue::I16(_, meta) => meta,
-            MetaValue::I32(_, meta) => meta,
-            MetaValue::I64(_, meta) => meta,
-            MetaValue::F32(_, meta) => meta,
-            MetaValue::F64(_, meta) => meta,
-            MetaValue::String(_, meta) => meta,
-            MetaValue::Array(_, meta) => meta,
-            MetaValue::Object(_, meta) => meta,
-        }
-    }
-}
-
-impl From<Annotated<Value>> for MetaValue {
-    fn from(value: Annotated<Value>) -> MetaValue {
-        match value {
-            Annotated(None, meta) => MetaValue::Null(meta),
-            Annotated(Some(Value::Null), meta) => MetaValue::Null(meta),
-            Annotated(Some(Value::U8(value)), meta) => MetaValue::U8(value, meta),
-            Annotated(Some(Value::U16(value)), meta) => MetaValue::U16(value, meta),
-            Annotated(Some(Value::U32(value)), meta) => MetaValue::U32(value, meta),
-            Annotated(Some(Value::U64(value)), meta) => MetaValue::U64(value, meta),
-            Annotated(Some(Value::I8(value)), meta) => MetaValue::I8(value, meta),
-            Annotated(Some(Value::I16(value)), meta) => MetaValue::I16(value, meta),
-            Annotated(Some(Value::I32(value)), meta) => MetaValue::I32(value, meta),
-            Annotated(Some(Value::I64(value)), meta) => MetaValue::I64(value, meta),
-            Annotated(Some(Value::F32(value)), meta) => MetaValue::F32(value, meta),
-            Annotated(Some(Value::F64(value)), meta) => MetaValue::F64(value, meta),
-            Annotated(Some(Value::String(value)), meta) => MetaValue::String(value, meta),
-            Annotated(Some(Value::Array(value)), meta) => {
-                MetaValue::Array(value.into_iter().map(From::from).collect(), meta)
-            }
-            Annotated(Some(Value::Object(value)), meta) => MetaValue::Object(
-                value.into_iter().map(|(k, v)| (k, From::from(v))).collect(),
-                meta,
-            ),
-        }
-    }
-}
-
-impl From<MetaValue> for Annotated<Value> {
-    fn from(value: MetaValue) -> Annotated<Value> {
-        match value {
-            MetaValue::Null(meta) => Annotated(Some(Value::Null), meta),
-            MetaValue::U8(value, meta) => Annotated(Some(Value::U8(value)), meta),
-            MetaValue::U16(value, meta) => Annotated(Some(Value::U16(value)), meta),
-            MetaValue::U32(value, meta) => Annotated(Some(Value::U32(value)), meta),
-            MetaValue::U64(value, meta) => Annotated(Some(Value::U64(value)), meta),
-            MetaValue::I8(value, meta) => Annotated(Some(Value::I8(value)), meta),
-            MetaValue::I16(value, meta) => Annotated(Some(Value::I16(value)), meta),
-            MetaValue::I32(value, meta) => Annotated(Some(Value::I32(value)), meta),
-            MetaValue::I64(value, meta) => Annotated(Some(Value::I64(value)), meta),
-            MetaValue::F32(value, meta) => Annotated(Some(Value::F32(value)), meta),
-            MetaValue::F64(value, meta) => Annotated(Some(Value::F64(value)), meta),
-            MetaValue::String(value, meta) => Annotated(Some(Value::String(value)), meta),
-            MetaValue::Array(value, meta) => Annotated(
-                Some(Value::Array(value.into_iter().map(From::from).collect())),
-                meta,
-            ),
-            MetaValue::Object(value, meta) => Annotated(
-                Some(Value::Object(
-                    value.into_iter().map(|(k, v)| (k, From::from(v))).collect(),
-                )),
-                meta,
-            ),
-        }
-    }
+pub enum Value {
+    Null,
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+    F32(f32),
+    F64(f64),
+    String(String),
+    Array(Vec<Annotated<Value>>),
+    Object(BTreeMap<String, Annotated<Value>>),
 }

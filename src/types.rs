@@ -2,27 +2,9 @@ use std::collections::BTreeMap;
 
 use uuid::Uuid;
 
-use meta::{Annotated, Meta, MetaValue};
+use meta::{Annotated, Meta, Value};
 
 pub type Array<T> = Vec<Annotated<T>>;
-
-#[derive(Debug, Clone)]
-pub enum Value {
-    Null,
-    I8(i8),
-    I16(i16),
-    I32(i32),
-    I64(i64),
-    U8(u8),
-    U16(u16),
-    U32(u32),
-    U64(u64),
-    F32(f32),
-    F64(f64),
-    String(String),
-    Array(Vec<Annotated<Value>>),
-    Object(BTreeMap<String, Annotated<Value>>),
-}
 
 #[derive(Debug, Clone, MetaStructure)]
 #[metastructure(process_func = "process_event")]
