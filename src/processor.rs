@@ -80,7 +80,7 @@ pub trait MetaStructure {
 }
 
 macro_rules! primitive_meta_structure {
-    ($type:ident, $meta_type:ident) => {
+    ($type:ident, $meta_type:ident, $expectation:expr) => {
         impl MetaStructure for $type {
             #[inline(always)]
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
@@ -88,8 +88,44 @@ macro_rules! primitive_meta_structure {
                     Annotated(Some(Value::$meta_type(value)), meta) => Annotated(Some(value), meta),
                     Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(None, meta) => Annotated(None, meta),
-                    // TODO: add error
-                    Annotated(_, meta) => Annotated(None, meta),
+                    Annotated(_, mut meta) => {
+                        meta.errors_mut().push(format!("expected {}", $expectation));
+                        Annotated(None, meta)
+                    }
+                }
+            }
+            #[inline(always)]
+            fn to_value(value: Annotated<Self>) -> Annotated<Value> {
+                match value {
+                    Annotated(Some(value), meta) => Annotated(Some(Value::$meta_type(value)), meta),
+                    Annotated(None, meta) => Annotated(None, meta),
+                }
+            }
+        }
+    };
+}
+
+macro_rules! numeric_meta_structure {
+    ($type:ident, $meta_type:ident, $expectation:expr) => {
+        impl MetaStructure for $type {
+            #[inline(always)]
+            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+                match value {
+                    Annotated(Some(Value::U64(value)), meta) => {
+                        Annotated(Some(value as $type), meta)
+                    }
+                    Annotated(Some(Value::I64(value)), meta) => {
+                        Annotated(Some(value as $type), meta)
+                    }
+                    Annotated(Some(Value::F64(value)), meta) => {
+                        Annotated(Some(value as $type), meta)
+                    }
+                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+                    Annotated(None, meta) => Annotated(None, meta),
+                    Annotated(_, mut meta) => {
+                        meta.errors_mut().push(format!("expected {}", $expectation));
+                        Annotated(None, meta)
+                    }
                 }
             }
             #[inline(always)]
@@ -104,22 +140,24 @@ macro_rules! primitive_meta_structure {
 }
 
 macro_rules! primitive_meta_structure_through_string {
-    ($type:ident) => {
+    ($type:ident, $expectation:expr) => {
         impl MetaStructure for $type {
             #[inline(always)]
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
-                    Annotated(Some(Value::String(value)), meta) => {
-                        match value.parse() {
-                            Ok(value) => Annotated(Some(value), meta),
-                            // TODO: add error
-                            Err(_err) => Annotated(None, meta),
+                    Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+                        Ok(value) => Annotated(Some(value), meta),
+                        Err(err) => {
+                            meta.errors_mut().push(err.to_string());
+                            Annotated(None, meta)
                         }
-                    }
+                    },
                     Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(None, meta) => Annotated(None, meta),
-                    // TODO: add error
-                    Annotated(_, meta) => Annotated(None, meta),
+                    Annotated(_, mut meta) => {
+                        meta.errors_mut().push(format!("expected {}", $expectation));
+                        Annotated(None, meta)
+                    }
                 }
             }
             #[inline(always)]
@@ -135,16 +173,12 @@ macro_rules! primitive_meta_structure_through_string {
     };
 }
 
-primitive_meta_structure!(String, String);
-primitive_meta_structure!(u8, U8);
-primitive_meta_structure!(u16, U16);
-primitive_meta_structure!(u32, U32);
-primitive_meta_structure!(u64, U64);
-primitive_meta_structure!(i8, I8);
-primitive_meta_structure!(i16, I16);
-primitive_meta_structure!(i32, I32);
-primitive_meta_structure!(i64, I64);
-primitive_meta_structure_through_string!(Uuid);
+primitive_meta_structure!(String, String, "a string");
+primitive_meta_structure!(bool, Bool, "a boolean");
+numeric_meta_structure!(u64, U64, "an unsigned integer");
+numeric_meta_structure!(i64, I64, "a signed integer");
+numeric_meta_structure!(f64, F64, "a floating point value");
+primitive_meta_structure_through_string!(Uuid, "a uuid");
 
 impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {

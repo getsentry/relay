@@ -5,6 +5,11 @@ use std::fmt;
 
 use serde::de::{self, Deserialize, Deserializer, IgnoredAny};
 use serde::ser::{Serialize, SerializeSeq, Serializer};
+use serde_json;
+
+pub use serde_json::Error;
+
+use processor::MetaStructure;
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
 pub type Range = (usize, usize);
@@ -246,6 +251,47 @@ impl Default for Meta {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
+impl<'de, T: MetaStructure> Annotated<T> {
+    /// Deserializes an annotated from a deserializer
+    pub fn deserialize_with_meta<D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Annotated<T>, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        Ok(MetaStructure::from_value(inline_meta_in_json(value)))
+    }
+
+    /// Deserializes an annotated from a JSON string.
+    pub fn from_json(s: &'de str) -> Result<Annotated<T>, Error> {
+        Self::deserialize_with_meta(&mut serde_json::Deserializer::from_str(s))
+    }
+
+    /// Deserializes an annotated from JSON bytes.
+    pub fn from_json_bytes(b: &'de [u8]) -> Result<Annotated<T>, Error> {
+        Self::deserialize_with_meta(&mut serde_json::Deserializer::from_slice(b))
+    }
+}
+
+impl<T: Serialize> Annotated<T> {
+    /// Serializes an annotated value into a serializer.
+    pub fn serialize_with_meta<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        panic!();
+    }
+
+    /// Serializes an annotated value into a JSON string.
+    pub fn to_json(&self) -> Result<String, Error> {
+        let mut ser = serde_json::Serializer::new(Vec::with_capacity(128));
+        self.serialize_with_meta(&mut ser)?;
+        Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
+    }
+
+    /// Serializes an annotated value into a pretty JSON string.
+    pub fn to_json_pretty(&self) -> Result<String, Error> {
+        let mut ser = serde_json::Serializer::pretty(Vec::with_capacity(128));
+        self.serialize_with_meta(&mut ser)?;
+        Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
+    }
+}
+
 impl<T: Default> Default for Annotated<T> {
     fn default() -> Self {
         Annotated(Some(T::default()), Default::default())
@@ -262,17 +308,155 @@ impl<T> Annotated<T> {
 #[derive(Debug, Clone)]
 pub enum Value {
     Null,
-    I8(i8),
-    I16(i16),
-    I32(i32),
+    Bool(bool),
     I64(i64),
-    U8(u8),
-    U16(u16),
-    U32(u32),
     U64(u64),
-    F32(f32),
     F64(f64),
     String(String),
     Array(Vec<Annotated<Value>>),
     Object(BTreeMap<String, Annotated<Value>>),
+}
+
+impl From<serde_json::Value> for Value {
+    fn from(value: serde_json::Value) -> Value {
+        match value {
+            serde_json::Value::Null => Value::Null,
+            serde_json::Value::Bool(value) => Value::Bool(value),
+            serde_json::Value::Number(num) => {
+                if let Some(val) = num.as_i64() {
+                    Value::I64(val)
+                } else if let Some(val) = num.as_u64() {
+                    Value::U64(val)
+                } else if let Some(val) = num.as_f64() {
+                    Value::F64(val)
+                } else {
+                    Value::Null
+                }
+            }
+            serde_json::Value::String(val) => Value::String(val),
+            serde_json::Value::Array(items) => {
+                Value::Array(items.into_iter().map(From::from).collect())
+            }
+            serde_json::Value::Object(items) => {
+                Value::Object(items.into_iter().map(|(k, v)| (k, From::from(v))).collect())
+            }
+        }
+    }
+}
+
+impl From<serde_json::Value> for Annotated<Value> {
+    fn from(value: serde_json::Value) -> Annotated<Value> {
+        let value: Value = value.into();
+        match value {
+            Value::Null => Annotated(None, Meta::default()),
+            other => Annotated(Some(other), Meta::default()),
+        }
+    }
+}
+
+#[derive(Default, Debug)]
+struct MetaTree {
+    meta: Option<Meta>,
+    children: BTreeMap<String, MetaTree>,
+}
+
+fn meta_tree_from_value(value: serde_json::Value) -> MetaTree {
+    if let serde_json::Value::Object(mut map) = value {
+        let meta = map
+            .remove("")
+            .and_then(|value| serde_json::from_value(value).ok());
+        let children = map
+            .into_iter()
+            .map(|(k, v)| (k, meta_tree_from_value(v)))
+            .collect();
+        MetaTree { meta, children }
+    } else {
+        MetaTree::default()
+    }
+}
+
+fn attach_meta(value: &mut Annotated<Value>, mut meta_tree: MetaTree) {
+    match value.0 {
+        Some(Value::Array(ref mut items)) => {
+            for (idx, item) in items.iter_mut().enumerate() {
+                if let Some(meta_tree) = meta_tree.children.remove(&idx.to_string()) {
+                    attach_meta(item, meta_tree);
+                }
+            }
+        }
+        Some(Value::Object(ref mut items)) => {
+            for (key, value) in items.iter_mut() {
+                if let Some(meta_tree) = meta_tree.children.remove(key) {
+                    attach_meta(value, meta_tree);
+                }
+            }
+        }
+        _ => {}
+    }
+    if let Some(meta) = meta_tree.meta {
+        value.1 = meta;
+    }
+}
+
+fn inline_meta_in_json(value: serde_json::Value) -> Annotated<Value> {
+    match value {
+        serde_json::Value::Object(mut map) => {
+            let meta_tree = map
+                .remove("_meta")
+                .map(meta_tree_from_value)
+                .unwrap_or(MetaTree::default());
+            let mut value = serde_json::Value::Object(map).into();
+            attach_meta(&mut value, meta_tree);
+            value
+        }
+        value => value.into(),
+    }
+}
+
+#[test]
+fn test_annotated_deserialize_with_meta() {
+    #[derive(MetaStructure, Debug)]
+    struct Foo {
+        id: Annotated<u64>,
+        #[metastructure(field = "type")]
+        ty: Annotated<String>,
+    }
+
+    let annotated_value = Annotated::<Foo>::from_json(
+        r#"
+        {
+            "id": "blaflasel",
+            "type": "testing",
+            "_meta": {
+                "id": {
+                    "": {
+                        "err": ["invalid id"]
+                    }
+                },
+                "type": {
+                    "": {
+                        "err": ["invalid type"]
+                    }
+                }
+            }
+        }
+    "#,
+    ).unwrap();
+
+    assert_eq!(annotated_value.0.as_ref().unwrap().id.0, None);
+    assert_eq!(
+        annotated_value.0.as_ref().unwrap().id.1.errors,
+        vec![
+            "invalid id".to_string(),
+            "expected an unsigned integer".to_string()
+        ]
+    );
+    assert_eq!(
+        annotated_value.0.as_ref().unwrap().ty.0,
+        Some("testing".into())
+    );
+    assert_eq!(
+        annotated_value.0.as_ref().unwrap().ty.1.errors,
+        vec!["invalid type".to_string(),]
+    );
 }
