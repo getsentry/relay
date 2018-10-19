@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use serde::de::{self, Deserialize, Deserializer, IgnoredAny};
-use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde::private::ser::FlatMapSerializer;
+use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde_json;
 
 pub use serde_json::Error;
@@ -276,7 +276,10 @@ impl<T: MetaStructure> Annotated<T> {
     /// Serializes an annotated value into a serializer.
     pub fn serialize_with_meta<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map_ser = serializer.serialize_map(None)?;
+        let meta_tree = MetaStructure::extract_meta_tree(self);
         MetaStructure::serialize_payload(self, FlatMapSerializer(&mut map_ser))?;
+        map_ser.serialize_key("_meta")?;
+        map_ser.serialize_value(&meta_tree)?;
         map_ser.end()
     }
 
@@ -421,10 +424,26 @@ impl From<Annotated<Value>> for serde_json::Value {
     }
 }
 
-#[derive(Default, Debug)]
-struct MetaTree {
-    meta: Option<Meta>,
-    children: BTreeMap<String, MetaTree>,
+#[derive(Default, Debug, Serialize)]
+pub struct MetaTree {
+    #[serde(rename = "", skip_serializing_if = "Meta::is_empty")]
+    pub meta: Meta,
+    #[serde(flatten)]
+    pub children: BTreeMap<String, MetaTree>,
+}
+
+impl MetaTree {
+    pub fn is_empty(&self) -> bool {
+        if !self.meta.is_empty() {
+            return false;
+        }
+        for (_, value) in self.children.iter() {
+            if !value.is_empty() {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 fn meta_tree_from_value(value: serde_json::Value) -> MetaTree {
@@ -436,7 +455,10 @@ fn meta_tree_from_value(value: serde_json::Value) -> MetaTree {
             .into_iter()
             .map(|(k, v)| (k, meta_tree_from_value(v)))
             .collect();
-        MetaTree { meta, children }
+        MetaTree {
+            meta: meta.unwrap_or_else(Meta::default),
+            children,
+        }
     } else {
         MetaTree::default()
     }
@@ -460,9 +482,7 @@ fn attach_meta(value: &mut Annotated<Value>, mut meta_tree: MetaTree) {
         }
         _ => {}
     }
-    if let Some(meta) = meta_tree.meta {
-        value.1 = meta;
-    }
+    value.1 = meta_tree.meta;
 }
 
 fn inline_meta_in_json(value: serde_json::Value) -> Annotated<Value> {
@@ -526,4 +546,7 @@ fn test_annotated_deserialize_with_meta() {
         annotated_value.0.as_ref().unwrap().ty.1.errors,
         vec!["invalid type".to_string(),]
     );
+
+    let json = annotated_value.to_json().unwrap();
+    assert_eq!(json, r#"{"id":null,"type":"testing","_meta":{"id":{"":{"err":["invalid id","expected an unsigned integer"]}},"type":{"":{"err":["invalid type"]}}}}"#);
 }

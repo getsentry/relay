@@ -104,6 +104,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
     let mut to_value_body = TokenStream::new();
     let mut process_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
+    let mut extract_meta_tree_body = TokenStream::new();
     let mut process_func = None;
 
     for attr in &s.ast().attrs {
@@ -221,6 +222,14 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                     __map_serializer.serialize_value(&__processor::SerializeMetaStructurePayload(__value))?;
                 }
             }).to_tokens(&mut serialize_body);
+            (quote! {
+                for (__key, __value) in #bi.iter() {
+                    let __inner_tree = __processor::MetaStructure::extract_meta_tree(__value);
+                    if !__inner_tree.is_empty() {
+                        __meta_tree.children.insert(__key.to_string(), __inner_tree);
+                    }
+                }
+            }).to_tokens(&mut extract_meta_tree_body);
         } else {
             (quote! {
                 let #bi = __processor::MetaStructure::from_value(
@@ -241,6 +250,12 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                 __map_serializer.serialize_key(#field_name)?;
                 __map_serializer.serialize_value(&__processor::SerializeMetaStructurePayload(#bi))?;
             }).to_tokens(&mut serialize_body);
+            (quote! {
+                let __inner_tree = __processor::MetaStructure::extract_meta_tree(#bi);
+                if !__inner_tree.is_empty() {
+                    __meta_tree.children.insert(#field_name.to_string(), __inner_tree);
+                }
+            }).to_tokens(&mut extract_meta_tree_body);
         }
     }
 
@@ -317,6 +332,22 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                 } else {
                     __serializer.serialize_unit()
                 }
+            }
+
+            fn extract_meta_tree(__value: &__meta::Annotated<Self>) -> __meta::MetaTree
+            where
+                Self: Sized,
+            {
+                let &__meta::Annotated(ref __value, ref __meta) = __value;
+                let mut __meta_tree = __meta::MetaTree {
+                    meta: __meta.clone(),
+                    children: Default::default(),
+                };
+                if let Some(__value) = __value {
+                    let #serialize_pat = __value;
+                    #extract_meta_tree_body;
+                }
+                __meta_tree
             }
 
             fn process<P: __processor::Processor>(

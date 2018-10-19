@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use uuid::Uuid;
 
-use meta::{Annotated, Value};
+use meta::{Annotated, MetaTree, Value};
 use types::{Event, Exception, Frame, Stacktrace};
 
 #[derive(Debug, Clone)]
@@ -63,13 +63,27 @@ pub trait MetaStructure {
     fn from_value(value: Annotated<Value>) -> Annotated<Self>
     where
         Self: Sized;
+
     fn to_value(value: Annotated<Self>) -> Annotated<Value>
     where
         Self: Sized;
+
+    #[inline(always)]
+    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
+    where
+        Self: Sized,
+    {
+        MetaTree {
+            meta: value.1.clone(),
+            children: Default::default(),
+        }
+    }
+
     fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer;
+
     #[inline(always)]
     fn process<P: Processor>(
         value: Annotated<Self>,
@@ -267,6 +281,24 @@ impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
             &Annotated(None, _) => s.serialize_unit(),
         }
     }
+    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
+    where
+        Self: Sized,
+    {
+        let mut meta_tree = MetaTree {
+            meta: value.1.clone(),
+            children: Default::default(),
+        };
+        if let &Annotated(Some(ref items), _) = value {
+            for (idx, item) in items.iter().enumerate() {
+                let tree = MetaStructure::extract_meta_tree(item);
+                if !tree.is_empty() {
+                    meta_tree.children.insert(idx.to_string(), tree);
+                }
+            }
+        }
+        meta_tree
+    }
 }
 
 impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
@@ -319,6 +351,24 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
             }
             &Annotated(None, _) => s.serialize_unit(),
         }
+    }
+    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
+    where
+        Self: Sized,
+    {
+        let mut meta_tree = MetaTree {
+            meta: value.1.clone(),
+            children: Default::default(),
+        };
+        if let &Annotated(Some(ref items), _) = value {
+            for (key, value) in items.iter() {
+                let tree = MetaStructure::extract_meta_tree(value);
+                if !tree.is_empty() {
+                    meta_tree.children.insert(key.to_string(), tree);
+                }
+            }
+        }
+        meta_tree
     }
 }
 
