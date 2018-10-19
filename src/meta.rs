@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use serde::de::{self, Deserialize, Deserializer, IgnoredAny};
-use serde::ser::{Serialize, SerializeSeq, Serializer};
+use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
+use serde::private::ser::FlatMapSerializer;
 use serde_json;
 
 pub use serde_json::Error;
@@ -271,10 +272,12 @@ impl<'de, T: MetaStructure> Annotated<T> {
     }
 }
 
-impl<T: Serialize> Annotated<T> {
+impl<T: MetaStructure> Annotated<T> {
     /// Serializes an annotated value into a serializer.
     pub fn serialize_with_meta<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        panic!();
+        let mut map_ser = serializer.serialize_map(None)?;
+        MetaStructure::serialize_payload(self, FlatMapSerializer(&mut map_ser))?;
+        map_ser.end()
     }
 
     /// Serializes an annotated value into a JSON string.
@@ -315,6 +318,43 @@ pub enum Value {
     String(String),
     Array(Vec<Annotated<Value>>),
     Object(BTreeMap<String, Annotated<Value>>),
+}
+
+impl Serialize for Value {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match *self {
+            Value::Null => serializer.serialize_unit(),
+            Value::Bool(val) => serializer.serialize_bool(val),
+            Value::I64(val) => serializer.serialize_i64(val),
+            Value::U64(val) => serializer.serialize_u64(val),
+            Value::F64(val) => serializer.serialize_f64(val),
+            Value::String(ref val) => serializer.serialize_str(val),
+            Value::Array(ref items) => {
+                let mut seq_ser = serializer.serialize_seq(Some(items.len()))?;
+                for item in items {
+                    match item {
+                        &Annotated(Some(ref val), _) => seq_ser.serialize_element(val)?,
+                        &Annotated(None, _) => seq_ser.serialize_element(&())?,
+                    }
+                }
+                seq_ser.end()
+            }
+            Value::Object(ref items) => {
+                let mut map_ser = serializer.serialize_map(Some(items.len()))?;
+                for (key, value) in items {
+                    map_ser.serialize_key(key)?;
+                    match value {
+                        &Annotated(Some(ref val), _) => map_ser.serialize_value(val)?,
+                        &Annotated(None, _) => map_ser.serialize_value(&())?,
+                    }
+                }
+                map_ser.end()
+            }
+        }
+    }
 }
 
 impl From<serde_json::Value> for Value {

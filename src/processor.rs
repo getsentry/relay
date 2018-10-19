@@ -1,4 +1,4 @@
-use serde::ser::SerializeSeq;
+use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use std::collections::BTreeMap;
 
@@ -66,15 +66,10 @@ pub trait MetaStructure {
     fn to_value(value: Annotated<Self>) -> Annotated<Value>
     where
         Self: Sized;
-    #[inline(always)]
     fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
     where
-        Self: Sized + Serialize,
-        S: Serializer,
-    {
-        let &Annotated(ref value, _) = value;
-        Serialize::serialize(value, s)
-    }
+        Self: Sized,
+        S: Serializer;
     #[inline(always)]
     fn process<P: Processor>(
         value: Annotated<Self>,
@@ -90,11 +85,10 @@ pub trait MetaStructure {
     }
 }
 
-struct SerializeMetaStructurePayload<'a, T: 'a>(&'a Annotated<T>);
+pub struct SerializeMetaStructurePayload<'a, T: 'a>(pub &'a Annotated<T>);
 
-impl<'a, T: MetaStructure + Serialize> Serialize
-    for SerializeMetaStructurePayload<'a, &'a Annotated<T>>
-{
+impl<'a, T: MetaStructure> Serialize for SerializeMetaStructurePayload<'a, T> {
+    #[inline(always)]
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -124,6 +118,15 @@ macro_rules! primitive_meta_structure {
                     Annotated(Some(value), meta) => Annotated(Some(Value::$meta_type(value)), meta),
                     Annotated(None, meta) => Annotated(None, meta),
                 }
+            }
+            #[inline(always)]
+            fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+            where
+                Self: Sized,
+                S: Serializer,
+            {
+                let &Annotated(ref value, _) = value;
+                Serialize::serialize(value, s)
             }
         }
     };
@@ -159,6 +162,15 @@ macro_rules! numeric_meta_structure {
                     Annotated(None, meta) => Annotated(None, meta),
                 }
             }
+            #[inline(always)]
+            fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+            where
+                Self: Sized,
+                S: Serializer,
+            {
+                let &Annotated(ref value, _) = value;
+                Serialize::serialize(value, s)
+            }
         }
     };
 }
@@ -192,6 +204,15 @@ macro_rules! primitive_meta_structure_through_string {
                     }
                     Annotated(None, meta) => Annotated(None, meta),
                 }
+            }
+            #[inline(always)]
+            fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+            where
+                Self: Sized,
+                S: Serializer,
+            {
+                let &Annotated(ref value, _) = value;
+                Serialize::serialize(value, s)
             }
         }
     };
@@ -232,12 +253,12 @@ impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
     #[inline(always)]
     fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
     where
-        Self: Sized + Serialize,
+        Self: Sized,
         S: Serializer,
     {
         match value {
             &Annotated(Some(ref value), _) => {
-                let seq_ser = s.serialize_seq(Some(value.len()))?;
+                let mut seq_ser = s.serialize_seq(Some(value.len()))?;
                 for item in value {
                     seq_ser.serialize_element(&SerializeMetaStructurePayload(item))?;
                 }
@@ -281,6 +302,24 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
             Annotated(None, meta) => Annotated(None, meta),
         }
     }
+    #[inline(always)]
+    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        match value {
+            &Annotated(Some(ref items), _) => {
+                let mut map_ser = s.serialize_map(Some(items.len()))?;
+                for (key, value) in items {
+                    map_ser.serialize_key(key)?;
+                    map_ser.serialize_value(&SerializeMetaStructurePayload(value))?;
+                }
+                map_ser.end()
+            }
+            &Annotated(None, _) => s.serialize_unit(),
+        }
+    }
 }
 
 impl MetaStructure for Value {
@@ -291,6 +330,15 @@ impl MetaStructure for Value {
     #[inline(always)]
     fn to_value(value: Annotated<Value>) -> Annotated<Value> {
         value
+    }
+    #[inline(always)]
+    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        let &Annotated(ref value, _) = value;
+        Serialize::serialize(value, s)
     }
     #[inline(always)]
     fn process<P: Processor>(

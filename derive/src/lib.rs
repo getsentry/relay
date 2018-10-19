@@ -1,4 +1,4 @@
-#![recursion_limit = "128"]
+#![recursion_limit = "256"]
 extern crate syn;
 
 #[macro_use]
@@ -103,6 +103,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
     let mut to_structure_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
     let mut process_body = TokenStream::new();
+    let mut serialize_body = TokenStream::new();
     let mut process_func = None;
 
     for attr in &s.ast().attrs {
@@ -214,6 +215,12 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                     (__key, __value)
                 }).collect();
             }).to_tokens(&mut process_body);
+            (quote! {
+                for (__key, __value) in #bi.iter() {
+                    __map_serializer.serialize_key(__key)?;
+                    __map_serializer.serialize_value(&__processor::SerializeMetaStructurePayload(__value))?;
+                }
+            }).to_tokens(&mut serialize_body);
         } else {
             (quote! {
                 let #bi = __processor::MetaStructure::from_value(
@@ -230,6 +237,10 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
             (quote! {
                 let #bi = __processor::MetaStructure::process(#bi, __processor, __state.enter(#field_name));
             }).to_tokens(&mut process_body);
+            (quote! {
+                __map_serializer.serialize_key(#field_name)?;
+                __map_serializer.serialize_value(&__processor::SerializeMetaStructurePayload(#bi))?;
+            }).to_tokens(&mut serialize_body);
         }
     }
 
@@ -239,6 +250,10 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
     }
     let to_value_pat = variant.pat();
     let to_structure_assemble_pat = variant.pat();
+    for binding in variant.bindings_mut() {
+        binding.style = synstructure::BindStyle::Ref;
+    }
+    let serialize_pat = variant.pat();
 
     let invoke_process_func = process_func.map(|func_name| {
         let func_name = Ident::new(&func_name, Span::call_site());
@@ -251,6 +266,8 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
         use processor as __processor;
         use types as __types;
         use meta as __meta;
+        extern crate serde;
+        use serde::ser::SerializeMap;
 
         gen impl __processor::MetaStructure for @Self {
             fn from_value(
@@ -283,6 +300,22 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                     __meta::Annotated(Some(__meta::Value::Object(__map)), __meta)
                 } else {
                     __meta::Annotated(None, __meta)
+                }
+            }
+
+            fn serialize_payload<S>(__value: &__meta::Annotated<Self>, __serializer: S) -> Result<S::Ok, S::Error>
+            where
+                Self: Sized,
+                S: ::serde::ser::Serializer
+            {
+                let __meta::Annotated(__value, _) = __value;
+                if let Some(__value) = __value {
+                    let #serialize_pat = __value;
+                    let mut __map_serializer = __serializer.serialize_map(None)?;
+                    #serialize_body;
+                    __map_serializer.end()
+                } else {
+                    __serializer.serialize_unit()
                 }
             }
 

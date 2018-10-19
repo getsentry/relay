@@ -7,5 +7,5 @@ authors = ["Armin Ronacher <armin.ronacher@active-4.com>"]
 serde = "1.0.80"
 serde_json = "1.0.32"
 serde_derive = "1.0.80"
-uuid = { version = "0.7.1", features = ["v4"] }
+uuid = { version = "0.7.1", features = ["v4", "serde"] }
 general_derive = { path = "derive" }
