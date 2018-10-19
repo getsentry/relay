@@ -354,6 +354,33 @@ impl From<serde_json::Value> for Annotated<Value> {
     }
 }
 
+impl From<Value> for serde_json::Value {
+    fn from(value: Value) -> serde_json::Value {
+        match value {
+            Value::Null => serde_json::Value::Null,
+            Value::Bool(value) => serde_json::Value::Bool(value),
+            Value::I64(value) => serde_json::Value::Number(value.into()),
+            Value::U64(value) => serde_json::Value::Number(value.into()),
+            Value::F64(value) => serde_json::Number::from_f64(value)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null),
+            Value::String(val) => serde_json::Value::String(val),
+            Value::Array(items) => {
+                serde_json::Value::Array(items.into_iter().map(From::from).collect())
+            }
+            Value::Object(items) => serde_json::Value::Object(
+                items.into_iter().map(|(k, v)| (k, From::from(v))).collect(),
+            ),
+        }
+    }
+}
+
+impl From<Annotated<Value>> for serde_json::Value {
+    fn from(value: Annotated<Value>) -> serde_json::Value {
+        value.0.map(From::from).unwrap_or(serde_json::Value::Null)
+    }
+}
+
 #[derive(Default, Debug)]
 struct MetaTree {
     meta: Option<Meta>,

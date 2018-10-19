@@ -1,3 +1,5 @@
+use serde::ser::SerializeSeq;
+use serde::{Serialize, Serializer};
 use std::collections::BTreeMap;
 
 use uuid::Uuid;
@@ -65,6 +67,15 @@ pub trait MetaStructure {
     where
         Self: Sized;
     #[inline(always)]
+    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized + Serialize,
+        S: Serializer,
+    {
+        let &Annotated(ref value, _) = value;
+        Serialize::serialize(value, s)
+    }
+    #[inline(always)]
     fn process<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
@@ -76,6 +87,19 @@ pub trait MetaStructure {
         let _processor = processor;
         let _state = state;
         value
+    }
+}
+
+struct SerializeMetaStructurePayload<'a, T: 'a>(&'a Annotated<T>);
+
+impl<'a, T: MetaStructure + Serialize> Serialize
+    for SerializeMetaStructurePayload<'a, &'a Annotated<T>>
+{
+    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        MetaStructure::serialize_payload(self.0, s)
     }
 }
 
@@ -203,6 +227,23 @@ impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
                 meta,
             ),
             Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+    #[inline(always)]
+    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized + Serialize,
+        S: Serializer,
+    {
+        match value {
+            &Annotated(Some(ref value), _) => {
+                let seq_ser = s.serialize_seq(Some(value.len()))?;
+                for item in value {
+                    seq_ser.serialize_element(&SerializeMetaStructurePayload(item))?;
+                }
+                seq_ser.end()
+            }
+            &Annotated(None, _) => s.serialize_unit(),
         }
     }
 }
