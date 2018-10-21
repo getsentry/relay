@@ -7,6 +7,7 @@ use serde::de::{self, Deserialize, Deserializer, IgnoredAny};
 use serde::private::ser::FlatMapSerializer;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde_json;
+use smallvec::SmallVec;
 
 pub use serde_json::Error;
 
@@ -147,18 +148,18 @@ pub struct Meta {
     /// Remarks detailling modifications of this field.
     #[serde(
         default,
-        skip_serializing_if = "Vec::is_empty",
+        skip_serializing_if = "SmallVec::is_empty",
         rename = "rem"
     )]
-    pub remarks: Vec<Remark>,
+    remarks: SmallVec<[Remark; 3]>,
 
     /// Errors that happened during deserialization or processing.
     #[serde(
         default,
-        skip_serializing_if = "Vec::is_empty",
+        skip_serializing_if = "SmallVec::is_empty",
         rename = "err"
     )]
-    pub errors: Vec<String>,
+    errors: SmallVec<[String; 3]>,
 
     /// The original length of modified text fields or collections.
     #[serde(
@@ -166,7 +167,7 @@ pub struct Meta {
         skip_serializing_if = "Option::is_none",
         rename = "len"
     )]
-    pub original_length: Option<u32>,
+    original_length: Option<u32>,
 }
 
 impl PartialEq for Meta {
@@ -181,8 +182,8 @@ impl Meta {
     /// Creates a new meta data object from an error message.
     pub fn from_error<S: Into<String>>(message: S) -> Self {
         Meta {
-            remarks: Vec::new(),
-            errors: vec![message.into()],
+            remarks: SmallVec::new(),
+            errors: smallvec![message.into()],
             original_length: None,
         }
     }
@@ -198,13 +199,8 @@ impl Meta {
     }
 
     /// Iterates all remarks on this field.
-    pub fn remarks(&self) -> impl Iterator<Item = &Remark> {
+    pub fn iter_remarks(&self) -> impl Iterator<Item = &Remark> {
         self.remarks.iter()
-    }
-
-    /// Mutable reference to remarks of this field.
-    pub fn remarks_mut(&mut self) -> &mut Vec<Remark> {
-        &mut self.remarks
     }
 
     /// Indicates whether this field has remarks.
@@ -213,13 +209,13 @@ impl Meta {
     }
 
     /// Iterates errors on this field.
-    pub fn errors(&self) -> impl Iterator<Item = &str> {
+    pub fn iter_errors(&self) -> impl Iterator<Item = &str> {
         self.errors.iter().map(|x| x.as_str())
     }
 
     /// Mutable reference to errors of this field.
-    pub fn errors_mut(&mut self) -> &mut Vec<String> {
-        &mut self.errors
+    pub fn add_error<S: Into<String>>(&mut self, err: S) {
+        self.errors.push(err.into());
     }
 
     /// Indicates whether this field has errors.
@@ -236,8 +232,8 @@ impl Meta {
 impl Default for Meta {
     fn default() -> Meta {
         Meta {
-            remarks: Vec::new(),
-            errors: Vec::new(),
+            remarks: SmallVec::new(),
+            errors: SmallVec::new(),
             original_length: None,
         }
     }
@@ -308,7 +304,7 @@ impl<T> Annotated<T> {
     /// Attaches a value required error if the value is missing.
     pub fn require_value(mut self) -> Annotated<T> {
         if self.0.is_none() && !self.1.has_errors() {
-            self.1.errors_mut().push(format!("value required"));
+            self.1.add_error("value required");
         }
         self
     }
@@ -553,19 +549,16 @@ fn test_annotated_deserialize_with_meta() {
 
     assert_eq!(annotated_value.0.as_ref().unwrap().id.0, None);
     assert_eq!(
-        annotated_value.0.as_ref().unwrap().id.1.errors,
-        vec![
-            "invalid id".to_string(),
-            "expected an unsigned integer".to_string()
-        ]
+        annotated_value.0.as_ref().unwrap().id.1.iter_errors().collect::<Vec<_>>(),
+        vec!["invalid id", "expected an unsigned integer"]
     );
     assert_eq!(
         annotated_value.0.as_ref().unwrap().ty.0,
         Some("testing".into())
     );
     assert_eq!(
-        annotated_value.0.as_ref().unwrap().ty.1.errors,
-        vec!["invalid type".to_string(),]
+        annotated_value.0.as_ref().unwrap().ty.1.iter_errors().collect::<Vec<_>>(),
+        vec!["invalid type"]
     );
 
     let json = annotated_value.to_json().unwrap();

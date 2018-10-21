@@ -302,7 +302,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                         __meta::Annotated(None, __meta)
                     }
                     __meta::Annotated(_, mut __meta) => {
-                        __meta.errors_mut().push(#expectation.to_string());
+                        __meta.add_error(#expectation.to_string());
                         __meta::Annotated(None, __meta)
                     }
                 }

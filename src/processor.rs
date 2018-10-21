@@ -1,10 +1,10 @@
 //! Provides support for processing structures.
+use std::collections::BTreeMap;
 use std::fmt;
 
+use im::Vector;
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
-use std::collections::BTreeMap;
-
 use uuid::Uuid;
 
 use meta::{Annotated, MetaTree, Value};
@@ -20,12 +20,12 @@ enum PathItem {
 /// Processing state passed downwards during processing.
 #[derive(Debug, Clone)]
 pub struct ProcessingState {
-    path: Vec<PathItem>,
+    path: Vector<PathItem>,
 }
 
 /// Represents the path in a structure
 #[derive(Debug)]
-pub struct Path<'a>(&'a [PathItem]);
+pub struct Path<'a>(&'a Vector<PathItem>);
 
 impl<'a> Path<'a> {
     /// Returns the current key if there is one
@@ -76,7 +76,7 @@ impl ProcessingState {
     #[inline(always)]
     pub fn enter_static(&self, key: &'static str) -> ProcessingState {
         let mut rv = self.clone();
-        rv.path.push(PathItem::StaticKey(key));
+        rv.path.push_back(PathItem::StaticKey(key));
         rv
     }
 
@@ -84,7 +84,7 @@ impl ProcessingState {
     #[inline(always)]
     pub fn enter_dynamic(&self, key: String) -> ProcessingState {
         let mut rv = self.clone();
-        rv.path.push(PathItem::DynamicKey(key));
+        rv.path.push_back(PathItem::DynamicKey(key));
         rv
     }
 
@@ -92,14 +92,14 @@ impl ProcessingState {
     #[inline(always)]
     pub fn enter_index(&self, idx: usize) -> ProcessingState {
         let mut rv = self.clone();
-        rv.path.push(PathItem::Index(idx));
+        rv.path.push_back(PathItem::Index(idx));
         rv
     }
 
     /// Returns the path in the processing state.
     #[inline(always)]
     pub fn path<'a>(&'a self) -> Path<'a> {
-        Path(&self.path[..])
+        Path(&self.path)
     }
 }
 
@@ -204,7 +204,7 @@ macro_rules! primitive_meta_structure {
                     Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(None, meta) => Annotated(None, meta),
                     Annotated(_, mut meta) => {
-                        meta.errors_mut().push(format!("expected {}", $expectation));
+                        meta.add_error(format!("expected {}", $expectation));
                         Annotated(None, meta)
                     }
                 }
@@ -247,7 +247,7 @@ macro_rules! numeric_meta_structure {
                     Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(None, meta) => Annotated(None, meta),
                     Annotated(_, mut meta) => {
-                        meta.errors_mut().push(format!("expected {}", $expectation));
+                        meta.add_error(format!("expected {}", $expectation));
                         Annotated(None, meta)
                     }
                 }
@@ -281,14 +281,14 @@ macro_rules! primitive_meta_structure_through_string {
                     Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                         Ok(value) => Annotated(Some(value), meta),
                         Err(err) => {
-                            meta.errors_mut().push(err.to_string());
+                            meta.add_error(err.to_string());
                             Annotated(None, meta)
                         }
                     },
                     Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(None, meta) => Annotated(None, meta),
                     Annotated(_, mut meta) => {
-                        meta.errors_mut().push(format!("expected {}", $expectation));
+                        meta.add_error(format!("expected {}", $expectation));
                         Annotated(None, meta)
                     }
                 }
@@ -332,7 +332,7 @@ impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(_, mut meta) => {
-                meta.errors_mut().push("expected array".to_string());
+                meta.add_error("expected array".to_string());
                 Annotated(None, meta)
             }
         }
@@ -401,7 +401,7 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(_, mut meta) => {
-                meta.errors_mut().push("expected object".to_string());
+                meta.add_error("expected object".to_string());
                 Annotated(None, meta)
             }
         }
