@@ -4,7 +4,10 @@ use uuid::Uuid;
 
 use meta::{Annotated, Value};
 
+/// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
+/// Alias for typed objects.
+pub type Object<T> = BTreeMap<String, Annotated<T>>;
 
 #[derive(Debug, Clone, MetaStructure)]
 #[metastructure(process_func = "process_event")]

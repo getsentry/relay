@@ -1,3 +1,6 @@
+//! Provides support for processing structures.
+use std::fmt;
+
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use std::collections::BTreeMap;
@@ -8,23 +11,95 @@ use meta::{Annotated, MetaTree, Value};
 use types::{Event, Exception, Frame, Stacktrace};
 
 #[derive(Debug, Clone)]
+enum PathItem {
+    StaticKey(&'static str),
+    DynamicKey(String),
+    Index(usize),
+}
+
+/// Processing state passed downwards during processing.
+#[derive(Debug, Clone)]
 pub struct ProcessingState {
-    path: Vec<String>,
+    path: Vec<PathItem>,
+}
+
+/// Represents the path in a structure
+#[derive(Debug)]
+pub struct Path<'a>(&'a [PathItem]);
+
+impl<'a> Path<'a> {
+    /// Returns the current key if there is one
+    #[inline(always)]
+    pub fn key(&self) -> Option<&str> {
+        self.0.last().and_then(|value| match *value {
+            PathItem::StaticKey(s) => Some(s),
+            PathItem::DynamicKey(ref s) => Some(s.as_str()),
+            PathItem::Index(_) => None,
+        })
+    }
+
+    /// Returns the current index if there is one
+    #[inline(always)]
+    pub fn index(&self) -> Option<usize> {
+        self.0.last().and_then(|value| match *value {
+            PathItem::StaticKey(_) => None,
+            PathItem::DynamicKey(_) => None,
+            PathItem::Index(idx) => Some(idx),
+        })
+    }
+}
+
+impl fmt::Display for PathItem {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            PathItem::StaticKey(s) => f.pad(s),
+            PathItem::DynamicKey(ref s) => f.pad(s.as_str()),
+            PathItem::Index(val) => write!(f, "{}", val),
+        }
+    }
+}
+
+impl<'a> fmt::Display for Path<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for (idx, item) in self.0.iter().enumerate() {
+            if idx > 0 {
+                write!(f, ".")?;
+            }
+            write!(f, "{}", item)?;
+        }
+        Ok(())
+    }
 }
 
 impl ProcessingState {
+    /// Derives a processing state by entering a static key.
     #[inline(always)]
-    pub fn enter(&self, path: &str) -> ProcessingState {
+    pub fn enter_static(&self, key: &'static str) -> ProcessingState {
         let mut rv = self.clone();
-        rv.path.push(path.to_string());
+        rv.path.push(PathItem::StaticKey(key));
         rv
     }
 
+    /// Derives a processing state by entering a dynamic key.
     #[inline(always)]
-    pub fn enter_item(&self, idx: usize) -> ProcessingState {
+    pub fn enter_dynamic(&self, key: String) -> ProcessingState {
         let mut rv = self.clone();
-        rv.path.push(idx.to_string());
+        rv.path.push(PathItem::DynamicKey(key));
         rv
+    }
+
+    /// Derives a processing state by entering an index.
+    #[inline(always)]
+    pub fn enter_index(&self, idx: usize) -> ProcessingState {
+        let mut rv = self.clone();
+        rv.path.push(PathItem::Index(idx));
+        rv
+    }
+
+    /// Returns the path in the processing state.
+    #[inline(always)]
+    pub fn path<'a>(&'a self) -> Path<'a> {
+        Path(&self.path[..])
     }
 }
 
@@ -59,15 +134,19 @@ pub trait Processor {
     }
 }
 
+/// Implemented for all meta structures.
 pub trait MetaStructure {
+    /// Creates a meta structure from an annotated boxed value.
     fn from_value(value: Annotated<Value>) -> Annotated<Self>
     where
         Self: Sized;
 
+    /// Boxes the meta structure back into a value.
     fn to_value(value: Annotated<Self>) -> Annotated<Value>
     where
         Self: Sized;
 
+    /// Extracts the meta tree out of annotated value.
     #[inline(always)]
     fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
     where
@@ -79,11 +158,13 @@ pub trait MetaStructure {
         }
     }
 
+    /// Efficiently serializes the payload directly.
     fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer;
 
+    /// Executes a processor on the tree.
     #[inline(always)]
     fn process<P: Processor>(
         value: Annotated<Self>,
@@ -99,6 +180,8 @@ pub trait MetaStructure {
     }
 }
 
+// This needs to be public because the derive crate emits it
+#[doc(hidden)]
 pub struct SerializeMetaStructurePayload<'a, T: 'a>(pub &'a Annotated<T>);
 
 impl<'a, T: MetaStructure> Serialize for SerializeMetaStructurePayload<'a, T> {
@@ -248,8 +331,10 @@ impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
             ),
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
-            // TODO: add error
-            Annotated(_, meta) => Annotated(None, meta),
+            Annotated(_, mut meta) => {
+                meta.errors_mut().push("expected array".to_string());
+                Annotated(None, meta)
+            }
         }
     }
     #[inline(always)]
@@ -315,8 +400,10 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
             ),
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
-            // TODO: add error
-            Annotated(_, meta) => Annotated(None, meta),
+            Annotated(_, mut meta) => {
+                meta.errors_mut().push("expected object".to_string());
+                Annotated(None, meta)
+            }
         }
     }
     #[inline(always)]
@@ -344,8 +431,10 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
             &Annotated(Some(ref items), _) => {
                 let mut map_ser = s.serialize_map(Some(items.len()))?;
                 for (key, value) in items {
-                    map_ser.serialize_key(key)?;
-                    map_ser.serialize_value(&SerializeMetaStructurePayload(value))?;
+                    if !value.skip_serialization() {
+                        map_ser.serialize_key(key)?;
+                        map_ser.serialize_value(&SerializeMetaStructurePayload(value))?;
+                    }
                 }
                 map_ser.end()
             }

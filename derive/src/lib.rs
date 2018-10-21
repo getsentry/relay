@@ -212,14 +212,16 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
             }).to_tokens(&mut to_value_body);
             (quote! {
                 let #bi = #bi.into_iter().map(|(__key, __value)| {
-                    let __value = __processor::MetaStructure::process(__value, __processor, __state.enter(&__key));
+                    let __value = __processor::MetaStructure::process(__value, __processor, __state.enter_dynamic(__key.clone()));
                     (__key, __value)
                 }).collect();
             }).to_tokens(&mut process_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
-                    __map_serializer.serialize_key(__key)?;
-                    __map_serializer.serialize_value(&__processor::SerializeMetaStructurePayload(__value))?;
+                    if !__value.skip_serialization() {
+                        __map_serializer.serialize_key(__key)?;
+                        __map_serializer.serialize_value(&__processor::SerializeMetaStructurePayload(__value))?;
+                    }
                 }
             }).to_tokens(&mut serialize_body);
             (quote! {
@@ -244,7 +246,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                 __map.insert(#field_name.to_string(), __processor::MetaStructure::to_value(#bi));
             }).to_tokens(&mut to_value_body);
             (quote! {
-                let #bi = __processor::MetaStructure::process(#bi, __processor, __state.enter(#field_name));
+                let #bi = __processor::MetaStructure::process(#bi, __processor, __state.enter_static(#field_name));
             }).to_tokens(&mut process_body);
             (quote! {
                 __map_serializer.serialize_key(#field_name)?;
@@ -259,6 +261,8 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
         }
     }
 
+    let ast = s.ast();
+    let expectation = LitStr::new(&format!("expected {}", ast.ident.to_string().to_lowercase()), Span::call_site());
     let mut variant = variant.clone();
     for binding in variant.bindings_mut() {
         binding.style = synstructure::BindStyle::Move;
@@ -297,8 +301,8 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                         // TODO: hook?
                         __meta::Annotated(None, __meta)
                     }
-                    __meta::Annotated(_, __meta) => {
-                        // TODO: add error
+                    __meta::Annotated(_, mut __meta) => {
+                        __meta.errors_mut().push(#expectation.to_string());
                         __meta::Annotated(None, __meta)
                     }
                 }

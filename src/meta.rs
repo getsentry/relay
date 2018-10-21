@@ -227,11 +227,6 @@ impl Meta {
         !self.errors.is_empty()
     }
 
-    /// Indicates that a null value is permitted for this field.
-    pub fn null_is_valid(&self) -> bool {
-        self.has_errors() || self.has_remarks()
-    }
-
     /// Indicates whether this field has meta data attached.
     pub fn is_empty(&self) -> bool {
         self.original_length.is_none() && self.remarks.is_empty() && self.errors.is_empty()
@@ -296,6 +291,11 @@ impl<T: MetaStructure> Annotated<T> {
         self.serialize_with_meta(&mut ser)?;
         Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
     }
+
+    /// Checks if this value can be skipped upon serialization.
+    pub fn skip_serialization(&self) -> bool {
+        self.0.is_none() && self.1.is_empty()
+    }
 }
 
 impl<T: Default> Default for Annotated<T> {
@@ -305,12 +305,16 @@ impl<T: Default> Default for Annotated<T> {
 }
 
 impl<T> Annotated<T> {
-    pub fn require_value(self) -> Annotated<T> {
-        // TODO: write error if needed to meta
+    /// Attaches a value required error if the value is missing.
+    pub fn require_value(mut self) -> Annotated<T> {
+        if self.0.is_none() && !self.1.has_errors() {
+            self.1.errors_mut().push(format!("value required"));
+        }
         self
     }
 }
 
+/// Represents a boxed value.
 #[derive(Debug, Clone)]
 pub enum Value {
     Null,
@@ -424,15 +428,32 @@ impl From<Annotated<Value>> for serde_json::Value {
     }
 }
 
+/// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
 pub struct MetaTree {
+    /// The node's meta data
     #[serde(rename = "", skip_serializing_if = "Meta::is_empty")]
     pub meta: Meta,
+    /// References to the children.
     #[serde(flatten)]
     pub children: BTreeMap<String, MetaTree>,
 }
 
 impl MetaTree {
+    /// Checks if the tree has any errors.
+    pub fn has_errors(&self) -> bool {
+        if !self.meta.has_errors() {
+            return true;
+        }
+        for (_, value) in self.children.iter() {
+            if !value.has_errors() {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Checks if the tree is empty.
     pub fn is_empty(&self) -> bool {
         if !self.meta.is_empty() {
             return false;
