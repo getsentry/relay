@@ -127,7 +127,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                                             panic!("Got non bool literal for cap_size");
                                         }
                                     }
-                                } else if ident == "piiPkind" {
+                                } else if ident == "pii_kind" {
                                     match lit {
                                         Lit::Str(litstr) => {
                                             let attr = parse_pii_kind(litstr.value().as_str());
