@@ -7,7 +7,6 @@ extern crate uuid;
 extern crate general_derive;
 #[macro_use]
 extern crate smallvec;
-extern crate im;
 
 pub mod meta;
 pub mod processor;

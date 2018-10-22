@@ -34,7 +34,9 @@ pub struct Frame {
 pub struct Exception {
     #[metastructure(field = "type", required = "true")]
     pub ty: Annotated<String>,
+    #[metastructure(cap_size = "summary")]
     pub value: Annotated<String>,
+    #[metastructure(cap_size = "symbol")]
     pub module: Annotated<String>,
     pub stacktrace: Annotated<Stacktrace>,
     pub raw_stacktrace: Annotated<Stacktrace>,

@@ -10,4 +10,3 @@ serde_derive = "1.0.80"
 uuid = { version = "0.7.1", features = ["v4", "serde"] }
 general_derive = { path = "derive" }
 smallvec = { version = "0.6.5", features = ["serde"] }
-im = "12.2.0"

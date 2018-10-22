@@ -549,7 +549,14 @@ fn test_annotated_deserialize_with_meta() {
 
     assert_eq!(annotated_value.0.as_ref().unwrap().id.0, None);
     assert_eq!(
-        annotated_value.0.as_ref().unwrap().id.1.iter_errors().collect::<Vec<_>>(),
+        annotated_value
+            .0
+            .as_ref()
+            .unwrap()
+            .id
+            .1
+            .iter_errors()
+            .collect::<Vec<_>>(),
         vec!["invalid id", "expected an unsigned integer"]
     );
     assert_eq!(
@@ -557,7 +564,14 @@ fn test_annotated_deserialize_with_meta() {
         Some("testing".into())
     );
     assert_eq!(
-        annotated_value.0.as_ref().unwrap().ty.1.iter_errors().collect::<Vec<_>>(),
+        annotated_value
+            .0
+            .as_ref()
+            .unwrap()
+            .ty
+            .1
+            .iter_errors()
+            .collect::<Vec<_>>(),
         vec!["invalid type"]
     );
 

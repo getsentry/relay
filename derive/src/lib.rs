@@ -9,88 +9,12 @@ extern crate proc_macro2;
 
 use proc_macro2::{TokenStream, Span};
 use quote::ToTokens;
-use syn::{Lit, Meta, MetaNameValue, NestedMeta, LitStr, Ident};
+use syn::{Lit, Meta, MetaNameValue, NestedMeta, LitStr, LitBool, Ident};
 
 decl_derive!([MetaStructure, attributes(metastructure)] => process_metastructure);
 
-/*
-fn process_wrapper_struct_derive(
-    s: synstructure::Structure,
-) -> Result<TokenStream, synstructure::Structure> {
-    // The next few blocks are for finding out whether the given type is of the form:
-    // struct Foo(Bar)  (tuple struct with a single field)
-
-    if s.variants().len() != 1 {
-        // We have more than one variant (e.g. `enum Foo { A, B }`)
-        return Err(s);
-    }
-
-    if s.variants()[0].bindings().len() != 1 {
-        // The single variant has multiple fields
-        // e.g. `struct Foo(Bar, Baz)`
-        //      `enum Foo { A(X, Y) }`
-        return Err(s);
-    }
-
-    if let Some(_) = s.variants()[0].bindings()[0].ast().ident {
-        // The variant has a name
-        // e.g. `struct Foo { bar: Bar }` instead of `struct Foo(Bar)`
-        return Err(s);
-    }
-
-    // At this point we know we have a struct of the form:
-    // struct Foo(Bar)
-    //
-    // Those structs get special treatment: Bar does not need to be wrapped in Annotated, and no
-    // #[metastructure] is necessary on the value.
-    //
-    // It basically works like a type alias.
-
-    // Last check: It's a programming error to add `#[metastructure]` to the single
-    // field, because it does not do anything.
-    //
-    // e.g.
-    // `struct Foo(#[metastructure] Annotated<Bar>)` is useless
-    // `struct Foo(Bar)` is how it's supposed to be used
-    for attr in &s.variants()[0].bindings()[0].ast().attrs {
-        if let Some(meta) = attr.interpret_meta() {
-            if meta.name() == "metastructure" {
-                panic!("Single-field tuple structs are treated as type aliases");
-            }
-        }
-    }
-
-    let name = &s.ast().ident;
-
-    Ok(s.gen_impl(quote! {
-        use processor as __processor;
-        use protocol as __meta;
-
-        gen impl __processor::ProcessAnnotatedValue for @Self {
-            fn metastructure(
-                __annotated: __meta::Annotated<Self>,
-                __processor: &__processor::Processor,
-                __info: &__processor::ValueInfo
-            ) -> __meta::Annotated<Self> {
-                __processor::ProcessAnnotatedValue::metastructure(
-                    __annotated.map(|x| x.0),
-                    __processor,
-                    __info
-                ).map(#name)
-            }
-        }
-    }))
-}
-*/
 
 fn process_metastructure(s: synstructure::Structure) -> TokenStream {
-    /*
-    let s = match process_wrapper_struct_derive(s) {
-        Ok(stream) => return stream,
-        Err(s) => s,
-    };
-    */
-
     let variants = s.variants();
     if variants.len() != 1 {
         panic!("Can only derive structs");
@@ -106,6 +30,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
     let mut serialize_body = TokenStream::new();
     let mut extract_meta_tree_body = TokenStream::new();
     let mut process_func = None;
+    let mut tmp_idx = 0;
 
     for attr in &s.ast().attrs {
         let meta = match attr.interpret_meta() {
@@ -145,6 +70,8 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
     for bi in variant.bindings() {
         let mut additional_properties = false;
         let mut field_name = bi.ast().ident.as_ref().unwrap().to_string();
+        let mut cap_size_attr = quote!(None);
+        let mut pii_kind_attr = quote!(None);
         let mut required = false;
         for attr in &bi.ast().attrs {
             let meta = match attr.interpret_meta() {
@@ -190,6 +117,26 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                                             panic!("Got non bool literal for required");
                                         }
                                     }
+                                } else if ident == "cap_size" {
+                                    match lit {
+                                        Lit::Str(litstr) => {
+                                            let attr = parse_cap_size(litstr.value().as_str());
+                                            cap_size_attr = quote!(Some(#attr));
+                                        }
+                                        _ => {
+                                            panic!("Got non bool literal for cap_size");
+                                        }
+                                    }
+                                } else if ident == "piiPkind" {
+                                    match lit {
+                                        Lit::Str(litstr) => {
+                                            let attr = parse_pii_kind(litstr.value().as_str());
+                                            pii_kind_attr = quote!(Some(#attr));
+                                        }
+                                        _ => {
+                                            panic!("Got non bool literal for pii_kind");
+                                        }
+                                    }
                                 }
                             }
                             other => {
@@ -212,7 +159,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
             }).to_tokens(&mut to_value_body);
             (quote! {
                 let #bi = #bi.into_iter().map(|(__key, __value)| {
-                    let __value = __processor::MetaStructure::process(__value, __processor, __state.enter_dynamic(__key.clone()));
+                    let __value = __processor::MetaStructure::process(__value, __processor, __state.enter_borrowed(__key.as_str(), None));
                     (__key, __value)
                 }).collect();
             }).to_tokens(&mut process_body);
@@ -233,6 +180,12 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                 }
             }).to_tokens(&mut extract_meta_tree_body);
         } else {
+            let field_attrs_name = Ident::new(&format!("__field_attrs_{}", {tmp_idx += 1; tmp_idx }), Span::call_site());
+            let required_attr = LitBool {
+                value: required,
+                span: Span::call_site()
+            };
+
             (quote! {
                 let #bi = __processor::MetaStructure::from_value(
                     __obj.remove(#field_name).unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())));
@@ -246,7 +199,13 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                 __map.insert(#field_name.to_string(), __processor::MetaStructure::to_value(#bi));
             }).to_tokens(&mut to_value_body);
             (quote! {
-                let #bi = __processor::MetaStructure::process(#bi, __processor, __state.enter_static(#field_name));
+                const #field_attrs_name: __processor::FieldAttrs = __processor::FieldAttrs {
+                    name: Some(#field_name),
+                    required: #required_attr,
+                    cap_size: #cap_size_attr,
+                    pii_kind: #pii_kind_attr,
+                };
+                let #bi = __processor::MetaStructure::process(#bi, __processor, __state.enter_static(#field_name, Some(::std::borrow::Cow::Borrowed(&#field_attrs_name))));
             }).to_tokens(&mut process_body);
             (quote! {
                 __map_serializer.serialize_key(#field_name)?;
@@ -372,4 +331,32 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
             }
         }
     })
+}
+
+fn parse_cap_size(name: &str) -> TokenStream {
+    match name {
+        "enumlike" => quote!(__processor::CapSize::EnumLike),
+        "summary" => quote!(__processor::CapSize::Summary),
+        "message" => quote!(__processor::CapSize::Message),
+        "symbol" => quote!(__processor::CapSize::Symbol),
+        "path" => quote!(__processor::CapSize::Path),
+        "shortpath" => quote!(__processor::CapSize::ShortPath),
+        _ => panic!("invalid cap_size variant '{}'", name),
+    }
+}
+
+fn parse_pii_kind(kind: &str) -> TokenStream {
+    match kind {
+        "freeform" => quote!(__processor::PiiKind::Freeform),
+        "ip" => quote!(__processor::PiiKind::Ip),
+        "id" => quote!(__processor::PiiKind::Id),
+        "username" => quote!(__processor::PiiKind::Username),
+        "hostname" => quote!(__processor::PiiKind::Hostname),
+        "sensitive" => quote!(__processor::PiiKind::Sensitive),
+        "name" => quote!(__processor::PiiKind::Name),
+        "email" => quote!(__processor::PiiKind::Email),
+        "location" => quote!(__processor::PiiKind::Location),
+        "databag" => quote!(__processor::PiiKind::Databag),
+        _ => panic!("invalid pii_kind variant '{}'", kind),
+    }
 }
