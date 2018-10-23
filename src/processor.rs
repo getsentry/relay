@@ -562,6 +562,7 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
             Annotated(None, meta) => Annotated(None, meta),
         }
     }
+
     #[inline(always)]
     fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
     where
@@ -582,6 +583,7 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
             &Annotated(None, _) => s.serialize_unit(),
         }
     }
+
     fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
     where
         Self: Sized,
@@ -600,6 +602,7 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
         }
         meta_tree
     }
+
     fn process<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
@@ -630,10 +633,12 @@ impl MetaStructure for Value {
     fn from_value(value: Annotated<Value>) -> Annotated<Value> {
         value
     }
+
     #[inline(always)]
     fn to_value(value: Annotated<Value>) -> Annotated<Value> {
         value
     }
+
     #[inline(always)]
     fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
     where
@@ -643,6 +648,9 @@ impl MetaStructure for Value {
         let &Annotated(ref value, _) = value;
         Serialize::serialize(value, s)
     }
+
+    // TODO: implement extract_meta_tree and process
+
     #[inline(always)]
     fn process<P: Processor>(
         value: Annotated<Self>,
