@@ -38,6 +38,7 @@ pub struct Exception {
     pub value: Annotated<String>,
     #[metastructure(cap_size = "symbol")]
     pub module: Annotated<String>,
+    #[metastructure(legacy_alias = "sentry.interfaces.Stacktrace")]
     pub stacktrace: Annotated<Stacktrace>,
     pub raw_stacktrace: Annotated<Stacktrace>,
     #[metastructure(additional_properties)]

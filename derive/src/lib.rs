@@ -73,6 +73,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
         let mut cap_size_attr = quote!(None);
         let mut pii_kind_attr = quote!(None);
         let mut required = false;
+        let mut legacy_alias = None;
         for attr in &bi.ast().attrs {
             let meta = match attr.interpret_meta() {
                 Some(meta) => meta,
@@ -114,7 +115,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                                             }
                                         }
                                         _ => {
-                                            panic!("Got non bool literal for required");
+                                            panic!("Got non string literal for required");
                                         }
                                     }
                                 } else if ident == "cap_size" {
@@ -124,7 +125,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                                             cap_size_attr = quote!(Some(#attr));
                                         }
                                         _ => {
-                                            panic!("Got non bool literal for cap_size");
+                                            panic!("Got non string literal for cap_size");
                                         }
                                     }
                                 } else if ident == "pii_kind" {
@@ -134,7 +135,16 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                                             pii_kind_attr = quote!(Some(#attr));
                                         }
                                         _ => {
-                                            panic!("Got non bool literal for pii_kind");
+                                            panic!("Got non string literal for pii_kind");
+                                        }
+                                    }
+                                } else if ident == "legacy_alias" {
+                                    match lit {
+                                        Lit::Str(litstr) => {
+                                            legacy_alias = Some(litstr.value());
+                                        }
+                                        _ => {
+                                            panic!("Got non string literal for legacy_alias");
                                         }
                                     }
                                 }
@@ -186,10 +196,23 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                 span: Span::call_site()
             };
 
-            (quote! {
-                let #bi = __processor::MetaStructure::from_value(
-                    __obj.remove(#field_name).unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())));
-            }).to_tokens(&mut to_structure_body);
+            if let Some(legacy_alias) = legacy_alias {
+                let legacy_field_name = LitStr::new(&legacy_alias, Span::call_site());
+                (quote! {
+                    let #bi = {
+                        let __legacy_value = __obj.remove(#legacy_field_name);
+                        let __canonical_value = __obj.remove(#field_name);
+                        __processor::MetaStructure::from_value(
+                            __canonical_value.or(__legacy_value).unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())))
+                    };
+                }).to_tokens(&mut to_structure_body);
+            } else {
+                (quote! {
+                    let #bi = __processor::MetaStructure::from_value(
+                        __obj.remove(#field_name).unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())));
+                }).to_tokens(&mut to_structure_body);
+            }
+
             if required {
                 (quote! {
                     let #bi = #bi.require_value();
