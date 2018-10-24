@@ -388,9 +388,13 @@ pub enum ThreadId {
 impl MetaStructure for ThreadId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::String(value)), meta) => Annotated(Some(ThreadId::String(value)), meta),
+            Annotated(Some(Value::String(value)), meta) => {
+                Annotated(Some(ThreadId::String(value)), meta)
+            }
             Annotated(Some(Value::U64(value)), meta) => Annotated(Some(ThreadId::Int(value)), meta),
-            Annotated(Some(Value::I64(value)), meta) => Annotated(Some(ThreadId::Int(value as u64)), meta),
+            Annotated(Some(Value::I64(value)), meta) => {
+                Annotated(Some(ThreadId::Int(value as u64)), meta)
+            }
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(_, mut meta) => {
@@ -402,7 +406,9 @@ impl MetaStructure for ThreadId {
 
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
-            Annotated(Some(ThreadId::String(value)), meta) => Annotated(Some(Value::String(value)), meta),
+            Annotated(Some(ThreadId::String(value)), meta) => {
+                Annotated(Some(Value::String(value)), meta)
+            }
             Annotated(Some(ThreadId::Int(value)), meta) => Annotated(Some(Value::U64(value)), meta),
             Annotated(None, meta) => Annotated(None, meta),
         }
@@ -526,11 +532,17 @@ fn test_level() {
 fn test_thread_id() {
     assert_eq_dbg!(
         ThreadId::String("testing".into()),
-        Annotated::<ThreadId>::from_json("\"testing\"").unwrap().0.unwrap()
+        Annotated::<ThreadId>::from_json("\"testing\"")
+            .unwrap()
+            .0
+            .unwrap()
     );
     assert_eq_dbg!(
         ThreadId::String("42".into()),
-        Annotated::<ThreadId>::from_json("\"42\"").unwrap().0.unwrap()
+        Annotated::<ThreadId>::from_json("\"42\"")
+            .unwrap()
+            .0
+            .unwrap()
     );
     assert_eq_dbg!(
         ThreadId::Int(42),
