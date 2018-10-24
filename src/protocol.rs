@@ -67,8 +67,8 @@ pub struct Event {
     pub user: Annotated<User>,
 
     /// Information about a web request that occurred during the event.
-    //#[metastructure(legacy_alias = "sentry.interfaces.Http")]
-    //pub request: Annotated<Request>,
+    #[metastructure(legacy_alias = "sentry.interfaces.Http")]
+    pub request: Annotated<Request>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
     // pub contexts: Annotated<Object<Context>>,
@@ -109,10 +109,11 @@ pub struct Event {
     // pub client_sdk: Annotated<Option<ClientSdkInfo>>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, pii_kind = "databag")]
     pub other: Object<Value>,
 }
 
+/// Information about the user who triggered an event.
 #[derive(Debug, Clone, PartialEq, MetaStructure)]
 pub struct User {
     /// Unique identifier of the user.
@@ -132,10 +133,14 @@ pub struct User {
     pub username: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, pii_kind = "databag")]
     pub other: Object<Value>,
 }
 
+/// A log entry message.
+///
+/// A log message is similar to the `message` attribute on the event itself but
+/// can additionally hold optional parameters.
 #[derive(Debug, Clone, PartialEq, MetaStructure)]
 pub struct LogEntry {
     /// The log message with parameter placeholders (required).
@@ -147,7 +152,49 @@ pub struct LogEntry {
     pub params: Annotated<Array<Value>>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, pii_kind = "databag")]
+    pub other: Object<Value>,
+}
+
+// TODO: these need to be typed correctly
+type Cookies = Object<String>;
+type Headers = Object<String>;
+type Query = Object<String>;
+
+/// Http request information.
+#[derive(Debug, Clone, PartialEq, MetaStructure)]
+pub struct Request {
+    /// URL of the request.
+    // TODO: cap?
+    pub url: Annotated<String>,
+
+    /// HTTP request method.
+    pub method: Annotated<String>,
+
+    /// Request data in any format that makes sense.
+    // TODO: cap?
+    // TODO: Custom logic + info
+    #[metastructure(pii_kind = "databag")]
+    pub data: Annotated<Value>,
+
+    /// URL encoded HTTP query string.
+    #[metastructure(pii_kind = "databag")]
+    pub query_string: Annotated<Query>,
+
+    /// URL encoded contents of the Cookie header.
+    #[metastructure(pii_kind = "databag")]
+    pub cookies: Annotated<Cookies>,
+
+    /// HTTP request headers.
+    #[metastructure(pii_kind = "databag")]
+    pub headers: Annotated<Headers>,
+
+    /// Server environment data, such as CGI/WSGI.
+    #[metastructure(pii_kind = "databag")]
+    pub env: Annotated<Object<Value>>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties, pii_kind = "databag")]
     pub other: Object<Value>,
 }
 
