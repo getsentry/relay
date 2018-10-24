@@ -257,6 +257,179 @@ macro_rules! hex_metrastructure {
 hex_metrastructure!(Addr, "address");
 hex_metrastructure!(RegVal, "register value");
 
+/// An error used when parsing `Level`.
+#[derive(Debug, Fail)]
+#[fail(display = "invalid level")]
+pub struct ParseLevelError;
+
+/// Severity level of an event or breadcrumb.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Level {
+    /// Indicates very spammy debug information.
+    Debug,
+    /// Informational messages.
+    Info,
+    /// A warning.
+    Warning,
+    /// An error.
+    Error,
+    /// Similar to error but indicates a critical event that usually causes a shutdown.
+    Fatal,
+}
+
+impl Default for Level {
+    fn default() -> Self {
+        Level::Info
+    }
+}
+
+impl Level {
+    fn from_python_level(value: u64) -> Option<Level> {
+        Some(match value {
+            10 => Level::Debug,
+            20 => Level::Info,
+            30 => Level::Warning,
+            40 => Level::Error,
+            50 => Level::Fatal,
+            _ => return None,
+        })
+    }
+}
+
+impl FromStr for Level {
+    type Err = ParseLevelError;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Ok(match string {
+            "debug" => Level::Debug,
+            "info" | "log" => Level::Info,
+            "warning" => Level::Warning,
+            "error" => Level::Error,
+            "fatal" => Level::Fatal,
+            _ => return Err(ParseLevelError),
+        })
+    }
+}
+
+impl fmt::Display for Level {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Level::Debug => write!(f, "debug"),
+            Level::Info => write!(f, "info"),
+            Level::Warning => write!(f, "warning"),
+            Level::Error => write!(f, "error"),
+            Level::Fatal => write!(f, "fatal"),
+        }
+    }
+}
+
+impl MetaStructure for Level {
+    #[inline(always)]
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+                Ok(value) => Annotated(Some(value), meta),
+                Err(err) => {
+                    meta.add_error(err.to_string());
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(Some(Value::U64(val)), mut meta) => match Level::from_python_level(val) {
+                Some(value) => Annotated(Some(value), meta),
+                None => {
+                    meta.add_error("unknown numeric level");
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(Some(Value::I64(val)), mut meta) => {
+                match Level::from_python_level(val as u64) {
+                    Some(value) => Annotated(Some(value), meta),
+                    None => {
+                        meta.add_error("unknown numeric level");
+                        Annotated(None, meta)
+                    }
+                }
+            }
+            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(_, mut meta) => {
+                meta.add_error("expected level");
+                Annotated(None, meta)
+            }
+        }
+    }
+    #[inline(always)]
+    fn to_value(value: Annotated<Self>) -> Annotated<Value> {
+        match value {
+            Annotated(Some(value), meta) => Annotated(Some(Value::String(value.to_string())), meta),
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+    #[inline(always)]
+    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: ::serde::ser::Serializer,
+    {
+        let &Annotated(ref value, _) = value;
+        if let &Some(ref value) = value {
+            ::serde::ser::Serialize::serialize(&value.to_string(), s)
+        } else {
+            ::serde::ser::Serialize::serialize(&(), s)
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[serde(untagged)]
+pub enum ThreadId {
+    /// Integer representation of the thread id.
+    Int(u64),
+    /// String representation of the thread id.
+    String(String),
+}
+
+impl MetaStructure for ThreadId {
+    #[inline(always)]
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), meta) => Annotated(Some(ThreadId::String(value)), meta),
+            Annotated(Some(Value::U64(value)), meta) => Annotated(Some(ThreadId::Int(value)), meta),
+            Annotated(Some(Value::I64(value)), meta) => Annotated(Some(ThreadId::Int(value as u64)), meta),
+            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(_, mut meta) => {
+                meta.add_error("expected thread id");
+                Annotated(None, meta)
+            }
+        }
+    }
+    #[inline(always)]
+    fn to_value(value: Annotated<Self>) -> Annotated<Value> {
+        match value {
+            Annotated(Some(ThreadId::String(value)), meta) => Annotated(Some(Value::String(value)), meta),
+            Annotated(Some(ThreadId::Int(value)), meta) => Annotated(Some(Value::U64(value)), meta),
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+    #[inline(always)]
+    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: ::serde::ser::Serializer,
+    {
+        let &Annotated(ref value, _) = value;
+        if let &Some(ref value) = value {
+            match value {
+                ThreadId::String(ref value) => ::serde::ser::Serialize::serialize(value, s),
+                ThreadId::Int(value) => ::serde::ser::Serialize::serialize(&value, s),
+            }
+        } else {
+            ::serde::ser::Serialize::serialize(&(), s)
+        }
+    }
+}
+
 #[test]
 fn test_values_serialization() {
     let value = Annotated::new(Values {
@@ -340,4 +513,32 @@ fn test_hex_deserialization() {
     assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
     let addr = Annotated::<Addr>::from_json("42").unwrap();
     assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+}
+
+#[test]
+fn test_level() {
+    assert_eq_dbg!(
+        Level::Info,
+        Annotated::<Level>::from_json("\"log\"").unwrap().0.unwrap()
+    );
+    assert_eq_dbg!(
+        Level::Warning,
+        Annotated::<Level>::from_json("30").unwrap().0.unwrap()
+    );
+}
+
+#[test]
+fn test_thread_id() {
+    assert_eq_dbg!(
+        ThreadId::String("testing".into()),
+        Annotated::<ThreadId>::from_json("\"testing\"").unwrap().0.unwrap()
+    );
+    assert_eq_dbg!(
+        ThreadId::String("42".into()),
+        Annotated::<ThreadId>::from_json("\"42\"").unwrap().0.unwrap()
+    );
+    assert_eq_dbg!(
+        ThreadId::Int(42),
+        Annotated::<ThreadId>::from_json("42").unwrap().0.unwrap()
+    );
 }
