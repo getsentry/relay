@@ -279,10 +279,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                         #to_structure_body;
                         __meta::Annotated(Some(#to_structure_assemble_pat), __meta)
                     }
-                    __meta::Annotated(None, __meta) => {
-                        // TODO: hook?
-                        __meta::Annotated(None, __meta)
-                    }
+                    __meta::Annotated(None, __meta) => __meta::Annotated(None, __meta),
                     __meta::Annotated(_, mut __meta) => {
                         __meta.add_error(#expectation.to_string());
                         __meta::Annotated(None, __meta)

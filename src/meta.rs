@@ -297,6 +297,20 @@ impl<T: MetaStructure> Annotated<T> {
         Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
     }
 
+    /// Serializes an annotated value into a JSON string.
+    pub fn payload_to_json(&self) -> Result<String, Error> {
+        let mut ser = serde_json::Serializer::new(Vec::with_capacity(128));
+        MetaStructure::serialize_payload(self, &mut ser)?;
+        Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
+    }
+
+    /// Serializes an annotated value into a pretty JSON string.
+    pub fn payload_to_json_pretty(&self) -> Result<String, Error> {
+        let mut ser = serde_json::Serializer::pretty(Vec::with_capacity(128));
+        MetaStructure::serialize_payload(self, &mut ser)?;
+        Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
+    }
+
     /// Checks if this value can be skipped upon serialization.
     pub fn skip_serialization(&self) -> bool {
         self.0.is_none() && self.1.is_empty()

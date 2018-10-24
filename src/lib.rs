@@ -7,6 +7,17 @@ extern crate uuid;
 extern crate general_derive;
 #[macro_use]
 extern crate smallvec;
+#[macro_use]
+extern crate failure;
+#[cfg(test)]
+extern crate difference;
+
+#[macro_use]
+mod macros;
+
+#[cfg(test)]
+#[macro_use]
+mod testutils;
 
 pub mod meta;
 pub mod processor;

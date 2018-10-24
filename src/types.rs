@@ -1,5 +1,8 @@
+//! Common types of the protocol.
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::fmt;
+use std::str::FromStr;
 
 use serde::ser::{SerializeMap, Serializer};
 
@@ -13,6 +16,7 @@ pub type Array<T> = Vec<Annotated<T>>;
 /// Alias for typed objects.
 pub type Object<T> = BTreeMap<String, Annotated<T>>;
 
+/// A array like wrapper used in various places.
 #[derive(Clone, Debug)]
 pub struct Values<T> {
     /// The values of the collection.
@@ -145,4 +149,121 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
             Annotated(None, meta)
         }
     }
+}
+
+/// A register value.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
+pub struct RegVal(pub u64);
+
+/// An address
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
+pub struct Addr(pub u64);
+
+/// Raised if a register value can't be parsed.
+#[derive(Fail, Debug)]
+#[fail(display = "invalid register value")]
+pub struct InvalidRegVal;
+
+macro_rules! hex_metrastructure {
+    ($type:ident, $expectation:expr) => {
+        impl FromStr for $type {
+            type Err = ::std::num::ParseIntError;
+
+            fn from_str(s: &str) -> Result<$type, Self::Err> {
+                if s.starts_with("0x") || s.starts_with("0X") {
+                    u64::from_str_radix(&s[2..], 16).map($type)
+                } else {
+                    u64::from_str_radix(&s, 10).map($type)
+                }
+            }
+        }
+
+        impl fmt::Display for $type {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "{:#x}", self.0)
+            }
+        }
+
+        impl MetaStructure for $type {
+            #[inline(always)]
+            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+                match value {
+                    Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+                        Ok(value) => Annotated(Some(value), meta),
+                        Err(err) => {
+                            meta.add_error(err.to_string());
+                            Annotated(None, meta)
+                        }
+                    },
+                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+                    Annotated(Some(Value::U64(value)), meta) => Annotated(Some($type(value)), meta),
+                    Annotated(Some(Value::I64(value)), meta) => {
+                        Annotated(Some($type(value as u64)), meta)
+                    }
+                    Annotated(None, meta) => Annotated(None, meta),
+                    Annotated(_, mut meta) => {
+                        meta.add_error(format!("expected {}", $expectation));
+                        Annotated(None, meta)
+                    }
+                }
+            }
+            #[inline(always)]
+            fn to_value(value: Annotated<Self>) -> Annotated<Value> {
+                match value {
+                    Annotated(Some(value), meta) => {
+                        Annotated(Some(Value::String(value.to_string())), meta)
+                    }
+                    Annotated(None, meta) => Annotated(None, meta),
+                }
+            }
+            #[inline(always)]
+            fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+            where
+                Self: Sized,
+                S: ::serde::ser::Serializer,
+            {
+                let &Annotated(ref value, _) = value;
+                if let &Some(ref value) = value {
+                    ::serde::ser::Serialize::serialize(&value.to_string(), s)
+                } else {
+                    ::serde::ser::Serialize::serialize(&(), s)
+                }
+            }
+        }
+    };
+}
+
+hex_metrastructure!(Addr, "address");
+hex_metrastructure!(RegVal, "register value");
+
+#[test]
+fn test_hex_to_string() {
+    assert_eq_str!("0x0", &Addr(0).to_string());
+    assert_eq_str!("0x2a", &Addr(42).to_string());
+}
+
+#[test]
+fn test_hex_from_string() {
+    assert_eq_dbg!(Addr(0), "0".parse().unwrap());
+    assert_eq_dbg!(Addr(42), "42".parse().unwrap());
+    assert_eq_dbg!(Addr(42), "0x2a".parse().unwrap());
+    assert_eq_dbg!(Addr(42), "0X2A".parse().unwrap());
+}
+
+#[test]
+fn test_hex_serialization() {
+    let value = Value::String("0x2a".to_string());
+    let addr: Annotated<Addr> = MetaStructure::from_value(Annotated(Some(value), Meta::default()));
+    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+    let value = Value::U64(42);
+    let addr: Annotated<Addr> = MetaStructure::from_value(Annotated(Some(value), Meta::default()));
+    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+}
+
+#[test]
+fn test_hex_deserialization() {
+    let addr = Annotated::<Addr>::from_json("\"0x2a\"").unwrap();
+    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+    let addr = Annotated::<Addr>::from_json("42").unwrap();
+    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
 }

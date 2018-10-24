@@ -17,6 +17,7 @@ enum PathItem<'a> {
     Index(usize),
 }
 
+/// The maximum size of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
 pub enum CapSize {
     EnumLike,
@@ -58,6 +59,7 @@ impl CapSize {
     }
 }
 
+/// The type of PII contained on a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
 pub enum PiiKind {
     Freeform,
@@ -72,11 +74,16 @@ pub enum PiiKind {
     Databag,
 }
 
+/// Meta information about a field.
 #[derive(Debug, Clone)]
 pub struct FieldAttrs {
+    /// Optionally the name of the field.
     pub name: Option<&'static str>,
+    /// If the field is required.
     pub required: bool,
+    /// The maximum size of the field.
     pub cap_size: Option<CapSize>,
+    /// The type of PII on the field.
     pub pii_kind: Option<PiiKind>,
 }
 
@@ -223,6 +230,7 @@ impl<'a> ProcessingState<'a> {
     }
 }
 
+/// A trait for processing the protocol.
 pub trait Processor {
     #[inline(always)]
     fn process_event(&self, event: Annotated<Event>, state: ProcessingState) -> Annotated<Event> {
@@ -333,92 +341,6 @@ macro_rules! primitive_meta_structure {
             fn to_value(value: Annotated<Self>) -> Annotated<Value> {
                 match value {
                     Annotated(Some(value), meta) => Annotated(Some(Value::$meta_type(value)), meta),
-                    Annotated(None, meta) => Annotated(None, meta),
-                }
-            }
-            #[inline(always)]
-            fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
-            where
-                Self: Sized,
-                S: Serializer,
-            {
-                let &Annotated(ref value, _) = value;
-                Serialize::serialize(value, s)
-            }
-        }
-    };
-}
-
-macro_rules! numeric_meta_structure {
-    ($type:ident, $meta_type:ident, $expectation:expr) => {
-        impl MetaStructure for $type {
-            #[inline(always)]
-            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-                match value {
-                    Annotated(Some(Value::U64(value)), meta) => {
-                        Annotated(Some(value as $type), meta)
-                    }
-                    Annotated(Some(Value::I64(value)), meta) => {
-                        Annotated(Some(value as $type), meta)
-                    }
-                    Annotated(Some(Value::F64(value)), meta) => {
-                        Annotated(Some(value as $type), meta)
-                    }
-                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
-                    Annotated(None, meta) => Annotated(None, meta),
-                    Annotated(_, mut meta) => {
-                        meta.add_error(format!("expected {}", $expectation));
-                        Annotated(None, meta)
-                    }
-                }
-            }
-            #[inline(always)]
-            fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-                match value {
-                    Annotated(Some(value), meta) => Annotated(Some(Value::$meta_type(value)), meta),
-                    Annotated(None, meta) => Annotated(None, meta),
-                }
-            }
-            #[inline(always)]
-            fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
-            where
-                Self: Sized,
-                S: Serializer,
-            {
-                let &Annotated(ref value, _) = value;
-                Serialize::serialize(value, s)
-            }
-        }
-    };
-}
-
-macro_rules! primitive_meta_structure_through_string {
-    ($type:ident, $expectation:expr) => {
-        impl MetaStructure for $type {
-            #[inline(always)]
-            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-                match value {
-                    Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
-                        Ok(value) => Annotated(Some(value), meta),
-                        Err(err) => {
-                            meta.add_error(err.to_string());
-                            Annotated(None, meta)
-                        }
-                    },
-                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
-                    Annotated(None, meta) => Annotated(None, meta),
-                    Annotated(_, mut meta) => {
-                        meta.add_error(format!("expected {}", $expectation));
-                        Annotated(None, meta)
-                    }
-                }
-            }
-            #[inline(always)]
-            fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-                match value {
-                    Annotated(Some(value), meta) => {
-                        Annotated(Some(Value::String(value.to_string())), meta)
-                    }
                     Annotated(None, meta) => Annotated(None, meta),
                 }
             }
@@ -649,16 +571,69 @@ impl MetaStructure for Value {
         Serialize::serialize(value, s)
     }
 
-    // TODO: implement extract_meta_tree and process
+    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
+    where
+        Self: Sized,
+    {
+        let mut meta_tree = MetaTree {
+            meta: value.1.clone(),
+            children: Default::default(),
+        };
+        match *value {
+            Annotated(Some(Value::Object(ref items)), _) => {
+                for (key, value) in items.iter() {
+                    let tree = MetaStructure::extract_meta_tree(value);
+                    if !tree.is_empty() {
+                        meta_tree.children.insert(key.to_string(), tree);
+                    }
+                }
+            }
+            Annotated(Some(Value::Array(ref items)), _) => {
+                for (idx, item) in items.iter().enumerate() {
+                    let tree = MetaStructure::extract_meta_tree(item);
+                    if !tree.is_empty() {
+                        meta_tree.children.insert(idx.to_string(), tree);
+                    }
+                }
+            }
+            _ => {}
+        }
+        meta_tree
+    }
 
-    #[inline(always)]
     fn process<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
         state: ProcessingState,
     ) -> Annotated<Self> {
-        let _processor = processor;
-        let _state = state;
-        value
+        match value {
+            Annotated(Some(Value::Object(items)), meta) => Annotated(
+                Some(Value::Object(
+                    items
+                        .into_iter()
+                        .map(|(k, v)| {
+                            let v = {
+                                let inner_state = state.enter_borrowed(k.as_str(), None);
+                                MetaStructure::process(v, processor, inner_state)
+                            };
+                            (k, v)
+                        }).collect(),
+                )),
+                meta,
+            ),
+            Annotated(Some(Value::Array(items)), meta) => Annotated(
+                Some(Value::Array(
+                    items
+                        .into_iter()
+                        .enumerate()
+                        .map(|(idx, v)| {
+                            let inner_state = state.enter_index(idx, None);
+                            MetaStructure::process(v, processor, inner_state)
+                        }).collect(),
+                )),
+                meta,
+            ),
+            other => other,
+        }
     }
 }

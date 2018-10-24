@@ -10,3 +10,8 @@ serde_derive = "1.0.80"
 uuid = { version = "0.7.1", features = ["v4", "serde"] }
 general_derive = { path = "derive" }
 smallvec = { version = "0.6.5", features = ["serde"] }
+failure = "0.1.3"
+failure_derive = "0.1.3"
+
+[dev-dependencies]
+difference = "2.0.0"
