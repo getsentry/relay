@@ -376,6 +376,7 @@ impl MetaStructure for Level {
     }
 }
 
+/// Represents a thread id.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 #[serde(untagged)]
 pub enum ThreadId {

@@ -12,6 +12,7 @@ general_derive = { path = "derive" }
 smallvec = { version = "0.6.5", features = ["serde"] }
 failure = "0.1.3"
 failure_derive = "0.1.3"
+chrono = "0.4.6"
 
 [dev-dependencies]
 difference = "2.0.0"

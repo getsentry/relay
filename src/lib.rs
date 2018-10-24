@@ -9,6 +9,7 @@ extern crate general_derive;
 extern crate smallvec;
 #[macro_use]
 extern crate failure;
+extern crate chrono;
 #[cfg(test)]
 extern crate difference;
 

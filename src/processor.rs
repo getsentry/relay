@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
@@ -634,6 +635,70 @@ impl MetaStructure for Value {
                 meta,
             ),
             other => other,
+        }
+    }
+}
+
+fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
+    let micros = f64::from(dt.timestamp_subsec_micros()) / 1_000_000f64;
+    dt.timestamp() as f64 + micros
+}
+
+impl MetaStructure for DateTime<Utc> {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), mut meta) => {
+                let parsed = match value.parse::<NaiveDateTime>() {
+                    Ok(dt) => Ok(DateTime::from_utc(dt, Utc)),
+                    Err(_) => value.parse(),
+                };
+                match parsed {
+                    Ok(value) => Annotated(Some(value), meta),
+                    Err(err) => {
+                        meta.add_error(err.to_string());
+                        Annotated(None, meta)
+                    }
+                }
+            }
+            Annotated(Some(Value::U64(ts)), meta) => {
+                Annotated(Some(Utc.timestamp_opt(ts as i64, 0).unwrap()), meta)
+            }
+            Annotated(Some(Value::I64(ts)), meta) => {
+                Annotated(Some(Utc.timestamp_opt(ts, 0).unwrap()), meta)
+            }
+            Annotated(Some(Value::F64(ts)), meta) => {
+                let secs = ts as i64;
+                let micros = (ts.fract() * 1_000_000f64) as u32;
+                Annotated(Some(Utc.timestamp_opt(secs, micros * 1000).unwrap()), meta)
+            }
+            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(_, mut meta) => {
+                meta.add_error("expected timestamp");
+                Annotated(None, meta)
+            }
+        }
+    }
+
+    fn to_value(value: Annotated<Self>) -> Annotated<Value> {
+        match value {
+            Annotated(Some(value), meta) => {
+                Annotated(Some(Value::F64(datetime_to_timestamp(value))), meta)
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+
+    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        let &Annotated(value, _) = value;
+        if let Some(value) = value {
+            Serialize::serialize(&datetime_to_timestamp(value), s)
+        } else {
+            Serialize::serialize(&(), s)
         }
     }
 }
