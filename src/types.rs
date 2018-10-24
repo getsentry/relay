@@ -206,7 +206,6 @@ macro_rules! hex_metrastructure {
         }
 
         impl MetaStructure for $type {
-            #[inline(always)]
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
@@ -228,7 +227,6 @@ macro_rules! hex_metrastructure {
                     }
                 }
             }
-            #[inline(always)]
             fn to_value(value: Annotated<Self>) -> Annotated<Value> {
                 match value {
                     Annotated(Some(value), meta) => {
@@ -237,7 +235,6 @@ macro_rules! hex_metrastructure {
                     Annotated(None, meta) => Annotated(None, meta),
                 }
             }
-            #[inline(always)]
             fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
@@ -324,7 +321,6 @@ impl fmt::Display for Level {
 }
 
 impl MetaStructure for Level {
-    #[inline(always)]
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
@@ -358,14 +354,14 @@ impl MetaStructure for Level {
             }
         }
     }
-    #[inline(always)]
+
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
             Annotated(Some(value), meta) => Annotated(Some(Value::String(value.to_string())), meta),
             Annotated(None, meta) => Annotated(None, meta),
         }
     }
-    #[inline(always)]
+
     fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
@@ -390,7 +386,6 @@ pub enum ThreadId {
 }
 
 impl MetaStructure for ThreadId {
-    #[inline(always)]
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), meta) => Annotated(Some(ThreadId::String(value)), meta),
@@ -404,7 +399,7 @@ impl MetaStructure for ThreadId {
             }
         }
     }
-    #[inline(always)]
+
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
             Annotated(Some(ThreadId::String(value)), meta) => Annotated(Some(Value::String(value)), meta),
@@ -412,7 +407,7 @@ impl MetaStructure for ThreadId {
             Annotated(None, meta) => Annotated(None, meta),
         }
     }
-    #[inline(always)]
+
     fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
