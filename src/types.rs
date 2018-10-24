@@ -17,12 +17,22 @@ pub type Array<T> = Vec<Annotated<T>>;
 pub type Object<T> = BTreeMap<String, Annotated<T>>;
 
 /// A array like wrapper used in various places.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Values<T> {
     /// The values of the collection.
     pub values: Annotated<Array<T>>,
     /// Additional arbitrary fields for forwards compatibility.
     pub other: Object<Value>,
+}
+
+impl<T> Values<T> {
+    /// Constructs a new value array from a given array
+    pub fn new(values: Array<T>) -> Values<T> {
+        Values {
+            values: Annotated::new(values),
+            other: Object::default(),
+        }
+    }
 }
 
 impl<T: MetaStructure> MetaStructure for Values<T> {
@@ -39,7 +49,7 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
                 Meta::default(),
             ),
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
-            Annotated(Some(Value::Object(mut obj)), mut meta) => {
+            Annotated(Some(Value::Object(mut obj)), meta) => {
                 if let Some(values) = obj.remove("values") {
                     Annotated(
                         Some(Values {
@@ -49,8 +59,19 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
                         meta,
                     )
                 } else {
-                    meta.add_error("expected array or values".to_string());
-                    Annotated(None, meta)
+                    Annotated(
+                        Some(Values {
+                            values: Annotated(
+                                Some(vec![MetaStructure::from_value(Annotated(
+                                    Some(Value::Object(obj)),
+                                    meta,
+                                ))]),
+                                Default::default(),
+                            ),
+                            other: Default::default(),
+                        }),
+                        Meta::default(),
+                    )
                 }
             }
             Annotated(None, meta) => Annotated(None, meta),
@@ -237,6 +258,59 @@ hex_metrastructure!(Addr, "address");
 hex_metrastructure!(RegVal, "register value");
 
 #[test]
+fn test_values_serialization() {
+    let value = Annotated::new(Values {
+        values: Annotated::new(vec![
+            Annotated::new(0u64),
+            Annotated::new(1u64),
+            Annotated::new(2u64),
+        ]),
+        other: Object::default(),
+    });
+    assert_eq!(value.to_json().unwrap(), "{\"values\":[0,1,2]}");
+}
+
+#[test]
+fn test_values_deserialization() {
+    #[derive(Debug, Clone, MetaStructure, PartialEq)]
+    struct Exception {
+        #[metastructure(field = "type")]
+        ty: Annotated<String>,
+        value: Annotated<String>,
+    }
+    let value = Annotated::<Values<Exception>>::from_json(
+        r#"{"values": [{"type": "Test", "value": "aha!"}]}"#,
+    ).unwrap();
+    assert_eq!(
+        value,
+        Annotated::new(Values::new(vec![Annotated::new(Exception {
+            ty: Annotated::new("Test".to_string()),
+            value: Annotated::new("aha!".to_string()),
+        })]))
+    );
+
+    let value = Annotated::<Values<Exception>>::from_json(r#"[{"type": "Test", "value": "aha!"}]"#)
+        .unwrap();
+    assert_eq!(
+        value,
+        Annotated::new(Values::new(vec![Annotated::new(Exception {
+            ty: Annotated::new("Test".to_string()),
+            value: Annotated::new("aha!".to_string()),
+        })]))
+    );
+
+    let value =
+        Annotated::<Values<Exception>>::from_json(r#"{"type": "Test", "value": "aha!"}"#).unwrap();
+    assert_eq!(
+        value,
+        Annotated::new(Values::new(vec![Annotated::new(Exception {
+            ty: Annotated::new("Test".to_string()),
+            value: Annotated::new("aha!".to_string()),
+        })]))
+    );
+}
+
+#[test]
 fn test_hex_to_string() {
     assert_eq_str!("0x0", &Addr(0).to_string());
     assert_eq_str!("0x2a", &Addr(42).to_string());
@@ -253,10 +327,10 @@ fn test_hex_from_string() {
 #[test]
 fn test_hex_serialization() {
     let value = Value::String("0x2a".to_string());
-    let addr: Annotated<Addr> = MetaStructure::from_value(Annotated(Some(value), Meta::default()));
+    let addr: Annotated<Addr> = MetaStructure::from_value(Annotated::new(value));
     assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
     let value = Value::U64(42);
-    let addr: Annotated<Addr> = MetaStructure::from_value(Annotated(Some(value), Meta::default()));
+    let addr: Annotated<Addr> = MetaStructure::from_value(Annotated::new(value));
     assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
 }
 

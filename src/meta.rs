@@ -244,11 +244,8 @@ impl Default for Meta {
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
 impl<T> Annotated<T> {
-    pub fn map<F: FnOnce(T) -> U, U>(self, f: F) -> Annotated<U> {
-        match self {
-            Annotated(Some(value), meta) => Annotated(Some(f(value)), meta),
-            Annotated(None, meta) => Annotated(None, meta),
-        }
+    pub fn new(value: T) -> Annotated<T> {
+        Annotated(Some(value), Meta::default())
     }
 }
 
@@ -278,8 +275,10 @@ impl<T: MetaStructure> Annotated<T> {
         let mut map_ser = serializer.serialize_map(None)?;
         let meta_tree = MetaStructure::extract_meta_tree(self);
         MetaStructure::serialize_payload(self, FlatMapSerializer(&mut map_ser))?;
-        map_ser.serialize_key("_meta")?;
-        map_ser.serialize_value(&meta_tree)?;
+        if !meta_tree.is_empty() {
+            map_ser.serialize_key("_meta")?;
+            map_ser.serialize_value(&meta_tree)?;
+        }
         map_ser.end()
     }
 
@@ -334,7 +333,7 @@ impl<T> Annotated<T> {
 }
 
 /// Represents a boxed value.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Null,
     Bool(bool),
