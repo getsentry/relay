@@ -63,8 +63,8 @@ pub struct Event {
     pub environment: Annotated<String>,
 
     /// Information about the user who triggered this event.
-    //#[metastructure(legacy_alias = "sentry.interfaces.User")]
-    //pub user: Annotated<User>,
+    #[metastructure(legacy_alias = "sentry.interfaces.User")]
+    pub user: Annotated<User>,
 
     /// Information about a web request that occurred during the event.
     //#[metastructure(legacy_alias = "sentry.interfaces.Http")]
@@ -114,6 +114,29 @@ pub struct Event {
 }
 
 #[derive(Debug, Clone, PartialEq, MetaStructure)]
+pub struct User {
+    /// Unique identifier of the user.
+    #[metastructure(pii_kind = "id")]
+    pub id: Annotated<String>,
+
+    /// Email address of the user.
+    #[metastructure(pii_kind = "email")]
+    pub email: Annotated<String>,
+
+    /// Remote IP address of the user. Defaults to "{{auto}}".
+    #[metastructure(pii_kind = "ip")]
+    pub ip_address: Annotated<String>,
+
+    /// Human readable name of the user.
+    #[metastructure(pii_kind = "username")]
+    pub username: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, MetaStructure)]
 pub struct LogEntry {
     /// The log message with parameter placeholders (required).
     #[metastructure(pii_kind = "freeform", cap_size = "message")]
@@ -154,4 +177,63 @@ pub struct Exception {
     pub raw_stacktrace: Annotated<Stacktrace>,
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
+}
+
+#[test]
+fn test_user_roundtrip() {
+    let json = r#"{
+  "id": "e4e24881-8238-4539-a32b-d3c3ecd40568",
+  "email": "mail@example.org",
+  "ip_address": "{{auto}}",
+  "username": "John Doe",
+  "other": "value"
+}"#;
+    let user = Annotated::new(User {
+        id: Annotated::new("e4e24881-8238-4539-a32b-d3c3ecd40568".to_string()),
+        email: Annotated::new("mail@example.org".to_string()),
+        ip_address: Annotated::new("{{auto}}".to_string()),
+        username: Annotated::new("John Doe".to_string()),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    });
+
+    assert_eq_dbg!(user, Annotated::<User>::from_json(json).unwrap());
+    assert_eq_str!(json, user.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_logentry_roundtrip() {
+    let json = r#"{
+  "message": "Hello, %s %s!",
+  "params": [
+    "World",
+    1
+  ],
+  "other": "value"
+}"#;
+
+    let entry = Annotated::new(LogEntry {
+        message: Annotated::new("Hello, %s %s!".to_string()),
+        params: Annotated::new(vec![
+            Annotated::new(Value::String("World".to_string())),
+            Annotated::new(Value::I64(1)),
+        ]),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    });
+
+    assert_eq_dbg!(entry, Annotated::<LogEntry>::from_json(json).unwrap());
+    assert_eq_str!(json, entry.to_json_pretty().unwrap());
 }
