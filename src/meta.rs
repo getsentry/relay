@@ -11,7 +11,7 @@ use smallvec::SmallVec;
 
 pub use serde_json::Error;
 
-use processor::MetaStructure;
+use processor::{FromValue, ToValue};
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
 pub type Range = (usize, usize);
@@ -249,13 +249,13 @@ impl<T> Annotated<T> {
     }
 }
 
-impl<'de, T: MetaStructure> Annotated<T> {
+impl<'de, T: FromValue> Annotated<T> {
     /// Deserializes an annotated from a deserializer
     pub fn deserialize_with_meta<D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<Annotated<T>, D::Error> {
         let value = serde_json::Value::deserialize(deserializer)?;
-        Ok(MetaStructure::from_value(inline_meta_in_json(value)))
+        Ok(FromValue::from_value(inline_meta_in_json(value)))
     }
 
     /// Deserializes an annotated from a JSON string.
@@ -269,12 +269,12 @@ impl<'de, T: MetaStructure> Annotated<T> {
     }
 }
 
-impl<T: MetaStructure> Annotated<T> {
+impl<T: ToValue> Annotated<T> {
     /// Serializes an annotated value into a serializer.
     pub fn serialize_with_meta<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map_ser = serializer.serialize_map(None)?;
-        let meta_tree = MetaStructure::extract_meta_tree(self);
-        MetaStructure::serialize_payload(self, FlatMapSerializer(&mut map_ser))?;
+        let meta_tree = ToValue::extract_meta_tree(self);
+        ToValue::serialize_payload(self, FlatMapSerializer(&mut map_ser))?;
         if !meta_tree.is_empty() {
             map_ser.serialize_key("_meta")?;
             map_ser.serialize_value(&meta_tree)?;
@@ -299,14 +299,14 @@ impl<T: MetaStructure> Annotated<T> {
     /// Serializes an annotated value into a JSON string.
     pub fn payload_to_json(&self) -> Result<String, Error> {
         let mut ser = serde_json::Serializer::new(Vec::with_capacity(128));
-        MetaStructure::serialize_payload(self, &mut ser)?;
+        ToValue::serialize_payload(self, &mut ser)?;
         Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
     }
 
     /// Serializes an annotated value into a pretty JSON string.
     pub fn payload_to_json_pretty(&self) -> Result<String, Error> {
         let mut ser = serde_json::Serializer::pretty(Vec::with_capacity(128));
-        MetaStructure::serialize_payload(self, &mut ser)?;
+        ToValue::serialize_payload(self, &mut ser)?;
         Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
     }
 
@@ -541,7 +541,7 @@ fn inline_meta_in_json(value: serde_json::Value) -> Annotated<Value> {
 
 #[test]
 fn test_annotated_deserialize_with_meta() {
-    #[derive(MetaStructure, Debug)]
+    #[derive(ToValue, FromValue, Debug)]
     struct Foo {
         id: Annotated<u64>,
         #[metastructure(field = "type")]

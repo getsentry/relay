@@ -264,12 +264,15 @@ pub trait Processor {
 }
 
 /// Implemented for all meta structures.
-pub trait MetaStructure {
+pub trait FromValue {
     /// Creates a meta structure from an annotated boxed value.
     fn from_value(value: Annotated<Value>) -> Annotated<Self>
     where
         Self: Sized;
+}
 
+/// Implemented for all meta structures.
+pub trait ToValue {
     /// Boxes the meta structure back into a value.
     fn to_value(value: Annotated<Self>) -> Annotated<Value>
     where
@@ -292,10 +295,12 @@ pub trait MetaStructure {
     where
         Self: Sized,
         S: Serializer;
+}
 
+pub trait ProcessValue {
     /// Executes a processor on the tree.
     #[inline(always)]
-    fn process<P: Processor>(
+    fn process_value<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
         state: ProcessingState,
@@ -311,22 +316,21 @@ pub trait MetaStructure {
 
 // This needs to be public because the derive crate emits it
 #[doc(hidden)]
-pub struct SerializeMetaStructurePayload<'a, T: 'a>(pub &'a Annotated<T>);
+pub struct SerializePayload<'a, T: 'a>(pub &'a Annotated<T>);
 
-impl<'a, T: MetaStructure> Serialize for SerializeMetaStructurePayload<'a, T> {
+impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
     #[inline(always)]
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        MetaStructure::serialize_payload(self.0, s)
+        ToValue::serialize_payload(self.0, s)
     }
 }
 
 macro_rules! primitive_meta_structure {
     ($type:ident, $meta_type:ident, $expectation:expr) => {
-        impl MetaStructure for $type {
-            #[inline(always)]
+        impl FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::$meta_type(value)), meta) => Annotated(Some(value), meta),
@@ -338,6 +342,9 @@ macro_rules! primitive_meta_structure {
                     }
                 }
             }
+        }
+
+        impl ToValue for $type {
             #[inline(always)]
             fn to_value(value: Annotated<Self>) -> Annotated<Value> {
                 match value {
@@ -355,6 +362,8 @@ macro_rules! primitive_meta_structure {
                 Serialize::serialize(value, s)
             }
         }
+
+        impl ProcessValue for $type {}
     };
 }
 
@@ -365,11 +374,11 @@ numeric_meta_structure!(i64, I64, "a signed integer");
 numeric_meta_structure!(f64, F64, "a floating point value");
 primitive_meta_structure_through_string!(Uuid, "a uuid");
 
-impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
+impl<T: FromValue> FromValue for Vec<Annotated<T>> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Array(items)), meta) => Annotated(
-                Some(items.into_iter().map(MetaStructure::from_value).collect()),
+                Some(items.into_iter().map(FromValue::from_value).collect()),
                 meta,
             ),
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
@@ -380,12 +389,15 @@ impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
             }
         }
     }
+}
+
+impl<T: ToValue> ToValue for Vec<Annotated<T>> {
     #[inline(always)]
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
             Annotated(Some(value), meta) => Annotated(
                 Some(Value::Array(
-                    value.into_iter().map(MetaStructure::to_value).collect(),
+                    value.into_iter().map(ToValue::to_value).collect(),
                 )),
                 meta,
             ),
@@ -402,7 +414,7 @@ impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
             &Annotated(Some(ref value), _) => {
                 let mut seq_ser = s.serialize_seq(Some(value.len()))?;
                 for item in value {
-                    seq_ser.serialize_element(&SerializeMetaStructurePayload(item))?;
+                    seq_ser.serialize_element(&SerializePayload(item))?;
                 }
                 seq_ser.end()
             }
@@ -419,7 +431,7 @@ impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
         };
         if let &Annotated(Some(ref items), _) = value {
             for (idx, item) in items.iter().enumerate() {
-                let tree = MetaStructure::extract_meta_tree(item);
+                let tree = ToValue::extract_meta_tree(item);
                 if !tree.is_empty() {
                     meta_tree.children.insert(idx.to_string(), tree);
                 }
@@ -427,7 +439,10 @@ impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
         }
         meta_tree
     }
-    fn process<P: Processor>(
+}
+
+impl<T: ProcessValue> ProcessValue for Vec<Annotated<T>> {
+    fn process_value<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
         state: ProcessingState,
@@ -440,7 +455,7 @@ impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
                         .enumerate()
                         .map(|(idx, v)| {
                             let inner_state = state.enter_index(idx, None);
-                            MetaStructure::process(v, processor, inner_state)
+                            ProcessValue::process_value(v, processor, inner_state)
                         }).collect(),
                 ),
                 meta,
@@ -450,14 +465,14 @@ impl<T: MetaStructure> MetaStructure for Vec<Annotated<T>> {
     }
 }
 
-impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
+impl<T: FromValue> FromValue for BTreeMap<String, Annotated<T>> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Object(items)), meta) => Annotated(
                 Some(
                     items
                         .into_iter()
-                        .map(|(k, v)| (k, MetaStructure::from_value(v)))
+                        .map(|(k, v)| (k, FromValue::from_value(v)))
                         .collect(),
                 ),
                 meta,
@@ -470,14 +485,16 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
             }
         }
     }
-    #[inline(always)]
+}
+
+impl<T: ToValue> ToValue for BTreeMap<String, Annotated<T>> {
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
             Annotated(Some(value), meta) => Annotated(
                 Some(Value::Object(
                     value
                         .into_iter()
-                        .map(|(k, v)| (k, MetaStructure::to_value(v)))
+                        .map(|(k, v)| (k, ToValue::to_value(v)))
                         .collect(),
                 )),
                 meta,
@@ -498,7 +515,7 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
                 for (key, value) in items {
                     if !value.skip_serialization() {
                         map_ser.serialize_key(key)?;
-                        map_ser.serialize_value(&SerializeMetaStructurePayload(value))?;
+                        map_ser.serialize_value(&SerializePayload(value))?;
                     }
                 }
                 map_ser.end()
@@ -517,7 +534,7 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
         };
         if let &Annotated(Some(ref items), _) = value {
             for (key, value) in items.iter() {
-                let tree = MetaStructure::extract_meta_tree(value);
+                let tree = ToValue::extract_meta_tree(value);
                 if !tree.is_empty() {
                     meta_tree.children.insert(key.to_string(), tree);
                 }
@@ -525,8 +542,10 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
         }
         meta_tree
     }
+}
 
-    fn process<P: Processor>(
+impl<T: ProcessValue> ProcessValue for BTreeMap<String, Annotated<T>> {
+    fn process_value<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
         state: ProcessingState,
@@ -539,7 +558,7 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
                         .map(|(k, v)| {
                             let v = {
                                 let inner_state = state.enter_borrowed(k.as_str(), None);
-                                MetaStructure::process(v, processor, inner_state)
+                                ProcessValue::process_value(v, processor, inner_state)
                             };
                             (k, v)
                         }).collect(),
@@ -551,12 +570,14 @@ impl<T: MetaStructure> MetaStructure for BTreeMap<String, Annotated<T>> {
     }
 }
 
-impl MetaStructure for Value {
+impl FromValue for Value {
     #[inline(always)]
     fn from_value(value: Annotated<Value>) -> Annotated<Value> {
         value
     }
+}
 
+impl ToValue for Value {
     #[inline(always)]
     fn to_value(value: Annotated<Value>) -> Annotated<Value> {
         value
@@ -583,7 +604,7 @@ impl MetaStructure for Value {
         match *value {
             Annotated(Some(Value::Object(ref items)), _) => {
                 for (key, value) in items.iter() {
-                    let tree = MetaStructure::extract_meta_tree(value);
+                    let tree = ToValue::extract_meta_tree(value);
                     if !tree.is_empty() {
                         meta_tree.children.insert(key.to_string(), tree);
                     }
@@ -591,7 +612,7 @@ impl MetaStructure for Value {
             }
             Annotated(Some(Value::Array(ref items)), _) => {
                 for (idx, item) in items.iter().enumerate() {
-                    let tree = MetaStructure::extract_meta_tree(item);
+                    let tree = ToValue::extract_meta_tree(item);
                     if !tree.is_empty() {
                         meta_tree.children.insert(idx.to_string(), tree);
                     }
@@ -601,8 +622,10 @@ impl MetaStructure for Value {
         }
         meta_tree
     }
+}
 
-    fn process<P: Processor>(
+impl ProcessValue for Value {
+    fn process_value<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
         state: ProcessingState,
@@ -615,7 +638,7 @@ impl MetaStructure for Value {
                         .map(|(k, v)| {
                             let v = {
                                 let inner_state = state.enter_borrowed(k.as_str(), None);
-                                MetaStructure::process(v, processor, inner_state)
+                                ProcessValue::process_value(v, processor, inner_state)
                             };
                             (k, v)
                         }).collect(),
@@ -629,7 +652,7 @@ impl MetaStructure for Value {
                         .enumerate()
                         .map(|(idx, v)| {
                             let inner_state = state.enter_index(idx, None);
-                            MetaStructure::process(v, processor, inner_state)
+                            ProcessValue::process_value(v, processor, inner_state)
                         }).collect(),
                 )),
                 meta,
@@ -644,7 +667,7 @@ fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
     dt.timestamp() as f64 + micros
 }
 
-impl MetaStructure for DateTime<Utc> {
+impl FromValue for DateTime<Utc> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => {
@@ -679,7 +702,9 @@ impl MetaStructure for DateTime<Utc> {
             }
         }
     }
+}
 
+impl ToValue for DateTime<Utc> {
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
             Annotated(Some(value), meta) => {
@@ -702,3 +727,5 @@ impl MetaStructure for DateTime<Utc> {
         }
     }
 }
+
+impl ProcessValue for DateTime<Utc> {}

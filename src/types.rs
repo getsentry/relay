@@ -8,7 +8,7 @@ use serde::ser::{SerializeMap, Serializer};
 
 use meta::{Annotated, Meta, MetaTree, Value};
 use processor::{
-    FieldAttrs, MetaStructure, ProcessingState, Processor, SerializeMetaStructurePayload,
+    FieldAttrs, FromValue, ProcessValue, ProcessingState, Processor, SerializePayload, ToValue,
 };
 
 /// Alias for typed arrays.
@@ -35,13 +35,13 @@ impl<T> Values<T> {
     }
 }
 
-impl<T: MetaStructure> MetaStructure for Values<T> {
+impl<T: FromValue> FromValue for Values<T> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Array(items)), meta) => Annotated(
                 Some(Values {
                     values: Annotated(
-                        Some(items.into_iter().map(MetaStructure::from_value).collect()),
+                        Some(items.into_iter().map(FromValue::from_value).collect()),
                         meta,
                     ),
                     other: Default::default(),
@@ -53,7 +53,7 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
                 if let Some(values) = obj.remove("values") {
                     Annotated(
                         Some(Values {
-                            values: MetaStructure::from_value(values),
+                            values: FromValue::from_value(values),
                             other: obj,
                         }),
                         meta,
@@ -62,7 +62,7 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
                     Annotated(
                         Some(Values {
                             values: Annotated(
-                                Some(vec![MetaStructure::from_value(Annotated(
+                                Some(vec![FromValue::from_value(Annotated(
                                     Some(Value::Object(obj)),
                                     meta,
                                 ))]),
@@ -81,12 +81,14 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
             }
         }
     }
+}
 
+impl<T: ToValue> ToValue for Values<T> {
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
             Annotated(Some(value), meta) => {
                 let mut rv = value.other;
-                rv.insert("values".to_string(), MetaStructure::to_value(value.values));
+                rv.insert("values".to_string(), ToValue::to_value(value.values));
                 Annotated(Some(Value::Object(rv)), meta)
             }
             Annotated(None, meta) => Annotated(None, meta),
@@ -102,10 +104,10 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
             &Annotated(Some(ref values), _) => {
                 let mut map_ser = s.serialize_map(None)?;
                 map_ser.serialize_key("values")?;
-                map_ser.serialize_value(&SerializeMetaStructurePayload(&values.values))?;
+                map_ser.serialize_value(&SerializePayload(&values.values))?;
                 for (key, value) in values.other.iter() {
                     map_ser.serialize_key(key)?;
-                    map_ser.serialize_value(&SerializeMetaStructurePayload(value))?;
+                    map_ser.serialize_value(&SerializePayload(value))?;
                 }
                 map_ser.end()
             }
@@ -122,12 +124,12 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
             children: Default::default(),
         };
         if let Some(ref value) = value.0 {
-            let tree = MetaStructure::extract_meta_tree(&value.values);
+            let tree = ToValue::extract_meta_tree(&value.values);
             if !tree.is_empty() {
                 meta_tree.children.insert("values".to_string(), tree);
             }
             for (key, value) in value.other.iter() {
-                let tree = MetaStructure::extract_meta_tree(value);
+                let tree = ToValue::extract_meta_tree(value);
                 if !tree.is_empty() {
                     meta_tree.children.insert(key.to_string(), tree);
                 }
@@ -135,8 +137,10 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
         }
         meta_tree
     }
+}
 
-    fn process<P: Processor>(
+impl<T: ProcessValue> ProcessValue for Values<T> {
+    fn process_value<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
         state: ProcessingState,
@@ -149,7 +153,7 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
                 cap_size: None,
                 pii_kind: None,
             };
-            value.values = MetaStructure::process(
+            value.values = ProcessValue::process_value(
                 value.values,
                 processor,
                 state.enter_static("values", Some(Cow::Borrowed(&FIELD_ATTRS))),
@@ -158,7 +162,7 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
                 .other
                 .into_iter()
                 .map(|(key, value)| {
-                    let value = MetaStructure::process(
+                    let value = ProcessValue::process_value(
                         value,
                         processor,
                         state.enter_borrowed(key.as_str(), None),
@@ -205,7 +209,7 @@ macro_rules! hex_metrastructure {
             }
         }
 
-        impl MetaStructure for $type {
+        impl FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
@@ -227,6 +231,9 @@ macro_rules! hex_metrastructure {
                     }
                 }
             }
+        }
+
+        impl ToValue for $type {
             fn to_value(value: Annotated<Self>) -> Annotated<Value> {
                 match value {
                     Annotated(Some(value), meta) => {
@@ -248,6 +255,8 @@ macro_rules! hex_metrastructure {
                 }
             }
         }
+
+        impl ProcessValue for $type {}
     };
 }
 
@@ -320,7 +329,7 @@ impl fmt::Display for Level {
     }
 }
 
-impl MetaStructure for Level {
+impl FromValue for Level {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
@@ -354,7 +363,9 @@ impl MetaStructure for Level {
             }
         }
     }
+}
 
+impl ToValue for Level {
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
             Annotated(Some(value), meta) => Annotated(Some(Value::String(value.to_string())), meta),
@@ -376,6 +387,8 @@ impl MetaStructure for Level {
     }
 }
 
+impl ProcessValue for Level {}
+
 /// Represents a thread id.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 #[serde(untagged)]
@@ -386,7 +399,7 @@ pub enum ThreadId {
     String(String),
 }
 
-impl MetaStructure for ThreadId {
+impl FromValue for ThreadId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), meta) => {
@@ -404,7 +417,9 @@ impl MetaStructure for ThreadId {
             }
         }
     }
+}
 
+impl ToValue for ThreadId {
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
             Annotated(Some(ThreadId::String(value)), meta) => {
@@ -432,6 +447,8 @@ impl MetaStructure for ThreadId {
     }
 }
 
+impl ProcessValue for ThreadId {}
+
 #[test]
 fn test_values_serialization() {
     let value = Annotated::new(Values {
@@ -447,7 +464,7 @@ fn test_values_serialization() {
 
 #[test]
 fn test_values_deserialization() {
-    #[derive(Debug, Clone, MetaStructure, PartialEq)]
+    #[derive(Debug, Clone, FromValue, ToValue, PartialEq)]
     struct Exception {
         #[metastructure(field = "type")]
         ty: Annotated<String>,
@@ -502,10 +519,10 @@ fn test_hex_from_string() {
 #[test]
 fn test_hex_serialization() {
     let value = Value::String("0x2a".to_string());
-    let addr: Annotated<Addr> = MetaStructure::from_value(Annotated::new(value));
+    let addr: Annotated<Addr> = FromValue::from_value(Annotated::new(value));
     assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
     let value = Value::U64(42);
-    let addr: Annotated<Addr> = MetaStructure::from_value(Annotated::new(value));
+    let addr: Annotated<Addr> = FromValue::from_value(Annotated::new(value));
     assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
 }
 

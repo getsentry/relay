@@ -1,7 +1,6 @@
 macro_rules! numeric_meta_structure {
     ($type:ident, $meta_type:ident, $expectation:expr) => {
-        impl MetaStructure for $type {
-            #[inline(always)]
+        impl FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::U64(value)), meta) => {
@@ -21,6 +20,9 @@ macro_rules! numeric_meta_structure {
                     }
                 }
             }
+        }
+
+        impl ToValue for $type {
             #[inline(always)]
             fn to_value(value: Annotated<Self>) -> Annotated<Value> {
                 match value {
@@ -38,13 +40,14 @@ macro_rules! numeric_meta_structure {
                 Serialize::serialize(value, s)
             }
         }
+
+        impl ProcessValue for $type {}
     };
 }
 
 macro_rules! primitive_meta_structure_through_string {
     ($type:ident, $expectation:expr) => {
-        impl MetaStructure for $type {
-            #[inline(always)]
+        impl FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
@@ -62,7 +65,8 @@ macro_rules! primitive_meta_structure_through_string {
                     }
                 }
             }
-            #[inline(always)]
+        }
+        impl ToValue for $type {
             fn to_value(value: Annotated<Self>) -> Annotated<Value> {
                 match value {
                     Annotated(Some(value), meta) => {
@@ -71,7 +75,6 @@ macro_rules! primitive_meta_structure_through_string {
                     Annotated(None, meta) => Annotated(None, meta),
                 }
             }
-            #[inline(always)]
             fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
@@ -85,5 +88,7 @@ macro_rules! primitive_meta_structure_through_string {
                 }
             }
         }
+
+        impl ProcessValue for $type {}
     };
 }

@@ -4,7 +4,7 @@ use uuid::Uuid;
 use meta::{Annotated, Value};
 use types::{Array, Level, Object, Values};
 
-#[derive(Debug, Clone, MetaStructure)]
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
 pub struct Event {
     /// Unique identifier of this event.
@@ -114,7 +114,7 @@ pub struct Event {
 }
 
 /// Information about the user who triggered an event.
-#[derive(Debug, Clone, PartialEq, MetaStructure)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct User {
     /// Unique identifier of the user.
     #[metastructure(pii_kind = "id")]
@@ -141,7 +141,7 @@ pub struct User {
 ///
 /// A log message is similar to the `message` attribute on the event itself but
 /// can additionally hold optional parameters.
-#[derive(Debug, Clone, PartialEq, MetaStructure)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct LogEntry {
     /// The log message with parameter placeholders (required).
     #[metastructure(pii_kind = "freeform", cap_size = "message")]
@@ -162,7 +162,7 @@ type Headers = Object<String>;
 type Query = Object<String>;
 
 /// Http request information.
-#[derive(Debug, Clone, PartialEq, MetaStructure)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct Request {
     /// URL of the request.
     // TODO: cap?
@@ -198,19 +198,19 @@ pub struct Request {
     pub other: Object<Value>,
 }
 
-#[derive(Debug, Clone, MetaStructure)]
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace {
     pub frames: Annotated<Array<Frame>>,
 }
 
-#[derive(Debug, Clone, MetaStructure)]
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_frame")]
 pub struct Frame {
     pub function: Annotated<String>,
 }
 
-#[derive(Debug, Clone, MetaStructure)]
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_exception")]
 pub struct Exception {
     #[metastructure(field = "type", required = "true")]

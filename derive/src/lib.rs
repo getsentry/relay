@@ -11,10 +11,29 @@ use proc_macro2::{TokenStream, Span};
 use quote::ToTokens;
 use syn::{Lit, Meta, MetaNameValue, NestedMeta, LitStr, LitBool, Ident};
 
-decl_derive!([MetaStructure, attributes(metastructure)] => process_metastructure);
+enum Trait {
+    FromValue,
+    ToValue,
+    ProcessValue,
+}
 
+decl_derive!([ToValue, attributes(metastructure)] => process_to_value);
+decl_derive!([FromValue, attributes(metastructure)] => process_from_value);
+decl_derive!([ProcessValue, attributes(metastructure)] => process_process_value);
 
-fn process_metastructure(s: synstructure::Structure) -> TokenStream {
+fn process_to_value(s: synstructure::Structure) -> TokenStream {
+    process_metastructure_impl(s, Trait::ToValue)
+}
+
+fn process_from_value(s: synstructure::Structure) -> TokenStream {
+    process_metastructure_impl(s, Trait::FromValue)
+}
+
+fn process_process_value(s: synstructure::Structure) -> TokenStream {
+    process_metastructure_impl(s, Trait::ProcessValue)
+}
+
+fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStream {
     let variants = s.variants();
     if variants.len() != 1 {
         panic!("Can only derive structs");
@@ -162,14 +181,14 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
 
         if additional_properties {
             (quote! {
-                let #bi = __obj.into_iter().map(|(__key, __value)| (__key, __processor::MetaStructure::from_value(__value))).collect();
+                let #bi = __obj.into_iter().map(|(__key, __value)| (__key, __processor::FromValue::from_value(__value))).collect();
             }).to_tokens(&mut to_structure_body);
             (quote! {
-                __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, __processor::MetaStructure::to_value(__value))));
+                __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, __processor::ToValue::to_value(__value))));
             }).to_tokens(&mut to_value_body);
             (quote! {
                 let #bi = #bi.into_iter().map(|(__key, __value)| {
-                    let __value = __processor::MetaStructure::process(__value, __processor, __state.enter_borrowed(__key.as_str(), None));
+                    let __value = __processor::ProcessValue::process_value(__value, __processor, __state.enter_borrowed(__key.as_str(), None));
                     (__key, __value)
                 }).collect();
             }).to_tokens(&mut process_body);
@@ -177,13 +196,13 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                 for (__key, __value) in #bi.iter() {
                     if !__value.skip_serialization() {
                         __map_serializer.serialize_key(__key)?;
-                        __map_serializer.serialize_value(&__processor::SerializeMetaStructurePayload(__value))?;
+                        __map_serializer.serialize_value(&__processor::SerializePayload(__value))?;
                     }
                 }
             }).to_tokens(&mut serialize_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
-                    let __inner_tree = __processor::MetaStructure::extract_meta_tree(__value);
+                    let __inner_tree = __processor::ToValue::extract_meta_tree(__value);
                     if !__inner_tree.is_empty() {
                         __meta_tree.children.insert(__key.to_string(), __inner_tree);
                     }
@@ -202,13 +221,13 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                     let #bi = {
                         let __legacy_value = __obj.remove(#legacy_field_name);
                         let __canonical_value = __obj.remove(#field_name);
-                        __processor::MetaStructure::from_value(
+                        __processor::FromValue::from_value(
                             __canonical_value.or(__legacy_value).unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())))
                     };
                 }).to_tokens(&mut to_structure_body);
             } else {
                 (quote! {
-                    let #bi = __processor::MetaStructure::from_value(
+                    let #bi = __processor::FromValue::from_value(
                         __obj.remove(#field_name).unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())));
                 }).to_tokens(&mut to_structure_body);
             }
@@ -219,7 +238,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                 }).to_tokens(&mut to_structure_body);
             }
             (quote! {
-                __map.insert(#field_name.to_string(), __processor::MetaStructure::to_value(#bi));
+                __map.insert(#field_name.to_string(), __processor::ToValue::to_value(#bi));
             }).to_tokens(&mut to_value_body);
             (quote! {
                 const #field_attrs_name: __processor::FieldAttrs = __processor::FieldAttrs {
@@ -228,14 +247,14 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
                     cap_size: #cap_size_attr,
                     pii_kind: #pii_kind_attr,
                 };
-                let #bi = __processor::MetaStructure::process(#bi, __processor, __state.enter_static(#field_name, Some(::std::borrow::Cow::Borrowed(&#field_attrs_name))));
+                let #bi = __processor::ProcessValue::process_value(#bi, __processor, __state.enter_static(#field_name, Some(::std::borrow::Cow::Borrowed(&#field_attrs_name))));
             }).to_tokens(&mut process_body);
             (quote! {
                 __map_serializer.serialize_key(#field_name)?;
-                __map_serializer.serialize_value(&__processor::SerializeMetaStructurePayload(#bi))?;
+                __map_serializer.serialize_value(&__processor::SerializePayload(#bi))?;
             }).to_tokens(&mut serialize_body);
             (quote! {
-                let __inner_tree = __processor::MetaStructure::extract_meta_tree(#bi);
+                let __inner_tree = __processor::ToValue::extract_meta_tree(#bi);
                 if !__inner_tree.is_empty() {
                     __meta_tree.children.insert(#field_name.to_string(), __inner_tree);
                 }
@@ -263,94 +282,120 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
         }
     });
 
-    s.gen_impl(quote! {
-        use processor as __processor;
-        use types as __types;
-        use meta as __meta;
-        extern crate serde;
-        use serde::ser::SerializeMap;
+    match t {
+        Trait::FromValue => {
+            s.gen_impl(quote! {
+                use processor as __processor;
+                use types as __types;
+                use meta as __meta;
+                extern crate serde;
+                use serde::ser::SerializeMap;
 
-        gen impl __processor::MetaStructure for @Self {
-            fn from_value(
-                __value: __meta::Annotated<__meta::Value>,
-            ) -> __meta::Annotated<Self> {
-                match __value {
-                    __meta::Annotated(Some(__meta::Value::Object(mut __obj)), __meta) => {
-                        #to_structure_body;
-                        __meta::Annotated(Some(#to_structure_assemble_pat), __meta)
+                gen impl __processor::FromValue for @Self {
+                    fn from_value(
+                        __value: __meta::Annotated<__meta::Value>,
+                    ) -> __meta::Annotated<Self> {
+                        match __value {
+                            __meta::Annotated(Some(__meta::Value::Object(mut __obj)), __meta) => {
+                                #to_structure_body;
+                                __meta::Annotated(Some(#to_structure_assemble_pat), __meta)
+                            }
+                            __meta::Annotated(None, __meta) => __meta::Annotated(None, __meta),
+                            __meta::Annotated(_, mut __meta) => {
+                                __meta.add_error(#expectation.to_string());
+                                __meta::Annotated(None, __meta)
+                            }
+                        }
                     }
-                    __meta::Annotated(None, __meta) => __meta::Annotated(None, __meta),
-                    __meta::Annotated(_, mut __meta) => {
-                        __meta.add_error(#expectation.to_string());
-                        __meta::Annotated(None, __meta)
-                    }
                 }
-            }
-
-            fn to_value(
-                __value: __meta::Annotated<Self>
-            ) -> __meta::Annotated<__meta::Value> {
-                let __meta::Annotated(__value, __meta) = __value;
-                if let Some(__value) = __value {
-                    let mut __map = __types::Object::new();
-                    let #to_value_pat = __value;
-                    #to_value_body;
-                    __meta::Annotated(Some(__meta::Value::Object(__map)), __meta)
-                } else {
-                    __meta::Annotated(None, __meta)
-                }
-            }
-
-            fn serialize_payload<S>(__value: &__meta::Annotated<Self>, __serializer: S) -> Result<S::Ok, S::Error>
-            where
-                Self: Sized,
-                S: ::serde::ser::Serializer
-            {
-                let __meta::Annotated(__value, _) = __value;
-                if let Some(__value) = __value {
-                    let #serialize_pat = __value;
-                    let mut __map_serializer = __serializer.serialize_map(None)?;
-                    #serialize_body;
-                    __map_serializer.end()
-                } else {
-                    __serializer.serialize_unit()
-                }
-            }
-
-            fn extract_meta_tree(__value: &__meta::Annotated<Self>) -> __meta::MetaTree
-            where
-                Self: Sized,
-            {
-                let &__meta::Annotated(ref __value, ref __meta) = __value;
-                let mut __meta_tree = __meta::MetaTree {
-                    meta: __meta.clone(),
-                    children: Default::default(),
-                };
-                if let Some(__value) = __value {
-                    let #serialize_pat = __value;
-                    #extract_meta_tree_body;
-                }
-                __meta_tree
-            }
-
-            fn process<P: __processor::Processor>(
-                __value: __meta::Annotated<Self>,
-                __processor: &P,
-                __state: __processor::ProcessingState
-            ) -> __meta::Annotated<Self> {
-                let __meta::Annotated(__value, __meta) = __value;
-                let __result = if let Some(__value) = __value {
-                    let #to_value_pat = __value;
-                    #process_body;
-                    __meta::Annotated(Some(#to_structure_assemble_pat), __meta)
-                } else {
-                    __meta::Annotated(None, __meta)
-                };
-                #invoke_process_func
-                __result
-            }
+            })
         }
-    })
+        Trait::ToValue => {
+            s.gen_impl(quote! {
+                use processor as __processor;
+                use types as __types;
+                use meta as __meta;
+                extern crate serde;
+                use serde::ser::SerializeMap;
+
+                gen impl __processor::ToValue for @Self {
+                    fn to_value(
+                        __value: __meta::Annotated<Self>
+                    ) -> __meta::Annotated<__meta::Value> {
+                        let __meta::Annotated(__value, __meta) = __value;
+                        if let Some(__value) = __value {
+                            let mut __map = __types::Object::new();
+                            let #to_value_pat = __value;
+                            #to_value_body;
+                            __meta::Annotated(Some(__meta::Value::Object(__map)), __meta)
+                        } else {
+                            __meta::Annotated(None, __meta)
+                        }
+                    }
+
+                    fn serialize_payload<S>(__value: &__meta::Annotated<Self>, __serializer: S) -> Result<S::Ok, S::Error>
+                    where
+                        Self: Sized,
+                        S: ::serde::ser::Serializer
+                    {
+                        let __meta::Annotated(__value, _) = __value;
+                        if let Some(__value) = __value {
+                            let #serialize_pat = __value;
+                            let mut __map_serializer = __serializer.serialize_map(None)?;
+                            #serialize_body;
+                            __map_serializer.end()
+                        } else {
+                            __serializer.serialize_unit()
+                        }
+                    }
+
+                    fn extract_meta_tree(__value: &__meta::Annotated<Self>) -> __meta::MetaTree
+                    where
+                        Self: Sized,
+                    {
+                        let &__meta::Annotated(ref __value, ref __meta) = __value;
+                        let mut __meta_tree = __meta::MetaTree {
+                            meta: __meta.clone(),
+                            children: Default::default(),
+                        };
+                        if let Some(__value) = __value {
+                            let #serialize_pat = __value;
+                            #extract_meta_tree_body;
+                        }
+                        __meta_tree
+                    }
+                }
+            })
+        }
+        Trait::ProcessValue => {
+            s.gen_impl(quote! {
+                use processor as __processor;
+                use types as __types;
+                use meta as __meta;
+                extern crate serde;
+                use serde::ser::SerializeMap;
+
+                gen impl __processor::ProcessValue for @Self {
+                    fn process_value<P: __processor::Processor>(
+                        __value: __meta::Annotated<Self>,
+                        __processor: &P,
+                        __state: __processor::ProcessingState
+                    ) -> __meta::Annotated<Self> {
+                        let __meta::Annotated(__value, __meta) = __value;
+                        let __result = if let Some(__value) = __value {
+                            let #to_value_pat = __value;
+                            #process_body;
+                            __meta::Annotated(Some(#to_structure_assemble_pat), __meta)
+                        } else {
+                            __meta::Annotated(None, __meta)
+                        };
+                        #invoke_process_func
+                        __result
+                    }
+                }
+            })
+        }
+    }
 }
 
 fn parse_cap_size(name: &str) -> TokenStream {
