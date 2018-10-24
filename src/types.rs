@@ -1,10 +1,12 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use serde::ser::{SerializeMap, Serializer};
-use uuid::Uuid;
 
 use meta::{Annotated, Meta, MetaTree, Value};
-use processor::{MetaStructure, ProcessingState, Processor, SerializeMetaStructurePayload};
+use processor::{
+    FieldAttrs, MetaStructure, ProcessingState, Processor, SerializeMetaStructurePayload,
+};
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
@@ -114,45 +116,33 @@ impl<T: MetaStructure> MetaStructure for Values<T> {
         processor: &P,
         state: ProcessingState,
     ) -> Annotated<Self> {
-        // TODO: implement processing
-        let _processor = processor;
-        let _state = state;
-        value
+        let Annotated(value, meta) = value;
+        if let Some(mut value) = value {
+            const FIELD_ATTRS: FieldAttrs = FieldAttrs {
+                name: Some("values"),
+                required: false,
+                cap_size: None,
+                pii_kind: None,
+            };
+            value.values = MetaStructure::process(
+                value.values,
+                processor,
+                state.enter_static("values", Some(Cow::Borrowed(&FIELD_ATTRS))),
+            );
+            value.other = value
+                .other
+                .into_iter()
+                .map(|(key, value)| {
+                    let value = MetaStructure::process(
+                        value,
+                        processor,
+                        state.enter_borrowed(key.as_str(), None),
+                    );
+                    (key, value)
+                }).collect();
+            Annotated(Some(value), meta)
+        } else {
+            Annotated(None, meta)
+        }
     }
-}
-
-#[derive(Debug, Clone, MetaStructure)]
-#[metastructure(process_func = "process_event")]
-pub struct Event {
-    #[metastructure(field = "event_id")]
-    pub id: Annotated<Uuid>,
-    pub exceptions: Annotated<Array<Exception>>,
-}
-
-#[derive(Debug, Clone, MetaStructure)]
-#[metastructure(process_func = "process_stacktrace")]
-pub struct Stacktrace {
-    pub frames: Annotated<Array<Frame>>,
-}
-
-#[derive(Debug, Clone, MetaStructure)]
-#[metastructure(process_func = "process_frame")]
-pub struct Frame {
-    pub function: Annotated<String>,
-}
-
-#[derive(Debug, Clone, MetaStructure)]
-#[metastructure(process_func = "process_exception")]
-pub struct Exception {
-    #[metastructure(field = "type", required = "true")]
-    pub ty: Annotated<String>,
-    #[metastructure(cap_size = "summary")]
-    pub value: Annotated<String>,
-    #[metastructure(cap_size = "symbol")]
-    pub module: Annotated<String>,
-    #[metastructure(legacy_alias = "sentry.interfaces.Stacktrace")]
-    pub stacktrace: Annotated<Stacktrace>,
-    pub raw_stacktrace: Annotated<Stacktrace>,
-    #[metastructure(additional_properties)]
-    pub other: BTreeMap<String, Annotated<Value>>,
 }

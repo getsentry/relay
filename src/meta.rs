@@ -243,6 +243,15 @@ impl Default for Meta {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
+impl<T> Annotated<T> {
+    pub fn map<F: FnOnce(T) -> U, U>(self, f: F) -> Annotated<U> {
+        match self {
+            Annotated(Some(value), meta) => Annotated(Some(f(value)), meta),
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
 impl<'de, T: MetaStructure> Annotated<T> {
     /// Deserializes an annotated from a deserializer
     pub fn deserialize_with_meta<D: Deserializer<'de>>(

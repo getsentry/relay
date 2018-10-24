@@ -10,4 +10,5 @@ extern crate smallvec;
 
 pub mod meta;
 pub mod processor;
+pub mod protocol;
 pub mod types;

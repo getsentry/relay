@@ -295,7 +295,7 @@ fn process_metastructure(s: synstructure::Structure) -> TokenStream {
             ) -> __meta::Annotated<__meta::Value> {
                 let __meta::Annotated(__value, __meta) = __value;
                 if let Some(__value) = __value {
-                    let mut __map = ::std::collections::BTreeMap::new();
+                    let mut __map = __types::Object::new();
                     let #to_value_pat = __value;
                     #to_value_body;
                     __meta::Annotated(Some(__meta::Value::Object(__map)), __meta)
