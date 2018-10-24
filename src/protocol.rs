@@ -31,6 +31,7 @@ pub struct Event {
     pub message: Annotated<String>,
 
     /// Custom parameterized message for this event.
+    #[metastructure(legacy_alias = "sentry.interfaces.Message")]
     pub logentry: Annotated<LogEntry>,
 
     /// Logger that created the event.
@@ -62,18 +63,22 @@ pub struct Event {
     pub environment: Annotated<String>,
 
     /// Information about the user who triggered this event.
+    //#[metastructure(legacy_alias = "sentry.interfaces.User")]
     //pub user: Annotated<User>,
 
     /// Information about a web request that occurred during the event.
+    //#[metastructure(legacy_alias = "sentry.interfaces.Http")]
     //pub request: Annotated<Request>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
     // pub contexts: Annotated<Object<Context>>,
 
     /// List of breadcrumbs recorded before this event.
+    //#[metastructure(legacy_alias = "sentry.interfaces.Breadcrumbs")]
     // pub breadcrumbs: Annotated<Values<Breadcrumb>>,
 
     /// One or multiple chained (nested) exceptions.
+    //#[metastructure(legacy_alias = "sentry.interfaces.Exception")]
     #[metastructure(field = "exception")]
     pub exceptions: Annotated<Values<Exception>>,
 
@@ -81,7 +86,7 @@ pub struct Event {
     pub stacktrace: Annotated<Stacktrace>,
 
     /// Simplified template error location information.
-    // #[metastructure(name = "template")]
+    // #[metastructure(name = "template", legacy_alias = "sentry.interfaces.Template")]
     // pub template_info: Annotated<Option<TemplateInfo>>,
 
     /// Threads that were active when the event occurred.
