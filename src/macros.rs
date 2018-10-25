@@ -1,3 +1,26 @@
+macro_rules! primitive_to_value {
+    ($type:ident, $meta_type:ident) => {
+        impl ToValue for $type {
+            #[inline(always)]
+            fn to_value(value: Annotated<Self>) -> Annotated<Value> {
+                match value {
+                    Annotated(Some(value), meta) => Annotated(Some(Value::$meta_type(value)), meta),
+                    Annotated(None, meta) => Annotated(None, meta),
+                }
+            }
+            #[inline(always)]
+            fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+            where
+                Self: Sized,
+                S: Serializer,
+            {
+                let &Annotated(ref value, _) = value;
+                Serialize::serialize(value, s)
+            }
+        }
+    };
+}
+
 macro_rules! numeric_meta_structure {
     ($type:ident, $meta_type:ident, $expectation:expr) => {
         impl FromValue for $type {
@@ -22,24 +45,7 @@ macro_rules! numeric_meta_structure {
             }
         }
 
-        impl ToValue for $type {
-            #[inline(always)]
-            fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-                match value {
-                    Annotated(Some(value), meta) => Annotated(Some(Value::$meta_type(value)), meta),
-                    Annotated(None, meta) => Annotated(None, meta),
-                }
-            }
-            #[inline(always)]
-            fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
-            where
-                Self: Sized,
-                S: Serializer,
-            {
-                let &Annotated(ref value, _) = value;
-                Serialize::serialize(value, s)
-            }
-        }
+        primitive_to_value!($type, $meta_type);
 
         impl ProcessValue for $type {}
     };

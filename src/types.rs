@@ -1,15 +1,10 @@
 //! Common types of the protocol.
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
-use serde::ser::{SerializeMap, Serializer};
-
-use meta::{Annotated, Meta, MetaTree, Value};
-use processor::{
-    FieldAttrs, FromValue, ProcessValue, ProcessingState, Processor, SerializePayload, ToValue,
-};
+use meta::{Annotated, Meta, Value};
+use processor::{FromValue, ProcessValue, ToValue};
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
@@ -17,11 +12,12 @@ pub type Array<T> = Vec<Annotated<T>>;
 pub type Object<T> = BTreeMap<String, Annotated<T>>;
 
 /// A array like wrapper used in various places.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, ToValue, ProcessValue)]
 pub struct Values<T> {
     /// The values of the collection.
     pub values: Annotated<Array<T>>,
     /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
     pub other: Object<Value>,
 }
 
@@ -79,99 +75,6 @@ impl<T: FromValue> FromValue for Values<T> {
                 meta.add_error("expected array or values".to_string());
                 Annotated(None, meta)
             }
-        }
-    }
-}
-
-impl<T: ToValue> ToValue for Values<T> {
-    fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-        match value {
-            Annotated(Some(value), meta) => {
-                let mut rv = value.other;
-                rv.insert("values".to_string(), ToValue::to_value(value.values));
-                Annotated(Some(Value::Object(rv)), meta)
-            }
-            Annotated(None, meta) => Annotated(None, meta),
-        }
-    }
-
-    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
-    where
-        Self: Sized,
-        S: Serializer,
-    {
-        match value {
-            &Annotated(Some(ref values), _) => {
-                let mut map_ser = s.serialize_map(None)?;
-                map_ser.serialize_key("values")?;
-                map_ser.serialize_value(&SerializePayload(&values.values))?;
-                for (key, value) in values.other.iter() {
-                    map_ser.serialize_key(key)?;
-                    map_ser.serialize_value(&SerializePayload(value))?;
-                }
-                map_ser.end()
-            }
-            &Annotated(None, _) => s.serialize_unit(),
-        }
-    }
-
-    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
-    where
-        Self: Sized,
-    {
-        let mut meta_tree = MetaTree {
-            meta: value.1.clone(),
-            children: Default::default(),
-        };
-        if let Some(ref value) = value.0 {
-            let tree = ToValue::extract_meta_tree(&value.values);
-            if !tree.is_empty() {
-                meta_tree.children.insert("values".to_string(), tree);
-            }
-            for (key, value) in value.other.iter() {
-                let tree = ToValue::extract_meta_tree(value);
-                if !tree.is_empty() {
-                    meta_tree.children.insert(key.to_string(), tree);
-                }
-            }
-        }
-        meta_tree
-    }
-}
-
-impl<T: ProcessValue> ProcessValue for Values<T> {
-    fn process_value<P: Processor>(
-        value: Annotated<Self>,
-        processor: &P,
-        state: ProcessingState,
-    ) -> Annotated<Self> {
-        let Annotated(value, meta) = value;
-        if let Some(mut value) = value {
-            const FIELD_ATTRS: FieldAttrs = FieldAttrs {
-                name: Some("values"),
-                required: false,
-                cap_size: None,
-                pii_kind: None,
-            };
-            value.values = ProcessValue::process_value(
-                value.values,
-                processor,
-                state.enter_static("values", Some(Cow::Borrowed(&FIELD_ATTRS))),
-            );
-            value.other = value
-                .other
-                .into_iter()
-                .map(|(key, value)| {
-                    let value = ProcessValue::process_value(
-                        value,
-                        processor,
-                        state.enter_borrowed(key.as_str(), None),
-                    );
-                    (key, value)
-                }).collect();
-            Annotated(Some(value), meta)
-        } else {
-            Annotated(None, meta)
         }
     }
 }

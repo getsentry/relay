@@ -33,7 +33,9 @@ fn process_process_value(s: synstructure::Structure) -> TokenStream {
     process_metastructure_impl(s, Trait::ProcessValue)
 }
 
-fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStream {
+fn process_metastructure_impl(mut s: synstructure::Structure, t: Trait) -> TokenStream {
+    s.add_bounds(synstructure::AddBounds::Generics);
+
     let variants = s.variants();
     if variants.len() != 1 {
         panic!("Can only derive structs");
