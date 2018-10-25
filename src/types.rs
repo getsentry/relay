@@ -145,17 +145,12 @@ macro_rules! hex_metrastructure {
                     Annotated(None, meta) => Annotated(None, meta),
                 }
             }
-            fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+            fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
                 S: ::serde::ser::Serializer,
             {
-                let &Annotated(ref value, _) = value;
-                if let &Some(ref value) = value {
-                    ::serde::ser::Serialize::serialize(&value.to_string(), s)
-                } else {
-                    ::serde::ser::Serialize::serialize(&(), s)
-                }
+                ::serde::ser::Serialize::serialize(&self.to_string(), s)
             }
         }
 
@@ -276,17 +271,12 @@ impl ToValue for Level {
         }
     }
 
-    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: ::serde::ser::Serializer,
     {
-        let &Annotated(ref value, _) = value;
-        if let &Some(ref value) = value {
-            ::serde::ser::Serialize::serialize(&value.to_string(), s)
-        } else {
-            ::serde::ser::Serialize::serialize(&(), s)
-        }
+        ::serde::ser::Serialize::serialize(&self.to_string(), s)
     }
 }
 
@@ -333,19 +323,14 @@ impl ToValue for ThreadId {
         }
     }
 
-    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: ::serde::ser::Serializer,
     {
-        let &Annotated(ref value, _) = value;
-        if let &Some(ref value) = value {
-            match value {
-                ThreadId::String(ref value) => ::serde::ser::Serialize::serialize(value, s),
-                ThreadId::Int(value) => ::serde::ser::Serialize::serialize(&value, s),
-            }
-        } else {
-            ::serde::ser::Serialize::serialize(&(), s)
+        match *self {
+            ThreadId::String(ref value) => ::serde::ser::Serialize::serialize(value, s),
+            ThreadId::Int(value) => ::serde::ser::Serialize::serialize(&value, s),
         }
     }
 }

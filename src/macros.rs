@@ -9,13 +9,12 @@ macro_rules! primitive_to_value {
                 }
             }
             #[inline(always)]
-            fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+            fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
                 S: Serializer,
             {
-                let &Annotated(ref value, _) = value;
-                Serialize::serialize(value, s)
+                Serialize::serialize(self, s)
             }
         }
     };
@@ -81,17 +80,12 @@ macro_rules! primitive_meta_structure_through_string {
                     Annotated(None, meta) => Annotated(None, meta),
                 }
             }
-            fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+            fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
                 S: ::serde::ser::Serializer,
             {
-                let &Annotated(ref value, _) = value;
-                if let &Some(ref value) = value {
-                    ::serde::ser::Serialize::serialize(&value.to_string(), s)
-                } else {
-                    ::serde::ser::Serialize::serialize(&(), s)
-                }
+                ::serde::ser::Serialize::serialize(&self.to_string(), s)
             }
         }
 

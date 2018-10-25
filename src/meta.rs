@@ -274,7 +274,9 @@ impl<T: ToValue> Annotated<T> {
     pub fn serialize_with_meta<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map_ser = serializer.serialize_map(None)?;
         let meta_tree = ToValue::extract_meta_tree(self);
-        ToValue::serialize_payload(self, FlatMapSerializer(&mut map_ser))?;
+        if let Some(ref value) = self.0 {
+            ToValue::serialize_payload(value, FlatMapSerializer(&mut map_ser))?;
+        }
         if !meta_tree.is_empty() {
             map_ser.serialize_key("_meta")?;
             map_ser.serialize_value(&meta_tree)?;
@@ -299,14 +301,22 @@ impl<T: ToValue> Annotated<T> {
     /// Serializes an annotated value into a JSON string.
     pub fn payload_to_json(&self) -> Result<String, Error> {
         let mut ser = serde_json::Serializer::new(Vec::with_capacity(128));
-        ToValue::serialize_payload(self, &mut ser)?;
+        if let Some(ref value) = self.0 {
+            ToValue::serialize_payload(value, &mut ser)?;
+        } else {
+            ser.serialize_unit()?;
+        }
         Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
     }
 
     /// Serializes an annotated value into a pretty JSON string.
     pub fn payload_to_json_pretty(&self) -> Result<String, Error> {
         let mut ser = serde_json::Serializer::pretty(Vec::with_capacity(128));
-        ToValue::serialize_payload(self, &mut ser)?;
+        if let Some(ref value) = self.0 {
+            ToValue::serialize_payload(value, &mut ser)?;
+        } else {
+            ser.serialize_unit()?;
+        }
         Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
     }
 

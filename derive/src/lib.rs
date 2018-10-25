@@ -197,8 +197,8 @@ fn process_metastructure_impl(mut s: synstructure::Structure, t: Trait) -> Token
             (quote! {
                 for (__key, __value) in #bi.iter() {
                     if !__value.skip_serialization() {
-                        __map_serializer.serialize_key(__key)?;
-                        __map_serializer.serialize_value(&__processor::SerializePayload(__value))?;
+                        __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, __key)?;
+                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &__processor::SerializePayload(__value))?;
                     }
                 }
             }).to_tokens(&mut serialize_body);
@@ -252,8 +252,10 @@ fn process_metastructure_impl(mut s: synstructure::Structure, t: Trait) -> Token
                 let #bi = __processor::ProcessValue::process_value(#bi, __processor, __state.enter_static(#field_name, Some(::std::borrow::Cow::Borrowed(&#field_attrs_name))));
             }).to_tokens(&mut process_body);
             (quote! {
-                __map_serializer.serialize_key(#field_name)?;
-                __map_serializer.serialize_value(&__processor::SerializePayload(#bi))?;
+                if !#bi.skip_serialization() {
+                    __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, #field_name)?;
+                    __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &__processor::SerializePayload(#bi))?;
+                }
             }).to_tokens(&mut serialize_body);
             (quote! {
                 let __inner_tree = __processor::ToValue::extract_meta_tree(#bi);
@@ -288,10 +290,7 @@ fn process_metastructure_impl(mut s: synstructure::Structure, t: Trait) -> Token
         Trait::FromValue => {
             s.gen_impl(quote! {
                 use processor as __processor;
-                use types as __types;
                 use meta as __meta;
-                extern crate serde;
-                use serde::ser::SerializeMap;
 
                 gen impl __processor::FromValue for @Self {
                     fn from_value(
@@ -317,8 +316,7 @@ fn process_metastructure_impl(mut s: synstructure::Structure, t: Trait) -> Token
                 use processor as __processor;
                 use types as __types;
                 use meta as __meta;
-                extern crate serde;
-                use serde::ser::SerializeMap;
+                extern crate serde as __serde;
 
                 gen impl __processor::ToValue for @Self {
                     fn to_value(
@@ -335,20 +333,15 @@ fn process_metastructure_impl(mut s: synstructure::Structure, t: Trait) -> Token
                         }
                     }
 
-                    fn serialize_payload<S>(__value: &__meta::Annotated<Self>, __serializer: S) -> Result<S::Ok, S::Error>
+                    fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>
                     where
                         Self: Sized,
-                        S: ::serde::ser::Serializer
+                        S: __serde::ser::Serializer
                     {
-                        let __meta::Annotated(__value, _) = __value;
-                        if let Some(__value) = __value {
-                            let #serialize_pat = __value;
-                            let mut __map_serializer = __serializer.serialize_map(None)?;
-                            #serialize_body;
-                            __map_serializer.end()
-                        } else {
-                            __serializer.serialize_unit()
-                        }
+                        let #serialize_pat = *self;
+                        let mut __map_serializer = __serializer.serialize_map(None)?;
+                        #serialize_body;
+                        __serde::ser::SerializeMap::end(__map_serializer)
                     }
 
                     fn extract_meta_tree(__value: &__meta::Annotated<Self>) -> __meta::MetaTree
@@ -372,10 +365,7 @@ fn process_metastructure_impl(mut s: synstructure::Structure, t: Trait) -> Token
         Trait::ProcessValue => {
             s.gen_impl(quote! {
                 use processor as __processor;
-                use types as __types;
                 use meta as __meta;
-                extern crate serde;
-                use serde::ser::SerializeMap;
 
                 gen impl __processor::ProcessValue for @Self {
                     fn process_value<P: __processor::Processor>(

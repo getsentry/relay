@@ -291,7 +291,7 @@ pub trait ToValue {
     }
 
     /// Efficiently serializes the payload directly.
-    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer;
@@ -324,7 +324,10 @@ impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
     where
         S: Serializer,
     {
-        ToValue::serialize_payload(self.0, s)
+        match *self.0 {
+            Annotated(Some(ref value), _) => ToValue::serialize_payload(value, s),
+            Annotated(None, _) => s.serialize_unit(),
+        }
     }
 }
 
@@ -388,21 +391,16 @@ impl<T: ToValue> ToValue for Vec<Annotated<T>> {
         }
     }
     #[inline(always)]
-    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
     {
-        match value {
-            &Annotated(Some(ref value), _) => {
-                let mut seq_ser = s.serialize_seq(Some(value.len()))?;
-                for item in value {
-                    seq_ser.serialize_element(&SerializePayload(item))?;
-                }
-                seq_ser.end()
-            }
-            &Annotated(None, _) => s.serialize_unit(),
+        let mut seq_ser = s.serialize_seq(Some(self.len()))?;
+        for item in self {
+            seq_ser.serialize_element(&SerializePayload(item))?;
         }
+        seq_ser.end()
     }
     fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
     where
@@ -487,24 +485,19 @@ impl<T: ToValue> ToValue for BTreeMap<String, Annotated<T>> {
     }
 
     #[inline(always)]
-    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
     {
-        match value {
-            &Annotated(Some(ref items), _) => {
-                let mut map_ser = s.serialize_map(Some(items.len()))?;
-                for (key, value) in items {
-                    if !value.skip_serialization() {
-                        map_ser.serialize_key(key)?;
-                        map_ser.serialize_value(&SerializePayload(value))?;
-                    }
-                }
-                map_ser.end()
+        let mut map_ser = s.serialize_map(Some(self.len()))?;
+        for (key, value) in self {
+            if !value.skip_serialization() {
+                map_ser.serialize_key(key)?;
+                map_ser.serialize_value(&SerializePayload(value))?;
             }
-            &Annotated(None, _) => s.serialize_unit(),
         }
+        map_ser.end()
     }
 
     fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
@@ -567,13 +560,12 @@ impl ToValue for Value {
     }
 
     #[inline(always)]
-    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
     {
-        let &Annotated(ref value, _) = value;
-        Serialize::serialize(value, s)
+        Serialize::serialize(self, s)
     }
 
     fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
@@ -697,17 +689,12 @@ impl ToValue for DateTime<Utc> {
         }
     }
 
-    fn serialize_payload<S>(value: &Annotated<Self>, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
     {
-        let &Annotated(value, _) = value;
-        if let Some(value) = value {
-            Serialize::serialize(&datetime_to_timestamp(value), s)
-        } else {
-            Serialize::serialize(&(), s)
-        }
+        Serialize::serialize(&datetime_to_timestamp(*self), s)
     }
 }
 
