@@ -8,7 +8,7 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use meta::{Annotated, MetaTree, Value};
+use meta::{Annotated, MetaMap, MetaTree, Value};
 use protocol::{Event, Exception, Frame, Stacktrace};
 
 #[derive(Debug, Clone)]
@@ -278,16 +278,13 @@ pub trait ToValue {
     where
         Self: Sized;
 
-    /// Extracts the meta tree out of annotated value.
+    /// Extracts children meta map out of a value.
     #[inline(always)]
-    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
+    fn extract_child_meta(&self) -> MetaMap
     where
         Self: Sized,
     {
-        MetaTree {
-            meta: value.1.clone(),
-            children: Default::default(),
-        }
+        Default::default()
     }
 
     /// Efficiently serializes the payload directly.
@@ -295,6 +292,24 @@ pub trait ToValue {
     where
         Self: Sized,
         S: Serializer;
+
+    /// Extracts the meta tree out of annotated value.
+    ///
+    /// This should not be overridden by implementators, instead `extract_child_meta`
+    /// should be provided instead.
+    #[inline(always)]
+    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
+    where
+        Self: Sized,
+    {
+        MetaTree {
+            meta: value.1.clone(),
+            children: match value.0 {
+                Some(ref value) => ToValue::extract_child_meta(value),
+                None => Default::default(),
+            },
+        }
+    }
 }
 
 pub trait ProcessValue {
@@ -402,23 +417,18 @@ impl<T: ToValue> ToValue for Vec<Annotated<T>> {
         }
         seq_ser.end()
     }
-    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
+    fn extract_child_meta(&self) -> MetaMap
     where
         Self: Sized,
     {
-        let mut meta_tree = MetaTree {
-            meta: value.1.clone(),
-            children: Default::default(),
-        };
-        if let &Annotated(Some(ref items), _) = value {
-            for (idx, item) in items.iter().enumerate() {
-                let tree = ToValue::extract_meta_tree(item);
-                if !tree.is_empty() {
-                    meta_tree.children.insert(idx.to_string(), tree);
-                }
+        let mut children = MetaMap::new();
+        for (idx, item) in self.iter().enumerate() {
+            let tree = ToValue::extract_meta_tree(item);
+            if !tree.is_empty() {
+                children.insert(idx.to_string(), tree);
             }
         }
-        meta_tree
+        children
     }
 }
 
@@ -500,23 +510,18 @@ impl<T: ToValue> ToValue for BTreeMap<String, Annotated<T>> {
         map_ser.end()
     }
 
-    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
+    fn extract_child_meta(&self) -> BTreeMap<String, MetaTree>
     where
         Self: Sized,
     {
-        let mut meta_tree = MetaTree {
-            meta: value.1.clone(),
-            children: Default::default(),
-        };
-        if let &Annotated(Some(ref items), _) = value {
-            for (key, value) in items.iter() {
-                let tree = ToValue::extract_meta_tree(value);
-                if !tree.is_empty() {
-                    meta_tree.children.insert(key.to_string(), tree);
-                }
+        let mut children = MetaMap::new();
+        for (key, value) in self.iter() {
+            let tree = ToValue::extract_meta_tree(value);
+            if !tree.is_empty() {
+                children.insert(key.to_string(), tree);
             }
         }
-        meta_tree
+        children
     }
 }
 
@@ -568,34 +573,31 @@ impl ToValue for Value {
         Serialize::serialize(self, s)
     }
 
-    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
+    fn extract_child_meta(&self) -> BTreeMap<String, MetaTree>
     where
         Self: Sized,
     {
-        let mut meta_tree = MetaTree {
-            meta: value.1.clone(),
-            children: Default::default(),
-        };
-        match *value {
-            Annotated(Some(Value::Object(ref items)), _) => {
+        let mut children = MetaMap::new();
+        match *self {
+            Value::Object(ref items) => {
                 for (key, value) in items.iter() {
                     let tree = ToValue::extract_meta_tree(value);
                     if !tree.is_empty() {
-                        meta_tree.children.insert(key.to_string(), tree);
+                        children.insert(key.to_string(), tree);
                     }
                 }
             }
-            Annotated(Some(Value::Array(ref items)), _) => {
+            Value::Array(ref items) => {
                 for (idx, item) in items.iter().enumerate() {
                     let tree = ToValue::extract_meta_tree(item);
                     if !tree.is_empty() {
-                        meta_tree.children.insert(idx.to_string(), tree);
+                        children.insert(idx.to_string(), tree);
                     }
                 }
             }
             _ => {}
         }
-        meta_tree
+        children
     }
 }
 

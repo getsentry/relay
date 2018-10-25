@@ -456,6 +456,9 @@ impl From<Annotated<Value>> for serde_json::Value {
     }
 }
 
+/// Meta for children.
+pub type MetaMap = BTreeMap<String, MetaTree>;
+
 /// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
 pub struct MetaTree {
@@ -464,7 +467,7 @@ pub struct MetaTree {
     pub meta: Meta,
     /// References to the children.
     #[serde(flatten)]
-    pub children: BTreeMap<String, MetaTree>,
+    pub children: MetaMap,
 }
 
 impl MetaTree {

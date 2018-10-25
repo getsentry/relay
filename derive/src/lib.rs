@@ -206,7 +206,7 @@ fn process_metastructure_impl(mut s: synstructure::Structure, t: Trait) -> Token
                 for (__key, __value) in #bi.iter() {
                     let __inner_tree = __processor::ToValue::extract_meta_tree(__value);
                     if !__inner_tree.is_empty() {
-                        __meta_tree.children.insert(__key.to_string(), __inner_tree);
+                        __child_meta.insert(__key.to_string(), __inner_tree);
                     }
                 }
             }).to_tokens(&mut extract_meta_tree_body);
@@ -260,7 +260,7 @@ fn process_metastructure_impl(mut s: synstructure::Structure, t: Trait) -> Token
             (quote! {
                 let __inner_tree = __processor::ToValue::extract_meta_tree(#bi);
                 if !__inner_tree.is_empty() {
-                    __meta_tree.children.insert(#field_name.to_string(), __inner_tree);
+                    __child_meta.insert(#field_name.to_string(), __inner_tree);
                 }
             }).to_tokens(&mut extract_meta_tree_body);
         }
@@ -344,20 +344,14 @@ fn process_metastructure_impl(mut s: synstructure::Structure, t: Trait) -> Token
                         __serde::ser::SerializeMap::end(__map_serializer)
                     }
 
-                    fn extract_meta_tree(__value: &__meta::Annotated<Self>) -> __meta::MetaTree
+                    fn extract_child_meta(&self) -> __meta::MetaMap
                     where
                         Self: Sized,
                     {
-                        let &__meta::Annotated(ref __value, ref __meta) = __value;
-                        let mut __meta_tree = __meta::MetaTree {
-                            meta: __meta.clone(),
-                            children: Default::default(),
-                        };
-                        if let Some(__value) = __value {
-                            let #serialize_pat = __value;
-                            #extract_meta_tree_body;
-                        }
-                        __meta_tree
+                        let mut __child_meta = __meta::MetaMap::new();
+                        let #serialize_pat = *self;
+                        #extract_meta_tree_body;
+                        __child_meta
                     }
                 }
             })
