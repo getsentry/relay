@@ -11,6 +11,7 @@ use proc_macro2::{TokenStream, Span};
 use quote::ToTokens;
 use syn::{Lit, Meta, MetaNameValue, NestedMeta, LitStr, LitBool, Ident};
 
+#[derive(Debug, Clone, Copy)]
 enum Trait {
     FromValue,
     ToValue,
@@ -33,7 +34,144 @@ fn process_process_value(s: synstructure::Structure) -> TokenStream {
     process_metastructure_impl(s, Trait::ProcessValue)
 }
 
-fn process_metastructure_impl(mut s: synstructure::Structure, t: Trait) -> TokenStream {
+fn process_wrapper_struct_derive(
+    s: synstructure::Structure,
+    t: Trait,
+) -> Result<TokenStream, synstructure::Structure> {
+    // The next few blocks are for finding out whether the given type is of the form:
+    // struct Foo(Bar)  (tuple struct with a single field)
+
+    if s.variants().len() != 1 {
+        // We have more than one variant (e.g. `enum Foo { A, B }`)
+        return Err(s);
+    }
+
+    if s.variants()[0].bindings().len() != 1 {
+        // The single variant has multiple fields
+        // e.g. `struct Foo(Bar, Baz)`
+        //      `enum Foo { A(X, Y) }`
+        return Err(s);
+    }
+
+    if let Some(_) = s.variants()[0].bindings()[0].ast().ident {
+        // The variant has a name
+        // e.g. `struct Foo { bar: Bar }` instead of `struct Foo(Bar)`
+        return Err(s);
+    }
+
+    // At this point we know we have a struct of the form:
+    // struct Foo(Bar)
+    //
+    // Those structs get special treatment: Bar does not need to be wrapped in Annnotated, and no
+    // #[process_annotated_value] is necessary on the value.
+    //
+    // It basically works like a type alias.
+
+    // Last check: It's a programming error to add `#[process_annotated_value]` to the single
+    // field, because it does not do anything.
+    //
+    // e.g.
+    // `struct Foo(#[process_annotated_value] Annnotated<Bar>)` is useless
+    // `struct Foo(Bar)` is how it's supposed to be used
+    for attr in &s.variants()[0].bindings()[0].ast().attrs {
+        if let Some(meta) = attr.interpret_meta() {
+            if meta.name() == "process_annotated_value" {
+                panic!("Single-field tuple structs are treated as type aliases");
+            }
+        }
+    }
+
+    let name = &s.ast().ident;
+
+    Ok(match t {
+        Trait::FromValue => {
+            s.gen_impl(quote! {
+                use processor as __processor;
+                use meta as __meta;
+
+                gen impl __processor::FromValue for @Self {
+                    #[inline(always)]
+                    fn from_value(
+                        __value: __meta::Annotated<__meta::Value>,
+                    ) -> __meta::Annotated<Self> {
+                        match __processor::FromValue::from_value(__value) {
+                            Annotated(Some(__value), __meta) => Annotated(Some(#name(__value)), __meta),
+                            Annotated(None, __meta) => Annotated(None, __meta),
+                        }
+                    }
+                }
+            })
+        }
+        Trait::ToValue => {
+            s.gen_impl(quote! {
+                use processor as __processor;
+                use types as __types;
+                use meta as __meta;
+                extern crate serde as __serde;
+
+                gen impl __processor::ToValue for @Self {
+                    #[inline(always)]
+                    fn to_value(
+                        mut __value: __meta::Annotated<Self>
+                    ) -> __meta::Annotated<__meta::Value> {
+                        __processor::ToValue::to_value(Annotated(__value.0.take(), __value.1))
+                    }
+
+                    #[inline(always)]
+                    fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>
+                    where
+                        Self: Sized,
+                        S: __serde::ser::Serializer
+                    {
+                        __processor::ToValue::serialize_payload(&self.0, __serializer)
+                    }
+
+                    #[inline(always)]
+                    fn extract_child_meta(&self) -> __meta::MetaMap
+                    where
+                        Self: Sized,
+                    {
+                        __processor::ToValue::extract_child_meta(&self.0)
+                    }
+                }
+            })
+        }
+        Trait::ProcessValue => {
+            s.gen_impl(quote! {
+                use processor as __processor;
+                use meta as __meta;
+
+                gen impl __processor::ProcessValue for @Self {
+                    #[inline(always)]
+                    fn process_value<P: __processor::Processor>(
+                        __value: __meta::Annotated<Self>,
+                        __processor: &P,
+                        __state: __processor::ProcessingState
+                    ) -> __meta::Annotated<Self> {
+                        let __new_annotated = match __value {
+                            __meta::Annotated(Some(__value), __meta) => {
+                                __processor::ProcessValue::process_value(
+                                    __meta::Annotated(Some(__value.0), __meta), __processor, __state)
+                            }
+                            __meta::Annotated(None, __meta) => __meta::Annotated(None, __meta)
+                        };
+                        match __new_annotated {
+                            __meta::Annotated(Some(__value), __meta) => __meta::Annotated(Some(#name(__value)), __meta),
+                            __meta::Annotated(None, __meta) => __meta::Annotated(None, __meta)
+                        }
+                    }
+                }
+            })
+        }
+    })
+}
+
+fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStream {
+    let mut s = match process_wrapper_struct_derive(s, t) {
+        Ok(stream) => return stream,
+        Err(s) => s,
+    };
+
     s.add_bounds(synstructure::AddBounds::Generics);
 
     let variants = s.variants();

@@ -156,10 +156,17 @@ pub struct LogEntry {
     pub other: Object<Value>,
 }
 
-// TODO: these need to be typed correctly
-type Cookies = Object<String>;
-type Headers = Object<String>;
-type Query = Object<String>;
+/// A map holding cookies.
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+pub struct Cookies(pub Object<String>);
+
+/// A map holding headers.
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+pub struct Headers(pub Object<String>);
+
+/// A map holding query string pairs.
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+pub struct Query(pub Object<String>);
 
 /// Http request information.
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
