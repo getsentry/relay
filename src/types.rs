@@ -343,7 +343,7 @@ impl ToValue for ThreadId {
 
 impl ProcessValue for ThreadId {}
 
-#[derive(ToValue, ProcessValue)]
+#[derive(Debug, Clone, ToValue, ProcessValue)]
 pub struct ObjectOrArray<T>(pub Object<T>);
 
 impl<T: FromValue> FromValue for ObjectOrArray<T> {
