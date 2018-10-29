@@ -12,6 +12,7 @@ use smallvec::SmallVec;
 pub use serde_json::Error;
 
 use processor::{FromValue, ToValue};
+use types::{Array, Object};
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
 pub type Range = (usize, usize);
@@ -351,8 +352,8 @@ pub enum Value {
     U64(u64),
     F64(f64),
     String(String),
-    Array(Vec<Annotated<Value>>),
-    Object(BTreeMap<String, Annotated<Value>>),
+    Array(Array<Value>),
+    Object(Object<Value>),
 }
 
 impl Serialize for Value {

@@ -8,8 +8,10 @@ use processor::{FromValue, ProcessValue, ToValue};
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
+/// Alias for maps.
+pub type Map<K, T> = BTreeMap<K, Annotated<T>>;
 /// Alias for typed objects.
-pub type Object<T> = BTreeMap<String, Annotated<T>>;
+pub type Object<T> = Map<String, T>;
 
 /// A array like wrapper used in various places.
 #[derive(Clone, Debug, PartialEq, ToValue, ProcessValue)]
