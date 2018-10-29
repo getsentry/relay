@@ -105,8 +105,8 @@ pub struct Event {
     // pub debug_meta: Annotated<Option<DebugMeta>>,
 
     /// Information about the Sentry SDK that generated this event.
-    // #[metastructure(field = "sdk")]
-    // pub client_sdk: Annotated<Option<ClientSdkInfo>>,
+    #[metastructure(field = "sdk")]
+    pub client_sdk: Annotated<ClientSdkInfo>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii_kind = "databag")]
@@ -231,6 +231,35 @@ pub struct Exception {
     pub raw_stacktrace: Annotated<Stacktrace>,
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
+}
+
+/// Information about the Sentry SDK.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct ClientSdkInfo {
+    /// Unique SDK name.
+    pub name: Annotated<String>,
+
+    /// SDK version.
+    pub version: Annotated<String>,
+
+    /// List of integrations that are enabled in the SDK.
+    pub integrations: Annotated<Array<String>>,
+
+    /// List of installed and loaded SDK packages.
+    pub packages: Annotated<Array<ClientSdkPackage>>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// An installed and loaded package as part of the Sentry SDK.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct ClientSdkPackage {
+    /// Name of the package.
+    pub name: Annotated<String>,
+    /// Version of the package.
+    pub version: Annotated<String>,
 }
 
 #[test]
