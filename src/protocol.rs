@@ -339,15 +339,32 @@ pub struct Frame {
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_exception")]
 pub struct Exception {
+    /// Exception type (required).
     #[metastructure(field = "type", required = "true")]
     pub ty: Annotated<String>,
+
+    /// Human readable display value.
     #[metastructure(cap_size = "summary")]
     pub value: Annotated<String>,
+
+    /// Module name of this exception.
     #[metastructure(cap_size = "symbol")]
     pub module: Annotated<String>,
+
+    /// Stack trace containing frames of this exception.
     #[metastructure(legacy_alias = "sentry.interfaces.Stacktrace")]
     pub stacktrace: Annotated<Stacktrace>,
+
+    /// Optional unprocessed stack trace.
     pub raw_stacktrace: Annotated<Stacktrace>,
+
+    /// Identifier of the thread this exception occurred in.
+    pub thread_id: Annotated<ThreadId>,
+
+    /// Mechanism by which this exception was generated and handled.
+    pub mechanism: Annotated<Mechanism>,
+
+    /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
 }
@@ -665,6 +682,95 @@ pub struct Breadcrumb {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
+}
+
+/// The mechanism by which an exception was generated and handled.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct Mechanism {
+    /// Mechanism type (required).
+    #[metastructure(field = "type")]
+    pub ty: Annotated<String>,
+
+    /// Human readable detail description.
+    #[metastructure(pii_kind = "freeform", cap_size = "message")]
+    pub description: Annotated<String>,
+
+    /// Link to online resources describing this error.
+    pub help_link: Annotated<String>,
+
+    /// Flag indicating whether this exception was handled.
+    pub handled: Annotated<bool>,
+
+    /// Additional attributes depending on the mechanism type.
+    #[metastructure(pii_kind = "databag")]
+    pub data: Annotated<Object<Value>>,
+
+    /// Operating system or runtime meta information.
+    pub meta: Annotated<MechanismMeta>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// Operating system or runtime meta information to an exception mechanism.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct MechanismMeta {
+    /// Optional ISO C standard error code.
+    pub errno: Annotated<CError>,
+
+    /// Optional POSIX signal number.
+    pub signal: Annotated<PosixSignal>,
+
+    /// Optional mach exception information.
+    pub mach_exception: Annotated<MachException>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// POSIX signal with optional extended data.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct CError {
+    /// The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.
+    pub number: Annotated<i64>,
+
+    /// Optional name of the errno constant.
+    pub name: Annotated<String>,
+}
+
+/// Mach exception information.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct MachException {
+    /// The mach exception type.
+    #[metastructure(field = "exception")]
+    pub ty: Annotated<i64>,
+
+    /// The mach exception code.
+    pub code: Annotated<u64>,
+
+    /// The mach exception subcode.
+    pub subcode: Annotated<u64>,
+
+    /// Optional name of the mach exception.
+    pub name: Annotated<String>,
+}
+
+/// POSIX signal with optional extended data.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct PosixSignal {
+    /// The POSIX signal number.
+    pub number: Annotated<i64>,
+
+    /// An optional signal code present on Apple systems.
+    pub code: Annotated<i64>,
+
+    /// Optional name of the errno constant.
+    pub name: Annotated<String>,
+
+    /// Optional name of the errno constant.
+    pub code_name: Annotated<String>,
 }
 
 #[test]
