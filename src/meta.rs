@@ -334,6 +334,18 @@ impl<T: Default> Default for Annotated<T> {
 }
 
 impl<T> Annotated<T> {
+    /// None value.
+    pub fn empty() -> Annotated<T> {
+        Annotated(None, Meta::default())
+    }
+
+    /// From an error
+    pub fn from_error<S: Into<String>>(err: S) -> Annotated<T> {
+        let mut rv = Annotated::empty();
+        rv.1.add_error(err);
+        rv
+    }
+
     /// Attaches a value required error if the value is missing.
     pub fn require_value(mut self) -> Annotated<T> {
         if self.0.is_none() && !self.1.has_errors() {
@@ -354,6 +366,31 @@ pub enum Value {
     String(String),
     Array(Array<Value>),
     Object(Object<Value>),
+}
+
+pub struct ValueDescription<'a>(&'a Value);
+
+impl<'a> fmt::Display for ValueDescription<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self.0 {
+            Value::Null => f.pad("null"),
+            Value::Bool(true) => f.pad("true"),
+            Value::Bool(false) => f.pad("false"),
+            Value::I64(val) => write!(f, "integer {}", val),
+            Value::U64(val) => write!(f, "integer {}", val),
+            Value::F64(val) => write!(f, "float {}", val),
+            Value::String(ref val) => f.pad(val),
+            Value::Array(_) => f.pad("an array"),
+            Value::Object(_) => f.pad("an object"),
+        }
+    }
+}
+
+impl Value {
+    /// Returns a formattable that gives a helper description of the value.
+    pub fn describe<'a>(&'a self) -> ValueDescription<'a> {
+        ValueDescription(self)
+    }
 }
 
 impl Serialize for Value {

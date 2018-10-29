@@ -208,11 +208,11 @@ pub struct Headers(pub Map<HeaderKey, HeaderValue>);
 
 /// The key of an HTTP header.
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
-pub struct HeaderKey(String);
+pub struct HeaderKey(pub String);
 
 /// The value of an HTTP header.
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, FromValue, ToValue, ProcessValue)]
-pub struct HeaderValue(String);
+pub struct HeaderValue(pub String);
 
 impl ToKey for HeaderKey {
     #[inline(always)]
@@ -294,8 +294,8 @@ impl FromValue for Query {
             ),
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
-            Annotated(_, mut meta) => {
-                meta.add_error("expected query");
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(format!("expected query-string or map, got {}", value.describe()));
                 Annotated(None, meta)
             }
         }
@@ -924,4 +924,117 @@ fn test_logentry_roundtrip() {
 
     assert_eq_dbg!(entry, Annotated::<LogEntry>::from_json(json).unwrap());
     assert_eq_str!(json, entry.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_request_roundtrip() {
+    let json = r#"{
+  "url": "https://google.com/search",
+  "method": "GET",
+  "data": {
+    "some": 1
+  },
+  "query_string": {
+    "q": "foo"
+  },
+  "cookies": {
+    "GOOGLE": "1"
+  },
+  "headers": {
+    "Referer": "https://google.com/"
+  },
+  "env": {
+    "REMOTE_ADDR": "213.47.147.207"
+  },
+  "other": "value"
+}"#;
+
+    let request = Annotated::new(Request {
+        url: Annotated::new("https://google.com/search".to_string()),
+        method: Annotated::new("GET".to_string()),
+        data: {
+            let mut map = Object::new();
+            map.insert("some".to_string(), Annotated::new(Value::I64(1)));
+            Annotated::new(Value::Object(map))
+        },
+        query_string: Annotated::new(Query({
+            let mut map = Object::new();
+            map.insert("q".to_string(), Annotated::new("foo".to_string()));
+            map
+        })),
+        cookies: Annotated::new(Cookies({
+            let mut map = Map::new();
+            map.insert("GOOGLE".to_string(), Annotated::new("1".to_string()));
+            map
+        })),
+        headers: Annotated::new(Headers({
+            let mut map = Map::new();
+            map.insert(
+                HeaderKey("Referer".to_string()),
+                Annotated::new(HeaderValue("https://google.com/".to_string())),
+            );
+            map
+        })),
+        env: Annotated::new({
+            let mut map = Object::new();
+            map.insert(
+                "REMOTE_ADDR".to_string(),
+                Annotated::new(Value::String("213.47.147.207".to_string())),
+            );
+            map
+        }),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    });
+
+    assert_eq_dbg!(request, Annotated::<Request>::from_json(json).unwrap());
+    assert_eq_str!(json, request.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_query_string() {
+    let mut map = Object::new();
+    map.insert("foo".to_string(), Annotated::new("bar".to_string()));
+    let query = Annotated::new(Query(map));
+    assert_eq_dbg!(query, Annotated::<Query>::from_json("\"foo=bar\"").unwrap());
+
+    let mut map = Object::new();
+    map.insert("foo".to_string(), Annotated::new("bar".to_string()));
+    map.insert("baz".to_string(), Annotated::new("42".to_string()));
+    let query = Annotated::new(Query(map));
+    assert_eq_dbg!(query, Annotated::<Query>::from_json("\"foo=bar&baz=42\"").unwrap());
+}
+
+#[test]
+fn test_query_string_legacy_nested() {
+    // this test covers a case that previously was let through the ingest system but in a bad
+    // way.  This was untyped and became a str repr() in Python.  New SDKs will no longer send
+    // nested objects here but for legacy values we instead serialize it out as JSON.
+    let mut map = Object::new();
+    map.insert("foo".to_string(), Annotated::new("bar".to_string()));
+    let query = Annotated::new(Query(map));
+    assert_eq_dbg!(query, Annotated::<Query>::from_json("\"foo=bar\"").unwrap());
+
+    let mut map = Object::new();
+    map.insert("foo".to_string(), Annotated::new("bar".to_string()));
+    map.insert("baz".to_string(), Annotated::new(r#"{"a":42}"#.to_string()));
+    let query = Annotated::new(Query(map));
+    assert_eq_dbg!(query, Annotated::<Query>::from_json(r#"
+        {
+            "foo": "bar",
+            "baz": {"a": 42}
+        }
+    "#).unwrap());
+}
+
+#[test]
+fn test_query_invalid() {
+    let query = Annotated::<Query>::from_error("expected query-string or map, got integer 42");
+    assert_eq_dbg!(query, Annotated::from_json("42").unwrap());
 }
