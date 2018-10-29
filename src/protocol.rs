@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use meta::{Annotated, Value};
 use processor::{FromKey, ToKey};
-use types::{Array, Level, Map, Object, ThreadId, Values};
+use types::{Addr, Array, Level, Map, Object, ThreadId, Values};
 
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
@@ -254,7 +254,79 @@ pub struct Stacktrace {
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_frame")]
 pub struct Frame {
+    /// Name of the frame's function. This might include the name of a class.
     pub function: Annotated<String>,
+
+    /// Potentially mangled name of the symbol as it appears in an executable.
+    ///
+    /// This is different from a function name by generally being the mangled
+    /// name that appears natively in the binary.  This is relevant for languages
+    /// like Swift, C++ or Rust.
+    pub symbol: Annotated<String>,
+
+    /// Name of the module the frame is contained in.
+    ///
+    /// Note that this might also include a class name if that is something the
+    /// language natively considers to be part of the stack (for instance in Java).
+    #[metastructure(pii_kind = "freeform")]
+    // TODO: Cap? This can be a FS path or a dotted path
+    pub module: Annotated<String>,
+
+    /// Name of the package that contains the frame.
+    ///
+    /// For instance this can be a dylib for native languages, the name of the jar
+    /// or .NET assembly.
+    #[metastructure(pii_kind = "freeform")]
+    // TODO: Cap? This can be a FS path or a dotted path
+    pub package: Annotated<String>,
+
+    /// The source file name (basename only).
+    #[metastructure(pii_kind = "freeform", cap_size = "short_path")]
+    pub filename: Annotated<String>,
+
+    /// Absolute path to the source file.
+    #[metastructure(pii_kind = "freeform", cap_size = "path")]
+    pub abs_path: Annotated<String>,
+
+    /// Line number within the source file.
+    #[metastructure(field = "lineno")]
+    pub line: Annotated<u64>,
+
+    /// Column number within the source file.
+    #[metastructure(field = "colno")]
+    pub column: Annotated<u64>,
+
+    /// Source code leading up to the current line.
+    #[metastructure(field = "pre_context")]
+    pub pre_lines: Annotated<Array<String>>,
+
+    /// Source code of the current line.
+    #[metastructure(field = "context_line")]
+    pub current_line: Annotated<String>,
+
+    /// Source code of the lines after the current line.
+    #[metastructure(field = "post_context")]
+    pub post_lines: Annotated<Array<String>>,
+
+    /// Override whether this frame should be considered in-app.
+    pub in_app: Annotated<bool>,
+
+    /// Local variables in a convenient format.
+    #[metastructure(pii_kind = "databag")]
+    pub vars: Annotated<Object<Value>>,
+
+    /// Start address of the containing code module (image).
+    pub image_addr: Annotated<Addr>,
+
+    /// Absolute address of the frame's CPU instruction.
+    pub instruction_addr: Annotated<Addr>,
+
+    /// Start address of the frame's function.
+    pub symbol_addr: Annotated<Addr>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
 }
 
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]

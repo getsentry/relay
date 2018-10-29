@@ -529,7 +529,7 @@ fn parse_cap_size(name: &str) -> TokenStream {
         "message" => quote!(__processor::CapSize::Message),
         "symbol" => quote!(__processor::CapSize::Symbol),
         "path" => quote!(__processor::CapSize::Path),
-        "shortpath" => quote!(__processor::CapSize::ShortPath),
+        "short_path" => quote!(__processor::CapSize::ShortPath),
         _ => panic!("invalid cap_size variant '{}'", name),
     }
 }
