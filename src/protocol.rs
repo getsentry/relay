@@ -96,7 +96,7 @@ pub struct Event {
     // pub tags: Annotated<Object<String>>,
 
     /// Approximate geographical location of the end user or device.
-    // pub geo: Annotated<Option<Geo>>,
+    pub geo: Annotated<Geo>,
 
     /// Arbitrary extra information set by the user.
     pub extra: Annotated<Object<Value>>,
@@ -302,6 +302,29 @@ pub struct SystemSdkInfo {
 
 // TODO: Figure out DebugImage
 type DebugImage = Object<Value>;
+
+/// Geographical location of the end user or device.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct Geo {
+    /// Two-letter country code (ISO 3166-1 alpha-2).
+    #[metastructure(pii_kind = "location")]
+    // TODO: cap=summary?
+    pub country_code: Annotated<String>,
+
+    /// Human readable city name.
+    #[metastructure(pii_kind = "location")]
+    // TODO: cap=summary?
+    pub city: Annotated<String>,
+
+    /// Human readable region name or code.
+    #[metastructure(pii_kind = "location")]
+    // TODO: cap=summary?
+    pub region: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
 
 #[test]
 fn test_user_roundtrip() {
