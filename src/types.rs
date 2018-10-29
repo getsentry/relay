@@ -343,6 +343,43 @@ impl ToValue for ThreadId {
 
 impl ProcessValue for ThreadId {}
 
+#[derive(ToValue, ProcessValue)]
+pub struct ObjectOrArray<T>(pub Object<T>);
+
+impl<T: FromValue> FromValue for ObjectOrArray<T> {
+    fn from_value(mut value: Annotated<Value>) -> Annotated<Self> {
+        if let Annotated(Some(Value::Array(array)), mut meta) = value {
+            let object_option: Option<Object<Value>> = array
+                .into_iter()
+                .map(|element| match element {
+                    Annotated(Some(Value::Array(mut tuple)), _) => {
+                        if tuple.len() != 2 {
+                            return None;
+                        }
+
+                        let value = tuple.pop().unwrap();
+                        let key = tuple.pop().unwrap();
+                        match (key, value) {
+                            (Annotated(Some(Value::String(key)), _), value) => Some((key, value)),
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                }).collect();
+
+            if let Some(object) = object_option {
+                value = Annotated(Some(Value::Object(object)), meta);
+            } else {
+                meta.add_error("expected array with tuple elements".to_string());
+                value = Annotated(None, meta);
+            }
+        }
+
+        let rv = FromValue::from_value(value);
+        Annotated(rv.0.map(ObjectOrArray), rv.1)
+    }
+}
+
 #[test]
 fn test_values_serialization() {
     let value = Annotated::new(Values {

@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use meta::{Annotated, Value};
 use processor::{FromKey, FromValue, ToKey};
-use types::{Addr, Array, Level, Map, Object, RegVal, ThreadId, Values};
+use types::{Addr, Array, Level, Map, Object, ObjectOrArray, RegVal, ThreadId, Values};
 
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
@@ -97,7 +97,7 @@ pub struct Event {
     pub threads: Annotated<Values<Thread>>,
 
     /// Custom tags for this event.
-    // pub tags: Annotated<Object<String>>,
+    pub tags: Annotated<ObjectOrArray<String>>,
 
     /// Approximate geographical location of the end user or device.
     pub geo: Annotated<Geo>,
