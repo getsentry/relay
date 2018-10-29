@@ -90,7 +90,7 @@ pub struct Event {
     // pub template_info: Annotated<Option<TemplateInfo>>,
 
     /// Threads that were active when the event occurred.
-    // pub threads: Annotated<Values<Thread>>,
+    pub threads: Annotated<Values<Thread>>,
 
     /// Custom tags for this event.
     // pub tags: Annotated<Object<String>>,
@@ -325,6 +325,37 @@ pub struct Geo {
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
 }
+
+/// A process thread of an event.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct Thread {
+    /// Identifier of this thread within the process (usually an integer).
+    pub id: Annotated<ThreadId>,
+
+    /// Display name of this thread.
+    // TODO: cap=summary?
+    pub name: Annotated<String>,
+
+    /// Stack trace containing frames of this exception.
+    pub stacktrace: Annotated<Stacktrace>,
+
+    /// Optional unprocessed stack trace.
+    pub raw_stacktrace: Annotated<Stacktrace>,
+
+    /// Indicates that this thread requested the event (usually by crashing).
+    pub crashed: Annotated<bool>,
+
+    /// Indicates that the thread was not suspended when the event was created.
+    pub current: Annotated<bool>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// Identifier of a thread within an event.
+// TODO: Figure out untagged enums
+type ThreadId = Value;
 
 #[test]
 fn test_user_roundtrip() {
