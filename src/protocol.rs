@@ -1,8 +1,11 @@
 use chrono::{DateTime, Utc};
+use cookie::Cookie;
+use serde_json;
+use url::form_urlencoded;
 use uuid::Uuid;
 
 use meta::{Annotated, Value};
-use processor::{FromKey, ToKey};
+use processor::{FromKey, FromValue, ToKey};
 use types::{Addr, Array, Level, Map, Object, RegVal, ThreadId, Values};
 
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
@@ -162,51 +165,142 @@ pub struct LogEntry {
 }
 
 /// A map holding cookies.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
 pub struct Cookies(pub Object<String>);
+
+impl FromValue for Cookies {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), mut meta) => {
+                let mut cookies = Map::new();
+                for cookie in value.split(";") {
+                    match Cookie::parse_encoded(cookie) {
+                        Ok(cookie) => {
+                            cookies.insert(
+                                cookie.name().to_string(),
+                                Annotated::new(cookie.value().to_string()),
+                            );
+                        }
+                        Err(err) => {
+                            meta.add_error(err.to_string());
+                        }
+                    }
+                }
+                Annotated(Some(Cookies(cookies)), meta)
+            }
+            annotated @ Annotated(Some(Value::Object(_)), _) => {
+                let Annotated(value, meta) = FromValue::from_value(annotated);
+                Annotated(value.map(Cookies), meta)
+            }
+            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(_, mut meta) => {
+                meta.add_error("expected cookies");
+                Annotated(None, meta)
+            }
+        }
+    }
+}
 
 /// A map holding headers.
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
-pub struct Headers(pub Map<HeaderKey, String>);
+pub struct Headers(pub Map<HeaderKey, HeaderValue>);
 
+/// The key of an HTTP header.
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct HeaderKey(String);
+
+/// The value of an HTTP header.
+#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, FromValue, ToValue, ProcessValue)]
+pub struct HeaderValue(String);
 
 impl ToKey for HeaderKey {
     #[inline(always)]
     fn to_key(key: HeaderKey) -> String {
         key.0
-            .split('-')
-            .enumerate()
-            .fold(String::new(), |mut all, (i, part)| {
-                // join
-                if i > 0 {
-                    all.push_str("-");
-                }
-
-                // capitalize the first characters
-                let mut chars = part.chars();
-                if let Some(c) = chars.next() {
-                    all.extend(c.to_uppercase());
-                }
-
-                // copy all others
-                all.extend(chars);
-                all
-            })
     }
 }
 
 impl FromKey for HeaderKey {
     #[inline(always)]
     fn from_key(key: String) -> HeaderKey {
-        HeaderKey(key)
+        HeaderKey(
+            key.split('-')
+                .enumerate()
+                .fold(String::new(), |mut all, (i, part)| {
+                    // join
+                    if i > 0 {
+                        all.push_str("-");
+                    }
+
+                    // capitalize the first characters
+                    let mut chars = part.chars();
+                    if let Some(c) = chars.next() {
+                        all.extend(c.to_uppercase());
+                    }
+
+                    // copy all others
+                    all.extend(chars);
+                    all
+                }),
+        )
     }
 }
 
 /// A map holding query string pairs.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
 pub struct Query(pub Object<String>);
+
+impl FromValue for Query {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(v)), meta) => {
+                let mut rv = Object::new();
+                let qs = if v.starts_with('?') { &v[1..] } else { &v[..] };
+                for (key, value) in form_urlencoded::parse(qs.as_bytes()) {
+                    rv.insert(key.to_string(), Annotated::new(value.to_string()));
+                }
+                Annotated(Some(Query(rv)), meta)
+            }
+            Annotated(Some(Value::Object(items)), meta) => Annotated(
+                Some(Query(
+                    items
+                        .into_iter()
+                        .map(|(k, v)| match v {
+                            v @ Annotated(Some(Value::String(_)), _)
+                            | v @ Annotated(Some(Value::Null), _) => {
+                                (FromKey::from_key(k), FromValue::from_value(v))
+                            }
+                            v => {
+                                let v = match v {
+                                    v @ Annotated(Some(Value::Object(_)), _)
+                                    | v @ Annotated(Some(Value::Array(_)), _) => {
+                                        let meta = v.1.clone();
+                                        let json_val: serde_json::Value = v.into();
+                                        Annotated(
+                                            Some(Value::String(
+                                                serde_json::to_string(&json_val).unwrap(),
+                                            )),
+                                            meta,
+                                        )
+                                    }
+                                    other => other,
+                                };
+                                (FromKey::from_key(k), FromValue::from_value(v))
+                            }
+                        }).collect(),
+                )),
+                meta,
+            ),
+            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(_, mut meta) => {
+                meta.add_error("expected query");
+                Annotated(None, meta)
+            }
+        }
+    }
+}
 
 /// Http request information.
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]

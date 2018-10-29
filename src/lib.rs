@@ -10,8 +10,10 @@ extern crate smallvec;
 #[macro_use]
 extern crate failure;
 extern crate chrono;
+extern crate cookie;
 #[cfg(test)]
 extern crate difference;
+extern crate url;
 
 #[macro_use]
 mod macros;

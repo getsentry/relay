@@ -13,6 +13,8 @@ smallvec = { version = "0.6.5", features = ["serde"] }
 failure = "0.1.3"
 failure_derive = "0.1.3"
 chrono = "0.4.6"
+cookie = { version = "0.11.0", features = ["percent-encode"] }
+url = "1.7.1"
 
 [patch.crates-io]
 synstructure = { git = "https://github.com/mitsuhiko/synstructure", rev = "d5e1bb3c00a24a001568e88be6a94d0613049bda" }
