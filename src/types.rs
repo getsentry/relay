@@ -130,8 +130,12 @@ macro_rules! hex_metrastructure {
                         Annotated(Some($type(value as u64)), meta)
                     }
                     Annotated(None, meta) => Annotated(None, meta),
-                    Annotated(_, mut meta) => {
-                        meta.add_error(format!("expected {}", $expectation));
+                    Annotated(Some(value), mut meta) => {
+                        meta.add_error(format!(
+                            "expected {}, got {}",
+                            $expectation,
+                            value.describe()
+                        ));
                         Annotated(None, meta)
                     }
                 }
@@ -257,8 +261,8 @@ impl FromValue for Level {
             }
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
-            Annotated(_, mut meta) => {
-                meta.add_error("expected level");
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(format!("expected level, got {}", value.describe()));
                 Annotated(None, meta)
             }
         }

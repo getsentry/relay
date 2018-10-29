@@ -36,8 +36,12 @@ macro_rules! numeric_meta_structure {
                     }
                     Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(None, meta) => Annotated(None, meta),
-                    Annotated(_, mut meta) => {
-                        meta.add_error(format!("expected {}", $expectation));
+                    Annotated(Some(value), mut meta) => {
+                        meta.add_error(format!(
+                            "expected {}, got {}",
+                            $expectation,
+                            value.describe()
+                        ));
                         Annotated(None, meta)
                     }
                 }
@@ -64,8 +68,12 @@ macro_rules! primitive_meta_structure_through_string {
                     },
                     Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(None, meta) => Annotated(None, meta),
-                    Annotated(_, mut meta) => {
-                        meta.add_error(format!("expected {}", $expectation));
+                    Annotated(Some(value), mut meta) => {
+                        meta.add_error(format!(
+                            "expected {}, got {}",
+                            $expectation,
+                            value.describe()
+                        ));
                         Annotated(None, meta)
                     }
                 }

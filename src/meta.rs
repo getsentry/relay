@@ -630,7 +630,7 @@ fn test_annotated_deserialize_with_meta() {
             .1
             .iter_errors()
             .collect::<Vec<_>>(),
-        vec!["invalid id", "expected an unsigned integer"]
+        vec!["invalid id", "expected an unsigned integer, got blaflasel"]
     );
     assert_eq!(
         annotated_value.0.as_ref().unwrap().ty.0,
@@ -649,5 +649,5 @@ fn test_annotated_deserialize_with_meta() {
     );
 
     let json = annotated_value.to_json().unwrap();
-    assert_eq!(json, r#"{"id":null,"type":"testing","_meta":{"id":{"":{"err":["invalid id","expected an unsigned integer"]}},"type":{"":{"err":["invalid type"]}}}}"#);
+    assert_eq!(json, r#"{"id":null,"type":"testing","_meta":{"id":{"":{"err":["invalid id","expected an unsigned integer, got blaflasel"]}},"type":{"":{"err":["invalid type"]}}}}"#);
 }

@@ -174,6 +174,9 @@ impl FromValue for Cookies {
             Annotated(Some(Value::String(value)), mut meta) => {
                 let mut cookies = Map::new();
                 for cookie in value.split(";") {
+                    if cookie.trim().is_empty() {
+                        continue;
+                    }
                     match Cookie::parse_encoded(cookie) {
                         Ok(cookie) => {
                             cookies.insert(
@@ -194,8 +197,8 @@ impl FromValue for Cookies {
             }
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
-            Annotated(_, mut meta) => {
-                meta.add_error("expected cookies");
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(format!("expected cookies, got {}", value.describe()));
                 Annotated(None, meta)
             }
         }
@@ -295,7 +298,10 @@ impl FromValue for Query {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(format!("expected query-string or map, got {}", value.describe()));
+                meta.add_error(format!(
+                    "expected query-string or map, got {}",
+                    value.describe()
+                ));
                 Annotated(None, meta)
             }
         }
@@ -1003,12 +1009,19 @@ fn test_query_string() {
     map.insert("foo".to_string(), Annotated::new("bar".to_string()));
     let query = Annotated::new(Query(map));
     assert_eq_dbg!(query, Annotated::<Query>::from_json("\"foo=bar\"").unwrap());
+    assert_eq_dbg!(
+        query,
+        Annotated::<Query>::from_json("\"?foo=bar\"").unwrap()
+    );
 
     let mut map = Object::new();
     map.insert("foo".to_string(), Annotated::new("bar".to_string()));
     map.insert("baz".to_string(), Annotated::new("42".to_string()));
     let query = Annotated::new(Query(map));
-    assert_eq_dbg!(query, Annotated::<Query>::from_json("\"foo=bar&baz=42\"").unwrap());
+    assert_eq_dbg!(
+        query,
+        Annotated::<Query>::from_json("\"foo=bar&baz=42\"").unwrap()
+    );
 }
 
 #[test]
@@ -1025,16 +1038,55 @@ fn test_query_string_legacy_nested() {
     map.insert("foo".to_string(), Annotated::new("bar".to_string()));
     map.insert("baz".to_string(), Annotated::new(r#"{"a":42}"#.to_string()));
     let query = Annotated::new(Query(map));
-    assert_eq_dbg!(query, Annotated::<Query>::from_json(r#"
+    assert_eq_dbg!(
+        query,
+        Annotated::<Query>::from_json(
+            r#"
         {
             "foo": "bar",
             "baz": {"a": 42}
         }
-    "#).unwrap());
+    "#
+        ).unwrap()
+    );
 }
 
 #[test]
 fn test_query_invalid() {
     let query = Annotated::<Query>::from_error("expected query-string or map, got integer 42");
     assert_eq_dbg!(query, Annotated::from_json("42").unwrap());
+}
+
+#[test]
+fn test_cookies_parsing() {
+    let json = "\" PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;\"";
+
+    let mut map = Map::new();
+    map.insert(
+        "PHPSESSID".to_string(),
+        Annotated::new("298zf09hf012fh2".to_string()),
+    );
+    map.insert(
+        "csrftoken".to_string(),
+        Annotated::new("u32t4o3tb3gg43".to_string()),
+    );
+    map.insert("_gat".to_string(), Annotated::new("1".to_string()));
+
+    let cookies = Annotated::new(Cookies(map));
+    assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
+}
+
+#[test]
+fn test_cookies_object() {
+    let json = r#"{"foo":"bar", "invalid": 42}"#;
+
+    let mut map = Object::new();
+    map.insert("foo".to_string(), Annotated::new("bar".to_string()));
+    map.insert(
+        "invalid".to_string(),
+        Annotated::from_error("expected a string, got integer 42"),
+    );
+
+    let cookies = Annotated::new(Cookies(map));
+    assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
 }

@@ -384,8 +384,12 @@ macro_rules! primitive_meta_structure {
                     Annotated(Some(Value::$meta_type(value)), meta) => Annotated(Some(value), meta),
                     Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(None, meta) => Annotated(None, meta),
-                    Annotated(_, mut meta) => {
-                        meta.add_error(format!("expected {}", $expectation));
+                    Annotated(Some(value), mut meta) => {
+                        meta.add_error(format!(
+                            "expected {}, got {}",
+                            $expectation,
+                            value.describe()
+                        ));
                         Annotated(None, meta)
                     }
                 }
