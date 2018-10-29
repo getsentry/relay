@@ -2,7 +2,8 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use meta::{Annotated, Value};
-use types::{Array, Level, Object, ThreadId, Values};
+use processor::{FromKey, ToKey};
+use types::{Array, Level, Map, Object, ThreadId, Values};
 
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
@@ -162,7 +163,42 @@ pub struct Cookies(pub Object<String>);
 
 /// A map holding headers.
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
-pub struct Headers(pub Object<String>);
+pub struct Headers(pub Map<HeaderKey, String>);
+
+#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
+pub struct HeaderKey(String);
+
+impl ToKey for HeaderKey {
+    #[inline(always)]
+    fn to_key(key: HeaderKey) -> String {
+        key.0
+            .split('-')
+            .enumerate()
+            .fold(String::new(), |mut all, (i, part)| {
+                // join
+                if i > 0 {
+                    all.push_str("-");
+                }
+
+                // capitalize the first characters
+                let mut chars = part.chars();
+                if let Some(c) = chars.next() {
+                    all.extend(c.to_uppercase());
+                }
+
+                // copy all others
+                all.extend(chars);
+                all
+            })
+    }
+}
+
+impl FromKey for HeaderKey {
+    #[inline(always)]
+    fn from_key(key: String) -> HeaderKey {
+        HeaderKey(key)
+    }
+}
 
 /// A map holding query string pairs.
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]

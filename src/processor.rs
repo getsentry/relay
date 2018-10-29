@@ -318,12 +318,6 @@ pub trait ToKey: Clone {
     fn to_key(key: Self) -> String
     where
         Self: Sized;
-
-    /// Efficiently serializes the key directly.
-    fn serialize_key<S>(&self, s: S) -> Result<S::Ok, S::Error>
-    where
-        Self: Sized,
-        S: Serializer;
 }
 
 /// Similar to `FromValue` but for keys only.
@@ -338,14 +332,6 @@ impl ToKey for String {
     #[inline(always)]
     fn to_key(key: String) -> String {
         key
-    }
-
-    #[inline(always)]
-    fn serialize_key<S>(&self, s: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        Serialize::serialize(self, s)
     }
 }
 
@@ -387,20 +373,6 @@ impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
             Annotated(Some(ref value), _) => ToValue::serialize_payload(value, s),
             Annotated(None, _) => s.serialize_unit(),
         }
-    }
-}
-
-// This needs to be public because the derive crate emits it
-#[doc(hidden)]
-pub struct SerializeKey<'a, T: 'a>(pub &'a T);
-
-impl<'a, T: ToKey> Serialize for SerializeKey<'a, T> {
-    #[inline(always)]
-    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        ToKey::serialize_key(self.0, s)
     }
 }
 
@@ -561,7 +533,7 @@ impl<K: ToKey, T: ToValue> ToValue for BTreeMap<K, Annotated<T>> {
         let mut map_ser = s.serialize_map(Some(self.len()))?;
         for (key, value) in self {
             if !value.skip_serialization() {
-                map_ser.serialize_key(&SerializeKey(key))?;
+                map_ser.serialize_key(&ToKey::to_key(key.clone()))?;
                 map_ser.serialize_value(&SerializePayload(value))?;
             }
         }
@@ -583,7 +555,7 @@ impl<K: ToKey, T: ToValue> ToValue for BTreeMap<K, Annotated<T>> {
     }
 }
 
-impl<T: ProcessValue> ProcessValue for BTreeMap<String, Annotated<T>> {
+impl<K: ToKey + Ord, T: ProcessValue> ProcessValue for BTreeMap<K, Annotated<T>> {
     fn process_value<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
@@ -596,7 +568,8 @@ impl<T: ProcessValue> ProcessValue for BTreeMap<String, Annotated<T>> {
                         .into_iter()
                         .map(|(k, v)| {
                             let v = {
-                                let inner_state = state.enter_borrowed(k.as_str(), None);
+                                let k = ToKey::to_key(k.clone());
+                                let inner_state = state.enter_borrowed(&k, None);
                                 ProcessValue::process_value(v, processor, inner_state)
                             };
                             (k, v)
