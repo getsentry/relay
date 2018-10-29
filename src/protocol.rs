@@ -75,8 +75,8 @@ pub struct Event {
     // pub contexts: Annotated<Contexts>,
 
     /// List of breadcrumbs recorded before this event.
-    //#[metastructure(legacy_alias = "sentry.interfaces.Breadcrumbs")]
-    // pub breadcrumbs: Annotated<Values<Breadcrumb>>,
+    #[metastructure(legacy_alias = "sentry.interfaces.Breadcrumbs")]
+    pub breadcrumbs: Annotated<Values<Breadcrumb>>,
 
     /// One or multiple chained (nested) exceptions.
     //#[metastructure(legacy_alias = "sentry.interfaces.Exception")]
@@ -145,7 +145,11 @@ pub struct User {
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct LogEntry {
     /// The log message with parameter placeholders (required).
-    #[metastructure(pii_kind = "freeform", cap_size = "message")]
+    #[metastructure(
+        pii_kind = "freeform",
+        cap_size = "message",
+        required = "true"
+    )]
     pub message: Annotated<String>,
 
     /// Positional parameters to be interpolated into the log message.
@@ -343,18 +347,15 @@ type DebugImage = Object<Value>;
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 pub struct Geo {
     /// Two-letter country code (ISO 3166-1 alpha-2).
-    #[metastructure(pii_kind = "location")]
-    // TODO: cap=summary?
+    #[metastructure(pii_kind = "location", cap_size = "summary")]
     pub country_code: Annotated<String>,
 
     /// Human readable city name.
-    #[metastructure(pii_kind = "location")]
-    // TODO: cap=summary?
+    #[metastructure(pii_kind = "location", cap_size = "summary")]
     pub city: Annotated<String>,
 
     /// Human readable region name or code.
-    #[metastructure(pii_kind = "location")]
-    // TODO: cap=summary?
+    #[metastructure(pii_kind = "location", cap_size = "summary")]
     pub region: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -369,7 +370,7 @@ pub struct Thread {
     pub id: Annotated<ThreadId>,
 
     /// Display name of this thread.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub name: Annotated<String>,
 
     /// Stack trace containing frames of this exception.
@@ -448,7 +449,6 @@ pub struct DeviceContext {
     pub external_free_storage: Annotated<u64>,
 
     /// Indicator when the device was booted.
-    // TODO: serialize with serde_chrono
     pub boot_time: Annotated<DateTime<Utc>>,
 
     /// Timezone of the device.
@@ -463,26 +463,26 @@ pub struct DeviceContext {
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 pub struct OsContext {
     /// Name of the operating system.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub name: Annotated<String>,
 
     /// Version of the operating system.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub version: Annotated<String>,
 
     /// Internal build number of the operating system.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub build: Annotated<String>,
 
     /// Current kernel version.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub kernel_version: Annotated<String>,
 
     /// Indicator if the OS is rooted (mobile mostly).
     pub rooted: Annotated<bool>,
 
     /// Unprocessed operating system info.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub raw_description: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -494,15 +494,15 @@ pub struct OsContext {
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 pub struct RuntimeContext {
     /// Runtime name.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub name: Annotated<String>,
 
     /// Runtime version.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub version: Annotated<String>,
 
     /// Unprocessed runtime info.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub raw_description: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -514,16 +514,15 @@ pub struct RuntimeContext {
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 pub struct AppContext {
     /// Start time of the app.
-    // TODO: serde with serde_chrono
     pub app_start_time: Annotated<DateTime<Utc>>,
 
     /// Device app hash (app specific device ID)
     #[metastructure(pii_kind = "id")]
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub device_app_hash: Annotated<String>,
 
     /// Build identicator.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub build_type: Annotated<String>,
 
     /// App identifier (dotted bundle id).
@@ -536,7 +535,7 @@ pub struct AppContext {
     pub app_version: Annotated<String>,
 
     /// Internal build ID as it appears on the platform.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub app_build: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -548,12 +547,41 @@ pub struct AppContext {
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 pub struct BrowserContext {
     /// Runtime name.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub name: Annotated<String>,
 
     /// Runtime version.
-    // TODO: cap=summary?
+    #[metastructure(cap_size = "summary")]
     pub version: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// A breadcrumb.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct Breadcrumb {
+    /// The timestamp of the breadcrumb (required).
+    pub timestamp: Annotated<DateTime<Utc>>,
+
+    /// The type of the breadcrumb.
+    #[metastructure(field = "type")]
+    pub ty: Annotated<String>,
+
+    /// The optional category of the breadcrumb.
+    pub category: Annotated<String>,
+
+    /// Severity level of the breadcrumb (required).
+    pub level: Annotated<Level>,
+
+    /// Human readable message for the breadcrumb.
+    #[metastructure(pii_kind = "freeform", cap_size = "message")]
+    pub message: Annotated<String>,
+
+    /// Custom user-defined data of this breadcrumb.
+    #[metastructure(pii_kind = "databag")]
+    pub data: Annotated<Object<Value>>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
