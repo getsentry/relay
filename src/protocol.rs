@@ -102,7 +102,7 @@ pub struct Event {
     pub extra: Annotated<Object<Value>>,
 
     /// Meta data for event processing and debugging.
-    // pub debug_meta: Annotated<Option<DebugMeta>>,
+    pub debug_meta: Annotated<DebugMeta>,
 
     /// Information about the Sentry SDK that generated this event.
     #[metastructure(field = "sdk")]
@@ -261,6 +261,47 @@ pub struct ClientSdkPackage {
     /// Version of the package.
     pub version: Annotated<String>,
 }
+
+/// Debugging and processing meta information.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct DebugMeta {
+    /// Information about the system SDK (e.g. iOS SDK).
+    #[metastructure(field = "sdk_info")]
+    pub system_sdk: Annotated<SystemSdkInfo>,
+
+    /// List of debug information files (debug images).
+    pub images: Annotated<Array<DebugImage>>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// Holds information about the system SDK.
+///
+/// This is relevant for iOS and other platforms that have a system
+/// SDK.  Not to be confused with the client SDK.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct SystemSdkInfo {
+    /// The internal name of the SDK.
+    pub sdk_name: Annotated<String>,
+
+    /// The major version of the SDK as integer or 0.
+    pub version_major: Annotated<u64>,
+
+    /// The minor version of the SDK as integer or 0.
+    pub version_minor: Annotated<u64>,
+
+    /// The patch version of the SDK as integer or 0.
+    pub version_patchlevel: Annotated<u64>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+// TODO: Figure out DebugImage
+type DebugImage = Object<Value>;
 
 #[test]
 fn test_user_roundtrip() {
