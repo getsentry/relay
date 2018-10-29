@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use meta::{Annotated, Value};
 use processor::{FromKey, ToKey};
-use types::{Addr, Array, Level, Map, Object, ThreadId, Values};
+use types::{Addr, Array, Level, Map, Object, RegVal, ThreadId, Values};
 
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
@@ -249,6 +249,13 @@ pub struct Request {
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace {
     pub frames: Annotated<Array<Frame>>,
+
+    /// Register values of the thread (top frame).
+    pub registers: Annotated<Object<RegVal>>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
 }
 
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
