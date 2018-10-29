@@ -701,3 +701,66 @@ impl ToValue for DateTime<Utc> {
 }
 
 impl ProcessValue for DateTime<Utc> {}
+
+impl<T: FromValue> FromValue for Box<T> {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        let annotated: Annotated<T> = FromValue::from_value(value);
+        Annotated(annotated.0.map(Box::new), annotated.1)
+    }
+}
+
+impl<T: ToValue + Clone> ToValue for Box<T> {
+    fn to_value(value: Annotated<Self>) -> Annotated<Value>
+    where
+        Self: Sized,
+    {
+        ToValue::to_value(Annotated(value.0.map(|x| *x), value.1))
+    }
+
+    #[inline(always)]
+    fn extract_child_meta(&self) -> MetaMap
+    where
+        Self: Sized,
+    {
+        ToValue::extract_child_meta(&**self)
+    }
+
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        ToValue::serialize_payload(&**self, s)
+    }
+
+    #[inline(always)]
+    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
+    where
+        Self: Sized,
+    {
+        // TODO: Unnecessary clone
+        let value: Annotated<T> =
+            Annotated(value.0.as_ref().map(|x| (**x).clone()), value.1.clone());
+        ToValue::extract_meta_tree(&value)
+    }
+}
+
+impl<T: ProcessValue> ProcessValue for Box<T> {
+    /// Executes a processor on the tree.
+    #[inline(always)]
+    fn process_value<P: Processor>(
+        value: Annotated<Self>,
+        processor: &P,
+        state: ProcessingState,
+    ) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        let value: Annotated<T> = Annotated(value.0.map(|x| *x), value.1);
+        let rv = ProcessValue::process_value(value, processor, state);
+        Annotated(rv.0.map(Box::new), rv.1)
+    }
+}

@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use meta::{Annotated, Value};
-use types::{Array, Level, Object, Values};
+use types::{Array, Level, Object, ThreadId, Values};
 
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
@@ -71,7 +71,7 @@ pub struct Event {
     pub request: Annotated<Request>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
-    // pub contexts: Annotated<Object<Context>>,
+    // pub contexts: Annotated<Contexts>,
 
     /// List of breadcrumbs recorded before this event.
     //#[metastructure(legacy_alias = "sentry.interfaces.Breadcrumbs")]
@@ -353,9 +353,176 @@ pub struct Thread {
     pub other: Object<Value>,
 }
 
-/// Identifier of a thread within an event.
-// TODO: Figure out untagged enums
-type ThreadId = Value;
+/// Contexts describing the environment (e.g. device, os or browser).
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+struct Contexts {
+    device: Annotated<Box<DeviceContext>>,
+    os: Annotated<Box<OsContext>>,
+    runtime: Annotated<Box<RuntimeContext>>,
+    app: Annotated<Box<AppContext>>,
+    browser: Annotated<Box<BrowserContext>>,
+}
+
+/// Device information.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct DeviceContext {
+    /// Name of the device.
+    pub name: Annotated<String>,
+
+    /// Family of the device model.
+    pub family: Annotated<String>,
+
+    /// Device model (human readable).
+    pub model: Annotated<String>,
+
+    /// Device model (internal identifier).
+    pub model_id: Annotated<String>,
+
+    /// Native cpu architecture of the device.
+    pub arch: Annotated<String>,
+
+    /// Current battery level (0-100).
+    pub battery_level: Annotated<f64>,
+
+    /// Current screen orientation.
+    pub orientation: Annotated<String>,
+
+    /// Simulator/prod indicator.
+    pub simulator: Annotated<bool>,
+
+    /// Total memory available in bytes.
+    pub memory_size: Annotated<u64>,
+
+    /// How much memory is still available in bytes.
+    pub free_memory: Annotated<u64>,
+
+    /// How much memory is usable for the app in bytes.
+    pub usable_memory: Annotated<u64>,
+
+    /// Total storage size of the device in bytes.
+    pub storage_size: Annotated<u64>,
+
+    /// How much storage is free in bytes.
+    pub free_storage: Annotated<u64>,
+
+    /// Total size of the attached external storage in bytes (eg: android SDK card).
+    pub external_storage_size: Annotated<u64>,
+
+    /// Free size of the attached external storage in bytes (eg: android SDK card).
+    pub external_free_storage: Annotated<u64>,
+
+    /// Indicator when the device was booted.
+    // TODO: serialize with serde_chrono
+    pub boot_time: Annotated<DateTime<Utc>>,
+
+    /// Timezone of the device.
+    pub timezone: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// Operating system information.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct OsContext {
+    /// Name of the operating system.
+    // TODO: cap=summary?
+    pub name: Annotated<String>,
+
+    /// Version of the operating system.
+    // TODO: cap=summary?
+    pub version: Annotated<String>,
+
+    /// Internal build number of the operating system.
+    // TODO: cap=summary?
+    pub build: Annotated<String>,
+
+    /// Current kernel version.
+    // TODO: cap=summary?
+    pub kernel_version: Annotated<String>,
+
+    /// Indicator if the OS is rooted (mobile mostly).
+    pub rooted: Annotated<bool>,
+
+    /// Unprocessed operating system info.
+    // TODO: cap=summary?
+    pub raw_description: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// Runtime information.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct RuntimeContext {
+    /// Runtime name.
+    // TODO: cap=summary?
+    pub name: Annotated<String>,
+
+    /// Runtime version.
+    // TODO: cap=summary?
+    pub version: Annotated<String>,
+
+    /// Unprocessed runtime info.
+    // TODO: cap=summary?
+    pub raw_description: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// Application information.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct AppContext {
+    /// Start time of the app.
+    // TODO: serde with serde_chrono
+    pub app_start_time: Annotated<DateTime<Utc>>,
+
+    /// Device app hash (app specific device ID)
+    #[metastructure(pii_kind = "id")]
+    // TODO: cap=summary?
+    pub device_app_hash: Annotated<String>,
+
+    /// Build identicator.
+    // TODO: cap=summary?
+    pub build_type: Annotated<String>,
+
+    /// App identifier (dotted bundle id).
+    pub app_identifier: Annotated<String>,
+
+    /// Application name as it appears on the platform.
+    pub app_name: Annotated<String>,
+
+    /// Application version as it appears on the platform.
+    pub app_version: Annotated<String>,
+
+    /// Internal build ID as it appears on the platform.
+    // TODO: cap=summary?
+    pub app_build: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// Web browser information.
+#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+pub struct BrowserContext {
+    /// Runtime name.
+    // TODO: cap=summary?
+    pub name: Annotated<String>,
+
+    /// Runtime version.
+    // TODO: cap=summary?
+    pub version: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
 
 #[test]
 fn test_user_roundtrip() {
