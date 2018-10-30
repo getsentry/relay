@@ -173,7 +173,7 @@ impl FromValue for Cookies {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => {
                 let mut cookies = Map::new();
-                for cookie in value.split(";") {
+                for cookie in value.split(';') {
                     if cookie.trim().is_empty() {
                         continue;
                     }

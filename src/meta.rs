@@ -388,7 +388,7 @@ impl<'a> fmt::Display for ValueDescription<'a> {
 
 impl Value {
     /// Returns a formattable that gives a helper description of the value.
-    pub fn describe<'a>(&'a self) -> ValueDescription<'a> {
+    pub fn describe(&self) -> ValueDescription {
         ValueDescription(self)
     }
 }
@@ -409,8 +409,8 @@ impl Serialize for Value {
                 let mut seq_ser = serializer.serialize_seq(Some(items.len()))?;
                 for item in items {
                     match item {
-                        &Annotated(Some(ref val), _) => seq_ser.serialize_element(val)?,
-                        &Annotated(None, _) => seq_ser.serialize_element(&())?,
+                        Annotated(Some(val), _) => seq_ser.serialize_element(val)?,
+                        Annotated(None, _) => seq_ser.serialize_element(&())?,
                     }
                 }
                 seq_ser.end()
@@ -420,8 +420,8 @@ impl Serialize for Value {
                 for (key, value) in items {
                     map_ser.serialize_key(key)?;
                     match value {
-                        &Annotated(Some(ref val), _) => map_ser.serialize_value(val)?,
-                        &Annotated(None, _) => map_ser.serialize_value(&())?,
+                        Annotated(Some(val), _) => map_ser.serialize_value(val)?,
+                        Annotated(None, _) => map_ser.serialize_value(&())?,
                     }
                 }
                 map_ser.end()
@@ -581,7 +581,7 @@ fn inline_meta_in_json(value: serde_json::Value) -> Annotated<Value> {
             let meta_tree = map
                 .remove("_meta")
                 .map(meta_tree_from_value)
-                .unwrap_or(MetaTree::default());
+                .unwrap_or_default();
             let mut value = serde_json::Value::Object(map).into();
             attach_meta(&mut value, meta_tree);
             value
