@@ -83,9 +83,9 @@ macro_rules! primitive_meta_structure_through_string {
             fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
-                S: ::serde::ser::Serializer,
+                S: serde::ser::Serializer,
             {
-                ::serde::ser::Serialize::serialize(&self.to_string(), s)
+                serde::ser::Serialize::serialize(&self.to_string(), s)
             }
         }
 

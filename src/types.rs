@@ -112,7 +112,7 @@ pub struct InvalidRegVal;
 macro_rules! hex_metrastructure {
     ($type:ident, $expectation:expr) => {
         impl FromStr for $type {
-            type Err = ::std::num::ParseIntError;
+            type Err = std::num::ParseIntError;
 
             fn from_str(s: &str) -> Result<$type, Self::Err> {
                 if s.starts_with("0x") || s.starts_with("0X") {
@@ -165,9 +165,9 @@ macro_rules! hex_metrastructure {
             fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
-                S: ::serde::ser::Serializer,
+                S: serde::ser::Serializer,
             {
-                ::serde::ser::Serialize::serialize(&self.to_string(), s)
+                serde::ser::Serialize::serialize(&self.to_string(), s)
             }
         }
 
@@ -291,9 +291,9 @@ impl ToValue for Level {
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
-        S: ::serde::ser::Serializer,
+        S: serde::ser::Serializer,
     {
-        ::serde::ser::Serialize::serialize(&self.to_string(), s)
+        serde::ser::Serialize::serialize(&self.to_string(), s)
     }
 }
 
@@ -343,11 +343,11 @@ impl ToValue for ThreadId {
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
-        S: ::serde::ser::Serializer,
+        S: serde::ser::Serializer,
     {
         match *self {
-            ThreadId::String(ref value) => ::serde::ser::Serialize::serialize(value, s),
-            ThreadId::Int(value) => ::serde::ser::Serialize::serialize(&value, s),
+            ThreadId::String(ref value) => serde::ser::Serialize::serialize(value, s),
+            ThreadId::Int(value) => serde::ser::Serialize::serialize(&value, s),
         }
     }
 }

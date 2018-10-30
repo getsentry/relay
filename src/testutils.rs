@@ -7,8 +7,8 @@ macro_rules! assert_eq_str {
             left == right,
             "`left == right` in line {}:\n{}\n{}",
             line!(),
-            ::difference::Changeset::new("- left", "+ right", "\n"),
-            ::difference::Changeset::new(&left, &right, "\n")
+            difference::Changeset::new("- left", "+ right", "\n"),
+            difference::Changeset::new(&left, &right, "\n")
         )
     }};
 }
@@ -22,8 +22,8 @@ macro_rules! assert_eq_dbg {
             left == right,
             "`left == right` in line {}:\n{}\n{}",
             line!(),
-            ::difference::Changeset::new("- left", "+ right", "\n"),
-            ::difference::Changeset::new(&format!("{:#?}", left), &format!("{:#?}", right), "\n")
+            difference::Changeset::new("- left", "+ right", "\n"),
+            difference::Changeset::new(&format!("{:#?}", left), &format!("{:#?}", right), "\n")
         )
     }};
 }
