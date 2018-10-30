@@ -6,6 +6,7 @@ use std::str::FromStr;
 use debugid::DebugId;
 use failure::Fail;
 use serde_derive::{Deserialize, Serialize};
+use uuid;
 
 #[cfg(test)]
 use general_derive::FromValue;
@@ -177,6 +178,24 @@ macro_rules! hex_metrastructure {
 
 hex_metrastructure!(Addr, "address");
 hex_metrastructure!(RegVal, "register value");
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EventId(pub uuid::Uuid);
+primitive_meta_structure_through_string!(EventId, "event id");
+
+impl fmt::Display for EventId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0.to_simple_ref())
+    }
+}
+
+impl FromStr for EventId {
+    type Err = uuid::parser::ParseError;
+
+    fn from_str(uuid_str: &str) -> Result<Self, Self::Err> {
+        uuid_str.parse().map(EventId)
+    }
+}
 
 /// An error used when parsing `Level`.
 #[derive(Debug, Fail)]

@@ -10,14 +10,16 @@ use general_derive::{FromValue, ProcessValue, ToValue};
 
 use crate::meta::{Annotated, MetaMap, Value};
 use crate::processor::{FromKey, FromValue, ProcessValue, ToKey, ToValue};
-use crate::types::{Addr, Array, Level, Map, Object, ObjectOrArray, RegVal, ThreadId, Values};
+use crate::types::{
+    Addr, Array, EventId, Level, Map, Object, ObjectOrArray, RegVal, ThreadId, Values,
+};
 
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
 pub struct Event {
     /// Unique identifier of this event.
     #[metastructure(field = "event_id")]
-    pub id: Annotated<Uuid>,
+    pub id: Annotated<EventId>,
 
     /// Severity level of the event.
     pub level: Annotated<Level>,
@@ -2023,7 +2025,7 @@ mod test_event {
     "mymodule": "1.0.0"
   },
   "platform": "myplatform",
-  "timestamp": 946684800,
+  "timestamp": 946684800.0,
   "server_name": "myhost",
   "release": "myrelease",
   "dist": "mydist",
@@ -2117,14 +2119,14 @@ mod test_event {
         let event = Annotated::new(Event {
             id: Annotated::empty(),
             level: Annotated::empty(),
-            fingerprint: Annotated::new(vec!["{{ default }}".to_string()].into()),
+            fingerprint: Annotated::empty(),
             culprit: Annotated::empty(),
             transaction: Annotated::empty(),
             message: Annotated::empty(),
             logentry: Annotated::empty(),
             logger: Annotated::empty(),
             modules: Annotated::empty(),
-            platform: Annotated::new("other".to_string()),
+            platform: Annotated::empty(),
             timestamp: Annotated::empty(),
             server_name: Annotated::empty(),
             release: Annotated::empty(),
