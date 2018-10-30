@@ -1,13 +1,11 @@
 extern crate chrono;
 extern crate cookie;
-extern crate failure;
-extern crate serde;
-#[macro_use]
-extern crate general_derive;
-extern crate serde_json;
-#[macro_use]
-extern crate serde_derive;
 extern crate debugid;
+extern crate failure;
+extern crate general_derive;
+extern crate serde;
+extern crate serde_derive;
+extern crate serde_json;
 extern crate smallvec;
 extern crate url;
 extern crate uuid;
