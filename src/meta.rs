@@ -392,6 +392,19 @@ impl<T: Default> Default for Annotated<T> {
     }
 }
 
+impl Annotated<Value> {
+    pub fn into_object(self) -> Annotated<Object<Value>> {
+        match self {
+            Annotated(Some(Value::Object(object)), meta) => Annotated(Some(object), meta),
+            Annotated(Some(_), mut meta) => {
+                meta.add_error("expected object", None);
+                Annotated(None, meta)
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
 /// Represents a boxed value.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]
@@ -428,6 +441,14 @@ impl Value {
     /// Returns a formattable that gives a helper description of the value.
     pub fn describe(&self) -> ValueDescription {
         ValueDescription(self)
+    }
+
+    /// Returns the string if this value is a string, otherwise `None`.
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Value::String(string) => Some(string.as_str()),
+            _ => None,
+        }
     }
 }
 

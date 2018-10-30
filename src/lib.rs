@@ -7,6 +7,7 @@ extern crate general_derive;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+extern crate debugid;
 extern crate smallvec;
 extern crate url;
 extern crate uuid;

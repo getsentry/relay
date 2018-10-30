@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use cookie::Cookie;
+use debugid::DebugId;
 use serde::{Serialize, Serializer};
 use serde_json;
 use url::form_urlencoded;
@@ -7,7 +8,7 @@ use uuid::Uuid;
 
 use general_derive::{FromValue, ProcessValue, ToValue};
 
-use crate::meta::{Annotated, Value};
+use crate::meta::{Annotated, MetaMap, Value};
 use crate::processor::{FromKey, FromValue, ProcessValue, ToKey, ToValue};
 use crate::types::{Addr, Array, Level, Map, Object, ObjectOrArray, RegVal, ThreadId, Values};
 
@@ -636,8 +637,202 @@ pub struct SystemSdkInfo {
     pub other: Object<Value>,
 }
 
-// TODO: Figure out DebugImage
-type DebugImage = Object<Value>;
+/// Apple debug image in
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+pub struct AppleDebugImage {
+    /// The static type of this debug image.
+    #[metastructure(field = "type", required = "true")]
+    ty: Annotated<String>,
+
+    /// Path and name of the debug image (required).
+    #[metastructure(required = "true")]
+    pub name: Annotated<String>,
+
+    /// CPU architecture target.
+    pub arch: Annotated<String>,
+
+    /// MachO CPU type identifier.
+    pub cpu_type: Annotated<u64>,
+
+    /// MachO CPU subtype identifier.
+    pub cpu_subtype: Annotated<u64>,
+
+    /// Starting memory address of the image (required).
+    #[metastructure(required = "true")]
+    pub image_addr: Annotated<Addr>,
+
+    /// Size of the image in bytes (required).
+    #[metastructure(required = "true")]
+    pub image_size: Annotated<u64>,
+
+    /// Loading address in virtual memory.
+    pub image_vmaddr: Annotated<Addr>,
+
+    /// The unique UUID of the image.
+    #[metastructure(required = "true")]
+    pub uuid: Annotated<Uuid>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// Any debug information file supported by symbolic.
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+pub struct SymbolicDebugImage {
+    /// The static type of this debug image.
+    #[metastructure(field = "type", required = "true")]
+    ty: Annotated<String>,
+
+    /// Path and name of the debug image (required).
+    #[metastructure(required = "true")]
+    pub name: Annotated<String>,
+
+    /// CPU architecture target.
+    pub arch: Annotated<String>,
+
+    /// Starting memory address of the image (required).
+    #[metastructure(required = "true")]
+    pub image_addr: Annotated<Addr>,
+
+    /// Size of the image in bytes (required).
+    #[metastructure(required = "true")]
+    pub image_size: Annotated<u64>,
+
+    /// Loading address in virtual memory.
+    pub image_vmaddr: Annotated<Addr>,
+
+    /// Unique debug identifier of the image.
+    #[metastructure(required = "true")]
+    pub id: Annotated<DebugId>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// Proguard mapping file.
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+pub struct ProguardDebugImage {
+    /// The static type of this debug image.
+    #[metastructure(field = "type", required = "true")]
+    ty: Annotated<String>,
+
+    /// UUID computed from the file contents.
+    #[metastructure(required = "true")]
+    pub uuid: Annotated<Uuid>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+/// A debug information file (debug image).
+#[derive(Debug, Clone, PartialEq)]
+pub enum DebugImage {
+    /// Apple debug images (machos).  This is currently also used for non apple platforms with
+    /// similar debug setups.
+    Apple(Box<AppleDebugImage>),
+    /// Symbolic (new style) debug infos.
+    Symbolic(Box<SymbolicDebugImage>),
+    /// A reference to a proguard debug file.
+    Proguard(Box<ProguardDebugImage>),
+    /// A debug image that is unknown to this protocol specification.
+    Other(Object<Value>),
+}
+
+impl FromValue for DebugImage {
+    fn from_value(annotated: Annotated<Value>) -> Annotated<Self> {
+        match Object::<Value>::from_value(annotated) {
+            Annotated(Some(object), meta) => match object
+                .get("type")
+                .and_then(|a| a.0.as_ref())
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+            {
+                "apple" => {
+                    AppleDebugImage::from_value(Annotated(Some(Value::Object(object)), meta))
+                        .map_value(|i| DebugImage::Apple(Box::new(i)))
+                }
+                "symbolic" => {
+                    SymbolicDebugImage::from_value(Annotated(Some(Value::Object(object)), meta))
+                        .map_value(|i| DebugImage::Symbolic(Box::new(i)))
+                }
+                "proguard" => {
+                    ProguardDebugImage::from_value(Annotated(Some(Value::Object(object)), meta))
+                        .map_value(|i| DebugImage::Proguard(Box::new(i)))
+                }
+                _ => Annotated(Some(DebugImage::Other(object)), meta),
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
+impl ToValue for DebugImage {
+    fn to_value(annotated: Annotated<Self>) -> Annotated<Value> {
+        match annotated {
+            Annotated(Some(image), meta) => match image {
+                DebugImage::Apple(inner) => ToValue::to_value(Annotated(Some(*inner), meta)),
+                DebugImage::Symbolic(inner) => ToValue::to_value(Annotated(Some(*inner), meta)),
+                DebugImage::Proguard(inner) => ToValue::to_value(Annotated(Some(*inner), meta)),
+                DebugImage::Other(inner) => ToValue::to_value(Annotated(Some(inner), meta)),
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+
+    fn extract_child_meta(&self) -> MetaMap {
+        match self {
+            DebugImage::Apple(inner) => inner.extract_child_meta(),
+            DebugImage::Symbolic(inner) => inner.extract_child_meta(),
+            DebugImage::Proguard(inner) => inner.extract_child_meta(),
+            DebugImage::Other(inner) => inner.extract_child_meta(),
+        }
+    }
+
+    fn serialize_payload<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            DebugImage::Apple(inner) => inner.serialize_payload(serializer),
+            DebugImage::Symbolic(inner) => inner.serialize_payload(serializer),
+            DebugImage::Proguard(inner) => inner.serialize_payload(serializer),
+            DebugImage::Other(inner) => inner.serialize_payload(serializer),
+        }
+    }
+}
+
+impl ProcessValue for DebugImage {
+    fn process_value<P: crate::processor::Processor>(
+        annotated: Annotated<Self>,
+        processor: &P,
+        state: crate::processor::ProcessingState,
+    ) -> Annotated<Self> {
+        match annotated {
+            Annotated(Some(image), meta) => match image {
+                DebugImage::Apple(inner) => {
+                    ProcessValue::process_value(Annotated(Some(*inner), meta), processor, state)
+                        .map_value(|i| DebugImage::Apple(Box::new(i)))
+                }
+                DebugImage::Symbolic(inner) => {
+                    ProcessValue::process_value(Annotated(Some(*inner), meta), processor, state)
+                        .map_value(|i| DebugImage::Symbolic(Box::new(i)))
+                }
+                DebugImage::Proguard(inner) => {
+                    ProcessValue::process_value(Annotated(Some(*inner), meta), processor, state)
+                        .map_value(|i| DebugImage::Proguard(Box::new(i)))
+                }
+                DebugImage::Other(inner) => {
+                    ProcessValue::process_value(Annotated(Some(inner), meta), processor, state)
+                        .map_value(DebugImage::Other)
+                }
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
 
 /// Geographical location of the end user or device.
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
@@ -1104,6 +1299,212 @@ pub struct TemplateInfo {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
+}
+
+#[test]
+fn test_debug_image_proguard_roundtrip() {
+    let json = r#"{
+  "type": "proguard",
+  "uuid": "395835f4-03e0-4436-80d3-136f0749a893",
+  "other": "value"
+}"#;
+    let image = Annotated::new(DebugImage::Proguard(Box::new(ProguardDebugImage {
+        ty: Annotated::new("proguard".to_string()),
+        uuid: Annotated::new(
+            "395835f4-03e0-4436-80d3-136f0749a893"
+                .parse::<Uuid>()
+                .unwrap(),
+        ),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
+
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_debug_image_apple_roundtrip() {
+    let json = r#"{
+  "type": "apple",
+  "name": "CoreFoundation",
+  "arch": "arm64",
+  "cpu_type": 1233,
+  "cpu_subtype": 3,
+  "image_addr": "0x0",
+  "image_size": 4096,
+  "image_vmaddr": "0x8000",
+  "uuid": "494f3aea-88fa-4296-9644-fa8ef5d139b6",
+  "other": "value"
+}"#;
+
+    let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
+        ty: Annotated::new("apple".to_string()),
+        name: Annotated::new("CoreFoundation".to_string()),
+        arch: Annotated::new("arm64".to_string()),
+        cpu_type: Annotated::new(1233),
+        cpu_subtype: Annotated::new(3),
+        image_addr: Annotated::new(Addr(0)),
+        image_size: Annotated::new(4096),
+        image_vmaddr: Annotated::new(Addr(32768)),
+        uuid: Annotated::new(
+            "494f3aea-88fa-4296-9644-fa8ef5d139b6"
+                .parse::<Uuid>()
+                .unwrap(),
+        ),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
+
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_debug_image_apple_default_values() {
+    let json = r#"{
+  "type": "apple",
+  "name": "CoreFoundation",
+  "image_addr": "0x0",
+  "image_size": 4096,
+  "uuid": "494f3aea-88fa-4296-9644-fa8ef5d139b6"
+}"#;
+
+    let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
+        ty: Annotated::new("apple".to_string()),
+        name: Annotated::new("CoreFoundation".to_string()),
+        arch: Annotated::empty(),
+        cpu_type: Annotated::empty(),
+        cpu_subtype: Annotated::empty(),
+        image_addr: Annotated::new(Addr(0)),
+        image_size: Annotated::new(4096),
+        image_vmaddr: Annotated::empty(),
+        uuid: Annotated::new(
+            "494f3aea-88fa-4296-9644-fa8ef5d139b6"
+                .parse::<Uuid>()
+                .unwrap(),
+        ),
+        other: Object::default(),
+    })));
+
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_debug_image_symbolic_roundtrip() {
+    let json = r#"{
+  "type": "symbolic",
+  "name": "CoreFoundation",
+  "arch": "arm64",
+  "image_addr": "0x0",
+  "image_size": 4096,
+  "image_vmaddr": "0x8000",
+  "id": "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234",
+  "other": "value"
+}"#;
+
+    let image = Annotated::new(DebugImage::Symbolic(Box::new(SymbolicDebugImage {
+        ty: Annotated::new("symbolic".to_string()),
+        name: Annotated::new("CoreFoundation".to_string()),
+        arch: Annotated::new("arm64".to_string()),
+        image_addr: Annotated::new(Addr(0)),
+        image_size: Annotated::new(4096),
+        image_vmaddr: Annotated::new(Addr(32768)),
+        id: Annotated::new(
+            "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234"
+                .parse::<DebugId>()
+                .unwrap(),
+        ),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
+
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_debug_image_symbolic_default_values() {
+    let json = r#"{
+  "type": "symbolic",
+  "name": "CoreFoundation",
+  "image_addr": "0x0",
+  "image_size": 4096,
+  "id": "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234"
+}"#;
+
+    let image = Annotated::new(DebugImage::Symbolic(Box::new(SymbolicDebugImage {
+        ty: Annotated::new("symbolic".to_string()),
+        name: Annotated::new("CoreFoundation".to_string()),
+        arch: Annotated::empty(),
+        image_addr: Annotated::new(Addr(0)),
+        image_size: Annotated::new(4096),
+        image_vmaddr: Annotated::empty(),
+        id: Annotated::new(
+            "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234"
+                .parse::<DebugId>()
+                .unwrap(),
+        ),
+        other: Object::default(),
+    })));
+
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_debug_image_other_roundtrip() {
+    let json = r#"{"other":"value","type":"mytype"}"#;
+    let image = Annotated::new(DebugImage::Other({
+        let mut map = Map::new();
+        map.insert(
+            "type".to_string(),
+            Annotated::new(Value::String("mytype".to_string())),
+        );
+        map.insert(
+            "other".to_string(),
+            Annotated::new(Value::String("value".to_string())),
+        );
+        map
+    }));
+
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json().unwrap());
+}
+
+#[test]
+fn test_debug_image_untagged_roundtrip() {
+    let json = r#"{"other":"value"}"#;
+    let image = Annotated::new(DebugImage::Other({
+        let mut map = Map::new();
+        map.insert(
+            "other".to_string(),
+            Annotated::new(Value::String("value".to_string())),
+        );
+        map
+    }));
+
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json().unwrap());
 }
 
 #[test]

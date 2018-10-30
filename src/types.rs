@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
+use debugid::DebugId;
 use failure::Fail;
 use serde_derive::{Deserialize, Serialize};
 
@@ -389,6 +390,41 @@ impl<T: FromValue> FromValue for ObjectOrArray<T> {
         Annotated(rv.0.map(ObjectOrArray), rv.1)
     }
 }
+
+impl FromValue for DebugId {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+                Ok(value) => Annotated(Some(value), meta),
+                Err(err) => {
+                    meta.add_error(err.to_string(), Some(Value::String(value.to_string())));
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_unexpected_value_error("debug id", value);
+                Annotated(None, meta)
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
+impl ToValue for DebugId {
+    fn to_value(annotated: Annotated<Self>) -> Annotated<Value> {
+        annotated.map_value(|id| Value::String(id.to_string()))
+    }
+
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serde::Serialize::serialize(self, s)
+    }
+}
+
+impl ProcessValue for DebugId {}
 
 #[cfg(test)]
 mod test_object_or_array {
