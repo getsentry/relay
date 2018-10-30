@@ -1228,7 +1228,7 @@ fn test_user_roundtrip() {
         },
     });
 
-    assert_eq_dbg!(user, Annotated::<User>::from_json(json).unwrap());
+    assert_eq_dbg!(user, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, user.to_json_pretty().unwrap());
 }
 
@@ -1259,7 +1259,7 @@ fn test_logentry_roundtrip() {
         },
     });
 
-    assert_eq_dbg!(entry, Annotated::<LogEntry>::from_json(json).unwrap());
+    assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, entry.to_json_pretty().unwrap());
 }
 
@@ -1330,7 +1330,7 @@ fn test_request_roundtrip() {
         },
     });
 
-    assert_eq_dbg!(request, Annotated::<Request>::from_json(json).unwrap());
+    assert_eq_dbg!(request, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, request.to_json_pretty().unwrap());
 }
 
@@ -1339,20 +1339,14 @@ fn test_query_string() {
     let mut map = Object::new();
     map.insert("foo".to_string(), Annotated::new("bar".to_string()));
     let query = Annotated::new(Query(map));
-    assert_eq_dbg!(query, Annotated::<Query>::from_json("\"foo=bar\"").unwrap());
-    assert_eq_dbg!(
-        query,
-        Annotated::<Query>::from_json("\"?foo=bar\"").unwrap()
-    );
+    assert_eq_dbg!(query, Annotated::from_json("\"foo=bar\"").unwrap());
+    assert_eq_dbg!(query, Annotated::from_json("\"?foo=bar\"").unwrap());
 
     let mut map = Object::new();
     map.insert("foo".to_string(), Annotated::new("bar".to_string()));
     map.insert("baz".to_string(), Annotated::new("42".to_string()));
     let query = Annotated::new(Query(map));
-    assert_eq_dbg!(
-        query,
-        Annotated::<Query>::from_json("\"foo=bar&baz=42\"").unwrap()
-    );
+    assert_eq_dbg!(query, Annotated::from_json("\"foo=bar&baz=42\"").unwrap());
 }
 
 #[test]
@@ -1363,7 +1357,7 @@ fn test_query_string_legacy_nested() {
     let mut map = Object::new();
     map.insert("foo".to_string(), Annotated::new("bar".to_string()));
     let query = Annotated::new(Query(map));
-    assert_eq_dbg!(query, Annotated::<Query>::from_json("\"foo=bar\"").unwrap());
+    assert_eq_dbg!(query, Annotated::from_json("\"foo=bar\"").unwrap());
 
     let mut map = Object::new();
     map.insert("foo".to_string(), Annotated::new("bar".to_string()));
@@ -1371,7 +1365,7 @@ fn test_query_string_legacy_nested() {
     let query = Annotated::new(Query(map));
     assert_eq_dbg!(
         query,
-        Annotated::<Query>::from_json(
+        Annotated::from_json(
             r#"
         {
             "foo": "bar",
