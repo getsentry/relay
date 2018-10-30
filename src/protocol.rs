@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use cookie::Cookie;
+use serde::{Serialize, Serializer};
 use serde_json;
 use url::form_urlencoded;
 use uuid::Uuid;
@@ -7,10 +8,10 @@ use uuid::Uuid;
 use general_derive::{FromValue, ProcessValue, ToValue};
 
 use crate::meta::{Annotated, Value};
-use crate::processor::{FromKey, FromValue, ToKey};
+use crate::processor::{FromKey, FromValue, ProcessValue, ToKey, ToValue};
 use crate::types::{Addr, Array, Level, Map, Object, ObjectOrArray, RegVal, ThreadId, Values};
 
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
 pub struct Event {
     /// Unique identifier of this event.
@@ -21,9 +22,7 @@ pub struct Event {
     pub level: Annotated<Level>,
 
     /// Manual fingerprint override.
-    //TODO: implement this
-    //#[serde(skip_serializing_if = "event::is_default_fingerprint")]
-    //pub fingerprint: Annotated<Vec<String>>,
+    pub fingerprint: Annotated<Fingerprint>,
 
     /// Custom culprit of the event.
     pub culprit: Annotated<String>,
@@ -44,9 +43,10 @@ pub struct Event {
     pub logger: Annotated<String>,
 
     /// Name and versions of installed modules.
-    pub modules: Annotated<String>,
+    pub modules: Annotated<Object<String>>,
 
     /// Platform identifier of this event (defaults to "other").
+    // TODO: Normalize null to "other"
     pub platform: Annotated<String>,
 
     /// Timestamp when the event was created.
@@ -118,6 +118,104 @@ pub struct Event {
     #[metastructure(additional_properties, pii_kind = "databag")]
     pub other: Object<Value>,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Fingerprint(Vec<String>);
+
+impl From<Vec<String>> for Fingerprint {
+    fn from(vec: Vec<String>) -> Fingerprint {
+        Fingerprint(vec)
+    }
+}
+
+impl FromValue for Fingerprint {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        match value {
+            Annotated(Some(Value::Array(array)), mut meta) => {
+                let mut fingerprint = vec![];
+                for elem in array {
+                    match elem {
+                        Annotated(Some(Value::String(string)), _) => fingerprint.push(string),
+                        Annotated(Some(Value::I64(int)), _) => fingerprint.push(int.to_string()),
+                        Annotated(Some(Value::U64(int)), _) => fingerprint.push(int.to_string()),
+                        Annotated(Some(Value::F64(float)), _) => {
+                            if float.abs() < (1i64 << 53) as f64 {
+                                fingerprint.push(float.trunc().to_string());
+                            }
+                        }
+                        Annotated(Some(Value::Bool(true)), _) => {
+                            fingerprint.push("True".to_string())
+                        }
+                        Annotated(Some(Value::Bool(false)), _) => {
+                            fingerprint.push("False".to_string())
+                        }
+                        Annotated(value_opt, meta2) => {
+                            for err in meta2.iter_errors() {
+                                meta.add_error(err, None);
+                            }
+
+                            if let Some(value) = value_opt {
+                                meta.add_error(
+                                    format!(
+                                        "expected number, string or bool, got {}",
+                                        value.describe()
+                                    ),
+                                    Some(value),
+                                );
+                            } else if !meta.has_errors() {
+                                meta.add_error("value required", None);
+                            }
+
+                            return Annotated(None, meta);
+                        }
+                    }
+                }
+                Annotated(Some(Fingerprint(fingerprint)), meta)
+            }
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(
+                    format!("expected array, found {}", value.describe()),
+                    Some(value),
+                );
+                Annotated(None, meta)
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
+impl ToValue for Fingerprint {
+    fn to_value(value: Annotated<Self>) -> Annotated<Value>
+    where
+        Self: Sized,
+    {
+        match value {
+            Annotated(Some(value), mut meta) => match serde_json::to_value(value.0) {
+                Ok(value) => Annotated(Some(value.into()), meta),
+                Err(err) => {
+                    meta.add_error(err.to_string(), None);
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+
+    #[inline(always)]
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        Serialize::serialize(&self.0, s)
+    }
+}
+
+// TODO: implement normalization s.t. ["{{ default }}"] => null
+impl ProcessValue for Fingerprint {}
 
 /// Information about the user who triggered an event.
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
@@ -347,7 +445,7 @@ pub struct Request {
     pub other: Object<Value>,
 }
 
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, Default, PartialEq, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace {
     pub frames: Annotated<Array<Frame>>,
@@ -360,7 +458,7 @@ pub struct Stacktrace {
     pub other: Object<Value>,
 }
 
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_frame")]
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
@@ -438,7 +536,7 @@ pub struct Frame {
     pub other: Object<Value>,
 }
 
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_exception")]
 pub struct Exception {
     /// Exception type (required).
@@ -472,7 +570,7 @@ pub struct Exception {
 }
 
 /// Information about the Sentry SDK.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct ClientSdkInfo {
     /// Unique SDK name.
     pub name: Annotated<String>,
@@ -492,7 +590,7 @@ pub struct ClientSdkInfo {
 }
 
 /// An installed and loaded package as part of the Sentry SDK.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct ClientSdkPackage {
     /// Name of the package.
     pub name: Annotated<String>,
@@ -501,7 +599,7 @@ pub struct ClientSdkPackage {
 }
 
 /// Debugging and processing meta information.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct DebugMeta {
     /// Information about the system SDK (e.g. iOS SDK).
     #[metastructure(field = "sdk_info")]
@@ -519,7 +617,7 @@ pub struct DebugMeta {
 ///
 /// This is relevant for iOS and other platforms that have a system
 /// SDK.  Not to be confused with the client SDK.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct SystemSdkInfo {
     /// The internal name of the SDK.
     pub sdk_name: Annotated<String>,
@@ -542,7 +640,7 @@ pub struct SystemSdkInfo {
 type DebugImage = Object<Value>;
 
 /// Geographical location of the end user or device.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct Geo {
     /// Two-letter country code (ISO 3166-1 alpha-2).
     #[metastructure(pii_kind = "location", cap_size = "summary")]
@@ -562,7 +660,7 @@ pub struct Geo {
 }
 
 /// A process thread of an event.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct Thread {
     /// Identifier of this thread within the process (usually an integer).
     pub id: Annotated<ThreadId>,
@@ -589,7 +687,7 @@ pub struct Thread {
 }
 
 /// Contexts describing the environment (e.g. device, os or browser).
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 struct Contexts {
     device: Annotated<Box<DeviceContext>>,
     os: Annotated<Box<OsContext>>,
@@ -599,7 +697,7 @@ struct Contexts {
 }
 
 /// Device information.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct DeviceContext {
     /// Name of the device.
     pub name: Annotated<String>,
@@ -658,7 +756,7 @@ pub struct DeviceContext {
 }
 
 /// Operating system information.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct OsContext {
     /// Name of the operating system.
     #[metastructure(cap_size = "summary")]
@@ -689,7 +787,7 @@ pub struct OsContext {
 }
 
 /// Runtime information.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct RuntimeContext {
     /// Runtime name.
     #[metastructure(cap_size = "summary")]
@@ -709,7 +807,7 @@ pub struct RuntimeContext {
 }
 
 /// Application information.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct AppContext {
     /// Start time of the app.
     pub app_start_time: Annotated<DateTime<Utc>>,
@@ -742,7 +840,7 @@ pub struct AppContext {
 }
 
 /// Web browser information.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct BrowserContext {
     /// Runtime name.
     #[metastructure(cap_size = "summary")]
@@ -758,7 +856,7 @@ pub struct BrowserContext {
 }
 
 /// A breadcrumb.
-#[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct Breadcrumb {
     /// The timestamp of the breadcrumb (required).
     pub timestamp: Annotated<DateTime<Utc>>,
@@ -1499,4 +1597,239 @@ fn test_cookies_object() {
 
     let cookies = Annotated::new(Cookies(map));
     assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
+}
+
+#[cfg(test)]
+mod test_event {
+    use chrono::{TimeZone, Utc};
+    use crate::meta::*;
+    use crate::protocol::*;
+
+    #[test]
+    fn test_roundtrip() {
+        // NOTE: Interfaces will be tested separately.
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "level": "debug",
+  "fingerprint": [
+    "myprint"
+  ],
+  "culprit": "myculprit",
+  "transaction": "mytransaction",
+  "message": "mymessage",
+  "logger": "mylogger",
+  "modules": {
+    "mymodule": "1.0.0"
+  },
+  "platform": "myplatform",
+  "timestamp": 946684800,
+  "server_name": "myhost",
+  "release": "myrelease",
+  "dist": "mydist",
+  "environment": "myenv",
+  "tags": {
+    "tag": "value"
+  },
+  "extra": {
+    "extra": "value"
+  },
+  "other": "value",
+  "_meta": {
+    "event_id": {
+      "": {
+        "err": [
+          "some error"
+        ]
+      }
+    }
+  }
+}"#;
+
+        let event = Annotated::new(Event {
+            id: Annotated(
+                Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
+                {
+                    let mut meta = Meta::default();
+                    meta.add_error("some error", None);
+                    meta
+                },
+            ),
+            level: Annotated::new(Level::Debug),
+            fingerprint: Annotated::new(vec!["myprint".to_string()].into()),
+            culprit: Annotated::new("myculprit".to_string()),
+            transaction: Annotated::new("mytransaction".to_string()),
+            message: Annotated::new("mymessage".to_string()),
+            logentry: Annotated::empty(),
+            logger: Annotated::new("mylogger".to_string()),
+            modules: {
+                let mut map = Map::new();
+                map.insert("mymodule".to_string(), Annotated::new("1.0.0".to_string()));
+                Annotated::new(map)
+            },
+            platform: Annotated::new("myplatform".to_string()),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            server_name: Annotated::new("myhost".to_string()),
+            release: Annotated::new("myrelease".to_string()),
+            dist: Annotated::new("mydist".to_string()),
+            environment: Annotated::new("myenv".to_string()),
+            user: Annotated::empty(),
+            request: Annotated::empty(),
+            //contexts: Default::default(), TODO
+            breadcrumbs: Annotated::empty(),
+            exceptions: Annotated::empty(),
+            stacktrace: Annotated::empty(),
+            template_info: Annotated::empty(),
+            threads: Annotated::empty(),
+            tags: {
+                let mut map = Map::new();
+                map.insert("tag".to_string(), Annotated::new("value".to_string()));
+                Annotated::new(ObjectOrArray(map))
+            },
+            geo: Annotated::empty(),
+            extra: {
+                let mut map = Map::new();
+                map.insert(
+                    "extra".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                Annotated::new(map)
+            },
+            debug_meta: Annotated::empty(),
+            client_sdk: Annotated::empty(),
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
+
+        assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
+        assert_eq_str!(json, event.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_default_values() {
+        let json = "{}";
+        let event = Annotated::new(Event {
+            id: Annotated::empty(),
+            level: Annotated::empty(),
+            fingerprint: Annotated::new(vec!["{{ default }}".to_string()].into()),
+            culprit: Annotated::empty(),
+            transaction: Annotated::empty(),
+            message: Annotated::empty(),
+            logentry: Annotated::empty(),
+            logger: Annotated::empty(),
+            modules: Annotated::empty(),
+            platform: Annotated::new("other".to_string()),
+            timestamp: Annotated::empty(),
+            server_name: Annotated::empty(),
+            release: Annotated::empty(),
+            dist: Annotated::empty(),
+            environment: Annotated::empty(),
+            user: Annotated::empty(),
+            request: Annotated::empty(),
+            //contexts: Default::default(), TODO
+            breadcrumbs: Annotated::empty(),
+            exceptions: Annotated::empty(),
+            stacktrace: Annotated::empty(),
+            template_info: Annotated::empty(),
+            threads: Annotated::empty(),
+            tags: Annotated::empty(),
+            geo: Annotated::empty(),
+            extra: Annotated::empty(),
+            debug_meta: Annotated::empty(),
+            client_sdk: Annotated::empty(),
+            other: Default::default(),
+        });
+
+        assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
+        assert_eq_str!(json, event.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_default_values_with_meta() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "fingerprint": [
+    "{{ default }}"
+  ],
+  "platform": "other",
+  "_meta": {
+    "event_id": {
+      "": {
+        "err": [
+          "some error"
+        ]
+      }
+    },
+    "fingerprint": {
+      "": {
+        "err": [
+          "some error"
+        ]
+      }
+    },
+    "platform": {
+      "": {
+        "err": [
+          "some error"
+        ]
+      }
+    }
+  }
+}"#;
+
+        let event = Annotated::new(Event {
+            id: Annotated(
+                Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
+                {
+                    let mut meta = Meta::default();
+                    meta.add_error("some error", None);
+                    meta
+                },
+            ),
+            level: Annotated::empty(),
+            fingerprint: Annotated(Some(vec!["{{ default }}".to_string()].into()), {
+                let mut meta = Meta::default();
+                meta.add_error("some error", None);
+                meta
+            }),
+            culprit: Annotated::empty(),
+            transaction: Annotated::empty(),
+            message: Annotated::empty(),
+            logentry: Annotated::empty(),
+            logger: Annotated::empty(),
+            modules: Annotated::empty(),
+            platform: Annotated(Some("other".to_string()), {
+                let mut meta = Meta::default();
+                meta.add_error("some error", None);
+                meta
+            }),
+            timestamp: Annotated::empty(),
+            server_name: Annotated::empty(),
+            release: Annotated::empty(),
+            dist: Annotated::empty(),
+            environment: Annotated::empty(),
+            user: Annotated::empty(),
+            request: Annotated::empty(),
+            //contexts: Default::default(), TODO
+            breadcrumbs: Annotated::empty(),
+            exceptions: Annotated::empty(),
+            stacktrace: Annotated::empty(),
+            template_info: Annotated::empty(),
+            threads: Annotated::empty(),
+            tags: Annotated::empty(),
+            geo: Annotated::empty(),
+            extra: Annotated::empty(),
+            debug_meta: Annotated::empty(),
+            client_sdk: Annotated::empty(),
+            other: Default::default(),
+        });
+
+        assert_eq_dbg!(event, Annotated::<Event>::from_json(json).unwrap());
+        assert_eq_str!(json, event.to_json_pretty().unwrap());
+    }
 }

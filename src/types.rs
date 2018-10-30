@@ -30,6 +30,13 @@ pub struct Values<T> {
     pub other: Object<Value>,
 }
 
+impl<T> Default for Values<T> {
+    fn default() -> Values<T> {
+        // Default implemented manually even if <T> does not impl Default.
+        Values::new(Vec::new())
+    }
+}
+
 impl<T> Values<T> {
     /// Constructs a new value array from a given array
     pub fn new(values: Array<T>) -> Values<T> {
@@ -346,7 +353,7 @@ impl ToValue for ThreadId {
 
 impl ProcessValue for ThreadId {}
 
-#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
+#[derive(Debug, Clone, Default, PartialEq, ToValue, ProcessValue)]
 pub struct ObjectOrArray<T>(pub Object<T>);
 
 impl<T: FromValue> FromValue for ObjectOrArray<T> {
