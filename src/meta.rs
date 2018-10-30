@@ -169,6 +169,14 @@ pub struct Meta {
         rename = "len"
     )]
     original_length: Option<u32>,
+
+    /// In some cases the original value might be sent along.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "val"
+    )]
+    original_value: Option<Value>,
 }
 
 impl PartialEq for Meta {
@@ -180,15 +188,6 @@ impl PartialEq for Meta {
 }
 
 impl Meta {
-    /// Creates a new meta data object from an error message.
-    pub fn from_error<S: Into<String>>(message: S) -> Self {
-        Meta {
-            remarks: SmallVec::new(),
-            errors: smallvec![message.into()],
-            original_length: None,
-        }
-    }
-
     /// The original length of this field, if applicable.
     pub fn original_length(&self) -> Option<usize> {
         self.original_length.map(|x| x as usize)
@@ -215,8 +214,19 @@ impl Meta {
     }
 
     /// Mutable reference to errors of this field.
-    pub fn add_error<S: Into<String>>(&mut self, err: S) {
+    pub fn add_error<S: Into<String>>(&mut self, err: S, value: Option<Value>) {
         self.errors.push(err.into());
+        match value {
+            None | Some(Value::Object(_)) | Some(Value::Array(_)) => {}
+            Some(value) => {
+                self.original_value = Some(value);
+            }
+        }
+    }
+
+    /// Adds an unexpected value error.
+    pub fn add_unexpected_value_error(&mut self, expectation: &str, value: Value) {
+        self.add_error(format!("expected {}", expectation), Some(value));
     }
 
     /// Indicates whether this field has errors.
@@ -236,6 +246,7 @@ impl Default for Meta {
             remarks: SmallVec::new(),
             errors: SmallVec::new(),
             original_length: None,
+            original_value: None,
         }
     }
 }
@@ -247,6 +258,21 @@ pub struct Annotated<T>(pub Option<T>, pub Meta);
 impl<T> Annotated<T> {
     pub fn new(value: T) -> Annotated<T> {
         Annotated(Some(value), Meta::default())
+    }
+}
+
+impl<T: Serialize> Serialize for Annotated<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Serialize::serialize(&self.0, serializer)
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for Annotated<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(Annotated::new(Deserialize::deserialize(deserializer)?))
     }
 }
 
@@ -340,23 +366,24 @@ impl<T> Annotated<T> {
     }
 
     /// From an error
-    pub fn from_error<S: Into<String>>(err: S) -> Annotated<T> {
+    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Annotated<T> {
         let mut rv = Annotated::empty();
-        rv.1.add_error(err);
+        rv.1.add_error(err, value);
         rv
     }
 
     /// Attaches a value required error if the value is missing.
     pub fn require_value(mut self) -> Annotated<T> {
         if self.0.is_none() && !self.1.has_errors() {
-            self.1.add_error("value required");
+            self.1.add_error("value required", None);
         }
         self
     }
 }
 
 /// Represents a boxed value.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
 pub enum Value {
     Null,
     Bool(bool),
@@ -630,7 +657,7 @@ fn test_annotated_deserialize_with_meta() {
             .1
             .iter_errors()
             .collect::<Vec<_>>(),
-        vec!["invalid id", "expected an unsigned integer, got blaflasel"]
+        vec!["invalid id", "expected an unsigned integer"]
     );
     assert_eq!(
         annotated_value.0.as_ref().unwrap().ty.0,
@@ -649,5 +676,5 @@ fn test_annotated_deserialize_with_meta() {
     );
 
     let json = annotated_value.to_json().unwrap();
-    assert_eq!(json, r#"{"id":null,"type":"testing","_meta":{"id":{"":{"err":["invalid id","expected an unsigned integer, got blaflasel"]}},"type":{"":{"err":["invalid type"]}}}}"#);
+    assert_eq_str!(json, r#"{"id":null,"type":"testing","_meta":{"id":{"":{"err":["invalid id","expected an unsigned integer"],"val":"blaflasel"}},"type":{"":{"err":["invalid type"]}}}}"#);
 }

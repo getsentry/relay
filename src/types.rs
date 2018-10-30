@@ -73,8 +73,8 @@ impl<T: FromValue> FromValue for Values<T> {
                 }
             }
             Annotated(None, meta) => Annotated(None, meta),
-            Annotated(_, mut meta) => {
-                meta.add_error("expected array or values".to_string());
+            Annotated(Some(value), mut meta) => {
+                meta.add_unexpected_value_error("array or values", value);
                 Annotated(None, meta)
             }
         }
@@ -120,7 +120,7 @@ macro_rules! hex_metrastructure {
                     Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                         Ok(value) => Annotated(Some(value), meta),
                         Err(err) => {
-                            meta.add_error(err.to_string());
+                            meta.add_error(err.to_string(), Some(Value::String(value.to_string())));
                             Annotated(None, meta)
                         }
                     },
@@ -131,11 +131,7 @@ macro_rules! hex_metrastructure {
                     }
                     Annotated(None, meta) => Annotated(None, meta),
                     Annotated(Some(value), mut meta) => {
-                        meta.add_error(format!(
-                            "expected {}, got {}",
-                            $expectation,
-                            value.describe()
-                        ));
+                        meta.add_unexpected_value_error($expectation, value);
                         Annotated(None, meta)
                     }
                 }
@@ -239,14 +235,14 @@ impl FromValue for Level {
             Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                 Ok(value) => Annotated(Some(value), meta),
                 Err(err) => {
-                    meta.add_error(err.to_string());
+                    meta.add_error(err.to_string(), Some(Value::String(value.to_string())));
                     Annotated(None, meta)
                 }
             },
             Annotated(Some(Value::U64(val)), mut meta) => match Level::from_python_level(val) {
                 Some(value) => Annotated(Some(value), meta),
                 None => {
-                    meta.add_error("unknown numeric level");
+                    meta.add_error("unknown numeric level", Some(Value::U64(val)));
                     Annotated(None, meta)
                 }
             },
@@ -254,7 +250,7 @@ impl FromValue for Level {
                 match Level::from_python_level(val as u64) {
                     Some(value) => Annotated(Some(value), meta),
                     None => {
-                        meta.add_error("unknown numeric level");
+                        meta.add_error("unknown numeric level", Some(Value::I64(val)));
                         Annotated(None, meta)
                     }
                 }
@@ -262,7 +258,7 @@ impl FromValue for Level {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(format!("expected level, got {}", value.describe()));
+                meta.add_unexpected_value_error("level", value);
                 Annotated(None, meta)
             }
         }
@@ -310,8 +306,8 @@ impl FromValue for ThreadId {
             }
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
-            Annotated(_, mut meta) => {
-                meta.add_error("expected thread id");
+            Annotated(Some(value), mut meta) => {
+                meta.add_unexpected_value_error("thread id", value);
                 Annotated(None, meta)
             }
         }
@@ -370,7 +366,7 @@ impl<T: FromValue> FromValue for ObjectOrArray<T> {
             if let Some(object) = object_option {
                 value = Annotated(Some(Value::Object(object)), meta);
             } else {
-                meta.add_error("expected array with tuple elements".to_string());
+                meta.add_error("expected array with tuple elements", None);
                 value = Annotated(None, meta);
             }
         }

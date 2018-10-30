@@ -385,11 +385,7 @@ macro_rules! primitive_meta_structure {
                     Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(None, meta) => Annotated(None, meta),
                     Annotated(Some(value), mut meta) => {
-                        meta.add_error(format!(
-                            "expected {}, got {}",
-                            $expectation,
-                            value.describe()
-                        ));
+                        meta.add_unexpected_value_error($expectation, value);
                         Annotated(None, meta)
                     }
                 }
@@ -418,8 +414,8 @@ impl<T: FromValue> FromValue for Vec<Annotated<T>> {
             ),
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
-            Annotated(_, mut meta) => {
-                meta.add_error("expected array".to_string());
+            Annotated(Some(value), mut meta) => {
+                meta.add_unexpected_value_error("array", value);
                 Annotated(None, meta)
             }
         }
@@ -504,8 +500,8 @@ impl<K: FromKey + Ord, T: FromValue> FromValue for BTreeMap<K, Annotated<T>> {
             ),
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
-            Annotated(_, mut meta) => {
-                meta.add_error("expected object".to_string());
+            Annotated(Some(value), mut meta) => {
+                meta.add_unexpected_value_error("object", value);
                 Annotated(None, meta)
             }
         }
@@ -690,7 +686,7 @@ impl FromValue for DateTime<Utc> {
                 match parsed {
                     Ok(value) => Annotated(Some(value), meta),
                     Err(err) => {
-                        meta.add_error(err.to_string());
+                        meta.add_error(err.to_string(), Some(Value::String(value.to_string())));
                         Annotated(None, meta)
                     }
                 }
@@ -708,8 +704,8 @@ impl FromValue for DateTime<Utc> {
             }
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
-            Annotated(_, mut meta) => {
-                meta.add_error("expected timestamp");
+            Annotated(Some(value), mut meta) => {
+                meta.add_unexpected_value_error("timestamp", value);
                 Annotated(None, meta)
             }
         }

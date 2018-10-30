@@ -440,8 +440,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                                 __meta::Annotated(Some(#to_structure_assemble_pat), __meta)
                             }
                             __meta::Annotated(None, __meta) => __meta::Annotated(None, __meta),
-                            __meta::Annotated(_, mut __meta) => {
-                                __meta.add_error(#expectation.to_string());
+                            __meta::Annotated(Some(__value), mut __meta) => {
+                                __meta.add_unexpected_value_error(#expectation, __value);
                                 __meta::Annotated(None, __meta)
                             }
                         }

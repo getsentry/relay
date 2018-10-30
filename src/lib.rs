@@ -5,7 +5,6 @@ extern crate serde_derive;
 extern crate uuid;
 #[macro_use]
 extern crate general_derive;
-#[macro_use]
 extern crate smallvec;
 #[macro_use]
 extern crate failure;
