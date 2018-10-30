@@ -6,13 +6,17 @@ use std::fmt;
 use serde::de::{self, Deserialize, Deserializer, IgnoredAny};
 use serde::private::ser::FlatMapSerializer;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
+use serde_derive::{Deserialize, Serialize};
 use serde_json;
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
-pub use serde_json::Error;
+#[cfg(test)]
+use general_derive::{FromValue, ToValue};
 
 use crate::processor::{FromValue, ToValue};
 use crate::types::{Array, Object};
+
+pub use serde_json::Error;
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
 pub type Range = (usize, usize);

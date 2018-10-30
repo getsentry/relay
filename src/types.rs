@@ -3,6 +3,13 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
+use failure::Fail;
+use serde_derive::{Deserialize, Serialize};
+
+#[cfg(test)]
+use general_derive::FromValue;
+use general_derive::{ProcessValue, ToValue};
+
 use crate::meta::{Annotated, Meta, Value};
 use crate::processor::{FromValue, ProcessValue, ToValue};
 

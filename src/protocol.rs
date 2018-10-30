@@ -4,6 +4,8 @@ use serde_json;
 use url::form_urlencoded;
 use uuid::Uuid;
 
+use general_derive::{FromValue, ProcessValue, ToValue};
+
 use crate::meta::{Annotated, Value};
 use crate::processor::{FromKey, FromValue, ToKey};
 use crate::types::{Addr, Array, Level, Map, Object, ObjectOrArray, RegVal, ThreadId, Values};
