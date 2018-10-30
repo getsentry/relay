@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
-use meta::{Annotated, Meta, Value};
-use processor::{FromValue, ProcessValue, ToValue};
+use crate::meta::{Annotated, Meta, Value};
+use crate::processor::{FromValue, ProcessValue, ToValue};
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;

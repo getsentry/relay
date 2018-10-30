@@ -8,8 +8,8 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use meta::{Annotated, MetaMap, MetaTree, Value};
-use protocol::{Event, Exception, Frame, Stacktrace};
+use crate::meta::{Annotated, MetaMap, MetaTree, Value};
+use crate::protocol::{Event, Exception, Frame, Stacktrace};
 
 #[derive(Debug, Clone)]
 enum PathItem<'a> {

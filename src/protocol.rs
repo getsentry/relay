@@ -4,9 +4,9 @@ use serde_json;
 use url::form_urlencoded;
 use uuid::Uuid;
 
-use meta::{Annotated, Value};
-use processor::{FromKey, FromValue, ToKey};
-use types::{Addr, Array, Level, Map, Object, ObjectOrArray, RegVal, ThreadId, Values};
+use crate::meta::{Annotated, Value};
+use crate::processor::{FromKey, FromValue, ToKey};
+use crate::types::{Addr, Array, Level, Map, Object, ObjectOrArray, RegVal, ThreadId, Values};
 
 #[derive(Debug, Clone, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
