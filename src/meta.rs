@@ -249,8 +249,37 @@ impl Default for Meta {
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
 impl<T> Annotated<T> {
+    /// Creates a new annotated value without meta data.
     pub fn new(value: T) -> Annotated<T> {
         Annotated(Some(value), Meta::default())
+    }
+
+    /// Creates an empty annotated value without meta data.
+    pub fn empty() -> Annotated<T> {
+        Annotated(None, Meta::default())
+    }
+
+    /// From an error
+    pub fn from_error<S: Into<String>>(err: S) -> Annotated<T> {
+        let mut rv = Annotated::empty();
+        rv.1.add_error(err);
+        rv
+    }
+
+    /// Attaches a value required error if the value is missing.
+    pub fn require_value(mut self) -> Annotated<T> {
+        if self.0.is_none() && !self.1.has_errors() {
+            self.1.add_error("value required");
+        }
+        self
+    }
+
+    /// Maps an `Annotated<T>` to an `Annotated<U>` and keeps the original meta data.
+    pub fn map_value<U, F>(self, f: F) -> Annotated<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        Annotated(self.0.map(f), self.1)
     }
 }
 
@@ -334,28 +363,6 @@ impl<T: ToValue> Annotated<T> {
 impl<T: Default> Default for Annotated<T> {
     fn default() -> Self {
         Annotated(Some(T::default()), Default::default())
-    }
-}
-
-impl<T> Annotated<T> {
-    /// None value.
-    pub fn empty() -> Annotated<T> {
-        Annotated(None, Meta::default())
-    }
-
-    /// From an error
-    pub fn from_error<S: Into<String>>(err: S) -> Annotated<T> {
-        let mut rv = Annotated::empty();
-        rv.1.add_error(err);
-        rv
-    }
-
-    /// Attaches a value required error if the value is missing.
-    pub fn require_value(mut self) -> Annotated<T> {
-        if self.0.is_none() && !self.1.has_errors() {
-            self.1.add_error("value required");
-        }
-        self
     }
 }
 
