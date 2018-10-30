@@ -1,18 +1,18 @@
+extern crate chrono;
+extern crate cookie;
+extern crate failure;
 extern crate serde;
+#[macro_use]
+extern crate general_derive;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
-extern crate uuid;
-#[macro_use]
-extern crate general_derive;
 extern crate smallvec;
-#[macro_use]
-extern crate failure;
-extern crate chrono;
-extern crate cookie;
+extern crate url;
+extern crate uuid;
+
 #[cfg(test)]
 extern crate difference;
-extern crate url;
 
 #[macro_use]
 mod macros;

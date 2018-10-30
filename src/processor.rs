@@ -8,8 +8,8 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use meta::{Annotated, MetaMap, MetaTree, Value};
-use protocol::{Event, Exception, Frame, Stacktrace};
+use crate::meta::{Annotated, MetaMap, MetaTree, Value};
+use crate::protocol::{Event, Exception, Frame, Stacktrace};
 
 #[derive(Debug, Clone)]
 enum PathItem<'a> {
@@ -31,8 +31,8 @@ pub enum CapSize {
 }
 
 impl CapSize {
-    pub fn max_input_length(&self) -> usize {
-        match *self {
+    pub fn max_input_length(self) -> usize {
+        match self {
             CapSize::EnumLike => 128,
             CapSize::Summary => 1024,
             CapSize::Message => 8196,
@@ -43,8 +43,8 @@ impl CapSize {
         }
     }
 
-    pub fn grace_size(&self) -> usize {
-        match *self {
+    pub fn grace_size(self) -> usize {
+        match self {
             CapSize::EnumLike => 10,
             CapSize::Summary => 100,
             CapSize::Message => 200,
@@ -55,7 +55,7 @@ impl CapSize {
         }
     }
 
-    pub fn max_field_length(&self) -> usize {
+    pub fn max_field_length(self) -> usize {
         self.max_input_length() + self.grace_size()
     }
 }

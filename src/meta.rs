@@ -6,13 +6,17 @@ use std::fmt;
 use serde::de::{self, Deserialize, Deserializer, IgnoredAny};
 use serde::private::ser::FlatMapSerializer;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
+use serde_derive::{Deserialize, Serialize};
 use serde_json;
 use smallvec::SmallVec;
 
-pub use serde_json::Error;
+#[cfg(test)]
+use general_derive::{FromValue, ToValue};
 
-use processor::{FromValue, ToValue};
-use types::{Array, Object};
+use crate::processor::{FromValue, ToValue};
+use crate::types::{Array, Object};
+
+pub use serde_json::Error;
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
 pub type Range = (usize, usize);
@@ -256,8 +260,37 @@ impl Default for Meta {
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
 impl<T> Annotated<T> {
+    /// Creates a new annotated value without meta data.
     pub fn new(value: T) -> Annotated<T> {
         Annotated(Some(value), Meta::default())
+    }
+
+    /// Creates an empty annotated value without meta data.
+    pub fn empty() -> Annotated<T> {
+        Annotated(None, Meta::default())
+    }
+
+    /// From an error
+    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Annotated<T> {
+        let mut rv = Annotated::empty();
+        rv.1.add_error(err, value);
+        rv
+    }
+
+    /// Attaches a value required error if the value is missing.
+    pub fn require_value(mut self) -> Annotated<T> {
+        if self.0.is_none() && !self.1.has_errors() {
+            self.1.add_error("value required", None);
+        }
+        self
+    }
+
+    /// Maps an `Annotated<T>` to an `Annotated<U>` and keeps the original meta data.
+    pub fn map_value<U, F>(self, f: F) -> Annotated<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        Annotated(self.0.map(f), self.1)
     }
 }
 
@@ -359,28 +392,6 @@ impl<T: Default> Default for Annotated<T> {
     }
 }
 
-impl<T> Annotated<T> {
-    /// None value.
-    pub fn empty() -> Annotated<T> {
-        Annotated(None, Meta::default())
-    }
-
-    /// From an error
-    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Annotated<T> {
-        let mut rv = Annotated::empty();
-        rv.1.add_error(err, value);
-        rv
-    }
-
-    /// Attaches a value required error if the value is missing.
-    pub fn require_value(mut self) -> Annotated<T> {
-        if self.0.is_none() && !self.1.has_errors() {
-            self.1.add_error("value required", None);
-        }
-        self
-    }
-}
-
 /// Represents a boxed value.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]
@@ -415,7 +426,7 @@ impl<'a> fmt::Display for ValueDescription<'a> {
 
 impl Value {
     /// Returns a formattable that gives a helper description of the value.
-    pub fn describe<'a>(&'a self) -> ValueDescription<'a> {
+    pub fn describe(&self) -> ValueDescription {
         ValueDescription(self)
     }
 }
@@ -436,8 +447,8 @@ impl Serialize for Value {
                 let mut seq_ser = serializer.serialize_seq(Some(items.len()))?;
                 for item in items {
                     match item {
-                        &Annotated(Some(ref val), _) => seq_ser.serialize_element(val)?,
-                        &Annotated(None, _) => seq_ser.serialize_element(&())?,
+                        Annotated(Some(val), _) => seq_ser.serialize_element(val)?,
+                        Annotated(None, _) => seq_ser.serialize_element(&())?,
                     }
                 }
                 seq_ser.end()
@@ -447,8 +458,8 @@ impl Serialize for Value {
                 for (key, value) in items {
                     map_ser.serialize_key(key)?;
                     match value {
-                        &Annotated(Some(ref val), _) => map_ser.serialize_value(val)?,
-                        &Annotated(None, _) => map_ser.serialize_value(&())?,
+                        Annotated(Some(val), _) => map_ser.serialize_value(val)?,
+                        Annotated(None, _) => map_ser.serialize_value(&())?,
                     }
                 }
                 map_ser.end()
@@ -608,7 +619,7 @@ fn inline_meta_in_json(value: serde_json::Value) -> Annotated<Value> {
             let meta_tree = map
                 .remove("_meta")
                 .map(meta_tree_from_value)
-                .unwrap_or(MetaTree::default());
+                .unwrap_or_default();
             let mut value = serde_json::Value::Object(map).into();
             attach_meta(&mut value, meta_tree);
             value

@@ -3,8 +3,15 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
-use meta::{Annotated, Meta, Value};
-use processor::{FromValue, ProcessValue, ToValue};
+use failure::Fail;
+use serde_derive::{Deserialize, Serialize};
+
+#[cfg(test)]
+use general_derive::FromValue;
+use general_derive::{ProcessValue, ToValue};
+
+use crate::meta::{Annotated, Meta, Value};
+use crate::processor::{FromValue, ProcessValue, ToValue};
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
@@ -339,7 +346,7 @@ impl ToValue for ThreadId {
 
 impl ProcessValue for ThreadId {}
 
-#[derive(Debug, Clone, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
 pub struct ObjectOrArray<T>(pub Object<T>);
 
 impl<T: FromValue> FromValue for ObjectOrArray<T> {
@@ -373,6 +380,46 @@ impl<T: FromValue> FromValue for ObjectOrArray<T> {
 
         let rv = FromValue::from_value(value);
         Annotated(rv.0.map(ObjectOrArray), rv.1)
+    }
+}
+
+#[cfg(test)]
+mod test_object_or_array {
+    use super::*;
+    use crate::meta::Annotated;
+
+    #[test]
+    fn test_tags_map() {
+        let mut map = Object::new();
+        map.insert(
+            "context".to_string(),
+            Annotated::new("production".to_string()),
+        );
+        map.insert("ios_version".to_string(), Annotated::new("4.0".to_string()));
+
+        assert_eq_dbg!(
+            Annotated::new(ObjectOrArray(map)),
+            Annotated::<ObjectOrArray<String>>::from_json(
+                r#"{"context":"production","ios_version":"4.0"}"#
+            ).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_tags_list() {
+        let mut map = Object::new();
+        map.insert(
+            "context".to_string(),
+            Annotated::new("production".to_string()),
+        );
+        map.insert("ios_version".to_string(), Annotated::new("4.0".to_string()));
+
+        assert_eq_dbg!(
+            Annotated::new(ObjectOrArray(map)),
+            Annotated::<ObjectOrArray<String>>::from_json(
+                r#"[["context","production"],["ios_version","4.0"]]"#
+            ).unwrap()
+        );
     }
 }
 
