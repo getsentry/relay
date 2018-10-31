@@ -2774,3 +2774,58 @@ fn test_stacktrace_invalid() {
 
     assert_eq_dbg!(stack, Annotated::from_json("{}").unwrap());
 }
+
+#[test]
+fn test_device_roundtrip() {
+    let json = r#"{
+  "name": "iphone",
+  "family": "iphone",
+  "model": "iphone7,3",
+  "model_id": "AH223",
+  "arch": "arm64",
+  "battery_level": 58.5,
+  "orientation": "landscape",
+  "simulator": true,
+  "memory_size": 3137978368,
+  "free_memory": 322781184,
+  "usable_memory": 2843525120,
+  "storage_size": 63989469184,
+  "free_storage": 31994734592,
+  "external_storage_size": 2097152,
+  "external_free_storage": 2097152,
+  "boot_time": 1518094332.0,
+  "timezone": "Europe/Vienna",
+  "other": "value",
+  "type": "device"
+}"#;
+    let context = Annotated::new(Context::Device(Box::new(DeviceContext {
+        name: Annotated::new("iphone".to_string()),
+        family: Annotated::new("iphone".to_string()),
+        model: Annotated::new("iphone7,3".to_string()),
+        model_id: Annotated::new("AH223".to_string()),
+        arch: Annotated::new("arm64".to_string()),
+        battery_level: Annotated::new(58.5),
+        orientation: Annotated::new("landscape".to_string()),
+        simulator: Annotated::new(true),
+        memory_size: Annotated::new(3_137_978_368),
+        free_memory: Annotated::new(322_781_184),
+        usable_memory: Annotated::new(2_843_525_120),
+        storage_size: Annotated::new(63_989_469_184),
+        free_storage: Annotated::new(31_994_734_592),
+        external_storage_size: Annotated::new(2_097_152),
+        external_free_storage: Annotated::new(2_097_152),
+        boot_time: Annotated::new("2018-02-08T12:52:12Z".parse().unwrap()),
+        timezone: Annotated::new("Europe/Vienna".to_string()),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
+
+    assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, context.to_json_pretty().unwrap());
+}
