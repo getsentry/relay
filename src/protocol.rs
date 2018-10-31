@@ -548,6 +548,10 @@ pub struct Frame {
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_exception")]
 pub struct Exception {
+    /// Exception type (required).
+    #[metastructure(field = "type")]
+    pub ty: Annotated<String>,
+
     /// Human readable display value.
     #[metastructure(cap_size = "summary")]
     pub value: Annotated<String>,
@@ -2451,4 +2455,65 @@ fn test_thread_default_values() {
 
     assert_eq_dbg!(thread, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, thread.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_exception_roundtrip() {
+    // stack traces and mechanism are tested separately
+    let json = r#"{
+  "type": "mytype",
+  "value": "myvalue",
+  "module": "mymodule",
+  "thread_id": 42,
+  "other": "value"
+}"#;
+    let exception = Annotated::new(Exception {
+        ty: Annotated::new("mytype".to_string()),
+        value: Annotated::new("myvalue".to_string()),
+        module: Annotated::new("mymodule".to_string()),
+        stacktrace: Annotated::empty(),
+        raw_stacktrace: Annotated::empty(),
+        thread_id: Annotated::new(ThreadId::Int(42)),
+        mechanism: Annotated::empty(),
+        other: {
+            let mut map = Map::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    });
+
+    assert_eq_dbg!(exception, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, exception.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_exception_default_values() {
+    let json = r#"{"type":"mytype"}"#;
+    let exception = Annotated::new(Exception {
+        ty: Annotated::new("mytype".to_string()),
+        value: Annotated::empty(),
+        module: Annotated::empty(),
+        stacktrace: Annotated::empty(),
+        raw_stacktrace: Annotated::empty(),
+        thread_id: Annotated::empty(),
+        mechanism: Annotated::empty(),
+        other: Default::default(),
+    });
+
+    assert_eq_dbg!(exception, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, exception.to_json().unwrap());
+}
+
+#[test]
+fn test_exception_without_type() {
+    assert_eq!(
+        false,
+        Annotated::<Exception>::from_json("{}")
+            .unwrap()
+            .1
+            .has_errors()
+    );
 }
