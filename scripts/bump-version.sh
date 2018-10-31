@@ -12,4 +12,8 @@ echo "Bumping version: ${NEW_VERSION}"
 
 VERSION_RE=${VERSION//\./\\.}
 find . -name Cargo.toml -type f -exec sed -i '' -e "1,/^version/ s/^version.*/version = \"${NEW_VERSION}\"/" {} \;
+
 cargo update -p semaphore
+
+cd cabi/
+cargo update -p semaphore-common
