@@ -14,6 +14,11 @@ use crate::types::{
     Addr, Array, EventId, Level, Map, Object, ObjectOrArray, RegVal, ThreadId, Values,
 };
 
+#[cfg(test)]
+use chrono::TimeZone;
+#[cfg(test)]
+use crate::meta::Meta;
+
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
 pub struct Event {
@@ -1921,16 +1926,10 @@ fn test_cookies_object() {
     assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
 }
 
-#[cfg(test)]
-mod test_event {
-    use chrono::{TimeZone, Utc};
-    use crate::meta::*;
-    use crate::protocol::*;
-
-    #[test]
-    fn test_roundtrip() {
-        // NOTE: Interfaces will be tested separately.
-        let json = r#"{
+#[test]
+fn test_event_roundtrip() {
+    // NOTE: Interfaces will be tested separately.
+    let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "level": "debug",
   "fingerprint": [
@@ -1967,113 +1966,113 @@ mod test_event {
   }
 }"#;
 
-        let event = Annotated::new(Event {
-            id: Annotated(
-                Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
-                {
-                    let mut meta = Meta::default();
-                    meta.add_error("some error", None);
-                    meta
-                },
-            ),
-            level: Annotated::new(Level::Debug),
-            fingerprint: Annotated::new(vec!["myprint".to_string()].into()),
-            culprit: Annotated::new("myculprit".to_string()),
-            transaction: Annotated::new("mytransaction".to_string()),
-            message: Annotated::new("mymessage".to_string()),
-            logentry: Annotated::empty(),
-            logger: Annotated::new("mylogger".to_string()),
-            modules: {
-                let mut map = Map::new();
-                map.insert("mymodule".to_string(), Annotated::new("1.0.0".to_string()));
-                Annotated::new(map)
+    let event = Annotated::new(Event {
+        id: Annotated(
+            Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
+            {
+                let mut meta = Meta::default();
+                meta.add_error("some error", None);
+                meta
             },
-            platform: Annotated::new("myplatform".to_string()),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            server_name: Annotated::new("myhost".to_string()),
-            release: Annotated::new("myrelease".to_string()),
-            dist: Annotated::new("mydist".to_string()),
-            environment: Annotated::new("myenv".to_string()),
-            user: Annotated::empty(),
-            request: Annotated::empty(),
-            contexts: Annotated::empty(),
-            breadcrumbs: Annotated::empty(),
-            exceptions: Annotated::empty(),
-            stacktrace: Annotated::empty(),
-            template_info: Annotated::empty(),
-            threads: Annotated::empty(),
-            tags: {
-                let mut map = Map::new();
-                map.insert("tag".to_string(), Annotated::new("value".to_string()));
-                Annotated::new(ObjectOrArray(map))
-            },
-            geo: Annotated::empty(),
-            extra: {
-                let mut map = Map::new();
-                map.insert(
-                    "extra".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
-                );
-                Annotated::new(map)
-            },
-            debug_meta: Annotated::empty(),
-            client_sdk: Annotated::empty(),
-            other: {
-                let mut map = Map::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
-                );
-                map
-            },
-        });
+        ),
+        level: Annotated::new(Level::Debug),
+        fingerprint: Annotated::new(vec!["myprint".to_string()].into()),
+        culprit: Annotated::new("myculprit".to_string()),
+        transaction: Annotated::new("mytransaction".to_string()),
+        message: Annotated::new("mymessage".to_string()),
+        logentry: Annotated::empty(),
+        logger: Annotated::new("mylogger".to_string()),
+        modules: {
+            let mut map = Map::new();
+            map.insert("mymodule".to_string(), Annotated::new("1.0.0".to_string()));
+            Annotated::new(map)
+        },
+        platform: Annotated::new("myplatform".to_string()),
+        timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+        server_name: Annotated::new("myhost".to_string()),
+        release: Annotated::new("myrelease".to_string()),
+        dist: Annotated::new("mydist".to_string()),
+        environment: Annotated::new("myenv".to_string()),
+        user: Annotated::empty(),
+        request: Annotated::empty(),
+        contexts: Annotated::empty(),
+        breadcrumbs: Annotated::empty(),
+        exceptions: Annotated::empty(),
+        stacktrace: Annotated::empty(),
+        template_info: Annotated::empty(),
+        threads: Annotated::empty(),
+        tags: {
+            let mut map = Map::new();
+            map.insert("tag".to_string(), Annotated::new("value".to_string()));
+            Annotated::new(ObjectOrArray(map))
+        },
+        geo: Annotated::empty(),
+        extra: {
+            let mut map = Map::new();
+            map.insert(
+                "extra".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            Annotated::new(map)
+        },
+        debug_meta: Annotated::empty(),
+        client_sdk: Annotated::empty(),
+        other: {
+            let mut map = Map::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    });
 
-        assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, event.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, event.to_json_pretty().unwrap());
+}
 
-    #[test]
-    fn test_default_values() {
-        let json = "{}";
-        let event = Annotated::new(Event {
-            id: Annotated::empty(),
-            level: Annotated::empty(),
-            fingerprint: Annotated::empty(),
-            culprit: Annotated::empty(),
-            transaction: Annotated::empty(),
-            message: Annotated::empty(),
-            logentry: Annotated::empty(),
-            logger: Annotated::empty(),
-            modules: Annotated::empty(),
-            platform: Annotated::empty(),
-            timestamp: Annotated::empty(),
-            server_name: Annotated::empty(),
-            release: Annotated::empty(),
-            dist: Annotated::empty(),
-            environment: Annotated::empty(),
-            user: Annotated::empty(),
-            request: Annotated::empty(),
-            contexts: Annotated::empty(),
-            breadcrumbs: Annotated::empty(),
-            exceptions: Annotated::empty(),
-            stacktrace: Annotated::empty(),
-            template_info: Annotated::empty(),
-            threads: Annotated::empty(),
-            tags: Annotated::empty(),
-            geo: Annotated::empty(),
-            extra: Annotated::empty(),
-            debug_meta: Annotated::empty(),
-            client_sdk: Annotated::empty(),
-            other: Default::default(),
-        });
+#[test]
+fn test_event_default_values() {
+    let json = "{}";
+    let event = Annotated::new(Event {
+        id: Annotated::empty(),
+        level: Annotated::empty(),
+        fingerprint: Annotated::empty(),
+        culprit: Annotated::empty(),
+        transaction: Annotated::empty(),
+        message: Annotated::empty(),
+        logentry: Annotated::empty(),
+        logger: Annotated::empty(),
+        modules: Annotated::empty(),
+        platform: Annotated::empty(),
+        timestamp: Annotated::empty(),
+        server_name: Annotated::empty(),
+        release: Annotated::empty(),
+        dist: Annotated::empty(),
+        environment: Annotated::empty(),
+        user: Annotated::empty(),
+        request: Annotated::empty(),
+        contexts: Annotated::empty(),
+        breadcrumbs: Annotated::empty(),
+        exceptions: Annotated::empty(),
+        stacktrace: Annotated::empty(),
+        template_info: Annotated::empty(),
+        threads: Annotated::empty(),
+        tags: Annotated::empty(),
+        geo: Annotated::empty(),
+        extra: Annotated::empty(),
+        debug_meta: Annotated::empty(),
+        client_sdk: Annotated::empty(),
+        other: Default::default(),
+    });
 
-        assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, event.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, event.to_json_pretty().unwrap());
+}
 
-    #[test]
-    fn test_default_values_with_meta() {
-        let json = r#"{
+#[test]
+fn test_event_default_values_with_meta() {
+    let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "fingerprint": [
     "{{ default }}"
@@ -2104,146 +2103,136 @@ mod test_event {
   }
 }"#;
 
-        let event = Annotated::new(Event {
-            id: Annotated(
-                Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
-                {
-                    let mut meta = Meta::default();
-                    meta.add_error("some error", None);
-                    meta
-                },
-            ),
-            level: Annotated::empty(),
-            fingerprint: Annotated(Some(vec!["{{ default }}".to_string()].into()), {
+    let event = Annotated::new(Event {
+        id: Annotated(
+            Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
+            {
                 let mut meta = Meta::default();
                 meta.add_error("some error", None);
                 meta
-            }),
-            culprit: Annotated::empty(),
-            transaction: Annotated::empty(),
-            message: Annotated::empty(),
-            logentry: Annotated::empty(),
-            logger: Annotated::empty(),
-            modules: Annotated::empty(),
-            platform: Annotated(Some("other".to_string()), {
-                let mut meta = Meta::default();
-                meta.add_error("some error", None);
-                meta
-            }),
-            timestamp: Annotated::empty(),
-            server_name: Annotated::empty(),
-            release: Annotated::empty(),
-            dist: Annotated::empty(),
-            environment: Annotated::empty(),
-            user: Annotated::empty(),
-            request: Annotated::empty(),
-            contexts: Annotated::empty(),
-            breadcrumbs: Annotated::empty(),
-            exceptions: Annotated::empty(),
-            stacktrace: Annotated::empty(),
-            template_info: Annotated::empty(),
-            threads: Annotated::empty(),
-            tags: Annotated::empty(),
-            geo: Annotated::empty(),
-            extra: Annotated::empty(),
-            debug_meta: Annotated::empty(),
-            client_sdk: Annotated::empty(),
-            other: Default::default(),
-        });
+            },
+        ),
+        level: Annotated::empty(),
+        fingerprint: Annotated(Some(vec!["{{ default }}".to_string()].into()), {
+            let mut meta = Meta::default();
+            meta.add_error("some error", None);
+            meta
+        }),
+        culprit: Annotated::empty(),
+        transaction: Annotated::empty(),
+        message: Annotated::empty(),
+        logentry: Annotated::empty(),
+        logger: Annotated::empty(),
+        modules: Annotated::empty(),
+        platform: Annotated(Some("other".to_string()), {
+            let mut meta = Meta::default();
+            meta.add_error("some error", None);
+            meta
+        }),
+        timestamp: Annotated::empty(),
+        server_name: Annotated::empty(),
+        release: Annotated::empty(),
+        dist: Annotated::empty(),
+        environment: Annotated::empty(),
+        user: Annotated::empty(),
+        request: Annotated::empty(),
+        contexts: Annotated::empty(),
+        breadcrumbs: Annotated::empty(),
+        exceptions: Annotated::empty(),
+        stacktrace: Annotated::empty(),
+        template_info: Annotated::empty(),
+        threads: Annotated::empty(),
+        tags: Annotated::empty(),
+        geo: Annotated::empty(),
+        extra: Annotated::empty(),
+        debug_meta: Annotated::empty(),
+        client_sdk: Annotated::empty(),
+        other: Default::default(),
+    });
 
-        assert_eq_dbg!(event, Annotated::<Event>::from_json(json).unwrap());
-        assert_eq_str!(json, event.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(event, Annotated::<Event>::from_json(json).unwrap());
+    assert_eq_str!(json, event.to_json_pretty().unwrap());
 }
 
-#[cfg(test)]
-mod test_fingerprint {
-    use super::*;
-    use meta::*;
-
-    fn deserialize(json: &str) -> Annotated<Fingerprint> {
-        Annotated::from_json(json).unwrap()
-    }
-
-    #[test]
-    fn test_fingerprint_string() {
-        assert_eq_dbg!(
-            Annotated::new(vec!["fingerprint".to_string()].into()),
-            deserialize("[\"fingerprint\"]")
-        );
-    }
-
-    #[test]
-    fn test_fingerprint_bool() {
-        assert_eq_dbg!(
-            Annotated::new(vec!["True".to_string(), "False".to_string()].into()),
-            deserialize("[true, false]")
-        );
-    }
-
-    #[test]
-    fn test_fingerprint_number() {
-        assert_eq_dbg!(
-            Annotated::new(vec!["-22".to_string()].into()),
-            deserialize("[-22]")
-        );
-    }
-
-    #[test]
-    fn test_fingerprint_float() {
-        assert_eq_dbg!(
-            Annotated::new(vec!["3".to_string()].into()),
-            deserialize("[3.0]")
-        );
-    }
-
-    #[test]
-    fn test_fingerprint_float_trunc() {
-        assert_eq_dbg!(
-            Annotated::new(vec!["3".to_string()].into()),
-            deserialize("[3.5]")
-        );
-    }
-
-    #[test]
-    fn test_fingerprint_float_strip() {
-        assert_eq_dbg!(Annotated::new(vec![].into()), deserialize("[-1e100]"));
-    }
-
-    #[test]
-    fn test_fingerprint_float_bounds() {
-        assert_eq_dbg!(
-            Annotated::new(vec![].into()),
-            deserialize("[1.7976931348623157e+308]")
-        );
-    }
-
-    #[test]
-    fn test_fingerprint_invalid_fallback() {
-        assert_eq_dbg!(
-            Annotated(None, {
-                let mut meta = Meta::default();
-                meta.add_error("expected number, string or bool, got null", None);
-                meta
-            }),
-            deserialize("[\"a\", null, \"d\"]")
-        );
-    }
-
-    #[test]
-    fn test_fingerprint_empty() {
-        assert_eq_dbg!(Annotated::new(vec![].into()), deserialize("[]"));
-    }
+#[test]
+fn test_fingerprint_string() {
+    assert_eq_dbg!(
+        Annotated::new(vec!["fingerprint".to_string()].into()),
+        Annotated::<Fingerprint>::from_json("[\"fingerprint\"]").unwrap()
+    );
 }
 
-#[cfg(test)]
-mod test_client_sdk {
-    use super::*;
-    use meta::*;
+#[test]
+fn test_fingerprint_bool() {
+    assert_eq_dbg!(
+        Annotated::new(vec!["True".to_string(), "False".to_string()].into()),
+        Annotated::<Fingerprint>::from_json("[true, false]").unwrap()
+    );
+}
 
-    #[test]
-    fn test_roundtrip() {
-        let json = r#"{
+#[test]
+fn test_fingerprint_number() {
+    assert_eq_dbg!(
+        Annotated::new(vec!["-22".to_string()].into()),
+        Annotated::<Fingerprint>::from_json("[-22]").unwrap()
+    );
+}
+
+#[test]
+fn test_fingerprint_float() {
+    assert_eq_dbg!(
+        Annotated::new(vec!["3".to_string()].into()),
+        Annotated::<Fingerprint>::from_json("[3.0]").unwrap()
+    );
+}
+
+#[test]
+fn test_fingerprint_float_trunc() {
+    assert_eq_dbg!(
+        Annotated::new(vec!["3".to_string()].into()),
+        Annotated::<Fingerprint>::from_json("[3.5]").unwrap()
+    );
+}
+
+#[test]
+fn test_fingerprint_float_strip() {
+    assert_eq_dbg!(
+        Annotated::new(vec![].into()),
+        Annotated::<Fingerprint>::from_json("[-1e100]").unwrap()
+    );
+}
+
+#[test]
+fn test_fingerprint_float_bounds() {
+    assert_eq_dbg!(
+        Annotated::new(vec![].into()),
+        Annotated::<Fingerprint>::from_json("[1.7976931348623157e+308]").unwrap()
+    );
+}
+
+#[test]
+fn test_fingerprint_invalid_fallback() {
+    assert_eq_dbg!(
+        Annotated(None, {
+            let mut meta = Meta::default();
+            meta.add_error("expected number, string or bool, got null", None);
+            meta
+        }),
+        Annotated::<Fingerprint>::from_json("[\"a\", null, \"d\"]").unwrap()
+    );
+}
+
+#[test]
+fn test_fingerprint_empty() {
+    assert_eq_dbg!(
+        Annotated::new(vec![].into()),
+        Annotated::<Fingerprint>::from_json("[]").unwrap()
+    );
+}
+
+#[test]
+fn test_client_sdk_roundtrip() {
+    let json = r#"{
   "name": "sentry.rust",
   "version": "1.0.0",
   "integrations": [
@@ -2261,75 +2250,69 @@ mod test_client_sdk {
   ],
   "other": "value"
 }"#;
-        let sdk = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.rust".to_string()),
-            version: Annotated::new("1.0.0".to_string()),
-            integrations: Annotated::new(vec![Annotated::new("actix".to_string())]),
-            packages: Annotated::new(vec![
-                Annotated::new(ClientSdkPackage {
-                    name: Annotated::new("cargo:sentry".to_string()),
-                    version: Annotated::new("0.10.0".to_string()),
-                }),
-                Annotated::new(ClientSdkPackage {
-                    name: Annotated::new("cargo:sentry-actix".to_string()),
-                    version: Annotated::new("0.10.0".to_string()),
-                }),
-            ]),
-            other: {
-                let mut map = Map::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
-                );
-                map
-            },
-        });
+    let sdk = Annotated::new(ClientSdkInfo {
+        name: Annotated::new("sentry.rust".to_string()),
+        version: Annotated::new("1.0.0".to_string()),
+        integrations: Annotated::new(vec![Annotated::new("actix".to_string())]),
+        packages: Annotated::new(vec![
+            Annotated::new(ClientSdkPackage {
+                name: Annotated::new("cargo:sentry".to_string()),
+                version: Annotated::new("0.10.0".to_string()),
+            }),
+            Annotated::new(ClientSdkPackage {
+                name: Annotated::new("cargo:sentry-actix".to_string()),
+                version: Annotated::new("0.10.0".to_string()),
+            }),
+        ]),
+        other: {
+            let mut map = Map::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    });
 
-        assert_eq_dbg!(sdk, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, sdk.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(sdk, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, sdk.to_json_pretty().unwrap());
+}
 
-    #[test]
-    fn test_default_values() {
-        let json = r#"{
+#[test]
+fn test_client_sdk_default_values() {
+    let json = r#"{
   "name": "sentry.rust",
   "version": "1.0.0"
 }"#;
-        let sdk = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.rust".to_string()),
-            version: Annotated::new("1.0.0".to_string()),
-            integrations: Annotated::empty(),
-            packages: Annotated::empty(),
-            other: Default::default(),
-        });
+    let sdk = Annotated::new(ClientSdkInfo {
+        name: Annotated::new("sentry.rust".to_string()),
+        version: Annotated::new("1.0.0".to_string()),
+        integrations: Annotated::empty(),
+        packages: Annotated::empty(),
+        other: Default::default(),
+    });
 
-        assert_eq_dbg!(sdk, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, sdk.to_json_pretty().unwrap());
-    }
-
-    #[test]
-    fn test_invalid() {
-        let json = r#"{"name":"sentry.rust"}"#;
-        let entry = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.rust".to_string()),
-            version: Annotated::from_error("value required", None),
-            integrations: Annotated::empty(),
-            packages: Annotated::empty(),
-            other: Default::default(),
-        });
-        assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
-    }
+    assert_eq_dbg!(sdk, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, sdk.to_json_pretty().unwrap());
 }
 
-#[cfg(test)]
-mod test_debug_meta {
-    use super::*;
-    use meta::*;
+#[test]
+fn test_client_sdk_invalid() {
+    let json = r#"{"name":"sentry.rust"}"#;
+    let entry = Annotated::new(ClientSdkInfo {
+        name: Annotated::new("sentry.rust".to_string()),
+        version: Annotated::from_error("value required", None),
+        integrations: Annotated::empty(),
+        packages: Annotated::empty(),
+        other: Default::default(),
+    });
+    assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
+}
 
-    #[test]
-    fn test_roundtrip() {
-        // NOTE: images are tested separately
-        let json = r#"{
+#[test]
+fn test_debug_meta_roundtrip() {
+    // NOTE: images are tested separately
+    let json = r#"{
   "sdk_info": {
     "sdk_name": "iOS",
     "version_major": 10,
@@ -2339,22 +2322,12 @@ mod test_debug_meta {
   },
   "other": "value"
 }"#;
-        let meta = Annotated::new(DebugMeta {
-            system_sdk: Annotated::new(SystemSdkInfo {
-                sdk_name: Annotated::new("iOS".to_string()),
-                version_major: Annotated::new(10),
-                version_minor: Annotated::new(3),
-                version_patchlevel: Annotated::new(0),
-                other: {
-                    let mut map = Map::new();
-                    map.insert(
-                        "other".to_string(),
-                        Annotated::new(Value::String("value".to_string())),
-                    );
-                    map
-                },
-            }),
-            images: Annotated::empty(),
+    let meta = Annotated::new(DebugMeta {
+        system_sdk: Annotated::new(SystemSdkInfo {
+            sdk_name: Annotated::new("iOS".to_string()),
+            version_major: Annotated::new(10),
+            version_minor: Annotated::new(3),
+            version_patchlevel: Annotated::new(0),
             other: {
                 let mut map = Map::new();
                 map.insert(
@@ -2363,68 +2336,71 @@ mod test_debug_meta {
                 );
                 map
             },
-        });
+        }),
+        images: Annotated::empty(),
+        other: {
+            let mut map = Map::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    });
 
-        assert_eq_dbg!(meta, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, meta.to_json_pretty().unwrap());
-    }
-
-    #[test]
-    fn test_default_values() {
-        let json = "{}";
-        let meta = Annotated::new(DebugMeta {
-            system_sdk: Annotated::empty(),
-            images: Annotated::empty(),
-            other: Default::default(),
-        });
-
-        assert_eq_dbg!(meta, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, meta.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(meta, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, meta.to_json_pretty().unwrap());
 }
 
-#[cfg(test)]
-mod test_geo {
-    use super::*;
-    use meta::*;
+#[test]
+fn test_debug_meta_default_values() {
+    let json = "{}";
+    let meta = Annotated::new(DebugMeta {
+        system_sdk: Annotated::empty(),
+        images: Annotated::empty(),
+        other: Default::default(),
+    });
 
-    #[test]
-    fn test_roundtrip() {
-        let json = r#"{
+    assert_eq_dbg!(meta, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, meta.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_geo_roundtrip() {
+    let json = r#"{
   "country_code": "US",
   "city": "San Francisco",
   "region": "CA",
   "other": "value"
 }"#;
-        let geo = Annotated::new(Geo {
-            country_code: Annotated::new("US".to_string()),
-            city: Annotated::new("San Francisco".to_string()),
-            region: Annotated::new("CA".to_string()),
-            other: {
-                let mut map = Map::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
-                );
-                map
-            },
-        });
+    let geo = Annotated::new(Geo {
+        country_code: Annotated::new("US".to_string()),
+        city: Annotated::new("San Francisco".to_string()),
+        region: Annotated::new("CA".to_string()),
+        other: {
+            let mut map = Map::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    });
 
-        assert_eq_dbg!(geo, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, geo.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(geo, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, geo.to_json_pretty().unwrap());
+}
 
-    #[test]
-    fn test_default_values() {
-        let json = "{}";
-        let geo = Annotated::new(Geo {
-            country_code: Annotated::empty(),
-            city: Annotated::empty(),
-            region: Annotated::empty(),
-            other: Default::default(),
-        });
+#[test]
+fn test_geo_default_values() {
+    let json = "{}";
+    let geo = Annotated::new(Geo {
+        country_code: Annotated::empty(),
+        city: Annotated::empty(),
+        region: Annotated::empty(),
+        other: Default::default(),
+    });
 
-        assert_eq_dbg!(geo, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, geo.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(geo, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, geo.to_json_pretty().unwrap());
 }
