@@ -550,7 +550,7 @@ pub struct Frame {
 #[metastructure(process_func = "process_exception")]
 pub struct Exception {
     /// Exception type (required).
-    #[metastructure(field = "type")]
+    #[metastructure(field = "type", required = "true")]
     pub ty: Annotated<String>,
 
     /// Human readable display value.
@@ -990,6 +990,7 @@ pub struct BrowserContext {
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct Breadcrumb {
     /// The timestamp of the breadcrumb (required).
+    #[metastructure(required = "true")]
     pub timestamp: Annotated<DateTime<Utc>>,
 
     /// The type of the breadcrumb.
@@ -2520,6 +2521,22 @@ fn test_exception_without_type() {
 }
 
 #[test]
+fn test_exception_invalid() {
+    let exception = Annotated::new(Exception {
+        ty: Annotated::from_error("value required", None),
+        value: Annotated::empty(),
+        module: Annotated::empty(),
+        stacktrace: Annotated::empty(),
+        raw_stacktrace: Annotated::empty(),
+        thread_id: Annotated::empty(),
+        mechanism: Annotated::empty(),
+        other: Default::default(),
+    });
+
+    assert_eq_dbg!(exception, Annotated::from_json("{}").unwrap());
+}
+
+#[test]
 fn test_breadcrumb_roundtrip() {
     let input = r#"{
   "timestamp": 946684800,
@@ -2590,6 +2607,20 @@ fn test_breadcrumb_default_values() {
 
     assert_eq_dbg!(breadcrumb, Annotated::from_json(input).unwrap());
     assert_eq_str!(output, breadcrumb.to_json().unwrap());
+}
+
+#[test]
+fn test_breadcrumb_invalid() {
+    let breadcrumb = Annotated::new(Breadcrumb {
+        timestamp: Annotated::from_error("value required", None),
+        ty: Annotated::empty(),
+        category: Annotated::empty(),
+        level: Annotated::empty(),
+        message: Annotated::empty(),
+        data: Annotated::empty(),
+        other: Default::default(),
+    });
+    assert_eq_dbg!(breadcrumb, Annotated::from_json("{}").unwrap());
 }
 
 #[test]
