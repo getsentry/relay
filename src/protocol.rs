@@ -780,16 +780,41 @@ pub struct Thread {
 
 /// Contexts describing the environment (e.g. device, os or browser).
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
-pub struct Contexts {
-    pub device: Annotated<Box<DeviceContext>>,
-    pub os: Annotated<Box<OsContext>>,
-    pub runtime: Annotated<Box<RuntimeContext>>,
-    pub app: Annotated<Box<AppContext>>,
-    pub browser: Annotated<Box<BrowserContext>>,
-
+pub enum Context {
+    /// Device information.
+    Device(Box<DeviceContext>),
+    /// Operating system information.
+    Os(Box<OsContext>),
+    /// Runtime information.
+    Runtime(Box<RuntimeContext>),
+    /// Application information.
+    App(Box<AppContext>),
+    /// Web browser information.
+    Browser(Box<BrowserContext>),
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
-    pub other: Object<Value>,
+    #[metastructure(fallback_variant)]
+    Other(Object<Value>),
+}
+
+#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
+pub struct Contexts(pub Object<Context>);
+
+impl FromValue for Contexts {
+    fn from_value(mut annotated: Annotated<Value>) -> Annotated<Self> {
+        if let Annotated(Some(Value::Object(ref mut items)), _) = annotated {
+            for (key, value) in items.iter_mut() {
+                if let Annotated(Some(Value::Object(ref mut items)), _) = value {
+                    if !items.contains_key("type") {
+                        items.insert(
+                            "type".to_string(),
+                            Annotated::new(Value::String(key.to_string())),
+                        );
+                    }
+                }
+            }
+        }
+        FromValue::from_value(annotated).map_value(Contexts)
+    }
 }
 
 /// Device information.
