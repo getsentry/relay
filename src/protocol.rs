@@ -2517,3 +2517,76 @@ fn test_exception_without_type() {
             .has_errors()
     );
 }
+
+#[test]
+fn test_breadcrumb_roundtrip() {
+    let input = r#"{
+  "timestamp": 946684800,
+  "type": "mytype",
+  "category": "mycategory",
+  "level": "fatal",
+  "message": "my message",
+  "data": {
+    "a": "b"
+  },
+  "c": "d"
+}"#;
+
+    let output = r#"{
+  "timestamp": 946684800.0,
+  "type": "mytype",
+  "category": "mycategory",
+  "level": "fatal",
+  "message": "my message",
+  "data": {
+    "a": "b"
+  },
+  "c": "d"
+}"#;
+
+    let breadcrumb = Annotated::new(Breadcrumb {
+        timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+        ty: Annotated::new("mytype".to_string()),
+        category: Annotated::new("mycategory".to_string()),
+        level: Annotated::new(Level::Fatal),
+        message: Annotated::new("my message".to_string()),
+        data: {
+            let mut map = Map::new();
+            map.insert(
+                "a".to_string(),
+                Annotated::new(Value::String("b".to_string())),
+            );
+            Annotated::new(map)
+        },
+        other: {
+            let mut map = Map::new();
+            map.insert(
+                "c".to_string(),
+                Annotated::new(Value::String("d".to_string())),
+            );
+            map
+        },
+    });
+
+    assert_eq_dbg!(breadcrumb, Annotated::from_json(input).unwrap());
+    assert_eq_str!(output, breadcrumb.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_breadcrumb_default_values() {
+    let input = r#"{"timestamp":946684800}"#;
+    let output = r#"{"timestamp":946684800.0}"#;
+
+    let breadcrumb = Annotated::new(Breadcrumb {
+        timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+        ty: Annotated::empty(),
+        category: Annotated::empty(),
+        level: Annotated::empty(),
+        message: Annotated::empty(),
+        data: Annotated::empty(),
+        other: Default::default(),
+    });
+
+    assert_eq_dbg!(breadcrumb, Annotated::from_json(input).unwrap());
+    assert_eq_str!(output, breadcrumb.to_json().unwrap());
+}
