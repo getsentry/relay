@@ -9,7 +9,7 @@ extern crate proc_macro2;
 
 use proc_macro2::{TokenStream, Span};
 use quote::ToTokens;
-use syn::{Lit, Meta, MetaNameValue, NestedMeta, LitStr, LitBool, Ident};
+use syn::{Lit, Meta, MetaNameValue, NestedMeta, LitStr, LitBool, Ident, Data};
 
 #[derive(Debug, Clone, Copy)]
 enum Trait {
@@ -57,28 +57,6 @@ fn process_wrapper_struct_derive(
         // The variant has a name
         // e.g. `struct Foo { bar: Bar }` instead of `struct Foo(Bar)`
         return Err(s);
-    }
-
-    // At this point we know we have a struct of the form:
-    // struct Foo(Bar)
-    //
-    // Those structs get special treatment: Bar does not need to be wrapped in Annnotated, and no
-    // #[process_annotated_value] is necessary on the value.
-    //
-    // It basically works like a type alias.
-
-    // Last check: It's a programming error to add `#[process_annotated_value]` to the single
-    // field, because it does not do anything.
-    //
-    // e.g.
-    // `struct Foo(#[process_annotated_value] Annnotated<Bar>)` is useless
-    // `struct Foo(Bar)` is how it's supposed to be used
-    for attr in &s.variants()[0].bindings()[0].ast().attrs {
-        if let Some(meta) = attr.interpret_meta() {
-            if meta.name() == "process_annotated_value" {
-                panic!("Single-field tuple structs are treated as type aliases");
-            }
-        }
     }
 
     let name = &s.ast().ident;
@@ -166,8 +144,269 @@ fn process_wrapper_struct_derive(
     })
 }
 
+fn process_enum_struct_derive(
+    s: synstructure::Structure,
+    t: Trait,
+) -> Result<TokenStream, synstructure::Structure> {
+    if let Data::Enum(_) = s.ast().data {}
+    else {
+        return Err(s);
+    }
+
+    let mut tag_key = "type".to_string();
+    for attr in &s.ast().attrs {
+        let meta = match attr.interpret_meta() {
+            Some(meta) => meta,
+            None => continue,
+        };
+        if meta.name() != "metastructure" {
+            continue;
+        }
+
+        if let Meta::List(metalist) = meta {
+            for nested_meta in metalist.nested {
+                match nested_meta {
+                    NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
+                    NestedMeta::Meta(meta) => match meta {
+                        Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
+                            if ident == "process_func" {
+                                panic!("process_func not yet supported for enums");
+                            } else if ident == "tag_key" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        tag_key = litstr.value();
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for tag_key");
+                                    }
+                                }
+                            } else {
+                                panic!("Unknown attribute")
+                            }
+                        }
+                        _ => panic!("Unsupported attribute")
+                    }
+                }
+            }
+        }
+    }
+
+    let type_name = &s.ast().ident;
+    let tag_key_str = LitStr::new(&tag_key, Span::call_site());
+    let mut from_value_body = TokenStream::new();
+    let mut to_value_body = TokenStream::new();
+    let mut process_value_body = TokenStream::new();
+    let mut serialize_body = TokenStream::new();
+    let mut extract_child_meta_body = TokenStream::new();
+
+    for variant in s.variants() {
+        let mut variant_name = &variant.ast().ident;
+        let mut tag = Some(variant.ast().ident.to_string().to_lowercase());
+
+        for attr in variant.ast().attrs {
+            let meta = match attr.interpret_meta() {
+                Some(meta) => meta,
+                None => continue,
+            };
+            if meta.name() != "metastructure" {
+                continue;
+            }
+
+            if let Meta::List(metalist) = meta {
+                for nested_meta in metalist.nested {
+                    match nested_meta {
+                        NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
+                        NestedMeta::Meta(meta) => match meta {
+                            Meta::Word(ident) => {
+                                if ident == "fallback_variant" {
+                                    tag = None;
+                                } else {
+                                    panic!("Unknown attribute {}", ident);
+                                }
+                            }
+                            Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
+                                if ident == "tag" {
+                                    match lit {
+                                        Lit::Str(litstr) => {
+                                            tag = Some(litstr.value());
+                                        }
+                                        _ => {
+                                            panic!("Got non string literal for tag");
+                                        }
+                                    }
+                                } else {
+                                    panic!("Unknown key {}", ident);
+                                }
+                            }
+                            other => {
+                                panic!("Unexpected or bad attribute {}", other.name());
+                            }
+                        },
+                    }
+                }
+            }
+        }
+
+        if let Some(tag) = tag {
+            let tag = LitStr::new(&tag, Span::call_site());
+            (quote! {
+                Some(#tag) => {
+                    __processor::FromValue::from_value(__meta::Annotated(Some(__meta::Value::Object(__object)), __meta))
+                        .map_value(|__value| #type_name::#variant_name(Box::new(__value)))
+                }
+            }).to_tokens(&mut from_value_body);
+            (quote! {
+                __meta::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
+                    let mut __rv = __processor::ToValue::to_value(__meta::Annotated(Some(__value), __meta));
+                    if let __meta::Annotated(Some(__meta::Value::Object(ref mut __object)), _) = __rv {
+                        __object.insert(#tag_key_str.to_string(), Annotated::new(__meta::Value::String(#tag.to_string())));
+                    }
+                    __rv
+                }
+            }).to_tokens(&mut to_value_body);
+            (quote! {
+                #type_name::#variant_name(ref __value) => {
+                    __processor::ToValue::extract_child_meta(__value)
+                }
+            }).to_tokens(&mut extract_child_meta_body);
+            (quote! {
+                #type_name::#variant_name(ref __value) => {
+                    let mut __map_ser = __serde::Serializer::serialize_map(__serializer, None)?;
+                    __processor::ToValue::serialize_payload(__value, __serde::private::ser::FlatMapSerializer(&mut __map_ser))?;
+                    __serde::ser::SerializeMap::serialize_key(&mut __map_ser, #tag_key_str)?;
+                    __serde::ser::SerializeMap::serialize_value(&mut __map_ser, #tag)?;
+                    __serde::ser::SerializeMap::end(__map_ser)
+                }
+            }).to_tokens(&mut serialize_body);
+            (quote! {
+                __meta::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
+                    __processor::ProcessValue::process_value(__meta::Annotated(Some(*__value), __meta), __processor, __state)
+                        .map_value(|__value| #type_name::#variant_name(Box::new(__value)))
+                }
+            }).to_tokens(&mut process_value_body);
+        } else {
+            (quote! {
+                _ => {
+                    if let Some(__type) = __type {
+                        __object.insert(#tag_key_str.to_string(), __type);
+                    }
+                    __meta::Annotated(Some(#type_name::#variant_name(__object)), __meta)
+                }
+            }).to_tokens(&mut from_value_body);
+            (quote! {
+                __meta::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
+                    __processor::ToValue::to_value(__meta::Annotated(Some(__value), __meta))
+                }
+            }).to_tokens(&mut to_value_body);
+            (quote! {
+                #type_name::#variant_name(ref __value) => {
+                    __processor::ToValue::extract_child_meta(__value)
+                }
+            }).to_tokens(&mut extract_child_meta_body);
+            (quote! {
+                #type_name::#variant_name(ref __value) => {
+                    __processor::ToValue::serialize_payload(__value, __serializer)
+                }
+            }).to_tokens(&mut serialize_body);
+            (quote! {
+                __meta::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
+                    __processor::ProcessValue::process_value(__meta::Annotated(Some(__value), __meta), __processor, __state)
+                        .map_value(|__value| #type_name::#variant_name(__value))
+                }
+            }).to_tokens(&mut process_value_body);
+        }
+    }
+
+    Ok(match t {
+        Trait::FromValue => {
+            s.gen_impl(quote! {
+                use processor as __processor;
+                use meta as __meta;
+                use types as __types;
+
+                gen impl __processor::FromValue for @Self {
+                    fn from_value(
+                        __value: __meta::Annotated<__meta::Value>,
+                    ) -> __meta::Annotated<Self> {
+                        match __types::Object::<__meta::Value>::from_value(__value) {
+                            __meta::Annotated(Some(mut __object), __meta) => {
+                                let __type = __object.remove(#tag_key_str);
+                                match __type.as_ref().and_then(|__type| __type.0.as_ref()).and_then(|__type| __type.as_str()) {
+                                    #from_value_body
+                                }
+                            }
+                            __meta::Annotated(None, __meta) => __meta::Annotated(None, __meta)
+                        }
+                    }
+                }
+            })
+        }
+        Trait::ToValue => {
+            s.gen_impl(quote! {
+                use processor as __processor;
+                use types as __types;
+                use meta as __meta;
+                extern crate serde as __serde;
+
+                gen impl __processor::ToValue for @Self {
+                    fn to_value(
+                        __value: __meta::Annotated<Self>
+                    ) -> __meta::Annotated<__meta::Value> {
+                        match __value {
+                            #to_value_body
+                            __meta::Annotated(None, __meta) => __meta::Annotated(None, __meta),
+                        }
+                    }
+
+                    fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>
+                    where
+                        S: __serde::ser::Serializer
+                    {
+                        match *self {
+                            #serialize_body
+                        }
+                    }
+
+                    fn extract_child_meta(&self) -> __meta::MetaMap
+                    where
+                        Self: Sized,
+                    {
+                        match *self {
+                            #extract_child_meta_body
+                        }
+                    }
+                }
+            })
+        }
+        Trait::ProcessValue => {
+            s.gen_impl(quote! {
+                use processor as __processor;
+                use meta as __meta;
+
+                gen impl __processor::ProcessValue for @Self {
+                    fn process_value<P: __processor::Processor>(
+                        __value: __meta::Annotated<Self>,
+                        __processor: &P,
+                        __state: __processor::ProcessingState
+                    ) -> __meta::Annotated<Self> {
+                        match __value {
+                            #process_value_body
+                            __meta::Annotated(None, __meta) => __meta::Annotated(None, __meta),
+                        }
+                    }
+                }
+            })
+        }
+    })
+}
+
 fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStream {
-    let mut s = match process_wrapper_struct_derive(s, t) {
+    let s = match process_wrapper_struct_derive(s, t) {
+        Ok(stream) => return stream,
+        Err(s) => s,
+    };
+
+    let mut s = match process_enum_struct_derive(s, t) {
         Ok(stream) => return stream,
         Err(s) => s,
     };
@@ -183,11 +422,11 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     for binding in variant.bindings_mut() {
         binding.style = synstructure::BindStyle::MoveMut;
     }
-    let mut to_structure_body = TokenStream::new();
+    let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
-    let mut process_body = TokenStream::new();
+    let mut process_value_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
-    let mut extract_meta_tree_body = TokenStream::new();
+    let mut extract_child_meta_body = TokenStream::new();
     let mut process_func = None;
     let mut tmp_idx = 0;
 
@@ -322,7 +561,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         if additional_properties {
             (quote! {
                 let #bi = __obj.into_iter().map(|(__key, __value)| (__key, __processor::FromValue::from_value(__value))).collect();
-            }).to_tokens(&mut to_structure_body);
+            }).to_tokens(&mut from_value_body);
             (quote! {
                 __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, __processor::ToValue::to_value(__value))));
             }).to_tokens(&mut to_value_body);
@@ -331,7 +570,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     let __value = __processor::ProcessValue::process_value(__value, __processor, __state.enter_borrowed(__key.as_str(), None));
                     (__key, __value)
                 }).collect();
-            }).to_tokens(&mut process_body);
+            }).to_tokens(&mut process_value_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
                     if !__value.skip_serialization() {
@@ -347,7 +586,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         __child_meta.insert(__key.to_string(), __inner_tree);
                     }
                 }
-            }).to_tokens(&mut extract_meta_tree_body);
+            }).to_tokens(&mut extract_child_meta_body);
         } else {
             let field_attrs_name = Ident::new(&format!("__field_attrs_{}", {tmp_idx += 1; tmp_idx }), Span::call_site());
             let required_attr = LitBool {
@@ -364,18 +603,18 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         __processor::FromValue::from_value(
                             __canonical_value.or(__legacy_value).unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())))
                     };
-                }).to_tokens(&mut to_structure_body);
+                }).to_tokens(&mut from_value_body);
             } else {
                 (quote! {
                     let #bi = __processor::FromValue::from_value(
                         __obj.remove(#field_name).unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())));
-                }).to_tokens(&mut to_structure_body);
+                }).to_tokens(&mut from_value_body);
             }
 
             if required {
                 (quote! {
                     let #bi = #bi.require_value();
-                }).to_tokens(&mut to_structure_body);
+                }).to_tokens(&mut from_value_body);
             }
             (quote! {
                 __map.insert(#field_name.to_string(), __processor::ToValue::to_value(#bi));
@@ -388,7 +627,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     pii_kind: #pii_kind_attr,
                 };
                 let #bi = __processor::ProcessValue::process_value(#bi, __processor, __state.enter_static(#field_name, Some(::std::borrow::Cow::Borrowed(&#field_attrs_name))));
-            }).to_tokens(&mut process_body);
+            }).to_tokens(&mut process_value_body);
             (quote! {
                 if !#bi.skip_serialization() {
                     __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, #field_name)?;
@@ -400,7 +639,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 if !__inner_tree.is_empty() {
                     __child_meta.insert(#field_name.to_string(), __inner_tree);
                 }
-            }).to_tokens(&mut extract_meta_tree_body);
+            }).to_tokens(&mut extract_child_meta_body);
         }
     }
 
@@ -436,7 +675,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     ) -> __meta::Annotated<Self> {
                         match __value {
                             __meta::Annotated(Some(__meta::Value::Object(mut __obj)), __meta) => {
-                                #to_structure_body;
+                                #from_value_body;
                                 __meta::Annotated(Some(#to_structure_assemble_pat), __meta)
                             }
                             __meta::Annotated(None, __meta) => __meta::Annotated(None, __meta),
@@ -477,7 +716,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         S: __serde::ser::Serializer
                     {
                         let #serialize_pat = *self;
-                        let mut __map_serializer = __serializer.serialize_map(None)?;
+                        let mut __map_serializer = __serde::ser::Serializer::serialize_map(__serializer, None)?;
                         #serialize_body;
                         __serde::ser::SerializeMap::end(__map_serializer)
                     }
@@ -488,7 +727,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     {
                         let mut __child_meta = __meta::MetaMap::new();
                         let #serialize_pat = *self;
-                        #extract_meta_tree_body;
+                        #extract_child_meta_body;
                         __child_meta
                     }
                 }
@@ -508,7 +747,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         let __meta::Annotated(__value, __meta) = __value;
                         let __result = if let Some(__value) = __value {
                             let #to_value_pat = __value;
-                            #process_body;
+                            #process_value_body;
                             __meta::Annotated(Some(#to_structure_assemble_pat), __meta)
                         } else {
                             __meta::Annotated(None, __meta)
