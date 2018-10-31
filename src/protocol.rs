@@ -2382,3 +2382,49 @@ mod test_debug_meta {
         assert_eq_str!(json, meta.to_json_pretty().unwrap());
     }
 }
+
+#[cfg(test)]
+mod test_geo {
+    use super::*;
+    use meta::*;
+
+    #[test]
+    fn test_roundtrip() {
+        let json = r#"{
+  "country_code": "US",
+  "city": "San Francisco",
+  "region": "CA",
+  "other": "value"
+}"#;
+        let geo = Annotated::new(Geo {
+            country_code: Annotated::new("US".to_string()),
+            city: Annotated::new("San Francisco".to_string()),
+            region: Annotated::new("CA".to_string()),
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
+
+        assert_eq_dbg!(geo, Annotated::from_json(json).unwrap());
+        assert_eq_str!(json, geo.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_default_values() {
+        let json = "{}";
+        let geo = Annotated::new(Geo {
+            country_code: Annotated::empty(),
+            city: Annotated::empty(),
+            region: Annotated::empty(),
+            other: Default::default(),
+        });
+
+        assert_eq_dbg!(geo, Annotated::from_json(json).unwrap());
+        assert_eq_str!(json, geo.to_json_pretty().unwrap());
+    }
+}
