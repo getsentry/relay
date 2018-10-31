@@ -244,6 +244,12 @@ impl Meta {
     }
 }
 
+impl<T> Default for Annotated<T> {
+    fn default() -> Annotated<T> {
+        Annotated::empty()
+    }
+}
+
 impl Default for Meta {
     fn default() -> Meta {
         Meta {

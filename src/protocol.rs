@@ -19,7 +19,7 @@ use chrono::TimeZone;
 #[cfg(test)]
 use crate::meta::Meta;
 
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
 pub struct Event {
     /// Unique identifier of this event.
@@ -227,7 +227,7 @@ impl ToValue for Fingerprint {
 impl ProcessValue for Fingerprint {}
 
 /// Information about the user who triggered an event.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct User {
     /// Unique identifier of the user.
     #[metastructure(pii_kind = "id")]
@@ -254,7 +254,7 @@ pub struct User {
 ///
 /// A log message is similar to the `message` attribute on the event itself but
 /// can additionally hold optional parameters.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct LogEntry {
     /// The log message with parameter placeholders (required).
     #[metastructure(
@@ -418,7 +418,7 @@ impl FromValue for Query {
 }
 
 /// Http request information.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct Request {
     /// URL of the request.
     // TODO: cap?
@@ -454,7 +454,7 @@ pub struct Request {
     pub other: Object<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace {
     #[metastructure(required = "true")]
@@ -468,7 +468,7 @@ pub struct Stacktrace {
     pub other: Object<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_frame")]
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
@@ -546,7 +546,7 @@ pub struct Frame {
     pub other: Object<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_exception")]
 pub struct Exception {
     /// Exception type (required).
@@ -580,7 +580,7 @@ pub struct Exception {
 }
 
 /// Information about the Sentry SDK.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct ClientSdkInfo {
     /// Unique SDK name.
     #[metastructure(required = "true")]
@@ -602,7 +602,7 @@ pub struct ClientSdkInfo {
 }
 
 /// An installed and loaded package as part of the Sentry SDK.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct ClientSdkPackage {
     /// Name of the package.
     pub name: Annotated<String>,
@@ -611,7 +611,7 @@ pub struct ClientSdkPackage {
 }
 
 /// Debugging and processing meta information.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct DebugMeta {
     /// Information about the system SDK (e.g. iOS SDK).
     #[metastructure(field = "sdk_info")]
@@ -629,7 +629,7 @@ pub struct DebugMeta {
 ///
 /// This is relevant for iOS and other platforms that have a system
 /// SDK.  Not to be confused with the client SDK.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct SystemSdkInfo {
     /// The internal name of the SDK.
     pub sdk_name: Annotated<String>,
@@ -664,7 +664,7 @@ pub enum DebugImage {
 }
 
 /// Apple debug image in
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct AppleDebugImage {
     /// Path and name of the debug image (required).
     #[metastructure(required = "true")]
@@ -700,7 +700,7 @@ pub struct AppleDebugImage {
 }
 
 /// Any debug information file supported by symbolic.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct SymbolicDebugImage {
     /// Path and name of the debug image (required).
     #[metastructure(required = "true")]
@@ -730,7 +730,7 @@ pub struct SymbolicDebugImage {
 }
 
 /// Proguard mapping file.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct ProguardDebugImage {
     /// UUID computed from the file contents.
     #[metastructure(required = "true")]
@@ -742,7 +742,7 @@ pub struct ProguardDebugImage {
 }
 
 /// Geographical location of the end user or device.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct Geo {
     /// Two-letter country code (ISO 3166-1 alpha-2).
     #[metastructure(pii_kind = "location", cap_size = "summary")]
@@ -762,7 +762,7 @@ pub struct Geo {
 }
 
 /// A process thread of an event.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct Thread {
     /// Identifier of this thread within the process (usually an integer).
     pub id: Annotated<ThreadId>,
@@ -828,7 +828,7 @@ impl FromValue for Contexts {
 }
 
 /// Device information.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct DeviceContext {
     /// Name of the device.
     pub name: Annotated<String>,
@@ -887,7 +887,7 @@ pub struct DeviceContext {
 }
 
 /// Operating system information.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct OsContext {
     /// Name of the operating system.
     #[metastructure(cap_size = "summary")]
@@ -918,7 +918,7 @@ pub struct OsContext {
 }
 
 /// Runtime information.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct RuntimeContext {
     /// Runtime name.
     #[metastructure(cap_size = "summary")]
@@ -938,7 +938,7 @@ pub struct RuntimeContext {
 }
 
 /// Application information.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct AppContext {
     /// Start time of the app.
     pub app_start_time: Annotated<DateTime<Utc>>,
@@ -971,7 +971,7 @@ pub struct AppContext {
 }
 
 /// Web browser information.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct BrowserContext {
     /// Runtime name.
     #[metastructure(cap_size = "summary")]
@@ -987,7 +987,7 @@ pub struct BrowserContext {
 }
 
 /// A breadcrumb.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct Breadcrumb {
     /// The timestamp of the breadcrumb (required).
     #[metastructure(required = "true")]
@@ -1017,7 +1017,7 @@ pub struct Breadcrumb {
 }
 
 /// The mechanism by which an exception was generated and handled.
-#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, ToValue, ProcessValue)]
 pub struct Mechanism {
     /// Mechanism type (required).
     #[metastructure(field = "type")]
@@ -1144,7 +1144,7 @@ impl FromValue for Mechanism {
 }
 
 /// Operating system or runtime meta information to an exception mechanism.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct MechanismMeta {
     /// Optional ISO C standard error code.
     pub errno: Annotated<CError>,
@@ -1161,7 +1161,7 @@ pub struct MechanismMeta {
 }
 
 /// POSIX signal with optional extended data.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct CError {
     /// The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.
     #[metastructure(required = "true")]
@@ -1172,7 +1172,7 @@ pub struct CError {
 }
 
 /// Mach exception information.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct MachException {
     /// The mach exception type.
     #[metastructure(field = "exception", required = "true")]
@@ -1191,7 +1191,7 @@ pub struct MachException {
 }
 
 /// POSIX signal with optional extended data.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct PosixSignal {
     /// The POSIX signal number.
     #[metastructure(required = "true")]
@@ -1208,7 +1208,7 @@ pub struct PosixSignal {
 }
 
 /// Template debug information.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct TemplateInfo {
     /// The file name (basename only).
     #[metastructure(pii_kind = "freeform", cap_size = "short_path")]
@@ -2776,7 +2776,7 @@ fn test_stacktrace_invalid() {
 }
 
 #[test]
-fn test_device_roundtrip() {
+fn test_device_context_roundtrip() {
     let json = r#"{
   "name": "iphone",
   "family": "iphone",
@@ -2828,4 +2828,159 @@ fn test_device_roundtrip() {
 
     assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, context.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_os_context_roundtrip() {
+    let json = r#"{
+  "name": "iOS",
+  "version": "11.4.2",
+  "build": "FEEDFACE",
+  "kernel_version": "17.4.0",
+  "rooted": true,
+  "raw_description": "iOS 11.4.2 FEEDFACE (17.4.0)",
+  "other": "value",
+  "type": "os"
+}"#;
+    let context = Annotated::new(Context::Os(Box::new(OsContext {
+        name: Annotated::new("iOS".to_string()),
+        version: Annotated::new("11.4.2".to_string()),
+        build: Annotated::new("FEEDFACE".to_string()),
+        kernel_version: Annotated::new("17.4.0".to_string()),
+        rooted: Annotated::new(true),
+        raw_description: Annotated::new("iOS 11.4.2 FEEDFACE (17.4.0)".to_string()),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
+
+    assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, context.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_runtime_context_roundtrip() {
+    let json = r#"{
+  "name": "rustc",
+  "version": "1.27.0",
+  "raw_description": "rustc 1.27.0 stable",
+  "other": "value",
+  "type": "runtime"
+}"#;
+    let context = Annotated::new(Context::Runtime(Box::new(RuntimeContext {
+        name: Annotated::new("rustc".to_string()),
+        version: Annotated::new("1.27.0".to_string()),
+        raw_description: Annotated::new("rustc 1.27.0 stable".to_string()),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
+
+    assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, context.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_app_context_roundtrip() {
+    let json = r#"{
+  "app_start_time": 1518128517.0,
+  "device_app_hash": "4c793e3776474877ae30618378e9662a",
+  "build_type": "testflight",
+  "app_identifier": "foo.bar.baz",
+  "app_name": "Baz App",
+  "app_version": "1.0",
+  "app_build": "100001",
+  "other": "value",
+  "type": "app"
+}"#;
+    let context = Annotated::new(Context::App(Box::new(AppContext {
+        app_start_time: Annotated::new("2018-02-08T22:21:57Z".parse().unwrap()),
+        device_app_hash: Annotated::new("4c793e3776474877ae30618378e9662a".to_string()),
+        build_type: Annotated::new("testflight".to_string()),
+        app_identifier: Annotated::new("foo.bar.baz".to_string()),
+        app_name: Annotated::new("Baz App".to_string()),
+        app_version: Annotated::new("1.0".to_string()),
+        app_build: Annotated::new("100001".to_string()),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
+
+    assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, context.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_browser_context_roundtrip() {
+    let json = r#"{
+  "name": "Google Chrome",
+  "version": "67.0.3396.99",
+  "other": "value",
+  "type": "browser"
+}"#;
+    let context = Annotated::new(Context::Browser(Box::new(BrowserContext {
+        name: Annotated::new("Google Chrome".to_string()),
+        version: Annotated::new("67.0.3396.99".to_string()),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
+
+    assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, context.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_other_context_roundtrip() {
+    let json = r#"{"other":"value","type":"mytype"}"#;
+    let context = Annotated::new(Context::Other({
+        let mut map = Map::new();
+        map.insert(
+            "other".to_string(),
+            Annotated::new(Value::String("value".to_string())),
+        );
+        map.insert(
+            "type".to_string(),
+            Annotated::new(Value::String("mytype".to_string())),
+        );
+        map
+    }));
+
+    assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, context.to_json().unwrap());
+}
+
+#[test]
+fn test_untagged_context_deserialize() {
+    let json = r#"{"os": {"name": "Linux"}}"#;
+
+    let os_context = Annotated::new(Context::Os(Box::new(OsContext {
+        name: Annotated::new("Linux".to_string()),
+        ..Default::default()
+    })));
+    let mut map = Object::new();
+    map.insert("os".to_string(), os_context);
+    let contexts = Annotated::new(Contexts(map));
+
+    assert_eq_dbg!(contexts, Annotated::from_json(json).unwrap());
 }
