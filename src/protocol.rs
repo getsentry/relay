@@ -457,6 +457,7 @@ pub struct Request {
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace {
+    #[metastructure(required = "true")]
     pub frames: Annotated<Array<Frame>>,
 
     /// Register values of the thread (top frame).
@@ -2681,4 +2682,64 @@ fn test_frame_default_values() {
 
     assert_eq_dbg!(frame, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, frame.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_stacktrace_roundtrip() {
+    let json = r#"{
+  "frames": [],
+  "registers": {
+    "cspr": "0x20000000",
+    "lr": "0x18a31aadc",
+    "pc": "0x18a310ea4",
+    "sp": "0x16fd75060"
+  },
+  "other": "value"
+}"#;
+    let stack = Annotated::new(Stacktrace {
+        frames: Annotated::new(Default::default()),
+        registers: {
+            let mut map = Map::new();
+            map.insert("cspr".to_string(), Annotated::new(RegVal(0x2000_0000)));
+            map.insert("lr".to_string(), Annotated::new(RegVal(0x1_8a31_aadc)));
+            map.insert("pc".to_string(), Annotated::new(RegVal(0x1_8a31_0ea4)));
+            map.insert("sp".to_string(), Annotated::new(RegVal(0x1_6fd7_5060)));
+            Annotated::new(map)
+        },
+        other: {
+            let mut map = Map::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    });
+
+    assert_eq_dbg!(stack, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, stack.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_stacktrace_default_values() {
+    let json = r#"{"frames":[]}"#;
+    let stack = Annotated::new(Stacktrace {
+        frames: Annotated::new(Default::default()),
+        registers: Annotated::empty(),
+        other: Default::default(),
+    });
+
+    assert_eq_dbg!(stack, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, stack.to_json().unwrap());
+}
+
+#[test]
+fn test_stacktrace_invalid() {
+    let stack = Annotated::new(Stacktrace {
+        frames: Annotated::from_error("value required", None),
+        registers: Annotated::empty(),
+        other: Default::default(),
+    });
+
+    assert_eq_dbg!(stack, Annotated::from_json("{}").unwrap());
 }
