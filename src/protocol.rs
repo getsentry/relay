@@ -80,7 +80,8 @@ pub struct Event {
     pub request: Annotated<Request>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
-    // pub contexts: Annotated<Contexts>,
+    #[metastructure(legacy_alias = "sentry.interfaces.Contexts")]
+    pub contexts: Annotated<Contexts>,
 
     /// List of breadcrumbs recorded before this event.
     #[metastructure(legacy_alias = "sentry.interfaces.Breadcrumbs")]
@@ -448,7 +449,7 @@ pub struct Request {
     pub other: Object<Value>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace {
     pub frames: Annotated<Array<Frame>>,
@@ -885,12 +886,16 @@ pub struct Thread {
 
 /// Contexts describing the environment (e.g. device, os or browser).
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
-struct Contexts {
-    device: Annotated<Box<DeviceContext>>,
-    os: Annotated<Box<OsContext>>,
-    runtime: Annotated<Box<RuntimeContext>>,
-    app: Annotated<Box<AppContext>>,
-    browser: Annotated<Box<BrowserContext>>,
+pub struct Contexts {
+    pub device: Annotated<Box<DeviceContext>>,
+    pub os: Annotated<Box<OsContext>>,
+    pub runtime: Annotated<Box<RuntimeContext>>,
+    pub app: Annotated<Box<AppContext>>,
+    pub browser: Annotated<Box<BrowserContext>>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
 }
 
 /// Device information.
@@ -2077,7 +2082,7 @@ mod test_event {
             environment: Annotated::new("myenv".to_string()),
             user: Annotated::empty(),
             request: Annotated::empty(),
-            //contexts: Default::default(), TODO
+            contexts: Annotated::empty(),
             breadcrumbs: Annotated::empty(),
             exceptions: Annotated::empty(),
             stacktrace: Annotated::empty(),
@@ -2134,7 +2139,7 @@ mod test_event {
             environment: Annotated::empty(),
             user: Annotated::empty(),
             request: Annotated::empty(),
-            //contexts: Default::default(), TODO
+            contexts: Annotated::empty(),
             breadcrumbs: Annotated::empty(),
             exceptions: Annotated::empty(),
             stacktrace: Annotated::empty(),
@@ -2218,7 +2223,7 @@ mod test_event {
             environment: Annotated::empty(),
             user: Annotated::empty(),
             request: Annotated::empty(),
-            //contexts: Default::default(), TODO
+            contexts: Annotated::empty(),
             breadcrumbs: Annotated::empty(),
             exceptions: Annotated::empty(),
             stacktrace: Annotated::empty(),

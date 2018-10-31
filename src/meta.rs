@@ -386,12 +386,6 @@ impl<T: ToValue> Annotated<T> {
     }
 }
 
-impl<T: Default> Default for Annotated<T> {
-    fn default() -> Self {
-        Annotated(Some(T::default()), Default::default())
-    }
-}
-
 impl Annotated<Value> {
     pub fn into_object(self) -> Annotated<Object<Value>> {
         match self {
