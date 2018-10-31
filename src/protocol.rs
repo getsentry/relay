@@ -170,7 +170,7 @@ impl FromValue for Fingerprint {
                                     Some(value),
                                 );
                             } else if !meta.has_errors() {
-                                meta.add_error("value required", None);
+                                meta.add_error("expected number, string or bool, got null", None);
                             }
 
                             return Annotated(None, meta);
@@ -2239,5 +2239,85 @@ mod test_event {
 
         assert_eq_dbg!(event, Annotated::<Event>::from_json(json).unwrap());
         assert_eq_str!(json, event.to_json_pretty().unwrap());
+    }
+}
+
+#[cfg(test)]
+mod test_fingerprint {
+    use super::*;
+    use meta::*;
+
+    fn deserialize(json: &str) -> Annotated<Fingerprint> {
+        Annotated::from_json(json).unwrap()
+    }
+
+    #[test]
+    fn test_fingerprint_string() {
+        assert_eq_dbg!(
+            Annotated::new(vec!["fingerprint".to_string()].into()),
+            deserialize("[\"fingerprint\"]")
+        );
+    }
+
+    #[test]
+    fn test_fingerprint_bool() {
+        assert_eq_dbg!(
+            Annotated::new(vec!["True".to_string(), "False".to_string()].into()),
+            deserialize("[true, false]")
+        );
+    }
+
+    #[test]
+    fn test_fingerprint_number() {
+        assert_eq_dbg!(
+            Annotated::new(vec!["-22".to_string()].into()),
+            deserialize("[-22]")
+        );
+    }
+
+    #[test]
+    fn test_fingerprint_float() {
+        assert_eq_dbg!(
+            Annotated::new(vec!["3".to_string()].into()),
+            deserialize("[3.0]")
+        );
+    }
+
+    #[test]
+    fn test_fingerprint_float_trunc() {
+        assert_eq_dbg!(
+            Annotated::new(vec!["3".to_string()].into()),
+            deserialize("[3.5]")
+        );
+    }
+
+    #[test]
+    fn test_fingerprint_float_strip() {
+        assert_eq_dbg!(Annotated::new(vec![].into()), deserialize("[-1e100]"));
+    }
+
+    #[test]
+    fn test_fingerprint_float_bounds() {
+        assert_eq_dbg!(
+            Annotated::new(vec![].into()),
+            deserialize("[1.7976931348623157e+308]")
+        );
+    }
+
+    #[test]
+    fn test_fingerprint_invalid_fallback() {
+        assert_eq_dbg!(
+            Annotated(None, {
+                let mut meta = Meta::default();
+                meta.add_error("expected number, string or bool, got null", None);
+                meta
+            }),
+            deserialize("[\"a\", null, \"d\"]")
+        );
+    }
+
+    #[test]
+    fn test_fingerprint_empty() {
+        assert_eq_dbg!(Annotated::new(vec![].into()), deserialize("[]"));
     }
 }
