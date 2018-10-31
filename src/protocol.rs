@@ -2590,3 +2590,95 @@ fn test_breadcrumb_default_values() {
     assert_eq_dbg!(breadcrumb, Annotated::from_json(input).unwrap());
     assert_eq_str!(output, breadcrumb.to_json().unwrap());
 }
+
+#[test]
+fn test_frame_roundtrip() {
+    let json = r#"{
+  "function": "main",
+  "symbol": "_main",
+  "module": "app",
+  "package": "/my/app",
+  "filename": "myfile.rs",
+  "abs_path": "/path/to",
+  "lineno": 2,
+  "colno": 42,
+  "pre_context": [
+    "fn main() {"
+  ],
+  "context_line": "unimplemented!()",
+  "post_context": [
+    "}"
+  ],
+  "in_app": true,
+  "vars": {
+    "variable": "value"
+  },
+  "image_addr": "0x400",
+  "instruction_addr": "0x404",
+  "symbol_addr": "0x404",
+  "other": "value"
+}"#;
+    let frame = Annotated::new(Frame {
+        function: Annotated::new("main".to_string()),
+        symbol: Annotated::new("_main".to_string()),
+        module: Annotated::new("app".to_string()),
+        package: Annotated::new("/my/app".to_string()),
+        filename: Annotated::new("myfile.rs".to_string()),
+        abs_path: Annotated::new("/path/to".to_string()),
+        line: Annotated::new(2),
+        column: Annotated::new(42),
+        pre_lines: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
+        current_line: Annotated::new("unimplemented!()".to_string()),
+        post_lines: Annotated::new(vec![Annotated::new("}".to_string())]),
+        in_app: Annotated::new(true),
+        vars: {
+            let mut map = Map::new();
+            map.insert(
+                "variable".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            Annotated::new(map)
+        },
+        image_addr: Annotated::new(Addr(0x400)),
+        instruction_addr: Annotated::new(Addr(0x404)),
+        symbol_addr: Annotated::new(Addr(0x404)),
+        other: {
+            let mut map = Map::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    });
+
+    assert_eq_dbg!(frame, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, frame.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_frame_default_values() {
+    let json = "{}";
+    let frame = Annotated::new(Frame {
+        function: Annotated::empty(),
+        symbol: Annotated::empty(),
+        module: Annotated::empty(),
+        package: Annotated::empty(),
+        filename: Annotated::empty(),
+        abs_path: Annotated::empty(),
+        line: Annotated::empty(),
+        column: Annotated::empty(),
+        pre_lines: Annotated::empty(),
+        current_line: Annotated::empty(),
+        post_lines: Annotated::empty(),
+        in_app: Annotated::empty(),
+        vars: Annotated::empty(),
+        image_addr: Annotated::empty(),
+        instruction_addr: Annotated::empty(),
+        symbol_addr: Annotated::empty(),
+        other: Default::default(),
+    });
+
+    assert_eq_dbg!(frame, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, frame.to_json_pretty().unwrap());
+}
