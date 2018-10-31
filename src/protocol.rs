@@ -2404,3 +2404,51 @@ fn test_geo_default_values() {
     assert_eq_dbg!(geo, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, geo.to_json_pretty().unwrap());
 }
+
+#[test]
+fn test_thread_roundtrip() {
+    // stack traces are tested separately
+    let json = r#"{
+  "id": 42,
+  "name": "myname",
+  "crashed": true,
+  "current": true,
+  "other": "value"
+}"#;
+    let thread = Annotated::new(Thread {
+        id: Annotated::new(ThreadId::Int(42)),
+        name: Annotated::new("myname".to_string()),
+        stacktrace: Annotated::empty(),
+        raw_stacktrace: Annotated::empty(),
+        crashed: Annotated::new(true),
+        current: Annotated::new(true),
+        other: {
+            let mut map = Map::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    });
+
+    assert_eq_dbg!(thread, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, thread.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_thread_default_values() {
+    let json = "{}";
+    let thread = Annotated::new(Thread {
+        id: Annotated::empty(),
+        name: Annotated::empty(),
+        stacktrace: Annotated::empty(),
+        raw_stacktrace: Annotated::empty(),
+        crashed: Annotated::empty(),
+        current: Annotated::empty(),
+        other: Default::default(),
+    });
+
+    assert_eq_dbg!(thread, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, thread.to_json_pretty().unwrap());
+}
