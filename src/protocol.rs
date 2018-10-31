@@ -577,9 +577,11 @@ pub struct Exception {
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 pub struct ClientSdkInfo {
     /// Unique SDK name.
+    #[metastructure(required = "true")]
     pub name: Annotated<String>,
 
     /// SDK version.
+    #[metastructure(required = "true")]
     pub version: Annotated<String>,
 
     /// List of integrations that are enabled in the SDK.
@@ -2319,5 +2321,90 @@ mod test_fingerprint {
     #[test]
     fn test_fingerprint_empty() {
         assert_eq_dbg!(Annotated::new(vec![].into()), deserialize("[]"));
+    }
+}
+
+#[cfg(test)]
+mod test_client_sdk {
+    use super::*;
+    use meta::*;
+
+    #[test]
+    fn test_roundtrip() {
+        let json = r#"{
+  "name": "sentry.rust",
+  "version": "1.0.0",
+  "integrations": [
+    "actix"
+  ],
+  "packages": [
+    {
+      "name": "cargo:sentry",
+      "version": "0.10.0"
+    },
+    {
+      "name": "cargo:sentry-actix",
+      "version": "0.10.0"
+    }
+  ],
+  "other": "value"
+}"#;
+        let sdk = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.rust".to_string()),
+            version: Annotated::new("1.0.0".to_string()),
+            integrations: Annotated::new(vec![Annotated::new("actix".to_string())]),
+            packages: Annotated::new(vec![
+                Annotated::new(ClientSdkPackage {
+                    name: Annotated::new("cargo:sentry".to_string()),
+                    version: Annotated::new("0.10.0".to_string()),
+                }),
+                Annotated::new(ClientSdkPackage {
+                    name: Annotated::new("cargo:sentry-actix".to_string()),
+                    version: Annotated::new("0.10.0".to_string()),
+                }),
+            ]),
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
+
+        assert_eq_dbg!(sdk, Annotated::from_json(json).unwrap());
+        assert_eq_str!(json, sdk.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_default_values() {
+        let json = r#"{
+  "name": "sentry.rust",
+  "version": "1.0.0"
+}"#;
+        let sdk = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.rust".to_string()),
+            version: Annotated::new("1.0.0".to_string()),
+            integrations: Annotated::empty(),
+            packages: Annotated::empty(),
+            other: Default::default(),
+        });
+
+        assert_eq_dbg!(sdk, Annotated::from_json(json).unwrap());
+        assert_eq_str!(json, sdk.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_invalid() {
+        let json = r#"{"name":"sentry.rust"}"#;
+        let entry = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.rust".to_string()),
+            version: Annotated::from_error("value required", None),
+            integrations: Annotated::empty(),
+            packages: Annotated::empty(),
+            other: Default::default(),
+        });
+        assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
     }
 }
