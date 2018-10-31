@@ -2320,3 +2320,65 @@ mod test_client_sdk {
         assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
     }
 }
+
+#[cfg(test)]
+mod test_debug_meta {
+    use super::*;
+    use meta::*;
+
+    #[test]
+    fn test_roundtrip() {
+        // NOTE: images are tested separately
+        let json = r#"{
+  "sdk_info": {
+    "sdk_name": "iOS",
+    "version_major": 10,
+    "version_minor": 3,
+    "version_patchlevel": 0,
+    "other": "value"
+  },
+  "other": "value"
+}"#;
+        let meta = Annotated::new(DebugMeta {
+            system_sdk: Annotated::new(SystemSdkInfo {
+                sdk_name: Annotated::new("iOS".to_string()),
+                version_major: Annotated::new(10),
+                version_minor: Annotated::new(3),
+                version_patchlevel: Annotated::new(0),
+                other: {
+                    let mut map = Map::new();
+                    map.insert(
+                        "other".to_string(),
+                        Annotated::new(Value::String("value".to_string())),
+                    );
+                    map
+                },
+            }),
+            images: Annotated::empty(),
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
+
+        assert_eq_dbg!(meta, Annotated::from_json(json).unwrap());
+        assert_eq_str!(json, meta.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_default_values() {
+        let json = "{}";
+        let meta = Annotated::new(DebugMeta {
+            system_sdk: Annotated::empty(),
+            images: Annotated::empty(),
+            other: Default::default(),
+        });
+
+        assert_eq_dbg!(meta, Annotated::from_json(json).unwrap());
+        assert_eq_str!(json, meta.to_json_pretty().unwrap());
+    }
+}
