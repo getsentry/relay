@@ -34,5 +34,5 @@ cargo update -p semaphore-common
 
 if [ -n "${COMMIT}" ]; then
     # Commit changes
-    git commit --all -n -m "getsentry/marshal@{sha}"
+    git commit --all -n -m "build: Bump getsentry/marshal@${MARSHAL_SHA}"
 fi
