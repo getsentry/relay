@@ -28,7 +28,7 @@ sed -i '' -e "s|^\(marshal.*github.com/getsentry/marshal\", rev = \)\"[a-z0-9]*\
     common/Cargo.toml
 
 cargo update -p marshal --precise $MARSHAL_SHA
-cargo update -p marshal --precise $MARSHAL_SHA --manifest-path $SCRIPT_DIR/../cabi/Cargo.toml
+cargo update -p marshal --precise $MARSHAL_SHA --manifest-path ./cabi/Cargo.toml
 
 if [ -n "${COMMIT}" ]; then
     # Commit changes
