@@ -334,8 +334,14 @@ impl FromValue for LenientString {
             Annotated(Some(Value::Bool(false)), meta) => Annotated(Some("False".to_string()), meta),
             Annotated(Some(Value::U64(num)), meta) => Annotated(Some(num.to_string()), meta),
             Annotated(Some(Value::I64(num)), meta) => Annotated(Some(num.to_string()), meta),
-            // TODO: match this with fingerprint behavior?
-            Annotated(Some(Value::F64(num)), meta) => Annotated(Some(num.to_string()), meta),
+            Annotated(Some(Value::F64(num)), mut meta) => {
+                if num.abs() < (1i64 << 53) as f64 {
+                    Annotated(Some(num.trunc().to_string()), meta)
+                } else {
+                    meta.add_error("non integer value", Some(Value::F64(num)));
+                    Annotated(None, meta)
+                }
+            }
             Annotated(None, meta) | Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_unexpected_value_error("primitive", value);

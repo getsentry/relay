@@ -146,36 +146,28 @@ impl FromValue for Fingerprint {
             // TODO: check error reporting here, this seems wrong
             Annotated(Some(Value::Array(array)), mut meta) => {
                 let mut fingerprint = vec![];
+                let mut bad_values = vec![];
                 for elem in array {
-                    match elem {
-                        Annotated(Some(Value::String(string)), _) => fingerprint.push(string),
-                        Annotated(Some(Value::I64(int)), _) => fingerprint.push(int.to_string()),
-                        Annotated(Some(Value::U64(int)), _) => fingerprint.push(int.to_string()),
-                        Annotated(Some(Value::F64(float)), _) => {
-                            if float.abs() < (1i64 << 53) as f64 {
-                                fingerprint.push(float.trunc().to_string());
-                            }
-                        }
-                        Annotated(Some(Value::Bool(true)), _) => {
-                            fingerprint.push("True".to_string())
-                        }
-                        Annotated(Some(Value::Bool(false)), _) => {
-                            fingerprint.push("False".to_string())
-                        }
-                        Annotated(value_opt, meta2) => {
-                            for err in meta2.iter_errors() {
-                                meta.add_error(err, None);
-                            }
-
-                            meta.add_unexpected_value_error(
-                                "number, string or bool",
-                                value_opt.unwrap_or(Value::Null),
-                            );
-                            return Annotated(None, meta);
-                        }
+                    let Annotated(value, mut elem_meta) = LenientString::from_value(elem);
+                    if let (Some(value), false) = (value, elem_meta.has_errors()) {
+                        fingerprint.push(value.0);
+                    }
+                    if let Some(bad_value) = elem_meta.take_original_value() {
+                        bad_values.push(Annotated::new(bad_value));
                     }
                 }
-                Annotated(Some(Fingerprint(fingerprint)), meta)
+
+                if !bad_values.is_empty() {
+                    meta.add_error("bad values in fingerprint", Some(Value::Array(bad_values)));
+                }
+                Annotated(
+                    if fingerprint.is_empty() && meta.has_errors() {
+                        None
+                    } else {
+                        Some(Fingerprint(fingerprint))
+                    },
+                    meta,
+                )
             }
             Annotated(Some(value), mut meta) => {
                 meta.add_unexpected_value_error("array", value);
@@ -2289,7 +2281,10 @@ fn test_fingerprint_float_trunc() {
 #[test]
 fn test_fingerprint_float_strip() {
     assert_eq_dbg!(
-        Annotated::new(vec![].into()),
+        Annotated::from_error(
+            "bad values in fingerprint",
+            Some(Value::Array(vec![Annotated::new(Value::F64(-1e100))]))
+        ),
         Annotated::<Fingerprint>::from_json("[-1e100]").unwrap()
     );
 }
@@ -2297,25 +2292,31 @@ fn test_fingerprint_float_strip() {
 #[test]
 fn test_fingerprint_float_bounds() {
     assert_eq_dbg!(
-        Annotated::new(vec![].into()),
+        Annotated::from_error(
+            "bad values in fingerprint",
+            Some(Value::Array(vec![Annotated::new(Value::F64(
+                1.7976931348623157e+308
+            ))]))
+        ),
         Annotated::<Fingerprint>::from_json("[1.7976931348623157e+308]").unwrap()
     );
 }
 
 #[test]
 fn test_fingerprint_invalid_fallback() {
+    // XXX: review, this was changed after refactor
     assert_eq_dbg!(
-        Annotated(None, {
-            let mut meta = Meta::default();
-            meta.add_error("expected number, string or bool", None);
-            meta
-        }),
+        Annotated(
+            Some(Fingerprint(vec!["a".to_string(), "d".to_string()])),
+            Meta::default()
+        ),
         Annotated::<Fingerprint>::from_json("[\"a\", null, \"d\"]").unwrap()
     );
 }
 
 #[test]
 fn test_fingerprint_empty() {
+    // XXX: review, this was changed after refactor
     assert_eq_dbg!(
         Annotated::new(vec![].into()),
         Annotated::<Fingerprint>::from_json("[]").unwrap()
