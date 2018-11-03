@@ -10,9 +10,7 @@ use general_derive::{FromValue, ProcessValue, ToValue};
 
 use crate::meta::{Annotated, Value};
 use crate::processor::{FromKey, FromValue, ProcessValue, ToKey, ToValue};
-use crate::types::{
-    Addr, Array, EventId, Level, Map, Object, ObjectOrArray, RegVal, ThreadId, Values,
-};
+use crate::types::{Addr, Array, EventId, Level, Map, Object, RegVal, ThreadId, Values};
 
 #[cfg(test)]
 use chrono::TimeZone;
@@ -108,7 +106,7 @@ pub struct Event {
     pub threads: Annotated<Values<Thread>>,
 
     /// Custom tags for this event.
-    pub tags: Annotated<ObjectOrArray<String>>,
+    pub tags: Annotated<Tags>,
 
     /// Approximate geographical location of the end user or device.
     pub geo: Annotated<Geo>,
@@ -473,6 +471,42 @@ impl FromValue for Query {
                 meta.add_unexpected_value_error("query-string or map", value);
                 Annotated(None, meta)
             }
+        }
+    }
+}
+
+/// Tags
+#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
+pub struct Tags(pub Array<(Annotated<String>, Annotated<String>)>);
+
+impl FromValue for Tags {
+    // TODO: non string values for keys
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        type TagTuple = (Annotated<String>, Annotated<String>);
+        match value {
+            Annotated(Some(Value::Array(items)), meta) => {
+                let mut rv = Vec::new();
+                for item in items.into_iter() {
+                    rv.push(TagTuple::from_value(item).map_value(|mut tuple| {
+                        if let Annotated(Some(ref mut key), _) = tuple.0 {
+                            *key = key.trim().replace(" ", "-");
+                        }
+                        tuple
+                    }));
+                }
+                Annotated(Some(Tags(rv)), meta)
+            }
+            Annotated(Some(Value::Object(items)), meta) => {
+                let mut rv = Vec::new();
+                for (key, value) in items.into_iter() {
+                    rv.push(Annotated::new((
+                        Annotated::new(key.replace(" ", "-")),
+                        FromValue::from_value(value),
+                    )));
+                }
+                Annotated(Some(Tags(rv)), meta)
+            }
+            other => FromValue::from_value(other).map_value(Tags),
         }
     }
 }
@@ -2014,9 +2048,12 @@ fn test_event_roundtrip() {
   "release": "myrelease",
   "dist": "mydist",
   "environment": "myenv",
-  "tags": {
-    "tag": "value"
-  },
+  "tags": [
+    [
+      "tag",
+      "value"
+    ]
+  ],
   "extra": {
     "extra": "value"
   },
@@ -2068,9 +2105,12 @@ fn test_event_roundtrip() {
         template_info: Annotated::empty(),
         threads: Annotated::empty(),
         tags: {
-            let mut map = Map::new();
-            map.insert("tag".to_string(), Annotated::new("value".to_string()));
-            Annotated::new(ObjectOrArray(map))
+            let mut items = Array::new();
+            items.push(Annotated::new((
+                Annotated::new("tag".to_string()),
+                Annotated::new("value".to_string()),
+            )));
+            Annotated::new(Tags(items))
         },
         geo: Annotated::empty(),
         extra: {
@@ -3095,4 +3135,25 @@ fn test_header_from_sequence() {
 ]"#;
     let headers = Annotated::<Headers>::from_json(json).unwrap();
     assert_eq_str!(headers.to_json().unwrap(), r#"{"Accept":"application/json","Whatever":null,"_meta":{"":{"err":["invalid non-header values"],"val":[[1,2],["a","b","c"],23]},"Whatever":{"":{"err":["expected a string"],"val":42}}}}"#);
+}
+
+#[test]
+fn test_tags_from_object() {
+    let json = r#"{
+  "foo bar": "baz",
+  "blah": "blub"
+}"#;
+
+    let mut arr = Array::new();
+    arr.push(Annotated::new((
+        Annotated::new("blah".to_string()),
+        Annotated::new("blub".to_string()),
+    )));
+    arr.push(Annotated::new((
+        Annotated::new("foo-bar".to_string()),
+        Annotated::new("baz".to_string()),
+    )));
+
+    let tags = Annotated::new(Tags(arr));
+    assert_eq_dbg!(tags, Annotated::from_json(json).unwrap());
 }

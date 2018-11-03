@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 use debugid::DebugId;
 use failure::Fail;
+use serde::ser::{SerializeSeq, Serializer};
 use serde_derive::{Deserialize, Serialize};
 use uuid;
 
@@ -13,7 +14,7 @@ use general_derive::FromValue;
 use general_derive::{ProcessValue, ToValue};
 
 use crate::meta::{Annotated, Meta, Value};
-use crate::processor::{FromValue, ProcessValue, ToValue};
+use crate::processor::{FromValue, ProcessValue, SerializePayload, ToValue};
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
@@ -474,6 +475,33 @@ macro_rules! value_impl_for_tuple {
                 }
             }
         }
+
+        impl<$($name: ToValue),*> ToValue for ($(Annotated<$name>,)*) {
+            #[allow(non_snake_case, unused_variables)]
+            fn to_value(annotated: Annotated<Self>) -> Annotated<Value> {
+                match annotated {
+                    Annotated(Some(($($name,)*)), meta) => {
+                        Annotated(Some(Value::Array(vec![
+                            $(ToValue::to_value($name),)*
+                        ])), meta)
+                    }
+                    Annotated(None, meta) => Annotated(None, meta)
+                }
+            }
+            #[allow(non_snake_case, unused_variables)]
+            fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                let mut s = s.serialize_seq(None)?;
+                let ($($name,)*) = self;
+                $(s.serialize_element(&SerializePayload($name))?;)*;
+                s.end()
+            }
+            // TODO: extract meta tree
+        }
+        // TODO: impl process value
+        impl<$($name: ProcessValue),*> ProcessValue for ($(Annotated<$name>,)*) {}
         value_impl_for_tuple_peel!($($name,)*);
     )
 }
