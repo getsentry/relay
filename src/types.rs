@@ -334,6 +334,7 @@ impl FromValue for LenientString {
             Annotated(Some(Value::Bool(false)), meta) => Annotated(Some("False".to_string()), meta),
             Annotated(Some(Value::U64(num)), meta) => Annotated(Some(num.to_string()), meta),
             Annotated(Some(Value::I64(num)), meta) => Annotated(Some(num.to_string()), meta),
+            // TODO: match this with fingerprint behavior?
             Annotated(Some(Value::F64(num)), meta) => Annotated(Some(num.to_string()), meta),
             Annotated(None, meta) | Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {

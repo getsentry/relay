@@ -143,6 +143,7 @@ impl FromValue for Fingerprint {
         Self: Sized,
     {
         match value {
+            // TODO: check error reporting here, this seems wrong
             Annotated(Some(Value::Array(array)), mut meta) => {
                 let mut fingerprint = vec![];
                 for elem in array {
@@ -166,18 +167,10 @@ impl FromValue for Fingerprint {
                                 meta.add_error(err, None);
                             }
 
-                            if let Some(value) = value_opt {
-                                meta.add_error(
-                                    format!(
-                                        "expected number, string or bool, got {}",
-                                        value.describe()
-                                    ),
-                                    Some(value),
-                                );
-                            } else if !meta.has_errors() {
-                                meta.add_error("expected number, string or bool, got null", None);
-                            }
-
+                            meta.add_unexpected_value_error(
+                                "number, string or bool",
+                                value_opt.unwrap_or(Value::Null),
+                            );
                             return Annotated(None, meta);
                         }
                     }
@@ -185,10 +178,7 @@ impl FromValue for Fingerprint {
                 Annotated(Some(Fingerprint(fingerprint)), meta)
             }
             Annotated(Some(value), mut meta) => {
-                meta.add_error(
-                    format!("expected array, found {}", value.describe()),
-                    Some(value),
-                );
+                meta.add_unexpected_value_error("array", value);
                 Annotated(None, meta)
             }
             Annotated(None, meta) => Annotated(None, meta),
@@ -2317,7 +2307,7 @@ fn test_fingerprint_invalid_fallback() {
     assert_eq_dbg!(
         Annotated(None, {
             let mut meta = Meta::default();
-            meta.add_error("expected number, string or bool, got null", None);
+            meta.add_error("expected number, string or bool", None);
             meta
         }),
         Annotated::<Fingerprint>::from_json("[\"a\", null, \"d\"]").unwrap()
