@@ -92,7 +92,8 @@ fn process_wrapper_struct_derive(
                     fn to_value(
                         mut __value: __meta::Annotated<Self>
                     ) -> __meta::Annotated<__meta::Value> {
-                        __processor::ToValue::to_value(Annotated(__value.0.take(), __value.1))
+                        let __value = __value.map_value(|x| x.0);
+                        __processor::ToValue::to_value(__value)
                     }
 
                     #[inline(always)]
@@ -467,7 +468,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
 
     for bi in variant.bindings() {
         let mut additional_properties = false;
-        let mut field_name = bi.ast().ident.as_ref().unwrap().to_string();
+        let mut field_name = bi.ast().ident.as_ref().expect("can not derive struct tuples").to_string();
         let mut cap_size_attr = quote!(None);
         let mut pii_kind_attr = quote!(None);
         let mut required = false;

@@ -220,17 +220,19 @@ impl Meta {
     /// Mutable reference to errors of this field.
     pub fn add_error<S: Into<String>>(&mut self, err: S, value: Option<Value>) {
         self.errors.push(err.into());
-        match value {
-            None | Some(Value::Object(_)) | Some(Value::Array(_)) => {}
-            Some(value) => {
-                self.original_value = Some(value);
-            }
+        if let Some(value) = value {
+            self.original_value = Some(value);
         }
     }
 
     /// Adds an unexpected value error.
     pub fn add_unexpected_value_error(&mut self, expectation: &str, value: Value) {
         self.add_error(format!("expected {}", expectation), Some(value));
+    }
+
+    /// Take out the original value.
+    pub fn take_original_value(&mut self) -> Option<Value> {
+        self.original_value.take()
     }
 
     /// Indicates whether this field has errors.
@@ -241,6 +243,19 @@ impl Meta {
     /// Indicates whether this field has meta data attached.
     pub fn is_empty(&self) -> bool {
         self.original_length.is_none() && self.remarks.is_empty() && self.errors.is_empty()
+    }
+
+    /// Merges this meta with another one.
+    pub fn merge(mut self, other: Meta) -> Meta {
+        self.remarks.extend(other.remarks.into_iter());
+        self.errors.extend(other.errors.into_iter());
+        if self.original_length.is_none() {
+            self.original_length = other.original_length;
+        }
+        if self.original_value.is_none() {
+            self.original_value = other.original_value;
+        }
+        self
     }
 }
 

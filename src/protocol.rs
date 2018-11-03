@@ -318,8 +318,68 @@ impl FromValue for Cookies {
 }
 
 /// A map holding headers.
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
 pub struct Headers(pub Map<HeaderKey, HeaderValue>);
+
+impl FromValue for Headers {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        type HeaderTuple = (Annotated<String>, Annotated<HeaderValue>);
+        match value {
+            Annotated(Some(Value::Array(items)), mut meta) => {
+                let mut rv = Map::new();
+                let mut bad_items = vec![];
+                for item in items.into_iter() {
+                    match HeaderTuple::from_value(item) {
+                        // simple case: valid key.  In that case we take the value as such and
+                        // merge it with the tuple level metadata.
+                        Annotated(
+                            Some((Annotated(Some(key), _), Annotated(value, value_meta))),
+                            pair_meta,
+                        ) => {
+                            rv.insert(
+                                FromKey::from_key(key),
+                                Annotated(value, pair_meta.merge(value_meta)),
+                            );
+                        }
+                        // complex case: we didn't get a key out for one reason or another
+                        // which means we cannot create a entry in the hashmap.
+                        Annotated(
+                            Some((Annotated(None, mut key_meta), value @ Annotated(..))),
+                            _,
+                        ) => {
+                            let mut value = ToValue::to_value(value);
+                            let key = key_meta.take_original_value();
+                            let value = value.0.take().or_else(|| value.1.take_original_value());
+                            if let (Some(key), Some(value)) = (key, value) {
+                                bad_items.push(Annotated::new(Value::Array(vec![
+                                    Annotated::new(key),
+                                    Annotated::new(value),
+                                ])));
+                            }
+                        }
+                        Annotated(_, mut pair_meta) => {
+                            if let Some(value) = pair_meta.take_original_value() {
+                                bad_items.push(Annotated::new(value));
+                            }
+                        }
+                    }
+                }
+                if !bad_items.is_empty() {
+                    meta.add_error(
+                        "invalid non-header values",
+                        if bad_items.is_empty() {
+                            None
+                        } else {
+                            Some(Value::Array(bad_items))
+                        },
+                    );
+                }
+                Annotated(Some(Headers(rv)), meta)
+            }
+            other => FromValue::from_value(other).map_value(Headers),
+        }
+    }
+}
 
 /// The key of an HTTP header.
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
@@ -2983,4 +3043,56 @@ fn test_untagged_context_deserialize() {
     let contexts = Annotated::new(Contexts(map));
 
     assert_eq_dbg!(contexts, Annotated::from_json(json).unwrap());
+}
+
+#[test]
+fn test_header_normalization() {
+    let json = r#"{
+  "-other-": "header",
+  "accept": "application/json",
+  "x-sentry": "version=8"
+}"#;
+
+    let mut map = Map::new();
+    map.insert(
+        HeaderKey("Accept".to_string()),
+        Annotated::new(HeaderValue("application/json".to_string())),
+    );
+    map.insert(
+        HeaderKey("X-Sentry".to_string()),
+        Annotated::new(HeaderValue("version=8".to_string())),
+    );
+    map.insert(
+        HeaderKey("-Other-".to_string()),
+        Annotated::new(HeaderValue("header".to_string())),
+    );
+
+    let headers = Annotated::new(Headers(map));
+    assert_eq_dbg!(headers, Annotated::from_json(json).unwrap());
+}
+
+#[test]
+fn test_header_from_sequence() {
+    let json = r#"[
+  ["accept", "application/json"]
+]"#;
+
+    let mut map = Map::new();
+    map.insert(
+        HeaderKey("Accept".to_string()),
+        Annotated::new(HeaderValue("application/json".to_string())),
+    );
+
+    let headers = Annotated::new(Headers(map));
+    assert_eq_dbg!(headers, Annotated::from_json(json).unwrap());
+
+    let json = r#"[
+  ["accept", "application/json"],
+  ["whatever", 42],
+  [1, 2],
+  ["a", "b", "c"],
+  23
+]"#;
+    let headers = Annotated::<Headers>::from_json(json).unwrap();
+    assert_eq_str!(headers.to_json().unwrap(), r#"{"Accept":"application/json","Whatever":null,"_meta":{"":{"err":["invalid non-header values"],"val":[[1,2],["a","b","c"],23]},"Whatever":{"":{"err":["expected a string"],"val":42}}}}"#);
 }

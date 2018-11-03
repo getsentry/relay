@@ -445,6 +445,45 @@ impl ToValue for DebugId {
 
 impl ProcessValue for DebugId {}
 
+macro_rules! value_impl_for_tuple {
+    () => ();
+    ($($name:ident,)+) => (
+        impl<$($name: FromValue),*> FromValue for ($(Annotated<$name>,)*) {
+            #[allow(non_snake_case, unused_variables)]
+            fn from_value(annotated: Annotated<Value>) -> Annotated<Self> {
+                let mut n = 0;
+                $(let $name = (); n += 1;)*
+                match annotated {
+                    Annotated(Some(Value::Array(items)), mut meta) => {
+                        if items.len() != n {
+                            meta.add_unexpected_value_error("tuple", Value::Array(items));
+                            return Annotated(None, meta);
+                        }
+
+                        let mut iter = items.into_iter();
+                        Annotated(Some(($({
+                            let $name = ();
+                            FromValue::from_value(iter.next().unwrap())
+                        },)*)), meta)
+                    }
+                    Annotated(Some(value), mut meta) => {
+                        meta.add_unexpected_value_error("tuple", value);
+                        Annotated(None, meta)
+                    }
+                    Annotated(None, meta) => Annotated(None, meta)
+                }
+            }
+        }
+        value_impl_for_tuple_peel!($($name,)*);
+    )
+}
+
+macro_rules! value_impl_for_tuple_peel {
+    ($name:ident, $($other:ident,)*) => (value_impl_for_tuple!($($other,)*);)
+}
+
+value_impl_for_tuple! { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, }
+
 #[cfg(test)]
 mod test_object_or_array {
     use super::*;
