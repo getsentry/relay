@@ -374,43 +374,6 @@ impl ToValue for ThreadId {
 
 impl ProcessValue for ThreadId {}
 
-#[derive(Debug, Clone, Default, PartialEq, ToValue, ProcessValue)]
-pub struct ObjectOrArray<T>(pub Object<T>);
-
-impl<T: FromValue> FromValue for ObjectOrArray<T> {
-    fn from_value(mut value: Annotated<Value>) -> Annotated<Self> {
-        if let Annotated(Some(Value::Array(array)), mut meta) = value {
-            let object_option: Option<Object<Value>> = array
-                .into_iter()
-                .map(|element| match element {
-                    Annotated(Some(Value::Array(mut tuple)), _) => {
-                        if tuple.len() != 2 {
-                            return None;
-                        }
-
-                        let value = tuple.pop().unwrap();
-                        let key = tuple.pop().unwrap();
-                        match (key, value) {
-                            (Annotated(Some(Value::String(key)), _), value) => Some((key, value)),
-                            _ => None,
-                        }
-                    }
-                    _ => None,
-                }).collect();
-
-            if let Some(object) = object_option {
-                value = Annotated(Some(Value::Object(object)), meta);
-            } else {
-                meta.add_error("expected array with tuple elements", None);
-                value = Annotated(None, meta);
-            }
-        }
-
-        let rv = FromValue::from_value(value);
-        Annotated(rv.0.map(ObjectOrArray), rv.1)
-    }
-}
-
 impl FromValue for DebugId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
@@ -511,46 +474,6 @@ macro_rules! value_impl_for_tuple_peel {
 }
 
 value_impl_for_tuple! { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, }
-
-#[cfg(test)]
-mod test_object_or_array {
-    use super::*;
-    use crate::meta::Annotated;
-
-    #[test]
-    fn test_tags_map() {
-        let mut map = Object::new();
-        map.insert(
-            "context".to_string(),
-            Annotated::new("production".to_string()),
-        );
-        map.insert("ios_version".to_string(), Annotated::new("4.0".to_string()));
-
-        assert_eq_dbg!(
-            Annotated::new(ObjectOrArray(map)),
-            Annotated::<ObjectOrArray<String>>::from_json(
-                r#"{"context":"production","ios_version":"4.0"}"#
-            ).unwrap()
-        );
-    }
-
-    #[test]
-    fn test_tags_list() {
-        let mut map = Object::new();
-        map.insert(
-            "context".to_string(),
-            Annotated::new("production".to_string()),
-        );
-        map.insert("ios_version".to_string(), Annotated::new("4.0".to_string()));
-
-        assert_eq_dbg!(
-            Annotated::new(ObjectOrArray(map)),
-            Annotated::<ObjectOrArray<String>>::from_json(
-                r#"[["context","production"],["ios_version","4.0"]]"#
-            ).unwrap()
-        );
-    }
-}
 
 #[test]
 fn test_values_serialization() {
