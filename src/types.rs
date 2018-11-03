@@ -13,8 +13,10 @@ use uuid;
 use general_derive::FromValue;
 use general_derive::{ProcessValue, ToValue};
 
-use crate::meta::{Annotated, Meta, Value};
-use crate::processor::{FromValue, ProcessValue, SerializePayload, ToValue};
+use crate::meta::{Annotated, Meta, MetaMap, Value};
+use crate::processor::{
+    FromValue, ProcessValue, ProcessingState, Processor, SerializePayload, ToValue,
+};
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
@@ -480,14 +482,47 @@ macro_rules! value_impl_for_tuple {
                 S: Serializer,
             {
                 let mut s = s.serialize_seq(None)?;
-                let ($($name,)*) = self;
+                let ($(ref $name,)*) = self;
                 $(s.serialize_element(&SerializePayload($name))?;)*;
                 s.end()
             }
-            // TODO: extract meta tree
+            #[allow(non_snake_case, unused_variables, unused_assignments)]
+            fn extract_child_meta(&self) -> MetaMap
+            where
+                Self: Sized,
+            {
+                let mut children = MetaMap::new();
+                let ($(ref $name,)*) = self;
+                let mut idx = 0;
+                $({
+                    let tree = ToValue::extract_meta_tree($name);
+                    if !tree.is_empty() {
+                        children.insert(idx.to_string(), tree);
+                    }
+                    idx += 1;
+                })*;
+                children
+            }
         }
-        // TODO: impl process value
-        impl<$($name: ProcessValue),*> ProcessValue for ($(Annotated<$name>,)*) {}
+
+        #[allow(non_snake_case, unused_variables, unused_assignments)]
+        impl<$($name: ProcessValue),*> ProcessValue for ($(Annotated<$name>,)*) {
+            fn process_value<P: Processor>(
+                value: Annotated<Self>,
+                processor: &P,
+                state: ProcessingState,
+            ) -> Annotated<Self> {
+                value.map_value(|value| {
+                    let ($($name,)*) = value;
+                    let mut idx = 0;
+                    ($({
+                        let rv = ProcessValue::process_value($name, processor, state.enter_index(idx, None));
+                        idx += 1;
+                        rv
+                    },)*)
+                })
+            }
+        }
         value_impl_for_tuple_peel!($($name,)*);
     )
 }
