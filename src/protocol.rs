@@ -10,7 +10,9 @@ use general_derive::{FromValue, ProcessValue, ToValue};
 
 use crate::meta::{Annotated, Value};
 use crate::processor::{FromKey, FromValue, ProcessValue, ToKey, ToValue};
-use crate::types::{Addr, Array, EventId, Level, Map, Object, RegVal, ThreadId, Values};
+use crate::types::{
+    Addr, Array, EventId, LenientString, Level, Map, Object, RegVal, ThreadId, Values,
+};
 
 #[cfg(test)]
 use chrono::TimeZone;
@@ -482,16 +484,15 @@ pub struct Tags(pub Array<(Annotated<String>, Annotated<String>)>);
 impl FromValue for Tags {
     // TODO: non string values for keys
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        type TagTuple = (Annotated<String>, Annotated<String>);
+        type TagTuple = (Annotated<String>, Annotated<LenientString>);
         match value {
             Annotated(Some(Value::Array(items)), meta) => {
                 let mut rv = Vec::new();
                 for item in items.into_iter() {
-                    rv.push(TagTuple::from_value(item).map_value(|mut tuple| {
-                        if let Annotated(Some(ref mut key), _) = tuple.0 {
-                            *key = key.trim().replace(" ", "-");
-                        }
-                        tuple
+                    rv.push(TagTuple::from_value(item).map_value(|tuple| {
+                        let key = tuple.0.map_value(|key| key.trim().replace(" ", "-"));
+                        let value = tuple.1.map_value(|v| v.0);
+                        (key, value)
                     }));
                 }
                 Annotated(Some(Tags(rv)), meta)
@@ -499,12 +500,18 @@ impl FromValue for Tags {
             Annotated(Some(Value::Object(items)), meta) => {
                 let mut rv = Vec::new();
                 for (key, value) in items.into_iter() {
-                    rv.push(Annotated::new((
-                        Annotated::new(key.replace(" ", "-")),
-                        FromValue::from_value(value),
-                    )));
+                    rv.push((
+                        key.trim().replace(" ", "-"),
+                        LenientString::from_value(value),
+                    ));
                 }
-                Annotated(Some(Tags(rv)), meta)
+                rv.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+                Annotated(Some(Tags(rv.into_iter().map(|(k, v)| {
+                    Annotated::new((
+                        Annotated::new(k),
+                        v.map_value(|x| x.0)
+                    ))
+                }).collect())), meta)
             }
             other => FromValue::from_value(other).map_value(Tags),
         }
@@ -3140,8 +3147,10 @@ fn test_header_from_sequence() {
 #[test]
 fn test_tags_from_object() {
     let json = r#"{
+  "blah": "blub",
+  "bool": true,
   "foo bar": "baz",
-  "blah": "blub"
+  "non string": 42
 }"#;
 
     let mut arr = Array::new();
@@ -3150,8 +3159,16 @@ fn test_tags_from_object() {
         Annotated::new("blub".to_string()),
     )));
     arr.push(Annotated::new((
+        Annotated::new("bool".to_string()),
+        Annotated::new("True".to_string()),
+    )));
+    arr.push(Annotated::new((
         Annotated::new("foo-bar".to_string()),
         Annotated::new("baz".to_string()),
+    )));
+    arr.push(Annotated::new((
+        Annotated::new("non-string".to_string()),
+        Annotated::new("42".to_string()),
     )));
 
     let tags = Annotated::new(Tags(arr));

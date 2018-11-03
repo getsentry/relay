@@ -319,6 +319,29 @@ impl ToValue for Level {
 
 impl ProcessValue for Level {}
 
+/// A "into-string" type of value.
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, ToValue, ProcessValue)]
+pub struct LenientString(pub String);
+
+impl FromValue for LenientString {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(string)), meta) => Annotated(Some(string), meta),
+            // XXX: True/False instead of true/false because of old python code
+            Annotated(Some(Value::Bool(true)), meta) => Annotated(Some("True".to_string()), meta),
+            Annotated(Some(Value::Bool(false)), meta) => Annotated(Some("False".to_string()), meta),
+            Annotated(Some(Value::U64(num)), meta) => Annotated(Some(num.to_string()), meta),
+            Annotated(Some(Value::I64(num)), meta) => Annotated(Some(num.to_string()), meta),
+            Annotated(Some(Value::F64(num)), meta) => Annotated(Some(num.to_string()), meta),
+            Annotated(None, meta) | Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_unexpected_value_error("primitive", value);
+                Annotated(None, meta)
+            }
+        }.map_value(LenientString)
+    }
+}
+
 /// Represents a thread id.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 #[serde(untagged)]
