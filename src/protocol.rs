@@ -482,7 +482,6 @@ impl FromValue for Query {
 pub struct Tags(pub Array<(Annotated<String>, Annotated<String>)>);
 
 impl FromValue for Tags {
-    // TODO: non string values for keys
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         type TagTuple = (Annotated<String>, Annotated<LenientString>);
         match value {
