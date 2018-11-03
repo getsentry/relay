@@ -9,7 +9,7 @@ use uuid::Uuid;
 use general_derive::{FromValue, ProcessValue, ToValue};
 
 use crate::meta::{Annotated, Value};
-use crate::processor::{FromKey, FromValue, ProcessValue, ToKey, ToValue};
+use crate::processor::{FromKey, FromValue, ProcessValue, ToValue};
 use crate::types::{
     Addr, Array, EventId, LenientString, Level, Map, Object, RegVal, ThreadId, Values,
 };
@@ -319,11 +319,32 @@ impl FromValue for Cookies {
 
 /// A map holding headers.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
-pub struct Headers(pub Map<HeaderKey, HeaderValue>);
+pub struct Headers(pub Map<String, String>);
+
+fn normalize_header(key: &str) -> String {
+    key.split('-')
+        .enumerate()
+        .fold(String::new(), |mut all, (i, part)| {
+            // join
+            if i > 0 {
+                all.push_str("-");
+            }
+
+            // capitalize the first characters
+            let mut chars = part.chars();
+            if let Some(c) = chars.next() {
+                all.extend(c.to_uppercase());
+            }
+
+            // copy all others
+            all.extend(chars);
+            all
+        })
+}
 
 impl FromValue for Headers {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        type HeaderTuple = (Annotated<String>, Annotated<HeaderValue>);
+        type HeaderTuple = (Annotated<String>, Annotated<String>);
         match value {
             Annotated(Some(Value::Array(items)), mut meta) => {
                 let mut rv = Map::new();
@@ -337,7 +358,7 @@ impl FromValue for Headers {
                             pair_meta,
                         ) => {
                             rv.insert(
-                                FromKey::from_key(key),
+                                normalize_header(&key),
                                 Annotated(value, pair_meta.merge(value_meta)),
                             );
                         }
@@ -376,49 +397,17 @@ impl FromValue for Headers {
                 }
                 Annotated(Some(Headers(rv)), meta)
             }
+            Annotated(Some(Value::Object(items)), meta) => Annotated(
+                Some(Headers(
+                    items
+                        .into_iter()
+                        .map(|(key, value)| (normalize_header(&key), String::from_value(value)))
+                        .collect(),
+                )),
+                meta,
+            ),
             other => FromValue::from_value(other).map_value(Headers),
         }
-    }
-}
-
-/// The key of an HTTP header.
-#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
-pub struct HeaderKey(pub String);
-
-/// The value of an HTTP header.
-#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, FromValue, ToValue, ProcessValue)]
-pub struct HeaderValue(pub String);
-
-impl ToKey for HeaderKey {
-    #[inline(always)]
-    fn to_key(key: HeaderKey) -> String {
-        key.0
-    }
-}
-
-impl FromKey for HeaderKey {
-    #[inline(always)]
-    fn from_key(key: String) -> HeaderKey {
-        HeaderKey(
-            key.split('-')
-                .enumerate()
-                .fold(String::new(), |mut all, (i, part)| {
-                    // join
-                    if i > 0 {
-                        all.push_str("-");
-                    }
-
-                    // capitalize the first characters
-                    let mut chars = part.chars();
-                    if let Some(c) = chars.next() {
-                        all.extend(c.to_uppercase());
-                    }
-
-                    // copy all others
-                    all.extend(chars);
-                    all
-                }),
-        )
     }
 }
 
@@ -1925,8 +1914,8 @@ fn test_request_roundtrip() {
         headers: Annotated::new(Headers({
             let mut map = Map::new();
             map.insert(
-                HeaderKey("Referer".to_string()),
-                Annotated::new(HeaderValue("https://google.com/".to_string())),
+                "Referer".to_string(),
+                Annotated::new("https://google.com/".to_string()),
             );
             map
         })),
@@ -3104,17 +3093,14 @@ fn test_header_normalization() {
 
     let mut map = Map::new();
     map.insert(
-        HeaderKey("Accept".to_string()),
-        Annotated::new(HeaderValue("application/json".to_string())),
+        "Accept".to_string(),
+        Annotated::new("application/json".to_string()),
     );
     map.insert(
-        HeaderKey("X-Sentry".to_string()),
-        Annotated::new(HeaderValue("version=8".to_string())),
+        "X-Sentry".to_string(),
+        Annotated::new("version=8".to_string()),
     );
-    map.insert(
-        HeaderKey("-Other-".to_string()),
-        Annotated::new(HeaderValue("header".to_string())),
-    );
+    map.insert("-Other-".to_string(), Annotated::new("header".to_string()));
 
     let headers = Annotated::new(Headers(map));
     assert_eq_dbg!(headers, Annotated::from_json(json).unwrap());
@@ -3128,8 +3114,8 @@ fn test_header_from_sequence() {
 
     let mut map = Map::new();
     map.insert(
-        HeaderKey("Accept".to_string()),
-        Annotated::new(HeaderValue("application/json".to_string())),
+        "Accept".to_string(),
+        Annotated::new("application/json".to_string()),
     );
 
     let headers = Annotated::new(Headers(map));
