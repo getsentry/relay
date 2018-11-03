@@ -9,7 +9,7 @@ use uuid::Uuid;
 use general_derive::{FromValue, ProcessValue, ToValue};
 
 use crate::meta::{Annotated, Value};
-use crate::processor::{FromKey, FromValue, ProcessValue, ToValue};
+use crate::processor::{FromValue, ProcessValue, ToValue};
 use crate::types::{
     Addr, Array, EventId, LenientString, Level, Map, Object, RegVal, ThreadId, Values,
 };
@@ -432,9 +432,7 @@ impl FromValue for Query {
                         .into_iter()
                         .map(|(k, v)| match v {
                             v @ Annotated(Some(Value::String(_)), _)
-                            | v @ Annotated(Some(Value::Null), _) => {
-                                (FromKey::from_key(k), FromValue::from_value(v))
-                            }
+                            | v @ Annotated(Some(Value::Null), _) => (k, FromValue::from_value(v)),
                             v => {
                                 let v = match v {
                                     v @ Annotated(Some(Value::Object(_)), _)
@@ -450,7 +448,7 @@ impl FromValue for Query {
                                     }
                                     other => other,
                                 };
-                                (FromKey::from_key(k), FromValue::from_value(v))
+                                (k, FromValue::from_value(v))
                             }
                         }).collect(),
                 )),
