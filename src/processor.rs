@@ -312,36 +312,6 @@ pub trait ToValue {
     }
 }
 
-/// Similar to `ToValue` but for keys only.
-pub trait ToKey: Clone {
-    /// Converts a value to a key.
-    fn to_key(key: Self) -> String
-    where
-        Self: Sized;
-}
-
-/// Similar to `FromValue` but for keys only.
-pub trait FromKey {
-    /// Converts a key string into an instance of the object.
-    fn from_key(key: String) -> Self
-    where
-        Self: Sized;
-}
-
-impl ToKey for String {
-    #[inline(always)]
-    fn to_key(key: String) -> String {
-        key
-    }
-}
-
-impl FromKey for String {
-    #[inline(always)]
-    fn from_key(key: String) -> String {
-        key
-    }
-}
-
 pub trait ProcessValue {
     /// Executes a processor on the tree.
     #[inline(always)]
@@ -486,14 +456,14 @@ impl<T: ProcessValue> ProcessValue for Vec<Annotated<T>> {
     }
 }
 
-impl<K: FromKey + Ord, T: FromValue> FromValue for BTreeMap<K, Annotated<T>> {
+impl<T: FromValue> FromValue for BTreeMap<String, Annotated<T>> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Object(items)), meta) => Annotated(
                 Some(
                     items
                         .into_iter()
-                        .map(|(k, v)| (FromKey::from_key(k), FromValue::from_value(v)))
+                        .map(|(k, v)| (k, FromValue::from_value(v)))
                         .collect(),
                 ),
                 meta,
@@ -508,14 +478,14 @@ impl<K: FromKey + Ord, T: FromValue> FromValue for BTreeMap<K, Annotated<T>> {
     }
 }
 
-impl<K: ToKey, T: ToValue> ToValue for BTreeMap<K, Annotated<T>> {
+impl<T: ToValue> ToValue for BTreeMap<String, Annotated<T>> {
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
             Annotated(Some(value), meta) => Annotated(
                 Some(Value::Object(
                     value
                         .into_iter()
-                        .map(|(k, v)| (ToKey::to_key(k), ToValue::to_value(v)))
+                        .map(|(k, v)| (k, ToValue::to_value(v)))
                         .collect(),
                 )),
                 meta,
@@ -533,7 +503,7 @@ impl<K: ToKey, T: ToValue> ToValue for BTreeMap<K, Annotated<T>> {
         let mut map_ser = s.serialize_map(Some(self.len()))?;
         for (key, value) in self {
             if !value.skip_serialization() {
-                map_ser.serialize_key(&ToKey::to_key(key.clone()))?;
+                map_ser.serialize_key(&key)?;
                 map_ser.serialize_value(&SerializePayload(value))?;
             }
         }
@@ -548,14 +518,14 @@ impl<K: ToKey, T: ToValue> ToValue for BTreeMap<K, Annotated<T>> {
         for (key, value) in self.iter() {
             let tree = ToValue::extract_meta_tree(value);
             if !tree.is_empty() {
-                children.insert(ToKey::to_key(key.clone()), tree);
+                children.insert(key.to_string(), tree);
             }
         }
         children
     }
 }
 
-impl<K: ToKey + Ord, T: ProcessValue> ProcessValue for BTreeMap<K, Annotated<T>> {
+impl<T: ProcessValue> ProcessValue for BTreeMap<String, Annotated<T>> {
     fn process_value<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
@@ -568,7 +538,6 @@ impl<K: ToKey + Ord, T: ProcessValue> ProcessValue for BTreeMap<K, Annotated<T>>
                         .into_iter()
                         .map(|(k, v)| {
                             let v = {
-                                let k = ToKey::to_key(k.clone());
                                 let inner_state = state.enter_borrowed(&k, None);
                                 ProcessValue::process_value(v, processor, inner_state)
                             };
