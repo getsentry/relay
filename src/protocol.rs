@@ -2005,6 +2005,12 @@ fn test_cookies_object() {
 }
 
 #[test]
+fn test_cookies_invalid() {
+    let cookies = Annotated::<Cookies>::from_error("expected cookies", Some(Value::I64(42)));
+    assert_eq_dbg!(cookies, Annotated::from_json("42").unwrap());
+}
+
+#[test]
 fn test_event_roundtrip() {
     // NOTE: Interfaces will be tested separately.
     let json = r#"{
