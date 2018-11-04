@@ -653,6 +653,7 @@ pub struct Exception {
 
 /// Information about the Sentry SDK.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_client_sdk_info")]
 pub struct ClientSdkInfo {
     /// Unique SDK name.
     #[metastructure(required = "true")]
@@ -684,6 +685,7 @@ pub struct ClientSdkPackage {
 
 /// Debugging and processing meta information.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_debug_meta")]
 pub struct DebugMeta {
     /// Information about the system SDK (e.g. iOS SDK).
     #[metastructure(field = "sdk_info")]
@@ -815,6 +817,7 @@ pub struct ProguardDebugImage {
 
 /// Geographical location of the end user or device.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_geo")]
 pub struct Geo {
     /// Two-letter country code (ISO 3166-1 alpha-2).
     #[metastructure(pii_kind = "location", cap_size = "summary")]
@@ -835,6 +838,7 @@ pub struct Geo {
 
 /// A process thread of an event.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_thread")]
 pub struct Thread {
     /// Identifier of this thread within the process (usually an integer).
     pub id: Annotated<ThreadId>,
@@ -862,6 +866,7 @@ pub struct Thread {
 
 /// Contexts describing the environment (e.g. device, os or browser).
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_context")]
 pub enum Context {
     /// Device information.
     Device(Box<DeviceContext>),
@@ -879,6 +884,7 @@ pub enum Context {
 }
 
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
+#[metastructure(process_func = "context")]
 pub struct Contexts(pub Object<Context>);
 
 impl FromValue for Contexts {
@@ -1060,6 +1066,7 @@ pub struct BrowserContext {
 
 /// A breadcrumb.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_breadcrumb")]
 pub struct Breadcrumb {
     /// The timestamp of the breadcrumb (required).
     #[metastructure(required = "true")]
@@ -1281,6 +1288,7 @@ pub struct PosixSignal {
 
 /// Template debug information.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_template_info")]
 pub struct TemplateInfo {
     /// The file name (basename only).
     #[metastructure(pii_kind = "freeform", cap_size = "short_path")]

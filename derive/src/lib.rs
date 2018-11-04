@@ -154,6 +154,7 @@ fn process_enum_struct_derive(
         return Err(s);
     }
 
+    let mut process_func = None;
     let mut tag_key = "type".to_string();
     for attr in &s.ast().attrs {
         let meta = match attr.interpret_meta() {
@@ -171,7 +172,14 @@ fn process_enum_struct_derive(
                     NestedMeta::Meta(meta) => match meta {
                         Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
                             if ident == "process_func" {
-                                panic!("process_func not yet supported for enums");
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        process_func = Some(litstr.value());
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for field");
+                                    }
+                                }
                             } else if ident == "tag_key" {
                                 match lit {
                                     Lit::Str(litstr) => {
@@ -199,6 +207,20 @@ fn process_enum_struct_derive(
     let mut process_value_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
+
+    let process_state_clone = if process_func.is_some() {
+        Some(quote! {
+            let __state_clone = __state.clone();
+        })
+    } else {
+        None
+    };
+    let invoke_process_func = process_func.map(|func_name| {
+        let func_name = Ident::new(&func_name, Span::call_site());
+        quote! {
+            let __result = __processor.#func_name(__result, __state_clone);
+        }
+    });
 
     for variant in s.variants() {
         let mut variant_name = &variant.ast().ident;
@@ -390,10 +412,13 @@ fn process_enum_struct_derive(
                         __processor: &P,
                         __state: __processor::ProcessingState
                     ) -> __meta::Annotated<Self> {
-                        match __value {
+                        #process_state_clone
+                        let __result = match __value {
                             #process_value_body
                             __meta::Annotated(None, __meta) => __meta::Annotated(None, __meta),
-                        }
+                        };
+                        #invoke_process_func
+                        __result
                     }
                 }
             })

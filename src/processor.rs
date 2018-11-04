@@ -9,7 +9,10 @@ use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::meta::{Annotated, MetaMap, MetaTree, Value};
-use crate::protocol::{Event, Exception, Frame, Stacktrace};
+use crate::protocol::{
+    Breadcrumb, ClientSdkInfo, Context, DebugMeta, Event, Exception, Frame, Geo, Stacktrace,
+    TemplateInfo, Thread,
+};
 
 #[derive(Debug, Clone)]
 enum PathItem<'a> {
@@ -260,6 +263,65 @@ pub trait Processor {
     fn process_frame(&self, frame: Annotated<Frame>, state: ProcessingState) -> Annotated<Frame> {
         let _state = state;
         frame
+    }
+    #[inline(always)]
+    fn process_client_sdk_info(
+        &self,
+        info: Annotated<ClientSdkInfo>,
+        state: ProcessingState,
+    ) -> Annotated<ClientSdkInfo> {
+        let _state = state;
+        info
+    }
+    #[inline(always)]
+    fn process_debug_meta(
+        &self,
+        meta: Annotated<DebugMeta>,
+        state: ProcessingState,
+    ) -> Annotated<DebugMeta> {
+        let _state = state;
+        meta
+    }
+    #[inline(always)]
+    fn process_geo(&self, geo: Annotated<Geo>, state: ProcessingState) -> Annotated<Geo> {
+        let _state = state;
+        geo
+    }
+    #[inline(always)]
+    fn process_thread(
+        &self,
+        thread: Annotated<Thread>,
+        state: ProcessingState,
+    ) -> Annotated<Thread> {
+        let _state = state;
+        thread
+    }
+    #[inline(always)]
+    fn process_context(
+        &self,
+        context: Annotated<Context>,
+        state: ProcessingState,
+    ) -> Annotated<Context> {
+        let _state = state;
+        context
+    }
+    #[inline(always)]
+    fn process_breadcrumb(
+        &self,
+        breadcrumb: Annotated<Breadcrumb>,
+        state: ProcessingState,
+    ) -> Annotated<Breadcrumb> {
+        let _state = state;
+        breadcrumb
+    }
+    #[inline(always)]
+    fn process_template_info(
+        &self,
+        info: Annotated<TemplateInfo>,
+        state: ProcessingState,
+    ) -> Annotated<TemplateInfo> {
+        let _state = state;
+        info
     }
 }
 
