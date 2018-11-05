@@ -497,7 +497,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         let mut cap_size_attr = quote!(None);
         let mut pii_kind_attr = quote!(None);
         let mut required = false;
-        let mut legacy_alias = None;
+        let mut legacy_aliases = vec![];
         for attr in &bi.ast().attrs {
             let meta = match attr.interpret_meta() {
                 Some(meta) => meta,
@@ -565,7 +565,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                                 } else if ident == "legacy_alias" {
                                     match lit {
                                         Lit::Str(litstr) => {
-                                            legacy_alias = Some(litstr.value());
+                                            legacy_aliases.push(litstr.value());
                                         }
                                         _ => {
                                             panic!("Got non string literal for legacy_alias");
@@ -620,22 +620,20 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 span: Span::call_site()
             };
 
-            if let Some(legacy_alias) = legacy_alias {
+            (quote! {
+                let #bi = __obj.remove(#field_name);
+            }).to_tokens(&mut from_value_body);
+
+            for legacy_alias in legacy_aliases {
                 let legacy_field_name = LitStr::new(&legacy_alias, Span::call_site());
                 (quote! {
-                    let #bi = {
-                        let __legacy_value = __obj.remove(#legacy_field_name);
-                        let __canonical_value = __obj.remove(#field_name);
-                        __processor::FromValue::from_value(
-                            __canonical_value.or(__legacy_value).unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())))
-                    };
-                }).to_tokens(&mut from_value_body);
-            } else {
-                (quote! {
-                    let #bi = __processor::FromValue::from_value(
-                        __obj.remove(#field_name).unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())));
+                    let #bi = #bi.or(__obj.remove(#legacy_field_name));
                 }).to_tokens(&mut from_value_body);
             }
+
+            (quote! {
+                let #bi = __processor::FromValue::from_value(#bi.unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())));
+            }).to_tokens(&mut from_value_body);
 
             if required {
                 (quote! {

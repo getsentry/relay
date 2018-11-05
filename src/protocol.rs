@@ -11,7 +11,7 @@ use general_derive::{FromValue, ProcessValue, ToValue};
 use crate::meta::{Annotated, Value};
 use crate::processor::{FromValue, ProcessValue, ToValue};
 use crate::types::{
-    Addr, Array, EventId, LenientString, Level, Map, Object, RegVal, ThreadId, Values,
+    Addr, Array, EventId, EventType, LenientString, Level, Map, Object, RegVal, ThreadId, Values,
 };
 
 #[cfg(test)]
@@ -29,6 +29,11 @@ pub struct Event {
     /// Severity level of the event.
     pub level: Annotated<Level>,
 
+    /// Type of event: error, csp, default
+    // TODO: enum?
+    #[metastructure(field = "type")]
+    pub ty: Annotated<EventType>,
+
     /// Manual fingerprint override.
     pub fingerprint: Annotated<Fingerprint>,
 
@@ -38,13 +43,11 @@ pub struct Event {
     /// Transaction name of the event.
     pub transaction: Annotated<String>,
 
-    /// Custom message for this event.
-    // TODO: Consider to normalize this right away into logentry
-    #[metastructure(pii_kind = "freeform", cap_size = "message")]
-    pub message: Annotated<String>,
-
     /// Custom parameterized message for this event.
-    #[metastructure(legacy_alias = "sentry.interfaces.Message")]
+    #[metastructure(
+        legacy_alias = "sentry.interfaces.Message",
+        legacy_alias = "message"
+    )]
     pub logentry: Annotated<LogEntry>,
 
     /// Logger that created the event.
@@ -59,6 +62,9 @@ pub struct Event {
 
     /// Timestamp when the event was created.
     pub timestamp: Annotated<DateTime<Utc>>,
+
+    /// Timestamp when the event has been received by Sentry.
+    pub received: Annotated<DateTime<Utc>>,
 
     /// Server or device name the event was generated on.
     #[metastructure(pii_kind = "hostname")]
@@ -93,7 +99,7 @@ pub struct Event {
     pub breadcrumbs: Annotated<Values<Breadcrumb>>,
 
     /// One or multiple chained (nested) exceptions.
-    //#[metastructure(legacy_alias = "sentry.interfaces.Exception")]
+    #[metastructure(legacy_alias = "sentry.interfaces.Exception")]
     #[metastructure(field = "exception")]
     pub exceptions: Annotated<Values<Exception>>,
 
@@ -122,6 +128,36 @@ pub struct Event {
     /// Information about the Sentry SDK that generated this event.
     #[metastructure(field = "sdk")]
     pub client_sdk: Annotated<ClientSdkInfo>,
+
+    /// Errors encountered during processing. Intended to be phased out in favor of
+    /// annotation/metadata system.
+    pub errors: Annotated<Array<EventProcessingError>>,
+
+    /// Project key which sent this event.
+    pub key_id: Annotated<String>,
+
+    /// Project key which sent this event.
+    pub project: Annotated<u64>,
+
+    /// CSP (security) reports.
+    // TODO: typing
+    #[metastructure(legacy_alias = "sentry.interfaces.Csp")]
+    pub csp: Annotated<Value>,
+
+    /// HPKP (security) reports.
+    // TODO: typing
+    #[metastructure(legacy_alias = "sentry.interfaces.Hpkp")]
+    pub hpkp: Annotated<Value>,
+
+    /// ExpectCT (security) reports.
+    // TODO: typing
+    #[metastructure(legacy_alias = "sentry.interfaces.ExpectCT")]
+    pub expectct: Annotated<Value>,
+
+    /// ExpectStaple (security) reports.
+    // TODO: typing
+    #[metastructure(legacy_alias = "sentry.interfaces.ExpectStaple")]
+    pub expectstaple: Annotated<Value>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii_kind = "databag")]
@@ -210,6 +246,7 @@ impl ProcessValue for Fingerprint {}
 
 /// Information about the user who triggered an event.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_user")]
 pub struct User {
     /// Unique identifier of the user.
     #[metastructure(pii_kind = "id")]
@@ -236,15 +273,15 @@ pub struct User {
 ///
 /// A log message is similar to the `message` attribute on the event itself but
 /// can additionally hold optional parameters.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, Default, ToValue, ProcessValue)]
 pub struct LogEntry {
     /// The log message with parameter placeholders (required).
-    #[metastructure(
-        pii_kind = "freeform",
-        cap_size = "message",
-        required = "true"
-    )]
+    #[metastructure(pii_kind = "freeform", cap_size = "message",)]
     pub message: Annotated<String>,
+
+    /// The formatted message
+    #[metastructure(pii_kind = "freeform", cap_size = "message",)]
+    pub formatted: Annotated<String>,
 
     /// Positional parameters to be interpolated into the log message.
     #[metastructure(pii_kind = "databag")]
@@ -253,6 +290,45 @@ pub struct LogEntry {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii_kind = "databag")]
     pub other: Object<Value>,
+}
+
+impl FromValue for LogEntry {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        // raw 'message' is coerced to the Message interface, as its used for pure index of
+        // searchable strings. If both a raw 'message' and a Message interface exist, try and
+        // add the former as the 'formatted' attribute of the latter.
+        // See GH-3248
+        match value {
+            Annotated(Some(Value::String(value)), meta) => Annotated::new(LogEntry {
+                formatted: Annotated(Some(value), meta),
+                ..Default::default()
+            }),
+            x => {
+                #[derive(FromValue)]
+                struct Helper {
+                    message: Annotated<String>,
+                    formatted: Annotated<String>,
+                    params: Annotated<Array<Value>>,
+                    #[metastructure(additional_properties)]
+                    other: Object<Value>,
+                }
+
+                Helper::from_value(x).map_value(
+                    |Helper {
+                         message,
+                         formatted,
+                         params,
+                         other,
+                     }| LogEntry {
+                        message,
+                        formatted,
+                        params,
+                        other,
+                    },
+                )
+            }
+        }
+    }
 }
 
 /// A map holding cookies.
@@ -491,6 +567,7 @@ impl FromValue for Tags {
 
 /// Http request information.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_request")]
 pub struct Request {
     /// URL of the request.
     // TODO: cap?
@@ -1318,6 +1395,19 @@ pub struct TemplateInfo {
     pub other: Object<Value>,
 }
 
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+pub struct EventProcessingError {
+    #[metastructure(field = "type", required = "true")]
+    /// Error type, see src/sentry/models/eventerror.py
+    pub ty: Annotated<String>,
+
+    /// Affected key
+    pub name: Annotated<String>,
+
+    /// Faulty value
+    pub value: Annotated<Value>,
+}
+
 #[test]
 fn test_debug_image_proguard_roundtrip() {
     let json = r#"{
@@ -1840,6 +1930,7 @@ fn test_logentry_roundtrip() {
 
     let entry = Annotated::new(LogEntry {
         message: Annotated::new("Hello, %s %s!".to_string()),
+        formatted: Annotated::empty(),
         params: Annotated::new(vec![
             Annotated::new(Value::String("World".to_string())),
             Annotated::new(Value::I64(1)),
@@ -1856,6 +1947,22 @@ fn test_logentry_roundtrip() {
 
     assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, entry.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_logentry_from_message() {
+    let input = r#""hi""#;
+    let output = r#"{
+  "formatted": "hi"
+}"#;
+
+    let entry = Annotated::new(LogEntry {
+        formatted: Annotated::new("hi".to_string()),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(entry, Annotated::from_json(input).unwrap());
+    assert_eq_str!(output, entry.to_json_pretty().unwrap());
 }
 
 #[test]
@@ -2029,7 +2136,9 @@ fn test_event_roundtrip() {
   ],
   "culprit": "myculprit",
   "transaction": "mytransaction",
-  "message": "mymessage",
+  "logentry": {
+    "formatted": "mymessage"
+  },
   "logger": "mylogger",
   "modules": {
     "mymodule": "1.0.0"
@@ -2071,11 +2180,14 @@ fn test_event_roundtrip() {
             },
         ),
         level: Annotated::new(Level::Debug),
+        ty: Annotated::empty(),
         fingerprint: Annotated::new(vec!["myprint".to_string()].into()),
         culprit: Annotated::new("myculprit".to_string()),
         transaction: Annotated::new("mytransaction".to_string()),
-        message: Annotated::new("mymessage".to_string()),
-        logentry: Annotated::empty(),
+        logentry: Annotated::new(LogEntry {
+            formatted: Annotated::new("mymessage".to_string()),
+            ..Default::default()
+        }),
         logger: Annotated::new("mylogger".to_string()),
         modules: {
             let mut map = Map::new();
@@ -2084,6 +2196,7 @@ fn test_event_roundtrip() {
         },
         platform: Annotated::new("myplatform".to_string()),
         timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+        received: Annotated::empty(),
         server_name: Annotated::new("myhost".to_string()),
         release: Annotated::new("myrelease".to_string()),
         dist: Annotated::new("mydist".to_string()),
@@ -2115,6 +2228,13 @@ fn test_event_roundtrip() {
         },
         debug_meta: Annotated::empty(),
         client_sdk: Annotated::empty(),
+        errors: Annotated::empty(),
+        key_id: Annotated::empty(),
+        project: Annotated::empty(),
+        csp: Annotated::empty(),
+        hpkp: Annotated::empty(),
+        expectct: Annotated::empty(),
+        expectstaple: Annotated::empty(),
         other: {
             let mut map = Map::new();
             map.insert(
@@ -2135,15 +2255,16 @@ fn test_event_default_values() {
     let event = Annotated::new(Event {
         id: Annotated::empty(),
         level: Annotated::empty(),
+        ty: Annotated::empty(),
         fingerprint: Annotated::empty(),
         culprit: Annotated::empty(),
         transaction: Annotated::empty(),
-        message: Annotated::empty(),
         logentry: Annotated::empty(),
         logger: Annotated::empty(),
         modules: Annotated::empty(),
         platform: Annotated::empty(),
         timestamp: Annotated::empty(),
+        received: Annotated::empty(),
         server_name: Annotated::empty(),
         release: Annotated::empty(),
         dist: Annotated::empty(),
@@ -2161,6 +2282,13 @@ fn test_event_default_values() {
         extra: Annotated::empty(),
         debug_meta: Annotated::empty(),
         client_sdk: Annotated::empty(),
+        errors: Annotated::empty(),
+        key_id: Annotated::empty(),
+        project: Annotated::empty(),
+        csp: Annotated::empty(),
+        hpkp: Annotated::empty(),
+        expectct: Annotated::empty(),
+        expectstaple: Annotated::empty(),
         other: Default::default(),
     });
 
@@ -2211,6 +2339,7 @@ fn test_event_default_values_with_meta() {
             },
         ),
         level: Annotated::empty(),
+        ty: Annotated::empty(),
         fingerprint: Annotated(Some(vec!["{{ default }}".to_string()].into()), {
             let mut meta = Meta::default();
             meta.add_error("some error", None);
@@ -2218,7 +2347,6 @@ fn test_event_default_values_with_meta() {
         }),
         culprit: Annotated::empty(),
         transaction: Annotated::empty(),
-        message: Annotated::empty(),
         logentry: Annotated::empty(),
         logger: Annotated::empty(),
         modules: Annotated::empty(),
@@ -2228,6 +2356,7 @@ fn test_event_default_values_with_meta() {
             meta
         }),
         timestamp: Annotated::empty(),
+        received: Annotated::empty(),
         server_name: Annotated::empty(),
         release: Annotated::empty(),
         dist: Annotated::empty(),
@@ -2245,6 +2374,13 @@ fn test_event_default_values_with_meta() {
         extra: Annotated::empty(),
         debug_meta: Annotated::empty(),
         client_sdk: Annotated::empty(),
+        errors: Annotated::empty(),
+        key_id: Annotated::empty(),
+        project: Annotated::empty(),
+        csp: Annotated::empty(),
+        hpkp: Annotated::empty(),
+        expectct: Annotated::empty(),
+        expectstaple: Annotated::empty(),
         other: Default::default(),
     });
 

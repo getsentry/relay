@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::meta::{Annotated, MetaMap, MetaTree, Value};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Context, DebugMeta, Event, Exception, Frame, Geo, Stacktrace,
-    TemplateInfo, Thread,
+    Breadcrumb, ClientSdkInfo, Context, DebugMeta, Event, Exception, Frame, Geo, Request,
+    Stacktrace, TemplateInfo, Thread, User,
 };
 
 #[derive(Debug, Clone)]
@@ -259,11 +259,29 @@ pub trait Processor {
         let _state = state;
         stacktrace
     }
+
     #[inline(always)]
     fn process_frame(&self, frame: Annotated<Frame>, state: ProcessingState) -> Annotated<Frame> {
         let _state = state;
         frame
     }
+
+    #[inline(always)]
+    fn process_request(
+        &self,
+        request: Annotated<Request>,
+        state: ProcessingState,
+    ) -> Annotated<Request> {
+        let _state = state;
+        request
+    }
+
+    #[inline(always)]
+    fn process_user(&self, user: Annotated<User>, state: ProcessingState) -> Annotated<User> {
+        let _state = state;
+        user
+    }
+
     #[inline(always)]
     fn process_client_sdk_info(
         &self,

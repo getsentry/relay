@@ -321,6 +321,92 @@ impl ToValue for Level {
 
 impl ProcessValue for Level {}
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum EventType {
+    Default,
+    Error,
+    Csp,
+    Hpkp,
+    ExpectCT,
+    ExpectStaple,
+}
+
+/// An error used when parsing `EventType`.
+#[derive(Debug, Fail)]
+#[fail(display = "invalid event type")]
+pub struct ParseEventTypeError;
+
+impl Default for EventType {
+    fn default() -> Self {
+        EventType::Default
+    }
+}
+
+impl FromStr for EventType {
+    type Err = ParseEventTypeError;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Ok(match string {
+            "default" => EventType::Default,
+            "error" => EventType::Error,
+            "csp" => EventType::Csp,
+            "hpkp" => EventType::Hpkp,
+            "expectct" => EventType::ExpectCT,
+            "expectstaple" => EventType::ExpectStaple,
+            _ => return Err(ParseEventTypeError),
+        })
+    }
+}
+
+impl fmt::Display for EventType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            EventType::Default => write!(f, "default"),
+            EventType::Error => write!(f, "error"),
+            EventType::Csp => write!(f, "csp"),
+            EventType::Hpkp => write!(f, "hpkp"),
+            EventType::ExpectCT => write!(f, "expectct"),
+            EventType::ExpectStaple => write!(f, "expectstaple"),
+        }
+    }
+}
+
+impl FromValue for EventType {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match <String as FromValue>::from_value(value) {
+            Annotated(Some(value), meta) => match EventType::from_str(&value) {
+                Ok(x) => Annotated(Some(x), meta),
+                Err(_) => Annotated::from_error("invalid event type", None),
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
+impl ToValue for EventType {
+    fn to_value(value: Annotated<Self>) -> Annotated<Value>
+    where
+        Self: Sized,
+    {
+        match value {
+            Annotated(Some(value), meta) => {
+                Annotated(Some(Value::String(format!("{}", value))), meta)
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: serde::ser::Serializer,
+    {
+        serde::ser::Serialize::serialize(&self.to_string(), s)
+    }
+}
+
+impl ProcessValue for EventType {}
+
 /// A "into-string" type of value.
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, ToValue, ProcessValue)]
 pub struct LenientString(pub String);
@@ -634,6 +720,17 @@ fn test_level() {
     assert_eq_dbg!(
         Level::Warning,
         Annotated::<Level>::from_json("30").unwrap().0.unwrap()
+    );
+}
+
+#[test]
+fn test_event_type() {
+    assert_eq_dbg!(
+        EventType::Default,
+        Annotated::<EventType>::from_json("\"default\"")
+            .unwrap()
+            .0
+            .unwrap()
     );
 }
 
