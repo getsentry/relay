@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-sed -i '' -e "s|^\(marshal.*github.com/getsentry/marshal\", rev = \)\"[a-z0-9]*\"|\1\"${MARSHAL_SHA}\"|" \
+sed -i'' -e "s|^\(marshal.*github.com/getsentry/marshal\", rev = \)\"[a-z0-9]*\"|\1\"${MARSHAL_SHA}\"|" \
     common/Cargo.toml
 
 cargo update -p marshal --precise $MARSHAL_SHA
