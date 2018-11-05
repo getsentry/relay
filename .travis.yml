@@ -23,7 +23,10 @@ branches:
   only:
     - master
     - /^release\/[\d.]+$/
+    - test/store-semaphore-test
 
+before_install:
+  - 'if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then exit 1; fi'
 install: skip
 script: make $SUITE
 
