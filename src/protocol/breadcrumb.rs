@@ -102,12 +102,7 @@ fn test_breadcrumb_default_values() {
 
     let breadcrumb = Annotated::new(Breadcrumb {
         timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-        ty: Annotated::empty(),
-        category: Annotated::empty(),
-        level: Annotated::empty(),
-        message: Annotated::empty(),
-        data: Annotated::empty(),
-        other: Default::default(),
+        ..Default::default()
     });
 
     assert_eq_dbg!(breadcrumb, Annotated::from_json(input).unwrap());
@@ -118,12 +113,7 @@ fn test_breadcrumb_default_values() {
 fn test_breadcrumb_invalid() {
     let breadcrumb = Annotated::new(Breadcrumb {
         timestamp: Annotated::from_error("value required", None),
-        ty: Annotated::empty(),
-        category: Annotated::empty(),
-        level: Annotated::empty(),
-        message: Annotated::empty(),
-        data: Annotated::empty(),
-        other: Default::default(),
+        ..Default::default()
     });
     assert_eq_dbg!(breadcrumb, Annotated::from_json("{}").unwrap());
 }
