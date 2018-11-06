@@ -4,10 +4,8 @@ use itertools::Itertools;
 
 use std::mem;
 
-use crate::meta::{Annotated, Value};
-use crate::processor::{ProcessingState, Processor};
-use crate::protocol::{self, ClientSdkInfo, Event, Request, SystemSdkInfo, Tags, User};
-use crate::types::{EventType, Level, Object};
+use crate::processor::{ProcessingState, Processor, ToValue};
+use crate::protocol::{self, *};
 
 fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
     auth.client
@@ -188,6 +186,43 @@ impl Processor for StoreNormalizeProcessor {
             }
         }
         event
+    }
+
+    fn process_breadcrumb(
+        &self,
+        mut breadcrumb: Annotated<Breadcrumb>,
+        _state: ProcessingState,
+    ) -> Annotated<Breadcrumb> {
+        if let Some(ref mut breadcrumb) = breadcrumb.0 {
+            breadcrumb.ty.get_or_insert_with(|| "default".to_string());
+
+            // TODO: Do we want to keep removing the default level?
+            if breadcrumb
+                .level
+                .0
+                .as_ref()
+                .map_or(false, |l| *l == Level::Info)
+            {
+                breadcrumb.level.0 = None;
+            }
+
+            // TODO: This stringifies all data in a breadcrumb. We probably don't want that anymore
+            if let Some(ref mut map) = breadcrumb.data.0 {
+                for (_, value) in map {
+                    match value {
+                        Annotated(Some(Value::String(_)), _) => {}
+                        Annotated(Some(ref mut value), _) => {
+                            let mut ser = serde_json::Serializer::new(Vec::new());
+                            value.serialize_payload(&mut ser).expect("stringify failed");
+                            let string = unsafe { String::from_utf8_unchecked(ser.into_inner()) };
+                            *value = Value::String(string);
+                        }
+                        Annotated(None, _) => {}
+                    }
+                }
+            }
+        }
+        breadcrumb
     }
 
     fn process_request(

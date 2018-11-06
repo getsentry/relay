@@ -18,6 +18,7 @@ pub struct Breadcrumb {
     pub ty: Annotated<String>,
 
     /// The optional category of the breadcrumb.
+    #[metastructure(cap_size = "enumlike")]
     pub category: Annotated<String>,
 
     /// Severity level of the breadcrumb (required).
@@ -30,6 +31,10 @@ pub struct Breadcrumb {
     /// Custom user-defined data of this breadcrumb.
     #[metastructure(pii_kind = "databag")]
     pub data: Annotated<Object<Value>>,
+
+    /// Identifier of the event this breadcrumb belongs to.
+    // TODO: Remove this?
+    pub event_id: Annotated<EventId>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
