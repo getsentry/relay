@@ -146,10 +146,7 @@ impl Processor for StoreNormalizeProcessor {
                 for mut exception in exceptions.iter_mut() {
                     if let Some(ref mut exception) = exception.0 {
                         if let Some(ref mut mechanism) = exception.mechanism.0 {
-                            protocol::exception::normalize_mechanism_meta(
-                                mechanism,
-                                sdk_info.as_ref(),
-                            );
+                            protocol::normalize_mechanism_meta(mechanism, sdk_info.as_ref());
                         }
                     }
                 }
