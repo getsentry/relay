@@ -1,3 +1,5 @@
+pub(crate) mod exception;
+
 use chrono::{DateTime, Utc};
 use cookie::Cookie;
 use debugid::DebugId;
@@ -29,6 +31,9 @@ pub struct Event {
     /// Severity level of the event.
     pub level: Annotated<Level>,
 
+    /// Version
+    pub version: Annotated<String>,
+
     /// Type of event: error, csp, default
     // TODO: enum?
     #[metastructure(field = "type")]
@@ -38,9 +43,11 @@ pub struct Event {
     pub fingerprint: Annotated<Fingerprint>,
 
     /// Custom culprit of the event.
+    #[metastructure(cap_size = "symbol")]
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
+    // TODO: Cap? Is often dotted path or URL path, but could be anything
     pub transaction: Annotated<String>,
 
     /// Custom parameterized message for this event.
@@ -51,6 +58,7 @@ pub struct Event {
     pub logentry: Annotated<LogEntry>,
 
     /// Logger that created the event.
+    #[metastructure(cap_size = "symbol")]
     pub logger: Annotated<String>,
 
     /// Name and versions of installed modules.
@@ -120,6 +128,7 @@ pub struct Event {
     pub geo: Annotated<Geo>,
 
     /// Arbitrary extra information set by the user.
+    // TODO: Cap? (trim_dict in python)
     pub extra: Annotated<Object<Value>>,
 
     /// Meta data for event processing and debugging.
@@ -2180,6 +2189,7 @@ fn test_event_roundtrip() {
             },
         ),
         level: Annotated::new(Level::Debug),
+        version: Annotated::empty(),
         ty: Annotated::empty(),
         fingerprint: Annotated::new(vec!["myprint".to_string()].into()),
         culprit: Annotated::new("myculprit".to_string()),
@@ -2255,6 +2265,7 @@ fn test_event_default_values() {
     let event = Annotated::new(Event {
         id: Annotated::empty(),
         level: Annotated::empty(),
+        version: Annotated::empty(),
         ty: Annotated::empty(),
         fingerprint: Annotated::empty(),
         culprit: Annotated::empty(),
@@ -2339,6 +2350,7 @@ fn test_event_default_values_with_meta() {
             },
         ),
         level: Annotated::empty(),
+        version: Annotated::empty(),
         ty: Annotated::empty(),
         fingerprint: Annotated(Some(vec!["{{ default }}".to_string()].into()), {
             let mut meta = Meta::default();

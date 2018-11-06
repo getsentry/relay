@@ -2,10 +2,12 @@ use chrono::Utc;
 
 use itertools::Itertools;
 
+use std::mem;
+
 use crate::meta::{Annotated, Value};
 use crate::processor::{ProcessingState, Processor};
-use crate::protocol::{ClientSdkInfo, Event, Request, Tags, User};
-use crate::types::{EventType, Level};
+use crate::protocol::{self, ClientSdkInfo, Event, Request, SystemSdkInfo, Tags, User};
+use crate::types::{EventType, Level, Object};
 
 fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
     auth.client
@@ -25,14 +27,15 @@ pub struct StoreAuth {
     is_public: bool,
 }
 
-pub struct StoreProcessor {
+pub struct StoreNormalizeProcessor {
     project_id: Option<u64>,
     client_ip: Option<String>,
     auth: Option<StoreAuth>,
     key_id: Option<String>,
+    version: String,
 }
 
-impl Processor for StoreProcessor {
+impl Processor for StoreNormalizeProcessor {
     fn process_event(
         &self,
         mut event: Annotated<Event>,
@@ -60,31 +63,39 @@ impl Processor for StoreProcessor {
             event.timestamp.0.get_or_insert_with(Utc::now);
             event.received.0 = Some(Utc::now());
             event.logger.0.get_or_insert_with(String::new);
-            let mut tags = event.tags.0.get_or_insert_with(|| Tags(Default::default()));
 
-            // Fix case where legacy apps pass environment as a tag instead of a top level key
-            // TODO (alex) save() just reinserts the environment into the tags
-            if event.environment.0.is_none() {
-                let mut new_tags = vec![];
-                for tuple in tags.0.drain(..) {
-                    if let Annotated(
-                        Some((Annotated(Some(ref k), _), Annotated(Some(ref v), _))),
-                        _,
-                    ) = tuple
-                    {
-                        if k == "environment" {
-                            event.environment.0 = Some(v.clone());
-                            continue;
+            event.extra.0.get_or_insert_with(Object::new);
+
+            {
+                let mut tags = event.tags.0.get_or_insert_with(|| Tags(Default::default()));
+
+                // Fix case where legacy apps pass environment as a tag instead of a top level key
+                // TODO (alex) save() just reinserts the environment into the tags
+                if event.environment.0.is_none() {
+                    let mut new_tags = vec![];
+                    for tuple in tags.0.drain(..) {
+                        if let Annotated(
+                            Some((Annotated(Some(ref k), _), Annotated(Some(ref v), _))),
+                            _,
+                        ) = tuple
+                        {
+                            if k == "environment" {
+                                event.environment.0 = Some(v.clone());
+                                continue;
+                            }
                         }
+
+                        new_tags.push(tuple);
                     }
 
-                    new_tags.push(tuple);
+                    tags.0 = new_tags;
                 }
-
-                tags.0 = new_tags;
             }
 
             // port of src/sentry/eventtypes
+            //
+            // the SDKs currently do not describe event types, and we must infer
+            // them from available attributes
             let has_exceptions = event
                 .exceptions
                 .0
@@ -107,7 +118,77 @@ impl Processor for StoreProcessor {
                 EventType::Default
             });
 
-            // TODO: Finish port of EventManager.normalize
+            event.version = Annotated::new(self.version.clone());
+
+            let sdk_info = get_sdk_from_event(&event);
+
+            let mut exceptions = event
+                .exceptions
+                .0
+                .as_mut()
+                .and_then(|x| x.values.0.as_mut());
+
+            if let Some(ref mut exceptions) = exceptions {
+                if exceptions.len() == 1 && event.stacktrace.0.is_some() {
+                    if let Some(ref mut exception) =
+                        exceptions.get_mut(0).and_then(|x| x.0.as_mut())
+                    {
+                        mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
+                        event.stacktrace = Annotated::empty();
+                    }
+                }
+
+                // Exception mechanism needs SDK information to resolve proper names in
+                // exception meta (such as signal names). "SDK Information" really means
+                // the operating system version the event was generated on. Some
+                // normalization still works without sdk_info, such as mach_exception
+                // names (they can only occur on macOS).
+                for mut exception in exceptions.iter_mut() {
+                    if let Some(ref mut exception) = exception.0 {
+                        if let Some(ref mut mechanism) = exception.mechanism.0 {
+                            protocol::exception::normalize_mechanism_meta(
+                                mechanism,
+                                sdk_info.as_ref(),
+                            );
+                        }
+                    }
+                }
+            }
+
+            let is_public = match self.auth {
+                Some(ref auth) => auth.is_public,
+                None => false,
+            };
+
+            let http_ip = event
+                .request
+                .0
+                .as_ref()
+                .and_then(|request| request.env.0.as_ref())
+                .and_then(|env| env.get("REMOTE_ADDR"))
+                .and_then(|addr| addr.0.as_ref());
+
+            // If there is no User ip_address, update it either from the Http interface
+            // or the client_ip of the request.
+            if let Some(Value::String(http_ip)) = http_ip {
+                let mut user = event.user.0.get_or_insert_with(Default::default);
+                if user.ip_address.0.is_none() {
+                    user.ip_address = Annotated::new(http_ip.clone());
+                }
+            } else if let Some(ref client_ip) = self.client_ip {
+                let should_use_client_ip =
+                    is_public || match event.platform.0.as_ref().map(|x| &**x) {
+                        Some("javascript") | Some("cocoa") | Some("objc") => true,
+                        _ => false,
+                    };
+
+                if should_use_client_ip {
+                    let mut user = event.user.0.get_or_insert_with(Default::default);
+                    if user.ip_address.0.is_none() {
+                        user.ip_address = Annotated::new(client_ip.clone());
+                    }
+                }
+            }
         }
         event
     }
@@ -161,4 +242,10 @@ impl Processor for StoreProcessor {
 
         info
     }
+}
+
+fn get_sdk_from_event(event: &Event) -> Option<SystemSdkInfo> {
+    // TODO
+    let _event = event;
+    unimplemented!();
 }
