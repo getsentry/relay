@@ -64,15 +64,7 @@ fn test_thread_roundtrip() {
 #[test]
 fn test_thread_default_values() {
     let json = "{}";
-    let thread = Annotated::new(Thread {
-        id: Annotated::empty(),
-        name: Annotated::empty(),
-        stacktrace: Annotated::empty(),
-        raw_stacktrace: Annotated::empty(),
-        crashed: Annotated::empty(),
-        current: Annotated::empty(),
-        other: Default::default(),
-    });
+    let thread = Annotated::new(Thread::default());
 
     assert_eq_dbg!(thread, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, thread.to_json_pretty().unwrap());

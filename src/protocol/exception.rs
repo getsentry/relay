@@ -49,10 +49,7 @@ fn test_exception_roundtrip() {
         ty: Annotated::new("mytype".to_string()),
         value: Annotated::new("myvalue".to_string()),
         module: Annotated::new("mymodule".to_string()),
-        stacktrace: Annotated::empty(),
-        raw_stacktrace: Annotated::empty(),
         thread_id: Annotated::new(ThreadId::Int(42)),
-        mechanism: Annotated::empty(),
         other: {
             let mut map = Map::new();
             map.insert(
@@ -61,6 +58,7 @@ fn test_exception_roundtrip() {
             );
             map
         },
+        ..Default::default()
     });
 
     assert_eq_dbg!(exception, Annotated::from_json(json).unwrap());
@@ -72,13 +70,7 @@ fn test_exception_default_values() {
     let json = r#"{"type":"mytype"}"#;
     let exception = Annotated::new(Exception {
         ty: Annotated::new("mytype".to_string()),
-        value: Annotated::empty(),
-        module: Annotated::empty(),
-        stacktrace: Annotated::empty(),
-        raw_stacktrace: Annotated::empty(),
-        thread_id: Annotated::empty(),
-        mechanism: Annotated::empty(),
-        other: Default::default(),
+        ..Default::default()
     });
 
     assert_eq_dbg!(exception, Annotated::from_json(json).unwrap());
@@ -100,13 +92,7 @@ fn test_exception_without_type() {
 fn test_exception_invalid() {
     let exception = Annotated::new(Exception {
         ty: Annotated::from_error("value required", None),
-        value: Annotated::empty(),
-        module: Annotated::empty(),
-        stacktrace: Annotated::empty(),
-        raw_stacktrace: Annotated::empty(),
-        thread_id: Annotated::empty(),
-        mechanism: Annotated::empty(),
-        other: Default::default(),
+        ..Default::default()
     });
 
     assert_eq_dbg!(exception, Annotated::from_json("{}").unwrap());

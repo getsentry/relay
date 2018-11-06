@@ -162,25 +162,7 @@ fn test_frame_roundtrip() {
 #[test]
 fn test_frame_default_values() {
     let json = "{}";
-    let frame = Annotated::new(Frame {
-        function: Annotated::empty(),
-        symbol: Annotated::empty(),
-        module: Annotated::empty(),
-        package: Annotated::empty(),
-        filename: Annotated::empty(),
-        abs_path: Annotated::empty(),
-        line: Annotated::empty(),
-        column: Annotated::empty(),
-        pre_lines: Annotated::empty(),
-        current_line: Annotated::empty(),
-        post_lines: Annotated::empty(),
-        in_app: Annotated::empty(),
-        vars: Annotated::empty(),
-        image_addr: Annotated::empty(),
-        instruction_addr: Annotated::empty(),
-        symbol_addr: Annotated::empty(),
-        other: Default::default(),
-    });
+    let frame = Annotated::new(Frame::default());
 
     assert_eq_dbg!(frame, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, frame.to_json_pretty().unwrap());

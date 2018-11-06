@@ -889,12 +889,7 @@ fn test_mechanism_default_values() {
     let json = r#"{"type":"mytype"}"#;
     let mechanism = Annotated::new(Mechanism {
         ty: Annotated::new("mytype".to_string()),
-        description: Annotated::empty(),
-        help_link: Annotated::empty(),
-        handled: Annotated::empty(),
-        data: Annotated::empty(),
-        meta: Annotated::empty(),
-        other: Object::default(),
+        ..Default::default()
     });
 
     assert_eq_dbg!(mechanism, Annotated::from_json(json).unwrap());
@@ -919,10 +914,6 @@ fn test_mechanism_invalid_meta() {
 }"#;
     let mechanism = Annotated::new(Mechanism {
         ty: Annotated::new("mytype".to_string()),
-        description: Annotated::empty(),
-        help_link: Annotated::empty(),
-        handled: Annotated::empty(),
-        data: Annotated::empty(),
         meta: Annotated::new(MechanismMeta {
             errno: Annotated::new(CError {
                 number: Annotated::from_error("value required", None),
@@ -940,9 +931,9 @@ fn test_mechanism_invalid_meta() {
                 name: Annotated::new("SIGSEGV".to_string()),
                 code_name: Annotated::empty(),
             }),
-            other: Default::default(),
+            ..Default::default()
         }),
-        other: Object::default(),
+        ..Default::default()
     });
 
     assert_eq_dbg!(mechanism, Annotated::from_json(json).unwrap());

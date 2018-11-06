@@ -255,18 +255,14 @@ mod tests {
 
         let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
             name: Annotated::new("CoreFoundation".to_string()),
-            arch: Annotated::empty(),
-            cpu_type: Annotated::empty(),
-            cpu_subtype: Annotated::empty(),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
-            image_vmaddr: Annotated::empty(),
             uuid: Annotated::new(
                 "494f3aea-88fa-4296-9644-fa8ef5d139b6"
                     .parse::<Uuid>()
                     .unwrap(),
             ),
-            other: Object::default(),
+            ..Default::default()
         })));
 
         assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
@@ -323,16 +319,14 @@ mod tests {
 
         let image = Annotated::new(DebugImage::Symbolic(Box::new(SymbolicDebugImage {
             name: Annotated::new("CoreFoundation".to_string()),
-            arch: Annotated::empty(),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
-            image_vmaddr: Annotated::empty(),
             id: Annotated::new(
                 "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234"
                     .parse::<DebugId>()
                     .unwrap(),
             ),
-            other: Object::default(),
+            ..Default::default()
         })));
 
         assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
@@ -404,7 +398,6 @@ fn test_debug_meta_roundtrip() {
                 map
             },
         }),
-        images: Annotated::empty(),
         other: {
             let mut map = Map::new();
             map.insert(
@@ -413,6 +406,7 @@ fn test_debug_meta_roundtrip() {
             );
             map
         },
+        ..Default::default()
     });
 
     assert_eq_dbg!(meta, Annotated::from_json(json).unwrap());
@@ -422,11 +416,7 @@ fn test_debug_meta_roundtrip() {
 #[test]
 fn test_debug_meta_default_values() {
     let json = "{}";
-    let meta = Annotated::new(DebugMeta {
-        system_sdk: Annotated::empty(),
-        images: Annotated::empty(),
-        other: Default::default(),
-    });
+    let meta = Annotated::new(DebugMeta::default());
 
     assert_eq_dbg!(meta, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, meta.to_json_pretty().unwrap());

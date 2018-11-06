@@ -222,8 +222,6 @@ fn test_event_roundtrip() {
             },
         ),
         level: Annotated::new(Level::Debug),
-        version: Annotated::empty(),
-        ty: Annotated::empty(),
         fingerprint: Annotated::new(vec!["myprint".to_string()].into()),
         culprit: Annotated::new("myculprit".to_string()),
         transaction: Annotated::new("mytransaction".to_string()),
@@ -239,19 +237,10 @@ fn test_event_roundtrip() {
         },
         platform: Annotated::new("myplatform".to_string()),
         timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-        received: Annotated::empty(),
         server_name: Annotated::new("myhost".to_string()),
         release: Annotated::new("myrelease".to_string()),
         dist: Annotated::new("mydist".to_string()),
         environment: Annotated::new("myenv".to_string()),
-        user: Annotated::empty(),
-        request: Annotated::empty(),
-        contexts: Annotated::empty(),
-        breadcrumbs: Annotated::empty(),
-        exceptions: Annotated::empty(),
-        stacktrace: Annotated::empty(),
-        template_info: Annotated::empty(),
-        threads: Annotated::empty(),
         tags: {
             let mut items = Array::new();
             items.push(Annotated::new((
@@ -268,15 +257,6 @@ fn test_event_roundtrip() {
             );
             Annotated::new(map)
         },
-        debug_meta: Annotated::empty(),
-        client_sdk: Annotated::empty(),
-        errors: Annotated::empty(),
-        key_id: Annotated::empty(),
-        project: Annotated::empty(),
-        csp: Annotated::empty(),
-        hpkp: Annotated::empty(),
-        expectct: Annotated::empty(),
-        expectstaple: Annotated::empty(),
         other: {
             let mut map = Map::new();
             map.insert(
@@ -285,6 +265,7 @@ fn test_event_roundtrip() {
             );
             map
         },
+        ..Default::default()
     });
 
     assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
@@ -294,45 +275,7 @@ fn test_event_roundtrip() {
 #[test]
 fn test_event_default_values() {
     let json = "{}";
-    let event = Annotated::new(Event {
-        id: Annotated::empty(),
-        level: Annotated::empty(),
-        version: Annotated::empty(),
-        ty: Annotated::empty(),
-        fingerprint: Annotated::empty(),
-        culprit: Annotated::empty(),
-        transaction: Annotated::empty(),
-        logentry: Annotated::empty(),
-        logger: Annotated::empty(),
-        modules: Annotated::empty(),
-        platform: Annotated::empty(),
-        timestamp: Annotated::empty(),
-        received: Annotated::empty(),
-        server_name: Annotated::empty(),
-        release: Annotated::empty(),
-        dist: Annotated::empty(),
-        environment: Annotated::empty(),
-        user: Annotated::empty(),
-        request: Annotated::empty(),
-        contexts: Annotated::empty(),
-        breadcrumbs: Annotated::empty(),
-        exceptions: Annotated::empty(),
-        stacktrace: Annotated::empty(),
-        template_info: Annotated::empty(),
-        threads: Annotated::empty(),
-        tags: Annotated::empty(),
-        extra: Annotated::empty(),
-        debug_meta: Annotated::empty(),
-        client_sdk: Annotated::empty(),
-        errors: Annotated::empty(),
-        key_id: Annotated::empty(),
-        project: Annotated::empty(),
-        csp: Annotated::empty(),
-        hpkp: Annotated::empty(),
-        expectct: Annotated::empty(),
-        expectstaple: Annotated::empty(),
-        other: Default::default(),
-    });
+    let event = Annotated::new(Event::default());
 
     assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, event.to_json_pretty().unwrap());
@@ -380,50 +323,17 @@ fn test_event_default_values_with_meta() {
                 meta
             },
         ),
-        level: Annotated::empty(),
-        version: Annotated::empty(),
-        ty: Annotated::empty(),
         fingerprint: Annotated(Some(vec!["{{ default }}".to_string()].into()), {
             let mut meta = Meta::default();
             meta.add_error("some error", None);
             meta
         }),
-        culprit: Annotated::empty(),
-        transaction: Annotated::empty(),
-        logentry: Annotated::empty(),
-        logger: Annotated::empty(),
-        modules: Annotated::empty(),
         platform: Annotated(Some("other".to_string()), {
             let mut meta = Meta::default();
             meta.add_error("some error", None);
             meta
         }),
-        timestamp: Annotated::empty(),
-        received: Annotated::empty(),
-        server_name: Annotated::empty(),
-        release: Annotated::empty(),
-        dist: Annotated::empty(),
-        environment: Annotated::empty(),
-        user: Annotated::empty(),
-        request: Annotated::empty(),
-        contexts: Annotated::empty(),
-        breadcrumbs: Annotated::empty(),
-        exceptions: Annotated::empty(),
-        stacktrace: Annotated::empty(),
-        template_info: Annotated::empty(),
-        threads: Annotated::empty(),
-        tags: Annotated::empty(),
-        extra: Annotated::empty(),
-        debug_meta: Annotated::empty(),
-        client_sdk: Annotated::empty(),
-        errors: Annotated::empty(),
-        key_id: Annotated::empty(),
-        project: Annotated::empty(),
-        csp: Annotated::empty(),
-        hpkp: Annotated::empty(),
-        expectct: Annotated::empty(),
-        expectstaple: Annotated::empty(),
-        other: Default::default(),
+        ..Default::default()
     });
 
     assert_eq_dbg!(event, Annotated::<Event>::from_json(json).unwrap());

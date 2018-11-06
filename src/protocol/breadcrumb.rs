@@ -70,6 +70,7 @@ fn test_breadcrumb_roundtrip() {
     let breadcrumb = Annotated::new(Breadcrumb {
         timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
         ty: Annotated::new("mytype".to_string()),
+        event_id: Default::default(),
         category: Annotated::new("mycategory".to_string()),
         level: Annotated::new(Level::Fatal),
         message: Annotated::new("my message".to_string()),
