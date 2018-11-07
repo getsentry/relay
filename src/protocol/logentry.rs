@@ -8,6 +8,7 @@ use crate::processor::FromValue;
 /// A log message is similar to the `message` attribute on the event itself but
 /// can additionally hold optional parameters.
 #[derive(Debug, Clone, PartialEq, Default, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_logentry")]
 pub struct LogEntry {
     /// The log message with parameter placeholders (required).
     #[metastructure(pii_kind = "freeform", cap_size = "message",)]

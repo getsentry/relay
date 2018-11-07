@@ -8,11 +8,7 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::meta::{Annotated, MetaMap, MetaTree, Value};
-use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Context, DebugMeta, Event, Exception, Frame, Geo, Request,
-    Stacktrace, TemplateInfo, Thread, User,
-};
+use crate::protocol::*;
 
 #[derive(Debug, Clone)]
 enum PathItem<'a> {
@@ -240,6 +236,15 @@ pub trait Processor {
     fn process_event(&self, event: Annotated<Event>, state: ProcessingState) -> Annotated<Event> {
         let _state = state;
         event
+    }
+    #[inline(always)]
+    fn process_logentry(
+        &self,
+        logentry: Annotated<LogEntry>,
+        state: ProcessingState,
+    ) -> Annotated<LogEntry> {
+        let _state = state;
+        logentry
     }
     #[inline(always)]
     fn process_exception(
