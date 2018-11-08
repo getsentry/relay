@@ -7,9 +7,9 @@ extern crate synstructure;
 extern crate quote;
 extern crate proc_macro2;
 
-use proc_macro2::{TokenStream, Span};
+use proc_macro2::{Span, TokenStream};
 use quote::ToTokens;
-use syn::{Lit, Meta, MetaNameValue, NestedMeta, LitStr, LitBool, Ident, Data};
+use syn::{Data, Ident, Lit, LitBool, LitStr, Meta, MetaNameValue, NestedMeta};
 
 #[derive(Debug, Clone, Copy)]
 enum Trait {
@@ -149,8 +149,8 @@ fn process_enum_struct_derive(
     s: synstructure::Structure,
     t: Trait,
 ) -> Result<TokenStream, synstructure::Structure> {
-    if let Data::Enum(_) = s.ast().data {}
-    else {
+    if let Data::Enum(_) = s.ast().data {
+    } else {
         return Err(s);
     }
 
@@ -193,8 +193,8 @@ fn process_enum_struct_derive(
                                 panic!("Unknown attribute")
                             }
                         }
-                        _ => panic!("Unsupported attribute")
-                    }
+                        _ => panic!("Unsupported attribute"),
+                    },
                 }
             }
         }
@@ -334,7 +334,7 @@ fn process_enum_struct_derive(
             (quote! {
                 __meta::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
                     __processor::ProcessValue::process_value(__meta::Annotated(Some(__value), __meta), __processor, __state)
-                        .map_value(|__value| #type_name::#variant_name(__value))
+                        .map_value(#type_name::#variant_name)
                 }
             }).to_tokens(&mut process_value_body);
         }
@@ -484,8 +484,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                                 panic!("Unknown attribute")
                             }
                         }
-                        _ => panic!("Unsupported attribute")
-                    }
+                        _ => panic!("Unsupported attribute"),
+                    },
                 }
             }
         }
@@ -493,7 +493,12 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
 
     for bi in variant.bindings() {
         let mut additional_properties = false;
-        let mut field_name = bi.ast().ident.as_ref().expect("can not derive struct tuples").to_string();
+        let mut field_name = bi
+            .ast()
+            .ident
+            .as_ref()
+            .expect("can not derive struct tuples")
+            .to_string();
         let mut cap_size_attr = quote!(None);
         let mut pii_kind_attr = quote!(None);
         let mut required = false;
@@ -531,13 +536,11 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                                     }
                                 } else if ident == "required" {
                                     match lit {
-                                        Lit::Str(litstr) => {
-                                            match litstr.value().as_str() {
-                                                "true" => required = true,
-                                                "false" => required = false,
-                                                other => panic!("Unknown value {}", other),
-                                            }
-                                        }
+                                        Lit::Str(litstr) => match litstr.value().as_str() {
+                                            "true" => required = true,
+                                            "false" => required = false,
+                                            other => panic!("Unknown value {}", other),
+                                        },
                                         _ => {
                                             panic!("Got non string literal for required");
                                         }
@@ -614,10 +617,16 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 }
             }).to_tokens(&mut extract_child_meta_body);
         } else {
-            let field_attrs_name = Ident::new(&format!("__field_attrs_{}", {tmp_idx += 1; tmp_idx }), Span::call_site());
+            let field_attrs_name = Ident::new(
+                &format!("__field_attrs_{}", {
+                    tmp_idx += 1;
+                    tmp_idx
+                }),
+                Span::call_site(),
+            );
             let required_attr = LitBool {
                 value: required,
-                span: Span::call_site()
+                span: Span::call_site(),
             };
 
             (quote! {
@@ -668,7 +677,10 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     }
 
     let ast = s.ast();
-    let expectation = LitStr::new(&format!("expected {}", ast.ident.to_string().to_lowercase()), Span::call_site());
+    let expectation = LitStr::new(
+        &format!("expected {}", ast.ident.to_string().to_lowercase()),
+        Span::call_site(),
+    );
     let mut variant = variant.clone();
     for binding in variant.bindings_mut() {
         binding.style = synstructure::BindStyle::Move;
