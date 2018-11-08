@@ -278,15 +278,6 @@ impl Processor for StoreNormalizeProcessor {
         exception
     }
 
-    fn process_stacktrace(
-        &self,
-        stacktrace: Annotated<Stacktrace>,
-        _state: ProcessingState,
-    ) -> Annotated<Stacktrace> {
-        // TODO: stacktrace to_python
-        stacktrace
-    }
-
     fn process_frame(
         &self,
         mut frame: Annotated<Frame>,
