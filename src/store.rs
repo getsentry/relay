@@ -268,3 +268,25 @@ impl Processor for StoreNormalizeProcessor {
         exception
     }
 }
+
+#[test]
+fn test_basic_trimming() {
+    use std::iter::repeat;
+
+    let processor = StoreNormalizeProcessor {
+        project_id: Some(1),
+        client_ip: None,
+        auth: None,
+        key_id: None,
+        version: "7".into(),
+    };
+
+    let event = Annotated::new(Event {
+        culprit: Annotated::new(repeat("x").take(300).collect::<String>()),
+        ..Default::default()
+    });
+
+    let event = event.process(&processor);
+
+    // TODO: test trimming
+}

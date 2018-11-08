@@ -174,6 +174,15 @@ impl<'a> fmt::Display for Path<'a> {
 }
 
 impl<'a> ProcessingState<'a> {
+    /// Returns the root processing state.
+    pub fn root() -> ProcessingState<'a> {
+        ProcessingState {
+            parent: None,
+            path: None,
+            attrs: None,
+        }
+    }
+
     /// Derives a processing state by entering a static key.
     #[inline(always)]
     pub fn enter_static(

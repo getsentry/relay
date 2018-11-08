@@ -14,7 +14,7 @@ use smallvec::SmallVec;
 use general_derive::{FromValue, ToValue};
 
 use crate::chunks;
-use crate::processor::{CapSize, FromValue, ToValue};
+use crate::processor::{CapSize, FromValue, ProcessValue, ProcessingState, Processor, ToValue};
 use crate::types::{Array, Object};
 
 pub use serde_json::Error;
@@ -331,6 +331,13 @@ impl<T> Annotated<T> {
         F: FnOnce() -> T,
     {
         self.0.get_or_insert_with(f)
+    }
+}
+
+impl<T: ProcessValue> Annotated<T> {
+    /// Processes an annotated value with a processor.
+    pub fn process<P: Processor>(self, processor: &P) -> Self {
+        ProcessValue::process_value(self, processor, ProcessingState::root())
     }
 }
 
