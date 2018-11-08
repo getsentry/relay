@@ -24,7 +24,7 @@
 
 use std::fmt;
 
-use protocol::{Remark, RemarkType};
+use crate::protocol::{Remark, RemarkType};
 
 /// A type for dealing with chunks of annotated text.
 #[derive(Clone, Debug, PartialEq)]

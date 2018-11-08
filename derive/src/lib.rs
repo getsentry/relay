@@ -64,8 +64,8 @@ fn process_wrapper_struct_derive(
     Ok(match t {
         Trait::FromValue => {
             s.gen_impl(quote! {
-                use processor as __processor;
-                use meta as __meta;
+                use crate::processor as __processor;
+                use crate::meta as __meta;
 
                 gen impl __processor::FromValue for @Self {
                     #[inline(always)]
@@ -82,9 +82,9 @@ fn process_wrapper_struct_derive(
         }
         Trait::ToValue => {
             s.gen_impl(quote! {
-                use processor as __processor;
-                use types as __types;
-                use meta as __meta;
+                use crate::processor as __processor;
+                use crate::types as __types;
+                use crate::meta as __meta;
                 extern crate serde as __serde;
 
                 gen impl __processor::ToValue for @Self {
@@ -117,8 +117,8 @@ fn process_wrapper_struct_derive(
         }
         Trait::ProcessValue => {
             s.gen_impl(quote! {
-                use processor as __processor;
-                use meta as __meta;
+                use crate::processor as __processor;
+                use crate::meta as __meta;
 
                 gen impl __processor::ProcessValue for @Self {
                     #[inline(always)]
@@ -343,9 +343,9 @@ fn process_enum_struct_derive(
     Ok(match t {
         Trait::FromValue => {
             s.gen_impl(quote! {
-                use processor as __processor;
-                use meta as __meta;
-                use types as __types;
+                use crate::processor as __processor;
+                use crate::meta as __meta;
+                use crate::types as __types;
 
                 gen impl __processor::FromValue for @Self {
                     fn from_value(
@@ -366,9 +366,9 @@ fn process_enum_struct_derive(
         }
         Trait::ToValue => {
             s.gen_impl(quote! {
-                use processor as __processor;
-                use types as __types;
-                use meta as __meta;
+                use crate::processor as __processor;
+                use crate::types as __types;
+                use crate::meta as __meta;
                 extern crate serde as __serde;
 
                 gen impl __processor::ToValue for @Self {
@@ -403,8 +403,8 @@ fn process_enum_struct_derive(
         }
         Trait::ProcessValue => {
             s.gen_impl(quote! {
-                use processor as __processor;
-                use meta as __meta;
+                use crate::processor as __processor;
+                use crate::meta as __meta;
 
                 gen impl __processor::ProcessValue for @Self {
                     fn process_value<P: __processor::Processor>(
@@ -726,8 +726,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     match t {
         Trait::FromValue => {
             s.gen_impl(quote! {
-                use processor as __processor;
-                use meta as __meta;
+                use crate::processor as __processor;
+                use crate::meta as __meta;
 
                 gen impl __processor::FromValue for @Self {
                     fn from_value(
@@ -750,9 +750,9 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         }
         Trait::ToValue => {
             s.gen_impl(quote! {
-                use processor as __processor;
-                use types as __types;
-                use meta as __meta;
+                use crate::processor as __processor;
+                use crate::types as __types;
+                use crate::meta as __meta;
                 extern crate serde as __serde;
 
                 gen impl __processor::ToValue for @Self {
@@ -795,8 +795,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         }
         Trait::ProcessValue => {
             s.gen_impl(quote! {
-                use processor as __processor;
-                use meta as __meta;
+                use crate::processor as __processor;
+                use crate::meta as __meta;
 
                 gen impl __processor::ProcessValue for @Self {
                     fn process_value<P: __processor::Processor>(

@@ -308,7 +308,7 @@ impl Processor for StoreNormalizeProcessor {
 
 #[test]
 fn test_basic_trimming() {
-    use processor::CapSize;
+    use crate::processor::CapSize;
     use std::iter::repeat;
 
     let processor = StoreNormalizeProcessor {
