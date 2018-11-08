@@ -8,7 +8,9 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::protocol::*;
+use crate::meta::{Annotated, MetaMap, MetaTree, Value};
+use crate::protocol;
+use crate::types::{Array, Object};
 
 #[derive(Debug, Clone)]
 enum PathItem<'a> {
@@ -230,122 +232,51 @@ impl<'a> ProcessingState<'a> {
     }
 }
 
+macro_rules! process_method {
+    ($name:ident, $ty:ty) => {
+        process_method!($name, $ty, stringify!($ty));
+    };
+    ($name:ident, $ty:ty, $help_ty:expr) => {
+        #[inline(always)]
+        #[doc = "Processes values of type `"]
+        #[doc = $help_ty]
+        #[doc = "`."]
+        fn $name(&self, value: Annotated<$ty>, state: ProcessingState) -> Annotated<$ty> {
+            let _state = state;
+            value
+        }
+    }
+}
+
 /// A trait for processing the protocol.
 pub trait Processor {
-    #[inline(always)]
-    fn process_event(&self, event: Annotated<Event>, state: ProcessingState) -> Annotated<Event> {
-        let _state = state;
-        event
-    }
-    #[inline(always)]
-    fn process_logentry(
-        &self,
-        logentry: Annotated<LogEntry>,
-        state: ProcessingState,
-    ) -> Annotated<LogEntry> {
-        let _state = state;
-        logentry
-    }
-    #[inline(always)]
-    fn process_exception(
-        &self,
-        exception: Annotated<Exception>,
-        state: ProcessingState,
-    ) -> Annotated<Exception> {
-        let _state = state;
-        exception
-    }
-    #[inline(always)]
-    fn process_stacktrace(
-        &self,
-        stacktrace: Annotated<Stacktrace>,
-        state: ProcessingState,
-    ) -> Annotated<Stacktrace> {
-        let _state = state;
-        stacktrace
-    }
+    // primitives
+    process_method!(process_string, String);
+    process_method!(process_u64, u64);
+    process_method!(process_i64, i64);
+    process_method!(process_f64, f64);
+    process_method!(process_bool, bool);
 
-    #[inline(always)]
-    fn process_frame(&self, frame: Annotated<Frame>, state: ProcessingState) -> Annotated<Frame> {
-        let _state = state;
-        frame
-    }
+    // values and databags
+    process_method!(process_value, Value);
+    process_method!(process_value_array, Array<Value>);
+    process_method!(process_value_object, Object<Value>);
 
-    #[inline(always)]
-    fn process_request(
-        &self,
-        request: Annotated<Request>,
-        state: ProcessingState,
-    ) -> Annotated<Request> {
-        let _state = state;
-        request
-    }
-
-    #[inline(always)]
-    fn process_user(&self, user: Annotated<User>, state: ProcessingState) -> Annotated<User> {
-        let _state = state;
-        user
-    }
-
-    #[inline(always)]
-    fn process_client_sdk_info(
-        &self,
-        info: Annotated<ClientSdkInfo>,
-        state: ProcessingState,
-    ) -> Annotated<ClientSdkInfo> {
-        let _state = state;
-        info
-    }
-    #[inline(always)]
-    fn process_debug_meta(
-        &self,
-        meta: Annotated<DebugMeta>,
-        state: ProcessingState,
-    ) -> Annotated<DebugMeta> {
-        let _state = state;
-        meta
-    }
-    #[inline(always)]
-    fn process_geo(&self, geo: Annotated<Geo>, state: ProcessingState) -> Annotated<Geo> {
-        let _state = state;
-        geo
-    }
-    #[inline(always)]
-    fn process_thread(
-        &self,
-        thread: Annotated<Thread>,
-        state: ProcessingState,
-    ) -> Annotated<Thread> {
-        let _state = state;
-        thread
-    }
-    #[inline(always)]
-    fn process_context(
-        &self,
-        context: Annotated<Context>,
-        state: ProcessingState,
-    ) -> Annotated<Context> {
-        let _state = state;
-        context
-    }
-    #[inline(always)]
-    fn process_breadcrumb(
-        &self,
-        breadcrumb: Annotated<Breadcrumb>,
-        state: ProcessingState,
-    ) -> Annotated<Breadcrumb> {
-        let _state = state;
-        breadcrumb
-    }
-    #[inline(always)]
-    fn process_template_info(
-        &self,
-        info: Annotated<TemplateInfo>,
-        state: ProcessingState,
-    ) -> Annotated<TemplateInfo> {
-        let _state = state;
-        info
-    }
+    // interfaces
+    process_method!(process_event, protocol::Event);
+    process_method!(process_exception, protocol::Exception);
+    process_method!(process_stacktrace, protocol::Stacktrace);
+    process_method!(process_frame, protocol::Frame);
+    process_method!(process_request, protocol::Request);
+    process_method!(process_user, protocol::User);
+    process_method!(process_client_sdk_info, protocol::ClientSdkInfo);
+    process_method!(process_debug_meta, protocol::DebugMeta);
+    process_method!(process_geo, protocol::Geo);
+    process_method!(process_logentry, protocol::LogEntry);
+    process_method!(process_thread, protocol::Thread);
+    process_method!(process_context, protocol::Context);
+    process_method!(process_breadcrumb, protocol::Breadcrumb);
+    process_method!(process_template_info, protocol::TemplateInfo);
 }
 
 /// Implemented for all meta structures.
