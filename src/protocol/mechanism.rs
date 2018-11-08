@@ -71,7 +71,7 @@ pub struct MechanismMeta {
 #[derive(Debug, Clone, PartialEq, Default, ToValue, ProcessValue)]
 pub struct Mechanism {
     /// Mechanism type (required).
-    #[metastructure(field = "type", required = "true", nonempty = "true")]
+    #[metastructure(field = "type", required = "true", nonempty = "true", cap_size = "enumlike")]
     pub ty: Annotated<String>,
 
     /// Human readable detail description.
@@ -79,7 +79,7 @@ pub struct Mechanism {
     pub description: Annotated<String>,
 
     /// Link to online resources describing this error.
-    #[metastructure(required = "false", nonempty = "true")]
+    #[metastructure(required = "false", nonempty = "true", cap_size = "path")]
     pub help_link: Annotated<String>,
 
     /// Flag indicating whether this exception was handled.
@@ -87,6 +87,7 @@ pub struct Mechanism {
 
     /// Additional attributes depending on the mechanism type.
     #[metastructure(pii_kind = "databag")]
+    // TODO: Cap?
     pub data: Annotated<Object<Value>>,
 
     /// Operating system or runtime meta information.

@@ -266,10 +266,6 @@ impl Processor for StoreNormalizeProcessor {
         _state: ProcessingState,
     ) -> Annotated<Exception> {
         if let Some(ref mut exception) = exception.0 {
-            if let Some(ref mut _mechanism) = exception.mechanism.0 {
-                // TODO: mechanism to_python
-            }
-
             // TODO: exception to_python
 
             // TODO: code for processing raw stacktraces
