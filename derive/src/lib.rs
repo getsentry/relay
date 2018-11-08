@@ -501,7 +501,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             .to_string();
         let mut cap_size_attr = quote!(None);
         let mut pii_kind_attr = quote!(None);
-        let mut required = false;
+        let mut required = None;
+        let mut nonempty = None;
         let mut legacy_aliases = vec![];
         for attr in &bi.ast().attrs {
             let meta = match attr.interpret_meta() {
@@ -537,8 +538,19 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                                 } else if ident == "required" {
                                     match lit {
                                         Lit::Str(litstr) => match litstr.value().as_str() {
-                                            "true" => required = true,
-                                            "false" => required = false,
+                                            "true" => required = Some(true),
+                                            "false" => required = Some(false),
+                                            other => panic!("Unknown value {}", other),
+                                        },
+                                        _ => {
+                                            panic!("Got non string literal for required");
+                                        }
+                                    }
+                                } else if ident == "nonempty" {
+                                    match lit {
+                                        Lit::Str(litstr) => match litstr.value().as_str() {
+                                            "true" => nonempty = Some(true),
+                                            "false" => nonempty = Some(false),
                                             other => panic!("Unknown value {}", other),
                                         },
                                         _ => {
@@ -625,7 +637,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 Span::call_site(),
             );
             let required_attr = LitBool {
-                value: required,
+                value: required.unwrap_or(false),
                 span: Span::call_site(),
             };
 
@@ -644,11 +656,23 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 let #bi = __processor::FromValue::from_value(#bi.unwrap_or_else(|| __meta::Annotated(None, __meta::Meta::default())));
             }).to_tokens(&mut from_value_body);
 
-            if required {
+            if required.unwrap_or(false) {
                 (quote! {
-                    let #bi = #bi.require_value();
+                    let mut #bi = #bi;
+                    #bi.require_value();
                 }).to_tokens(&mut from_value_body);
             }
+
+            if nonempty.unwrap_or(false) {
+                if required.is_none() {
+                    panic!("`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used.");
+                }
+                (quote! {
+                    let mut #bi = #bi;
+                    #bi.require_nonempty_value();
+                }).to_tokens(&mut from_value_body);
+            }
+
             (quote! {
                 __map.insert(#field_name.to_string(), __processor::ToValue::to_value(#bi));
             }).to_tokens(&mut to_value_body);

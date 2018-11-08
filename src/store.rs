@@ -262,11 +262,56 @@ impl Processor for StoreNormalizeProcessor {
 
     fn process_exception(
         &self,
-        exception: Annotated<Exception>,
-        state: ProcessingState,
+        mut exception: Annotated<Exception>,
+        _state: ProcessingState,
     ) -> Annotated<Exception> {
-        let _state = state;
+        if let Some(ref mut exception) = exception.0 {
+            if let Some(ref mut _mechanism) = exception.mechanism.0 {
+                // TODO: mechanism to_python
+            }
+
+            // TODO: exception to_python
+
+            // TODO: code for processing raw stacktraces
+        }
+
         exception
+    }
+
+    fn process_stacktrace(
+        &self,
+        stacktrace: Annotated<Stacktrace>,
+        _state: ProcessingState,
+    ) -> Annotated<Stacktrace> {
+        // TODO: stacktrace to_python
+        stacktrace
+    }
+
+    fn process_frame(
+        &self,
+        mut frame: Annotated<Frame>,
+        _state: ProcessingState,
+    ) -> Annotated<Frame> {
+        if let Some(ref mut frame) = frame.0 {
+            frame.in_app.0.get_or_insert(false);
+
+            if frame.function.0.as_ref().map(|x| x == "?").unwrap_or(false) {
+                frame.function.0 = None;
+            }
+
+            if frame.symbol.0.as_ref().map(|x| x == "?").unwrap_or(false) {
+                frame.symbol.0 = None;
+            }
+
+            for mut lines in &mut [&mut frame.pre_lines, &mut frame.post_lines] {
+                if let Some(ref mut lines) = lines.0 {
+                    for mut line in lines {
+                        line.0.get_or_insert_with(String::new);
+                    }
+                }
+            }
+        }
+        frame
     }
 }
 

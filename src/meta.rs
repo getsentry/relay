@@ -300,11 +300,10 @@ impl<T> Annotated<T> {
     }
 
     /// Attaches a value required error if the value is missing.
-    pub fn require_value(mut self) -> Annotated<T> {
+    pub fn require_value(&mut self) {
         if self.0.is_none() && !self.1.has_errors() {
             self.1.add_error("value required", None);
         }
-        self
     }
 
     /// Maps an `Annotated<T>` to an `Annotated<U>` and keeps the original meta data.
@@ -522,6 +521,41 @@ impl Annotated<String> {
 
             rv
         })
+    }
+}
+
+impl<T: IsEmpty> Annotated<T> {
+    /// Attaches a value required error if the value is null or an empty string
+    pub fn require_nonempty_value(&mut self) {
+        if self.1.has_errors() {
+            return;
+        }
+
+        if self
+            .0
+            .as_ref()
+            .map(|x| x.generic_is_empty())
+            .unwrap_or(true)
+        {
+            self.0 = None;
+            self.1.add_error("non-empty value required", None);
+        }
+    }
+}
+
+pub trait IsEmpty {
+    fn generic_is_empty(&self) -> bool;
+}
+
+impl<T> IsEmpty for Vec<T> {
+    fn generic_is_empty(&self) -> bool {
+        self.is_empty()
+    }
+}
+
+impl IsEmpty for String {
+    fn generic_is_empty(&self) -> bool {
+        self.is_empty()
     }
 }
 

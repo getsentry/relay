@@ -71,7 +71,7 @@ pub struct MechanismMeta {
 #[derive(Debug, Clone, PartialEq, Default, ToValue, ProcessValue)]
 pub struct Mechanism {
     /// Mechanism type (required).
-    #[metastructure(field = "type")]
+    #[metastructure(field = "type", required = "true", nonempty = "true")]
     pub ty: Annotated<String>,
 
     /// Human readable detail description.
@@ -79,6 +79,7 @@ pub struct Mechanism {
     pub description: Annotated<String>,
 
     /// Link to online resources describing this error.
+    #[metastructure(required = "false", nonempty = "true")]
     pub help_link: Annotated<String>,
 
     /// Flag indicating whether this exception was handled.

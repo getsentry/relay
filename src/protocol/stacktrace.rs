@@ -6,6 +6,7 @@ use super::*;
 #[metastructure(process_func = "process_frame")]
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
+    #[metastructure(cap_size = "symbol")]
     pub function: Annotated<String>,
 
     /// Potentially mangled name of the symbol as it appears in an executable.
@@ -13,6 +14,7 @@ pub struct Frame {
     /// This is different from a function name by generally being the mangled
     /// name that appears natively in the binary.  This is relevant for languages
     /// like Swift, C++ or Rust.
+    #[metastructure(cap_size = "symbol")]
     pub symbol: Annotated<String>,
 
     /// Name of the module the frame is contained in.
@@ -75,6 +77,10 @@ pub struct Frame {
     /// Start address of the frame's function.
     pub symbol_addr: Annotated<Addr>,
 
+    /// Used for native crashes to indicate how much we can "trust" the instruction_addr
+    #[metastructure(cap_size = "enumlike")]
+    pub trust: Annotated<String>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
@@ -83,7 +89,7 @@ pub struct Frame {
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace {
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", nonempty = "true")]
     pub frames: Annotated<Array<Frame>>,
 
     /// Register values of the thread (top frame).
@@ -119,6 +125,7 @@ fn test_frame_roundtrip() {
   "image_addr": "0x400",
   "instruction_addr": "0x404",
   "symbol_addr": "0x404",
+  "trust": "69",
   "other": "value"
 }"#;
     let frame = Annotated::new(Frame {
@@ -145,6 +152,7 @@ fn test_frame_roundtrip() {
         image_addr: Annotated::new(Addr(0x400)),
         instruction_addr: Annotated::new(Addr(0x404)),
         symbol_addr: Annotated::new(Addr(0x404)),
+        trust: Annotated::new("69".into()),
         other: {
             let mut map = Map::new();
             map.insert(
@@ -171,7 +179,9 @@ fn test_frame_default_values() {
 #[test]
 fn test_stacktrace_roundtrip() {
     let json = r#"{
-  "frames": [],
+  "frames": [
+    {}
+  ],
   "registers": {
     "cspr": "0x20000000",
     "lr": "0x18a31aadc",
@@ -181,7 +191,7 @@ fn test_stacktrace_roundtrip() {
   "other": "value"
 }"#;
     let stack = Annotated::new(Stacktrace {
-        frames: Annotated::new(Default::default()),
+        frames: Annotated::new(vec![Annotated::new(Default::default())]),
         registers: {
             let mut map = Map::new();
             map.insert("cspr".to_string(), Annotated::new(RegVal(0x2000_0000)));
@@ -206,15 +216,19 @@ fn test_stacktrace_roundtrip() {
 
 #[test]
 fn test_stacktrace_default_values() {
-    let json = r#"{"frames":[]}"#;
+    let json = r#"{
+  "frames": [
+    {}
+  ]
+}"#;
     let stack = Annotated::new(Stacktrace {
-        frames: Annotated::new(Default::default()),
+        frames: Annotated::new(vec![Annotated::new(Default::default())]),
         registers: Annotated::empty(),
         other: Default::default(),
     });
 
     assert_eq_dbg!(stack, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, stack.to_json().unwrap());
+    assert_eq_str!(json, stack.to_json_pretty().unwrap());
 }
 
 #[test]
