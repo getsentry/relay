@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use std::mem;
 
-use crate::processor::{ProcessingState, Processor, ToValue};
+use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{self, *};
 
 fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
@@ -197,32 +197,7 @@ impl Processor for StoreNormalizeProcessor {
     ) -> Annotated<Breadcrumb> {
         if let Some(ref mut breadcrumb) = breadcrumb.0 {
             breadcrumb.ty.get_or_insert_with(|| "default".to_string());
-
-            // TODO: Do we want to keep removing the default level?
-            if breadcrumb
-                .level
-                .0
-                .as_ref()
-                .map_or(false, |l| *l == Level::Info)
-            {
-                breadcrumb.level.0 = None;
-            }
-
-            // TODO: This stringifies all data in a breadcrumb. We probably don't want that anymore
-            if let Some(ref mut map) = breadcrumb.data.0 {
-                for value in map.values_mut() {
-                    match value {
-                        Annotated(Some(Value::String(_)), _) => {}
-                        Annotated(Some(ref mut value), _) => {
-                            let mut ser = serde_json::Serializer::new(Vec::new());
-                            value.serialize_payload(&mut ser).expect("stringify failed");
-                            let string = unsafe { String::from_utf8_unchecked(ser.into_inner()) };
-                            *value = Value::String(string);
-                        }
-                        Annotated(None, _) => {}
-                    }
-                }
-            }
+            breadcrumb.level.get_or_insert_with(|| Level::Info);
         }
         breadcrumb
     }
