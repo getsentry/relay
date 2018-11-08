@@ -122,31 +122,27 @@ impl Processor for StoreNormalizeProcessor {
 
             let os_hint = OsHint::from_event(&event);
 
-            let mut exceptions = event
-                .exceptions
-                .0
-                .as_mut()
-                .and_then(|x| x.values.0.as_mut());
-
-            if let Some(ref mut exceptions) = exceptions {
-                if exceptions.len() == 1 && event.stacktrace.0.is_some() {
-                    if let Some(ref mut exception) =
-                        exceptions.get_mut(0).and_then(|x| x.0.as_mut())
-                    {
-                        mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
-                        event.stacktrace = Annotated::empty();
+            if let Some(ref mut exception_values) = event.exceptions.0 {
+                if let Some(ref mut exceptions) = exception_values.values.0 {
+                    if exceptions.len() == 1 && event.stacktrace.0.is_some() {
+                        if let Some(ref mut exception) =
+                            exceptions.get_mut(0).and_then(|x| x.0.as_mut())
+                        {
+                            mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
+                            event.stacktrace = Annotated::empty();
+                        }
                     }
-                }
 
-                // Exception mechanism needs SDK information to resolve proper names in
-                // exception meta (such as signal names). "SDK Information" really means
-                // the operating system version the event was generated on. Some
-                // normalization still works without sdk_info, such as mach_exception
-                // names (they can only occur on macOS).
-                for mut exception in exceptions.iter_mut() {
-                    if let Some(ref mut exception) = exception.0 {
-                        if let Some(ref mut mechanism) = exception.mechanism.0 {
-                            protocol::normalize_mechanism_meta(mechanism, os_hint);
+                    // Exception mechanism needs SDK information to resolve proper names in
+                    // exception meta (such as signal names). "SDK Information" really means
+                    // the operating system version the event was generated on. Some
+                    // normalization still works without sdk_info, such as mach_exception
+                    // names (they can only occur on macOS).
+                    for mut exception in exceptions.iter_mut() {
+                        if let Some(ref mut exception) = exception.0 {
+                            if let Some(ref mut mechanism) = exception.mechanism.0 {
+                                protocol::normalize_mechanism_meta(mechanism, os_hint);
+                            }
                         }
                     }
                 }
@@ -250,5 +246,14 @@ impl Processor for StoreNormalizeProcessor {
         }
 
         info
+    }
+
+    fn process_exception(
+        &self,
+        exception: Annotated<Exception>,
+        state: ProcessingState,
+    ) -> Annotated<Exception> {
+        let _state = state;
+        exception
     }
 }

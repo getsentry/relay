@@ -1065,4 +1065,283 @@ fn test_normalize_errno() {
         }),
         ..Default::default()
     };
+
+    normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
+
+    let errno = mechanism.meta.0.unwrap().errno.0.unwrap();
+    assert_eq!(
+        errno,
+        CError {
+            number: Annotated::new(2),
+            name: Annotated::new("ENOENT".to_string()),
+        }
+    );
+}
+
+#[test]
+fn test_normalize_errno_override() {
+    let mut mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        meta: Annotated::new(MechanismMeta {
+            errno: Annotated::new(CError {
+                number: Annotated::new(2),
+                name: Annotated::new("OVERRIDDEN".to_string()),
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
+
+    let errno = mechanism.meta.0.unwrap().errno.0.unwrap();
+    assert_eq!(
+        errno,
+        CError {
+            number: Annotated::new(2),
+            name: Annotated::new("OVERRIDDEN".to_string()),
+        }
+    );
+}
+
+#[test]
+fn test_normalize_errno_fail() {
+    let mut mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        meta: Annotated::new(MechanismMeta {
+            errno: Annotated::new(CError {
+                number: Annotated::new(2),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    normalize_mechanism_meta(&mut mechanism, None);
+
+    let errno = mechanism.meta.0.unwrap().errno.0.unwrap();
+    assert_eq!(
+        errno,
+        CError {
+            number: Annotated::new(2),
+            ..Default::default()
+        }
+    );
+}
+
+#[test]
+fn test_normalize_signal() {
+    let mut mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        meta: Annotated::new(MechanismMeta {
+            signal: Annotated::new(PosixSignal {
+                number: Annotated::new(11),
+                code: Annotated::new(0),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    normalize_mechanism_meta(&mut mechanism, Some(OsHint::Darwin));
+
+    let signal = mechanism.meta.0.unwrap().signal.0.unwrap();
+    assert_eq!(
+        signal,
+        PosixSignal {
+            number: Annotated::new(11),
+            code: Annotated::new(0),
+            name: Annotated::new("SIGSEGV".to_string()),
+            code_name: Annotated::new("SEGV_NOOP".to_string()),
+        }
+    );
+}
+
+#[test]
+fn test_normalize_partial_signal() {
+    let mut mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        meta: Annotated::new(MechanismMeta {
+            signal: Annotated::new(PosixSignal {
+                number: Annotated::new(11),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
+
+    let signal = mechanism.meta.0.unwrap().signal.0.unwrap();
+
+    assert_eq!(
+        signal,
+        PosixSignal {
+            number: Annotated::new(11),
+            name: Annotated::new("SIGSEGV".to_string()),
+            ..Default::default()
+        }
+    );
+}
+
+#[test]
+fn test_normalize_signal_override() {
+    let mut mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        meta: Annotated::new(MechanismMeta {
+            signal: Annotated::new(PosixSignal {
+                number: Annotated::new(11),
+                code: Annotated::new(0),
+                name: Annotated::new("OVERRIDDEN".to_string()),
+                code_name: Annotated::new("OVERRIDDEN".to_string()),
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
+
+    let signal = mechanism.meta.0.unwrap().signal.0.unwrap();
+
+    assert_eq!(
+        signal,
+        PosixSignal {
+            number: Annotated::new(11),
+            code: Annotated::new(0),
+            name: Annotated::new("OVERRIDDEN".to_string()),
+            code_name: Annotated::new("OVERRIDDEN".to_string()),
+        }
+    );
+}
+
+#[test]
+fn test_normalize_signal_fail() {
+    let mut mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        meta: Annotated::new(MechanismMeta {
+            signal: Annotated::new(PosixSignal {
+                number: Annotated::new(11),
+                code: Annotated::new(0),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    normalize_mechanism_meta(&mut mechanism, None);
+
+    let signal = mechanism.meta.0.unwrap().signal.0.unwrap();
+
+    assert_eq!(
+        signal,
+        PosixSignal {
+            number: Annotated::new(11),
+            code: Annotated::new(0),
+            ..Default::default()
+        }
+    );
+}
+
+#[test]
+fn test_normalize_mach() {
+    let mut mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        meta: Annotated::new(MechanismMeta {
+            mach_exception: Annotated::new(MachException {
+                ty: Annotated::new(1),
+                code: Annotated::new(1),
+                subcode: Annotated::new(8),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    // We do not need SDK information here because mach exceptions only
+    // occur on Darwin
+
+    normalize_mechanism_meta(&mut mechanism, None);
+
+    let mach_exception = mechanism.meta.0.unwrap().mach_exception.0.unwrap();
+    assert_eq!(
+        mach_exception,
+        MachException {
+            ty: Annotated::new(1),
+            code: Annotated::new(1),
+            subcode: Annotated::new(8),
+            name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+        }
+    );
+}
+
+#[test]
+fn test_normalize_mach_override() {
+    let mut mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        meta: Annotated::new(MechanismMeta {
+            mach_exception: Annotated::new(MachException {
+                ty: Annotated::new(1),
+                code: Annotated::new(1),
+                subcode: Annotated::new(8),
+                name: Annotated::new("OVERRIDE".to_string()),
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    // We do not need SDK information here because mach exceptions only
+    // occur on Darwin
+
+    normalize_mechanism_meta(&mut mechanism, None);
+
+    let mach_exception = mechanism.meta.0.unwrap().mach_exception.0.unwrap();
+    assert_eq!(
+        mach_exception,
+        MachException {
+            ty: Annotated::new(1),
+            code: Annotated::new(1),
+            subcode: Annotated::new(8),
+            name: Annotated::new("OVERRIDE".to_string()),
+        }
+    );
+}
+
+#[test]
+fn test_normalize_mach_fail() {
+    let mut mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        meta: Annotated::new(MechanismMeta {
+            mach_exception: Annotated::new(MachException {
+                ty: Annotated::new(99),
+                code: Annotated::new(1),
+                subcode: Annotated::new(8),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    // We do not need SDK information here because mach exceptions only
+    // occur on Darwin
+
+    normalize_mechanism_meta(&mut mechanism, None);
+
+    let mach_exception = mechanism.meta.0.unwrap().mach_exception.0.unwrap();
+    assert_eq!(
+        mach_exception,
+        MachException {
+            ty: Annotated::new(99),
+            code: Annotated::new(1),
+            subcode: Annotated::new(8),
+            ..Default::default()
+        }
+    );
 }
