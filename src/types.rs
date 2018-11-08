@@ -1,6 +1,7 @@
 //! Common types of the protocol.
 use std::collections::BTreeMap;
 use std::fmt;
+use std::net;
 use std::str::FromStr;
 
 use failure::Fail;
@@ -196,6 +197,42 @@ impl FromStr for EventId {
 
     fn from_str(uuid_str: &str) -> Result<Self, Self::Err> {
         uuid_str.parse().map(EventId)
+    }
+}
+
+/// An ip address.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ToValue, ProcessValue)]
+pub struct IpAddr(pub String);
+
+impl IpAddr {
+    /// Returns the auto marker ip address
+    pub fn auto() -> IpAddr {
+        IpAddr("{{auto}}".into())
+    }
+
+    /// Checks if the ip address is set to the auto marker
+    pub fn is_auto(&self) -> bool {
+        self.0 == "{{auto}}"
+    }
+}
+
+impl FromValue for IpAddr {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), mut meta) => {
+                if value == "{{auto}}" || net::IpAddr::from_str(&value).is_ok() {
+                    return Annotated(Some(IpAddr(value)), meta);
+                }
+                meta.add_unexpected_value_error("an ip address", Value::String(value));
+                Annotated(None, meta)
+            }
+            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_unexpected_value_error("an ip address", value);
+                Annotated(None, meta)
+            }
+        }
     }
 }
 
@@ -717,5 +754,37 @@ fn test_thread_id() {
     assert_eq_dbg!(
         ThreadId::Int(42),
         Annotated::<ThreadId>::from_json("42").unwrap().0.unwrap()
+    );
+}
+
+#[test]
+fn test_ip_addr() {
+    assert_eq_dbg!(
+        IpAddr("{{auto}}".into()),
+        Annotated::<IpAddr>::from_json("\"{{auto}}\"")
+            .unwrap()
+            .0
+            .unwrap()
+    );
+    assert_eq_dbg!(
+        IpAddr("127.0.0.1".into()),
+        Annotated::<IpAddr>::from_json("\"127.0.0.1\"")
+            .unwrap()
+            .0
+            .unwrap()
+    );
+    assert_eq_dbg!(
+        IpAddr("::1".into()),
+        Annotated::<IpAddr>::from_json("\"::1\"")
+            .unwrap()
+            .0
+            .unwrap()
+    );
+    assert_eq_dbg!(
+        Annotated::from_error(
+            "expected an ip address",
+            Some(Value::String("clearly invalid value".into()))
+        ),
+        Annotated::<IpAddr>::from_json("\"clearly invalid value\"").unwrap()
     );
 }

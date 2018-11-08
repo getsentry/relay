@@ -28,20 +28,24 @@ pub struct Geo {
 #[metastructure(process_func = "process_user")]
 pub struct User {
     /// Unique identifier of the user.
-    #[metastructure(pii_kind = "id")]
+    #[metastructure(pii_kind = "id", cap_size = "enumlike")]
     pub id: Annotated<String>,
 
     /// Email address of the user.
-    #[metastructure(pii_kind = "email")]
+    #[metastructure(pii_kind = "email", cap_size = "email")]
     pub email: Annotated<String>,
 
     /// Remote IP address of the user. Defaults to "{{auto}}".
     #[metastructure(pii_kind = "ip")]
-    pub ip_address: Annotated<String>,
+    pub ip_address: Annotated<IpAddr>,
+
+    /// Username of the user.
+    #[metastructure(pii_kind = "username", cap_size = "enumlike")]
+    pub username: Annotated<String>,
 
     /// Human readable name of the user.
-    #[metastructure(pii_kind = "username")]
-    pub username: Annotated<String>,
+    #[metastructure(pii_kind = "name", cap_size = "enumlike")]
+    pub name: Annotated<String>,
 
     /// Approximate geographical location of the end user or device.
     pub geo: Annotated<Geo>,
@@ -97,14 +101,16 @@ fn test_user_roundtrip() {
   "id": "e4e24881-8238-4539-a32b-d3c3ecd40568",
   "email": "mail@example.org",
   "ip_address": "{{auto}}",
-  "username": "John Doe",
+  "username": "john_doe",
+  "name": "John Doe",
   "other": "value"
 }"#;
     let user = Annotated::new(User {
         id: Annotated::new("e4e24881-8238-4539-a32b-d3c3ecd40568".to_string()),
         email: Annotated::new("mail@example.org".to_string()),
-        ip_address: Annotated::new("{{auto}}".to_string()),
-        username: Annotated::new("John Doe".to_string()),
+        ip_address: Annotated::new(IpAddr::auto()),
+        name: Annotated::new("John Doe".to_string()),
+        username: Annotated::new("john_doe".to_string()),
         geo: Annotated::empty(),
         other: {
             let mut map = Object::new();

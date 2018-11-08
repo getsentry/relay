@@ -6,6 +6,7 @@ use std::mem;
 
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{self, *};
+use crate::types::IpAddr;
 
 fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
     auth.client
@@ -177,7 +178,7 @@ impl Processor for StoreNormalizeProcessor {
             if let Some(Value::String(http_ip)) = http_ip {
                 let mut user = event.user.0.get_or_insert_with(Default::default);
                 if user.ip_address.0.is_none() {
-                    user.ip_address = Annotated::new(http_ip.clone());
+                    user.ip_address = Annotated::new(IpAddr(http_ip.clone()));
                 }
             } else if let Some(ref client_ip) = self.client_ip {
                 let should_use_client_ip =
@@ -189,7 +190,7 @@ impl Processor for StoreNormalizeProcessor {
                 if should_use_client_ip {
                     let mut user = event.user.0.get_or_insert_with(Default::default);
                     if user.ip_address.0.is_none() {
-                        user.ip_address = Annotated::new(client_ip.clone());
+                        user.ip_address = Annotated::new(IpAddr(client_ip.clone()));
                     }
                 }
             }
@@ -237,8 +238,8 @@ impl Processor for StoreNormalizeProcessor {
         // Fill in ip addresses marked as {{auto}}
         if let Some(ref mut user) = user.0 {
             if let Some(ref client_ip) = self.client_ip {
-                if user.ip_address.0.as_ref().map(|x| &**x) == Some("{{auto}}") {
-                    user.ip_address.0 = Some(client_ip.clone());
+                if user.ip_address.0.as_ref().map_or(false, |x| x.is_auto()) {
+                    user.ip_address.0 = Some(IpAddr(client_ip.clone()));
                 }
             }
         }
@@ -271,8 +272,8 @@ impl Processor for StoreNormalizeProcessor {
 
 #[test]
 fn test_basic_trimming() {
-    use std::iter::repeat;
     use processor::CapSize;
+    use std::iter::repeat;
 
     let processor = StoreNormalizeProcessor {
         project_id: Some(1),

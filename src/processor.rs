@@ -29,7 +29,12 @@ pub enum CapSize {
     Symbol,
     Path,
     ShortPath,
-    Custom(usize),
+    Email,
+    Culprit,
+    TagKey,
+    TagValue,
+    Hard(usize),
+    Soft(usize),
 }
 
 impl CapSize {
@@ -42,21 +47,30 @@ impl CapSize {
             CapSize::Symbol => 256,
             CapSize::Path => 256,
             CapSize::ShortPath => 128,
-            CapSize::Custom(len) => len,
+            // these are from constants.py
+            CapSize::Email => 75,
+            CapSize::Culprit => 200,
+            CapSize::TagKey => 32,
+            CapSize::TagValue => 200,
+            CapSize::Soft(len) | CapSize::Hard(len) => len,
         }
     }
 
     pub fn grace_chars(self) -> usize {
         match self {
-            CapSize::EnumLike => 10,
+            CapSize::EnumLike => 0,
             CapSize::Summary => 100,
             CapSize::Message => 200,
             CapSize::Payload => 1000,
             CapSize::Symbol => 20,
             CapSize::Path => 40,
             CapSize::ShortPath => 20,
-            // custom value always gets 10 chars extra
-            CapSize::Custom(_) => 10,
+            CapSize::Email => 0,
+            CapSize::Culprit => 0,
+            CapSize::TagKey => 0,
+            CapSize::TagValue => 0,
+            CapSize::Soft(_) => 10,
+            CapSize::Hard(_) => 0,
         }
     }
 }

@@ -23,11 +23,15 @@ macro_rules! primitive_to_value {
 macro_rules! primitive_process_value {
     ($type:ident, $process_func:ident) => {
         impl ProcessValue for $type {
-            fn process_value<P: Processor>(value: Annotated<$type>, processor: &P, state: ProcessingState) -> Annotated<$type> {
+            fn process_value<P: Processor>(
+                value: Annotated<$type>,
+                processor: &P,
+                state: ProcessingState,
+            ) -> Annotated<$type> {
                 processor.$process_func(value, state)
             }
         }
-    }
+    };
 }
 
 macro_rules! numeric_meta_structure {
