@@ -184,7 +184,7 @@ impl<'a> ProcessingState<'a> {
         ProcessingState {
             parent: Some(self),
             path: Some(PathItem::StaticKey(key)),
-            attrs: attrs,
+            attrs,
         }
     }
 
@@ -198,7 +198,7 @@ impl<'a> ProcessingState<'a> {
         ProcessingState {
             parent: Some(self),
             path: Some(PathItem::StaticKey(key)),
-            attrs: attrs,
+            attrs,
         }
     }
 
@@ -212,7 +212,7 @@ impl<'a> ProcessingState<'a> {
         ProcessingState {
             parent: Some(self),
             path: Some(PathItem::Index(idx)),
-            attrs: attrs,
+            attrs,
         }
     }
 

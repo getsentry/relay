@@ -138,6 +138,7 @@ fn test_fingerprint_float_bounds() {
         Annotated::from_error(
             "bad values in fingerprint",
             Some(Value::Array(vec![Annotated::new(Value::F64(
+                #[cfg_attr(feature = "cargo-clippy", allow(excessive_precision))]
                 1.797_693_134_862_315_7e+308
             ))]))
         ),

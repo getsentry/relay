@@ -34,14 +34,16 @@ pub struct StoreNormalizeProcessor {
 }
 
 impl Processor for StoreNormalizeProcessor {
+    // TODO: Reduce cyclomatic complexity of this function
+    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     fn process_event(
         &self,
         mut event: Annotated<Event>,
         _state: ProcessingState,
     ) -> Annotated<Event> {
         if let Some(ref mut event) = event.0 {
-            if let Some(ref project_id) = self.project_id {
-                event.project.0 = Some(project_id.clone());
+            if let Some(project_id) = self.project_id {
+                event.project.0 = Some(project_id);
             }
 
             if let Some(ref key_id) = self.key_id {
@@ -208,7 +210,7 @@ impl Processor for StoreNormalizeProcessor {
 
             // TODO: This stringifies all data in a breadcrumb. We probably don't want that anymore
             if let Some(ref mut map) = breadcrumb.data.0 {
-                for (_, value) in map {
+                for value in map.values_mut() {
                     match value {
                         Annotated(Some(Value::String(_)), _) => {}
                         Annotated(Some(ref mut value), _) => {
