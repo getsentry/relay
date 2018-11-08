@@ -371,33 +371,11 @@ impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
     }
 }
 
-macro_rules! primitive_meta_structure {
-    ($type:ident, $meta_type:ident, $expectation:expr) => {
-        impl FromValue for $type {
-            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-                match value {
-                    Annotated(Some(Value::$meta_type(value)), meta) => Annotated(Some(value), meta),
-                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
-                    Annotated(None, meta) => Annotated(None, meta),
-                    Annotated(Some(value), mut meta) => {
-                        meta.add_unexpected_value_error($expectation, value);
-                        Annotated(None, meta)
-                    }
-                }
-            }
-        }
-
-        primitive_to_value!($type, $meta_type);
-
-        impl ProcessValue for $type {}
-    };
-}
-
-primitive_meta_structure!(String, String, "a string");
-primitive_meta_structure!(bool, Bool, "a boolean");
-numeric_meta_structure!(u64, U64, "an unsigned integer");
-numeric_meta_structure!(i64, I64, "a signed integer");
-numeric_meta_structure!(f64, F64, "a floating point value");
+primitive_meta_structure!(String, String, "a string", process_string);
+primitive_meta_structure!(bool, Bool, "a boolean", process_bool);
+numeric_meta_structure!(u64, U64, "an unsigned integer", process_u64);
+numeric_meta_structure!(i64, I64, "a signed integer", process_i64);
+numeric_meta_structure!(f64, F64, "a floating point value", process_f64);
 primitive_meta_structure_through_string!(Uuid, "a uuid");
 
 impl<T: FromValue> FromValue for Vec<Annotated<T>> {

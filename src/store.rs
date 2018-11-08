@@ -272,6 +272,7 @@ impl Processor for StoreNormalizeProcessor {
 #[test]
 fn test_basic_trimming() {
     use std::iter::repeat;
+    use processor::CapSize;
 
     let processor = StoreNormalizeProcessor {
         project_id: Some(1),
@@ -287,6 +288,8 @@ fn test_basic_trimming() {
     });
 
     let event = event.process(&processor);
-
-    // TODO: test trimming
+    assert_eq_dbg!(
+        event.0.unwrap().culprit,
+        Annotated::new(repeat("x").take(300).collect::<String>()).trim_string(CapSize::Symbol)
+    );
 }

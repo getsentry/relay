@@ -20,8 +20,18 @@ macro_rules! primitive_to_value {
     };
 }
 
+macro_rules! primitive_process_value {
+    ($type:ident, $process_func:ident) => {
+        impl ProcessValue for $type {
+            fn process_value<P: Processor>(value: Annotated<$type>, processor: &P, state: ProcessingState) -> Annotated<$type> {
+                processor.$process_func(value, state)
+            }
+        }
+    }
+}
+
 macro_rules! numeric_meta_structure {
-    ($type:ident, $meta_type:ident, $expectation:expr) => {
+    ($type:ident, $meta_type:ident, $expectation:expr, $process_func:ident) => {
         impl FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
@@ -45,8 +55,7 @@ macro_rules! numeric_meta_structure {
         }
 
         primitive_to_value!($type, $meta_type);
-
-        impl ProcessValue for $type {}
+        primitive_process_value!($type, $process_func);
     };
 }
 
@@ -90,5 +99,26 @@ macro_rules! primitive_meta_structure_through_string {
         }
 
         impl ProcessValue for $type {}
+    };
+}
+
+macro_rules! primitive_meta_structure {
+    ($type:ident, $meta_type:ident, $expectation:expr, $process_func:ident) => {
+        impl FromValue for $type {
+            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+                match value {
+                    Annotated(Some(Value::$meta_type(value)), meta) => Annotated(Some(value), meta),
+                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+                    Annotated(None, meta) => Annotated(None, meta),
+                    Annotated(Some(value), mut meta) => {
+                        meta.add_unexpected_value_error($expectation, value);
+                        Annotated(None, meta)
+                    }
+                }
+            }
+        }
+
+        primitive_to_value!($type, $meta_type);
+        primitive_process_value!($type, $process_func);
     };
 }
