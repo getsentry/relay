@@ -118,7 +118,7 @@ impl Processor for StoreNormalizeProcessor {
 
             event.version = Annotated::new(self.version.clone());
 
-            let sdk_info = get_sdk_from_event(&event);
+            let os_hint = OsHint::from_event(&event);
 
             let mut exceptions = event
                 .exceptions
@@ -144,7 +144,7 @@ impl Processor for StoreNormalizeProcessor {
                 for mut exception in exceptions.iter_mut() {
                     if let Some(ref mut exception) = exception.0 {
                         if let Some(ref mut mechanism) = exception.mechanism.0 {
-                            protocol::normalize_mechanism_meta(mechanism, sdk_info.as_ref());
+                            protocol::normalize_mechanism_meta(mechanism, os_hint);
                         }
                     }
                 }
@@ -274,10 +274,4 @@ impl Processor for StoreNormalizeProcessor {
 
         info
     }
-}
-
-fn get_sdk_from_event(event: &Event) -> Option<SystemSdkInfo> {
-    // TODO
-    let _event = event;
-    unimplemented!();
 }

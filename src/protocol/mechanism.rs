@@ -194,9 +194,9 @@ impl FromValue for Mechanism {
     }
 }
 
-fn get_errno_name(errno: i64, sdk: &str) -> Option<&'static str> {
-    Some(match sdk {
-        "linux" => match errno {
+fn get_errno_name(errno: i64, os_hint: OsHint) -> Option<&'static str> {
+    Some(match os_hint {
+        OsHint::Linux => match errno {
             1 => "EPERM",    // Operation not permitted
             2 => "ENOENT",   // No such file or directory
             3 => "ESRCH",    // No such process
@@ -338,7 +338,7 @@ fn get_errno_name(errno: i64, sdk: &str) -> Option<&'static str> {
             133 => "EHWPOISON", // Memory page has hardware error
             _ => return None,
         },
-        "darwin" => match errno {
+        OsHint::Darwin => match errno {
             1 => "EPERM",    // Operation not permitted
             2 => "ENOENT",   // No such file or directory
             3 => "ESRCH",    // No such process
@@ -474,7 +474,7 @@ fn get_errno_name(errno: i64, sdk: &str) -> Option<&'static str> {
             106 => "EQFULL",          // Interface output queue is full
             _ => return None,
         },
-        "windows" => match errno {
+        OsHint::Windows => match errno {
             1 => "EPERM",
             2 => "ENOENT",
             3 => "ESRCH",
@@ -561,14 +561,13 @@ fn get_errno_name(errno: i64, sdk: &str) -> Option<&'static str> {
             140 => "EWOULDBLOCK",
             _ => return None,
         },
-        _ => return None,
     })
 }
 
-fn get_signal_name(signo: i64, sdk: &str) -> Option<&'static str> {
+fn get_signal_name(signo: i64, os_hint: OsHint) -> Option<&'static str> {
     // Linux signals have been taken from <uapi/asm-generic/signal.h>
-    Some(match sdk {
-        "linux" => match signo {
+    Some(match os_hint {
+        OsHint::Linux => match signo {
             1 => "SIGHUP",  // Hangup.
             2 => "SIGINT",  // Terminal interrupt signal.
             3 => "SIGQUIT", // Terminal quit signal.
@@ -602,7 +601,7 @@ fn get_signal_name(signo: i64, sdk: &str) -> Option<&'static str> {
             31 => "SIGSYS",
             _ => return None,
         },
-        "darwin" => match signo {
+        OsHint::Darwin => match signo {
             1 => "SIGHUP",  // hangup
             2 => "SIGINT",  // interrupt
             3 => "SIGQUIT", // quit
@@ -744,24 +743,50 @@ fn get_mach_exception_name(number: i64) -> Option<&'static str> {
     })
 }
 
-pub(crate) fn normalize_mechanism_meta(
-    mechanism: &mut Mechanism,
-    sdk_info: Option<&SystemSdkInfo>,
-) {
-    if let Some(ref mut meta) = mechanism.meta.0 {
-        let sdk = sdk_info
-            .and_then(|info| info.sdk_name.0.as_ref())
-            .and_then(|sdk_name| match &**sdk_name {
-                "ios" | "watchos" | "tvos" | "macos" => Some("darwin"),
-                "linux" | "android" => Some("linux"),
-                "windows" => Some("windows"),
-                _ => None,
-            });
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub(crate) enum OsHint {
+    Windows,
+    Linux,
+    Darwin,
+}
 
-        if let Some(sdk) = sdk {
+impl OsHint {
+    pub fn from_event(event: &Event) -> Option<OsHint> {
+        if let Some(ref debug_meta) = event.debug_meta.0 {
+            if let Some(ref sdk_info) = debug_meta.system_sdk.0 {
+                return normalize_sdk_name(&sdk_info.sdk_name.0);
+            }
+        }
+
+        if let Some(ref contexts) = event.contexts.0 {
+            if let Some(&Annotated(Some(Context::Os(ref os_context)), _)) = contexts.0.get("os") {
+                return normalize_sdk_name(&os_context.name.0);
+            }
+        }
+
+        None
+    }
+}
+
+fn normalize_sdk_name(name: &Option<String>) -> Option<OsHint> {
+    if let Some(ref name) = name {
+        match &**name {
+            "ios" | "watchos" | "tvos" | "macos" => Some(OsHint::Darwin),
+            "linux" | "android" => Some(OsHint::Linux),
+            "windows" => Some(OsHint::Windows),
+            _ => None,
+        }
+    } else {
+        None
+    }
+}
+
+pub(crate) fn normalize_mechanism_meta(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
+    if let Some(ref mut meta) = mechanism.meta.0 {
+        if let Some(os_hint) = os_hint {
             if let Some(ref mut cerror) = meta.errno.0 {
                 if cerror.name.0.is_none() {
-                    if let Some(name) = cerror.number.0.and_then(|x| get_errno_name(x, sdk)) {
+                    if let Some(name) = cerror.number.0.and_then(|x| get_errno_name(x, os_hint)) {
                         cerror.name = Annotated::new(name.to_owned());
                     }
                 }
@@ -770,12 +795,12 @@ pub(crate) fn normalize_mechanism_meta(
             if let Some(ref mut signal) = meta.signal.0 {
                 if let Some(signo) = signal.number.0 {
                     if signal.name.0.is_none() {
-                        if let Some(name) = get_signal_name(signo, sdk) {
+                        if let Some(name) = get_signal_name(signo, os_hint) {
                             signal.name = Annotated::new(name.to_owned());
                         }
                     }
 
-                    if sdk == "darwin" && signal.code_name.0.is_none() {
+                    if os_hint == OsHint::Darwin && signal.code_name.0.is_none() {
                         if let Some(code_name) =
                             signal.code.0.and_then(|x| get_signal_code_name(signo, x))
                         {
@@ -1011,4 +1036,33 @@ fn test_mechanism_legacy_conversion() {
 
     assert_eq_dbg!(mechanism, Annotated::from_json(input).unwrap());
     assert_eq_str!(output, mechanism.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_normalize_missing() {
+    let mut mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        ..Default::default()
+    };
+
+    let old_mechanism = mechanism.clone();
+
+    normalize_mechanism_meta(&mut mechanism, None);
+
+    assert_eq!(mechanism, old_mechanism);
+}
+
+#[test]
+fn test_normalize_errno() {
+    let mut mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        meta: Annotated::new(MechanismMeta {
+            errno: Annotated::new(CError {
+                number: Annotated::new(2),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
 }
