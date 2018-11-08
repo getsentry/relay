@@ -13,7 +13,8 @@ use smallvec::SmallVec;
 #[cfg(test)]
 use general_derive::{FromValue, ToValue};
 
-use crate::processor::{FromValue, ToValue};
+use crate::chunks;
+use crate::processor::{CapSize, FromValue, ToValue};
 use crate::types::{Array, Object};
 
 pub use serde_json::Error;
@@ -438,6 +439,85 @@ impl Annotated<Value> {
     }
 }
 
+impl Annotated<String> {
+    pub fn map_value_chunked<F>(self, f: F) -> Annotated<String>
+    where
+        F: FnOnce(Vec<chunks::Chunk>) -> Vec<chunks::Chunk>,
+    {
+        let Annotated(old_value, mut meta) = self;
+        let new_value = old_value.map(|value| {
+            let old_chunks = chunks::split(&value, meta.remarks.iter());
+            let new_chunks = f(old_chunks);
+            let (new_value, remarks) = chunks::join(new_chunks);
+            meta.remarks = remarks.into_iter().collect();
+            if new_value != value {
+                meta.original_length = Some(value.chars().count() as u32);
+            }
+            new_value
+        });
+        Annotated(new_value, meta)
+    }
+
+    pub fn trim_string(self, cap_size: CapSize) -> Annotated<String> {
+        let limit = cap_size.max_chars();
+        let grace_limit = limit + cap_size.grace_chars();
+
+        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() < grace_limit {
+            return self;
+        }
+
+        // otherwise we trim down to max chars
+        self.map_value_chunked(|chunks| {
+            let mut length = 0;
+            let mut rv = vec![];
+
+            for chunk in chunks {
+                let chunk_chars = chunk.chars();
+
+                // if the entire chunk fits, just put it in
+                if length + chunk_chars < limit {
+                    rv.push(chunk);
+                    length += chunk_chars;
+                    continue;
+                }
+
+                match chunk {
+                    // if there is enough space for this chunk and the 3 character
+                    // ellipsis marker we can push the remaining chunk
+                    chunks::Chunk::Redaction { .. } => {
+                        if length + chunk_chars + 3 < grace_limit {
+                            rv.push(chunk);
+                        }
+                    }
+
+                    // if this is a text chunk, we can put the remaining characters in.
+                    chunks::Chunk::Text { text } => {
+                        let mut remaining = String::new();
+                        for c in text.chars() {
+                            if length < limit - 3 {
+                                remaining.push(c);
+                            } else {
+                                break;
+                            }
+                            length += 1;
+                        }
+                        rv.push(chunks::Chunk::Text { text: remaining });
+                    }
+                }
+
+                rv.push(chunks::Chunk::Redaction {
+                    text: "...".to_string(),
+                    rule_id: "!len".to_string(),
+                    ty: RemarkType::Substituted,
+                });
+                break;
+            }
+
+            rv
+        })
+    }
+}
+
 /// Represents a boxed value.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]
@@ -742,4 +822,25 @@ fn test_annotated_deserialize_with_meta() {
 
     let json = annotated_value.to_json().unwrap();
     assert_eq_str!(json, r#"{"id":null,"type":"testing","_meta":{"id":{"":{"err":["invalid id","expected an unsigned integer"],"val":"blaflasel"}},"type":{"":{"err":["invalid type"]}}}}"#);
+}
+
+#[test]
+fn test_string_trimming() {
+    let value = Annotated::new("This is my long string I want to have trimmed down!".to_string());
+    let new_value = value.trim_string(CapSize::Custom(20));
+    assert_eq_dbg!(
+        new_value,
+        Annotated(
+            Some("This is my long s...".into()),
+            Meta {
+                remarks: vec![Remark {
+                    ty: RemarkType::Substituted,
+                    rule_id: "!len".to_string(),
+                    range: Some((17, 20)),
+                }].into(),
+                original_length: Some(51),
+                ..Default::default()
+            }
+        )
+    );
 }

@@ -34,6 +34,17 @@ pub struct StoreNormalizeProcessor {
 }
 
 impl Processor for StoreNormalizeProcessor {
+    fn process_string(
+        &self,
+        mut value: Annotated<String>,
+        state: ProcessingState,
+    ) -> Annotated<String> {
+        if let Some(cap_size) = state.attrs().cap_size {
+            value = value.trim_string(cap_size);
+        }
+        value
+    }
+
     // TODO: Reduce cyclomatic complexity of this function
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     fn process_event(

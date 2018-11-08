@@ -21,9 +21,9 @@ mod macros;
 #[macro_use]
 mod testutils;
 
-mod meta;
-mod types;
-
+pub mod chunks;
+pub mod meta;
 pub mod processor;
 pub mod protocol;
 pub mod store;
+pub mod types;

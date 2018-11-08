@@ -29,10 +29,11 @@ pub enum CapSize {
     Symbol,
     Path,
     ShortPath,
+    Custom(usize),
 }
 
 impl CapSize {
-    pub fn max_input_length(self) -> usize {
+    pub fn max_chars(self) -> usize {
         match self {
             CapSize::EnumLike => 128,
             CapSize::Summary => 1024,
@@ -41,10 +42,11 @@ impl CapSize {
             CapSize::Symbol => 256,
             CapSize::Path => 256,
             CapSize::ShortPath => 128,
+            CapSize::Custom(len) => len,
         }
     }
 
-    pub fn grace_size(self) -> usize {
+    pub fn grace_chars(self) -> usize {
         match self {
             CapSize::EnumLike => 10,
             CapSize::Summary => 100,
@@ -53,11 +55,9 @@ impl CapSize {
             CapSize::Symbol => 20,
             CapSize::Path => 40,
             CapSize::ShortPath => 20,
+            // custom value always gets 10 chars extra
+            CapSize::Custom(_) => 10,
         }
-    }
-
-    pub fn max_field_length(self) -> usize {
-        self.max_input_length() + self.grace_size()
     }
 }
 
