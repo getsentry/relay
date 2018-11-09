@@ -1,12 +1,13 @@
 use serde::de::value::Error;
 use serde::ser::{self, Serialize};
+use smallvec::SmallVec;
 
 /// Helper serializer that efficiently determines how much space something might take.
 ///
 /// This counts in estimated bytes.
 pub struct SizeEstimatingSerializer {
     size: usize,
-    item_stack: Vec<bool>,
+    item_stack: SmallVec<[bool; 16]>,
 }
 
 impl SizeEstimatingSerializer {
@@ -14,7 +15,7 @@ impl SizeEstimatingSerializer {
     pub fn new() -> SizeEstimatingSerializer {
         SizeEstimatingSerializer {
             size: 0,
-            item_stack: Vec::new(),
+            item_stack: SmallVec::new(),
         }
     }
 
@@ -23,10 +24,12 @@ impl SizeEstimatingSerializer {
         self.size
     }
 
+    #[inline(always)]
     fn push(&mut self) {
         self.item_stack.push(false);
     }
 
+    #[inline(always)]
     fn pop(&mut self) {
         self.item_stack.pop();
     }
