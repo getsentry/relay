@@ -1,11 +1,10 @@
 //! Common types of the protocol.
-use std::collections::BTreeMap;
 use std::fmt;
 use std::net;
 use std::str::FromStr;
 
 use failure::Fail;
-use serde::ser::{SerializeSeq, Serializer};
+use serde::ser::{Serialize, SerializeSeq, Serializer};
 use serde_derive::{Deserialize, Serialize};
 use uuid;
 
@@ -13,17 +12,7 @@ use uuid;
 use general_derive::FromValue;
 use general_derive::{ProcessValue, ToValue};
 
-use crate::meta::{Annotated, Meta, MetaMap, Value};
-use crate::processor::{
-    FromValue, ProcessValue, ProcessingState, Processor, SerializePayload, ToValue,
-};
-
-/// Alias for typed arrays.
-pub type Array<T> = Vec<Annotated<T>>;
-/// Alias for maps.
-pub type Map<K, T> = BTreeMap<K, Annotated<T>>;
-/// Alias for typed objects.
-pub type Object<T> = Map<String, T>;
+use super::*;
 
 /// A array like wrapper used in various places.
 #[derive(Clone, Debug, PartialEq, ToValue, ProcessValue)]
@@ -169,9 +158,9 @@ macro_rules! hex_metrastructure {
             fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
-                S: serde::ser::Serializer,
+                S: Serializer,
             {
-                serde::ser::Serialize::serialize(&self.to_string(), s)
+                Serialize::serialize(&self.to_string(), s)
             }
         }
 
@@ -349,9 +338,9 @@ impl ToValue for Level {
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
-        S: serde::ser::Serializer,
+        S: Serializer,
     {
-        serde::ser::Serialize::serialize(&self.to_string(), s)
+        Serialize::serialize(&self.to_string(), s)
     }
 }
 
@@ -435,9 +424,9 @@ impl ToValue for EventType {
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
-        S: serde::ser::Serializer,
+        S: Serializer,
     {
-        serde::ser::Serialize::serialize(&self.to_string(), s)
+        Serialize::serialize(&self.to_string(), s)
     }
 }
 
@@ -537,11 +526,11 @@ impl ToValue for ThreadId {
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
-        S: serde::ser::Serializer,
+        S: Serializer,
     {
         match *self {
-            ThreadId::String(ref value) => serde::ser::Serialize::serialize(value, s),
-            ThreadId::Int(value) => serde::ser::Serialize::serialize(&value, s),
+            ThreadId::String(ref value) => Serialize::serialize(value, s),
+            ThreadId::Int(value) => Serialize::serialize(&value, s),
         }
     }
 }
@@ -590,6 +579,7 @@ macro_rules! value_impl_for_tuple {
                     Annotated(None, meta) => Annotated(None, meta)
                 }
             }
+
             #[allow(non_snake_case, unused_variables)]
             fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
@@ -600,6 +590,7 @@ macro_rules! value_impl_for_tuple {
                 $(s.serialize_element(&SerializePayload($name))?;)*;
                 s.end()
             }
+
             #[allow(non_snake_case, unused_variables, unused_assignments)]
             fn extract_child_meta(&self) -> MetaMap
             where

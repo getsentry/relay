@@ -24,7 +24,8 @@
 
 use std::fmt;
 
-use crate::protocol::{Remark, RemarkType};
+use super::*;
+use crate::types::*;
 
 /// A type for dealing with chunks of annotated text.
 #[derive(Clone, Debug, PartialEq)]
@@ -77,7 +78,7 @@ impl fmt::Display for Chunk {
 }
 
 /// Chunks the given text based on remarks.
-pub fn split<'a, S, I>(text: S, remarks: I) -> Vec<Chunk>
+pub fn split_chunks<'a, S, I>(text: S, remarks: I) -> Vec<Chunk>
 where
     S: AsRef<str>,
     I: IntoIterator<Item = &'a Remark>,
@@ -126,7 +127,7 @@ where
 }
 
 /// Concatenates chunks into a string and emits remarks for redacted sections.
-pub fn join<I>(chunks: I) -> (String, Vec<Remark>)
+pub fn join_chunks<I>(chunks: I) -> (String, Vec<Remark>)
 where
     I: IntoIterator<Item = Chunk>,
 {
@@ -151,6 +152,85 @@ where
     }
 
     (rv, remarks)
+}
+
+impl Annotated<String> {
+    pub fn map_value_chunked<F>(self, f: F) -> Annotated<String>
+    where
+        F: FnOnce(Vec<Chunk>) -> Vec<Chunk>,
+    {
+        let Annotated(old_value, mut meta) = self;
+        let new_value = old_value.map(|value| {
+            let old_chunks = split_chunks(&value, meta.iter_remarks());
+            let new_chunks = f(old_chunks);
+            let (new_value, remarks) = join_chunks(new_chunks);
+            *meta.remarks_mut() = remarks.into_iter().collect();
+            if new_value != value {
+                meta.set_original_length(Some(value.chars().count() as u32));
+            }
+            new_value
+        });
+        Annotated(new_value, meta)
+    }
+
+    pub fn trim_string(self, cap_size: CapSize) -> Annotated<String> {
+        let limit = cap_size.max_chars();
+        let grace_limit = limit + cap_size.grace_chars();
+
+        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() < grace_limit {
+            return self;
+        }
+
+        // otherwise we trim down to max chars
+        self.map_value_chunked(|chunks| {
+            let mut length = 0;
+            let mut rv = vec![];
+
+            for chunk in chunks {
+                let chunk_chars = chunk.chars();
+
+                // if the entire chunk fits, just put it in
+                if length + chunk_chars < limit {
+                    rv.push(chunk);
+                    length += chunk_chars;
+                    continue;
+                }
+
+                match chunk {
+                    // if there is enough space for this chunk and the 3 character
+                    // ellipsis marker we can push the remaining chunk
+                    Chunk::Redaction { .. } => {
+                        if length + chunk_chars + 3 < grace_limit {
+                            rv.push(chunk);
+                        }
+                    }
+
+                    // if this is a text chunk, we can put the remaining characters in.
+                    Chunk::Text { text } => {
+                        let mut remaining = String::new();
+                        for c in text.chars() {
+                            if length < limit - 3 {
+                                remaining.push(c);
+                            } else {
+                                break;
+                            }
+                            length += 1;
+                        }
+                        rv.push(Chunk::Text { text: remaining });
+                    }
+                }
+
+                rv.push(Chunk::Redaction {
+                    text: "...".to_string(),
+                    rule_id: "!len".to_string(),
+                    ty: RemarkType::Substituted,
+                });
+                break;
+            }
+
+            rv
+        })
+    }
 }
 
 #[cfg(test)]
@@ -180,7 +260,7 @@ mod tests {
         ];
 
         assert_eq_dbg!(
-            split(
+            split_chunks(
                 "Hello Peter, my email address is ****@*****.com. See you",
                 &remarks,
             ),
@@ -188,7 +268,7 @@ mod tests {
         );
 
         assert_eq_dbg!(
-            join(chunks),
+            join_chunks(chunks),
             (
                 "Hello Peter, my email address is ****@*****.com. See you".into(),
                 remarks

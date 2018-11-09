@@ -12,12 +12,13 @@ mod stacktrace;
 mod tags;
 mod templateinfo;
 mod thread;
+mod types;
 mod user;
 
 pub use chrono::{DateTime, Utc};
 pub use uuid::Uuid;
 
-pub use crate::meta::*;
+pub use crate::processor::*;
 pub use crate::types::*;
 
 pub use self::breadcrumb::*;
@@ -34,4 +35,5 @@ pub use self::stacktrace::*;
 pub use self::tags::*;
 pub use self::templateinfo::*;
 pub use self::thread::*;
+pub use self::types::*;
 pub use self::user::*;

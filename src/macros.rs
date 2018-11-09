@@ -1,6 +1,6 @@
 macro_rules! primitive_to_value {
     ($type:ident, $meta_type:ident) => {
-        impl ToValue for $type {
+        impl crate::processor::ToValue for $type {
             #[inline(always)]
             fn to_value(value: Annotated<Self>) -> Annotated<Value> {
                 match value {
@@ -8,13 +8,14 @@ macro_rules! primitive_to_value {
                     Annotated(None, meta) => Annotated(None, meta),
                 }
             }
+
             #[inline(always)]
             fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
-                S: Serializer,
+                S: serde::Serializer,
             {
-                Serialize::serialize(self, s)
+                serde::Serialize::serialize(self, s)
             }
         }
     };
@@ -22,7 +23,7 @@ macro_rules! primitive_to_value {
 
 macro_rules! primitive_process_value {
     ($type:ident, $process_func:ident) => {
-        impl ProcessValue for $type {
+        impl crate::processor::ProcessValue for $type {
             fn process_value<P: Processor>(
                 value: Annotated<$type>,
                 processor: &P,
@@ -36,7 +37,7 @@ macro_rules! primitive_process_value {
 
 macro_rules! numeric_meta_structure {
     ($type:ident, $meta_type:ident, $expectation:expr, $process_func:ident) => {
-        impl FromValue for $type {
+        impl crate::processor::FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::U64(value)), meta) => {
@@ -65,7 +66,7 @@ macro_rules! numeric_meta_structure {
 
 macro_rules! primitive_meta_structure_through_string {
     ($type:ident, $expectation:expr) => {
-        impl FromValue for $type {
+        impl crate::processor::FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
@@ -84,7 +85,7 @@ macro_rules! primitive_meta_structure_through_string {
                 }
             }
         }
-        impl ToValue for $type {
+        impl crate::processor::ToValue for $type {
             fn to_value(value: Annotated<Self>) -> Annotated<Value> {
                 match value {
                     Annotated(Some(value), meta) => {
@@ -102,13 +103,13 @@ macro_rules! primitive_meta_structure_through_string {
             }
         }
 
-        impl ProcessValue for $type {}
+        impl crate::processor::ProcessValue for $type {}
     };
 }
 
 macro_rules! primitive_meta_structure {
     ($type:ident, $meta_type:ident, $expectation:expr, $process_func:ident) => {
-        impl FromValue for $type {
+        impl crate::processor::FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::$meta_type(value)), meta) => Annotated(Some(value), meta),

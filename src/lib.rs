@@ -20,15 +20,13 @@ extern crate difference;
 #[macro_use]
 mod macros;
 
-mod sizeser;
-
 #[cfg(test)]
 #[macro_use]
 mod testutils;
 
-pub mod chunks;
-pub mod meta;
+// This is re-exported by `protocol`
+mod types;
+
 pub mod processor;
 pub mod protocol;
 pub mod store;
-pub mod types;

@@ -6,9 +6,8 @@ use url::Url;
 
 use std::mem;
 
-use crate::processor::{ProcessingState, Processor};
+use crate::processor::*;
 use crate::protocol::{self, *};
-use crate::types::IpAddr;
 
 fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
     auth.client
@@ -398,7 +397,7 @@ fn test_basic_trimming() {
         ..Default::default()
     });
 
-    let event = event.process(&processor);
+    let event = crate::processor::process(event, &processor);
     assert_eq_dbg!(
         event.0.unwrap().culprit,
         Annotated::new(repeat("x").take(300).collect::<String>()).trim_string(CapSize::Symbol)
@@ -418,20 +417,18 @@ fn test_handles_type_in_value() {
     let exception = Annotated::new(Exception {
         value: Annotated::new("ValueError: unauthorized".to_string().into()),
         ..Default::default()
-    }).process(&processor)
-    .0
-    .unwrap();
+    });
 
+    let exception = crate::processor::process(exception, &processor).0.unwrap();
     assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
     assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
 
     let exception = Annotated::new(Exception {
         value: Annotated::new("ValueError:unauthorized".to_string().into()),
         ..Default::default()
-    }).process(&processor)
-    .0
-    .unwrap();
+    });
 
+    let exception = crate::processor::process(exception, &processor).0.unwrap();
     assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
     assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
 }
@@ -449,9 +446,8 @@ fn test_json_value() {
     let exception = Annotated::new(Exception {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
         ..Default::default()
-    }).process(&processor)
-    .0
-    .unwrap();
+    });
+    let exception = crate::processor::process(exception, &processor).0.unwrap();
 
     // Don't split a json-serialized value on the colon
     assert_eq_dbg!(
@@ -471,9 +467,8 @@ fn test_exception_invalid() {
         version: "7".into(),
     };
 
-    let exception = Annotated::new(Exception {
-        ..Default::default()
-    }).process(&processor);
+    let exception = Annotated::new(Exception::default());
+    let exception = crate::processor::process(exception, &processor);
 
     assert_eq_dbg!(
         exception.1.iter_errors().collect_tuple(),
