@@ -1,6 +1,8 @@
 use chrono::Utc;
 
 use itertools::Itertools;
+use regex::Regex;
+use url::Url;
 
 use std::mem;
 
@@ -18,6 +20,46 @@ fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
             version: Annotated::new(version.to_owned()),
             ..Default::default()
         })
+}
+
+fn parse_type_and_value(
+    ty: Annotated<String>,
+    value: Annotated<String>,
+) -> (Annotated<String>, Annotated<String>) {
+    lazy_static! {
+        static ref TYPE_VALUE_RE: Regex = Regex::new(r"^(\w+):(.*)$").unwrap();
+    }
+
+    if let (None, Some(value_str)) = (ty.0.as_ref(), value.0.as_ref()) {
+        if let Some((ref cap,)) = TYPE_VALUE_RE.captures_iter(value_str).collect_tuple() {
+            return (
+                Annotated::new(cap[1].to_string()),
+                Annotated(Some(cap[2].to_string()), value.1),
+            );
+        }
+    }
+
+    (ty, value)
+}
+
+fn is_url(filename: &str) -> bool {
+    filename.starts_with("file:") || filename.starts_with("http:") || filename.starts_with("https:") || filename.starts_with("applewebdata:")
+}
+
+fn normalize_non_raw_frame(frame: &mut Frame) {
+    if frame.abs_path.0.is_none() {
+        frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
+    }
+
+    if let (None, Some(abs_path)) = (frame.filename.0.as_ref(), frame.abs_path.0.as_ref()) {
+        frame.filename = Annotated::new(abs_path.clone());
+
+        if is_url(&abs_path) {
+            if let Ok(url) = Url::parse(&abs_path) {
+                frame.filename = Annotated::new(url.path().to_string());
+            }
+        }
+    }
 }
 
 /// Simplified version of sentry.coreapi.Auth
@@ -266,9 +308,24 @@ impl Processor for StoreNormalizeProcessor {
         _state: ProcessingState,
     ) -> Annotated<Exception> {
         if let Some(ref mut exception) = exception.0 {
-            // TODO: exception to_python
+            if let Some(ref mut frames) = exception
+                .stacktrace
+                .0
+                .as_mut()
+                .and_then(|stacktrace| stacktrace.frames.0.as_mut())
+            {
+                // this processing should only be done for non raw frames (i.e. not for
+                // exception.raw_stacktrace)
+                for frame in frames.iter_mut() {
+                    if let Some(ref mut frame) = frame.0 {
+                        normalize_non_raw_frame(frame);
+                    }
+                }
+            }
 
-            // TODO: code for processing raw stacktraces
+            let (ty, value) = parse_type_and_value(exception.ty.clone(), exception.value.clone());
+            exception.ty = ty;
+            exception.value = value;
         }
 
         exception

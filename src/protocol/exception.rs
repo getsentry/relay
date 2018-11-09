@@ -6,11 +6,11 @@ use super::*;
 #[metastructure(process_func = "process_exception")]
 pub struct Exception {
     /// Exception type (required).
-    #[metastructure(field = "type", required = "true")]
+    #[metastructure(field = "type", required = "true", cap_size = "symbol")]
     pub ty: Annotated<String>,
 
     /// Human readable display value.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(cap_size = "summary", required = "true")]
     pub value: Annotated<String>,
 
     /// Module name of this exception.
@@ -25,6 +25,7 @@ pub struct Exception {
     pub raw_stacktrace: Annotated<Stacktrace>,
 
     /// Identifier of the thread this exception occurred in.
+    #[metastructure(cap_size = "enumlike")]
     pub thread_id: Annotated<ThreadId>,
 
     /// Mechanism by which this exception was generated and handled.

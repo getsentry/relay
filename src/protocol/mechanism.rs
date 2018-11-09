@@ -71,7 +71,12 @@ pub struct MechanismMeta {
 #[derive(Debug, Clone, PartialEq, Default, ToValue, ProcessValue)]
 pub struct Mechanism {
     /// Mechanism type (required).
-    #[metastructure(field = "type", required = "true", nonempty = "true", cap_size = "enumlike")]
+    #[metastructure(
+        field = "type",
+        required = "true",
+        nonempty = "true",
+        cap_size = "enumlike"
+    )]
     pub ty: Annotated<String>,
 
     /// Human readable detail description.
