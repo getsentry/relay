@@ -5,9 +5,12 @@ use regex::Regex;
 use url::Url;
 
 use std::mem;
+use std::path::PathBuf;
 
 use crate::processor::*;
 use crate::protocol::{self, *};
+
+mod geo;
 
 fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
     auth.client
@@ -21,17 +24,16 @@ fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
         })
 }
 
-fn process_non_raw_stacktrace(mut stacktrace: Annotated<Stacktrace>) -> Annotated<Stacktrace> {
+fn process_non_raw_stacktrace(stacktrace: &mut Annotated<Stacktrace>) {
     // this processing should only be done for non raw frames (i.e. not for
     // exception.raw_stacktrace)
     if let Some(ref mut stacktrace) = stacktrace.0 {
         if let Some(ref mut frames) = stacktrace.frames.0 {
-            // XXX: Ugly allocation
-            let tmp = frames.drain(..).map(process_non_raw_frame).collect();
-            *frames = tmp;
+            for mut frame in frames.iter_mut() {
+                process_non_raw_frame(&mut frame);
+            }
         }
     }
-    stacktrace
 }
 
 fn parse_type_and_value(
@@ -61,7 +63,7 @@ fn is_url(filename: &str) -> bool {
         || filename.starts_with("applewebdata:")
 }
 
-fn process_non_raw_frame(mut frame: Annotated<Frame>) -> Annotated<Frame> {
+fn process_non_raw_frame(frame: &mut Annotated<Frame>) {
     if let Some(ref mut frame) = frame.0 {
         if frame.abs_path.0.is_none() {
             frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
@@ -81,8 +83,6 @@ fn process_non_raw_frame(mut frame: Annotated<Frame>) -> Annotated<Frame> {
             }
         }
     }
-
-    frame
 }
 
 /// Simplified version of sentry.coreapi.Auth
@@ -91,12 +91,14 @@ pub struct StoreAuth {
     is_public: bool,
 }
 
+#[derive(Default)]
 pub struct StoreNormalizeProcessor {
     project_id: Option<u64>,
     client_ip: Option<String>,
     auth: Option<StoreAuth>,
     key_id: Option<String>,
-    version: String,
+    geoip_path: Option<PathBuf>,
+    version: Option<String>,
 }
 
 impl Processor for StoreNormalizeProcessor {
@@ -130,8 +132,7 @@ impl Processor for StoreNormalizeProcessor {
             event.errors.0.get_or_insert_with(Vec::new);
 
             // TODO: Interfaces
-            // XXX: Ugly clone
-            event.stacktrace = process_non_raw_stacktrace(event.stacktrace.clone());
+            process_non_raw_stacktrace(&mut event.stacktrace);
 
             event.level.0.get_or_insert(Level::Error);
 
@@ -197,7 +198,9 @@ impl Processor for StoreNormalizeProcessor {
                 EventType::Default
             });
 
-            event.version = Annotated::new(self.version.clone());
+            if let Some(ref version) = self.version {
+                event.version = Annotated::new(version.clone());
+            }
 
             let os_hint = OsHint::from_event(&event);
 
@@ -302,11 +305,41 @@ impl Processor for StoreNormalizeProcessor {
     }
 
     fn process_user(&self, mut user: Annotated<User>, _state: ProcessingState) -> Annotated<User> {
-        // Fill in ip addresses marked as {{auto}}
         if let Some(ref mut user) = user.0 {
+            // Fill in ip addresses marked as {{auto}}
             if let Some(ref client_ip) = self.client_ip {
                 if user.ip_address.0.as_ref().map_or(false, |x| x.is_auto()) {
                     user.ip_address.0 = Some(IpAddr(client_ip.clone()));
+                }
+            }
+
+            // Validate email
+            let is_valid_email = user
+                .email
+                .0
+                .as_ref()
+                .map(|x| x.contains('@'))
+                .unwrap_or(true);
+            if !is_valid_email {
+                user.email.1.add_error(
+                    "invalid email address",
+                    user.email.0.take().map(Value::String),
+                );
+            }
+
+            // Infer user.geo from user.ip_address
+            if let (None, Some(geoip_path), Some(ip_address)) = (
+                user.geo.0.as_ref(),
+                self.geoip_path.as_ref(),
+                user.ip_address.0.as_ref(),
+            ) {
+                if let Some(city_info) = geo::lookup_ip(geoip_path, &ip_address.0) {
+                    user.geo = Annotated::new(Geo {
+                        country_code: Annotated(city_info.country_code, Default::default()),
+                        city: Annotated(city_info.city, Default::default()),
+                        region: Annotated(city_info.region, Default::default()),
+                        ..Default::default()
+                    });
                 }
             }
         }
@@ -333,8 +366,7 @@ impl Processor for StoreNormalizeProcessor {
         _state: ProcessingState,
     ) -> Annotated<Exception> {
         if let Annotated(Some(ref mut exception), ref mut meta) = exception {
-            // XXX: Ugly clone
-            exception.stacktrace = process_non_raw_stacktrace(exception.stacktrace.clone());
+            process_non_raw_stacktrace(&mut exception.stacktrace);
 
             let (ty, value) = parse_type_and_value(
                 exception.ty.clone(),
@@ -384,13 +416,7 @@ fn test_basic_trimming() {
     use crate::processor::CapSize;
     use std::iter::repeat;
 
-    let processor = StoreNormalizeProcessor {
-        project_id: Some(1),
-        client_ip: None,
-        auth: None,
-        key_id: None,
-        version: "7".into(),
-    };
+    let processor = StoreNormalizeProcessor::default();
 
     let event = Annotated::new(Event {
         culprit: Annotated::new(repeat("x").take(300).collect::<String>()),
@@ -398,6 +424,7 @@ fn test_basic_trimming() {
     });
 
     let event = crate::processor::process(event, &processor);
+
     assert_eq_dbg!(
         event.0.unwrap().culprit,
         Annotated::new(repeat("x").take(300).collect::<String>()).trim_string(CapSize::Symbol)
@@ -406,13 +433,7 @@ fn test_basic_trimming() {
 
 #[test]
 fn test_handles_type_in_value() {
-    let processor = StoreNormalizeProcessor {
-        project_id: Some(1),
-        client_ip: None,
-        auth: None,
-        key_id: None,
-        version: "7".into(),
-    };
+    let processor = StoreNormalizeProcessor::default();
 
     let exception = Annotated::new(Exception {
         value: Annotated::new("ValueError: unauthorized".to_string().into()),
@@ -435,13 +456,7 @@ fn test_handles_type_in_value() {
 
 #[test]
 fn test_json_value() {
-    let processor = StoreNormalizeProcessor {
-        project_id: Some(1),
-        client_ip: None,
-        auth: None,
-        key_id: None,
-        version: "7".into(),
-    };
+    let processor = StoreNormalizeProcessor::default();
 
     let exception = Annotated::new(Exception {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
@@ -459,13 +474,7 @@ fn test_json_value() {
 
 #[test]
 fn test_exception_invalid() {
-    let processor = StoreNormalizeProcessor {
-        project_id: Some(1),
-        client_ip: None,
-        auth: None,
-        key_id: None,
-        version: "7".into(),
-    };
+    let processor = StoreNormalizeProcessor::default();
 
     let exception = Annotated::new(Exception::default());
     let exception = crate::processor::process(exception, &processor);
@@ -492,13 +501,14 @@ fn test_is_url() {
 
 #[test]
 fn test_coerces_url_filenames() {
-    let frame = Annotated::new(Frame {
+    let mut frame = Annotated::new(Frame {
         line: Annotated::new(1),
         filename: Annotated::new("http://foo.com/foo.js".to_string()),
         ..Default::default()
     });
 
-    let frame = process_non_raw_frame(frame).0.unwrap();
+    process_non_raw_frame(&mut frame);
+    let frame = frame.0.unwrap();
 
     assert_eq!(frame.filename.0, Some("/foo.js".to_string()));
     assert_eq!(frame.abs_path.0, Some("http://foo.com/foo.js".to_string()));
@@ -506,14 +516,15 @@ fn test_coerces_url_filenames() {
 
 #[test]
 fn test_does_not_overwrite_filename() {
-    let frame = Annotated::new(Frame {
+    let mut frame = Annotated::new(Frame {
         line: Annotated::new(1),
         filename: Annotated::new("foo.js".to_string()),
         abs_path: Annotated::new("http://foo.com/foo.js".to_string()),
         ..Default::default()
     });
 
-    let frame = process_non_raw_frame(frame).0.unwrap();
+    process_non_raw_frame(&mut frame);
+    let frame = frame.0.unwrap();
 
     assert_eq!(frame.filename.0, Some("foo.js".to_string()));
     assert_eq!(frame.abs_path.0, Some("http://foo.com/foo.js".to_string()));
@@ -521,14 +532,61 @@ fn test_does_not_overwrite_filename() {
 
 #[test]
 fn test_ignores_results_with_empty_path() {
-    let frame = Annotated::new(Frame {
+    let mut frame = Annotated::new(Frame {
         line: Annotated::new(1),
         abs_path: Annotated::new("http://foo.com".to_string()),
         ..Default::default()
     });
 
-    let frame = process_non_raw_frame(frame).0.unwrap();
+    process_non_raw_frame(&mut frame);
+    let frame = frame.0.unwrap();
 
     assert_eq!(frame.filename.0, Some("http://foo.com".to_string()));
     assert_eq!(frame.abs_path.0, frame.filename.0);
+}
+
+#[test]
+fn test_geo_from_ip_address() {
+    let processor = StoreNormalizeProcessor {
+        geoip_path: Some(PathBuf::from("GeoLiteCity.dat")),
+        ..Default::default()
+    };
+
+    let user = Annotated::new(User {
+        ip_address: Annotated::new(IpAddr("213.47.147.207".to_string())),
+        ..Default::default()
+    });
+
+    let user = crate::processor::process(user, &processor);
+
+    let expected = Annotated::new(Geo {
+        country_code: Annotated::new("AT".to_string()),
+        city: Annotated::new("Vienna".to_string()),
+        region: Annotated::new("09".to_string()),
+        ..Default::default()
+    });
+    assert_eq_dbg!(user.0.unwrap().geo, expected)
+}
+
+#[test]
+fn test_invalid_email() {
+    let processor = StoreNormalizeProcessor::default();
+
+    let user = Annotated::new(User {
+        email: Annotated::new("bananabread".to_string()),
+        ..Default::default()
+    });
+
+    let user = crate::processor::process(user, &processor);
+
+    assert_eq_dbg!(
+        user,
+        Annotated::new(User {
+            email: Annotated::from_error(
+                "invalid email address",
+                Some(Value::String("bananabread".to_string()))
+            ),
+            ..Default::default()
+        })
+    );
 }

@@ -12,7 +12,7 @@ doc:
 test: cargotest
 .PHONY: test
 
-cargotest:
+cargotest: GeoLiteCity.dat
 	@cargo test --all-features --all
 .PHONY: cargotest
 
@@ -30,3 +30,6 @@ lint:
 	@rustup component add clippy-preview 2> /dev/null
 	@cargo clippy --all-features --tests --examples -- -D clippy::all
 .PHONY: lint
+
+GeoLiteCity.dat:
+	@curl http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz | gzip -cd > $@

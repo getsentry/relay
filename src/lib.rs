@@ -5,6 +5,7 @@ extern crate failure;
 #[macro_use]
 extern crate lazy_static;
 extern crate general_derive;
+extern crate geoip;
 extern crate itertools;
 extern crate regex;
 extern crate serde;

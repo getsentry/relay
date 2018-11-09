@@ -29,7 +29,7 @@ pub struct Geo {
 pub struct User {
     /// Unique identifier of the user.
     #[metastructure(pii_kind = "id", cap_size = "enumlike")]
-    pub id: Annotated<String>,
+    pub id: Annotated<JsonLenientString>,
 
     /// Email address of the user.
     #[metastructure(pii_kind = "email", cap_size = "email")]
@@ -106,7 +106,7 @@ fn test_user_roundtrip() {
   "other": "value"
 }"#;
     let user = Annotated::new(User {
-        id: Annotated::new("e4e24881-8238-4539-a32b-d3c3ecd40568".to_string()),
+        id: Annotated::new("e4e24881-8238-4539-a32b-d3c3ecd40568".to_string().into()),
         email: Annotated::new("mail@example.org".to_string()),
         ip_address: Annotated::new(IpAddr::auto()),
         name: Annotated::new("John Doe".to_string()),

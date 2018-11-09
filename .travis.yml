@@ -10,6 +10,9 @@ branches:
   only:
     - master
 
+before_script:
+  - sudo apt-get install libgeoip-dev
+
 script: make $SUITE
 
 matrix:
