@@ -14,7 +14,7 @@ pub struct Breadcrumb {
     pub timestamp: Annotated<DateTime<Utc>>,
 
     /// The type of the breadcrumb.
-    #[metastructure(field = "type")]
+    #[metastructure(field = "type", cap_size = "enumlike")]
     pub ty: Annotated<String>,
 
     /// The optional category of the breadcrumb.
@@ -29,7 +29,7 @@ pub struct Breadcrumb {
     pub message: Annotated<String>,
 
     /// Custom user-defined data of this breadcrumb.
-    #[metastructure(pii_kind = "databag")]
+    #[metastructure(pii_kind = "databag", cap_size = "small_payload")]
     pub data: Annotated<Object<Value>>,
 
     /// Identifier of the event this breadcrumb belongs to.

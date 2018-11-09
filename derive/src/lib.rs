@@ -826,6 +826,8 @@ fn parse_cap_size(name: &str) -> TokenStream {
         "enumlike" => quote!(__processor::CapSize::EnumLike),
         "summary" => quote!(__processor::CapSize::Summary),
         "message" => quote!(__processor::CapSize::Message),
+        "small_payload" => quote!(__processor::CapSize::SmallPayload),
+        "payload" => quote!(__processor::CapSize::Payload),
         "symbol" => quote!(__processor::CapSize::Symbol),
         "path" => quote!(__processor::CapSize::Path),
         "short_path" => quote!(__processor::CapSize::ShortPath),

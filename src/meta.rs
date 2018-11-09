@@ -15,6 +15,7 @@ use general_derive::{FromValue, ToValue};
 
 use crate::chunks;
 use crate::processor::{CapSize, FromValue, ProcessValue, ProcessingState, Processor, ToValue};
+use crate::sizeser::SizeEstimatingSerializer;
 use crate::types::{Array, Object};
 
 pub use serde_json::Error;
@@ -442,6 +443,17 @@ impl Annotated<Value> {
             }
             Annotated(None, meta) => Annotated(None, meta),
         }
+    }
+}
+
+impl<T: ToValue> Annotated<T> {
+    /// Returns the estimated size of this value when serialized to JSON.
+    pub fn estimate_size(&self) -> usize {
+        let mut ser = SizeEstimatingSerializer::new();
+        if let Some(ref value) = self.0 {
+            ToValue::serialize_payload(value, &mut ser).unwrap();
+        }
+        ser.size()
     }
 }
 
@@ -884,4 +896,11 @@ fn test_string_trimming() {
             }
         )
     );
+}
+
+#[test]
+fn test_estimate_size() {
+    let json = r#"{"a":["Hello","World","aha","hmm",false,{"blub":42,"x":true},null]}"#;
+    let value = Annotated::<Object<Value>>::from_json(json).unwrap();
+    assert_eq!(value.estimate_size(), json.len());
 }

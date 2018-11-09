@@ -17,6 +17,8 @@ extern crate difference;
 #[macro_use]
 mod macros;
 
+mod sizeser;
+
 #[cfg(test)]
 #[macro_use]
 mod testutils;

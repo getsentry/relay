@@ -25,6 +25,7 @@ pub enum CapSize {
     EnumLike,
     Summary,
     Message,
+    SmallPayload,
     Payload,
     Symbol,
     Path,
@@ -43,6 +44,7 @@ impl CapSize {
             CapSize::EnumLike => 128,
             CapSize::Summary => 1024,
             CapSize::Message => 8196,
+            CapSize::SmallPayload => 4096,
             CapSize::Payload => 20_000,
             CapSize::Symbol => 256,
             CapSize::Path => 256,
@@ -61,6 +63,7 @@ impl CapSize {
             CapSize::EnumLike => 0,
             CapSize::Summary => 100,
             CapSize::Message => 200,
+            CapSize::SmallPayload => 128,
             CapSize::Payload => 1000,
             CapSize::Symbol => 20,
             CapSize::Path => 40,
@@ -71,6 +74,25 @@ impl CapSize {
             CapSize::TagValue => 0,
             CapSize::Soft(_) => 10,
             CapSize::Hard(_) => 0,
+        }
+    }
+
+    pub fn depth(&self) -> usize {
+        match *self {
+            CapSize::EnumLike => 1,
+            CapSize::Summary => 1,
+            CapSize::Message => 1,
+            CapSize::SmallPayload => 3,
+            CapSize::Payload => 5,
+            CapSize::Symbol => 1,
+            CapSize::Path => 1,
+            CapSize::ShortPath => 1,
+            CapSize::Email => 1,
+            CapSize::Culprit => 1,
+            CapSize::TagKey => 1,
+            CapSize::TagValue => 1,
+            CapSize::Soft(depth) => depth,
+            CapSize::Hard(depth) => depth,
         }
     }
 }
