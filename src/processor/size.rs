@@ -8,6 +8,7 @@ use crate::types::*;
 /// Helper serializer that efficiently determines how much space something might take.
 ///
 /// This counts in estimated bytes.
+#[derive(Default)]
 pub struct SizeEstimatingSerializer {
     size: usize,
     item_stack: SmallVec<[bool; 16]>,
@@ -16,10 +17,7 @@ pub struct SizeEstimatingSerializer {
 impl SizeEstimatingSerializer {
     /// Creates a new serializer
     pub fn new() -> SizeEstimatingSerializer {
-        SizeEstimatingSerializer {
-            size: 0,
-            item_stack: SmallVec::new(),
-        }
+        Default::default()
     }
 
     /// Returns the calculated size

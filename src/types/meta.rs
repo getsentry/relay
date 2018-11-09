@@ -36,9 +36,9 @@ pub enum RemarkType {
 /// Information on a modified section in a string.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Remark {
-    ty: RemarkType,
-    rule_id: String,
-    range: Option<Range>,
+    pub ty: RemarkType,
+    pub rule_id: String,
+    pub range: Option<Range>,
 }
 
 impl Remark {
@@ -145,7 +145,7 @@ pub struct Meta {
         skip_serializing_if = "SmallVec::is_empty",
         rename = "rem"
     )]
-    remarks: SmallVec<[Remark; 3]>,
+    pub remarks: SmallVec<[Remark; 3]>,
 
     /// Errors that happened during deserialization or processing.
     #[serde(
@@ -153,7 +153,7 @@ pub struct Meta {
         skip_serializing_if = "SmallVec::is_empty",
         rename = "err"
     )]
-    errors: SmallVec<[String; 3]>,
+    pub errors: SmallVec<[String; 3]>,
 
     /// The original length of modified text fields or collections.
     #[serde(
@@ -161,7 +161,7 @@ pub struct Meta {
         skip_serializing_if = "Option::is_none",
         rename = "len"
     )]
-    original_length: Option<u32>,
+    pub original_length: Option<u32>,
 
     /// In some cases the original value might be sent along.
     #[serde(
@@ -169,7 +169,7 @@ pub struct Meta {
         skip_serializing_if = "Option::is_none",
         rename = "val"
     )]
-    original_value: Option<Value>,
+    pub original_value: Option<Value>,
 }
 
 impl Meta {

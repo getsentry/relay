@@ -6,8 +6,8 @@
 //! ### Example
 //!
 //! ```
-//! use general::meta::{Meta, Remark, RemarkType};
-//! use general::chunks;
+//! use general::protocol::{Meta, Remark, RemarkType};
+//! use general::processor;
 //!
 //! let remarks = vec![Remark::with_range(
 //!     RemarkType::Substituted,
@@ -15,8 +15,8 @@
 //!     (7, 17),
 //! )];
 //!
-//! let chunks = chunks::split("Hello, [redacted]!", &remarks);
-//! let (joined, join_remarks) = chunks::join(chunks);
+//! let chunks = processor::split_chunks("Hello, [redacted]!", &remarks);
+//! let (joined, join_remarks) = processor::join_chunks(chunks);
 //!
 //! assert_eq!(joined, "Hello, [redacted]!");
 //! assert_eq!(join_remarks, remarks);
