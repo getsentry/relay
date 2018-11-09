@@ -5,13 +5,13 @@ use super::*;
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_exception")]
 pub struct Exception {
-    /// Exception type (required).
-    #[metastructure(field = "type", required = "true", cap_size = "symbol")]
+    /// Exception type. One of value or exception is required, checked in StoreNormalizeProcessor
+    #[metastructure(field = "type", cap_size = "symbol")]
     pub ty: Annotated<String>,
 
     /// Human readable display value.
-    #[metastructure(cap_size = "summary", required = "true")]
-    pub value: Annotated<String>,
+    #[metastructure(cap_size = "summary")]
+    pub value: Annotated<JsonLenientString>,
 
     /// Module name of this exception.
     #[metastructure(cap_size = "symbol")]
@@ -48,7 +48,7 @@ fn test_exception_roundtrip() {
 }"#;
     let exception = Annotated::new(Exception {
         ty: Annotated::new("mytype".to_string()),
-        value: Annotated::new("myvalue".to_string()),
+        value: Annotated::new("myvalue".to_string().into()),
         module: Annotated::new("mymodule".to_string()),
         thread_id: Annotated::new(ThreadId::Int(42)),
         other: {
@@ -90,11 +90,15 @@ fn test_exception_without_type() {
 }
 
 #[test]
-fn test_exception_invalid() {
+fn test_coerces_object_value_to_string() {
+    let input = r#"{"value":{"unauthorized":true}}"#;
+    let output = r#"{"value":"{\"unauthorized\":true}"}"#;
+
     let exception = Annotated::new(Exception {
-        ty: Annotated::from_error("value required", None),
+        value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
         ..Default::default()
     });
 
-    assert_eq_dbg!(exception, Annotated::from_json("{}").unwrap());
+    assert_eq_dbg!(exception, Annotated::from_json(input).unwrap());
+    assert_eq_str!(output, exception.to_json().unwrap());
 }

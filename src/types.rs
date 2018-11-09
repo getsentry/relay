@@ -443,7 +443,7 @@ impl ToValue for EventType {
 
 impl ProcessValue for EventType {}
 
-/// A "into-string" type of value.
+/// A "into-string" type of value. Emulates an invocation of `str(x)` in Python
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, ToValue, ProcessValue)]
 pub struct LenientString(pub String);
 
@@ -470,6 +470,26 @@ impl FromValue for LenientString {
                 Annotated(None, meta)
             }
         }.map_value(LenientString)
+    }
+}
+
+/// A "into-string" type of value. All non-string values are serialized as JSON.
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, ToValue, ProcessValue)]
+pub struct JsonLenientString(pub String);
+
+impl FromValue for JsonLenientString {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(string)), meta) => Annotated(Some(string.into()), meta),
+            Annotated(None, meta) => Annotated(None, meta),
+            x => Annotated(Some(x.payload_to_json().unwrap().into()), x.1),
+        }
+    }
+}
+
+impl From<String> for JsonLenientString {
+    fn from(value: String) -> JsonLenientString {
+        JsonLenientString(value)
     }
 }
 

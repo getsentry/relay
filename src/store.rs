@@ -22,6 +22,19 @@ fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
         })
 }
 
+fn process_non_raw_stacktrace(mut stacktrace: Annotated<Stacktrace>) -> Annotated<Stacktrace> {
+    // this processing should only be done for non raw frames (i.e. not for
+    // exception.raw_stacktrace)
+    if let Some(ref mut stacktrace) = stacktrace.0 {
+        if let Some(ref mut frames) = stacktrace.frames.0 {
+            // XXX: Ugly allocation
+            let tmp = frames.drain(..).map(process_non_raw_frame).collect();
+            *frames = tmp;
+        }
+    }
+    stacktrace
+}
+
 fn parse_type_and_value(
     ty: Annotated<String>,
     value: Annotated<String>,
@@ -34,7 +47,7 @@ fn parse_type_and_value(
         if let Some((ref cap,)) = TYPE_VALUE_RE.captures_iter(value_str).collect_tuple() {
             return (
                 Annotated::new(cap[1].to_string()),
-                Annotated(Some(cap[2].to_string()), value.1),
+                Annotated::new(cap[2].trim().to_string()),
             );
         }
     }
@@ -43,23 +56,34 @@ fn parse_type_and_value(
 }
 
 fn is_url(filename: &str) -> bool {
-    filename.starts_with("file:") || filename.starts_with("http:") || filename.starts_with("https:") || filename.starts_with("applewebdata:")
+    filename.starts_with("file:")
+        || filename.starts_with("http:")
+        || filename.starts_with("https:")
+        || filename.starts_with("applewebdata:")
 }
 
-fn normalize_non_raw_frame(frame: &mut Frame) {
-    if frame.abs_path.0.is_none() {
-        frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
-    }
+fn process_non_raw_frame(mut frame: Annotated<Frame>) -> Annotated<Frame> {
+    if let Some(ref mut frame) = frame.0 {
+        if frame.abs_path.0.is_none() {
+            frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
+        }
 
-    if let (None, Some(abs_path)) = (frame.filename.0.as_ref(), frame.abs_path.0.as_ref()) {
-        frame.filename = Annotated::new(abs_path.clone());
+        if let (None, Some(abs_path)) = (frame.filename.0.as_ref(), frame.abs_path.0.as_ref()) {
+            frame.filename = Annotated::new(abs_path.clone());
 
-        if is_url(&abs_path) {
-            if let Ok(url) = Url::parse(&abs_path) {
-                frame.filename = Annotated::new(url.path().to_string());
+            if is_url(&abs_path) {
+                if let Ok(url) = Url::parse(&abs_path) {
+                    let path = url.path();
+
+                    if !path.is_empty() && path != "/" {
+                        frame.filename = Annotated::new(path.to_string());
+                    }
+                }
             }
         }
     }
+
+    frame
 }
 
 /// Simplified version of sentry.coreapi.Auth
@@ -107,6 +131,8 @@ impl Processor for StoreNormalizeProcessor {
             event.errors.0.get_or_insert_with(Vec::new);
 
             // TODO: Interfaces
+            // XXX: Ugly clone
+            event.stacktrace = process_non_raw_stacktrace(event.stacktrace.clone());
 
             event.level.0.get_or_insert(Level::Error);
 
@@ -307,25 +333,20 @@ impl Processor for StoreNormalizeProcessor {
         mut exception: Annotated<Exception>,
         _state: ProcessingState,
     ) -> Annotated<Exception> {
-        if let Some(ref mut exception) = exception.0 {
-            if let Some(ref mut frames) = exception
-                .stacktrace
-                .0
-                .as_mut()
-                .and_then(|stacktrace| stacktrace.frames.0.as_mut())
-            {
-                // this processing should only be done for non raw frames (i.e. not for
-                // exception.raw_stacktrace)
-                for frame in frames.iter_mut() {
-                    if let Some(ref mut frame) = frame.0 {
-                        normalize_non_raw_frame(frame);
-                    }
-                }
-            }
+        if let Annotated(Some(ref mut exception), ref mut meta) = exception {
+            // XXX: Ugly clone
+            exception.stacktrace = process_non_raw_stacktrace(exception.stacktrace.clone());
 
-            let (ty, value) = parse_type_and_value(exception.ty.clone(), exception.value.clone());
+            let (ty, value) = parse_type_and_value(
+                exception.ty.clone(),
+                exception.value.clone().map_value(|x| x.0),
+            );
             exception.ty = ty;
-            exception.value = value;
+            exception.value = value.map_value(|x| x.into());
+
+            if exception.ty.0.is_none() && exception.value.0.is_none() && !meta.has_errors() {
+                meta.add_error("type or value required", None);
+            }
         }
 
         exception
@@ -382,4 +403,137 @@ fn test_basic_trimming() {
         event.0.unwrap().culprit,
         Annotated::new(repeat("x").take(300).collect::<String>()).trim_string(CapSize::Symbol)
     );
+}
+
+#[test]
+fn test_handles_type_in_value() {
+    let processor = StoreNormalizeProcessor {
+        project_id: Some(1),
+        client_ip: None,
+        auth: None,
+        key_id: None,
+        version: "7".into(),
+    };
+
+    let exception = Annotated::new(Exception {
+        value: Annotated::new("ValueError: unauthorized".to_string().into()),
+        ..Default::default()
+    }).process(&processor)
+    .0
+    .unwrap();
+
+    assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
+    assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
+
+    let exception = Annotated::new(Exception {
+        value: Annotated::new("ValueError:unauthorized".to_string().into()),
+        ..Default::default()
+    }).process(&processor)
+    .0
+    .unwrap();
+
+    assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
+    assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
+}
+
+#[test]
+fn test_json_value() {
+    let processor = StoreNormalizeProcessor {
+        project_id: Some(1),
+        client_ip: None,
+        auth: None,
+        key_id: None,
+        version: "7".into(),
+    };
+
+    let exception = Annotated::new(Exception {
+        value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
+        ..Default::default()
+    }).process(&processor)
+    .0
+    .unwrap();
+
+    // Don't split a json-serialized value on the colon
+    assert_eq_dbg!(
+        exception.value.0,
+        Some(r#"{"unauthorized":true}"#.to_string().into())
+    );
+    assert_eq_dbg!(exception.ty.0, None);
+}
+
+#[test]
+fn test_exception_invalid() {
+    let processor = StoreNormalizeProcessor {
+        project_id: Some(1),
+        client_ip: None,
+        auth: None,
+        key_id: None,
+        version: "7".into(),
+    };
+
+    let exception = Annotated::new(Exception {
+        ..Default::default()
+    }).process(&processor);
+
+    assert_eq_dbg!(
+        exception.1.iter_errors().collect_tuple(),
+        Some(("type or value required",))
+    );
+}
+
+#[test]
+fn test_is_url() {
+    assert!(is_url("http://example.org/"));
+    assert!(is_url("https://example.org/"));
+    assert!(is_url("file:///tmp/filename"));
+    assert!(is_url(
+        "applewebdata://00000000-0000-1000-8080-808080808080"
+    ));
+    assert!(!is_url("app:///index.bundle")); // react native
+    assert!(!is_url("webpack:///./app/index.jsx")); // webpack bundle
+    assert!(!is_url("data:,"));
+    assert!(!is_url("blob:\x00"));
+}
+
+#[test]
+fn test_coerces_url_filenames() {
+    let frame = Annotated::new(Frame {
+        line: Annotated::new(1),
+        filename: Annotated::new("http://foo.com/foo.js".to_string()),
+        ..Default::default()
+    });
+
+    let frame = process_non_raw_frame(frame).0.unwrap();
+
+    assert_eq!(frame.filename.0, Some("/foo.js".to_string()));
+    assert_eq!(frame.abs_path.0, Some("http://foo.com/foo.js".to_string()));
+}
+
+#[test]
+fn test_does_not_overwrite_filename() {
+    let frame = Annotated::new(Frame {
+        line: Annotated::new(1),
+        filename: Annotated::new("foo.js".to_string()),
+        abs_path: Annotated::new("http://foo.com/foo.js".to_string()),
+        ..Default::default()
+    });
+
+    let frame = process_non_raw_frame(frame).0.unwrap();
+
+    assert_eq!(frame.filename.0, Some("foo.js".to_string()));
+    assert_eq!(frame.abs_path.0, Some("http://foo.com/foo.js".to_string()));
+}
+
+#[test]
+fn test_ignores_results_with_empty_path() {
+    let frame = Annotated::new(Frame {
+        line: Annotated::new(1),
+        abs_path: Annotated::new("http://foo.com".to_string()),
+        ..Default::default()
+    });
+
+    let frame = process_non_raw_frame(frame).0.unwrap();
+
+    assert_eq!(frame.filename.0, Some("http://foo.com".to_string()));
+    assert_eq!(frame.abs_path.0, frame.filename.0);
 }
