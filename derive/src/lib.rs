@@ -113,7 +113,7 @@ fn process_wrapper_struct_derive(
             s.gen_impl(quote! {
                 gen impl crate::processor::ProcessValue for @Self {
                     #[inline(always)]
-                    fn process_value<P: crate::processor::Processor>(
+                    fn process_child_values<P: crate::processor::Processor>(
                         __value: crate::types::Annotated<Self>,
                         __processor: &P,
                         __state: crate::processor::ProcessingState
@@ -388,7 +388,7 @@ fn process_enum_struct_derive(
         Trait::ProcessValue => {
             s.gen_impl(quote! {
                 gen impl crate::processor::ProcessValue for @Self {
-                    fn process_value<P: crate::processor::Processor>(
+                    fn process_child_values<P: crate::processor::Processor>(
                         __value: crate::types::Annotated<Self>,
                         __processor: &P,
                         __state: crate::processor::ProcessingState
@@ -697,10 +697,16 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     }
     let serialize_pat = variant.pat();
 
-    let invoke_process_func = process_func.map(|func_name| {
+    let process_value = process_func.map(|func_name| {
         let func_name = Ident::new(&func_name, Span::call_site());
         quote! {
-            let __result = __processor.#func_name(__result, __state);
+            fn process_value<P: crate::processor::Processor>(
+                __value: crate::types::Annotated<Self>,
+                __processor: &P,
+                __state: crate::processor::ProcessingState
+            ) -> crate::types::Annotated<Self> {
+                __processor.#func_name(__value, __state)
+            }
         }
     });
 
@@ -771,21 +777,20 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         Trait::ProcessValue => {
             s.gen_impl(quote! {
                 gen impl crate::processor::ProcessValue for @Self {
-                    fn process_value<P: crate::processor::Processor>(
+                    #process_value
+                    fn process_child_values<P: crate::processor::Processor>(
                         __value: crate::types::Annotated<Self>,
                         __processor: &P,
                         __state: crate::processor::ProcessingState
                     ) -> crate::types::Annotated<Self> {
                         let crate::types::Annotated(__value, __meta) = __value;
-                        let __result = if let Some(__value) = __value {
+                        if let Some(__value) = __value {
                             let #to_value_pat = __value;
                             #process_value_body;
                             crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
                         } else {
                             crate::types::Annotated(None, __meta)
-                        };
-                        #invoke_process_func
-                        __result
+                        }
                     }
                 }
             })

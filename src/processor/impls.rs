@@ -32,7 +32,7 @@ numeric_meta_structure!(i64, I64, "a signed integer", process_i64);
 numeric_meta_structure!(f64, F64, "a floating point value", process_f64);
 primitive_meta_structure_through_string!(Uuid, "a uuid");
 
-impl<T: FromValue> FromValue for Vec<Annotated<T>> {
+impl<T: FromValue> FromValue for Array<T> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Array(items)), meta) => Annotated(
@@ -49,7 +49,7 @@ impl<T: FromValue> FromValue for Vec<Annotated<T>> {
     }
 }
 
-impl<T: ToValue> ToValue for Vec<Annotated<T>> {
+impl<T: ToValue> ToValue for Array<T> {
     #[inline(always)]
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
@@ -89,8 +89,16 @@ impl<T: ToValue> ToValue for Vec<Annotated<T>> {
     }
 }
 
-impl<T: ProcessValue> ProcessValue for Vec<Annotated<T>> {
+impl<T: ProcessValue> ProcessValue for Array<T> {
     fn process_value<P: Processor>(
+        value: Annotated<Self>,
+        processor: &P,
+        state: ProcessingState,
+    ) -> Annotated<Self> {
+        processor.process_array(value, state)
+    }
+
+    fn process_child_values<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
         state: ProcessingState,
@@ -113,7 +121,7 @@ impl<T: ProcessValue> ProcessValue for Vec<Annotated<T>> {
     }
 }
 
-impl<T: FromValue> FromValue for BTreeMap<String, Annotated<T>> {
+impl<T: FromValue> FromValue for Object<T> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Object(items)), meta) => Annotated(
@@ -135,7 +143,7 @@ impl<T: FromValue> FromValue for BTreeMap<String, Annotated<T>> {
     }
 }
 
-impl<T: ToValue> ToValue for BTreeMap<String, Annotated<T>> {
+impl<T: ToValue> ToValue for Object<T> {
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
             Annotated(Some(value), meta) => Annotated(
@@ -182,8 +190,16 @@ impl<T: ToValue> ToValue for BTreeMap<String, Annotated<T>> {
     }
 }
 
-impl<T: ProcessValue> ProcessValue for BTreeMap<String, Annotated<T>> {
+impl<T: ProcessValue> ProcessValue for Object<T> {
     fn process_value<P: Processor>(
+        value: Annotated<Self>,
+        processor: &P,
+        state: ProcessingState,
+    ) -> Annotated<Self> {
+        processor.process_object(value, state)
+    }
+
+    fn process_child_values<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
         state: ProcessingState,
@@ -357,7 +373,15 @@ impl ToValue for DateTime<Utc> {
     }
 }
 
-impl ProcessValue for DateTime<Utc> {}
+impl ProcessValue for DateTime<Utc> {
+    fn process_value<P: Processor>(
+        value: Annotated<Self>,
+        processor: &P,
+        state: ProcessingState,
+    ) -> Annotated<Self> {
+        processor.process_datetime(value, state)
+    }
+}
 
 impl<T: FromValue> FromValue for Box<T> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self>
@@ -408,7 +432,7 @@ impl<T: ToValue + Clone> ToValue for Box<T> {
 impl<T: ProcessValue> ProcessValue for Box<T> {
     /// Executes a processor on the tree.
     #[inline(always)]
-    fn process_value<P: Processor>(
+    fn process_child_values<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
         state: ProcessingState,

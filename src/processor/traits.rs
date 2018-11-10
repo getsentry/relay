@@ -1,3 +1,5 @@
+use chrono::{DateTime, Utc};
+
 use super::*;
 use crate::types::*;
 
@@ -59,9 +61,10 @@ macro_rules! process_method {
         #[doc = "Processes values of type `"]
         #[doc = $help_ty]
         #[doc = "`."]
-        fn $name(&self, value: Annotated<$ty>, state: ProcessingState) -> Annotated<$ty> {
-            let _state = state;
-            value
+        fn $name(&self, value: Annotated<$ty>, state: ProcessingState) -> Annotated<$ty>
+            where Self: Sized
+        {
+            ProcessValue::process_child_values(value, self, state)
         }
     }
 }
@@ -74,11 +77,33 @@ pub trait Processor {
     process_method!(process_i64, i64);
     process_method!(process_f64, f64);
     process_method!(process_bool, bool);
+    process_method!(process_datetime, DateTime<Utc>);
 
     // values and databags
     process_method!(process_value, Value);
-    process_method!(process_value_array, Array<Value>);
-    process_method!(process_value_object, Object<Value>);
+
+    #[inline(always)]
+    fn process_array<T: ProcessValue>(
+        &self,
+        value: Annotated<Array<T>>,
+        state: ProcessingState,
+    ) -> Annotated<Array<T>>
+    where
+        Self: Sized,
+    {
+        ProcessValue::process_child_values(value, self, state)
+    }
+    #[inline(always)]
+    fn process_object<T: ProcessValue>(
+        &self,
+        value: Annotated<Object<T>>,
+        state: ProcessingState,
+    ) -> Annotated<Object<T>>
+    where
+        Self: Sized,
+    {
+        ProcessValue::process_child_values(value, self, state)
+    }
 
     // interfaces
     process_method!(process_event, crate::protocol::Event);
@@ -101,6 +126,18 @@ pub trait ProcessValue {
     /// Executes a processor on the tree.
     #[inline(always)]
     fn process_value<P: Processor>(
+        value: Annotated<Self>,
+        processor: &P,
+        state: ProcessingState,
+    ) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        ProcessValue::process_child_values(value, processor, state)
+    }
+
+    #[inline(always)]
+    fn process_child_values<P: Processor>(
         value: Annotated<Self>,
         processor: &P,
         state: ProcessingState,

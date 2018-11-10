@@ -115,11 +115,9 @@ impl Processor for StoreNormalizeProcessor {
 
     // TODO: Reduce cyclomatic complexity of this function
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
-    fn process_event(
-        &self,
-        mut event: Annotated<Event>,
-        _state: ProcessingState,
-    ) -> Annotated<Event> {
+    fn process_event(&self, event: Annotated<Event>, state: ProcessingState) -> Annotated<Event> {
+        let mut event = ProcessValue::process_child_values(event, self, state);
+
         if let Some(ref mut event) = event.0 {
             if let Some(project_id) = self.project_id {
                 event.project.0 = Some(project_id);
@@ -270,9 +268,11 @@ impl Processor for StoreNormalizeProcessor {
 
     fn process_breadcrumb(
         &self,
-        mut breadcrumb: Annotated<Breadcrumb>,
-        _state: ProcessingState,
+        breadcrumb: Annotated<Breadcrumb>,
+        state: ProcessingState,
     ) -> Annotated<Breadcrumb> {
+        let mut breadcrumb = ProcessValue::process_child_values(breadcrumb, self, state);
+
         if let Some(ref mut breadcrumb) = breadcrumb.0 {
             breadcrumb.ty.get_or_insert_with(|| "default".to_string());
             breadcrumb.level.get_or_insert_with(|| Level::Info);
@@ -282,9 +282,11 @@ impl Processor for StoreNormalizeProcessor {
 
     fn process_request(
         &self,
-        mut request: Annotated<Request>,
-        _state: ProcessingState,
+        request: Annotated<Request>,
+        state: ProcessingState,
     ) -> Annotated<Request> {
+        let mut request = ProcessValue::process_child_values(request, self, state);
+
         // Fill in ip addresses marked as {{auto}}
         if let Some(ref mut request) = request.0 {
             if let Some(ref client_ip) = self.client_ip {
@@ -304,7 +306,9 @@ impl Processor for StoreNormalizeProcessor {
         request
     }
 
-    fn process_user(&self, mut user: Annotated<User>, _state: ProcessingState) -> Annotated<User> {
+    fn process_user(&self, user: Annotated<User>, state: ProcessingState) -> Annotated<User> {
+        let mut user = ProcessValue::process_child_values(user, self, state);
+
         if let Some(ref mut user) = user.0 {
             // Fill in ip addresses marked as {{auto}}
             if let Some(ref client_ip) = self.client_ip {
@@ -348,9 +352,11 @@ impl Processor for StoreNormalizeProcessor {
 
     fn process_client_sdk_info(
         &self,
-        mut info: Annotated<ClientSdkInfo>,
-        _state: ProcessingState,
+        info: Annotated<ClientSdkInfo>,
+        state: ProcessingState,
     ) -> Annotated<ClientSdkInfo> {
+        let mut info = ProcessValue::process_child_values(info, self, state);
+
         if info.0.is_none() {
             if let Some(ref auth) = self.auth {
                 info.0 = parse_client_as_sdk(&auth);
@@ -362,9 +368,11 @@ impl Processor for StoreNormalizeProcessor {
 
     fn process_exception(
         &self,
-        mut exception: Annotated<Exception>,
-        _state: ProcessingState,
+        exception: Annotated<Exception>,
+        state: ProcessingState,
     ) -> Annotated<Exception> {
+        let mut exception = ProcessValue::process_child_values(exception, self, state);
+
         if let Annotated(Some(ref mut exception), ref mut meta) = exception {
             process_non_raw_stacktrace(&mut exception.stacktrace);
 
@@ -383,11 +391,9 @@ impl Processor for StoreNormalizeProcessor {
         exception
     }
 
-    fn process_frame(
-        &self,
-        mut frame: Annotated<Frame>,
-        _state: ProcessingState,
-    ) -> Annotated<Frame> {
+    fn process_frame(&self, frame: Annotated<Frame>, state: ProcessingState) -> Annotated<Frame> {
+        let mut frame = ProcessValue::process_child_values(frame, self, state);
+
         if let Some(ref mut frame) = frame.0 {
             frame.in_app.0.get_or_insert(false);
 
