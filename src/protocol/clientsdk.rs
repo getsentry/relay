@@ -1,6 +1,4 @@
-use general_derive::{FromValue, ProcessValue, ToValue};
-
-use super::*;
+use crate::types::{Annotated, Array, Object, Value};
 
 /// An installed and loaded package as part of the Sentry SDK.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
@@ -36,6 +34,8 @@ pub struct ClientSdkInfo {
 
 #[test]
 fn test_client_sdk_roundtrip() {
+    use crate::types::Map;
+
     let json = r#"{
   "name": "sentry.rust",
   "version": "1.0.0",

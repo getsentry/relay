@@ -5,11 +5,11 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_derive::Serialize;
 use serde_json;
 
-#[cfg(test)]
-use general_derive::{FromValue, ToValue};
-
-use super::*;
-use crate::processor::{FromValue, ToValue};
+use crate::processor::{
+    join_chunks, split_chunks, CapSize, Chunk, FromValue, ProcessValue, ProcessingState, Processor,
+    SizeEstimatingSerializer, ToValue,
+};
+use crate::types::{Meta, Object, RemarkType, Value};
 
 /// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
@@ -123,6 +123,24 @@ impl<T> Annotated<T> {
         F: FnOnce() -> T,
     {
         self.0.get_or_insert_with(f)
+    }
+}
+
+impl<T: ProcessValue> Annotated<T> {
+    /// Estimates the size in bytes this would be in JSON.
+    pub fn process<P: Processor>(self, processor: &P) -> Annotated<T> {
+        ProcessValue::process_value(self, processor, ProcessingState::root())
+    }
+}
+
+impl<T: ToValue> Annotated<T> {
+    /// Estimates the size in bytes this would be in JSON.
+    pub fn estimate_size(&self) -> usize {
+        let mut ser = SizeEstimatingSerializer::new();
+        if let Some(ref value) = self.0 {
+            ToValue::serialize_payload(value, &mut ser).unwrap();
+        }
+        ser.size()
     }
 }
 
@@ -256,6 +274,85 @@ impl Annotated<Value> {
     }
 }
 
+impl Annotated<String> {
+    pub fn map_value_chunked<F>(self, f: F) -> Annotated<String>
+    where
+        F: FnOnce(Vec<Chunk>) -> Vec<Chunk>,
+    {
+        let Annotated(old_value, mut meta) = self;
+        let new_value = old_value.map(|value| {
+            let old_chunks = split_chunks(&value, meta.iter_remarks());
+            let new_chunks = f(old_chunks);
+            let (new_value, remarks) = join_chunks(new_chunks);
+            *meta.remarks_mut() = remarks.into_iter().collect();
+            if new_value != value {
+                meta.set_original_length(Some(value.chars().count() as u32));
+            }
+            new_value
+        });
+        Annotated(new_value, meta)
+    }
+
+    pub fn trim_string(self, cap_size: CapSize) -> Annotated<String> {
+        let limit = cap_size.max_chars();
+        let grace_limit = limit + cap_size.grace_chars();
+
+        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() < grace_limit {
+            return self;
+        }
+
+        // otherwise we trim down to max chars
+        self.map_value_chunked(|chunks| {
+            let mut length = 0;
+            let mut rv = vec![];
+
+            for chunk in chunks {
+                let chunk_chars = chunk.chars();
+
+                // if the entire chunk fits, just put it in
+                if length + chunk_chars < limit {
+                    rv.push(chunk);
+                    length += chunk_chars;
+                    continue;
+                }
+
+                match chunk {
+                    // if there is enough space for this chunk and the 3 character
+                    // ellipsis marker we can push the remaining chunk
+                    Chunk::Redaction { .. } => {
+                        if length + chunk_chars + 3 < grace_limit {
+                            rv.push(chunk);
+                        }
+                    }
+
+                    // if this is a text chunk, we can put the remaining characters in.
+                    Chunk::Text { text } => {
+                        let mut remaining = String::new();
+                        for c in text.chars() {
+                            if length < limit - 3 {
+                                remaining.push(c);
+                            } else {
+                                break;
+                            }
+                            length += 1;
+                        }
+                        rv.push(Chunk::Text { text: remaining });
+                    }
+                }
+
+                rv.push(Chunk::Redaction {
+                    text: "...".to_string(),
+                    rule_id: "!len".to_string(),
+                    ty: RemarkType::Substituted,
+                });
+                break;
+            }
+
+            rv
+        })
+    }
+}
+
 impl<T> Default for Annotated<T> {
     fn default() -> Annotated<T> {
         Annotated::empty()
@@ -277,7 +374,9 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Annotated<T> {
     }
 }
 
+/// Utility trait to find out if an object is empty.
 pub trait IsEmpty {
+    /// A generic check if the object is considered empty.
     fn generic_is_empty(&self) -> bool;
 }
 
@@ -372,4 +471,11 @@ fn test_annotated_deserialize_with_meta() {
 
     let json = annotated_value.to_json().unwrap();
     assert_eq_str!(json, r#"{"id":null,"type":"testing","_meta":{"id":{"":{"err":["invalid id","expected an unsigned integer"],"val":"blaflasel"}},"type":{"":{"err":["invalid type"]}}}}"#);
+}
+
+#[test]
+fn test_estimate_size() {
+    let json = r#"{"a":["Hello","World","aha","hmm",false,{"blub":42,"x":true},null]}"#;
+    let value = Annotated::<Object<Value>>::from_json(json).unwrap();
+    assert_eq!(value.estimate_size(), json.len());
 }

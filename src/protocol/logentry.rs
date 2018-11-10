@@ -1,7 +1,5 @@
-use general_derive::{FromValue, ProcessValue, ToValue};
-
-use super::*;
 use crate::processor::FromValue;
+use crate::types::{Annotated, Array, Object, Value};
 
 /// A log entry message.
 ///

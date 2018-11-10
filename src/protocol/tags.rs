@@ -1,7 +1,6 @@
-use general_derive::{ProcessValue, ToValue};
-
-use super::*;
 use crate::processor::FromValue;
+use crate::protocol::LenientString;
+use crate::types::{Annotated, Array, Value};
 
 /// Manual key/value tag pairs.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]

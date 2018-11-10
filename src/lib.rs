@@ -4,7 +4,6 @@ extern crate debugid;
 extern crate failure;
 #[macro_use]
 extern crate lazy_static;
-extern crate general_derive;
 extern crate geoip;
 extern crate itertools;
 extern crate regex;
@@ -18,6 +17,11 @@ extern crate uuid;
 #[cfg(test)]
 extern crate difference;
 
+// we use macro_use here because we really consider this to be an internal
+// macro which currently cannot be imported.  Same thing with the macros mod
+#[macro_use]
+extern crate general_derive;
+
 #[macro_use]
 mod macros;
 
@@ -25,9 +29,7 @@ mod macros;
 #[macro_use]
 mod testutils;
 
-// This is re-exported by `protocol`
-mod types;
-
 pub mod processor;
 pub mod protocol;
 pub mod store;
+pub mod types;

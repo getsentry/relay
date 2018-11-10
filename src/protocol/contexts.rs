@@ -1,7 +1,7 @@
-use general_derive::{FromValue, ProcessValue, ToValue};
+use chrono::{DateTime, Utc};
 
-use super::*;
 use crate::processor::FromValue;
+use crate::types::{Annotated, Object, Value};
 
 /// Device information.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
@@ -162,7 +162,7 @@ pub struct BrowserContext {
     pub other: Object<Value>,
 }
 
-/// Contexts describing the environment (e.g. device, os or browser).
+/// A context describes environment info (e.g. device, os or browser).
 #[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_context")]
 pub enum Context {
@@ -181,6 +181,7 @@ pub enum Context {
     Other(Object<Value>),
 }
 
+/// An object holding multiple contexts.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
 #[metastructure(process_func = "context")]
 pub struct Contexts(pub Object<Context>);
@@ -380,6 +381,8 @@ fn test_browser_context_roundtrip() {
 
 #[test]
 fn test_other_context_roundtrip() {
+    use crate::types::Map;
+
     let json = r#"{"other":"value","type":"mytype"}"#;
     let context = Annotated::new(Context::Other({
         let mut map = Map::new();

@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 
-use super::*;
-use crate::types::*;
+use crate::processor::ProcessingState;
+use crate::types::{Annotated, Array, MetaMap, MetaTree, Object, Value};
 
 /// Implemented for all meta structures.
 pub trait FromValue {
@@ -122,6 +122,13 @@ pub trait Processor {
     process_method!(process_template_info, crate::protocol::TemplateInfo);
 }
 
+/// Implemented for all processable meta structures.
+///
+/// The intended behavior is that implementors make `process_value` call
+/// into a fallback on a `Processor` and that this processor by default
+/// calls into `process_child_values`.  The default behavior that is
+/// implemented is to make `process_value` directly call into
+/// `process_child_values`.
 pub trait ProcessValue {
     /// Executes a processor on the tree.
     #[inline(always)]
@@ -136,6 +143,7 @@ pub trait ProcessValue {
         ProcessValue::process_child_values(value, processor, state)
     }
 
+    /// Only processes the child values.
     #[inline(always)]
     fn process_child_values<P: Processor>(
         value: Annotated<Self>,

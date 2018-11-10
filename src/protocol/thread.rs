@@ -1,6 +1,5 @@
-use general_derive::{FromValue, ProcessValue, ToValue};
-
-use super::*;
+use crate::protocol::{Stacktrace, ThreadId};
+use crate::types::{Annotated, Object, Value};
 
 /// A process thread of an event.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
@@ -32,6 +31,8 @@ pub struct Thread {
 
 #[test]
 fn test_thread_roundtrip() {
+    use crate::types::Map;
+
     // stack traces are tested separately
     let json = r#"{
   "id": 42,

@@ -1,10 +1,127 @@
-use general_derive::{FromValue, ProcessValue, ToValue};
+use std::fmt;
+use std::str::FromStr;
+
+use chrono::{DateTime, Utc};
+use failure::Fail;
+use serde::ser::{Serialize, Serializer};
 
 #[cfg(test)]
 use chrono::TimeZone;
 
-use super::*;
+use crate::processor::{FromValue, ProcessValue, ToValue};
+use crate::protocol::{
+    Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, Level, LogEntry,
+    Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
+};
+use crate::types::{Annotated, Array, Object, Value};
 
+/// Wrapper around a UUID with slightly different formatting.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EventId(pub uuid::Uuid);
+primitive_meta_structure_through_string!(EventId, "event id");
+
+impl fmt::Display for EventId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0.to_simple_ref())
+    }
+}
+
+impl FromStr for EventId {
+    type Err = uuid::parser::ParseError;
+
+    fn from_str(uuid_str: &str) -> Result<Self, Self::Err> {
+        uuid_str.parse().map(EventId)
+    }
+}
+
+/// The type of event we're dealing with.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum EventType {
+    Default,
+    Error,
+    Csp,
+    Hpkp,
+    ExpectCT,
+    ExpectStaple,
+}
+
+/// An error used when parsing `EventType`.
+#[derive(Debug, Fail)]
+#[fail(display = "invalid event type")]
+pub struct ParseEventTypeError;
+
+impl Default for EventType {
+    fn default() -> Self {
+        EventType::Default
+    }
+}
+
+impl FromStr for EventType {
+    type Err = ParseEventTypeError;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Ok(match string {
+            "default" => EventType::Default,
+            "error" => EventType::Error,
+            "csp" => EventType::Csp,
+            "hpkp" => EventType::Hpkp,
+            "expectct" => EventType::ExpectCT,
+            "expectstaple" => EventType::ExpectStaple,
+            _ => return Err(ParseEventTypeError),
+        })
+    }
+}
+
+impl fmt::Display for EventType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            EventType::Default => write!(f, "default"),
+            EventType::Error => write!(f, "error"),
+            EventType::Csp => write!(f, "csp"),
+            EventType::Hpkp => write!(f, "hpkp"),
+            EventType::ExpectCT => write!(f, "expectct"),
+            EventType::ExpectStaple => write!(f, "expectstaple"),
+        }
+    }
+}
+
+impl FromValue for EventType {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match <String as FromValue>::from_value(value) {
+            Annotated(Some(value), meta) => match EventType::from_str(&value) {
+                Ok(x) => Annotated(Some(x), meta),
+                Err(_) => Annotated::from_error("invalid event type", None),
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
+impl ToValue for EventType {
+    fn to_value(value: Annotated<Self>) -> Annotated<Value>
+    where
+        Self: Sized,
+    {
+        match value {
+            Annotated(Some(value), meta) => {
+                Annotated(Some(Value::String(format!("{}", value))), meta)
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+
+    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        Serialize::serialize(&self.to_string(), s)
+    }
+}
+
+impl ProcessValue for EventType {}
+
+/// An event processing error.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct EventProcessingError {
     #[metastructure(field = "type", required = "true")]
@@ -18,6 +135,7 @@ pub struct EventProcessingError {
     pub value: Annotated<Value>,
 }
 
+/// The sentry v7 event structure.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event")]
 pub struct Event {
@@ -169,6 +287,8 @@ pub struct Event {
 
 #[test]
 fn test_event_roundtrip() {
+    use crate::types::{Map, Meta};
+
     // NOTE: Interfaces will be tested separately.
     let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
@@ -283,6 +403,7 @@ fn test_event_default_values() {
 
 #[test]
 fn test_event_default_values_with_meta() {
+    use crate::types::Meta;
     let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "fingerprint": [
@@ -338,4 +459,15 @@ fn test_event_default_values_with_meta() {
 
     assert_eq_dbg!(event, Annotated::<Event>::from_json(json).unwrap());
     assert_eq_str!(json, event.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_event_type() {
+    assert_eq_dbg!(
+        EventType::Default,
+        Annotated::<EventType>::from_json("\"default\"")
+            .unwrap()
+            .0
+            .unwrap()
+    );
 }

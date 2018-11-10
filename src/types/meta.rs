@@ -5,7 +5,7 @@ use serde::ser::{Serialize, SerializeSeq, Serializer};
 use serde_derive::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use super::*;
+use crate::types::Value;
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
 pub type Range = (usize, usize);

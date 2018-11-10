@@ -6,7 +6,7 @@
 //! ### Example
 //!
 //! ```
-//! use general::protocol::{Meta, Remark, RemarkType};
+//! use general::types::{Meta, Remark, RemarkType};
 //! use general::processor;
 //!
 //! let remarks = vec![Remark::with_range(
@@ -24,8 +24,7 @@
 
 use std::fmt;
 
-use super::*;
-use crate::types::*;
+use crate::types::{Remark, RemarkType};
 
 /// A type for dealing with chunks of annotated text.
 #[derive(Clone, Debug, PartialEq)]
@@ -154,126 +153,41 @@ where
     (rv, remarks)
 }
 
-impl Annotated<String> {
-    pub fn map_value_chunked<F>(self, f: F) -> Annotated<String>
-    where
-        F: FnOnce(Vec<Chunk>) -> Vec<Chunk>,
-    {
-        let Annotated(old_value, mut meta) = self;
-        let new_value = old_value.map(|value| {
-            let old_chunks = split_chunks(&value, meta.iter_remarks());
-            let new_chunks = f(old_chunks);
-            let (new_value, remarks) = join_chunks(new_chunks);
-            *meta.remarks_mut() = remarks.into_iter().collect();
-            if new_value != value {
-                meta.set_original_length(Some(value.chars().count() as u32));
-            }
-            new_value
-        });
-        Annotated(new_value, meta)
-    }
+#[test]
+fn test_chunk_split() {
+    let remarks = vec![Remark::with_range(
+        RemarkType::Masked,
+        "@email:strip",
+        (33, 47),
+    )];
 
-    pub fn trim_string(self, cap_size: CapSize) -> Annotated<String> {
-        let limit = cap_size.max_chars();
-        let grace_limit = limit + cap_size.grace_chars();
+    let chunks = vec![
+        Chunk::Text {
+            text: "Hello Peter, my email address is ".into(),
+        },
+        Chunk::Redaction {
+            ty: RemarkType::Masked,
+            text: "****@*****.com".into(),
+            rule_id: "@email:strip".into(),
+        },
+        Chunk::Text {
+            text: ". See you".into(),
+        },
+    ];
 
-        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() < grace_limit {
-            return self;
-        }
+    assert_eq_dbg!(
+        split_chunks(
+            "Hello Peter, my email address is ****@*****.com. See you",
+            &remarks,
+        ),
+        chunks
+    );
 
-        // otherwise we trim down to max chars
-        self.map_value_chunked(|chunks| {
-            let mut length = 0;
-            let mut rv = vec![];
-
-            for chunk in chunks {
-                let chunk_chars = chunk.chars();
-
-                // if the entire chunk fits, just put it in
-                if length + chunk_chars < limit {
-                    rv.push(chunk);
-                    length += chunk_chars;
-                    continue;
-                }
-
-                match chunk {
-                    // if there is enough space for this chunk and the 3 character
-                    // ellipsis marker we can push the remaining chunk
-                    Chunk::Redaction { .. } => {
-                        if length + chunk_chars + 3 < grace_limit {
-                            rv.push(chunk);
-                        }
-                    }
-
-                    // if this is a text chunk, we can put the remaining characters in.
-                    Chunk::Text { text } => {
-                        let mut remaining = String::new();
-                        for c in text.chars() {
-                            if length < limit - 3 {
-                                remaining.push(c);
-                            } else {
-                                break;
-                            }
-                            length += 1;
-                        }
-                        rv.push(Chunk::Text { text: remaining });
-                    }
-                }
-
-                rv.push(Chunk::Redaction {
-                    text: "...".to_string(),
-                    rule_id: "!len".to_string(),
-                    ty: RemarkType::Substituted,
-                });
-                break;
-            }
-
-            rv
-        })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_chunk_split() {
-        let remarks = vec![Remark::with_range(
-            RemarkType::Masked,
-            "@email:strip",
-            (33, 47),
-        )];
-
-        let chunks = vec![
-            Chunk::Text {
-                text: "Hello Peter, my email address is ".into(),
-            },
-            Chunk::Redaction {
-                ty: RemarkType::Masked,
-                text: "****@*****.com".into(),
-                rule_id: "@email:strip".into(),
-            },
-            Chunk::Text {
-                text: ". See you".into(),
-            },
-        ];
-
-        assert_eq_dbg!(
-            split_chunks(
-                "Hello Peter, my email address is ****@*****.com. See you",
-                &remarks,
-            ),
-            chunks
-        );
-
-        assert_eq_dbg!(
-            join_chunks(chunks),
-            (
-                "Hello Peter, my email address is ****@*****.com. See you".into(),
-                remarks
-            )
-        );
-    }
-
+    assert_eq_dbg!(
+        join_chunks(chunks),
+        (
+            "Hello Peter, my email address is ****@*****.com. See you".into(),
+            remarks
+        )
+    );
 }

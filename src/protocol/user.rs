@@ -1,6 +1,5 @@
-use general_derive::{FromValue, ProcessValue, ToValue};
-
-use super::*;
+use crate::protocol::{IpAddr, JsonLenientString};
+use crate::types::{Annotated, Object, Value};
 
 /// Geographical location of the end user or device.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
@@ -57,6 +56,8 @@ pub struct User {
 
 #[test]
 fn test_geo_roundtrip() {
+    use crate::types::Map;
+
     let json = r#"{
   "country_code": "US",
   "city": "San Francisco",

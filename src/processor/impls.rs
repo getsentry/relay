@@ -5,8 +5,8 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use super::*;
-use crate::types::*;
+use crate::processor::{FromValue, ProcessValue, ProcessingState, Processor, ToValue};
+use crate::types::{Annotated, Array, MetaMap, MetaTree, Object, Value};
 
 // This needs to be public because the derive crate emits it
 #[doc(hidden)]

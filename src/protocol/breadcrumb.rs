@@ -1,9 +1,10 @@
-use general_derive::{FromValue, ProcessValue, ToValue};
-
 #[cfg(test)]
 use chrono::TimeZone;
 
-use super::*;
+use chrono::{DateTime, Utc};
+
+use crate::protocol::{EventId, Level};
+use crate::types::{Annotated, Object, Value};
 
 /// A breadcrumb.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
@@ -43,6 +44,8 @@ pub struct Breadcrumb {
 
 #[test]
 fn test_breadcrumb_roundtrip() {
+    use crate::types::Map;
+
     let input = r#"{
   "timestamp": 946684800,
   "type": "mytype",

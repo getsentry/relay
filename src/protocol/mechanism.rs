@@ -1,7 +1,6 @@
-use general_derive::{FromValue, ProcessValue, ToValue};
-
-use super::*;
 use crate::processor::FromValue;
+use crate::protocol::{Context, Event};
+use crate::types::{Annotated, Object, Value};
 
 /// POSIX signal with optional extended data.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
@@ -750,8 +749,9 @@ fn get_mach_exception_name(number: i64) -> Option<&'static str> {
     })
 }
 
+/// Internal utility trait to indicate the OS.
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub(crate) enum OsHint {
+pub enum OsHint {
     Windows,
     Linux,
     Darwin,
@@ -788,7 +788,8 @@ fn normalize_sdk_name(name: &Option<String>) -> Option<OsHint> {
     }
 }
 
-pub(crate) fn normalize_mechanism_meta(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
+/// Normalizes the exception mechanism in place.
+pub fn normalize_mechanism_meta(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
     if let Some(ref mut meta) = mechanism.meta.0 {
         if let Some(os_hint) = os_hint {
             if let Some(ref mut cerror) = meta.errno.0 {
@@ -832,6 +833,7 @@ pub(crate) fn normalize_mechanism_meta(mechanism: &mut Mechanism, os_hint: Optio
 
 #[test]
 fn test_mechanism_roundtrip() {
+    use crate::types::Map;
     let json = r#"{
   "type": "mytype",
   "description": "mydescription",
@@ -973,6 +975,8 @@ fn test_mechanism_invalid_meta() {
 
 #[test]
 fn test_mechanism_legacy_conversion() {
+    use crate::types::Map;
+
     let input = r#"{
   "posix_signal": {
     "name": "SIGSEGV",

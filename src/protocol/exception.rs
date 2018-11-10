@@ -1,7 +1,7 @@
-use general_derive::{FromValue, ProcessValue, ToValue};
+use crate::protocol::{JsonLenientString, Mechanism, Stacktrace, ThreadId};
+use crate::types::{Annotated, Object, Value};
 
-use super::*;
-
+/// A single exception.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_exception")]
 pub struct Exception {
@@ -38,6 +38,8 @@ pub struct Exception {
 
 #[test]
 fn test_exception_roundtrip() {
+    use crate::types::Map;
+
     // stack traces and mechanism are tested separately
     let json = r#"{
   "type": "mytype",

@@ -4,7 +4,7 @@ use std::fmt;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde_derive::Deserialize;
 
-use super::*;
+use crate::types::{Annotated, Meta};
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
@@ -29,6 +29,7 @@ pub enum Value {
     Object(Object<Value>),
 }
 
+/// Helper type that renders out a description of the value.
 pub struct ValueDescription<'a>(&'a Value);
 
 impl<'a> fmt::Display for ValueDescription<'a> {

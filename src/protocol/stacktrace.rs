@@ -1,7 +1,7 @@
-use general_derive::{FromValue, ProcessValue, ToValue};
+use crate::protocol::{Addr, RegVal};
+use crate::types::{Annotated, Array, Object, Value};
 
-use super::*;
-
+/// Holds information about a single stacktrace frame.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_frame")]
 pub struct Frame {
@@ -86,6 +86,7 @@ pub struct Frame {
     pub other: Object<Value>,
 }
 
+/// Holds information about an entirey stacktrace.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace {
@@ -102,6 +103,7 @@ pub struct Stacktrace {
 
 #[test]
 fn test_frame_roundtrip() {
+    use crate::types::Map;
     let json = r#"{
   "function": "main",
   "symbol": "_main",
@@ -178,6 +180,7 @@ fn test_frame_default_values() {
 
 #[test]
 fn test_stacktrace_roundtrip() {
+    use crate::types::Map;
     let json = r#"{
   "frames": [
     {}

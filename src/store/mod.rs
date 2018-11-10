@@ -1,3 +1,4 @@
+//! Utility code for sentry's internal store.
 use chrono::Utc;
 
 use itertools::Itertools;
@@ -7,8 +8,12 @@ use url::Url;
 use std::mem;
 use std::path::PathBuf;
 
-use crate::processor::*;
-use crate::protocol::{self, *};
+use crate::processor::{ProcessValue, ProcessingState, Processor};
+use crate::protocol::{
+    normalize_mechanism_meta, Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, Geo,
+    IpAddr, Level, OsHint, Request, Stacktrace, Tags, User,
+};
+use crate::types::{Annotated, Object, Value};
 
 mod geo;
 
@@ -91,6 +96,7 @@ pub struct StoreAuth {
     is_public: bool,
 }
 
+/// The processor that normalizes events for store.
 #[derive(Default)]
 pub struct StoreNormalizeProcessor {
     project_id: Option<u64>,
@@ -221,7 +227,7 @@ impl Processor for StoreNormalizeProcessor {
                     for mut exception in exceptions.iter_mut() {
                         if let Some(ref mut exception) = exception.0 {
                             if let Some(ref mut mechanism) = exception.mechanism.0 {
-                                protocol::normalize_mechanism_meta(mechanism, os_hint);
+                                normalize_mechanism_meta(mechanism, os_hint);
                             }
                         }
                     }
@@ -429,7 +435,7 @@ fn test_basic_trimming() {
         ..Default::default()
     });
 
-    let event = crate::processor::process(event, &processor);
+    let event = event.process(&processor);
 
     assert_eq_dbg!(
         event.0.unwrap().culprit,
@@ -446,7 +452,7 @@ fn test_handles_type_in_value() {
         ..Default::default()
     });
 
-    let exception = crate::processor::process(exception, &processor).0.unwrap();
+    let exception = exception.process(&processor).0.unwrap();
     assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
     assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
 
@@ -455,7 +461,7 @@ fn test_handles_type_in_value() {
         ..Default::default()
     });
 
-    let exception = crate::processor::process(exception, &processor).0.unwrap();
+    let exception = exception.process(&processor).0.unwrap();
     assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
     assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
 }
@@ -468,7 +474,7 @@ fn test_json_value() {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
         ..Default::default()
     });
-    let exception = crate::processor::process(exception, &processor).0.unwrap();
+    let exception = exception.process(&processor).0.unwrap();
 
     // Don't split a json-serialized value on the colon
     assert_eq_dbg!(
@@ -483,7 +489,7 @@ fn test_exception_invalid() {
     let processor = StoreNormalizeProcessor::default();
 
     let exception = Annotated::new(Exception::default());
-    let exception = crate::processor::process(exception, &processor);
+    let exception = exception.process(&processor);
 
     assert_eq_dbg!(
         exception.1.iter_errors().collect_tuple(),
@@ -563,7 +569,7 @@ fn test_geo_from_ip_address() {
         ..Default::default()
     });
 
-    let user = crate::processor::process(user, &processor);
+    let user = user.process(&processor);
 
     let expected = Annotated::new(Geo {
         country_code: Annotated::new("AT".to_string()),
@@ -583,7 +589,7 @@ fn test_invalid_email() {
         ..Default::default()
     });
 
-    let user = crate::processor::process(user, &processor);
+    let user = user.process(&processor);
 
     assert_eq_dbg!(
         user,

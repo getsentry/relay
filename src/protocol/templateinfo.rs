@@ -1,6 +1,4 @@
-use general_derive::{FromValue, ProcessValue, ToValue};
-
-use super::*;
+use crate::types::{Annotated, Array, Object, Value};
 
 /// Template debug information.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
@@ -36,6 +34,7 @@ pub struct TemplateInfo {
 
 #[test]
 fn test_template_roundtrip() {
+    use crate::types::Map;
     let json = r#"{
   "filename": "myfile.rs",
   "abs_path": "/path/to",

@@ -1,9 +1,9 @@
 use debugid::DebugId;
+use uuid::Uuid;
 
-use general_derive::{FromValue, ProcessValue, ToValue};
-
-use super::*;
 use crate::processor::{FromValue, ProcessValue, ToValue};
+use crate::protocol::Addr;
+use crate::types::{Annotated, Array, Object, Value};
 
 /// Holds information about the system SDK.
 ///
@@ -335,6 +335,7 @@ mod tests {
 
     #[test]
     fn test_debug_image_other_roundtrip() {
+        use crate::types::Map;
         let json = r#"{"other":"value","type":"mytype"}"#;
         let image = Annotated::new(DebugImage::Other({
             let mut map = Map::new();
@@ -355,6 +356,7 @@ mod tests {
 
     #[test]
     fn test_debug_image_untagged_roundtrip() {
+        use crate::types::Map;
         let json = r#"{"other":"value"}"#;
         let image = Annotated::new(DebugImage::Other({
             let mut map = Map::new();
@@ -372,6 +374,7 @@ mod tests {
 
 #[test]
 fn test_debug_meta_roundtrip() {
+    use crate::types::Map;
     // NOTE: images are tested separately
     let json = r#"{
   "sdk_info": {

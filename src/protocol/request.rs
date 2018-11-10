@@ -1,10 +1,8 @@
 use cookie::Cookie;
 use url::form_urlencoded;
 
-use general_derive::{FromValue, ProcessValue, ToValue};
-
-use super::*;
 use crate::processor::{FromValue, ToValue};
+use crate::types::{Annotated, Map, Object, Value};
 
 /// A map holding cookies.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]

@@ -1,6 +1,8 @@
-use super::*;
 use crate::processor::{FromValue, ProcessValue, ToValue};
+use crate::protocol::LenientString;
+use crate::types::{Annotated, Value};
 
+/// A fingerprint value.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Fingerprint(Vec<String>);
 
@@ -148,6 +150,7 @@ fn test_fingerprint_float_bounds() {
 
 #[test]
 fn test_fingerprint_invalid_fallback() {
+    use crate::types::Meta;
     // XXX: review, this was changed after refactor
     assert_eq_dbg!(
         Annotated(
