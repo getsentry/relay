@@ -433,7 +433,7 @@ impl Processor for StoreNormalizeProcessor {
 
 #[test]
 fn test_basic_trimming() {
-    use crate::processor::CapSize;
+    use crate::processor::MaxChars;
     use std::iter::repeat;
 
     let mut processor = StoreNormalizeProcessor::default();
@@ -447,7 +447,7 @@ fn test_basic_trimming() {
 
     assert_eq_dbg!(
         event.0.unwrap().culprit,
-        Annotated::new(repeat("x").take(300).collect::<String>()).trim_string(CapSize::Symbol)
+        Annotated::new(repeat("x").take(300).collect::<String>()).trim_string(MaxChars::Symbol)
     );
 }
 

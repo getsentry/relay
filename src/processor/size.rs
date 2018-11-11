@@ -422,11 +422,11 @@ impl<'a> ser::SerializeStructVariant for &'a mut SizeEstimatingSerializer {
 
 #[test]
 fn test_string_trimming() {
-    use crate::processor::CapSize;
+    use crate::processor::MaxChars;
     use crate::types::{Annotated, Meta, Remark, RemarkType};
 
     let value = Annotated::new("This is my long string I want to have trimmed down!".to_string());
-    let new_value = value.trim_string(CapSize::Hard(20));
+    let new_value = value.trim_string(MaxChars::Hard(20));
     assert_eq_dbg!(
         new_value,
         Annotated(
