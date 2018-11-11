@@ -8,12 +8,12 @@ use url::Url;
 use std::mem;
 use std::path::PathBuf;
 
-use crate::processor::{ProcessValue, ProcessingState, Processor};
+use crate::processor::{FromValue, ProcessValue, ProcessingState, Processor, ToValue};
 use crate::protocol::{
     normalize_mechanism_meta, Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, Geo,
     IpAddr, Level, OsHint, Request, Stacktrace, Tags, User,
 };
-use crate::types::{Annotated, Object, Value};
+use crate::types::{Annotated, Array, Object, Remark, RemarkType, Value};
 
 mod geo;
 
@@ -96,6 +96,12 @@ pub struct StoreAuth {
     is_public: bool,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct BagSizeState {
+    size_remaining: usize,
+    depth_remaining: usize,
+}
+
 /// The processor that normalizes events for store.
 #[derive(Default)]
 pub struct StoreNormalizeProcessor {
@@ -105,6 +111,7 @@ pub struct StoreNormalizeProcessor {
     key_id: Option<String>,
     geoip_path: Option<PathBuf>,
     version: Option<String>,
+    bag_size_state: Option<BagSizeState>,
 }
 
 impl Processor for StoreNormalizeProcessor {
@@ -117,6 +124,131 @@ impl Processor for StoreNormalizeProcessor {
             value = value.trim_string(max_chars);
         }
         value
+    }
+
+    fn process_object<T: ProcessValue + ToValue + FromValue>(
+        &mut self,
+        value: Annotated<Object<T>>,
+        state: ProcessingState,
+    ) -> Annotated<Object<T>>
+    where
+        Self: Sized,
+    {
+        // if we encounter a bag size attribute it resets the depth and size
+        // that is permitted below it.
+        if let Some(bag_size) = state.attrs().bag_size {
+            self.bag_size_state = Some(BagSizeState {
+                size_remaining: bag_size.max_size(),
+                depth_remaining: bag_size.max_depth() + 1,
+            });
+        }
+
+        let old_bag_size_state = self.bag_size_state;
+
+        // if we need to check the bag size, then we go down a different path
+        if let Some(mut bag_size_state) = self.bag_size_state {
+            bag_size_state.depth_remaining = bag_size_state.depth_remaining.saturating_sub(1);
+            bag_size_state.size_remaining = bag_size_state.size_remaining.saturating_sub(2);
+            self.bag_size_state = Some(bag_size_state);
+
+            if let Annotated(Some(items), mut meta) = value {
+                if bag_size_state.depth_remaining == 0 {
+                    self.bag_size_state = old_bag_size_state;
+                    meta.add_remark(Remark {
+                        ty: RemarkType::Removed,
+                        rule_id: "!limit".to_string(),
+                        range: None,
+                    });
+                    return Annotated(None, meta);
+                }
+                let original_length = items.len();
+                let mut rv = Object::new();
+                for (key, value) in items.into_iter() {
+                    let trimmed_value = {
+                        let inner_state = state.enter_borrowed(&key, None);
+                        ProcessValue::process_value(value, self, inner_state)
+                    };
+
+                    // update sizes
+                    let value_len = trimmed_value.estimate_size();
+                    bag_size_state.size_remaining =
+                        bag_size_state.size_remaining.saturating_sub(value_len);
+                    self.bag_size_state = Some(bag_size_state);
+
+                    if bag_size_state.size_remaining == 0 {
+                        break;
+                    }
+                    rv.insert(key, trimmed_value);
+                }
+                if rv.len() != original_length {
+                    meta.original_length = Some(original_length as u32);
+                }
+                self.bag_size_state = old_bag_size_state;
+                return Annotated(Some(rv), meta);
+            }
+        }
+
+        self.bag_size_state = old_bag_size_state;
+        ProcessValue::process_child_values(value, self, state)
+    }
+
+    fn process_array<T: ProcessValue + ToValue + FromValue>(
+        &mut self,
+        value: Annotated<Array<T>>,
+        state: ProcessingState,
+    ) -> Annotated<Array<T>>
+    where
+        Self: Sized,
+    {
+        // if we encounter a bag size attribute it resets the depth and size
+        // that is permitted below it.
+        if let Some(bag_size) = state.attrs().bag_size {
+            self.bag_size_state = Some(BagSizeState {
+                size_remaining: bag_size.max_size(),
+                depth_remaining: bag_size.max_depth() + 1,
+            });
+        }
+
+        // if we need to check the bag size, then we go down a different path
+        if let Some(mut bag_size_state) = self.bag_size_state {
+            bag_size_state.depth_remaining = bag_size_state.depth_remaining.saturating_sub(1);
+            bag_size_state.size_remaining = bag_size_state.size_remaining.saturating_sub(2);
+            self.bag_size_state = Some(bag_size_state);
+
+            if let Annotated(Some(items), mut meta) = value {
+                if bag_size_state.depth_remaining == 0 {
+                    meta.add_remark(Remark {
+                        ty: RemarkType::Removed,
+                        rule_id: "!limit".to_string(),
+                        range: None,
+                    });
+                    return Annotated(None, meta);
+                }
+                let original_length = items.len();
+                let mut rv = Array::new();
+                for (idx, value) in items.into_iter().enumerate() {
+                    let inner_state = state.enter_index(idx, None);
+                    let trimmed_value = ProcessValue::process_value(value, self, inner_state);
+
+                    // update sizes
+                    let value_len = trimmed_value.estimate_size();
+                    bag_size_state.size_remaining =
+                        bag_size_state.size_remaining.saturating_sub(value_len);
+                    self.bag_size_state = Some(bag_size_state);
+
+                    if bag_size_state.size_remaining == 0 {
+                        break;
+                    }
+                    rv.push(trimmed_value);
+                }
+                if rv.len() != original_length {
+                    meta.original_length = Some(original_length as u32);
+                }
+                return Annotated(Some(rv), meta);
+            }
+        }
+
+        ProcessValue::process_child_values(value, self, state)
     }
 
     // TODO: Reduce cyclomatic complexity of this function
@@ -609,4 +741,39 @@ fn test_invalid_email() {
             ..Default::default()
         })
     );
+}
+
+#[test]
+fn test_databag_stripping() {
+    let mut processor = StoreNormalizeProcessor::default();
+
+    fn make_nested_object(depth: usize) -> Annotated<Value> {
+        if depth == 0 {
+            return Annotated::new(Value::String("max depth".to_string()));
+        }
+        let mut rv = Object::new();
+        rv.insert(format!("key{}", depth), make_nested_object(depth - 1));
+        Annotated::new(Value::Object(rv))
+    }
+
+    let databag = Annotated::new({
+        let mut map = Object::new();
+        map.insert(
+            "key_1".to_string(),
+            Annotated::new(Value::String("value 1".to_string())),
+        );
+        map.insert("key_2".to_string(), make_nested_object(5));
+        map
+    });
+    let event = Annotated::new(Event {
+        extra: databag,
+        ..Default::default()
+    });
+
+    let stripped_event = event.process(&mut processor);
+    let stripped_extra = stripped_event.0.unwrap().extra;
+
+    let json = stripped_extra.to_json().unwrap();
+
+    assert_eq_str!(json, r#"{"key_1":"value 1","key_2":{"key5":{"key4":{"key3":{"key2":null}}}},"_meta":{"key_2":{"key5":{"key4":{"key3":{"key2":{"":{"rem":[["!limit","x"]]}}}}}}}}"#);
 }

@@ -342,7 +342,7 @@ impl Annotated<String> {
 
                 rv.push(Chunk::Redaction {
                     text: "...".to_string(),
-                    rule_id: "!len".to_string(),
+                    rule_id: "!limit".to_string(),
                     ty: RemarkType::Substituted,
                 });
                 break;

@@ -198,6 +198,11 @@ impl Meta {
         &mut self.remarks
     }
 
+    /// Adds a remark.
+    pub fn add_remark(&mut self, remark: Remark) {
+        self.remarks.push(remark);
+    }
+
     /// Iterates errors on this field.
     pub fn iter_errors(&self) -> impl Iterator<Item = &str> {
         self.errors.iter().map(|x| x.as_str())

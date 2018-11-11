@@ -37,7 +37,7 @@ impl FromValue for LogEntry {
                 ..Default::default()
             }),
             x => {
-                #[derive(FromValue)]
+                #[derive(Debug, FromValue)]
                 struct Helper {
                     message: Annotated<String>,
                     formatted: Annotated<String>,

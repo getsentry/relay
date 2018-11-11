@@ -1,10 +1,12 @@
+use std::fmt::Debug;
+
 use chrono::{DateTime, Utc};
 
 use crate::processor::ProcessingState;
 use crate::types::{Annotated, Array, MetaMap, MetaTree, Object, Value};
 
 /// Implemented for all meta structures.
-pub trait FromValue {
+pub trait FromValue: Debug {
     /// Creates a meta structure from an annotated boxed value.
     fn from_value(value: Annotated<Value>) -> Annotated<Self>
     where
@@ -12,7 +14,7 @@ pub trait FromValue {
 }
 
 /// Implemented for all meta structures.
-pub trait ToValue {
+pub trait ToValue: Debug {
     /// Boxes the meta structure back into a value.
     fn to_value(value: Annotated<Self>) -> Annotated<Value>
     where
@@ -83,7 +85,7 @@ pub trait Processor {
     process_method!(process_value, Value);
 
     #[inline(always)]
-    fn process_array<T: ProcessValue>(
+    fn process_array<T: ProcessValue + ToValue + FromValue>(
         &mut self,
         value: Annotated<Array<T>>,
         state: ProcessingState,
@@ -94,7 +96,7 @@ pub trait Processor {
         ProcessValue::process_child_values(value, self, state)
     }
     #[inline(always)]
-    fn process_object<T: ProcessValue>(
+    fn process_object<T: ProcessValue + ToValue + FromValue>(
         &mut self,
         value: Annotated<Object<T>>,
         state: ProcessingState,
@@ -129,7 +131,7 @@ pub trait Processor {
 /// calls into `process_child_values`.  The default behavior that is
 /// implemented is to make `process_value` directly call into
 /// `process_child_values`.
-pub trait ProcessValue {
+pub trait ProcessValue: ToValue + FromValue + Debug {
     /// Executes a processor on the tree.
     #[inline(always)]
     fn process_value<P: Processor>(

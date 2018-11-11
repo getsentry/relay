@@ -104,7 +104,7 @@ pub struct Mechanism {
 
 impl FromValue for Mechanism {
     fn from_value(annotated: Annotated<Value>) -> Annotated<Self> {
-        #[derive(FromValue)]
+        #[derive(Debug, FromValue)]
         struct NewMechanism {
             #[metastructure(field = "type", required = "true")]
             pub ty: Annotated<String>,
@@ -117,7 +117,7 @@ impl FromValue for Mechanism {
             pub other: Object<Value>,
         }
 
-        #[derive(FromValue)]
+        #[derive(Debug, FromValue)]
         struct LegacyPosixSignal {
             #[metastructure(required = "true")]
             pub signal: Annotated<i64>,
@@ -126,7 +126,7 @@ impl FromValue for Mechanism {
             pub code_name: Annotated<String>,
         }
 
-        #[derive(FromValue)]
+        #[derive(Debug, FromValue)]
         struct LegacyMachException {
             #[metastructure(required = "true")]
             pub exception: Annotated<i64>,
@@ -137,7 +137,7 @@ impl FromValue for Mechanism {
             pub exception_name: Annotated<String>,
         }
 
-        #[derive(FromValue)]
+        #[derive(Debug, FromValue)]
         struct LegacyMechanism {
             posix_signal: Annotated<LegacyPosixSignal>,
             mach_exception: Annotated<LegacyMachException>,

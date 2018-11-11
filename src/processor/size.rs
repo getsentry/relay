@@ -434,7 +434,7 @@ fn test_string_trimming() {
             Meta {
                 remarks: vec![Remark {
                     ty: RemarkType::Substituted,
-                    rule_id: "!len".to_string(),
+                    rule_id: "!limit".to_string(),
                     range: Some((17, 20)),
                 }].into(),
                 original_length: Some(51),

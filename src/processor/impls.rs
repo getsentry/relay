@@ -281,33 +281,62 @@ impl ProcessValue for Value {
         state: ProcessingState,
     ) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::Object(items)), meta) => Annotated(
-                Some(Value::Object(
-                    items
-                        .into_iter()
-                        .map(|(k, v)| {
-                            let v = {
-                                let inner_state = state.enter_borrowed(k.as_str(), None);
+            Annotated(Some(Value::Null), meta) => Annotated(Some(Value::Null), meta),
+            Annotated(Some(Value::Bool(value)), meta) => {
+                ProcessValue::process_value(Annotated(Some(value), meta), processor, state)
+                    .map_value(Value::Bool)
+            }
+            Annotated(Some(Value::I64(value)), meta) => {
+                ProcessValue::process_value(Annotated(Some(value), meta), processor, state)
+                    .map_value(Value::I64)
+            }
+            Annotated(Some(Value::U64(value)), meta) => {
+                ProcessValue::process_value(Annotated(Some(value), meta), processor, state)
+                    .map_value(Value::U64)
+            }
+            Annotated(Some(Value::F64(value)), meta) => {
+                ProcessValue::process_value(Annotated(Some(value), meta), processor, state)
+                    .map_value(Value::F64)
+            }
+            Annotated(Some(Value::String(value)), meta) => {
+                ProcessValue::process_value(Annotated(Some(value), meta), processor, state)
+                    .map_value(Value::String)
+            }
+            Annotated(Some(Value::Object(items)), meta) => ProcessValue::process_value(
+                Annotated(
+                    Some(
+                        items
+                            .into_iter()
+                            .map(|(k, v)| {
+                                let v = {
+                                    let inner_state = state.enter_borrowed(k.as_str(), None);
+                                    ProcessValue::process_value(v, processor, inner_state)
+                                };
+                                (k, v)
+                            }).collect(),
+                    ),
+                    meta,
+                ),
+                processor,
+                state,
+            ).map_value(Value::Object),
+            Annotated(Some(Value::Array(items)), meta) => ProcessValue::process_value(
+                Annotated(
+                    Some(
+                        items
+                            .into_iter()
+                            .enumerate()
+                            .map(|(idx, v)| {
+                                let inner_state = state.enter_index(idx, None);
                                 ProcessValue::process_value(v, processor, inner_state)
-                            };
-                            (k, v)
-                        }).collect(),
-                )),
-                meta,
-            ),
-            Annotated(Some(Value::Array(items)), meta) => Annotated(
-                Some(Value::Array(
-                    items
-                        .into_iter()
-                        .enumerate()
-                        .map(|(idx, v)| {
-                            let inner_state = state.enter_index(idx, None);
-                            ProcessValue::process_value(v, processor, inner_state)
-                        }).collect(),
-                )),
-                meta,
-            ),
-            other => other,
+                            }).collect(),
+                    ),
+                    meta,
+                ),
+                processor,
+                state,
+            ).map_value(Value::Array),
+            Annotated(None, meta) => Annotated(None, meta),
         }
     }
 }
@@ -393,7 +422,7 @@ impl<T: FromValue> FromValue for Box<T> {
     }
 }
 
-impl<T: ToValue + Clone> ToValue for Box<T> {
+impl<T: ToValue> ToValue for Box<T> {
     fn to_value(value: Annotated<Self>) -> Annotated<Value>
     where
         Self: Sized,
@@ -415,17 +444,6 @@ impl<T: ToValue + Clone> ToValue for Box<T> {
         S: Serializer,
     {
         ToValue::serialize_payload(&**self, s)
-    }
-
-    #[inline(always)]
-    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
-    where
-        Self: Sized,
-    {
-        // TODO: Unnecessary clone
-        let value: Annotated<T> =
-            Annotated(value.0.as_ref().map(|x| (**x).clone()), value.1.clone());
-        ToValue::extract_meta_tree(&value)
     }
 }
 
