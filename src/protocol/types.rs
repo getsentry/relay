@@ -508,7 +508,7 @@ macro_rules! value_impl_for_tuple {
         impl<$($name: ProcessValue),*> ProcessValue for ($(Annotated<$name>,)*) {
             fn process_value<P: Processor>(
                 value: Annotated<Self>,
-                processor: &P,
+                processor: &mut P,
                 state: ProcessingState,
             ) -> Annotated<Self> {
                 value.map_value(|value| {

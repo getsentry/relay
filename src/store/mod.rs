@@ -109,7 +109,7 @@ pub struct StoreNormalizeProcessor {
 
 impl Processor for StoreNormalizeProcessor {
     fn process_string(
-        &self,
+        &mut self,
         mut value: Annotated<String>,
         state: ProcessingState,
     ) -> Annotated<String> {
@@ -121,7 +121,11 @@ impl Processor for StoreNormalizeProcessor {
 
     // TODO: Reduce cyclomatic complexity of this function
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
-    fn process_event(&self, event: Annotated<Event>, state: ProcessingState) -> Annotated<Event> {
+    fn process_event(
+        &mut self,
+        event: Annotated<Event>,
+        state: ProcessingState,
+    ) -> Annotated<Event> {
         let mut event = ProcessValue::process_child_values(event, self, state);
 
         if let Some(ref mut event) = event.0 {
@@ -273,7 +277,7 @@ impl Processor for StoreNormalizeProcessor {
     }
 
     fn process_breadcrumb(
-        &self,
+        &mut self,
         breadcrumb: Annotated<Breadcrumb>,
         state: ProcessingState,
     ) -> Annotated<Breadcrumb> {
@@ -287,7 +291,7 @@ impl Processor for StoreNormalizeProcessor {
     }
 
     fn process_request(
-        &self,
+        &mut self,
         request: Annotated<Request>,
         state: ProcessingState,
     ) -> Annotated<Request> {
@@ -312,7 +316,7 @@ impl Processor for StoreNormalizeProcessor {
         request
     }
 
-    fn process_user(&self, user: Annotated<User>, state: ProcessingState) -> Annotated<User> {
+    fn process_user(&mut self, user: Annotated<User>, state: ProcessingState) -> Annotated<User> {
         let mut user = ProcessValue::process_child_values(user, self, state);
 
         if let Some(ref mut user) = user.0 {
@@ -357,7 +361,7 @@ impl Processor for StoreNormalizeProcessor {
     }
 
     fn process_client_sdk_info(
-        &self,
+        &mut self,
         info: Annotated<ClientSdkInfo>,
         state: ProcessingState,
     ) -> Annotated<ClientSdkInfo> {
@@ -373,7 +377,7 @@ impl Processor for StoreNormalizeProcessor {
     }
 
     fn process_exception(
-        &self,
+        &mut self,
         exception: Annotated<Exception>,
         state: ProcessingState,
     ) -> Annotated<Exception> {
@@ -397,7 +401,11 @@ impl Processor for StoreNormalizeProcessor {
         exception
     }
 
-    fn process_frame(&self, frame: Annotated<Frame>, state: ProcessingState) -> Annotated<Frame> {
+    fn process_frame(
+        &mut self,
+        frame: Annotated<Frame>,
+        state: ProcessingState,
+    ) -> Annotated<Frame> {
         let mut frame = ProcessValue::process_child_values(frame, self, state);
 
         if let Some(ref mut frame) = frame.0 {
@@ -428,14 +436,14 @@ fn test_basic_trimming() {
     use crate::processor::CapSize;
     use std::iter::repeat;
 
-    let processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::default();
 
     let event = Annotated::new(Event {
         culprit: Annotated::new(repeat("x").take(300).collect::<String>()),
         ..Default::default()
     });
 
-    let event = event.process(&processor);
+    let event = event.process(&mut processor);
 
     assert_eq_dbg!(
         event.0.unwrap().culprit,
@@ -445,14 +453,14 @@ fn test_basic_trimming() {
 
 #[test]
 fn test_handles_type_in_value() {
-    let processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::default();
 
     let exception = Annotated::new(Exception {
         value: Annotated::new("ValueError: unauthorized".to_string().into()),
         ..Default::default()
     });
 
-    let exception = exception.process(&processor).0.unwrap();
+    let exception = exception.process(&mut processor).0.unwrap();
     assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
     assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
 
@@ -461,20 +469,20 @@ fn test_handles_type_in_value() {
         ..Default::default()
     });
 
-    let exception = exception.process(&processor).0.unwrap();
+    let exception = exception.process(&mut processor).0.unwrap();
     assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
     assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
 }
 
 #[test]
 fn test_json_value() {
-    let processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::default();
 
     let exception = Annotated::new(Exception {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
         ..Default::default()
     });
-    let exception = exception.process(&processor).0.unwrap();
+    let exception = exception.process(&mut processor).0.unwrap();
 
     // Don't split a json-serialized value on the colon
     assert_eq_dbg!(
@@ -486,10 +494,10 @@ fn test_json_value() {
 
 #[test]
 fn test_exception_invalid() {
-    let processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::default();
 
     let exception = Annotated::new(Exception::default());
-    let exception = exception.process(&processor);
+    let exception = exception.process(&mut processor);
 
     assert_eq_dbg!(
         exception.1.iter_errors().collect_tuple(),
@@ -559,7 +567,7 @@ fn test_ignores_results_with_empty_path() {
 
 #[test]
 fn test_geo_from_ip_address() {
-    let processor = StoreNormalizeProcessor {
+    let mut processor = StoreNormalizeProcessor {
         geoip_path: Some(PathBuf::from("GeoLiteCity.dat")),
         ..Default::default()
     };
@@ -569,7 +577,7 @@ fn test_geo_from_ip_address() {
         ..Default::default()
     });
 
-    let user = user.process(&processor);
+    let user = user.process(&mut processor);
 
     let expected = Annotated::new(Geo {
         country_code: Annotated::new("AT".to_string()),
@@ -582,14 +590,14 @@ fn test_geo_from_ip_address() {
 
 #[test]
 fn test_invalid_email() {
-    let processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::default();
 
     let user = Annotated::new(User {
         email: Annotated::new("bananabread".to_string()),
         ..Default::default()
     });
 
-    let user = user.process(&processor);
+    let user = user.process(&mut processor);
 
     assert_eq_dbg!(
         user,

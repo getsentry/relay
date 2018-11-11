@@ -115,7 +115,7 @@ fn process_wrapper_struct_derive(
                     #[inline(always)]
                     fn process_child_values<P: crate::processor::Processor>(
                         __value: crate::types::Annotated<Self>,
-                        __processor: &P,
+                        __processor: &mut P,
                         __state: crate::processor::ProcessingState
                     ) -> crate::types::Annotated<Self> {
                         let __new_annotated = match __value {
@@ -390,7 +390,7 @@ fn process_enum_struct_derive(
                 gen impl crate::processor::ProcessValue for @Self {
                     fn process_child_values<P: crate::processor::Processor>(
                         __value: crate::types::Annotated<Self>,
-                        __processor: &P,
+                        __processor: &mut P,
                         __state: crate::processor::ProcessingState
                     ) -> crate::types::Annotated<Self> {
                         #process_state_clone
@@ -702,7 +702,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         quote! {
             fn process_value<P: crate::processor::Processor>(
                 __value: crate::types::Annotated<Self>,
-                __processor: &P,
+                __processor: &mut P,
                 __state: crate::processor::ProcessingState
             ) -> crate::types::Annotated<Self> {
                 __processor.#func_name(__value, __state)
@@ -780,7 +780,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     #process_value
                     fn process_child_values<P: crate::processor::Processor>(
                         __value: crate::types::Annotated<Self>,
-                        __processor: &P,
+                        __processor: &mut P,
                         __state: crate::processor::ProcessingState
                     ) -> crate::types::Annotated<Self> {
                         let crate::types::Annotated(__value, __meta) = __value;

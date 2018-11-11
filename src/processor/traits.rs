@@ -61,7 +61,7 @@ macro_rules! process_method {
         #[doc = "Processes values of type `"]
         #[doc = $help_ty]
         #[doc = "`."]
-        fn $name(&self, value: Annotated<$ty>, state: ProcessingState) -> Annotated<$ty>
+        fn $name(&mut self, value: Annotated<$ty>, state: ProcessingState) -> Annotated<$ty>
             where Self: Sized
         {
             ProcessValue::process_child_values(value, self, state)
@@ -84,7 +84,7 @@ pub trait Processor {
 
     #[inline(always)]
     fn process_array<T: ProcessValue>(
-        &self,
+        &mut self,
         value: Annotated<Array<T>>,
         state: ProcessingState,
     ) -> Annotated<Array<T>>
@@ -95,7 +95,7 @@ pub trait Processor {
     }
     #[inline(always)]
     fn process_object<T: ProcessValue>(
-        &self,
+        &mut self,
         value: Annotated<Object<T>>,
         state: ProcessingState,
     ) -> Annotated<Object<T>>
@@ -134,7 +134,7 @@ pub trait ProcessValue {
     #[inline(always)]
     fn process_value<P: Processor>(
         value: Annotated<Self>,
-        processor: &P,
+        processor: &mut P,
         state: ProcessingState,
     ) -> Annotated<Self>
     where
@@ -147,7 +147,7 @@ pub trait ProcessValue {
     #[inline(always)]
     fn process_child_values<P: Processor>(
         value: Annotated<Self>,
-        processor: &P,
+        processor: &mut P,
         state: ProcessingState,
     ) -> Annotated<Self>
     where

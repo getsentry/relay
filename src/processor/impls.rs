@@ -92,7 +92,7 @@ impl<T: ToValue> ToValue for Array<T> {
 impl<T: ProcessValue> ProcessValue for Array<T> {
     fn process_value<P: Processor>(
         value: Annotated<Self>,
-        processor: &P,
+        processor: &mut P,
         state: ProcessingState,
     ) -> Annotated<Self> {
         processor.process_array(value, state)
@@ -100,7 +100,7 @@ impl<T: ProcessValue> ProcessValue for Array<T> {
 
     fn process_child_values<P: Processor>(
         value: Annotated<Self>,
-        processor: &P,
+        processor: &mut P,
         state: ProcessingState,
     ) -> Annotated<Self> {
         match value {
@@ -193,7 +193,7 @@ impl<T: ToValue> ToValue for Object<T> {
 impl<T: ProcessValue> ProcessValue for Object<T> {
     fn process_value<P: Processor>(
         value: Annotated<Self>,
-        processor: &P,
+        processor: &mut P,
         state: ProcessingState,
     ) -> Annotated<Self> {
         processor.process_object(value, state)
@@ -201,7 +201,7 @@ impl<T: ProcessValue> ProcessValue for Object<T> {
 
     fn process_child_values<P: Processor>(
         value: Annotated<Self>,
-        processor: &P,
+        processor: &mut P,
         state: ProcessingState,
     ) -> Annotated<Self> {
         match value {
@@ -277,7 +277,7 @@ impl ToValue for Value {
 impl ProcessValue for Value {
     fn process_value<P: Processor>(
         value: Annotated<Self>,
-        processor: &P,
+        processor: &mut P,
         state: ProcessingState,
     ) -> Annotated<Self> {
         match value {
@@ -376,7 +376,7 @@ impl ToValue for DateTime<Utc> {
 impl ProcessValue for DateTime<Utc> {
     fn process_value<P: Processor>(
         value: Annotated<Self>,
-        processor: &P,
+        processor: &mut P,
         state: ProcessingState,
     ) -> Annotated<Self> {
         processor.process_datetime(value, state)
@@ -434,7 +434,7 @@ impl<T: ProcessValue> ProcessValue for Box<T> {
     #[inline(always)]
     fn process_child_values<P: Processor>(
         value: Annotated<Self>,
-        processor: &P,
+        processor: &mut P,
         state: ProcessingState,
     ) -> Annotated<Self>
     where
