@@ -6,7 +6,7 @@ use crate::types::{Annotated, Array, Object, Value};
 #[metastructure(process_func = "process_frame")]
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
-    #[metastructure(cap_size = "symbol")]
+    #[metastructure(max_chars = "symbol")]
     pub function: Annotated<String>,
 
     /// Potentially mangled name of the symbol as it appears in an executable.
@@ -14,7 +14,7 @@ pub struct Frame {
     /// This is different from a function name by generally being the mangled
     /// name that appears natively in the binary.  This is relevant for languages
     /// like Swift, C++ or Rust.
-    #[metastructure(cap_size = "symbol")]
+    #[metastructure(max_chars = "symbol")]
     pub symbol: Annotated<String>,
 
     /// Name of the module the frame is contained in.
@@ -34,11 +34,11 @@ pub struct Frame {
     pub package: Annotated<String>,
 
     /// The source file name (basename only).
-    #[metastructure(pii_kind = "freeform", cap_size = "short_path")]
+    #[metastructure(pii_kind = "freeform", max_chars = "short_path")]
     pub filename: Annotated<String>,
 
     /// Absolute path to the source file.
-    #[metastructure(pii_kind = "freeform", cap_size = "path")]
+    #[metastructure(pii_kind = "freeform", max_chars = "path")]
     pub abs_path: Annotated<String>,
 
     /// Line number within the source file.
@@ -78,7 +78,7 @@ pub struct Frame {
     pub symbol_addr: Annotated<Addr>,
 
     /// Used for native crashes to indicate how much we can "trust" the instruction_addr
-    #[metastructure(cap_size = "enumlike")]
+    #[metastructure(max_chars = "enumlike")]
     pub trust: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.

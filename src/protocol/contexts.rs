@@ -66,26 +66,26 @@ pub struct DeviceContext {
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct OsContext {
     /// Name of the operating system.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub name: Annotated<String>,
 
     /// Version of the operating system.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub version: Annotated<String>,
 
     /// Internal build number of the operating system.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub build: Annotated<String>,
 
     /// Current kernel version.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub kernel_version: Annotated<String>,
 
     /// Indicator if the OS is rooted (mobile mostly).
     pub rooted: Annotated<bool>,
 
     /// Unprocessed operating system info.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub raw_description: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -97,15 +97,15 @@ pub struct OsContext {
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct RuntimeContext {
     /// Runtime name.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub name: Annotated<String>,
 
     /// Runtime version.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub version: Annotated<String>,
 
     /// Unprocessed runtime info.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub raw_description: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -121,11 +121,11 @@ pub struct AppContext {
 
     /// Device app hash (app specific device ID)
     #[metastructure(pii_kind = "id")]
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub device_app_hash: Annotated<String>,
 
     /// Build identicator.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub build_type: Annotated<String>,
 
     /// App identifier (dotted bundle id).
@@ -138,7 +138,7 @@ pub struct AppContext {
     pub app_version: Annotated<String>,
 
     /// Internal build ID as it appears on the platform.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub app_build: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -150,11 +150,11 @@ pub struct AppContext {
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 pub struct BrowserContext {
     /// Runtime name.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub name: Annotated<String>,
 
     /// Runtime version.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub version: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.

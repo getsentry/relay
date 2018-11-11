@@ -113,8 +113,8 @@ impl Processor for StoreNormalizeProcessor {
         mut value: Annotated<String>,
         state: ProcessingState,
     ) -> Annotated<String> {
-        if let Some(cap_size) = state.attrs().cap_size {
-            value = value.trim_string(cap_size);
+        if let Some(max_chars) = state.attrs().max_chars {
+            value = value.trim_string(max_chars);
         }
         value
     }

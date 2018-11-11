@@ -9,7 +9,7 @@ pub struct Thread {
     pub id: Annotated<ThreadId>,
 
     /// Display name of this thread.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub name: Annotated<String>,
 
     /// Stack trace containing frames of this exception.

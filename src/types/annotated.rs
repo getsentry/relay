@@ -6,8 +6,8 @@ use serde_derive::Serialize;
 use serde_json;
 
 use crate::processor::{
-    join_chunks, split_chunks, CapSize, Chunk, FromValue, ProcessValue, ProcessingState, Processor,
-    SizeEstimatingSerializer, ToValue,
+    join_chunks, split_chunks, Chunk, FromValue, MaxChars, ProcessValue, ProcessingState,
+    Processor, SizeEstimatingSerializer, ToValue,
 };
 use crate::types::{Meta, Object, RemarkType, Value};
 
@@ -293,11 +293,11 @@ impl Annotated<String> {
         Annotated(new_value, meta)
     }
 
-    pub fn trim_string(self, cap_size: CapSize) -> Annotated<String> {
-        let limit = cap_size.max_chars();
-        let grace_limit = limit + cap_size.grace_chars();
+    pub fn trim_string(self, max_chars: MaxChars) -> Annotated<String> {
+        let limit = max_chars.limit();
+        let allowance_limit = limit + max_chars.allowance();
 
-        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() < grace_limit {
+        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() < allowance_limit {
             return self;
         }
 
@@ -320,7 +320,7 @@ impl Annotated<String> {
                     // if there is enough space for this chunk and the 3 character
                     // ellipsis marker we can push the remaining chunk
                     Chunk::Redaction { .. } => {
-                        if length + chunk_chars + 3 < grace_limit {
+                        if length + chunk_chars + 3 < allowance_limit {
                             rv.push(chunk);
                         }
                     }

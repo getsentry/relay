@@ -74,16 +74,16 @@ pub struct Mechanism {
         field = "type",
         required = "true",
         nonempty = "true",
-        cap_size = "enumlike"
+        max_chars = "enumlike"
     )]
     pub ty: Annotated<String>,
 
     /// Human readable detail description.
-    #[metastructure(pii_kind = "freeform", cap_size = "message")]
+    #[metastructure(pii_kind = "freeform", max_chars = "message")]
     pub description: Annotated<String>,
 
     /// Link to online resources describing this error.
-    #[metastructure(required = "false", nonempty = "true", cap_size = "path")]
+    #[metastructure(required = "false", nonempty = "true", max_chars = "path")]
     pub help_link: Annotated<String>,
 
     /// Flag indicating whether this exception was handled.

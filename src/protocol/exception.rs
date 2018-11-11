@@ -6,15 +6,15 @@ use crate::types::{Annotated, Object, Value};
 #[metastructure(process_func = "process_exception")]
 pub struct Exception {
     /// Exception type. One of value or exception is required, checked in StoreNormalizeProcessor
-    #[metastructure(field = "type", cap_size = "symbol")]
+    #[metastructure(field = "type", max_chars = "symbol")]
     pub ty: Annotated<String>,
 
     /// Human readable display value.
-    #[metastructure(cap_size = "summary")]
+    #[metastructure(max_chars = "summary")]
     pub value: Annotated<JsonLenientString>,
 
     /// Module name of this exception.
-    #[metastructure(cap_size = "symbol")]
+    #[metastructure(max_chars = "symbol")]
     pub module: Annotated<String>,
 
     /// Stack trace containing frames of this exception.
@@ -25,7 +25,7 @@ pub struct Exception {
     pub raw_stacktrace: Annotated<Stacktrace>,
 
     /// Identifier of the thread this exception occurred in.
-    #[metastructure(cap_size = "enumlike")]
+    #[metastructure(max_chars = "enumlike")]
     pub thread_id: Annotated<ThreadId>,
 
     /// Mechanism by which this exception was generated and handled.

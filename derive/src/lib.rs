@@ -480,7 +480,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             .as_ref()
             .expect("can not derive struct tuples")
             .to_string();
-        let mut cap_size_attr = quote!(None);
+        let mut max_chars_attr = quote!(None);
+        let mut bag_size_attr = quote!(None);
         let mut pii_kind_attr = quote!(None);
         let mut required = None;
         let mut nonempty = None;
@@ -538,14 +539,24 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                                             panic!("Got non string literal for required");
                                         }
                                     }
-                                } else if ident == "cap_size" {
+                                } else if ident == "max_chars" {
                                     match lit {
                                         Lit::Str(litstr) => {
-                                            let attr = parse_cap_size(litstr.value().as_str());
-                                            cap_size_attr = quote!(Some(#attr));
+                                            let attr = parse_max_chars(litstr.value().as_str());
+                                            max_chars_attr = quote!(Some(#attr));
                                         }
                                         _ => {
-                                            panic!("Got non string literal for cap_size");
+                                            panic!("Got non string literal for max_chars");
+                                        }
+                                    }
+                                } else if ident == "bag_size" {
+                                    match lit {
+                                        Lit::Str(litstr) => {
+                                            let attr = parse_bag_size(litstr.value().as_str());
+                                            bag_size_attr = quote!(Some(#attr));
+                                        }
+                                        _ => {
+                                            panic!("Got non string literal for bag_size");
                                         }
                                     }
                                 } else if ident == "pii_kind" {
@@ -661,7 +672,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 const #field_attrs_name: crate::processor::FieldAttrs = crate::processor::FieldAttrs {
                     name: Some(#field_name),
                     required: #required_attr,
-                    cap_size: #cap_size_attr,
+                    max_chars: #max_chars_attr,
+                    bag_size: #bag_size_attr,
                     pii_kind: #pii_kind_attr,
                 };
                 let #bi = crate::processor::ProcessValue::process_value(#bi, __processor, __state.enter_static(#field_name, Some(::std::borrow::Cow::Borrowed(&#field_attrs_name))));
@@ -798,21 +810,28 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     }
 }
 
-fn parse_cap_size(name: &str) -> TokenStream {
+fn parse_max_chars(name: &str) -> TokenStream {
     match name {
-        "enumlike" => quote!(crate::processor::CapSize::EnumLike),
-        "summary" => quote!(crate::processor::CapSize::Summary),
-        "message" => quote!(crate::processor::CapSize::Message),
-        "small_payload" => quote!(crate::processor::CapSize::SmallPayload),
-        "payload" => quote!(crate::processor::CapSize::Payload),
-        "symbol" => quote!(crate::processor::CapSize::Symbol),
-        "path" => quote!(crate::processor::CapSize::Path),
-        "short_path" => quote!(crate::processor::CapSize::ShortPath),
-        "email" => quote!(crate::processor::CapSize::Email),
-        "culprit" => quote!(crate::processor::CapSize::Culprit),
-        "tag_key" => quote!(crate::processor::CapSize::TagKey),
-        "tag_value" => quote!(crate::processor::CapSize::TagValue),
-        _ => panic!("invalid cap_size variant '{}'", name),
+        "enumlike" => quote!(crate::processor::MaxChars::EnumLike),
+        "summary" => quote!(crate::processor::MaxChars::Summary),
+        "message" => quote!(crate::processor::MaxChars::Message),
+        "symbol" => quote!(crate::processor::MaxChars::Symbol),
+        "path" => quote!(crate::processor::MaxChars::Path),
+        "short_path" => quote!(crate::processor::MaxChars::ShortPath),
+        "email" => quote!(crate::processor::MaxChars::Email),
+        "culprit" => quote!(crate::processor::MaxChars::Culprit),
+        "tag_key" => quote!(crate::processor::MaxChars::TagKey),
+        "tag_value" => quote!(crate::processor::MaxChars::TagValue),
+        _ => panic!("invalid max_chars variant '{}'", name),
+    }
+}
+
+fn parse_bag_size(name: &str) -> TokenStream {
+    match name {
+        "small" => quote!(crate::processor::BagSize::Small),
+        "medium" => quote!(crate::processor::BagSize::Medium),
+        "large" => quote!(crate::processor::BagSize::Large),
+        _ => panic!("invalid bag_size variant '{}'", name),
     }
 }
 

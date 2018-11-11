@@ -158,7 +158,7 @@ pub struct Event {
     pub fingerprint: Annotated<Fingerprint>,
 
     /// Custom culprit of the event.
-    #[metastructure(cap_size = "symbol")]
+    #[metastructure(max_chars = "symbol")]
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
@@ -173,7 +173,7 @@ pub struct Event {
     pub logentry: Annotated<LogEntry>,
 
     /// Logger that created the event.
-    #[metastructure(cap_size = "symbol")]
+    #[metastructure(max_chars = "symbol")]
     pub logger: Annotated<String>,
 
     /// Name and versions of installed modules.
@@ -240,7 +240,7 @@ pub struct Event {
     pub tags: Annotated<Tags>,
 
     /// Arbitrary extra information set by the user.
-    // TODO: Cap? (trim_dict in python)
+    #[metastructure(bag_size = "large")]
     pub extra: Annotated<Object<Value>>,
 
     /// Meta data for event processing and debugging.

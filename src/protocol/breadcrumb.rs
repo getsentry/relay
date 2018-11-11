@@ -15,22 +15,22 @@ pub struct Breadcrumb {
     pub timestamp: Annotated<DateTime<Utc>>,
 
     /// The type of the breadcrumb.
-    #[metastructure(field = "type", cap_size = "enumlike")]
+    #[metastructure(field = "type", max_chars = "enumlike")]
     pub ty: Annotated<String>,
 
     /// The optional category of the breadcrumb.
-    #[metastructure(cap_size = "enumlike")]
+    #[metastructure(max_chars = "enumlike")]
     pub category: Annotated<String>,
 
     /// Severity level of the breadcrumb (required).
     pub level: Annotated<Level>,
 
     /// Human readable message for the breadcrumb.
-    #[metastructure(pii_kind = "freeform", cap_size = "message")]
+    #[metastructure(pii_kind = "freeform", max_chars = "message")]
     pub message: Annotated<String>,
 
     /// Custom user-defined data of this breadcrumb.
-    #[metastructure(pii_kind = "databag", cap_size = "small_payload")]
+    #[metastructure(pii_kind = "databag", bag_size = "small")]
     pub data: Annotated<Object<Value>>,
 
     /// Identifier of the event this breadcrumb belongs to.

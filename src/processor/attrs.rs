@@ -3,14 +3,12 @@ use std::borrow::Cow;
 use std::fmt;
 use std::rc::Rc;
 
-/// The maximum size of a field.
+/// The maximum length of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
-pub enum CapSize {
+pub enum MaxChars {
     EnumLike,
     Summary,
     Message,
-    SmallPayload,
-    Payload,
     Symbol,
     Path,
     ShortPath,
@@ -22,61 +20,68 @@ pub enum CapSize {
     Soft(usize),
 }
 
-impl CapSize {
-    pub fn max_chars(self) -> usize {
+impl MaxChars {
+    /// The cap in number of unicode characters.
+    pub fn limit(self) -> usize {
         match self {
-            CapSize::EnumLike => 128,
-            CapSize::Summary => 1024,
-            CapSize::Message => 8196,
-            CapSize::SmallPayload => 4096,
-            CapSize::Payload => 20_000,
-            CapSize::Symbol => 256,
-            CapSize::Path => 256,
-            CapSize::ShortPath => 128,
+            MaxChars::EnumLike => 128,
+            MaxChars::Summary => 1024,
+            MaxChars::Message => 8196,
+            MaxChars::Symbol => 256,
+            MaxChars::Path => 256,
+            MaxChars::ShortPath => 128,
             // these are from constants.py
-            CapSize::Email => 75,
-            CapSize::Culprit => 200,
-            CapSize::TagKey => 32,
-            CapSize::TagValue => 200,
-            CapSize::Soft(len) | CapSize::Hard(len) => len,
+            MaxChars::Email => 75,
+            MaxChars::Culprit => 200,
+            MaxChars::TagKey => 32,
+            MaxChars::TagValue => 200,
+            MaxChars::Soft(len) | MaxChars::Hard(len) => len,
         }
     }
 
-    pub fn grace_chars(self) -> usize {
+    /// The number of extra characters permitted.
+    pub fn allowance(self) -> usize {
         match self {
-            CapSize::EnumLike => 0,
-            CapSize::Summary => 100,
-            CapSize::Message => 200,
-            CapSize::SmallPayload => 128,
-            CapSize::Payload => 1000,
-            CapSize::Symbol => 20,
-            CapSize::Path => 40,
-            CapSize::ShortPath => 20,
-            CapSize::Email => 0,
-            CapSize::Culprit => 0,
-            CapSize::TagKey => 0,
-            CapSize::TagValue => 0,
-            CapSize::Soft(_) => 10,
-            CapSize::Hard(_) => 0,
+            MaxChars::EnumLike => 0,
+            MaxChars::Summary => 100,
+            MaxChars::Message => 200,
+            MaxChars::Symbol => 20,
+            MaxChars::Path => 40,
+            MaxChars::ShortPath => 20,
+            MaxChars::Email => 0,
+            MaxChars::Culprit => 0,
+            MaxChars::TagKey => 0,
+            MaxChars::TagValue => 0,
+            MaxChars::Soft(_) => 10,
+            MaxChars::Hard(_) => 0,
+        }
+    }
+}
+
+/// The maximum size of a databag.
+#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+pub enum BagSize {
+    Small,
+    Medium,
+    Large,
+}
+
+impl BagSize {
+    /// Maximum depth of the structure.
+    pub fn max_depth(self) -> usize {
+        match self {
+            BagSize::Small => 3,
+            BagSize::Medium => 3,
+            BagSize::Large => 5,
         }
     }
 
-    pub fn depth(&self) -> usize {
-        match *self {
-            CapSize::EnumLike => 1,
-            CapSize::Summary => 1,
-            CapSize::Message => 1,
-            CapSize::SmallPayload => 3,
-            CapSize::Payload => 5,
-            CapSize::Symbol => 1,
-            CapSize::Path => 1,
-            CapSize::ShortPath => 1,
-            CapSize::Email => 1,
-            CapSize::Culprit => 1,
-            CapSize::TagKey => 1,
-            CapSize::TagValue => 1,
-            CapSize::Soft(depth) => depth,
-            CapSize::Hard(depth) => depth,
+    /// Maximum estimated JSON bytes.
+    pub fn max_size(self) -> usize {
+        match self {
+            BagSize::Small => 1024,
+            BagSize::Medium => 2048,
+            BagSize::Large => 8192,
         }
     }
 }
@@ -103,8 +108,10 @@ pub struct FieldAttrs {
     pub name: Option<&'static str>,
     /// If the field is required.
     pub required: bool,
-    /// The maximum size of the field.
-    pub cap_size: Option<CapSize>,
+    /// The maximum char length of this field.
+    pub max_chars: Option<MaxChars>,
+    /// The maximum bag size of this field.
+    pub bag_size: Option<BagSize>,
     /// The type of PII on the field.
     pub pii_kind: Option<PiiKind>,
 }
@@ -112,7 +119,8 @@ pub struct FieldAttrs {
 const DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
     name: None,
     required: false,
-    cap_size: None,
+    max_chars: None,
+    bag_size: None,
     pii_kind: None,
 };
 
