@@ -673,7 +673,6 @@ fn test_json_value() {
 
 #[test]
 fn test_exception_invalid() {
-    let config = StoreConfig::default();
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
     let exception = Annotated::new(Exception::default());
