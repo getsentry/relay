@@ -3,7 +3,6 @@ use chrono::Utc;
 
 use itertools::Itertools;
 use regex::Regex;
-use url::Url;
 
 use std::mem;
 use std::path::PathBuf;
@@ -17,6 +16,7 @@ use crate::types::{Annotated, Array, Object, Remark, RemarkType, Value};
 
 mod geo;
 mod mechanism;
+mod stacktrace;
 
 fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
     auth.client
@@ -28,18 +28,6 @@ fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
             version: Annotated::new(version.to_owned()),
             ..Default::default()
         })
-}
-
-fn process_non_raw_stacktrace(stacktrace: &mut Annotated<Stacktrace>) {
-    // this processing should only be done for non raw frames (i.e. not for
-    // exception.raw_stacktrace)
-    if let Some(ref mut stacktrace) = stacktrace.0 {
-        if let Some(ref mut frames) = stacktrace.frames.0 {
-            for mut frame in frames.iter_mut() {
-                process_non_raw_frame(&mut frame);
-            }
-        }
-    }
 }
 
 fn parse_type_and_value(
@@ -60,35 +48,6 @@ fn parse_type_and_value(
     }
 
     (ty, value)
-}
-
-fn is_url(filename: &str) -> bool {
-    filename.starts_with("file:")
-        || filename.starts_with("http:")
-        || filename.starts_with("https:")
-        || filename.starts_with("applewebdata:")
-}
-
-fn process_non_raw_frame(frame: &mut Annotated<Frame>) {
-    if let Some(ref mut frame) = frame.0 {
-        if frame.abs_path.0.is_none() {
-            frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
-        }
-
-        if let (None, Some(abs_path)) = (frame.filename.0.as_ref(), frame.abs_path.0.as_ref()) {
-            frame.filename = Annotated::new(abs_path.clone());
-
-            if is_url(&abs_path) {
-                if let Ok(url) = Url::parse(&abs_path) {
-                    let path = url.path();
-
-                    if !path.is_empty() && path != "/" {
-                        frame.filename = Annotated::new(path.to_string());
-                    }
-                }
-            }
-        }
-    }
 }
 
 /// Simplified version of sentry.coreapi.Auth
@@ -113,6 +72,7 @@ pub struct StoreNormalizeProcessor {
     geoip_path: Option<PathBuf>,
     version: Option<String>,
     bag_size_state: Option<BagSizeState>,
+    stacktrace_frames_hard_limit: Option<usize>,
 }
 
 impl Processor for StoreNormalizeProcessor {
@@ -287,7 +247,7 @@ impl Processor for StoreNormalizeProcessor {
             event.errors.0.get_or_insert_with(Vec::new);
 
             // TODO: Interfaces
-            process_non_raw_stacktrace(&mut event.stacktrace);
+            stacktrace::process_non_raw_stacktrace(&mut event.stacktrace);
 
             event.level.0.get_or_insert(Level::Error);
 
@@ -531,7 +491,7 @@ impl Processor for StoreNormalizeProcessor {
         let mut exception = ProcessValue::process_child_values(exception, self, state);
 
         if let Annotated(Some(ref mut exception), ref mut meta) = exception {
-            process_non_raw_stacktrace(&mut exception.stacktrace);
+            stacktrace::process_non_raw_stacktrace(&mut exception.stacktrace);
 
             let (ty, value) = parse_type_and_value(
                 exception.ty.clone(),
@@ -575,6 +535,18 @@ impl Processor for StoreNormalizeProcessor {
             }
         }
         frame
+    }
+
+    fn process_stacktrace(
+        &mut self,
+        mut stacktrace: Annotated<Stacktrace>,
+        state: ProcessingState,
+    ) -> Annotated<Stacktrace> {
+        if let Some(limit) = self.stacktrace_frames_hard_limit {
+            stacktrace::enforce_frame_hard_limit(&mut stacktrace, limit);
+        }
+
+        ProcessValue::process_child_values(stacktrace, self, state)
     }
 }
 
@@ -650,66 +622,6 @@ fn test_exception_invalid() {
         exception.1.iter_errors().collect_tuple(),
         Some(("type or value required",))
     );
-}
-
-#[test]
-fn test_is_url() {
-    assert!(is_url("http://example.org/"));
-    assert!(is_url("https://example.org/"));
-    assert!(is_url("file:///tmp/filename"));
-    assert!(is_url(
-        "applewebdata://00000000-0000-1000-8080-808080808080"
-    ));
-    assert!(!is_url("app:///index.bundle")); // react native
-    assert!(!is_url("webpack:///./app/index.jsx")); // webpack bundle
-    assert!(!is_url("data:,"));
-    assert!(!is_url("blob:\x00"));
-}
-
-#[test]
-fn test_coerces_url_filenames() {
-    let mut frame = Annotated::new(Frame {
-        line: Annotated::new(1),
-        filename: Annotated::new("http://foo.com/foo.js".to_string()),
-        ..Default::default()
-    });
-
-    process_non_raw_frame(&mut frame);
-    let frame = frame.0.unwrap();
-
-    assert_eq!(frame.filename.0, Some("/foo.js".to_string()));
-    assert_eq!(frame.abs_path.0, Some("http://foo.com/foo.js".to_string()));
-}
-
-#[test]
-fn test_does_not_overwrite_filename() {
-    let mut frame = Annotated::new(Frame {
-        line: Annotated::new(1),
-        filename: Annotated::new("foo.js".to_string()),
-        abs_path: Annotated::new("http://foo.com/foo.js".to_string()),
-        ..Default::default()
-    });
-
-    process_non_raw_frame(&mut frame);
-    let frame = frame.0.unwrap();
-
-    assert_eq!(frame.filename.0, Some("foo.js".to_string()));
-    assert_eq!(frame.abs_path.0, Some("http://foo.com/foo.js".to_string()));
-}
-
-#[test]
-fn test_ignores_results_with_empty_path() {
-    let mut frame = Annotated::new(Frame {
-        line: Annotated::new(1),
-        abs_path: Annotated::new("http://foo.com".to_string()),
-        ..Default::default()
-    });
-
-    process_non_raw_frame(&mut frame);
-    let frame = frame.0.unwrap();
-
-    assert_eq!(frame.filename.0, Some("http://foo.com".to_string()));
-    assert_eq!(frame.abs_path.0, frame.filename.0);
 }
 
 #[test]
