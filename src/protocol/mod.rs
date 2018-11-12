@@ -28,9 +28,7 @@ pub use self::event::{Event, EventId, EventProcessingError, EventType, ParseEven
 pub use self::exception::Exception;
 pub use self::fingerprint::Fingerprint;
 pub use self::logentry::LogEntry;
-pub use self::mechanism::{
-    normalize_mechanism_meta, CError, MachException, Mechanism, MechanismMeta, OsHint, PosixSignal,
-};
+pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
 pub use self::request::{Cookies, Headers, Query, Request};
 pub use self::stacktrace::{Frame, Stacktrace};
 pub use self::tags::Tags;

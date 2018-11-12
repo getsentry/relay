@@ -10,12 +10,13 @@ use std::path::PathBuf;
 
 use crate::processor::{FromValue, MaxChars, ProcessValue, ProcessingState, Processor, ToValue};
 use crate::protocol::{
-    normalize_mechanism_meta, Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, Geo,
-    IpAddr, Level, OsHint, Request, Stacktrace, Tags, User,
+    Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, Geo, IpAddr, Level, Request,
+    Stacktrace, Tags, User,
 };
 use crate::types::{Annotated, Array, Object, Remark, RemarkType, Value};
 
 mod geo;
+mod mechanism;
 
 fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
     auth.client
@@ -356,7 +357,7 @@ impl Processor for StoreNormalizeProcessor {
                 event.version = Annotated::new(version.clone());
             }
 
-            let os_hint = OsHint::from_event(&event);
+            let os_hint = mechanism::OsHint::from_event(&event);
 
             if let Some(ref mut exception_values) = event.exceptions.0 {
                 if let Some(ref mut exceptions) = exception_values.values.0 {
@@ -377,7 +378,7 @@ impl Processor for StoreNormalizeProcessor {
                     for mut exception in exceptions.iter_mut() {
                         if let Some(ref mut exception) = exception.0 {
                             if let Some(ref mut mechanism) = exception.mechanism.0 {
-                                normalize_mechanism_meta(mechanism, os_hint);
+                                mechanism::normalize_mechanism_meta(mechanism, os_hint);
                             }
                         }
                     }
