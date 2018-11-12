@@ -8,7 +8,7 @@ use url::Url;
 use std::mem;
 use std::path::PathBuf;
 
-use crate::processor::{FromValue, MaxChars, ProcessValue, ProcessingState, Processor, ToValue};
+use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, Geo, IpAddr, Level, Request,
     Stacktrace, Tags, User,
@@ -141,7 +141,7 @@ impl Processor for StoreNormalizeProcessor {
         value
     }
 
-    fn process_object<T: ProcessValue + ToValue + FromValue>(
+    fn process_object<T: ProcessValue>(
         &mut self,
         value: Annotated<Object<T>>,
         state: ProcessingState,
@@ -207,7 +207,7 @@ impl Processor for StoreNormalizeProcessor {
         ProcessValue::process_child_values(value, self, state)
     }
 
-    fn process_array<T: ProcessValue + ToValue + FromValue>(
+    fn process_array<T: ProcessValue>(
         &mut self,
         value: Annotated<Array<T>>,
         state: ProcessingState,

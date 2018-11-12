@@ -85,7 +85,7 @@ pub trait Processor {
     process_method!(process_value, Value);
 
     #[inline(always)]
-    fn process_array<T: ProcessValue + ToValue + FromValue>(
+    fn process_array<T: ProcessValue>(
         &mut self,
         value: Annotated<Array<T>>,
         state: ProcessingState,
@@ -96,7 +96,7 @@ pub trait Processor {
         ProcessValue::process_child_values(value, self, state)
     }
     #[inline(always)]
-    fn process_object<T: ProcessValue + ToValue + FromValue>(
+    fn process_object<T: ProcessValue>(
         &mut self,
         value: Annotated<Object<T>>,
         state: ProcessingState,
