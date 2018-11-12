@@ -1,7 +1,5 @@
-use std::any::{Any, TypeId};
 use std::borrow::Cow;
 use std::fmt;
-use std::rc::Rc;
 
 /// The maximum length of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
