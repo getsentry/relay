@@ -80,7 +80,7 @@ impl ToValue for Fingerprint {
     }
 }
 
-// TODO: implement normalization s.t. ["{{ default }}"] => null
+// Fingerprints must not be trimmed.
 impl ProcessValue for Fingerprint {}
 
 #[test]
