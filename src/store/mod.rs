@@ -12,7 +12,7 @@ use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, IpAddr, Level, Query, Request,
     Stacktrace, Tags, User,
 };
-use crate::types::{Annotated, Array, Object, Remark, RemarkType, Value};
+use crate::types::{Annotated, Array, Meta, Object, Remark, RemarkType, Value};
 
 mod geo;
 mod mechanism;
@@ -436,7 +436,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                     if METHOD_RE.is_match(&method) {
                         Ok(method)
                     } else {
-                        Err("invalid http method")
+                        Err(Annotated::from_error("invalid http method", None))
                     }
                 });
 
@@ -484,30 +484,31 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
     }
 
     fn process_user(&mut self, user: Annotated<User>, state: ProcessingState) -> Annotated<User> {
-        let mut user = ProcessValue::process_child_values(user, self, state);
+        let user = ProcessValue::process_child_values(user, self, state);
 
-        if let Some(ref mut user) = user.0 {
-            // Fill in ip addresses marked as {{auto}}
-            if let Some(ref client_ip) = self.config.client_ip {
-                if user.ip_address.0.as_ref().map_or(false, |x| x.is_auto()) {
-                    user.ip_address.0 = Some(IpAddr(client_ip.clone()));
+        user.filter_map(Annotated::is_valid, |user| User {
+            ip_address: user.ip_address.and_then(|ip| {
+                // Fill in ip addresses marked as {{auto}}
+                if ip.is_auto() {
+                    if let Some(ref client_ip) = self.config.client_ip {
+                        return IpAddr(client_ip.clone());
+                    }
                 }
-            }
-
-            // Validate email
-            let is_valid_email = user
-                .email
-                .0
-                .as_ref()
-                .map(|x| x.contains('@'))
-                .unwrap_or(true);
-            if !is_valid_email {
-                user.email.1.add_error(
-                    "invalid email address",
-                    user.email.0.take().map(Value::String),
-                );
-            }
-
+                ip
+            }),
+            email: user.email.and_then(|email| {
+                // Validate email
+                if email.contains('@') {
+                    Ok(email)
+                } else {
+                    Err(Annotated::from_error(
+                        "invalid email address",
+                        Some(Value::String(email)),
+                    ))
+                }
+            }),
+            ..user
+        }).filter_map(Annotated::is_valid, |mut user| {
             // Infer user.geo from user.ip_address
             if let (None, Some(geoip_lookup), Some(ip_address)) = (
                 user.geo.0.as_ref(),
@@ -519,8 +520,8 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                     // TODO: Errorhandling
                 }
             }
-        }
-        user
+            user
+        })
     }
 
     fn process_client_sdk_info(
@@ -528,15 +529,8 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         info: Annotated<ClientSdkInfo>,
         state: ProcessingState,
     ) -> Annotated<ClientSdkInfo> {
-        let mut info = ProcessValue::process_child_values(info, self, state);
-
-        if info.0.is_none() {
-            if let Some(sdk_info) = self.config.get_sdk_info() {
-                info.0 = Some(sdk_info);
-            }
-        }
-
-        info
+        let info = ProcessValue::process_child_values(info, self, state);
+        info.or_else(|| self.config.get_sdk_info())
     }
 
     fn process_exception(
@@ -544,24 +538,27 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         exception: Annotated<Exception>,
         state: ProcessingState,
     ) -> Annotated<Exception> {
-        let mut exception = ProcessValue::process_child_values(exception, self, state);
-
-        if let Annotated(Some(ref mut exception), ref mut meta) = exception {
-            stacktrace::process_non_raw_stacktrace(&mut exception.stacktrace);
-
-            let (ty, value) = parse_type_and_value(
-                exception.ty.clone(),
-                exception.value.clone().map_value(|x| x.0),
-            );
-            exception.ty = ty;
-            exception.value = value.map_value(|x| x.into());
-
-            if exception.ty.0.is_none() && exception.value.0.is_none() && !meta.has_errors() {
-                meta.add_error("type or value required", None);
-            }
-        }
+        let exception = ProcessValue::process_child_values(exception, self, state);
 
         exception
+            .and_then(|mut exception| {
+                stacktrace::process_non_raw_stacktrace(&mut exception.stacktrace);
+
+                let (ty, value) = parse_type_and_value(
+                    exception.ty.clone(),
+                    exception.value.clone().map_value(|x| x.0),
+                );
+                exception.ty = ty;
+                exception.value = value.map_value(|x| x.into());
+                exception
+            }).filter_map(Annotated::is_valid, |exception| {
+                match (&exception.ty.0, &exception.value.0) {
+                    (None, None) => {
+                        Err((exception, Meta::from_error("type or value required", None)))
+                    }
+                    _ => Ok(exception),
+                }
+            })
     }
 
     fn process_frame(
@@ -569,28 +566,31 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         frame: Annotated<Frame>,
         state: ProcessingState,
     ) -> Annotated<Frame> {
-        let mut frame = ProcessValue::process_child_values(frame, self, state);
-
-        if let Some(ref mut frame) = frame.0 {
-            frame.in_app.0.get_or_insert(false);
-
-            if frame.function.0.as_ref().map(|x| x == "?").unwrap_or(false) {
-                frame.function.0 = None;
-            }
-
-            if frame.symbol.0.as_ref().map(|x| x == "?").unwrap_or(false) {
-                frame.symbol.0 = None;
-            }
-
-            for mut lines in &mut [&mut frame.pre_lines, &mut frame.post_lines] {
-                if let Some(ref mut lines) = lines.0 {
-                    for mut line in lines {
-                        line.0.get_or_insert_with(String::new);
-                    }
-                }
+        fn remove_questionmark(value: String) -> Option<String> {
+            if value == "?" {
+                None
+            } else {
+                Some(value)
             }
         }
-        frame
+
+        fn fill_lines(values: Array<String>) -> Array<String> {
+            values
+                .into_iter()
+                .map(|line| line.or_else(String::new))
+                .collect()
+        }
+
+        let frame = ProcessValue::process_child_values(frame, self, state);
+
+        frame.filter_map(Annotated::is_valid, |frame| Frame {
+            in_app: frame.in_app.or_else(|| false),
+            function: frame.function.and_then(remove_questionmark),
+            symbol: frame.symbol.and_then(remove_questionmark),
+            pre_lines: frame.pre_lines.and_then(fill_lines),
+            post_lines: frame.post_lines.and_then(fill_lines),
+            ..frame
+        })
     }
 
     fn process_stacktrace(

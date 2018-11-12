@@ -98,12 +98,13 @@ impl<T> IntoAnnotated<T> for Option<T> {
 
 impl<T, E> IntoAnnotated<T> for Result<T, E>
 where
-    E: Into<String>,
+    T: IntoAnnotated<T>,
+    E: IntoAnnotated<T>,
 {
     fn into_annotated(self) -> Annotated<T> {
         match self {
-            Ok(value) => Annotated::new(value),
-            Err(err) => Annotated::from_error(err, None),
+            Ok(value) => value.into_annotated(),
+            Err(err) => err.into_annotated(),
         }
     }
 }
@@ -127,9 +128,7 @@ impl<T> Annotated<T> {
 
     /// From an error
     pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Annotated<T> {
-        let mut rv = Annotated::empty();
-        rv.1.add_error(err, value);
-        rv
+        Annotated(None, Meta::from_error(err, value))
     }
 
     /// Attaches a value required error if the value is missing.

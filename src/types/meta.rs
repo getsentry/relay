@@ -248,6 +248,13 @@ impl Meta {
         }
         self
     }
+
+    /// From an error
+    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Meta {
+        let mut rv = Self::default();
+        rv.add_error(err, value);
+        rv
+    }
 }
 
 impl Default for Meta {
