@@ -19,7 +19,7 @@ lazy_static = "1.1.0"
 log = { version = "0.4.5", features = ["serde"] }
 human-size = "0.4.0"
 marshal = { git = "https://github.com/getsentry/marshal", rev = "c2d77447f3c6c5833adaffa1a7363eba3a3cbc7f" }
-general = { git = "https://github.com/getsentry/general", rev = "f437a2ea0cae535a593d09e8b6cd5635757020c1" }
+general = { git = "https://github.com/getsentry/general", rev = "b741fdd68718c20ccfccf15aa1827ce6eee87758" }
 parking_lot = "0.6.4"
 rand = "0.5.5"
 sentry-types = "0.8.1"
