@@ -89,8 +89,8 @@ impl<'a> StoreNormalizeProcessor<'a> {
         geoip_lookup: Option<&'a GeoIpLookup>,
     ) -> StoreNormalizeProcessor<'a> {
         StoreNormalizeProcessor {
-            config: config,
-            geoip_lookup: geoip_lookup,
+            config,
+            geoip_lookup,
             bag_size_state: None,
         }
     }
