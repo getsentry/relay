@@ -43,7 +43,12 @@ class GeoIoLookup(RustObject):
     def from_path(cls, path):
         if isinstance(path, text_type):
             path = path.encode('utf-8')
-        return cls._from_objptr(rustcall(lib.semaphore_geoip_lookup_new, path))
+        rv = cls._from_objptr(rustcall(lib.semaphore_geoip_lookup_new, path))
+        rv.path = path
+        return rv
+
+    def __repr__(self):
+        return '<GeoIoLookup %r>' % (self.path,)
 
 
 class StoreNormalizer(RustObject):
