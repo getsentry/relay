@@ -216,6 +216,9 @@ pub struct Request {
     #[metastructure(pii_kind = "databag")]
     pub query_string: Annotated<Query>,
 
+    /// The fragment of the request URL.
+    pub fragment: Annotated<String>,
+
     /// URL encoded contents of the Cookie header.
     #[metastructure(pii_kind = "databag")]
     pub cookies: Annotated<Cookies>,
@@ -293,6 +296,7 @@ fn test_request_roundtrip() {
   "query_string": {
     "q": "foo"
   },
+  "fragment": "home",
   "cookies": {
     "GOOGLE": "1"
   },
@@ -318,6 +322,7 @@ fn test_request_roundtrip() {
             map.insert("q".to_string(), Annotated::new("foo".to_string()));
             map
         })),
+        fragment: Annotated::new("home".to_string()),
         cookies: Annotated::new(Cookies({
             let mut map = Map::new();
             map.insert("GOOGLE".to_string(), Annotated::new("1".to_string()));

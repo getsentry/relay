@@ -1,15 +1,15 @@
 //! Utility code for sentry's internal store.
-use chrono::Utc;
+use std::mem;
 
+use chrono::Utc;
 use itertools::Itertools;
 use regex::Regex;
 use serde_derive::{Deserialize, Serialize};
-
-use std::mem;
+use url::Url;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, IpAddr, Level, Request,
+    Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, IpAddr, Level, Query, Request,
     Stacktrace, Tags, User,
 };
 use crate::types::{Annotated, Array, Object, Remark, RemarkType, Value};
@@ -423,14 +423,13 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         request: Annotated<Request>,
         state: ProcessingState,
     ) -> Annotated<Request> {
-        let mut request = ProcessValue::process_child_values(request, self, state);
-
         lazy_static! {
             static ref METHOD_RE: Regex = Regex::new(r"^[A-Z\-_]{3,32}$").unwrap();
         }
 
-        request = request.and_then(|request| Request {
-            method: request
+        let request = ProcessValue::process_child_values(request, self, state);
+        request.and_then(|mut request| {
+            request.method = request
                 .method
                 .filter_map(Annotated::is_valid, |method| method.to_uppercase())
                 .filter_map(Annotated::is_valid, |method| {
@@ -439,14 +438,35 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                     } else {
                         Err("invalid http method")
                     }
-                }),
-            ..request
-        });
+                });
 
-        // Fill in ip addresses marked as "{{auto}}"
-        if let Some(ref client_ip) = self.config.client_ip {
-            request = request.and_then(|request| Request {
-                env: request.env.and_then(|mut env| {
+            if request.url.is_valid() {
+                if let Annotated(Some(url_string), mut meta) = request.url {
+                    match Url::parse(&url_string) {
+                        Ok(url) => {
+                            request.query_string = request.query_string.or_else(|| {
+                                Query(
+                                    url.query_pairs()
+                                        .map(|(k, v)| (k.into(), Annotated::new(v.into())))
+                                        .collect(),
+                                )
+                            });
+                            request.fragment = request
+                                .fragment
+                                .or_else(|| url.fragment().map(str::to_string));
+                        }
+                        Err(err) => {
+                            meta.add_error(err.to_string(), None);
+                        }
+                    }
+
+                    request.url = Annotated(Some(url_string), meta);
+                }
+            }
+
+            // Fill in ip addresses marked as "{{auto}}"
+            if let Some(ref client_ip) = self.config.client_ip {
+                request.env = request.env.and_then(|mut env| {
                     env.entry("REMOTE_ADDR".to_string()).and_modify(|value| {
                         value.modify(|value| {
                             value.filter_map(Annotated::is_valid, |v| match v.as_str() {
@@ -456,12 +476,11 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                         })
                     });
                     env
-                }),
-                ..request
-            });
-        }
+                });
+            }
 
-        request
+            request
+        })
     }
 
     fn process_user(&mut self, user: Annotated<User>, state: ProcessingState) -> Annotated<User> {
