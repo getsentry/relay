@@ -8,6 +8,7 @@ if PY2:
     int_types = (int, long)
     string_types = (str, unicode)
     range_type = xrange
+    iteritems = lambda x: x.iteritems()
     itervalues = lambda x: x.itervalues()
     NUL = '\x00'
     def implements_to_string(cls):
@@ -19,6 +20,7 @@ else:
     int_types = (int,)
     string_types = (str,)
     range_type = range
+    iteritems = lambda x: x.items()
     itervalues = lambda x: x.values()
     NUL = 0
     implements_to_string = lambda x: x

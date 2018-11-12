@@ -22,6 +22,8 @@ enum SemaphoreErrorCode {
 };
 typedef uint32_t SemaphoreErrorCode;
 
+typedef struct SemaphoreGeoIpLookup SemaphoreGeoIpLookup;
+
 /*
  * Represents a public key in semaphore.
  */
@@ -31,6 +33,8 @@ typedef struct SemaphorePublicKey SemaphorePublicKey;
  * Represents a secret key in semaphore.
  */
 typedef struct SemaphoreSecretKey SemaphoreSecretKey;
+
+typedef struct SemaphoreStoreNormalizer SemaphoreStoreNormalizer;
 
 /*
  * Represents a buffer.
@@ -115,6 +119,10 @@ SemaphoreKeyPair semaphore_generate_key_pair(void);
  */
 SemaphoreUuid semaphore_generate_relay_id(void);
 
+void semaphore_geoip_lookup_free(SemaphoreGeoIpLookup *lookup);
+
+SemaphoreGeoIpLookup *semaphore_geoip_lookup_new(const char *path);
+
 /*
  * Given just the data from a register response returns the
  * conained relay id without validating the signature.
@@ -177,6 +185,14 @@ SemaphoreStr semaphore_secretkey_sign(const SemaphoreSecretKey *spk, const Semap
 SemaphoreStr semaphore_secretkey_to_string(const SemaphoreSecretKey *spk);
 
 SemaphoreStr semaphore_split_chunks(const SemaphoreStr *string, const SemaphoreStr *remarks);
+
+void semaphore_store_normalizer_free(SemaphoreStoreNormalizer *normalizer);
+
+SemaphoreStoreNormalizer *semaphore_store_normalizer_new(const SemaphoreStr *config,
+                                                         const SemaphoreGeoIpLookup *geoip_lookup);
+
+SemaphoreStr semaphore_store_normalizer_normalize_event(SemaphoreStoreNormalizer *normalizer,
+                                                        const SemaphoreStr *event);
 
 /*
  * Frees a semaphore str.

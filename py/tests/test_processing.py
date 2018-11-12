@@ -59,3 +59,13 @@ def test_meta_with_chunks_missing_value():
 def test_meta_with_chunks_missing_non_string():
     meta = semaphore.meta_with_chunks(True, META)
     assert meta == META
+
+
+def test_basic_store_normalization():
+    normalizer = semaphore.StoreNormalizer(project_id=1)
+    event = normalizer.normalize_event({})
+    assert event['project'] == 1
+    assert event['type'] == 'default'
+    assert event['platform'] == 'other'
+    assert event['tags'] == []
+    assert 'received' in event
