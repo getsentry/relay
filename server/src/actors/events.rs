@@ -8,7 +8,7 @@ use num_cpus;
 use sentry::{self, integrations::failure::event_from_fail};
 use serde_json;
 
-use semaphore_common::v8::{self, Annotated, Event};
+use semaphore_common::v8_compat::{self, Annotated, Event};
 use semaphore_common::{Config, ProjectId, Uuid};
 
 use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
@@ -40,13 +40,13 @@ macro_rules! clone {
 #[derive(Debug, Fail)]
 pub enum EventError {
     #[fail(display = "invalid JSON data")]
-    InvalidJson(#[cause] v8::Error),
+    InvalidJson(#[cause] v8_compat::Error),
 }
 
 #[derive(Debug, Fail)]
 enum ProcessingError {
     #[fail(display = "invalid event data")]
-    InvalidJson(#[cause] v8::Error),
+    InvalidJson(#[cause] v8_compat::Error),
 
     #[fail(display = "could not schedule project fetch")]
     ScheduleFailed(#[cause] MailboxError),
@@ -61,7 +61,7 @@ enum ProcessingError {
     EventRejected,
 
     #[fail(display = "could not serialize event payload")]
-    SerializeFailed(#[cause] v8::Error),
+    SerializeFailed(#[cause] v8_compat::Error),
 
     #[fail(display = "could not send event to upstream")]
     SendFailed(#[cause] UpstreamRequestError),

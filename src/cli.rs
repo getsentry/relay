@@ -7,8 +7,8 @@ use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
-use semaphore_common::processor::PiiConfig;
-use semaphore_common::v8::{Annotated, Event};
+use semaphore_common::processor_compat::PiiConfig;
+use semaphore_common::v8_compat::{Annotated, Event};
 use semaphore_common::{Config, Credentials, MinimalConfig, Uuid};
 use semaphore_server;
 

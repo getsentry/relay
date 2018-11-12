@@ -48,8 +48,10 @@ pub use types::*;
 pub use upstream::*;
 pub use utils::*;
 
-pub use marshal::processor;
-pub use marshal::protocol as v8;
+// compat behavior
+pub use marshal::processor as processor_compat;
+pub use marshal::protocol as v8_compat;
+
 pub use sentry_types::{
     Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError, Scheme, Uuid,
 };
