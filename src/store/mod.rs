@@ -443,7 +443,9 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             if request.url.is_valid() {
                 if let Annotated(Some(url_string), mut meta) = request.url {
                     match Url::parse(&url_string) {
-                        Ok(url) => {
+                        Ok(mut url) => {
+                            // If either the query string or fragment is specified both as part of
+                            // the URL and as separate attribute, the attribute wins.
                             request.query_string = request.query_string.or_else(|| {
                                 Query(
                                     url.query_pairs()
@@ -451,16 +453,25 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                                         .collect(),
                                 )
                             });
+
                             request.fragment = request
                                 .fragment
                                 .or_else(|| url.fragment().map(str::to_string));
+
+                            // Remove the fragment and query since they have been moved to their own
+                            // parameters to avoid duplication or inconsistencies.
+                            url.set_fragment(None);
+                            url.set_query(None);
+
+                            // TODO: Check if this generates unwanted effects with `meta.remarks`
+                            // when the URL was already PII stripped.
+                            request.url = Annotated(Some(url.into_string()), meta);
                         }
                         Err(err) => {
                             meta.add_error(err.to_string(), None);
+                            request.url = Annotated(Some(url_string), meta);
                         }
                     }
-
-                    request.url = Annotated(Some(url_string), meta);
                 }
             }
 
