@@ -31,5 +31,5 @@ lint:
 	@cargo clippy --all-features --tests --examples -- -D clippy::all
 .PHONY: lint
 
-GeoLiteCity.dat:
-	@curl http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz | gzip -cd > $@
+GeoLite2-City.mmdb:
+	@curl http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.mmdb.gz | gzip -cd > $@

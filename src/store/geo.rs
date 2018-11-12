@@ -1,36 +1,56 @@
-use geoip::{self, CityInfo, GeoIp};
+use std::fmt;
 
-use std::cell::RefCell;
-use std::net;
-use std::path::{Path, PathBuf};
+use maxminddb;
 
-thread_local! {
-    static GEOIP_DB: RefCell<Option<(PathBuf, GeoIp)>> = RefCell::new(None);
+use crate::protocol::Geo;
+use crate::types::Annotated;
+
+pub struct GeoIpLookup(maxminddb::Reader);
+
+impl fmt::Debug for GeoIpLookup {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("GeoIpLookup").finish()
+    }
 }
 
-pub fn lookup_ip(geoip_path: &Path, ip_address: &str) -> Option<CityInfo> {
-    // XXX: Ugly. Make PR against rust-geoip to get rid of their own IpAddr
-    // XXX: Why do we parse the IP again after deserializing?
-    let ip_address = match ip_address.parse().ok()? {
-        net::IpAddr::V4(x) => geoip::IpAddr::V4(x),
-        net::IpAddr::V6(x) => geoip::IpAddr::V6(x),
-    };
+impl GeoIpLookup {
+    pub fn open(path: &str) -> Result<Self, maxminddb::MaxMindDBError> {
+        Ok(GeoIpLookup(maxminddb::Reader::open(path)?))
+    }
 
-    // thread local cache because most of the time we only deal with one geoip db
-    GEOIP_DB.with(|f| {
-        let mut cache = f.borrow_mut();
-        let is_valid_cache = match *cache {
-            Some((ref path, _)) => path == geoip_path,
-            None => false,
+    pub fn lookup(&self, ip_address: &str) -> Result<Option<Geo>, maxminddb::MaxMindDBError> {
+        // XXX: Why do we parse the IP again after deserializing?
+        let ip_address = match ip_address.parse() {
+            Ok(x) => x,
+            Err(_) => return Ok(None),
         };
 
-        if !is_valid_cache {
-            *cache = Some((
-                geoip_path.to_owned(),
-                GeoIp::open(&geoip_path, geoip::Options::MemoryCache).ok()?,
-            ));
-        }
+        let city: maxminddb::geoip2::City = match self.0.lookup(ip_address) {
+            Ok(x) => x,
+            Err(maxminddb::MaxMindDBError::AddressNotFoundError(_)) => return Ok(None),
+            Err(e) => return Err(e),
+        };
 
-        (*cache).as_ref()?.1.city_info_by_ip(ip_address)
-    })
+        Ok(Some(Geo {
+            country_code: Annotated(
+                city.country
+                    .as_ref()
+                    .and_then(|country| Some(country.iso_code.as_ref()?.to_string())),
+                Default::default(),
+            ),
+            city: Annotated(
+                city.city
+                    .as_ref()
+                    .and_then(|city| Some(city.names.as_ref()?.get("en")?.to_owned())),
+                Default::default(),
+            ),
+            region: Annotated(
+                city.country
+                    .as_ref()
+                    .and_then(|country| Some(country.names.as_ref()?.get("en")?.to_owned())),
+                Default::default(),
+            ),
+            ..Default::default()
+        }))
+    }
 }
