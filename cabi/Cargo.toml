@@ -19,11 +19,11 @@ lto = true
 
 [dependencies]
 chrono = "0.4.6"
-failure = "0.1.2"
-serde = "1.0.78"
-serde_json = "1.0.27"
-serde_derive = "1.0.78"
-uuid = "0.7.0"
+failure = "0.1.3"
+serde = "1.0.80"
+serde_json = "1.0.33"
+serde_derive = "1.0.80"
+uuid = "0.7.1"
 
 [dependencies.semaphore-common]
 path = "../common"

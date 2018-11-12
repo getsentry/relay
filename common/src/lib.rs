@@ -7,6 +7,7 @@ extern crate cadence;
 extern crate chrono;
 extern crate ed25519_dalek;
 extern crate failure;
+extern crate general;
 extern crate human_size;
 extern crate marshal;
 extern crate parking_lot;
@@ -47,8 +48,18 @@ pub use types::*;
 pub use upstream::*;
 pub use utils::*;
 
-pub use marshal::processor;
-pub use marshal::protocol as v8;
+// compat behavior
+pub use marshal::processor as processor_compat;
+pub use marshal::protocol as v8_compat;
+
 pub use sentry_types::{
     Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError, Scheme, Uuid,
 };
+
+// expose the general module entirely
+pub use general::processor;
+/// The v8 version of the protocol.
+pub mod protocol {
+    pub use general::protocol::*;
+    pub use general::types::*;
+}

@@ -17,7 +17,9 @@ use futures::{future::Shared, sync::oneshot, Future};
 use serde_json;
 use url::Url;
 
-use semaphore_common::{processor::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff, Uuid};
+use semaphore_common::{
+    processor_compat::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff, Uuid,
+};
 
 use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};

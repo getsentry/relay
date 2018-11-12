@@ -1,7 +1,7 @@
 use serde_json;
 
-use semaphore_common::processor::chunks;
-use semaphore_common::v8::Remark;
+use semaphore_common::processor_compat::chunks;
+use semaphore_common::v8_compat::Remark;
 
 use core::SemaphoreStr;
 
