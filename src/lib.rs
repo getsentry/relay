@@ -4,8 +4,8 @@ extern crate debugid;
 extern crate failure;
 #[macro_use]
 extern crate lazy_static;
-extern crate geoip;
 extern crate itertools;
+extern crate maxminddb;
 extern crate regex;
 extern crate serde;
 extern crate serde_derive;

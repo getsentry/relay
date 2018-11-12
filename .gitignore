@@ -2,3 +2,4 @@ target
 **/*.rs.bk
 Cargo.lock
 GeoLiteCity.dat
+GeoLite2-City.mmdb

@@ -6,11 +6,10 @@ use regex::Regex;
 use serde_derive::{Deserialize, Serialize};
 
 use std::mem;
-use std::path::PathBuf;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, Geo, IpAddr, Level, Request,
+    Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, IpAddr, Level, Request,
     Stacktrace, Tags, User,
 };
 use crate::types::{Annotated, Array, Object, Remark, RemarkType, Value};
@@ -18,6 +17,8 @@ use crate::types::{Annotated, Array, Object, Remark, RemarkType, Value};
 mod geo;
 mod mechanism;
 mod stacktrace;
+
+pub use crate::store::geo::GeoIpLookup;
 
 fn parse_type_and_value(
     ty: Annotated<String>,
@@ -44,9 +45,6 @@ struct BagSizeState {
     size_remaining: usize,
     depth_remaining: usize,
 }
-
-#[derive(Debug)]
-pub struct GeoIpLookup;
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -86,7 +84,7 @@ pub struct StoreNormalizeProcessor<'a> {
 
 impl<'a> StoreNormalizeProcessor<'a> {
     /// Creates a new normalization processor.
-    fn new(
+    pub fn new(
         config: &'a StoreConfig,
         geoip_lookup: Option<&'a GeoIpLookup>,
     ) -> StoreNormalizeProcessor<'a> {
@@ -473,18 +471,14 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             }
 
             // Infer user.geo from user.ip_address
-            if let (None, Some(geoip_path), Some(ip_address)) = (
+            if let (None, Some(geoip_lookup), Some(ip_address)) = (
                 user.geo.0.as_ref(),
-                self.geoip_path.as_ref(),
+                self.geoip_lookup.as_ref(),
                 user.ip_address.0.as_ref(),
             ) {
-                if let Some(city_info) = geo::lookup_ip(geoip_path, &ip_address.0) {
-                    user.geo = Annotated::new(Geo {
-                        country_code: Annotated(city_info.country_code, Default::default()),
-                        city: Annotated(city_info.city, Default::default()),
-                        region: Annotated(city_info.region, Default::default()),
-                        ..Default::default()
-                    });
+                if let Ok(Some(geo)) = geoip_lookup.lookup(&ip_address.0) {
+                    user.geo = Annotated::new(geo);
+                    // TODO: Errorhandling
                 }
             }
         }
@@ -583,7 +577,8 @@ fn test_basic_trimming() {
     use crate::processor::MaxChars;
     use std::iter::repeat;
 
-    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
+    let config = StoreConfig::default();
+    let mut processor = StoreNormalizeProcessor::new(&config, None);
 
     let event = Annotated::new(Event {
         culprit: Annotated::new(repeat("x").take(300).collect::<String>()),
@@ -600,7 +595,8 @@ fn test_basic_trimming() {
 
 #[test]
 fn test_handles_type_in_value() {
-    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
+    let config = StoreConfig::default();
+    let mut processor = StoreNormalizeProcessor::new(&config, None);
 
     let exception = Annotated::new(Exception {
         value: Annotated::new("ValueError: unauthorized".to_string().into()),
@@ -623,7 +619,8 @@ fn test_handles_type_in_value() {
 
 #[test]
 fn test_json_value() {
-    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
+    let config = StoreConfig::default();
+    let mut processor = StoreNormalizeProcessor::new(&config, None);
 
     let exception = Annotated::new(Exception {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
@@ -641,7 +638,8 @@ fn test_json_value() {
 
 #[test]
 fn test_exception_invalid() {
-    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
+    let config = StoreConfig::default();
+    let mut processor = StoreNormalizeProcessor::new(&config, None);
 
     let exception = Annotated::new(Exception::default());
     let exception = exception.process(&mut processor);
@@ -654,10 +652,11 @@ fn test_exception_invalid() {
 
 #[test]
 fn test_geo_from_ip_address() {
-    let mut processor = StoreNormalizeProcessor {
-        geoip_path: Some(PathBuf::from("GeoLiteCity.dat")),
-        ..Default::default()
-    };
+    use crate::protocol::Geo;
+
+    let lookup = GeoIpLookup::open("GeoLite2-City.mmdb").unwrap();
+    let config = StoreConfig::default();
+    let mut processor = StoreNormalizeProcessor::new(&config, Some(&lookup));
 
     let user = Annotated::new(User {
         ip_address: Annotated::new(IpAddr("213.47.147.207".to_string())),
@@ -669,7 +668,7 @@ fn test_geo_from_ip_address() {
     let expected = Annotated::new(Geo {
         country_code: Annotated::new("AT".to_string()),
         city: Annotated::new("Vienna".to_string()),
-        region: Annotated::new("09".to_string()),
+        region: Annotated::new("Austria".to_string()),
         ..Default::default()
     });
     assert_eq_dbg!(user.0.unwrap().geo, expected)
@@ -677,7 +676,8 @@ fn test_geo_from_ip_address() {
 
 #[test]
 fn test_invalid_email() {
-    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
+    let config = StoreConfig::default();
+    let mut processor = StoreNormalizeProcessor::new(&config, None);
 
     let user = Annotated::new(User {
         email: Annotated::new("bananabread".to_string()),
@@ -700,7 +700,8 @@ fn test_invalid_email() {
 
 #[test]
 fn test_databag_stripping() {
-    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
+    let config = StoreConfig::default();
+    let mut processor = StoreNormalizeProcessor::new(&config, None);
 
     fn make_nested_object(depth: usize) -> Annotated<Value> {
         if depth == 0 {
@@ -737,7 +738,8 @@ fn test_databag_stripping() {
 fn test_databag_array_stripping() {
     use std::iter::repeat;
 
-    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
+    let config = StoreConfig::default();
+    let mut processor = StoreNormalizeProcessor::new(&config, None);
 
     let databag = Annotated::new({
         let mut map = Object::new();
