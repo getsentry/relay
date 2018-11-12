@@ -219,7 +219,7 @@ pub fn init_config<'a, P: AsRef<Path>>(
         }
 
         mincfg.sentry.enabled = Select::with_theme(get_theme())
-            .with_prompt("Do you want to eanble internal crash reporting?")
+            .with_prompt("Do you want to enable internal crash reporting?")
             .default(0)
             .item("yes, share relay internal crash reports with sentry.io")
             .item("no, do not share crash reports")
