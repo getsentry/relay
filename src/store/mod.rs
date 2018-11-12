@@ -77,7 +77,7 @@ impl StoreConfig {
 
 /// The processor that normalizes events for store.
 pub struct StoreNormalizeProcessor<'a> {
-    config: &'a StoreConfig,
+    config: StoreConfig,
     geoip_lookup: Option<&'a GeoIpLookup>,
     bag_size_state: Option<BagSizeState>,
 }
@@ -85,7 +85,7 @@ pub struct StoreNormalizeProcessor<'a> {
 impl<'a> StoreNormalizeProcessor<'a> {
     /// Creates a new normalization processor.
     pub fn new(
-        config: &'a StoreConfig,
+        config: StoreConfig,
         geoip_lookup: Option<&'a GeoIpLookup>,
     ) -> StoreNormalizeProcessor<'a> {
         StoreNormalizeProcessor {
@@ -615,8 +615,7 @@ fn test_basic_trimming() {
     use crate::processor::MaxChars;
     use std::iter::repeat;
 
-    let config = StoreConfig::default();
-    let mut processor = StoreNormalizeProcessor::new(&config, None);
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
     let event = Annotated::new(Event {
         culprit: Annotated::new(repeat("x").take(300).collect::<String>()),
@@ -633,8 +632,7 @@ fn test_basic_trimming() {
 
 #[test]
 fn test_handles_type_in_value() {
-    let config = StoreConfig::default();
-    let mut processor = StoreNormalizeProcessor::new(&config, None);
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
     let exception = Annotated::new(Exception {
         value: Annotated::new("ValueError: unauthorized".to_string().into()),
@@ -657,8 +655,7 @@ fn test_handles_type_in_value() {
 
 #[test]
 fn test_json_value() {
-    let config = StoreConfig::default();
-    let mut processor = StoreNormalizeProcessor::new(&config, None);
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
     let exception = Annotated::new(Exception {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
@@ -677,7 +674,7 @@ fn test_json_value() {
 #[test]
 fn test_exception_invalid() {
     let config = StoreConfig::default();
-    let mut processor = StoreNormalizeProcessor::new(&config, None);
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
     let exception = Annotated::new(Exception::default());
     let exception = exception.process(&mut processor);
@@ -693,8 +690,7 @@ fn test_geo_from_ip_address() {
     use crate::protocol::Geo;
 
     let lookup = GeoIpLookup::open("GeoLite2-City.mmdb").unwrap();
-    let config = StoreConfig::default();
-    let mut processor = StoreNormalizeProcessor::new(&config, Some(&lookup));
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), Some(&lookup));
 
     let user = Annotated::new(User {
         ip_address: Annotated::new(IpAddr("213.47.147.207".to_string())),
@@ -714,8 +710,7 @@ fn test_geo_from_ip_address() {
 
 #[test]
 fn test_invalid_email() {
-    let config = StoreConfig::default();
-    let mut processor = StoreNormalizeProcessor::new(&config, None);
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
     let user = Annotated::new(User {
         email: Annotated::new("bananabread".to_string()),
@@ -738,8 +733,7 @@ fn test_invalid_email() {
 
 #[test]
 fn test_databag_stripping() {
-    let config = StoreConfig::default();
-    let mut processor = StoreNormalizeProcessor::new(&config, None);
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
     fn make_nested_object(depth: usize) -> Annotated<Value> {
         if depth == 0 {
@@ -776,8 +770,7 @@ fn test_databag_stripping() {
 fn test_databag_array_stripping() {
     use std::iter::repeat;
 
-    let config = StoreConfig::default();
-    let mut processor = StoreNormalizeProcessor::new(&config, None);
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
     let databag = Annotated::new({
         let mut map = Object::new();
