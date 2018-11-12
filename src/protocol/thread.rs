@@ -6,6 +6,7 @@ use crate::types::{Annotated, Object, Value};
 #[metastructure(process_func = "process_thread")]
 pub struct Thread {
     /// Identifier of this thread within the process (usually an integer).
+    #[metastructure(max_chars = "symbol")]
     pub id: Annotated<ThreadId>,
 
     /// Display name of this thread.
