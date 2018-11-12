@@ -707,14 +707,14 @@ dependencies = [
 [[package]]
 name = "general"
 version = "0.1.0"
-source = "git+https://github.com/getsentry/general?rev=b741fdd68718c20ccfccf15aa1827ce6eee87758#b741fdd68718c20ccfccf15aa1827ce6eee87758"
+source = "git+https://github.com/getsentry/general?rev=1c723ce3a279c91198dd79d6a2918d4eaa1e5ef9#1c723ce3a279c91198dd79d6a2918d4eaa1e5ef9"
 dependencies = [
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "cookie 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "debugid 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "general_derive 0.1.0 (git+https://github.com/getsentry/general?rev=b741fdd68718c20ccfccf15aa1827ce6eee87758)",
+ "general_derive 0.1.0 (git+https://github.com/getsentry/general?rev=1c723ce3a279c91198dd79d6a2918d4eaa1e5ef9)",
  "itertools 0.7.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "maxminddb 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -730,7 +730,7 @@ dependencies = [
 [[package]]
 name = "general_derive"
 version = "0.1.0"
-source = "git+https://github.com/getsentry/general?rev=b741fdd68718c20ccfccf15aa1827ce6eee87758#b741fdd68718c20ccfccf15aa1827ce6eee87758"
+source = "git+https://github.com/getsentry/general?rev=1c723ce3a279c91198dd79d6a2918d4eaa1e5ef9#1c723ce3a279c91198dd79d6a2918d4eaa1e5ef9"
 dependencies = [
  "proc-macro2 0.4.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1709,7 +1709,7 @@ dependencies = [
  "ed25519-dalek 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "general 0.1.0 (git+https://github.com/getsentry/general?rev=b741fdd68718c20ccfccf15aa1827ce6eee87758)",
+ "general 0.1.0 (git+https://github.com/getsentry/general?rev=1c723ce3a279c91198dd79d6a2918d4eaa1e5ef9)",
  "human-size 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2701,8 +2701,8 @@ dependencies = [
 "checksum fuchsia-zircon-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "3dcaa9ae7725d12cdb85b3ad99a434db70b468c09ded17e012d86b5c1010f7a7"
 "checksum futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)" = "49e7653e374fe0d0c12de4250f0bdb60680b8c80eed558c5c7538eec9c89e21b"
 "checksum futures-cpupool 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "ab90cde24b3319636588d0c35fe03b1333857621051837ed769faefb4c2162e4"
-"checksum general 0.1.0 (git+https://github.com/getsentry/general?rev=b741fdd68718c20ccfccf15aa1827ce6eee87758)" = "<none>"
-"checksum general_derive 0.1.0 (git+https://github.com/getsentry/general?rev=b741fdd68718c20ccfccf15aa1827ce6eee87758)" = "<none>"
+"checksum general 0.1.0 (git+https://github.com/getsentry/general?rev=1c723ce3a279c91198dd79d6a2918d4eaa1e5ef9)" = "<none>"
+"checksum general_derive 0.1.0 (git+https://github.com/getsentry/general?rev=1c723ce3a279c91198dd79d6a2918d4eaa1e5ef9)" = "<none>"
 "checksum generic-array 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ef25c5683767570c2bbd7deba372926a55eaae9982d7726ee2a1050239d45b9d"
 "checksum h2 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)" = "7dd33bafe2e6370e6c8eb0cf1b8c5f93390b90acde7e9b03723f166b28b648ed"
 "checksum hmac 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "733e1b3ac906631ca01ebb577e9bb0f5e37a454032b9036b5eaea4013ed6f99a"
