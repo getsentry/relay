@@ -12,7 +12,7 @@ doc:
 test: cargotest
 .PHONY: test
 
-cargotest: GeoLiteCity.dat
+cargotest: GeoLite2-City.mmdb
 	@cargo test --all-features --all
 .PHONY: cargotest
 
