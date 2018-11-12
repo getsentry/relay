@@ -3,6 +3,7 @@ use chrono::Utc;
 
 use itertools::Itertools;
 use regex::Regex;
+use serde_derive::{Deserialize, Serialize};
 
 use std::mem;
 use std::path::PathBuf;
@@ -17,18 +18,6 @@ use crate::types::{Annotated, Array, Object, Remark, RemarkType, Value};
 mod geo;
 mod mechanism;
 mod stacktrace;
-
-fn parse_client_as_sdk(auth: &StoreAuth) -> Option<ClientSdkInfo> {
-    auth.client
-        .splitn(1, '/')
-        .collect_tuple()
-        .or_else(|| auth.client.splitn(1, ' ').collect_tuple())
-        .map(|(name, version)| ClientSdkInfo {
-            name: Annotated::new(name.to_owned()),
-            version: Annotated::new(version.to_owned()),
-            ..Default::default()
-        })
-}
 
 fn parse_type_and_value(
     ty: Annotated<String>,
@@ -50,32 +39,71 @@ fn parse_type_and_value(
     (ty, value)
 }
 
-/// Simplified version of sentry.coreapi.Auth
-pub struct StoreAuth {
-    client: String,
-    is_public: bool,
-}
-
 #[derive(Clone, Copy, Debug)]
 struct BagSizeState {
     size_remaining: usize,
     depth_remaining: usize,
 }
 
-/// The processor that normalizes events for store.
-#[derive(Default)]
-pub struct StoreNormalizeProcessor {
-    project_id: Option<u64>,
-    client_ip: Option<String>,
-    auth: Option<StoreAuth>,
-    key_id: Option<String>,
-    geoip_path: Option<PathBuf>,
-    version: Option<String>,
-    bag_size_state: Option<BagSizeState>,
-    stacktrace_frames_hard_limit: Option<usize>,
+#[derive(Debug)]
+pub struct GeoIpLookup;
+
+/// The config for store.
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct StoreConfig {
+    pub project_id: Option<u64>,
+    pub client_ip: Option<String>,
+    pub client: Option<String>,
+    pub is_public_auth: bool,
+    pub key_id: Option<String>,
+    pub version: Option<String>,
+    pub stacktrace_frames_hard_limit: Option<usize>,
 }
 
-impl Processor for StoreNormalizeProcessor {
+impl StoreConfig {
+    /// Returns the SDK info.
+    fn get_sdk_info(&self) -> Option<ClientSdkInfo> {
+        self.client.as_ref().and_then(|client| {
+            client
+                .splitn(1, '/')
+                .collect_tuple()
+                .or_else(|| client.splitn(1, ' ').collect_tuple())
+                .map(|(name, version)| ClientSdkInfo {
+                    name: Annotated::new(name.to_owned()),
+                    version: Annotated::new(version.to_owned()),
+                    ..Default::default()
+                })
+        })
+    }
+}
+
+/// The processor that normalizes events for store.
+pub struct StoreNormalizeProcessor<'a> {
+    config: &'a StoreConfig,
+    geoip_lookup: Option<&'a GeoIpLookup>,
+    bag_size_state: Option<BagSizeState>,
+}
+
+impl<'a> StoreNormalizeProcessor<'a> {
+    /// Creates a new normalization processor.
+    fn new(
+        config: &'a StoreConfig,
+        geoip_lookup: Option<&'a GeoIpLookup>,
+    ) -> StoreNormalizeProcessor<'a> {
+        StoreNormalizeProcessor {
+            config: config,
+            geoip_lookup: geoip_lookup,
+            bag_size_state: None,
+        }
+    }
+
+    /// Returns a reference to the config.
+    pub fn config(&self) -> &StoreConfig {
+        &self.config
+    }
+}
+
+impl<'a> Processor for StoreNormalizeProcessor<'a> {
     fn process_string(
         &mut self,
         mut value: Annotated<String>,
@@ -236,11 +264,11 @@ impl Processor for StoreNormalizeProcessor {
         let mut event = ProcessValue::process_child_values(event, self, state);
 
         if let Some(ref mut event) = event.0 {
-            if let Some(project_id) = self.project_id {
+            if let Some(project_id) = self.config.project_id {
                 event.project.0 = Some(project_id);
             }
 
-            if let Some(ref key_id) = self.key_id {
+            if let Some(ref key_id) = self.config.key_id {
                 event.key_id.0 = Some(key_id.clone());
             }
 
@@ -314,7 +342,7 @@ impl Processor for StoreNormalizeProcessor {
                 EventType::Default
             });
 
-            if let Some(ref version) = self.version {
+            if let Some(ref version) = self.config.version {
                 event.version = Annotated::new(version.clone());
             }
 
@@ -346,11 +374,6 @@ impl Processor for StoreNormalizeProcessor {
                 }
             }
 
-            let is_public = match self.auth {
-                Some(ref auth) => auth.is_public,
-                None => false,
-            };
-
             let http_ip = event
                 .request
                 .0
@@ -366,9 +389,9 @@ impl Processor for StoreNormalizeProcessor {
                 if user.ip_address.0.is_none() {
                     user.ip_address = Annotated::new(IpAddr(http_ip.clone()));
                 }
-            } else if let Some(ref client_ip) = self.client_ip {
+            } else if let Some(ref client_ip) = self.config.client_ip {
                 let should_use_client_ip =
-                    is_public || match event.platform.0.as_ref().map(|x| &**x) {
+                    self.config.is_public_auth || match event.platform.0.as_ref().map(|x| &**x) {
                         Some("javascript") | Some("cocoa") | Some("objc") => true,
                         _ => false,
                     };
@@ -407,7 +430,7 @@ impl Processor for StoreNormalizeProcessor {
 
         // Fill in ip addresses marked as {{auto}}
         if let Some(ref mut request) = request.0 {
-            if let Some(ref client_ip) = self.client_ip {
+            if let Some(ref client_ip) = self.config.client_ip {
                 if let Some(ref mut env) = request.env.0 {
                     if env.get("REMOTE_ADDR").and_then(|x| x.0.as_ref())
                         == Some(&Value::String("{{auto}}".to_string()))
@@ -429,7 +452,7 @@ impl Processor for StoreNormalizeProcessor {
 
         if let Some(ref mut user) = user.0 {
             // Fill in ip addresses marked as {{auto}}
-            if let Some(ref client_ip) = self.client_ip {
+            if let Some(ref client_ip) = self.config.client_ip {
                 if user.ip_address.0.as_ref().map_or(false, |x| x.is_auto()) {
                     user.ip_address.0 = Some(IpAddr(client_ip.clone()));
                 }
@@ -476,8 +499,8 @@ impl Processor for StoreNormalizeProcessor {
         let mut info = ProcessValue::process_child_values(info, self, state);
 
         if info.0.is_none() {
-            if let Some(ref auth) = self.auth {
-                info.0 = parse_client_as_sdk(&auth);
+            if let Some(sdk_info) = self.config.get_sdk_info() {
+                info.0 = Some(sdk_info);
             }
         }
 
@@ -543,7 +566,7 @@ impl Processor for StoreNormalizeProcessor {
         mut stacktrace: Annotated<Stacktrace>,
         state: ProcessingState,
     ) -> Annotated<Stacktrace> {
-        if let Some(limit) = self.stacktrace_frames_hard_limit {
+        if let Some(limit) = self.config.stacktrace_frames_hard_limit {
             stacktrace::enforce_frame_hard_limit(&mut stacktrace, limit);
         }
 
