@@ -6,6 +6,14 @@ use crate::types::{Annotated, Value};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Fingerprint(Vec<String>);
 
+impl std::ops::Deref for Fingerprint {
+    type Target = Vec<String>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl From<Vec<String>> for Fingerprint {
     fn from(vec: Vec<String>) -> Fingerprint {
         Fingerprint(vec)

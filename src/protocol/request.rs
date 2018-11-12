@@ -8,6 +8,14 @@ use crate::types::{Annotated, Map, Object, Value};
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
 pub struct Cookies(pub Object<String>);
 
+impl std::ops::Deref for Cookies {
+    type Target = Object<String>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl FromValue for Cookies {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
@@ -51,6 +59,14 @@ impl FromValue for Cookies {
 /// A map holding headers.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
 pub struct Headers(pub Map<String, String>);
+
+impl std::ops::Deref for Headers {
+    type Target = Map<String, String>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 fn normalize_header(key: &str) -> String {
     key.split('-')
@@ -145,6 +161,14 @@ impl FromValue for Headers {
 /// A map holding query string pairs.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
 pub struct Query(pub Object<String>);
+
+impl std::ops::Deref for Query {
+    type Target = Object<String>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl FromValue for Query {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {

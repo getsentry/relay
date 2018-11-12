@@ -6,6 +6,14 @@ use crate::types::{Annotated, Array, Value};
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
 pub struct Tags(pub Array<(Annotated<String>, Annotated<String>)>);
 
+impl std::ops::Deref for Tags {
+    type Target = Array<(Annotated<String>, Annotated<String>)>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl FromValue for Tags {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         type TagTuple = (Annotated<LenientString>, Annotated<LenientString>);

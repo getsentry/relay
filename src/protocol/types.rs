@@ -174,14 +174,19 @@ hex_metrastructure!(RegVal, "register value");
 pub struct IpAddr(pub String);
 
 impl IpAddr {
-    /// Returns the auto marker ip address
+    /// Returns the auto marker ip address.
     pub fn auto() -> IpAddr {
         IpAddr("{{auto}}".into())
     }
 
-    /// Checks if the ip address is set to the auto marker
+    /// Checks if the ip address is set to the auto marker.
     pub fn is_auto(&self) -> bool {
         self.0 == "{{auto}}"
+    }
+
+    /// Returns the string value of this ip address.
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -330,6 +335,27 @@ impl ProcessValue for Level {}
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, ToValue, ProcessValue)]
 pub struct LenientString(pub String);
 
+impl LenientString {
+    /// Returns the string value.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::convert::AsRef<str> for LenientString {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for LenientString {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl FromValue for LenientString {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
@@ -359,6 +385,27 @@ impl FromValue for LenientString {
 /// A "into-string" type of value. All non-string values are serialized as JSON.
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, ToValue, ProcessValue)]
 pub struct JsonLenientString(pub String);
+
+impl JsonLenientString {
+    /// Returns the string value.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::convert::AsRef<str> for JsonLenientString {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for JsonLenientString {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl FromValue for JsonLenientString {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {

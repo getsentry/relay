@@ -186,6 +186,14 @@ pub enum Context {
 #[metastructure(process_func = "context")]
 pub struct Contexts(pub Object<Context>);
 
+impl std::ops::Deref for Contexts {
+    type Target = Object<Context>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl FromValue for Contexts {
     fn from_value(mut annotated: Annotated<Value>) -> Annotated<Self> {
         if let Annotated(Some(Value::Object(ref mut items)), _) = annotated {
