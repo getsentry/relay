@@ -39,6 +39,9 @@ matrix:
 
     - name: "check: lint"
       env: SUITE=lint
+      install:
+        - rustup toolchain add beta
+        - rustup override set beta
 
     # -------------------------------------
     # RUST TESTS
@@ -163,10 +166,6 @@ matrix:
       after_success:
         - npm install -g @zeus-ci/cli
         - zeus upload -t "application/zip+wheel" py/dist/*
-
-  allow_failures:
-    - env: SUITE=format-check
-    - env: SUITE=lint
 
 notifications:
   webhooks:
