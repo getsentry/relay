@@ -151,19 +151,24 @@ fn make_app(state: ServiceState) -> ServiceApp {
     app
 }
 
-fn dump_listen_infos<H: server::HttpHandler>(server: &server::HttpServer<H>) {
+fn dump_listen_infos<H, F>(server: &server::HttpServer<H, F>)
+where
+    H: server::IntoHttpHandler + 'static,
+    F: Fn() -> H + Send + Clone + 'static,
+{
     info!("spawning http server");
     for (addr, scheme) in server.addrs_with_scheme() {
         info!("  listening on: {}://{}/", scheme, addr);
     }
 }
 
-fn listen<H>(
-    server: server::HttpServer<H>,
+fn listen<H, F>(
+    server: server::HttpServer<H, F>,
     config: &Config,
-) -> Result<server::HttpServer<H>, ServerError>
+) -> Result<server::HttpServer<H, F>, ServerError>
 where
     H: server::IntoHttpHandler + 'static,
+    F: Fn() -> H + Send + Clone + 'static,
 {
     Ok(match ListenFd::from_env()
         .take_tcp_listener(0)
@@ -177,12 +182,13 @@ where
 }
 
 #[cfg(feature = "with_ssl")]
-fn listen_ssl<H>(
-    mut server: server::HttpServer<H>,
+fn listen_ssl<H, F>(
+    mut server: server::HttpServer<H, F>,
     config: &Config,
-) -> Result<server::HttpServer<H>, ServerError>
+) -> Result<server::HttpServer<H, F>, ServerError>
 where
     H: server::IntoHttpHandler + 'static,
+    F: Fn() -> H + Send + Clone + 'static,
 {
     if let (Some(addr), Some(path), Some(password)) = (
         config.tls_listen_addr(),

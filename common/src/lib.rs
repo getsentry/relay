@@ -7,6 +7,7 @@ extern crate cadence;
 extern crate chrono;
 extern crate ed25519_dalek;
 extern crate failure;
+extern crate general;
 extern crate human_size;
 extern crate marshal;
 extern crate parking_lot;
@@ -52,3 +53,6 @@ pub use marshal::protocol as v8;
 pub use sentry_types::{
     Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError, Scheme, Uuid,
 };
+
+// expose the general module entirely
+pub use general::{processor as new_processor, protocol as new_v8, types as new_types};
