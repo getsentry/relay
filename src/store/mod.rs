@@ -546,7 +546,11 @@ impl Processor for StoreNormalizeProcessor {
             stacktrace::enforce_frame_hard_limit(&mut stacktrace, limit);
         }
 
-        ProcessValue::process_child_values(stacktrace, self, state)
+        stacktrace = ProcessValue::process_child_values(stacktrace, self, state);
+
+        // TODO: port slim_frame_data and call it here (needs to run after process_frame because of
+        // `in_app`)
+        stacktrace
     }
 }
 
