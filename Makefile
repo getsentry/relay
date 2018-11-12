@@ -75,7 +75,7 @@ format-check:
 
 lint:
 	@rustup component add clippy-preview 2> /dev/null
-	@cargo clippy --tests --all -- -D clippy
+	@cargo clippy --tests --all -- -D clippy::all
 .PHONY: lint
 
 test-process-event:
