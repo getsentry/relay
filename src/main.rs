@@ -17,6 +17,8 @@ extern crate log;
 extern crate sentry;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate lazy_static;
 
 extern crate semaphore_common;
 extern crate semaphore_server;

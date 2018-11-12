@@ -15,6 +15,7 @@ use semaphore_server;
 use cliapp::make_app;
 use setup;
 use utils;
+use utils::get_theme;
 
 type EventV8 = Annotated<Event>;
 
@@ -107,7 +108,10 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
                 Some(value) => value,
                 None => {
                     prompted = true;
-                    if Confirmation::new("do you want to generate a random relay id").interact()? {
+                    if Confirmation::with_theme(get_theme())
+                        .with_text("do you want to generate a random relay id")
+                        .interact()?
+                    {
                         Uuid::new_v4()
                     } else {
                         utils::prompt_value_no_default("relay id")?
@@ -128,8 +132,9 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
         }
     } else if let Some(matches) = matches.subcommand_matches("remove") {
         if config.has_credentials() {
-            if matches.is_present("yes")
-                || Confirmation::new("Remove stored credentials?").interact()?
+            if matches.is_present("yes") || Confirmation::with_theme(get_theme())
+                .with_text("Remove stored credentials?")
+                .interact()?
             {
                 config.replace_credentials(None)?;
                 println!("Credentials removed");
@@ -175,8 +180,8 @@ pub fn init_config<'a, P: AsRef<Path>>(
     println!("Initializing relay in {}", config_path.display());
 
     if !Config::config_exists(&config_path) {
-        println!("There is no relay config yet. Do you want to create one?");
-        let item = Select::new()
+        let item = Select::with_theme(get_theme())
+            .with_prompt("Do you want to create a new config?")
             .default(0)
             .item("yes, create default config")
             .item("yes, create custom config")
@@ -196,7 +201,10 @@ pub fn init_config<'a, P: AsRef<Path>>(
             utils::prompt_value("listen interface", &mut mincfg.relay.host)?;
             utils::prompt_value("listen port", &mut mincfg.relay.port)?;
 
-            if Confirmation::new("do you want listen to TLS").interact()? {
+            if Confirmation::with_theme(get_theme())
+                .with_text("do you want listen to TLS")
+                .interact()?
+            {
                 let mut port = mincfg.relay.port.saturating_add(443);
                 utils::prompt_value("tls port", &mut port)?;
                 mincfg.relay.tls_port = Some(port);
@@ -210,8 +218,8 @@ pub fn init_config<'a, P: AsRef<Path>>(
             }
         }
 
-        println!("Do you want to enable the internal crash reporting?");
-        mincfg.sentry.enabled = Select::new()
+        mincfg.sentry.enabled = Select::with_theme(get_theme())
+            .with_prompt("Do you want to eanble internal crash reporting?")
             .default(0)
             .item("yes, share relay internal crash reports with sentry.io")
             .item("no, do not share crash reports")
@@ -224,8 +232,8 @@ pub fn init_config<'a, P: AsRef<Path>>(
 
     let mut config = Config::from_path(&config_path)?;
     if !config.has_credentials() {
-        println!("There are currently no credentials set up. Do you want to create some?");
-        let should_create = Select::new()
+        let should_create = Select::with_theme(get_theme())
+            .with_prompt("There are currently no credentials set up. Do you want to create some?")
             .default(0)
             .item("no, just use relay without setting up credentials (simple proxy mode, recommended)")
             .item("yes, set up relay with credentials (currently requires own Sentry installation)")
