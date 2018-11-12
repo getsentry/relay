@@ -583,7 +583,7 @@ fn test_basic_trimming() {
     use crate::processor::MaxChars;
     use std::iter::repeat;
 
-    let mut processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
 
     let event = Annotated::new(Event {
         culprit: Annotated::new(repeat("x").take(300).collect::<String>()),
@@ -600,7 +600,7 @@ fn test_basic_trimming() {
 
 #[test]
 fn test_handles_type_in_value() {
-    let mut processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
 
     let exception = Annotated::new(Exception {
         value: Annotated::new("ValueError: unauthorized".to_string().into()),
@@ -623,7 +623,7 @@ fn test_handles_type_in_value() {
 
 #[test]
 fn test_json_value() {
-    let mut processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
 
     let exception = Annotated::new(Exception {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
@@ -641,7 +641,7 @@ fn test_json_value() {
 
 #[test]
 fn test_exception_invalid() {
-    let mut processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
 
     let exception = Annotated::new(Exception::default());
     let exception = exception.process(&mut processor);
@@ -677,7 +677,7 @@ fn test_geo_from_ip_address() {
 
 #[test]
 fn test_invalid_email() {
-    let mut processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
 
     let user = Annotated::new(User {
         email: Annotated::new("bananabread".to_string()),
@@ -700,7 +700,7 @@ fn test_invalid_email() {
 
 #[test]
 fn test_databag_stripping() {
-    let mut processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
 
     fn make_nested_object(depth: usize) -> Annotated<Value> {
         if depth == 0 {
@@ -737,7 +737,7 @@ fn test_databag_stripping() {
 fn test_databag_array_stripping() {
     use std::iter::repeat;
 
-    let mut processor = StoreNormalizeProcessor::default();
+    let mut processor = StoreNormalizeProcessor::new(&StoreConfig::default(), None);
 
     let databag = Annotated::new({
         let mut map = Object::new();
