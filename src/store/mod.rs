@@ -410,13 +410,12 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         breadcrumb: Annotated<Breadcrumb>,
         state: ProcessingState,
     ) -> Annotated<Breadcrumb> {
-        let mut breadcrumb = ProcessValue::process_child_values(breadcrumb, self, state);
-
-        if let Some(ref mut breadcrumb) = breadcrumb.0 {
-            breadcrumb.ty.get_or_insert_with(|| "default".to_string());
-            breadcrumb.level.get_or_insert_with(|| Level::Info);
-        }
-        breadcrumb
+        let breadcrumb = ProcessValue::process_child_values(breadcrumb, self, state);
+        breadcrumb.and_then(|breadcrumb| Breadcrumb {
+            ty: breadcrumb.ty.or_else(|| "default".to_string()),
+            level: breadcrumb.level.or_else(|| Level::Info),
+            ..breadcrumb
+        })
     }
 
     fn process_request(
@@ -426,20 +425,40 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
     ) -> Annotated<Request> {
         let mut request = ProcessValue::process_child_values(request, self, state);
 
-        // Fill in ip addresses marked as {{auto}}
-        if let Some(ref mut request) = request.0 {
-            if let Some(ref client_ip) = self.config.client_ip {
-                if let Some(ref mut env) = request.env.0 {
-                    if env.get("REMOTE_ADDR").and_then(|x| x.0.as_ref())
-                        == Some(&Value::String("{{auto}}".to_string()))
-                    {
-                        env.insert(
-                            "REMOTE_ADDR".to_string(),
-                            Annotated::new(Value::String(client_ip.clone())),
-                        );
+        lazy_static! {
+            static ref METHOD_RE: Regex = Regex::new(r"^[A-Z\-_]{3,32}$").unwrap();
+        }
+
+        request = request.and_then(|request| Request {
+            method: request
+                .method
+                .filter_map(Annotated::is_valid, |method| method.to_uppercase())
+                .filter_map(Annotated::is_valid, |method| {
+                    if METHOD_RE.is_match(&method) {
+                        Ok(method)
+                    } else {
+                        Err("invalid http method")
                     }
-                }
-            }
+                }),
+            ..request
+        });
+
+        // Fill in ip addresses marked as "{{auto}}"
+        if let Some(ref client_ip) = self.config.client_ip {
+            request = request.and_then(|request| Request {
+                env: request.env.and_then(|mut env| {
+                    env.entry("REMOTE_ADDR".to_string()).and_modify(|value| {
+                        value.modify(|value| {
+                            value.filter_map(Annotated::is_valid, |v| match v.as_str() {
+                                Some("{{auto}}") => Value::String(client_ip.clone()),
+                                _ => v,
+                            })
+                        })
+                    });
+                    env
+                }),
+                ..request
+            });
         }
 
         request

@@ -74,6 +74,46 @@ pub type MetaMap = BTreeMap<String, MetaTree>;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
+pub trait IntoAnnotated<T> {
+    fn into_annotated(self) -> Annotated<T>;
+}
+
+impl<T> IntoAnnotated<T> for Annotated<T> {
+    fn into_annotated(self) -> Annotated<T> {
+        self
+    }
+}
+
+impl<T> IntoAnnotated<T> for T {
+    fn into_annotated(self) -> Annotated<T> {
+        Annotated::new(self)
+    }
+}
+
+impl<T> IntoAnnotated<T> for Option<T> {
+    fn into_annotated(self) -> Annotated<T> {
+        Annotated(self, Meta::default())
+    }
+}
+
+impl<T, E> IntoAnnotated<T> for Result<T, E>
+where
+    E: Into<String>,
+{
+    fn into_annotated(self) -> Annotated<T> {
+        match self {
+            Ok(value) => Annotated::new(value),
+            Err(err) => Annotated::from_error(err, None),
+        }
+    }
+}
+
+impl<T> IntoAnnotated<T> for (T, Meta) {
+    fn into_annotated(self) -> Annotated<T> {
+        Annotated(Some(self.0), self.1)
+    }
+}
+
 impl<T> Annotated<T> {
     /// Creates a new annotated value without meta data.
     pub fn new(value: T) -> Annotated<T> {
@@ -96,6 +136,64 @@ impl<T> Annotated<T> {
     pub fn require_value(&mut self) {
         if self.0.is_none() && !self.1.has_errors() {
             self.1.add_error("value required", None);
+        }
+    }
+
+    pub fn value(&self) -> Option<&T> {
+        self.0.as_ref()
+    }
+
+    pub fn is_valid(&self) -> bool {
+        !self.1.has_errors()
+    }
+
+    pub fn is_present(&self) -> bool {
+        self.0.is_some()
+    }
+
+    pub fn modify<F>(&mut self, f: F)
+    where
+        F: FnOnce(Self) -> Self,
+    {
+        *self = f(std::mem::replace(self, Annotated::empty()));
+    }
+
+    pub fn and_then<F, U, R>(self, f: F) -> Annotated<U>
+    where
+        F: FnOnce(T) -> R,
+        R: IntoAnnotated<U>,
+    {
+        if let Some(value) = self.0 {
+            let Annotated(value, meta) = f(value).into_annotated();
+            Annotated(value, self.1.merge(meta))
+        } else {
+            Annotated(None, self.1)
+        }
+    }
+
+    pub fn or_else<F, R>(self, f: F) -> Self
+    where
+        F: FnOnce() -> R,
+        R: IntoAnnotated<T>,
+    {
+        if self.0.is_none() {
+            let Annotated(value, meta) = f().into_annotated();
+            Annotated(value, self.1.merge(meta))
+        } else {
+            self
+        }
+    }
+
+    pub fn filter_map<P, F, R>(self, predicate: P, f: F) -> Self
+    where
+        P: FnOnce(&Annotated<T>) -> bool,
+        F: FnOnce(T) -> R,
+        R: IntoAnnotated<T>,
+    {
+        if predicate(&self) {
+            self.and_then(f)
+        } else {
+            self
         }
     }
 
