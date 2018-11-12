@@ -150,7 +150,6 @@ pub struct Event {
     pub version: Annotated<String>,
 
     /// Type of event: error, csp, default
-    // TODO: enum?
     #[metastructure(field = "type")]
     pub ty: Annotated<EventType>,
 
@@ -180,7 +179,6 @@ pub struct Event {
     pub modules: Annotated<Object<String>>,
 
     /// Platform identifier of this event (defaults to "other").
-    // TODO: Normalize null to "other"
     pub platform: Annotated<String>,
 
     /// Timestamp when the event was created.

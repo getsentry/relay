@@ -258,6 +258,7 @@ impl Processor for StoreNormalizeProcessor {
             event.timestamp.0.get_or_insert_with(Utc::now);
             event.received.0 = Some(Utc::now());
             event.logger.0.get_or_insert_with(String::new);
+            event.platform.0.get_or_insert_with(|| "other".to_string());
 
             event.extra.0.get_or_insert_with(Object::new);
 
