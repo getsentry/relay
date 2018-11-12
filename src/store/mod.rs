@@ -54,7 +54,7 @@ pub struct StoreConfig {
     pub client: Option<String>,
     pub is_public_auth: bool,
     pub key_id: Option<String>,
-    pub version: Option<String>,
+    pub protocol_version: Option<String>,
     pub stacktrace_frames_hard_limit: Option<usize>,
 }
 
@@ -340,7 +340,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                 EventType::Default
             });
 
-            if let Some(ref version) = self.config.version {
+            if let Some(ref version) = self.config.protocol_version {
                 event.version = Annotated::new(version.clone());
             }
 

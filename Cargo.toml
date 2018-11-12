@@ -21,8 +21,5 @@ url = "1.7.1"
 itertools = "0.7.8"
 regex = "1.0.5"
 
-[patch.crates-io]
-synstructure = { git = "https://github.com/mitsuhiko/synstructure", rev = "d5e1bb3c00a24a001568e88be6a94d0613049bda" }
-
 [dev-dependencies]
 difference = "2.0.0"
