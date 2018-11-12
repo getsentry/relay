@@ -153,7 +153,6 @@ pub struct ProcessingState<'a> {
     parent: Option<&'a ProcessingState<'a>>,
     path: Option<PathItem<'a>>,
     attrs: Option<Cow<'static, FieldAttrs>>,
-    ext: Option<Rc<Vec<(TypeId, Rc<Box<Any>>)>>>,
 }
 
 impl<'a> ProcessingState<'a> {
@@ -163,7 +162,6 @@ impl<'a> ProcessingState<'a> {
             parent: None,
             path: None,
             attrs: None,
-            ext: None,
         }
     }
 
@@ -178,7 +176,6 @@ impl<'a> ProcessingState<'a> {
             parent: Some(self),
             path: Some(PathItem::StaticKey(key)),
             attrs,
-            ext: self.ext.clone(),
         }
     }
 
@@ -193,7 +190,6 @@ impl<'a> ProcessingState<'a> {
             parent: Some(self),
             path: Some(PathItem::StaticKey(key)),
             attrs,
-            ext: self.ext.clone(),
         }
     }
 
@@ -208,7 +204,6 @@ impl<'a> ProcessingState<'a> {
             parent: Some(self),
             path: Some(PathItem::Index(idx)),
             attrs,
-            ext: self.ext.clone(),
         }
     }
 
@@ -225,42 +220,6 @@ impl<'a> ProcessingState<'a> {
             Some(ref cow) => &cow,
             None => &DEFAULT_FIELD_ATTRS,
         }
-    }
-
-    /// Get a value from the state.
-    pub fn get<T: 'static>(&self) -> Option<&T> {
-        if let Some(ref map) = self.ext {
-            for &(type_id, ref boxed_rc) in map.iter() {
-                if type_id == TypeId::of::<T>() {
-                    return (&***boxed_rc as &(Any + 'static)).downcast_ref();
-                }
-            }
-        }
-        None
-    }
-    /// Get a value from the state or insert the default.
-    pub fn get_or_default<T: Default + 'static>(&mut self) -> &T {
-        if self.get::<T>().is_none() {
-            self.set(T::default());
-        }
-        self.get().unwrap()
-    }
-    /// Sets a value to the state.
-    pub fn set<T: 'static>(&mut self, val: T) {
-        self.ext = Some(Rc::new(
-            self.ext
-                .as_ref()
-                .map_or(&[][..], |x| &x[..])
-                .iter()
-                .filter_map(|&(type_id, ref boxed_rc)| {
-                    if type_id == TypeId::of::<T>() {
-                        None
-                    } else {
-                        Some((type_id, boxed_rc.clone()))
-                    }
-                }).chain(Some((TypeId::of::<T>(), Rc::new(Box::new(val) as Box<Any>))).into_iter())
-                .collect(),
-        ));
     }
 }
 
