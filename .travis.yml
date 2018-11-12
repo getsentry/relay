@@ -164,6 +164,10 @@ matrix:
         - npm install -g @zeus-ci/cli
         - zeus upload -t "application/zip+wheel" py/dist/*
 
+  allow_failures:
+    - env: SUITE=format-check
+    - env: SUITE=lint
+
 notifications:
   webhooks:
     urls:
