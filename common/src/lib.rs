@@ -57,4 +57,9 @@ pub use sentry_types::{
 };
 
 // expose the general module entirely
-pub use general::{processor as new_processor, protocol as new_v8, types as new_types};
+pub use general::{processor as processor};
+/// The v8 version of the protocol.
+pub mod protocol {
+    pub use general::protocol::*;
+    pub use general::types::*;
+}
