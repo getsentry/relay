@@ -14,11 +14,11 @@ pub struct ClientSdkPackage {
 #[metastructure(process_func = "process_client_sdk_info")]
 pub struct ClientSdkInfo {
     /// Unique SDK name.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", max_chars = "symbol")]
     pub name: Annotated<String>,
 
     /// SDK version.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", max_chars = "symbol")]
     pub version: Annotated<String>,
 
     /// List of integrations that are enabled in the SDK.
