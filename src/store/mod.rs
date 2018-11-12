@@ -48,6 +48,7 @@ struct BagSizeState {
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
 pub struct StoreConfig {
     pub project_id: Option<u64>,
     pub client_ip: Option<String>,
