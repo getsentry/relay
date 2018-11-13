@@ -5,19 +5,18 @@ use chrono::Utc;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
-use serde::de::IgnoredAny;
 use serde_derive::{Deserialize, Serialize};
-use url::Url;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, IpAddr, Level, Query, Request,
+    Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, IpAddr, Level, Request,
     Stacktrace, Tags, User,
 };
 use crate::types::{Annotated, Array, Meta, Object, Remark, RemarkType, Value};
 
 mod geo;
 mod mechanism;
+mod request;
 mod stacktrace;
 
 pub use crate::store::geo::GeoIpLookup;
@@ -426,98 +425,9 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         request: Annotated<Request>,
         state: ProcessingState,
     ) -> Annotated<Request> {
-        lazy_static! {
-            static ref METHOD_RE: Regex = Regex::new(r"^[A-Z\-_]{3,32}$").unwrap();
-        }
-
         let request = ProcessValue::process_child_values(request, self, state);
-        request.and_then(|mut request| {
-            request.method = request
-                .method
-                .filter_map(Annotated::is_valid, |method| method.to_uppercase())
-                .filter_map(Annotated::is_valid, |method| {
-                    if METHOD_RE.is_match(&method) {
-                        Ok(method)
-                    } else {
-                        Err(Annotated::from_error("invalid http method", None))
-                    }
-                });
-
-            if request.url.is_valid() {
-                if let Annotated(Some(url_string), mut meta) = request.url {
-                    match Url::parse(&url_string) {
-                        Ok(mut url) => {
-                            // If either the query string or fragment is specified both as part of
-                            // the URL and as separate attribute, the attribute wins.
-                            request.query_string = request.query_string.or_else(|| {
-                                Query(
-                                    url.query_pairs()
-                                        .map(|(k, v)| (k.into(), Annotated::new(v.into())))
-                                        .collect(),
-                                )
-                            });
-
-                            request.fragment = request
-                                .fragment
-                                .or_else(|| url.fragment().map(str::to_string));
-
-                            // Remove the fragment and query since they have been moved to their own
-                            // parameters to avoid duplication or inconsistencies.
-                            url.set_fragment(None);
-                            url.set_query(None);
-
-                            // TODO: Check if this generates unwanted effects with `meta.remarks`
-                            // when the URL was already PII stripped.
-                            request.url = Annotated(Some(url.into_string()), meta);
-                        }
-                        Err(err) => {
-                            meta.add_error(err.to_string(), None);
-                            request.url = Annotated(Some(url_string), meta);
-                        }
-                    }
-                }
-            }
-
-            // Fill in ip addresses marked as "{{auto}}"
-            if let Some(ref client_ip) = self.config.client_ip {
-                request.env = request.env.and_then(|mut env| {
-                    env.entry("REMOTE_ADDR".to_string()).and_modify(|value| {
-                        value.modify(|value| {
-                            value.filter_map(Annotated::is_valid, |v| match v.as_str() {
-                                Some("{{auto}}") => Value::String(client_ip.clone()),
-                                _ => v,
-                            })
-                        })
-                    });
-                    env
-                });
-            }
-
-            fn infer_content_type(body: &Annotated<Value>) -> Option<String> {
-                let body = body.value()?.as_str()?;
-
-                if serde_json::from_str::<IgnoredAny>(body).is_ok() {
-                    Some("application/json".to_string())
-                } else if serde_urlencoded::from_str::<IgnoredAny>(body).is_ok() {
-                    Some("application/x-www-form-urlencoded".to_string())
-                } else {
-                    None
-                }
-            }
-
-            if !request.inferred_content_type.is_present() {
-                let content_type = request
-                    .headers
-                    .value()
-                    .and_then(|headers| headers.get("Content-Type"))
-                    .and_then(|annotated| annotated.value().cloned())
-                    .or_else(|| infer_content_type(&request.data));
-
-                request.inferred_content_type.set_value(content_type);
-            }
-
-            request
-        })
+        let client_ip = self.config.client_ip.as_ref().map(String::as_str);
+        request.and_then(|r| request::normalize_request(r, client_ip))
     }
 
     fn process_user(&mut self, user: Annotated<User>, state: ProcessingState) -> Annotated<User> {
