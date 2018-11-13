@@ -1,17 +1,9 @@
 use std::fmt;
 
-use maxminddb;
-
 use crate::protocol::Geo;
 use crate::types::Annotated;
 
-pub struct GeoIpLookup(maxminddb::Reader);
-
-impl fmt::Debug for GeoIpLookup {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("GeoIpLookup").finish()
-    }
-}
+pub struct GeoIpLookup(maxminddb::OwnedReader<'static>);
 
 impl GeoIpLookup {
     pub fn open(path: &str) -> Result<Self, maxminddb::MaxMindDBError> {
@@ -52,5 +44,11 @@ impl GeoIpLookup {
             ),
             ..Default::default()
         }))
+    }
+}
+
+impl fmt::Debug for GeoIpLookup {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("GeoIpLookup").finish()
     }
 }
