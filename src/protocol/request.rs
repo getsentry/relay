@@ -224,35 +224,36 @@ impl FromValue for Query {
 #[metastructure(process_func = "process_request")]
 pub struct Request {
     /// URL of the request.
-    // TODO: cap?
+    #[metastructure(pii_kind = "freeform", max_chars = "path")]
     pub url: Annotated<String>,
 
     /// HTTP request method.
     pub method: Annotated<String>,
 
     /// Request data in any format that makes sense.
-    // TODO: cap?
     // TODO: Custom logic + info
-    #[metastructure(pii_kind = "databag")]
+    #[metastructure(pii_kind = "databag", bag_size = "large")]
     pub data: Annotated<Value>,
 
     /// URL encoded HTTP query string.
-    #[metastructure(pii_kind = "databag")]
+    #[metastructure(pii_kind = "databag", bag_size = "small")]
     pub query_string: Annotated<Query>,
 
     /// The fragment of the request URL.
+    #[metastructure(pii_kind = "freeform", max_chars = "summary")]
     pub fragment: Annotated<String>,
 
     /// URL encoded contents of the Cookie header.
-    #[metastructure(pii_kind = "databag")]
+    #[metastructure(pii_kind = "databag", bag_size = "medium")]
     pub cookies: Annotated<Cookies>,
 
     /// HTTP request headers.
     #[metastructure(pii_kind = "databag")]
+    #[metastructure(pii_kind = "databag", bag_size = "large")]
     pub headers: Annotated<Headers>,
 
     /// Server environment data, such as CGI/WSGI.
-    #[metastructure(pii_kind = "databag")]
+    #[metastructure(pii_kind = "databag", bag_size = "large")]
     pub env: Annotated<Object<Value>>,
 
     /// The inferred content type of the request payload.
