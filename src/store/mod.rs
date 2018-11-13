@@ -4,6 +4,7 @@ use std::mem;
 use chrono::Utc;
 use itertools::Itertools;
 use regex::Regex;
+use serde::de::IgnoredAny;
 use serde_derive::{Deserialize, Serialize};
 use url::Url;
 
@@ -489,6 +490,29 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                     });
                     env
                 });
+            }
+
+            fn infer_content_type(body: &Annotated<Value>) -> Option<String> {
+                let body = body.value()?.as_str()?;
+
+                if serde_json::from_str::<IgnoredAny>(body).is_ok() {
+                    Some("application/json".to_string())
+                } else if serde_urlencoded::from_str::<IgnoredAny>(body).is_ok() {
+                    Some("application/x-www-form-urlencoded".to_string())
+                } else {
+                    None
+                }
+            }
+
+            if !request.inferred_content_type.is_present() {
+                let content_type = request
+                    .headers
+                    .value()
+                    .and_then(|headers| headers.get("Content-Type"))
+                    .and_then(|annotated| annotated.value().cloned())
+                    .or_else(|| infer_content_type(&request.data));
+
+                request.inferred_content_type.set_value(content_type);
             }
 
             request

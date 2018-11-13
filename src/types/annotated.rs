@@ -142,6 +142,10 @@ impl<T> Annotated<T> {
         self.0.as_ref()
     }
 
+    pub fn set_value(&mut self, value: Option<T>) {
+        self.0 = value;
+    }
+
     pub fn is_valid(&self) -> bool {
         !self.1.has_errors()
     }

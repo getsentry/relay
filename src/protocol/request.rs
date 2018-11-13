@@ -255,6 +255,9 @@ pub struct Request {
     #[metastructure(pii_kind = "databag")]
     pub env: Annotated<Object<Value>>,
 
+    /// The inferred content type of the request payload.
+    pub inferred_content_type: Annotated<String>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii_kind = "databag")]
     pub other: Object<Value>,
@@ -330,6 +333,7 @@ fn test_request_roundtrip() {
   "env": {
     "REMOTE_ADDR": "213.47.147.207"
   },
+  "inferred_content_type": "application/json",
   "other": "value"
 }"#;
 
@@ -368,6 +372,7 @@ fn test_request_roundtrip() {
             );
             map
         }),
+        inferred_content_type: Annotated::new("application/json".to_string()),
         other: {
             let mut map = Object::new();
             map.insert(
