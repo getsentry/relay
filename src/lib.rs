@@ -2,9 +2,8 @@ extern crate chrono;
 extern crate cookie;
 extern crate debugid;
 extern crate failure;
-#[macro_use]
-extern crate lazy_static;
 extern crate itertools;
+extern crate lazy_static;
 extern crate maxminddb;
 extern crate regex;
 extern crate serde;
