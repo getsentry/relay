@@ -142,8 +142,20 @@ impl<T> Annotated<T> {
         self.0.as_ref()
     }
 
+    pub fn value_mut(&mut self) -> &mut Option<T> {
+        &mut self.0
+    }
+
     pub fn set_value(&mut self, value: Option<T>) {
         self.0 = value;
+    }
+
+    pub fn meta(&self) -> &Meta {
+        &self.1
+    }
+
+    pub fn meta_mut(&mut self) -> &mut Meta {
+        &mut self.1
     }
 
     pub fn is_valid(&self) -> bool {

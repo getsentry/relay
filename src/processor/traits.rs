@@ -107,6 +107,18 @@ pub trait Processor {
         ProcessValue::process_child_values(value, self, state)
     }
 
+    #[inline(always)]
+    fn process_values<T: ProcessValue>(
+        &mut self,
+        value: Annotated<crate::protocol::Values<T>>,
+        state: ProcessingState,
+    ) -> Annotated<crate::protocol::Values<T>>
+    where
+        Self: Sized,
+    {
+        ProcessValue::process_child_values(value, self, state)
+    }
+
     // interfaces
     process_method!(process_event, crate::protocol::Event);
     process_method!(process_exception, crate::protocol::Exception);

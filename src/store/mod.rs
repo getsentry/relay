@@ -14,6 +14,7 @@ use crate::protocol::{
 };
 use crate::types::{Annotated, Array, Meta, Object, Remark, RemarkType, Value};
 
+mod escalate;
 mod geo;
 mod mechanism;
 mod request;
@@ -261,7 +262,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         event: Annotated<Event>,
         state: ProcessingState,
     ) -> Annotated<Event> {
-        let mut event = ProcessValue::process_child_values(event, self, state);
+        let mut event = ProcessValue::process_child_values(event, self, state.clone());
 
         if let Some(ref mut event) = event.0 {
             if let Some(project_id) = self.config.project_id {
@@ -405,7 +406,9 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                 }
             }
         }
-        event
+
+        // XXX: Remove or deactivate once Sentry can handle partially invalid interfaces.
+        escalate::EscalateErrorsProcessor.process_event(event, state)
     }
 
     fn process_breadcrumb(

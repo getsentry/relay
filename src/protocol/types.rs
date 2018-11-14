@@ -14,9 +14,12 @@ use crate::types::{Annotated, Array, Meta, MetaMap, Object, Value};
 
 /// A array like wrapper used in various places.
 #[derive(Clone, Debug, PartialEq, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_values")]
 pub struct Values<T> {
     /// The values of the collection.
+    #[metastructure(required = "true")]
     pub values: Annotated<Array<T>>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
