@@ -203,6 +203,10 @@ pub struct Event {
     #[metastructure(max_chars = "symbol")]
     pub environment: Annotated<LenientString>,
 
+    /// Deprecated in favor of tags
+    #[metastructure(max_chars = "symbol")]
+    pub site: Annotated<LenientString>,
+
     /// Information about the user who triggered this event.
     #[metastructure(legacy_alias = "sentry.interfaces.User")]
     pub user: Annotated<User>,

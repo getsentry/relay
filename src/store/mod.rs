@@ -25,6 +25,10 @@ mod stacktrace;
 
 pub use crate::store::geo::GeoIpLookup;
 
+lazy_static! {
+    static ref DIST_VALUE_RE: Regex = Regex::new(r"^[a-zA-Z0-9_.-]+$").unwrap();
+}
+
 fn parse_type_and_value(
     ty: Annotated<String>,
     value: Annotated<String>,
@@ -311,6 +315,17 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             if let Some(ref mut dist) = event.dist.0 {
                 *dist = dist.0.trim().to_owned().into();
             }
+
+            event.dist = event.dist.clone().filter_map(Annotated::is_valid, |dist| {
+                if !DIST_VALUE_RE.is_match(&dist.0) {
+                    Err(Annotated::from_error(
+                        "Invalid characters in distribution",
+                        Some(Value::String(dist.0)),
+                    ))
+                } else {
+                    Ok(dist)
+                }
+            });
 
             event.timestamp = event
                 .timestamp
