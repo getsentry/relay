@@ -188,7 +188,7 @@ pub struct Event {
     pub received: Annotated<DateTime<Utc>>,
 
     /// Server or device name the event was generated on.
-    #[metastructure(pii_kind = "hostname")]
+    #[metastructure(pii_kind = "hostname", max_chars = "symbol")]
     pub server_name: Annotated<String>,
 
     /// Program's release identifier.

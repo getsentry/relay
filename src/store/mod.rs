@@ -19,6 +19,7 @@ use crate::types::{Annotated, Array, Meta, Object, Remark, RemarkType, Value};
 mod escalate;
 mod geo;
 mod mechanism;
+mod remove_other;
 mod request;
 mod stacktrace;
 
@@ -456,7 +457,9 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         }
 
         // XXX: Remove or deactivate once Sentry can handle partially invalid interfaces.
-        escalate::EscalateErrorsProcessor.process_event(event, state)
+        event = escalate::EscalateErrorsProcessor.process_event(event, state.clone());
+
+        remove_other::RemoveOtherProcessor.process_event(event, state)
     }
 
     fn process_breadcrumb(
