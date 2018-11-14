@@ -909,3 +909,33 @@ fn test_databag_array_stripping() {
   }
 }"#);
 }
+
+#[test]
+fn test_tags_stripping() {
+    use std::iter::repeat;
+
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
+
+    let event = Annotated::new(Event {
+        tags: Annotated::new(Tags(vec![Annotated::new((
+            Annotated::new(repeat("x").take(200).collect()),
+            Annotated::new(repeat("x").take(300).collect()),
+        ))])),
+        ..Default::default()
+    });
+
+    let stripped_event = event.process(&mut processor);
+    let json = stripped_event
+        .0
+        .unwrap()
+        .tags
+        .payload_to_json_pretty()
+        .unwrap();
+
+    assert_eq_str!(json, r#"[
+  [
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx..."
+  ]
+]"#);
+}
