@@ -7,10 +7,11 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde_derive::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, IpAddr, Level, Request,
+    Breadcrumb, ClientSdkInfo, Event, EventId, EventType, Exception, Frame, IpAddr, Level, Request,
     Stacktrace, Tags, User,
 };
 use crate::types::{Annotated, Array, Meta, Object, Remark, RemarkType, Value};
@@ -277,10 +278,14 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
             event.errors.0.get_or_insert_with(Vec::new);
 
-            // TODO: Interfaces
             stacktrace::process_non_raw_stacktrace(&mut event.stacktrace);
 
+            let current_timestamp = Utc::now();
+
             event.level.0.get_or_insert(Level::Error);
+            event.id.0.get_or_insert_with(|| EventId(Uuid::new_v4()));
+            event.received.0 = Some(current_timestamp);
+            event.logger.0.get_or_insert_with(String::new);
 
             if event.dist.0.is_some() && event.release.0.is_none() {
                 event.dist.0 = None;
@@ -289,8 +294,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             if let Some(ref mut dist) = event.dist.0 {
                 *dist = dist.trim().to_owned();
             }
-
-            let current_timestamp = Utc::now();
 
             event.timestamp = event
                 .timestamp
@@ -310,9 +313,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                         Ok(timestamp)
                     }
                 }).or_else(|| current_timestamp);
-
-            event.received.0 = Some(Utc::now());
-            event.logger.0.get_or_insert_with(String::new);
 
             if let Some(ref mut platform) = event.platform.0 {
                 if !self.config.valid_platforms.contains(platform) {
