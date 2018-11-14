@@ -10,8 +10,8 @@ use chrono::TimeZone;
 
 use crate::processor::{FromValue, ProcessValue, ToValue};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, Level, LogEntry,
-    Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
+    Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, LenientString, Level,
+    LogEntry, Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
 };
 use crate::types::{Annotated, Array, Object, Value};
 
@@ -192,16 +192,16 @@ pub struct Event {
     pub server_name: Annotated<String>,
 
     /// Program's release identifier.
-    // TODO: cap size
+    #[metastructure(max_chars = "symbol")]
     pub release: Annotated<String>,
 
     /// Program's distribution identifier.
-    // TODO: cap size
+    #[metastructure(max_chars = "symbol")]
     pub dist: Annotated<String>,
 
     /// Environment the environment was generated in ("production" or "development").
-    // TODO: cap size
-    pub environment: Annotated<String>,
+    #[metastructure(max_chars = "symbol")]
+    pub environment: Annotated<LenientString>,
 
     /// Information about the user who triggered this event.
     #[metastructure(legacy_alias = "sentry.interfaces.User")]
@@ -358,7 +358,7 @@ fn test_event_roundtrip() {
         server_name: Annotated::new("myhost".to_string()),
         release: Annotated::new("myrelease".to_string()),
         dist: Annotated::new("mydist".to_string()),
-        environment: Annotated::new("myenv".to_string()),
+        environment: Annotated::new("myenv".to_string().into()),
         tags: {
             let mut items = Array::new();
             items.push(Annotated::new((
