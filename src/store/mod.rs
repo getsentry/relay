@@ -1,7 +1,8 @@
 //! Utility code for sentry's internal store.
+use std::collections::BTreeSet;
 use std::mem;
 
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -59,6 +60,7 @@ pub struct StoreConfig {
     pub key_id: Option<String>,
     pub protocol_version: Option<String>,
     pub stacktrace_frames_hard_limit: Option<usize>,
+    pub valid_platforms: BTreeSet<String>,
 }
 
 impl StoreConfig {
@@ -284,10 +286,40 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                 event.dist.0 = None;
             }
 
-            event.timestamp.0.get_or_insert_with(Utc::now);
-            // TODO: Validate that timestamp is not too far in the past and not in the future
+            if let Some(ref mut dist) = event.dist.0 {
+                *dist = dist.trim().to_owned();
+            }
+
+            let current_timestamp = Utc::now();
+
+            event.timestamp = event
+                .timestamp
+                .clone()
+                .filter_map(Annotated::is_valid, |timestamp| {
+                    if timestamp > current_timestamp + Duration::minutes(1) {
+                        Err((
+                            current_timestamp,
+                            Meta::from_error("Invalid timestamp (in future)", None),
+                        ))
+                    } else if timestamp < current_timestamp - Duration::days(30) {
+                        Err((
+                            current_timestamp,
+                            Meta::from_error("Invalid timestamp (too old)", None),
+                        ))
+                    } else {
+                        Ok(timestamp)
+                    }
+                }).or_else(|| current_timestamp);
+
             event.received.0 = Some(Utc::now());
             event.logger.0.get_or_insert_with(String::new);
+
+            if let Some(ref mut platform) = event.platform.0 {
+                if !self.config.valid_platforms.contains(platform) {
+                    *platform = "other".to_string();
+                }
+            }
+
             event.platform.0.get_or_insert_with(|| "other".to_string());
 
             event.extra.0.get_or_insert_with(Object::new);
