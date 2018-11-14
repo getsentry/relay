@@ -193,7 +193,7 @@ pub struct Event {
 
     /// Program's release identifier.
     #[metastructure(max_chars = "symbol")]
-    pub release: Annotated<String>,
+    pub release: Annotated<LenientString>,
 
     /// Program's distribution identifier.
     #[metastructure(max_chars = "symbol")]
@@ -360,7 +360,7 @@ fn test_event_roundtrip() {
         platform: Annotated::new("myplatform".to_string()),
         timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
         server_name: Annotated::new("myhost".to_string()),
-        release: Annotated::new("myrelease".to_string()),
+        release: Annotated::new("myrelease".to_string().into()),
         dist: Annotated::new("mydist".to_string().into()),
         environment: Annotated::new("myenv".to_string().into()),
         tags: {

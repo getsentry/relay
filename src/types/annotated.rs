@@ -410,7 +410,7 @@ impl Annotated<String> {
         let limit = max_chars.limit();
         let allowance_limit = limit + max_chars.allowance();
 
-        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() < allowance_limit {
+        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() <= allowance_limit {
             return self;
         }
 

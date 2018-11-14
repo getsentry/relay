@@ -380,6 +380,15 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
                     tags.0 = new_tags;
                 }
+
+
+                // These tags are special and are used in pairing with `sentry:{}`
+                // they should not be allowed to be set via data ingest due to ambiguity
+                tags.0.retain(|x| x.0.as_ref().map(|(key, _)| {
+                    key.0.as_ref().map(|key| {
+                        key != "release" && key != "dist" && key != "user" && key != "filename" && key != "function"
+                    }).unwrap_or(true)
+                }).unwrap_or(true));
             }
 
             // port of src/sentry/eventtypes
