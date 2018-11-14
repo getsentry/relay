@@ -1,5 +1,7 @@
 use crate::processor::{ProcessingState, Processor};
-use crate::protocol::{ClientSdkInfo, DebugMeta, Exception, Request, Stacktrace, User, Values};
+use crate::protocol::{
+    ClientSdkInfo, DebugMeta, Exception, Request, Stacktrace, Thread, User, Values,
+};
 use crate::types::Annotated;
 
 fn collect_errors<T>(value: &Annotated<T>, name: &str) -> Option<String> {
@@ -34,6 +36,7 @@ fn collect_errors<T>(value: &Annotated<T>, name: &str) -> Option<String> {
 ///  - `Stacktrace.frames` -> `Stacktrace`
 ///  - `Exception.stacktrace` -> `Exception`
 ///  - `Exception.mechanism` -> `Exception`
+///  - `Thread.stacktrace` -> `Thread`
 ///  - `Request.method` -> `Request`
 ///  - `DebugMeta.images[]` -> `DebugMeta`
 ///  - `User.email` -> `User`
@@ -95,6 +98,22 @@ impl Processor for EscalateErrorsProcessor {
         }
 
         exception
+    }
+
+    fn process_thread(
+        &mut self,
+        mut thread: Annotated<Thread>,
+        _state: ProcessingState,
+    ) -> Annotated<Thread> {
+        // `Thread.stacktrace` -> `Thread`
+        if let Some(error) = thread
+            .value()
+            .and_then(|t| collect_errors(&t.stacktrace, "stacktrace"))
+        {
+            thread.meta_mut().add_error(error, None);
+        }
+
+        thread
     }
 
     fn process_stacktrace(
