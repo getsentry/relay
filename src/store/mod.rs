@@ -287,6 +287,22 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             event.received.0 = Some(current_timestamp);
             event.logger.0.get_or_insert_with(String::new);
 
+            event.environment =
+                event
+                    .environment
+                    .clone()
+                    .filter_map(Annotated::is_valid, |environment| {
+                        if environment.contains('\n')
+                            || environment.contains('\r')
+                            || environment.contains('\x0C')
+                            || environment.contains('/')
+                        {
+                            Err(Annotated::from_error("Invalid environment", None))
+                        } else {
+                            Ok(environment)
+                        }
+                    });
+
             if event.dist.0.is_some() && event.release.0.is_none() {
                 event.dist.0 = None;
             }
