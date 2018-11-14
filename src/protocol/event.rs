@@ -197,7 +197,7 @@ pub struct Event {
 
     /// Program's distribution identifier.
     #[metastructure(max_chars = "symbol")]
-    pub dist: Annotated<String>,
+    pub dist: Annotated<LenientString>,
 
     /// Environment the environment was generated in ("production" or "development").
     #[metastructure(max_chars = "symbol")]
@@ -357,7 +357,7 @@ fn test_event_roundtrip() {
         timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
         server_name: Annotated::new("myhost".to_string()),
         release: Annotated::new("myrelease".to_string()),
-        dist: Annotated::new("mydist".to_string()),
+        dist: Annotated::new("mydist".to_string().into()),
         environment: Annotated::new("myenv".to_string().into()),
         tags: {
             let mut items = Array::new();
