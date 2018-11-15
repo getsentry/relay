@@ -6,8 +6,8 @@
 //! ### Example
 //!
 //! ```
-//! use general::types::{Meta, Remark, RemarkType};
-//! use general::processor;
+//! use semaphore_general::types::{Meta, Remark, RemarkType};
+//! use semaphore_general::processor;
 //!
 //! let remarks = vec![Remark::with_range(
 //!     RemarkType::Substituted,

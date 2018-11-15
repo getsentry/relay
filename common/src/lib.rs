@@ -7,7 +7,7 @@ extern crate cadence;
 extern crate chrono;
 extern crate ed25519_dalek;
 extern crate failure;
-extern crate general;
+extern crate semaphore_general;
 extern crate human_size;
 extern crate marshal;
 extern crate parking_lot;
@@ -57,10 +57,10 @@ pub use sentry_types::{
 };
 
 // expose the general module entirely
-pub use general::{processor, store};
+pub use semaphore_general::{processor, store};
 
 /// The v8 version of the protocol.
 pub mod protocol {
-    pub use general::protocol::*;
-    pub use general::types::*;
+    pub use semaphore_general::protocol::*;
+    pub use semaphore_general::types::*;
 }

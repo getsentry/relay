@@ -20,7 +20,7 @@ extern crate difference;
 // we use macro_use here because we really consider this to be an internal
 // macro which currently cannot be imported.  Same thing with the macros mod
 #[macro_use]
-extern crate general_derive;
+extern crate semaphore_general_derive;
 
 #[macro_use]
 mod macros;

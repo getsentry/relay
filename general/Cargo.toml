@@ -1,5 +1,5 @@
 [package]
-name = "general"
+name = "semaphore-general"
 version = "0.1.0"
 authors = ["Armin Ronacher <armin.ronacher@active-4.com>"]
 
@@ -9,7 +9,7 @@ cookie = { version = "0.11.0", features = ["percent-encode"] }
 debugid = { version = "0.3.1", features = ["with_serde"] }
 failure = "0.1.3"
 failure_derive = "0.1.3"
-general_derive = { path = "derive" }
+semaphore-general-derive = { path = "derive" }
 itertools = "0.7.8"
 lazy_static = "1.2.0"
 maxminddb = "0.11.0"

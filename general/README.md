@@ -10,7 +10,3 @@
 General is a support library for [semaphore](https://github.com/getsentry/semaphore).  It implements the
 annotated Sentry protocol that supports metadata to be sent alongside.  It also implements a general
 processing layer.  This is a replacement for the older marshal library.
-
-## License
-
-General is licensed under the MIT license.

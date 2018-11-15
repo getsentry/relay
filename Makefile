@@ -8,7 +8,6 @@ setup-git:
 .PHONY: setup-git
 
 build:
-	@cargo build --all
 .PHONY: build
 
 releasebuild:
@@ -28,7 +27,7 @@ doc:
 test: cargotest pytest integration-test
 .PHONY: test
 
-cargotest:
+cargotest: GeoLite2-City.mmdb
 	@cargo test --all
 .PHONY: cargotest
 
@@ -89,3 +88,6 @@ test-process-event:
 devserver:
 	@systemfd --no-pid -s http::3000 -- cargo watch -x "run -- run"
 .PHONY: devserver
+
+GeoLite2-City.mmdb:
+	@curl http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.mmdb.gz | gzip -cd > $@

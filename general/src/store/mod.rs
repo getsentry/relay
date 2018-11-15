@@ -639,7 +639,7 @@ fn test_exception_invalid() {
 fn test_geo_from_ip_address() {
     use crate::protocol::Geo;
 
-    let lookup = GeoIpLookup::open("GeoLite2-City.mmdb").unwrap();
+    let lookup = GeoIpLookup::open("../GeoLite2-City.mmdb").unwrap();
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), Some(&lookup));
 
     let user = Annotated::new(User {

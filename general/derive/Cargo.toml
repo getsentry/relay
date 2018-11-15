@@ -1,5 +1,5 @@
 [package]
-name = "general_derive"
+name = "semaphore-general-derive"
 version = "0.1.0"
 authors = ["Armin Ronacher <armin.ronacher@active-4.com>"]
 
