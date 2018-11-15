@@ -13,9 +13,9 @@ use syn::{Data, Ident, Lit, LitBool, LitStr, Meta, MetaNameValue, NestedMeta};
 
 #[derive(Debug, Clone, Copy)]
 enum Trait {
-    FromValue,
-    ToValue,
-    ProcessValue,
+    From,
+    To,
+    Process,
 }
 
 decl_derive!([ToValue, attributes(metastructure)] => process_to_value);
@@ -23,15 +23,15 @@ decl_derive!([FromValue, attributes(metastructure)] => process_from_value);
 decl_derive!([ProcessValue, attributes(metastructure)] => process_process_value);
 
 fn process_to_value(s: synstructure::Structure) -> TokenStream {
-    process_metastructure_impl(s, Trait::ToValue)
+    process_metastructure_impl(s, Trait::To)
 }
 
 fn process_from_value(s: synstructure::Structure) -> TokenStream {
-    process_metastructure_impl(s, Trait::FromValue)
+    process_metastructure_impl(s, Trait::From)
 }
 
 fn process_process_value(s: synstructure::Structure) -> TokenStream {
-    process_metastructure_impl(s, Trait::ProcessValue)
+    process_metastructure_impl(s, Trait::Process)
 }
 
 fn process_wrapper_struct_derive(
@@ -53,7 +53,7 @@ fn process_wrapper_struct_derive(
         return Err(s);
     }
 
-    if let Some(_) = s.variants()[0].bindings()[0].ast().ident {
+    if s.variants()[0].bindings()[0].ast().ident.is_some() {
         // The variant has a name
         // e.g. `struct Foo { bar: Bar }` instead of `struct Foo(Bar)`
         return Err(s);
@@ -62,7 +62,7 @@ fn process_wrapper_struct_derive(
     let name = &s.ast().ident;
 
     Ok(match t {
-        Trait::FromValue => {
+        Trait::From=> {
             s.gen_impl(quote! {
                 gen impl crate::processor::FromValue for @Self {
                     #[inline(always)]
@@ -77,7 +77,7 @@ fn process_wrapper_struct_derive(
                 }
             })
         }
-        Trait::ToValue => {
+        Trait::To=> {
             s.gen_impl(quote! {
                 extern crate serde as __serde;
 
@@ -109,7 +109,7 @@ fn process_wrapper_struct_derive(
                 }
             })
         }
-        Trait::ProcessValue => {
+        Trait::Process=> {
             s.gen_impl(quote! {
                 gen impl crate::processor::ProcessValue for @Self {
                     #[inline(always)]
@@ -136,6 +136,7 @@ fn process_wrapper_struct_derive(
     })
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
 fn process_enum_struct_derive(
     s: synstructure::Structure,
     t: Trait,
@@ -332,7 +333,7 @@ fn process_enum_struct_derive(
     }
 
     Ok(match t {
-        Trait::FromValue => {
+        Trait::From=> {
             s.gen_impl(quote! {
                 gen impl crate::processor::FromValue for @Self {
                     fn from_value(
@@ -351,7 +352,7 @@ fn process_enum_struct_derive(
                 }
             })
         }
-        Trait::ToValue => {
+        Trait::To=> {
             s.gen_impl(quote! {
                 extern crate serde as __serde;
 
@@ -385,7 +386,7 @@ fn process_enum_struct_derive(
                 }
             })
         }
-        Trait::ProcessValue => {
+        Trait::Process=> {
             s.gen_impl(quote! {
                 gen impl crate::processor::ProcessValue for @Self {
                     fn process_child_values<P: crate::processor::Processor>(
@@ -407,6 +408,7 @@ fn process_enum_struct_derive(
     })
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
 fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStream {
     let s = match process_wrapper_struct_derive(s, t) {
         Ok(stream) => return stream,
@@ -723,7 +725,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     });
 
     match t {
-        Trait::FromValue => {
+        Trait::From=> {
             s.gen_impl(quote! {
                 gen impl crate::processor::FromValue for @Self {
                     fn from_value(
@@ -744,7 +746,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 }
             })
         }
-        Trait::ToValue => {
+        Trait::To=> {
             s.gen_impl(quote! {
                 extern crate serde as __serde;
 
@@ -786,7 +788,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 }
             })
         }
-        Trait::ProcessValue => {
+        Trait::Process=> {
             s.gen_impl(quote! {
                 gen impl crate::processor::ProcessValue for @Self {
                     #process_value
