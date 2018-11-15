@@ -10,8 +10,8 @@ use chrono::TimeZone;
 
 use crate::processor::{FromValue, ProcessValue, ToValue};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, Level,
-    LogEntry, Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
+    Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, Level, LogEntry,
+    Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
 };
 use crate::types::{Annotated, Array, Object, Value};
 

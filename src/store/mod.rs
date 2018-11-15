@@ -63,6 +63,8 @@ pub struct StoreConfig {
     pub protocol_version: Option<String>,
     pub stacktrace_frames_hard_limit: Option<usize>,
     pub valid_platforms: BTreeSet<String>,
+    pub max_secs_in_future: Option<i64>,
+    pub max_secs_in_past: Option<i64>,
 }
 
 impl StoreConfig {
@@ -300,19 +302,25 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                 .timestamp
                 .clone()
                 .filter_map(Annotated::is_valid, |timestamp| {
-                    if timestamp > current_timestamp + Duration::minutes(1) {
-                        Err((
-                            current_timestamp,
-                            Meta::from_error("Invalid timestamp (in future)", None),
-                        ))
-                    } else if timestamp < current_timestamp - Duration::days(30) {
-                        Err((
-                            current_timestamp,
-                            Meta::from_error("Invalid timestamp (too old)", None),
-                        ))
-                    } else {
-                        Ok(timestamp)
+                    if let Some(secs) = self.config.max_secs_in_future {
+                        if timestamp > current_timestamp + Duration::seconds(secs) {
+                            return Err((
+                                current_timestamp,
+                                Meta::from_error("Invalid timestamp (in future)", None),
+                            ));
+                        }
                     }
+
+                    if let Some(secs) = self.config.max_secs_in_past {
+                        if timestamp < current_timestamp - Duration::seconds(secs) {
+                            return Err((
+                                current_timestamp,
+                                Meta::from_error("Invalid timestamp (too old)", None),
+                            ));
+                        }
+                    }
+
+                    Ok(timestamp)
                 }).or_else(|| current_timestamp);
 
             if let Some(ref mut platform) = event.platform.0 {
