@@ -710,7 +710,7 @@ fn test_invalid_email() {
         user,
         Annotated::new(User {
             email: Annotated::from_error(
-                "invalid characters in string",
+                "Invalid characters in string",
                 Some(Value::String("bananabread".to_string()))
             ),
             ..Default::default()
