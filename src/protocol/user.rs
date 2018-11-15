@@ -31,7 +31,11 @@ pub struct User {
     pub id: Annotated<JsonLenientString>,
 
     /// Email address of the user.
-    #[metastructure(pii_kind = "email", max_chars = "email")]
+    #[metastructure(
+        pii_kind = "email",
+        max_chars = "email",
+        match_regex = r"^.*\@.*$"
+    )]
     pub email: Annotated<String>,
 
     /// Remote IP address of the user. Defaults to "{{auto}}".

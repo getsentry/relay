@@ -192,15 +192,19 @@ pub struct Event {
     pub server_name: Annotated<String>,
 
     /// Program's release identifier.
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = "symbol", match_regex = r"^[^\r\n]*\z")]
     pub release: Annotated<LenientString>,
 
     /// Program's distribution identifier.
-    #[metastructure(max_chars = "symbol")]
+    // Match whitespace here, which will later get trimmed
+    #[metastructure(
+        max_chars = "symbol",
+        match_regex = r"^\s*[a-zA-Z0-9_.-]+\s*$"
+    )]
     pub dist: Annotated<LenientString>,
 
     /// Environment the environment was generated in ("production" or "development").
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = "symbol", match_regex = r"^[^\r\n\x0C/]+$")]
     pub environment: Annotated<LenientString>,
 
     /// Deprecated in favor of tags
@@ -471,5 +475,21 @@ fn test_event_type() {
             .unwrap()
             .0
             .unwrap()
+    );
+}
+
+#[test]
+fn test_release_newlines() {
+    let event = Annotated::new(Event {
+        release: Annotated::from_error(
+            "Invalid characters in string",
+            Some(Value::String("a\nb".into())),
+        ),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(
+        Annotated::from_json(r#"{"release": "a\nb"}"#).unwrap(),
+        event
     );
 }

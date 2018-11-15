@@ -19,7 +19,10 @@ impl FromValue for Tags {
         type TagTuple = (Annotated<LenientString>, Annotated<LenientString>);
         fn check_chars(x: String) -> Result<String, Annotated<String>> {
             if x.contains('\n') {
-                Err(Annotated::from_error("invalid character in tag", Some(Value::String(x))))
+                Err(Annotated::from_error(
+                    "invalid character in tag",
+                    Some(Value::String(x)),
+                ))
             } else {
                 Ok(x)
             }
@@ -27,12 +30,14 @@ impl FromValue for Tags {
 
         match value {
             Annotated(Some(Value::Array(items)), meta) => {
-
                 let mut rv = Vec::new();
                 for item in items.into_iter() {
                     rv.push(TagTuple::from_value(item).map_value(|tuple| {
                         (
-                            tuple.0.and_then(|k| check_chars(k.0)).map_value(|x: String| x.trim().replace(" ", "-")),
+                            tuple
+                                .0
+                                .and_then(|k| check_chars(k.0))
+                                .map_value(|x: String| x.trim().replace(" ", "-")),
                             tuple.1.and_then(|v| check_chars(v.0)),
                         )
                     }));

@@ -430,6 +430,10 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         binding.style = synstructure::BindStyle::MoveMut;
     }
     let mut from_value_body = TokenStream::new();
+    (quote! {
+        use lazy_static::lazy_static;
+        use regex::Regex;
+    }).to_tokens(&mut from_value_body);
     let mut to_value_body = TokenStream::new();
     let mut process_value_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
@@ -485,6 +489,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         let mut pii_kind_attr = quote!(None);
         let mut required = None;
         let mut nonempty = None;
+        let mut match_regex = None;
+        let regex_bi = Ident::new(&format!("{}_REGEX", field_name), Span::call_site());
         let mut legacy_aliases = vec![];
         for attr in &bi.ast().attrs {
             let meta = match attr.interpret_meta() {
@@ -538,6 +544,11 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                                         _ => {
                                             panic!("Got non string literal for required");
                                         }
+                                    }
+                                } else if ident == "match_regex" {
+                                    match lit {
+                                        Lit::Str(litstr) => match_regex = Some(litstr.value().clone()),
+                                        _ => panic!("Got non string literal for match_regex")
                                     }
                                 } else if ident == "max_chars" {
                                     match lit {
@@ -662,6 +673,17 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 (quote! {
                     let mut #bi = #bi;
                     #bi.require_nonempty_value();
+                }).to_tokens(&mut from_value_body);
+            }
+
+            if let Some(match_regex) = match_regex {
+                (quote! {
+                    lazy_static! {
+                        static ref #regex_bi: Regex = Regex::new(#match_regex).unwrap();
+                    }
+
+                    let mut #bi = #bi;
+                    #bi.require_regex(&#regex_bi);
                 }).to_tokens(&mut from_value_body);
             }
 

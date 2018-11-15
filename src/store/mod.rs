@@ -25,10 +25,6 @@ mod stacktrace;
 
 pub use crate::store::geo::GeoIpLookup;
 
-lazy_static! {
-    static ref DIST_VALUE_RE: Regex = Regex::new(r"^[a-zA-Z0-9_.-]+$").unwrap();
-}
-
 fn parse_type_and_value(
     ty: Annotated<String>,
     value: Annotated<String>,
@@ -292,22 +288,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             event.received.0 = Some(current_timestamp);
             event.logger.0.get_or_insert_with(String::new);
 
-            event.environment =
-                event
-                    .environment
-                    .clone()
-                    .filter_map(Annotated::is_valid, |environment| {
-                        if environment.contains('\n')
-                            || environment.contains('\r')
-                            || environment.contains('\x0C')
-                            || environment.contains('/')
-                        {
-                            Err(Annotated::from_error("Invalid environment", None))
-                        } else {
-                            Ok(environment)
-                        }
-                    });
-
             if event.dist.0.is_some() && event.release.0.is_none() {
                 event.dist.0 = None;
             }
@@ -315,17 +295,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             if let Some(ref mut dist) = event.dist.0 {
                 *dist = dist.0.trim().to_owned().into();
             }
-
-            event.dist = event.dist.clone().filter_map(Annotated::is_valid, |dist| {
-                if !DIST_VALUE_RE.is_match(&dist.0) {
-                    Err(Annotated::from_error(
-                        "Invalid characters in distribution",
-                        Some(Value::String(dist.0)),
-                    ))
-                } else {
-                    Ok(dist)
-                }
-            });
 
             event.timestamp = event
                 .timestamp
@@ -381,14 +350,22 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                     tags.0 = new_tags;
                 }
 
-
                 // These tags are special and are used in pairing with `sentry:{}`
                 // they should not be allowed to be set via data ingest due to ambiguity
-                tags.0.retain(|x| x.0.as_ref().map(|(key, _)| {
-                    key.0.as_ref().map(|key| {
-                        key != "release" && key != "dist" && key != "user" && key != "filename" && key != "function"
-                    }).unwrap_or(true)
-                }).unwrap_or(true));
+                tags.0.retain(|x| {
+                    x.0.as_ref()
+                        .map(|(key, _)| {
+                            key.0
+                                .as_ref()
+                                .map(|key| {
+                                    key != "release"
+                                        && key != "dist"
+                                        && key != "user"
+                                        && key != "filename"
+                                        && key != "function"
+                                }).unwrap_or(true)
+                        }).unwrap_or(true)
+                });
             }
 
             // port of src/sentry/eventtypes
@@ -521,17 +498,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                     }
                 }
                 ip
-            }),
-            email: user.email.and_then(|email| {
-                // Validate email
-                if email.contains('@') {
-                    Ok(email)
-                } else {
-                    Err(Annotated::from_error(
-                        "invalid email address",
-                        Some(Value::String(email)),
-                    ))
-                }
             }),
             ..user
         }).filter_map(Annotated::is_valid, |mut user| {
