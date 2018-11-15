@@ -293,7 +293,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             }
 
             if let Some(ref mut dist) = event.dist.0 {
-                *dist = dist.0.trim().to_owned().into();
+                *dist = dist.trim().to_owned();
             }
 
             event.timestamp = event

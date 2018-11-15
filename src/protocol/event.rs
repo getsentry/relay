@@ -10,7 +10,7 @@ use chrono::TimeZone;
 
 use crate::processor::{FromValue, ProcessValue, ToValue};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, LenientString, Level,
+    Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, Level,
     LogEntry, Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
 };
 use crate::types::{Annotated, Array, Object, Value};
@@ -194,7 +194,7 @@ pub struct Event {
 
     /// Program's release identifier.
     #[metastructure(max_chars = "symbol", match_regex = r"^[^\r\n]*\z")]
-    pub release: Annotated<LenientString>,
+    pub release: Annotated<String>,
 
     /// Program's distribution identifier.
     // Match whitespace here, which will later get trimmed
@@ -202,15 +202,15 @@ pub struct Event {
         max_chars = "symbol",
         match_regex = r"^\s*[a-zA-Z0-9_.-]+\s*$"
     )]
-    pub dist: Annotated<LenientString>,
+    pub dist: Annotated<String>,
 
     /// Environment the environment was generated in ("production" or "development").
     #[metastructure(max_chars = "enumlike", match_regex = r"^[^\r\n\x0C/]+$")]
-    pub environment: Annotated<LenientString>,
+    pub environment: Annotated<String>,
 
     /// Deprecated in favor of tags
     #[metastructure(max_chars = "symbol")]
-    pub site: Annotated<LenientString>,
+    pub site: Annotated<String>,
 
     /// Information about the user who triggered this event.
     #[metastructure(legacy_alias = "sentry.interfaces.User")]
