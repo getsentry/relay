@@ -703,18 +703,14 @@ fn test_geo_from_ip_address() {
 fn test_invalid_email() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
-    let user = Annotated::new(User {
-        email: Annotated::new("bananabread".to_string()),
-        ..Default::default()
-    });
-
+    let user = Annotated::from_json(r#"{"email": "bananabread"}"#).unwrap();
     let user = user.process(&mut processor);
 
     assert_eq_dbg!(
         user,
         Annotated::new(User {
             email: Annotated::from_error(
-                "invalid email address",
+                "invalid characters in string",
                 Some(Value::String("bananabread".to_string()))
             ),
             ..Default::default()
