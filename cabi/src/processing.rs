@@ -8,7 +8,7 @@ use semaphore_common::v8_compat::Remark;
 use semaphore_common::protocol::{Annotated, Event};
 use semaphore_common::store::{GeoIpLookup, StoreConfig, StoreNormalizeProcessor};
 
-use core::SemaphoreStr;
+use crate::core::SemaphoreStr;
 
 pub struct SemaphoreGeoIpLookup;
 pub struct SemaphoreStoreNormalizer;

@@ -6,7 +6,7 @@ use semaphore_common::{
     Uuid,
 };
 
-use core::{SemaphoreBuf, SemaphoreStr, SemaphoreUuid};
+use crate::core::{SemaphoreBuf, SemaphoreStr, SemaphoreUuid};
 
 /// Represents a public key in semaphore.
 pub struct SemaphorePublicKey;
