@@ -24,9 +24,6 @@ branches:
     - master
     - /^release\/[\d.]+$/
 
-before_script:
-  - sudo apt-get install libgeoip-dev
-
 install: skip
 script: make $SUITE
 
@@ -58,6 +55,7 @@ matrix:
         apt:
           packages:
             - libssl-dev
+            - libgeoip-dev
       rust: nightly
       install:
         - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
