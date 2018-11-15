@@ -24,6 +24,9 @@ branches:
     - master
     - /^release\/[\d.]+$/
 
+before_script:
+  - sudo apt-get install libgeoip-dev
+
 install: skip
 script: make $SUITE
 
