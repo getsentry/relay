@@ -161,7 +161,8 @@ pub struct Event {
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
-    // TODO: Cap? Is often dotted path or URL path, but could be anything
+    // TODO: Is this the right cap? Is often dotted path or URL path, but could be anything
+    #[metastructure(max_chars = "symbol")]
     pub transaction: Annotated<String>,
 
     /// Custom parameterized message for this event.
@@ -172,7 +173,7 @@ pub struct Event {
     pub logentry: Annotated<LogEntry>,
 
     /// Logger that created the event.
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = "symbol", match_regex = r"^[^\r\n]+\z")]
     pub logger: Annotated<String>,
 
     /// Name and versions of installed modules.
