@@ -12,9 +12,9 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 
 use semaphore_common::{Config, PublicKey, RelayId, RetryBackoff};
 
-use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
-use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
-use utils::{self, ApiErrorResponse, LogError, Response, SyncActorFuture, SyncHandle};
+use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
+use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::utils::{self, ApiErrorResponse, LogError, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 #[fail(display = "failed to fetch keys")]
@@ -224,7 +224,7 @@ impl KeyCache {
             .map(move |key| (relay_id, (*key).clone()))
             .map_err(|_| KeyError::FetchFailed);
 
-        Response::async(receiver)
+        Response::r#async(receiver)
     }
 }
 
@@ -320,7 +320,7 @@ impl Handler<GetPublicKeys> for KeyCache {
             GetPublicKeysResult { public_keys }
         });
 
-        Response::async(future)
+        Response::r#async(future)
     }
 }
 

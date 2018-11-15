@@ -2,9 +2,11 @@ use actix::prelude::*;
 use actix_web::{http::Method, Error, Json};
 use futures::{future, Future};
 
-use actors::project::{GetProject, GetProjectState, GetProjectStates, GetProjectStatesResponse};
-use extractors::{CurrentServiceState, SignedJson};
-use service::ServiceApp;
+use crate::actors::project::{
+    GetProject, GetProjectState, GetProjectStates, GetProjectStatesResponse,
+};
+use crate::extractors::{CurrentServiceState, SignedJson};
+use crate::service::ServiceApp;
 
 #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 fn get_project_configs(

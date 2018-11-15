@@ -4,10 +4,10 @@ use futures::prelude::*;
 
 use semaphore_common::Config;
 
-use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
-use service::{self, ServiceState};
+use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
+use crate::service::{self, ServiceState};
 
-pub use service::ServerError;
+pub use crate::service::ServerError;
 
 pub struct Server {
     http_server: Recipient<StopServer>,

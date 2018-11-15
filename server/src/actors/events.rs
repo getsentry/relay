@@ -11,14 +11,14 @@ use serde_json;
 use semaphore_common::v8_compat::{self, Annotated, Event};
 use semaphore_common::{Config, ProjectId, Uuid};
 
-use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
-use actors::project::{
+use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
+use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
     ProjectState, RetryAfter,
 };
-use actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
-use extractors::EventMeta;
-use utils::{LogError, SyncActorFuture, SyncHandle};
+use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
+use crate::extractors::EventMeta;
+use crate::utils::{LogError, SyncActorFuture, SyncHandle};
 
 macro_rules! clone {
     (@param _) => ( _ );

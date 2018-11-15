@@ -16,7 +16,7 @@ use semaphore_common::{
     Config, RegisterChallenge, RegisterRequest, RegisterResponse, Registration, RetryBackoff,
 };
 
-use utils::LogError;
+use crate::utils::LogError;
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -251,13 +251,13 @@ impl Handler<IsAuthenticated> for UpstreamRelay {
 }
 
 pub trait RequestBuilder: 'static {
-    fn build_request(self, &mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>;
+    fn build_request(self, _: &mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>;
 }
 
 pub trait ResponseTransformer: 'static {
     type Result: 'static;
 
-    fn transform_response(self, ClientResponse) -> Self::Result;
+    fn transform_response(self, _: ClientResponse) -> Self::Result;
 }
 
 impl RequestBuilder for () {

@@ -4,10 +4,10 @@ use actix_web::http::{header, header::HeaderName, ContentEncoding};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use futures::prelude::*;
 
-use body::ForwardBody;
-use extractors::ForwardedFor;
+use crate::body::ForwardBody;
+use crate::extractors::ForwardedFor;
+use crate::service::{ServiceApp, ServiceState};
 use semaphore_common::{Config, GlobMatcher};
-use service::{ServiceApp, ServiceState};
 
 static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
     header::CONNECTION,

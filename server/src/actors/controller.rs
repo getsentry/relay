@@ -6,10 +6,10 @@ use actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
 
-use constants::SHUTDOWN_TIMEOUT;
+use crate::constants::SHUTDOWN_TIMEOUT;
 
-pub use service::ServerError;
-pub use utils::TimeoutError;
+pub use crate::service::ServerError;
+pub use crate::utils::TimeoutError;
 
 pub struct Controller {
     timeout: Duration,

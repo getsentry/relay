@@ -6,8 +6,8 @@ use url::Url;
 
 use semaphore_common::{Auth, AuthParseError};
 
-use extractors::ForwardedFor;
-use utils::ApiErrorResponse;
+use crate::extractors::ForwardedFor;
+use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, Fail)]
 pub enum BadEventMeta {

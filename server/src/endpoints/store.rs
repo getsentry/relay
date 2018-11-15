@@ -12,12 +12,12 @@ use sentry_actix::ActixWebHubExt;
 
 use semaphore_common::{ProjectId, ProjectIdParseError, Uuid};
 
-use actors::events::{EventError, QueueEvent};
-use actors::project::{EventAction, GetEventAction, GetProject, ProjectError};
-use body::{StoreBody, StorePayloadError};
-use extractors::EventMeta;
-use service::{ServiceApp, ServiceState};
-use utils::ApiErrorResponse;
+use crate::actors::events::{EventError, QueueEvent};
+use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError};
+use crate::body::{StoreBody, StorePayloadError};
+use crate::extractors::EventMeta;
+use crate::service::{ServiceApp, ServiceState};
+use crate::utils::ApiErrorResponse;
 
 #[derive(Fail, Debug)]
 enum BadStoreRequest {

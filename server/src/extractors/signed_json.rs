@@ -7,9 +7,9 @@ use serde::de::DeserializeOwned;
 
 use semaphore_common::{PublicKey, RelayId};
 
-use actors::keys::GetPublicKey;
-use service::ServiceState;
-use utils::ApiErrorResponse;
+use crate::actors::keys::GetPublicKey;
+use crate::service::ServiceState;
+use crate::utils::ApiErrorResponse;
 
 #[derive(Debug)]
 pub struct SignedJson<T> {

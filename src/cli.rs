@@ -12,10 +12,10 @@ use semaphore_common::v8_compat::{Annotated, Event};
 use semaphore_common::{Config, Credentials, MinimalConfig, Uuid};
 use semaphore_server;
 
-use cliapp::make_app;
-use setup;
-use utils;
-use utils::get_theme;
+use crate::cliapp::make_app;
+use crate::setup;
+use crate::utils;
+use crate::utils::get_theme;
 
 type EventV8 = Annotated<Event>;
 

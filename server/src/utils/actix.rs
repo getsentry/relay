@@ -43,7 +43,7 @@ impl<T, E> Response<T, E> {
         Response::Reply(result)
     }
 
-    pub fn async<F>(future: F) -> Self
+    pub fn r#async<F>(future: F) -> Self
     where
         F: IntoFuture<Item = T, Error = E>,
         F::Future: 'static,
@@ -59,7 +59,7 @@ impl<T: 'static, E: 'static> Response<T, E> {
     {
         match self {
             Response::Reply(result) => Response::reply(result.map(f)),
-            Response::Async(future) => Response::async(future.map(f)),
+            Response::Async(future) => Response::r#async(future.map(f)),
         }
     }
 }

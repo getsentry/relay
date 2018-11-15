@@ -41,12 +41,12 @@ mod types;
 mod upstream;
 mod utils;
 
-pub use auth::*;
-pub use config::*;
-pub use retry::*;
-pub use types::*;
-pub use upstream::*;
-pub use utils::*;
+pub use crate::auth::*;
+pub use crate::config::*;
+pub use crate::retry::*;
+pub use crate::types::*;
+pub use crate::upstream::*;
+pub use crate::utils::*;
 
 // compat behavior
 pub use marshal::processor as processor_compat;

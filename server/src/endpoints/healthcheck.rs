@@ -3,10 +3,10 @@ use actix::prelude::*;
 use actix_web::{http::Method, Error, HttpResponse};
 use futures::prelude::*;
 
-use extractors::CurrentServiceState;
-use service::ServiceApp;
+use crate::extractors::CurrentServiceState;
+use crate::service::ServiceApp;
 
-use actors::upstream::IsAuthenticated;
+use crate::actors::upstream::IsAuthenticated;
 
 #[derive(Serialize)]
 struct HealthcheckResponse {
