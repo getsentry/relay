@@ -44,11 +44,11 @@ mod middlewares;
 mod service;
 mod utils;
 
-use actors::controller::Controller;
-use actors::server::Server;
+use crate::actors::controller::Controller;
+use crate::actors::server::Server;
 use semaphore_common::Config;
 
-pub use actors::controller::ServerError;
+pub use crate::actors::controller::ServerError;
 
 /// Runs a relay web server and spawns all internal worker threads.
 ///

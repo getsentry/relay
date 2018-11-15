@@ -10,13 +10,13 @@ use sentry_actix::SentryMiddleware;
 
 use semaphore_common::Config;
 
-use actors::events::EventManager;
-use actors::keys::KeyCache;
-use actors::project::ProjectCache;
-use actors::upstream::UpstreamRelay;
-use constants::SHUTDOWN_TIMEOUT;
-use endpoints;
-use middlewares::{AddCommonHeaders, ErrorHandlers, Metrics};
+use crate::actors::events::EventManager;
+use crate::actors::keys::KeyCache;
+use crate::actors::project::ProjectCache;
+use crate::actors::upstream::UpstreamRelay;
+use crate::constants::SHUTDOWN_TIMEOUT;
+use crate::endpoints;
+use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics};
 
 /// Common error type for the relay server.
 #[derive(Debug)]

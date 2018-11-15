@@ -1,6 +1,6 @@
 use actix_web::State;
 
-use service::ServiceState;
+use crate::service::ServiceState;
 
 mod event_meta;
 mod forwarded_for;

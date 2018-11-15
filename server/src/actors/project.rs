@@ -21,10 +21,10 @@ use semaphore_common::{
     processor_compat::PiiConfig, Config, ProjectId, PublicKey, RetryBackoff, Uuid,
 };
 
-use actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
-use actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
-use extractors::EventMeta;
-use utils::{self, LogError, One, Response, SyncActorFuture, SyncHandle};
+use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
+use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::extractors::EventMeta;
+use crate::utils::{self, LogError, One, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -94,7 +94,7 @@ impl Project {
             .map(|shared| (*shared).clone())
             .map_err(|_| ProjectError::FetchFailed);
 
-        Response::async(future)
+        Response::r#async(future)
     }
 
     fn fetch_state(
@@ -690,7 +690,7 @@ impl Handler<FetchProjectState> for ProjectCache {
             error!("project {} state fetched multiple times", message.id);
         }
 
-        Response::async(
+        Response::r#async(
             receiver
                 .map(|state| ProjectStateResponse {
                     state: Arc::new(state),

@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use backoff::backoff::Backoff;
 use backoff::ExponentialBackoff;
 
-use config::Config;
+use crate::config::Config;
 
 /// Backoff multiplier (1.5 which is 50% increase per backoff).
 const DEFAULT_MULTIPLIER: f64 = 1.5;

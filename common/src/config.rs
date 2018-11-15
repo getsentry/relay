@@ -15,9 +15,9 @@ use serde::ser::Serialize;
 use serde_json;
 use serde_yaml;
 
-use auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
-use types::ByteSize;
-use upstream::UpstreamDescriptor;
+use crate::auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
+use crate::types::ByteSize;
+use crate::upstream::UpstreamDescriptor;
 
 macro_rules! ctry {
     ($expr:expr, $kind:expr, $path:expr) => {

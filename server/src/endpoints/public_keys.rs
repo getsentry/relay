@@ -2,9 +2,9 @@ use actix::ResponseFuture;
 use actix_web::{http::Method, Error, Json};
 use futures::prelude::*;
 
-use actors::keys::{GetPublicKeys, GetPublicKeysResult};
-use extractors::{CurrentServiceState, SignedJson};
-use service::ServiceApp;
+use crate::actors::keys::{GetPublicKeys, GetPublicKeysResult};
+use crate::extractors::{CurrentServiceState, SignedJson};
+use crate::service::ServiceApp;
 
 #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 fn get_public_keys(

@@ -8,7 +8,7 @@ use std::str;
 use failure::Error;
 use semaphore_common::{KeyParseError, UnpackError, Uuid};
 
-use utils::{set_panic_hook, Panic, LAST_ERROR};
+use crate::utils::{set_panic_hook, Panic, LAST_ERROR};
 
 /// Represents a uuid.
 #[repr(C)]
