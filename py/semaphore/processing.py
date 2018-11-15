@@ -5,7 +5,7 @@ from semaphore._lowlevel import lib, ffi
 from semaphore.utils import encode_str, decode_str, rustcall, RustObject, attached_refs
 
 
-__all__ = ['split_chunks', 'meta_with_chunks', 'StoreNormalizer', 'GeoIoLookup']
+__all__ = ['split_chunks', 'meta_with_chunks', 'StoreNormalizer', 'GeoIpLookup']
 
 
 def split_chunks(string, remarks):
@@ -36,7 +36,7 @@ def meta_with_chunks(data, meta):
     return result
 
 
-class GeoIoLookup(RustObject):
+class GeoIpLookup(RustObject):
     __dealloc_func__ = lib.semaphore_geoip_lookup_free
 
     @classmethod
@@ -48,7 +48,7 @@ class GeoIoLookup(RustObject):
         return rv
 
     def __repr__(self):
-        return '<GeoIoLookup %r>' % (self.path,)
+        return '<GeoIpLookup %r>' % (self.path,)
 
 
 class StoreNormalizer(RustObject):
