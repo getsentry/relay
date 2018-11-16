@@ -1,0 +1,25 @@
+---
+minVersion: '0.6.0'
+github:
+  owner: getsentry
+  repo: semaphore
+changelogPolicy: simple
+targets:
+  - name: pypi
+  - name: github
+  - name: registry
+    type: app
+    urlTemplate: "https://downloads.sentry-cdn.com/semaphore/{{version}}/{{file}}"
+    includeNames: /^semaphore-(Darwin|Linux|Windows).*$/i
+    config:
+      canonical: "app:semaphore"
+  - name: gcs
+    bucket: sentry-sdk-assets
+    includeNames: /^semaphore-(Darwin|Windows|Linux).*$/
+    paths:
+      - path: /semaphore/{{version}}/
+        metadata:
+          cacheControl: 'public, max-age=2592000'
+      - path: /semaphore/latest/
+        metadata:
+          cacheControl: 'public, max-age=600'

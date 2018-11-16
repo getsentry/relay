@@ -1,0 +1,13 @@
+[package]
+name = "semaphore-general-derive"
+version = "0.1.0"
+authors = ["Armin Ronacher <armin.ronacher@active-4.com>"]
+
+[dependencies]
+quote = "0.6.8"
+syn = "0.15.11"
+synstructure = "0.10.1"
+proc-macro2 = "0.4.20"
+
+[lib]
+proc-macro = true

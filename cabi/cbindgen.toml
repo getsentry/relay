@@ -1,0 +1,9 @@
+header = "/* c bindings to the sentry relay library */"
+include_guard = "SEMAPHORE_H_INCLUDED"
+language = "C"
+
+[parse]
+expand = ["semaphore-cabi"]
+
+[enum]
+rename_variants = "QualifiedScreamingSnakeCase"

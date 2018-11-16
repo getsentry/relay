@@ -1,0 +1,10 @@
+.dockerignore
+.git
+.vscode
+.*.swp
+.travis*
+*.pyc
+target/
+cabi/target
+Dockerfile
+py/venv

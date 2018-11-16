@@ -1,5 +1,11 @@
-target
 **/*.rs.bk
+*.pyc
+.DS_Store
+.hypothesis
+.pytest_cache
+.semaphore
 Cargo.lock
-GeoLiteCity.dat
 GeoLite2-City.mmdb
+GeoLiteCity.dat
+target
+tests/venv/

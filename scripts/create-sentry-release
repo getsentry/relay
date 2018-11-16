@@ -1,0 +1,36 @@
+#!/bin/bash
+set -eu
+# Required environment variables:
+#   SENTRY_AUTH_TOKEN: Sentry auth token (https://sentry.io/settings/account/api/auth-tokens/)
+
+VERSION="${1:-}"
+SENTRY_PROJECT="relay"
+GITHUB_PROJECT="getsentry/semaphore"
+
+if [ -z "${VERSION}" ]; then
+  echo 'No version specified' && exit 1
+fi
+
+
+if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
+  echo 'No Sentry auth token found' && exit 1
+fi
+
+echo 'Creating a new release...'
+curl \
+  "https://sentry.io/api/0/organizations/sentry/releases/" \
+	-X POST \
+  -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+	-H "Content-Type: application/json" \
+	--data "
+    {
+      \"version\":\"${VERSION}\",
+      \"refs\": [{
+        \"repository\": \"${GITHUB_PROJECT}\",
+        \"commit\": \"${VERSION}\"
+      }],
+      \"projects\": [\"${SENTRY_PROJECT}\"]
+    }"
+
+echo
+echo 'Release created.'

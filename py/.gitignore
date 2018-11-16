@@ -1,0 +1,15 @@
+venv
+
+# FFI
+semaphore/_lowlevel*
+
+# Wheels
+dist
+build
+*.egg-info
+.eggs
+
+# sdist
+version.txt
+rustsrc.zip
+MANIFEST

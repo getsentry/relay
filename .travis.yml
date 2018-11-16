@@ -1,22 +1,179 @@
-os: linux
 language: rust
+
 cache:
-  cargo: true
+  directories:
+    - cabi/target
+    - py/venv
+    - $HOME/.cargo
+    - $TRAVIS_BUILD_DIR/target
+  timeout: 1200
 
 git:
   depth: 1
 
+env:
+  global:
+    - IMAGE_NAME=getsentry/semaphore
+    # DOCKER_USER
+    - secure: "G2yD0snSwzlzxOzUXBVJcwo0nGVuTTndaGM+yQKkVGXq/S2OR2xwgyc81GW2u6qky/ISAcaqwE7+MlG7qaAOx2mQawpHgT9J9+teMcjiGIhcg0YFm4ef4Ry55kNbMsPC/FzWcx2qFo9Gfk0WQasM1stjz6Eet/6Zm7RLHLBwzxz+aFCrXwbYqkgyV76AUISuZZDvl325oRmZzi1S7Z/uty/nrAoDSH3qSh1LftTVj9g1kKzirTcDV66aXz3hYK+FmnaWfmin/Z7DWA5+r80M87kFhXE6iOeXx0JEmHb73RwHYzLFzfhQNBFoLtVe01DuNwDtzri/JqAXgLmSCrUZFfkVRZgiBQptOPNqD8lT2JWYVX5pTB1PSpp+GOccizfkQ7JTnVT4CNaNHs00CXEcAkd/jnq6BVYVG26pKwTq6dTp7dzT4wSBfl7VXPXSGAwXkbcNp+15sfNNKkoTwdiLmtPjzGXttAqHMARp832Aj3YxIwD4ar1h2F7W+Hu4WQK1WD1qf6yl0T0mqBnH2xnbgKzp1akEQhGOvCoH6ySEUPPoQ5M6enZTetcV5EdtQrXrBwMun+O5IyxTzpYegKv8n1aRlNysqapYD3Z/e58OwepnGKsOv08Ru9oO8/BqgcyDipsj4BO8s0iOU6b3KcSJp6eFNdNszme6JftTzV3jItM="
+    # DOCKER_PASS
+    - secure: "qFz5/gwrSuLY96apTRmMnsCsLLABmrvGkXdqFXmip+86y73oFLQGSHRgztoa7MNEno9aNls7QGFDvrfvxOhKMzI7TmXPSdf5bEAKlhikdMbeDdJdjgqxJMDO9gRpO2wu+k4lDiLFo1fPQKiMrtU0D1qM5jyRZTuK4Z2TMRBZV9/OmWSE+VuzremXMtbrjarWf6HLXRh0g1W/UXVx7GcGQlmjCEG3/xGCkqhQGHCJpiuohHJ+NTMneF+LCB1syhe1CmqLqgZJzTfvgNQnxpFAxUwnl9ZSrVjjz6bSHyPf5ZIFN4+5JrrZG5B2DixA2ZY8rPBP+VuNSa9kjcyreob9ecOsXGZOVhRFJxEAmM4gy2FWHtUBVYMNeH2c8mNW9fG4/a+1t21v+0NAtYlZzTsv1FunV+JARs9MCYeo2KmGa2usQZPMm83weTXpkrSMz9rVEbT9AR23lf36gY//VwN+uQdpXqE+YIWHtxE3FlAepT99xpRqiewUo8ww/JXNc24Or4tKfA/FLiJIwTanTdjTbFaW3A71OQzT4cu2lx7iM2XUpXu4cGXjh3D480+EJ/xnqGrKDbs0Zj3DtfCVmXHx89onlqnZm4W5CYCuR0W5VFlnipHHvAj1woWeimvFM2YNWx4BrES++VUfLtT9pKCiZqXPdcHH5zoV9T3SI2lNmBM="
+
 branches:
   only:
     - master
+    - /^release\/[\d.]+$/
 
-before_script:
-  - sudo apt-get install libgeoip-dev
-
+install: skip
 script: make $SUITE
 
 matrix:
+  fast_finish: true
   include:
-    - env: SUITE=format-check
-    - env: SUITE=lint
-    - env: SUITE=test
+    # -------------------------------------
+    # STATIC ANALYSIS
+    # -------------------------------------
+
+    - name: "check: codestyle"
+      env: SUITE=format-check
+
+    - name: "check: lint"
+      env: SUITE=lint
+      install:
+        - rustup toolchain add beta
+        - rustup override set beta
+
+    # -------------------------------------
+    # RUST TESTS
+    # -------------------------------------
+
+    - name: "test: semaphore[linux]"
+      os: linux
+      env: SUITE=cargotest-cov
+      sudo: required
+      addons:
+        apt:
+          packages:
+            - libssl-dev
+            - libgeoip-dev
+      rust: nightly
+      install:
+        - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
+
+    - name: "test: semaphore[macos]"
+      os: osx
+      env: SUITE=cargotest
+      install: cargo build --all
+
+    # -------------------------------------
+    # PYTHON LIBRARY TESTS
+    # -------------------------------------
+
+    - name: "test: libsemaphore"
+      os: linux
+      env: SUITE=pytest
+
+    # -------------------------------------
+    # EXECUTALE INTEGRATION TESTS
+    # -------------------------------------
+
+    - name: "integration-test: semaphore"
+      os: linux
+      env: PYTHON=python3.7 SUITE=integration-test
+      language: python
+      python: "3.7"
+      # https://github.com/travis-ci/travis-ci/issues/9831
+      dist: xenial
+      sudo: true
+      install:
+        - curl https://sh.rustup.rs -sSf | sh -s -- -y
+        - export PATH=$PATH:$HOME/.cargo/bin
+        - wget https://github.com/yyyar/gobetween/releases/download/0.6.0/gobetween_0.6.0_linux_amd64.tar.gz -O - | tar xz; mv gobetween $HOME/.cargo/bin
+        - sudo add-apt-repository ppa:vbernat/haproxy-1.8 -y
+        - sudo apt-get update
+        - sudo apt-get install haproxy -y
+
+    # -------------------------------------
+    # RUST RELEASE BUILDS
+    # -------------------------------------
+
+    - name: "release: semaphore[linux]"
+      os: linux
+      language: generic
+      services:
+        - docker
+      env:
+        - SUITE=releasebuild-docker
+        - BUILD_ARCH=x86_64
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/octet-stream" -n semaphore-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/semaphore
+        # Build and push image to Dockerhub, on master branch only
+        - bash scripts/push-docker-image.sh
+
+    # - os: linux
+    #   language: generic
+    #   env:
+    #     - SUITE=releasebuild-docker
+    #     - BUILD_ARCH=i686
+    #   after_success:
+    #     - npm install -g @zeus-ci/cli
+    #     - zeus upload -t "application/octet-stream"
+    #                   -n semaphore-Linux-i686
+    #                   target/i686-unknown-linux-gnu/release/semaphore
+
+    - name: "release: semaphore[macos]"
+      os: osx
+      osx_image: xcode9.2
+      env: SUITE=releasebuild
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/octet-stream" -n semaphore-Darwin-x86_64 target/release/semaphore
+
+    # -------------------------------------
+    # PYTHON RELEASE BUILDS
+    # -------------------------------------
+
+    - name: "release: libsemaphore[linux-x86]"
+      os: linux
+      sudo: required
+      env: SUITE=manylinux BUILD_ARCH=i686
+      language: generic
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
+
+    - name: "release: libsemaphore[linux-x86_64]"
+      sudo: required
+      env: SUITE=manylinux BUILD_ARCH=x86_64
+      language: generic
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
+
+    - name: "release: libsemaphore[macos]"
+      os: osx
+      osx_image: xcode7.3
+      env: SUITE=wheel
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
+
+    - name: "release: libsemaphore[sdist]"
+      os: linux
+      sudo: required
+      env: SUITE=sdist
+      language: generic
+      after_success:
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/zip+wheel" py/dist/*
+
+notifications:
+  webhooks:
+    urls:
+      - https://zeus.ci/hooks/a3901574-fbb7-11e7-9451-0a580a280114/public/provider/travis/webhook
+    on_success: always
+    on_failure: always
+    on_start: always
+    on_cancel: always
+    on_error: always
