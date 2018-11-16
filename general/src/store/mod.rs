@@ -350,7 +350,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                         ) = tuple
                         {
                             if k == "environment" {
-                                event.environment.0 = Some(v.clone().into());
+                                event.environment.0 = Some(v.clone());
                                 continue;
                             }
                         }
