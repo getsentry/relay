@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use regex::Regex;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_derive::Serialize;
@@ -410,7 +411,7 @@ impl Annotated<String> {
         let limit = max_chars.limit();
         let allowance_limit = limit + max_chars.allowance();
 
-        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() < allowance_limit {
+        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() <= allowance_limit {
             return self;
         }
 
@@ -520,6 +521,29 @@ impl<T: IsEmpty> Annotated<T> {
         {
             self.0 = None;
             self.1.add_error("non-empty value required", None);
+        }
+    }
+}
+
+impl<T> Annotated<T>
+where
+    T: AsRef<str>,
+{
+    pub fn require_regex(&mut self, re: &Regex) {
+        if self.1.has_errors() {
+            return;
+        }
+
+        if self
+            .0
+            .as_ref()
+            .map(|x| !re.is_match(x.as_ref()))
+            .unwrap_or(false)
+        {
+            self.1.add_error(
+                "Invalid characters in string",
+                self.0.take().map(|x| Value::String(x.as_ref().to_owned())),
+            );
         }
     }
 }

@@ -1,9 +1,9 @@
-use crate::processor::FromValue;
+use crate::processor::{FromValue, ProcessValue, ProcessingState, Processor};
 use crate::protocol::LenientString;
 use crate::types::{Annotated, Array, Value};
 
 /// Manual key/value tag pairs.
-#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
+#[derive(Debug, Clone, PartialEq, ToValue)]
 pub struct Tags(pub Array<(Annotated<String>, Annotated<String>)>);
 
 impl std::ops::Deref for Tags {
@@ -17,14 +17,28 @@ impl std::ops::Deref for Tags {
 impl FromValue for Tags {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         type TagTuple = (Annotated<LenientString>, Annotated<LenientString>);
+        fn check_chars(x: String) -> Result<String, Annotated<String>> {
+            if x.contains('\n') {
+                Err(Annotated::from_error(
+                    "invalid character in tag",
+                    Some(Value::String(x)),
+                ))
+            } else {
+                Ok(x)
+            }
+        }
+
         match value {
             Annotated(Some(Value::Array(items)), meta) => {
                 let mut rv = Vec::new();
                 for item in items.into_iter() {
                     rv.push(TagTuple::from_value(item).map_value(|tuple| {
                         (
-                            tuple.0.map_value(|key| key.0.trim().replace(" ", "-")),
-                            tuple.1.map_value(|v| v.0),
+                            tuple
+                                .0
+                                .and_then(|k| check_chars(k.0))
+                                .map_value(|x: String| x.trim().replace(" ", "-")),
+                            tuple.1.and_then(|v| check_chars(v.0)),
                         )
                     }));
                 }
@@ -50,6 +64,45 @@ impl FromValue for Tags {
             }
             other => FromValue::from_value(other).map_value(Tags),
         }
+    }
+}
+
+impl ProcessValue for Tags {
+    #[inline(always)]
+    fn process_value<P: Processor>(
+        value: Annotated<Self>,
+        processor: &mut P,
+        state: ProcessingState,
+    ) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        #[derive(Debug, PartialEq, FromValue, ToValue, ProcessValue)]
+        struct RealTags {
+            #[metastructure(max_chars = "tag_key")]
+            key: Annotated<String>,
+            #[metastructure(max_chars = "tag_value")]
+            value: Annotated<String>,
+        }
+
+        let v: Annotated<Array<RealTags>> = ProcessValue::process_value(
+            value.map_value(|tags| {
+                tags.0
+                    .into_iter()
+                    .map(|value| value.map_value(|(key, value)| RealTags { key, value }))
+                    .collect()
+            }),
+            processor,
+            state,
+        );
+
+        v.map_value(|tags| {
+            Tags(
+                tags.into_iter()
+                    .map(|value| value.map_value(|RealTags { key, value }| (key, value)))
+                    .collect(),
+            )
+        })
     }
 }
 

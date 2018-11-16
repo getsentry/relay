@@ -359,6 +359,12 @@ impl std::ops::Deref for LenientString {
     }
 }
 
+impl From<String> for LenientString {
+    fn from(value: String) -> LenientString {
+        LenientString(value)
+    }
+}
+
 impl FromValue for LenientString {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {

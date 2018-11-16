@@ -1,4 +1,5 @@
 use crate::processor::FromValue;
+use crate::protocol::LenientString;
 use crate::types::{Annotated, Array, Object, Value};
 
 /// A log entry message.
@@ -32,11 +33,9 @@ impl FromValue for LogEntry {
         // add the former as the 'formatted' attribute of the latter.
         // See GH-3248
         match value {
-            Annotated(Some(Value::String(value)), meta) => Annotated::new(LogEntry {
-                formatted: Annotated(Some(value), meta),
-                ..Default::default()
-            }),
-            x => {
+            x @ Annotated(Some(Value::Object(_)), _)
+            | x @ Annotated(None, _)
+            | x @ Annotated(Some(Value::Null), _) => {
                 #[derive(Debug, FromValue)]
                 struct Helper {
                     message: Annotated<String>,
@@ -60,6 +59,10 @@ impl FromValue for LogEntry {
                     },
                 )
             }
+            x => Annotated::new(LogEntry {
+                formatted: LenientString::from_value(x).map_value(|x| x.0),
+                ..Default::default()
+            }),
         }
     }
 }

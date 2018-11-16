@@ -13,7 +13,10 @@ struct HealthcheckResponse {
     is_healthy: bool,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
+#[cfg_attr(
+    feature = "cargo-clippy",
+    allow(clippy::needless_pass_by_value)
+)]
 fn healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error> {
     Box::new(
         state

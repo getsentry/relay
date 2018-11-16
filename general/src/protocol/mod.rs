@@ -14,6 +14,8 @@ mod tags;
 mod templateinfo;
 mod thread;
 mod types;
+
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::trivial_regex))]
 mod user;
 
 pub use self::breadcrumb::Breadcrumb;

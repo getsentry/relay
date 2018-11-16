@@ -24,7 +24,7 @@ impl MaxChars {
         match self {
             MaxChars::EnumLike => 128,
             MaxChars::Summary => 1024,
-            MaxChars::Message => 8196,
+            MaxChars::Message => 8192,
             MaxChars::Symbol => 256,
             MaxChars::Path => 256,
             MaxChars::ShortPath => 128,

@@ -161,7 +161,8 @@ pub struct Event {
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
-    // TODO: Cap? Is often dotted path or URL path, but could be anything
+    // TODO: Is this the right cap? Is often dotted path or URL path, but could be anything
+    #[metastructure(max_chars = "symbol")]
     pub transaction: Annotated<String>,
 
     /// Custom parameterized message for this event.
@@ -172,7 +173,7 @@ pub struct Event {
     pub logentry: Annotated<LogEntry>,
 
     /// Logger that created the event.
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = "symbol", match_regex = r"^[^\r\n]+\z")]
     pub logger: Annotated<String>,
 
     /// Name and versions of installed modules.
@@ -188,20 +189,28 @@ pub struct Event {
     pub received: Annotated<DateTime<Utc>>,
 
     /// Server or device name the event was generated on.
-    #[metastructure(pii_kind = "hostname")]
+    #[metastructure(pii_kind = "hostname", max_chars = "symbol")]
     pub server_name: Annotated<String>,
 
     /// Program's release identifier.
-    // TODO: cap size
+    #[metastructure(max_chars = "symbol", match_regex = r"^[^\r\n]*\z")]
     pub release: Annotated<String>,
 
     /// Program's distribution identifier.
-    // TODO: cap size
+    // Match whitespace here, which will later get trimmed
+    #[metastructure(
+        max_chars = "symbol",
+        match_regex = r"^\s*[a-zA-Z0-9_.-]+\s*$"
+    )]
     pub dist: Annotated<String>,
 
     /// Environment the environment was generated in ("production" or "development").
-    // TODO: cap size
+    #[metastructure(max_chars = "enumlike", match_regex = r"^[^\r\n\x0C/]+$")]
     pub environment: Annotated<String>,
+
+    /// Deprecated in favor of tags
+    #[metastructure(max_chars = "symbol")]
+    pub site: Annotated<String>,
 
     /// Information about the user who triggered this event.
     #[metastructure(legacy_alias = "sentry.interfaces.User")]
@@ -467,5 +476,21 @@ fn test_event_type() {
             .unwrap()
             .0
             .unwrap()
+    );
+}
+
+#[test]
+fn test_release_newlines() {
+    let event = Annotated::new(Event {
+        release: Annotated::from_error(
+            "Invalid characters in string",
+            Some(Value::String("a\nb".into())),
+        ),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(
+        Annotated::from_json(r#"{"release": "a\nb"}"#).unwrap(),
+        event
     );
 }

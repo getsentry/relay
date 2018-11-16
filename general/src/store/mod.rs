@@ -1,15 +1,17 @@
 //! Utility code for sentry's internal store.
+use std::collections::BTreeSet;
 use std::mem;
 
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde_derive::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Event, EventType, Exception, Frame, IpAddr, Level, Request,
+    Breadcrumb, ClientSdkInfo, Event, EventId, EventType, Exception, Frame, IpAddr, Level, Request,
     Stacktrace, Tags, User,
 };
 use crate::types::{Annotated, Array, Meta, Object, Remark, RemarkType, Value};
@@ -17,6 +19,7 @@ use crate::types::{Annotated, Array, Meta, Object, Remark, RemarkType, Value};
 mod escalate;
 mod geo;
 mod mechanism;
+mod remove_other;
 mod request;
 mod stacktrace;
 
@@ -59,6 +62,9 @@ pub struct StoreConfig {
     pub key_id: Option<String>,
     pub protocol_version: Option<String>,
     pub stacktrace_frames_hard_limit: Option<usize>,
+    pub valid_platforms: BTreeSet<String>,
+    pub max_secs_in_future: Option<i64>,
+    pub max_secs_in_past: Option<i64>,
 }
 
 impl StoreConfig {
@@ -278,19 +284,54 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
             event.errors.0.get_or_insert_with(Vec::new);
 
-            // TODO: Interfaces
             stacktrace::process_non_raw_stacktrace(&mut event.stacktrace);
 
+            let current_timestamp = Utc::now();
+
             event.level.0.get_or_insert(Level::Error);
+            event.id.0.get_or_insert_with(|| EventId(Uuid::new_v4()));
+            event.received.0 = Some(current_timestamp);
+            event.logger.0.get_or_insert_with(String::new);
 
             if event.dist.0.is_some() && event.release.0.is_none() {
                 event.dist.0 = None;
             }
 
-            event.timestamp.0.get_or_insert_with(Utc::now);
-            // TODO: Validate that timestamp is not too far in the past and not in the future
-            event.received.0 = Some(Utc::now());
-            event.logger.0.get_or_insert_with(String::new);
+            if let Some(ref mut dist) = event.dist.0 {
+                *dist = dist.trim().to_owned();
+            }
+
+            event.timestamp = event
+                .timestamp
+                .clone()
+                .filter_map(Annotated::is_valid, |timestamp| {
+                    if let Some(secs) = self.config.max_secs_in_future {
+                        if timestamp > current_timestamp + Duration::seconds(secs) {
+                            return Err((
+                                current_timestamp,
+                                Meta::from_error("Invalid timestamp (in future)", None),
+                            ));
+                        }
+                    }
+
+                    if let Some(secs) = self.config.max_secs_in_past {
+                        if timestamp < current_timestamp - Duration::seconds(secs) {
+                            return Err((
+                                current_timestamp,
+                                Meta::from_error("Invalid timestamp (too old)", None),
+                            ));
+                        }
+                    }
+
+                    Ok(timestamp)
+                }).or_else(|| current_timestamp);
+
+            if let Some(ref mut platform) = event.platform.0 {
+                if !self.config.valid_platforms.contains(platform) {
+                    *platform = "other".to_string();
+                }
+            }
+
             event.platform.0.get_or_insert_with(|| "other".to_string());
 
             event.extra.0.get_or_insert_with(Object::new);
@@ -319,6 +360,23 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
                     tags.0 = new_tags;
                 }
+
+                // These tags are special and are used in pairing with `sentry:{}`
+                // they should not be allowed to be set via data ingest due to ambiguity
+                tags.0.retain(|x| {
+                    x.0.as_ref()
+                        .map(|(key, _)| {
+                            key.0
+                                .as_ref()
+                                .map(|key| {
+                                    key != "release"
+                                        && key != "dist"
+                                        && key != "user"
+                                        && key != "filename"
+                                        && key != "function"
+                                }).unwrap_or(true)
+                        }).unwrap_or(true)
+                });
             }
 
             // port of src/sentry/eventtypes
@@ -411,7 +469,9 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         }
 
         // XXX: Remove or deactivate once Sentry can handle partially invalid interfaces.
-        escalate::EscalateErrorsProcessor.process_event(event, state)
+        event = escalate::EscalateErrorsProcessor.process_event(event, state.clone());
+
+        remove_other::RemoveOtherProcessor.process_event(event, state)
     }
 
     fn process_breadcrumb(
@@ -449,17 +509,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                     }
                 }
                 ip
-            }),
-            email: user.email.and_then(|email| {
-                // Validate email
-                if email.contains('@') {
-                    Ok(email)
-                } else {
-                    Err(Annotated::from_error(
-                        "invalid email address",
-                        Some(Value::String(email)),
-                    ))
-                }
             }),
             ..user
         }).filter_map(Annotated::is_valid, |mut user| {
@@ -665,18 +714,14 @@ fn test_geo_from_ip_address() {
 fn test_invalid_email() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
-    let user = Annotated::new(User {
-        email: Annotated::new("bananabread".to_string()),
-        ..Default::default()
-    });
-
+    let user = Annotated::from_json(r#"{"email": "bananabread"}"#).unwrap();
     let user = user.process(&mut processor);
 
     assert_eq_dbg!(
         user,
         Annotated::new(User {
             email: Annotated::from_error(
-                "invalid email address",
+                "Invalid characters in string",
                 Some(Value::String("bananabread".to_string()))
             ),
             ..Default::default()
@@ -845,4 +890,34 @@ fn test_databag_array_stripping() {
     }
   }
 }"#);
+}
+
+#[test]
+fn test_tags_stripping() {
+    use std::iter::repeat;
+
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
+
+    let event = Annotated::new(Event {
+        tags: Annotated::new(Tags(vec![Annotated::new((
+            Annotated::new(repeat("x").take(200).collect()),
+            Annotated::new(repeat("x").take(300).collect()),
+        ))])),
+        ..Default::default()
+    });
+
+    let stripped_event = event.process(&mut processor);
+    let json = stripped_event
+        .0
+        .unwrap()
+        .tags
+        .payload_to_json_pretty()
+        .unwrap();
+
+    assert_eq_str!(json, r#"[
+  [
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx..."
+  ]
+]"#);
 }
