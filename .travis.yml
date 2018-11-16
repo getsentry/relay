@@ -19,11 +19,6 @@ env:
     # DOCKER_PASS
     - secure: "qFz5/gwrSuLY96apTRmMnsCsLLABmrvGkXdqFXmip+86y73oFLQGSHRgztoa7MNEno9aNls7QGFDvrfvxOhKMzI7TmXPSdf5bEAKlhikdMbeDdJdjgqxJMDO9gRpO2wu+k4lDiLFo1fPQKiMrtU0D1qM5jyRZTuK4Z2TMRBZV9/OmWSE+VuzremXMtbrjarWf6HLXRh0g1W/UXVx7GcGQlmjCEG3/xGCkqhQGHCJpiuohHJ+NTMneF+LCB1syhe1CmqLqgZJzTfvgNQnxpFAxUwnl9ZSrVjjz6bSHyPf5ZIFN4+5JrrZG5B2DixA2ZY8rPBP+VuNSa9kjcyreob9ecOsXGZOVhRFJxEAmM4gy2FWHtUBVYMNeH2c8mNW9fG4/a+1t21v+0NAtYlZzTsv1FunV+JARs9MCYeo2KmGa2usQZPMm83weTXpkrSMz9rVEbT9AR23lf36gY//VwN+uQdpXqE+YIWHtxE3FlAepT99xpRqiewUo8ww/JXNc24Or4tKfA/FLiJIwTanTdjTbFaW3A71OQzT4cu2lx7iM2XUpXu4cGXjh3D480+EJ/xnqGrKDbs0Zj3DtfCVmXHx89onlqnZm4W5CYCuR0W5VFlnipHHvAj1woWeimvFM2YNWx4BrES++VUfLtT9pKCiZqXPdcHH5zoV9T3SI2lNmBM="
 
-branches:
-  only:
-    - master
-    - /^release\/[\d.]+$/
-
 install: skip
 script: make $SUITE
 
