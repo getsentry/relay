@@ -19,7 +19,6 @@ lazy_static = "1.1.0"
 log = { version = "0.4.5", features = ["serde"] }
 human-size = "0.4.0"
 marshal = { git = "https://github.com/getsentry/marshal", rev = "c2d77447f3c6c5833adaffa1a7363eba3a3cbc7f" }
-general = { git = "https://github.com/getsentry/general", rev = "1c723ce3a279c91198dd79d6a2918d4eaa1e5ef9" }
 parking_lot = "0.6.4"
 rand = "0.5.5"
 sentry-types = "0.8.1"
@@ -32,3 +31,6 @@ uuid = { version = "0.7.1", features = ["v4", "serde"] }
 regex = "1.0.5"
 ed25519-dalek = "0.8.0"
 sha2 = "0.7.1"
+
+[dependencies.semaphore-general]
+path = "../general"

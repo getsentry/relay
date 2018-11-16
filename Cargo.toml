@@ -39,6 +39,9 @@ path = "common"
 [dependencies.semaphore-server]
 path = "server"
 
+[dependencies.semaphore-general]
+path = "general"
+
 [target."cfg(not(windows))".dependencies]
 openssl-probe = "0.1.2"
 
