@@ -555,8 +555,10 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                                     }
                                 } else if ident == "match_regex" {
                                     match lit {
-                                        Lit::Str(litstr) => match_regex = Some(litstr.value().clone()),
-                                        _ => panic!("Got non string literal for match_regex")
+                                        Lit::Str(litstr) => {
+                                            match_regex = Some(litstr.value().clone())
+                                        }
+                                        _ => panic!("Got non string literal for match_regex"),
                                     }
                                 } else if ident == "max_chars" {
                                     match lit {
