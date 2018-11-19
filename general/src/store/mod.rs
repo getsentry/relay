@@ -9,12 +9,12 @@ use regex::Regex;
 use serde_derive::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
+use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Event, EventId, EventType, Exception, Frame, IpAddr, Level, Request,
     Stacktrace, Tags, User,
 };
-use crate::types::{Annotated, Array, Meta, Object, Remark, RemarkType, Value};
+use crate::types::{Annotated, Array, Meta, Object, Value};
 
 mod escalate;
 mod geo;
@@ -22,6 +22,7 @@ mod mechanism;
 mod remove_other;
 mod request;
 mod stacktrace;
+mod trimming;
 
 pub use crate::store::geo::GeoIpLookup;
 
@@ -43,12 +44,6 @@ fn parse_type_and_value(
     }
 
     (ty, value)
-}
-
-#[derive(Clone, Copy, Debug)]
-struct BagSizeState {
-    size_remaining: usize,
-    depth_remaining: usize,
 }
 
 /// The config for store.
@@ -88,7 +83,7 @@ impl StoreConfig {
 pub struct StoreNormalizeProcessor<'a> {
     config: StoreConfig,
     geoip_lookup: Option<&'a GeoIpLookup>,
-    bag_size_state: Option<BagSizeState>,
+    trimming_processor: trimming::TrimmingProcessor,
 }
 
 impl<'a> StoreNormalizeProcessor<'a> {
@@ -100,7 +95,7 @@ impl<'a> StoreNormalizeProcessor<'a> {
         StoreNormalizeProcessor {
             config,
             geoip_lookup,
-            bag_size_state: None,
+            trimming_processor: trimming::TrimmingProcessor::new(),
         }
     }
 
@@ -111,156 +106,6 @@ impl<'a> StoreNormalizeProcessor<'a> {
 }
 
 impl<'a> Processor for StoreNormalizeProcessor<'a> {
-    fn process_string(
-        &mut self,
-        mut value: Annotated<String>,
-        state: ProcessingState,
-    ) -> Annotated<String> {
-        // field local max chars
-        if let Some(max_chars) = state.attrs().max_chars {
-            value = value.trim_string(max_chars);
-        }
-
-        // the remaining size in bytes is used when we're in bag stripping mode.
-        if let Some(mut bag_size_state) = self.bag_size_state {
-            let chars_left = bag_size_state.size_remaining;
-            value = value.trim_string(MaxChars::Hard(chars_left));
-            if let Some(ref value) = value.0 {
-                bag_size_state.size_remaining = bag_size_state
-                    .size_remaining
-                    .saturating_sub(value.chars().count());
-            }
-            self.bag_size_state = Some(bag_size_state);
-        }
-
-        value
-    }
-
-    fn process_object<T: ProcessValue>(
-        &mut self,
-        value: Annotated<Object<T>>,
-        state: ProcessingState,
-    ) -> Annotated<Object<T>>
-    where
-        Self: Sized,
-    {
-        // if we encounter a bag size attribute it resets the depth and size
-        // that is permitted below it.
-        if let Some(bag_size) = state.attrs().bag_size {
-            self.bag_size_state = Some(BagSizeState {
-                size_remaining: bag_size.max_size(),
-                depth_remaining: bag_size.max_depth() + 1,
-            });
-        }
-
-        let old_bag_size_state = self.bag_size_state;
-
-        // if we need to check the bag size, then we go down a different path
-        if let Some(mut bag_size_state) = self.bag_size_state {
-            bag_size_state.depth_remaining = bag_size_state.depth_remaining.saturating_sub(1);
-            bag_size_state.size_remaining = bag_size_state.size_remaining.saturating_sub(2);
-            self.bag_size_state = Some(bag_size_state);
-
-            if let Annotated(Some(items), mut meta) = value {
-                if bag_size_state.depth_remaining == 0 {
-                    self.bag_size_state = old_bag_size_state;
-                    meta.add_remark(Remark {
-                        ty: RemarkType::Removed,
-                        rule_id: "!limit".to_string(),
-                        range: None,
-                    });
-                    return Annotated(None, meta);
-                }
-                let original_length = items.len();
-                let mut rv = Object::new();
-                for (key, value) in items.into_iter() {
-                    let trimmed_value = {
-                        let inner_state = state.enter_borrowed(&key, None);
-                        ProcessValue::process_value(value, self, inner_state)
-                    };
-
-                    // update sizes
-                    let value_len = trimmed_value.estimate_size() + 1;
-                    bag_size_state.size_remaining =
-                        bag_size_state.size_remaining.saturating_sub(value_len);
-                    self.bag_size_state = Some(bag_size_state);
-
-                    rv.insert(key, trimmed_value);
-                    if bag_size_state.size_remaining == 0 {
-                        break;
-                    }
-                }
-                if rv.len() != original_length {
-                    meta.original_length = Some(original_length as u32);
-                }
-                self.bag_size_state = old_bag_size_state;
-                return Annotated(Some(rv), meta);
-            }
-        }
-
-        self.bag_size_state = old_bag_size_state;
-        ProcessValue::process_child_values(value, self, state)
-    }
-
-    fn process_array<T: ProcessValue>(
-        &mut self,
-        value: Annotated<Array<T>>,
-        state: ProcessingState,
-    ) -> Annotated<Array<T>>
-    where
-        Self: Sized,
-    {
-        // if we encounter a bag size attribute it resets the depth and size
-        // that is permitted below it.
-        if let Some(bag_size) = state.attrs().bag_size {
-            self.bag_size_state = Some(BagSizeState {
-                size_remaining: bag_size.max_size(),
-                depth_remaining: bag_size.max_depth() + 1,
-            });
-        }
-
-        // if we need to check the bag size, then we go down a different path
-        if let Some(mut bag_size_state) = self.bag_size_state {
-            bag_size_state.depth_remaining = bag_size_state.depth_remaining.saturating_sub(1);
-            bag_size_state.size_remaining = bag_size_state.size_remaining.saturating_sub(2);
-            self.bag_size_state = Some(bag_size_state);
-
-            if let Annotated(Some(items), mut meta) = value {
-                if bag_size_state.depth_remaining == 0 {
-                    meta.add_remark(Remark {
-                        ty: RemarkType::Removed,
-                        rule_id: "!limit".to_string(),
-                        range: None,
-                    });
-                    return Annotated(None, meta);
-                }
-                let original_length = items.len();
-                let mut rv = Array::new();
-                for (idx, value) in items.into_iter().enumerate() {
-                    let inner_state = state.enter_index(idx, None);
-                    let trimmed_value = ProcessValue::process_value(value, self, inner_state);
-
-                    // update sizes
-                    let value_len = trimmed_value.estimate_size();
-                    bag_size_state.size_remaining =
-                        bag_size_state.size_remaining.saturating_sub(value_len);
-                    self.bag_size_state = Some(bag_size_state);
-
-                    rv.push(trimmed_value);
-                    if bag_size_state.size_remaining == 0 {
-                        break;
-                    }
-                }
-                if rv.len() != original_length {
-                    meta.original_length = Some(original_length as u32);
-                }
-                return Annotated(Some(rv), meta);
-            }
-        }
-
-        ProcessValue::process_child_values(value, self, state)
-    }
-
     // TODO: Reduce cyclomatic complexity of this function
     #[cfg_attr(
         feature = "cargo-clippy",
@@ -471,7 +316,14 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         // XXX: Remove or deactivate once Sentry can handle partially invalid interfaces.
         event = escalate::EscalateErrorsProcessor.process_event(event, state.clone());
 
-        remove_other::RemoveOtherProcessor.process_event(event, state)
+        // Do this before trimming such that we do not needlessly trim other if we're just going to
+        // throw it away
+        event = remove_other::RemoveOtherProcessor.process_event(event, state.clone());
+
+        // Trimming should happen at end to ensure derived tags are the right length.
+        event = self.trimming_processor.process_event(event, state);
+
+        event
     }
 
     fn process_breadcrumb(
@@ -614,26 +466,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 }
 
 #[test]
-fn test_basic_trimming() {
-    use crate::processor::MaxChars;
-    use std::iter::repeat;
-
-    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-
-    let event = Annotated::new(Event {
-        culprit: Annotated::new(repeat("x").take(300).collect::<String>()),
-        ..Default::default()
-    });
-
-    let event = event.process(&mut processor);
-
-    assert_eq_dbg!(
-        event.0.unwrap().culprit,
-        Annotated::new(repeat("x").take(300).collect::<String>()).trim_string(MaxChars::Symbol)
-    );
-}
-
-#[test]
 fn test_handles_type_in_value() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
@@ -727,197 +559,4 @@ fn test_invalid_email() {
             ..Default::default()
         })
     );
-}
-
-#[test]
-fn test_databag_stripping() {
-    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-
-    fn make_nested_object(depth: usize) -> Annotated<Value> {
-        if depth == 0 {
-            return Annotated::new(Value::String("max depth".to_string()));
-        }
-        let mut rv = Object::new();
-        rv.insert(format!("key{}", depth), make_nested_object(depth - 1));
-        Annotated::new(Value::Object(rv))
-    }
-
-    let databag = Annotated::new({
-        let mut map = Object::new();
-        map.insert(
-            "key_1".to_string(),
-            Annotated::new(Value::String("value 1".to_string())),
-        );
-        map.insert("key_2".to_string(), make_nested_object(5));
-        map
-    });
-    let event = Annotated::new(Event {
-        extra: databag,
-        ..Default::default()
-    });
-
-    let stripped_event = event.process(&mut processor);
-    let stripped_extra = stripped_event.0.unwrap().extra;
-
-    let json = stripped_extra.to_json().unwrap();
-
-    assert_eq_str!(json, r#"{"key_1":"value 1","key_2":{"key5":{"key4":{"key3":{"key2":null}}}},"_meta":{"key_2":{"key5":{"key4":{"key3":{"key2":{"":{"rem":[["!limit","x"]]}}}}}}}}"#);
-}
-
-#[test]
-fn test_databag_array_stripping() {
-    use std::iter::repeat;
-
-    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-
-    let databag = Annotated::new({
-        let mut map = Object::new();
-        for idx in 0..100 {
-            map.insert(
-                format!("key_{}", idx),
-                Annotated::new(Value::String(repeat("x").take(100).collect::<String>())),
-            );
-        }
-        map
-    });
-    let event = Annotated::new(Event {
-        extra: databag,
-        ..Default::default()
-    });
-
-    let stripped_event = event.process(&mut processor);
-    let stripped_extra = stripped_event.0.unwrap().extra;
-
-    let json = stripped_extra.to_json_pretty().unwrap();
-
-    assert_eq_str!(json, r#"{
-  "key_0": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_10": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_11": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_12": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_13": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_14": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_15": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_16": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_17": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_18": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_19": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_2": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_20": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_21": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_22": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_23": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_24": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_25": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_26": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_27": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_28": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_29": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_3": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_30": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_31": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_32": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_33": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_34": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_35": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_36": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_37": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_38": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_39": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_4": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_40": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_41": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_42": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_43": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_44": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_45": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_46": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_47": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_48": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_49": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_5": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_50": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_51": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_52": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_53": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_54": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_55": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_56": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_57": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_58": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_59": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_6": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_60": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_61": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_62": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_63": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_64": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_65": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_66": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_67": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_68": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_69": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_7": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_70": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_71": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_72": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_73": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_74": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_75": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_76": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_77": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_78": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_79": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_8": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_80": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
-  "_meta": {
-    "": {
-      "len": 100
-    },
-    "key_80": {
-      "": {
-        "rem": [
-          [
-            "!limit",
-            "s",
-            50,
-            53
-          ]
-        ],
-        "len": 100
-      }
-    }
-  }
-}"#);
-}
-
-#[test]
-fn test_tags_stripping() {
-    use std::iter::repeat;
-
-    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-
-    let event = Annotated::new(Event {
-        tags: Annotated::new(Tags(vec![Annotated::new((
-            Annotated::new(repeat("x").take(200).collect()),
-            Annotated::new(repeat("x").take(300).collect()),
-        ))])),
-        ..Default::default()
-    });
-
-    let stripped_event = event.process(&mut processor);
-    let json = stripped_event
-        .0
-        .unwrap()
-        .tags
-        .payload_to_json_pretty()
-        .unwrap();
-
-    assert_eq_str!(json, r#"[
-  [
-    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
-    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx..."
-  ]
-]"#);
 }
