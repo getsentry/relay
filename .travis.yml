@@ -37,110 +37,110 @@ matrix:
     # STATIC ANALYSIS
     # -------------------------------------
 
-    - name: "check: codestyle"
-      env: SUITE=format-check
+    #    - name: "check: codestyle"
+    #      env: SUITE=format-check
+    #
+    #    - name: "check: lint"
+    #      env: SUITE=lint
+    #
+    #    # -------------------------------------
+    #    # RUST TESTS
+    #    # -------------------------------------
+    #
+    #    - name: "test: semaphore[linux]"
+    #      os: linux
+    #      env: SUITE=cargotest-cov
+    #      sudo: required
+    #      addons:
+    #        apt:
+    #          packages:
+    #            - libssl-dev
+    #      rust: nightly
+    #      install:
+    #        - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
+    #
+    #    - name: "test: semaphore[macos]"
+    #      os: osx
+    #      env: SUITE=cargotest
+    #      install: cargo build --all
+    #
+    #    # -------------------------------------
+    #    # PYTHON LIBRARY TESTS
+    #    # -------------------------------------
+    #
+    #    - name: "test: libsemaphore"
+    #      os: linux
+    #      env: SUITE=pytest
+    #
+    #    # -------------------------------------
+    #    # EXECUTALE INTEGRATION TESTS
+    #    # -------------------------------------
+    #
+    #    - name: "integration-test: semaphore"
+    #      os: linux
+    #      env: PYTHON=python3.7 SUITE=integration-test
+    #      language: python
+    #      python: "3.7"
+    #      # https://github.com/travis-ci/travis-ci/issues/9831
+    #      dist: xenial
+    #      sudo: true
+    #      install:
+    #        - curl https://sh.rustup.rs -sSf | sh -s -- -y
+    #        - export PATH=$PATH:$HOME/.cargo/bin
+    #        - wget https://github.com/yyyar/gobetween/releases/download/0.6.0/gobetween_0.6.0_linux_amd64.tar.gz -O - | tar xz; mv gobetween $HOME/.cargo/bin
+    #        - sudo add-apt-repository ppa:vbernat/haproxy-1.8 -y
+    #        - sudo apt-get update
+    #        - sudo apt-get install haproxy -y
+    #
+    #    # -------------------------------------
+    #    # RUST RELEASE BUILDS
+    #    # -------------------------------------
 
-    - name: "check: lint"
-      env: SUITE=lint
-
-    # -------------------------------------
-    # RUST TESTS
-    # -------------------------------------
-
-    - name: "test: semaphore[linux]"
-      os: linux
-      env: SUITE=cargotest-cov
-      sudo: required
-      addons:
-        apt:
-          packages:
-            - libssl-dev
-      rust: nightly
-      install:
-        - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
-
-    - name: "test: semaphore[macos]"
-      os: osx
-      env: SUITE=cargotest
-      install: cargo build --all
-
-    # -------------------------------------
-    # PYTHON LIBRARY TESTS
-    # -------------------------------------
-
-    - name: "test: libsemaphore"
-      os: linux
-      env: SUITE=pytest
-
-    # -------------------------------------
-    # EXECUTALE INTEGRATION TESTS
-    # -------------------------------------
-
-    - name: "integration-test: semaphore"
-      os: linux
-      env: PYTHON=python3.7 SUITE=integration-test
-      language: python
-      python: "3.7"
-      # https://github.com/travis-ci/travis-ci/issues/9831
-      dist: xenial
-      sudo: true
-      install:
-        - curl https://sh.rustup.rs -sSf | sh -s -- -y
-        - export PATH=$PATH:$HOME/.cargo/bin
-        - wget https://github.com/yyyar/gobetween/releases/download/0.6.0/gobetween_0.6.0_linux_amd64.tar.gz -O - | tar xz; mv gobetween $HOME/.cargo/bin
-        - sudo add-apt-repository ppa:vbernat/haproxy-1.8 -y
-        - sudo apt-get update
-        - sudo apt-get install haproxy -y
-
-    # -------------------------------------
-    # RUST RELEASE BUILDS
-    # -------------------------------------
-
-    - name: "release: semaphore[linux]"
-      os: linux
-      language: generic
-      services:
-        - docker
-      env:
-        - SUITE=releasebuild-docker
-        - BUILD_ARCH=x86_64
-      after_success:
-        - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/octet-stream" -n semaphore-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/semaphore
-        # Build and push image to Dockerhub, on master branch only
-        - bash scripts/push-docker-image.sh
-
-    # - os: linux
-    #   language: generic
-    #   env:
-    #     - SUITE=releasebuild-docker
-    #     - BUILD_ARCH=i686
-    #   after_success:
-    #     - npm install -g @zeus-ci/cli
-    #     - zeus upload -t "application/octet-stream"
-    #                   -n semaphore-Linux-i686
-    #                   target/i686-unknown-linux-gnu/release/semaphore
-
-    - name: "release: semaphore[macos]"
-      os: osx
-      osx_image: xcode9.2
-      env: SUITE=releasebuild
-      after_success:
-        - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/octet-stream" -n semaphore-Darwin-x86_64 target/release/semaphore
-
+    #     - name: "release: semaphore[linux]"
+    #       os: linux
+    #       language: generic
+    #       services:
+    #         - docker
+    #       env:
+    #         - SUITE=releasebuild-docker
+    #         - BUILD_ARCH=x86_64
+    #       after_success:
+    #         - npm install -g @zeus-ci/cli
+    #         - zeus upload -t "application/octet-stream" -n semaphore-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/semaphore
+    #         # Build and push image to Dockerhub, on master branch only
+    #         - bash scripts/push-docker-image.sh
+    # 
+    #     # - os: linux
+    #     #   language: generic
+    #     #   env:
+    #     #     - SUITE=releasebuild-docker
+    #     #     - BUILD_ARCH=i686
+    #     #   after_success:
+    #     #     - npm install -g @zeus-ci/cli
+    #     #     - zeus upload -t "application/octet-stream"
+    #     #                   -n semaphore-Linux-i686
+    #     #                   target/i686-unknown-linux-gnu/release/semaphore
+    # 
+    #     - name: "release: semaphore[macos]"
+    #       os: osx
+    #       osx_image: xcode9.2
+    #       env: SUITE=releasebuild
+    #       after_success:
+    #         - npm install -g @zeus-ci/cli
+    #         - zeus upload -t "application/octet-stream" -n semaphore-Darwin-x86_64 target/release/semaphore
+    # 
     # -------------------------------------
     # PYTHON RELEASE BUILDS
     # -------------------------------------
 
-    - name: "release: libsemaphore[linux-x86]"
-      os: linux
-      sudo: required
-      env: SUITE=manylinux BUILD_ARCH=i686
-      language: generic
-      after_success:
-        - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/zip+wheel" py/dist/*
+    #    - name: "release: libsemaphore[linux-x86]"
+    #      os: linux
+    #      sudo: required
+    #      env: SUITE=manylinux BUILD_ARCH=i686
+    #      language: generic
+    #      after_success:
+    #        - npm install -g @zeus-ci/cli
+    #        - zeus upload -t "application/zip+wheel" py/dist/*
 
     - name: "release: libsemaphore[linux-x86_64]"
       sudo: required
