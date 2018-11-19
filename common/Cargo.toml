@@ -18,7 +18,7 @@ failure_derive = "0.1.2"
 lazy_static = "1.1.0"
 log = { version = "0.4.5", features = ["serde"] }
 human-size = "0.4.0"
-marshal = { git = "https://github.com/getsentry/marshal", rev = "d80a9def4e8c22752e69e8c42ac7da26f6735667" }
+marshal = { git = "https://github.com/getsentry/marshal", rev = "14fb94b8bf04539d13026b5797cdf1e6d4c23b0f" }
 parking_lot = "0.6.4"
 rand = "0.5.5"
 sentry-types = "0.8.1"
