@@ -1,3 +1,8 @@
+//! Server endpoint that proxies any request to the upstream.
+//!
+//! This endpoint will issue a client request to the upstream and append relay's own headers
+//! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
+
 use actix::prelude::*;
 use actix_web::client::ClientRequest;
 use actix_web::http::{header, header::HeaderName, ContentEncoding};
@@ -9,6 +14,7 @@ use crate::extractors::ForwardedFor;
 use crate::service::{ServiceApp, ServiceState};
 use semaphore_common::{Config, GlobMatcher};
 
+/// Headers that this endpoint must handle and cannot forward.
 static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
     header::CONNECTION,
     header::PROXY_AUTHENTICATE,
@@ -19,8 +25,10 @@ static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
     header::UPGRADE,
 ];
 
+/// Headers ignored in addition to the headers defined in `HOP_BY_HOP_HEADERS`.
 static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[header::CONTENT_ENCODING, header::CONTENT_LENGTH];
 
+/// Route classes with request body limit overrides.
 #[derive(Clone, Copy, Debug)]
 enum SpecialRoute {
     FileUpload,
@@ -28,6 +36,7 @@ enum SpecialRoute {
 }
 
 lazy_static! {
+    /// Glob matcher for special routes.
     static ref SPECIAL_ROUTES: GlobMatcher<SpecialRoute> = {
         let mut m = GlobMatcher::new();
         // file uploads / legacy dsym uploads
@@ -39,6 +48,7 @@ lazy_static! {
     };
 }
 
+/// Returns the maximum request body size for a route path.
 fn get_limit_for_path(path: &str, config: &Config) -> usize {
     match SPECIAL_ROUTES.test(path) {
         Some(SpecialRoute::FileUpload) => config.max_api_file_upload_size(),
@@ -47,6 +57,11 @@ fn get_limit_for_path(path: &str, config: &Config) -> usize {
     }
 }
 
+/// Implementation of the forward endpoint.
+///
+/// This endpoint will create a proxy request to the upstream for every incoming request and stream
+/// the request body back to the origin. Regardless of the incoming connection, the connection to
+/// the upstream uses its own HTTP version and transfer encoding.
 fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpResponse, Error> {
     let config = request.state().config();
     let upstream = config.upstream_descriptor();
@@ -91,7 +106,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
             // For the response body we're able to disable all automatic decompression and
             // compression done by actix-web or actix' http client.
             //
-            // 0. use ClientRequestBuilder::disable_decompress() (see above)
+            // 0. Use ClientRequestBuilder::disable_decompress() (see above)
             // 1. Set content-encoding to identity such that actix-web will not to compress again
             forwarded_response.content_encoding(ContentEncoding::Identity);
 
@@ -111,7 +126,10 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         }).responder()
 }
 
+/// Registers this endpoint in the actix-web app.
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
+    // We only forward API requests so that relays cannot be used to surf sentry's frontend. The
+    // "/api/" path is special as it is actually a web UI endpoint.
     app.resource("/api/", |r| r.f(|_| HttpResponse::NotFound()))
         .handler("/api", forward_upstream)
 }
