@@ -48,12 +48,12 @@ macro_rules! numeric_meta_structure {
                     };
 
                     match number {
-                        Some(x) => Ok(x),
-                        None => Err({
+                        Some(x) => Annotated::new(x),
+                        None => {
                             let mut meta = crate::types::Meta::default();
                             meta.add_unexpected_value_error($expectation, value);
                             Annotated(None, meta)
-                        }),
+                        }
                     }
                 })
             }
