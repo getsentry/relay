@@ -40,7 +40,7 @@ macro_rules! numeric_meta_structure {
         impl crate::processor::FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 value.and_then(|value| {
-                    let number: Option<$type> = match value {
+                    let number = match value {
                         Value::U64(x) => num_traits::cast::cast(x),
                         Value::I64(x) => num_traits::cast::cast(x),
                         Value::F64(x) => num_traits::cast::cast(x),
