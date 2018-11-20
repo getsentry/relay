@@ -39,23 +39,23 @@ macro_rules! numeric_meta_structure {
     ($type:ident, $meta_type:ident, $expectation:expr, $process_func:ident) => {
         impl crate::processor::FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-                match value {
-                    Annotated(Some(Value::U64(value)), meta) => {
-                        Annotated(Some(value as $type), meta)
+                value.and_then(|value| {
+                    let number: Option<$type> = match value {
+                        Value::U64(x) => num_traits::cast::cast(x),
+                        Value::I64(x) => num_traits::cast::cast(x),
+                        Value::F64(x) => num_traits::cast::cast(x),
+                        _ => None,
+                    };
+
+                    match number {
+                        Some(x) => Ok(x),
+                        None => Err({
+                            let mut meta = crate::types::Meta::default();
+                            meta.add_unexpected_value_error($expectation, value);
+                            Annotated(None, meta)
+                        }),
                     }
-                    Annotated(Some(Value::I64(value)), meta) => {
-                        Annotated(Some(value as $type), meta)
-                    }
-                    Annotated(Some(Value::F64(value)), meta) => {
-                        Annotated(Some(value as $type), meta)
-                    }
-                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
-                    Annotated(None, meta) => Annotated(None, meta),
-                    Annotated(Some(value), mut meta) => {
-                        meta.add_unexpected_value_error($expectation, value);
-                        Annotated(None, meta)
-                    }
-                }
+                })
             }
         }
 

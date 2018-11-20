@@ -21,6 +21,7 @@ serde_urlencoded = "0.5.3"
 smallvec = { version = "0.6.5", features = ["serde"] }
 url = "1.7.2"
 uuid = { version = "0.7.1", features = ["v4", "serde"] }
+num-traits = "0.2.6"
 
 [dev-dependencies]
 difference = "2.0.0"
