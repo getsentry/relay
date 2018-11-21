@@ -64,9 +64,9 @@ fn normalize_method(method: Annotated<String>) -> Annotated<String> {
         .filter_map(Annotated::is_valid, |method| method.to_uppercase())
         .filter_map(Annotated::is_valid, |method| {
             if METHOD_RE.is_match(&method) {
-                Ok(method)
+                Annotated::new(method)
             } else {
-                Err(Annotated::from_error("invalid http method", None))
+                Annotated::from_error("invalid http method", None)
             }
         })
 }
