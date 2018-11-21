@@ -547,20 +547,19 @@ fn test_geo_from_ip_address() {
 }
 
 #[test]
-fn test_invalid_email() {
-    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
+fn test_schema_processor_invoked() {
+    use crate::protocol::User;
 
-    let user = Annotated::from_json(r#"{"email": "bananabread"}"#).unwrap();
-    let user = user.process(&mut processor);
-
-    assert_eq_dbg!(
-        user,
-        Annotated::new(User {
-            email: Annotated::from_error(
-                "Invalid characters in string",
-                Some(Value::String("bananabread".to_string()))
-            ),
+    let event = Annotated::new(Event {
+        user: Annotated::new(User {
+            email: Annotated::new("bananabread".to_owned()),
             ..Default::default()
-        })
-    );
+        }),
+        ..Default::default()
+    });
+
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
+    let event = event.process(&mut processor).0.unwrap();
+
+    assert_eq_dbg!(event.user.0.unwrap().email.0, None);
 }

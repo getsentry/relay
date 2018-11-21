@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::fmt;
 
+use regex::Regex;
+
 /// The maximum length of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
 pub enum MaxChars {
@@ -108,6 +110,8 @@ pub struct FieldAttrs {
     pub required: bool,
     /// If the field should be non-empty.
     pub nonempty: bool,
+    /// A regex to validate the (string) value against.
+    pub match_regex: Option<Regex>,
     /// The maximum char length of this field.
     pub max_chars: Option<MaxChars>,
     /// The maximum bag size of this field.
@@ -120,6 +124,7 @@ const DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
     name: None,
     required: false,
     nonempty: false,
+    match_regex: None,
     max_chars: None,
     bag_size: None,
     pii_kind: None,

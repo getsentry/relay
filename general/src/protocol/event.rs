@@ -478,19 +478,3 @@ fn test_event_type() {
             .unwrap()
     );
 }
-
-#[test]
-fn test_release_newlines() {
-    let event = Annotated::new(Event {
-        release: Annotated::from_error(
-            "Invalid characters in string",
-            Some(Value::String("a\nb".into())),
-        ),
-        ..Default::default()
-    });
-
-    assert_eq_dbg!(
-        Annotated::from_json(r#"{"release": "a\nb"}"#).unwrap(),
-        event
-    );
-}

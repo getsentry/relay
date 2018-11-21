@@ -1,15 +1,17 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::types::{Annotated, Array, Map, Object};
+use crate::types::{Annotated, Array, Map, Object, Value};
 
 pub struct SchemaProcessor;
 
 impl Processor for SchemaProcessor {
     fn process_string(
         &mut self,
-        value: Annotated<String>,
+        mut value: Annotated<String>,
         state: ProcessingState,
     ) -> Annotated<String> {
-        check_nonempty_value(value, &state)
+        value = check_nonempty_value(value, &state);
+        value = check_match_regex_value(value, &state);
+        value
     }
 
     fn process_object<T: ProcessValue>(
@@ -70,6 +72,27 @@ where
     annotated
 }
 
+fn check_match_regex_value(
+    mut annotated: Annotated<String>,
+    state: &ProcessingState,
+) -> Annotated<String> {
+    if let Some(ref regex) = state.attrs().match_regex {
+        if !annotated.1.has_errors() && annotated
+            .0
+            .as_ref()
+            .map(|x| !regex.is_match(&x))
+            .unwrap_or(false)
+        {
+            annotated.1.add_error(
+                "Invalid characters in string",
+                annotated.0.take().map(Value::String),
+            );
+        }
+    }
+
+    annotated
+}
+
 #[cfg(test)]
 fn test_nonempty_base<T>()
 where
@@ -114,4 +137,50 @@ fn test_nonempty_array() {
 #[test]
 fn test_nonempty_object() {
     test_nonempty_base::<Object<u64>>();
+}
+
+#[test]
+fn test_release_newlines() {
+    use crate::protocol::Event;
+
+    let event = Annotated::new(Event {
+        release: Annotated::new("a\nb".to_string()),
+        ..Default::default()
+    });
+
+    let event = event.process(&mut SchemaProcessor);
+
+    assert_eq_dbg!(
+        event,
+        Annotated::new(Event {
+            release: Annotated::from_error(
+                "Invalid characters in string",
+                Some(Value::String("a\nb".into())),
+            ),
+            ..Default::default()
+        })
+    );
+}
+
+#[test]
+fn test_invalid_email() {
+    use crate::protocol::User;
+
+    let user = Annotated::new(User {
+        email: Annotated::new("bananabread".to_owned()),
+        ..Default::default()
+    });
+
+    let user = user.process(&mut SchemaProcessor);
+
+    assert_eq_dbg!(
+        user,
+        Annotated::new(User {
+            email: Annotated::from_error(
+                "Invalid characters in string",
+                Some(Value::String("bananabread".to_string()))
+            ),
+            ..Default::default()
+        })
+    );
 }
