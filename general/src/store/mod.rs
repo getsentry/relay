@@ -262,10 +262,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
     }
 
     // TODO: Reduce cyclomatic complexity of this function
-    #[cfg_attr(
-        feature = "cargo-clippy",
-        allow(clippy::cyclomatic_complexity)
-    )]
+    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     fn process_event(
         &mut self,
         event: Annotated<Event>,

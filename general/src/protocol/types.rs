@@ -570,7 +570,7 @@ macro_rules! value_impl_for_tuple {
                 value.map_value(|value| {
                     let ($($name,)*) = value;
                     let mut idx = 0;
-                    ($(#[cfg_attr(feature = "cargo-clippy", allow(clippy::eval_order_dependence))]{
+                    ($(#[cfg_attr(feature = "cargo-clippy", allow(eval_order_dependence))]{
                         let rv = ProcessValue::process_value($name, processor, state.enter_index(idx, None));
                         idx += 1;
                         rv

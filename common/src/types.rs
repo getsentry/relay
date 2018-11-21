@@ -47,7 +47,7 @@ impl ByteSize {
         macro_rules! try_multiple {
             ($ty:ty) => {
                 let v: SpecificSize<$ty> = bytes.into();
-                #[cfg_attr(feature = "cargo-clippy", allow(clippy::float_cmp))]
+                #[cfg_attr(feature = "cargo-clippy", allow(float_cmp))]
                 {
                     if v.value() == v.value().trunc() {
                         return ByteSize(v.into());

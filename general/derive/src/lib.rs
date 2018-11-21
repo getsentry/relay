@@ -136,10 +136,7 @@ fn process_wrapper_struct_derive(
     })
 }
 
-#[cfg_attr(
-    feature = "cargo-clippy",
-    allow(clippy::cyclomatic_complexity)
-)]
+#[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
 fn process_enum_struct_derive(
     s: synstructure::Structure,
     t: Trait,
@@ -411,10 +408,7 @@ fn process_enum_struct_derive(
     })
 }
 
-#[cfg_attr(
-    feature = "cargo-clippy",
-    allow(clippy::cyclomatic_complexity)
-)]
+#[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
 fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStream {
     let s = match process_wrapper_struct_derive(s, t) {
         Ok(stream) => return stream,

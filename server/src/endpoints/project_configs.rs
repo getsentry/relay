@@ -8,10 +8,7 @@ use crate::actors::project::{
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
 
-#[cfg_attr(
-    feature = "cargo-clippy",
-    allow(clippy::needless_pass_by_value)
-)]
+#[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 fn get_project_configs(
     state: CurrentServiceState,
     body: SignedJson<GetProjectStates>,
