@@ -655,10 +655,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
 
             let nonempty = nonempty.unwrap_or(false);
 
-            if nonempty {
-                if required.is_none() {
-                    panic!("`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used.");
-                }
+            if nonempty && required.is_none() {
+                panic!("`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used.");
             }
 
             let nonempty_attr = LitBool {
