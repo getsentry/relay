@@ -38,13 +38,14 @@ def meta_with_chunks(data, meta):
 
 class GeoIpLookup(RustObject):
     __dealloc_func__ = lib.semaphore_geoip_lookup_free
+    __slots__ = ('_path',)
 
     @classmethod
     def from_path(cls, path):
         if isinstance(path, text_type):
             path = path.encode('utf-8')
         rv = cls._from_objptr(rustcall(lib.semaphore_geoip_lookup_new, path))
-        rv.path = path
+        rv._path = path
         return rv
 
     def __repr__(self):
@@ -54,6 +55,7 @@ class GeoIpLookup(RustObject):
 class StoreNormalizer(RustObject):
     __dealloc_func__ = lib.semaphore_store_normalizer_free
     __init__ = object.__init__
+    __slots__ = ('__weakref__',)
 
     def __new__(cls, geoip_lookup=None, **config):
         config = json.dumps(config)

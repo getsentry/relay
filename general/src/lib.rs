@@ -5,6 +5,7 @@ extern crate failure;
 extern crate itertools;
 extern crate lazy_static;
 extern crate maxminddb;
+extern crate num_traits;
 extern crate regex;
 extern crate serde;
 extern crate serde_derive;

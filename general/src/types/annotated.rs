@@ -97,25 +97,6 @@ impl<T> IntoAnnotated<T> for Option<T> {
     }
 }
 
-impl<T, E> IntoAnnotated<T> for Result<T, E>
-where
-    T: IntoAnnotated<T>,
-    E: IntoAnnotated<T>,
-{
-    fn into_annotated(self) -> Annotated<T> {
-        match self {
-            Ok(value) => value.into_annotated(),
-            Err(err) => err.into_annotated(),
-        }
-    }
-}
-
-impl<T> IntoAnnotated<T> for (T, Meta) {
-    fn into_annotated(self) -> Annotated<T> {
-        Annotated(Some(self.0), self.1)
-    }
-}
-
 impl<T> Annotated<T> {
     /// Creates a new annotated value without meta data.
     pub fn new(value: T) -> Annotated<T> {

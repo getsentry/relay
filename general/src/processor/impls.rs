@@ -463,3 +463,11 @@ impl<T: ProcessValue> ProcessValue for Box<T> {
         Annotated(rv.0.map(Box::new), rv.1)
     }
 }
+
+#[test]
+fn test_unsigned_integers() {
+    assert_eq!(
+        Annotated::<u64>::from_json("-1").unwrap(),
+        Annotated::from_error("expected an unsigned integer", Some(Value::I64(-1)))
+    );
+}

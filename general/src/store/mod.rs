@@ -152,23 +152,23 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                 .filter_map(Annotated::is_valid, |timestamp| {
                     if let Some(secs) = self.config.max_secs_in_future {
                         if timestamp > current_timestamp + Duration::seconds(secs) {
-                            return Err((
-                                current_timestamp,
+                            return Annotated(
+                                Some(current_timestamp),
                                 Meta::from_error("Invalid timestamp (in future)", None),
-                            ));
+                            );
                         }
                     }
 
                     if let Some(secs) = self.config.max_secs_in_past {
                         if timestamp < current_timestamp - Duration::seconds(secs) {
-                            return Err((
-                                current_timestamp,
+                            return Annotated(
+                                Some(current_timestamp),
                                 Meta::from_error("Invalid timestamp (too old)", None),
-                            ));
+                            );
                         }
                     }
 
-                    Ok(timestamp)
+                    Annotated::new(timestamp)
                 }).or_else(|| current_timestamp);
 
             if let Some(ref mut platform) = event.platform.0 {
@@ -408,10 +408,11 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                 exception
             }).filter_map(Annotated::is_valid, |exception| {
                 match (&exception.ty.0, &exception.value.0) {
-                    (None, None) => {
-                        Err((exception, Meta::from_error("type or value required", None)))
-                    }
-                    _ => Ok(exception),
+                    (None, None) => Annotated(
+                        Some(exception),
+                        Meta::from_error("type or value required", None),
+                    ),
+                    _ => Annotated::new(exception),
                 }
             })
     }
