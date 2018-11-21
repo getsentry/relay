@@ -109,14 +109,14 @@ where
         bar2: Annotated<T>,
     }
 
-    let foo = Annotated::new(Foo {
+    let wrapper = Annotated::new(Foo {
         bar: Annotated::new(T::default()),
         bar2: Annotated::new(T::default()),
     });
-    let foo = foo.process(&mut SchemaProcessor);
+    let wrapper = wrapper.process(&mut SchemaProcessor);
 
     assert_eq!(
-        foo,
+        wrapper,
         Annotated::new(Foo {
             bar: Annotated::from_error("non-empty value required", None),
             bar2: Annotated::new(T::default())

@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::fmt;
 
+use lazy_static;
+
 use regex::Regex;
 
 /// The maximum length of a field.
@@ -120,15 +122,17 @@ pub struct FieldAttrs {
     pub pii_kind: Option<PiiKind>,
 }
 
-const DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-    name: None,
-    required: false,
-    nonempty: false,
-    match_regex: None,
-    max_chars: None,
-    bag_size: None,
-    pii_kind: None,
-};
+lazy_static::lazy_static! {
+    static ref DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
+        name: None,
+        required: false,
+        nonempty: false,
+        match_regex: None,
+        max_chars: None,
+        bag_size: None,
+        pii_kind: None,
+    };
+}
 
 impl Default for FieldAttrs {
     fn default() -> FieldAttrs {
