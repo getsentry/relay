@@ -21,6 +21,7 @@ mod geo;
 mod mechanism;
 mod remove_other;
 mod request;
+mod schema;
 mod stacktrace;
 mod trimming;
 
@@ -113,10 +114,12 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
     )]
     fn process_event(
         &mut self,
-        event: Annotated<Event>,
+        mut event: Annotated<Event>,
         state: ProcessingState,
     ) -> Annotated<Event> {
-        let mut event = ProcessValue::process_child_values(event, self, state.clone());
+        event = schema::SchemaProcessor.process_event(event, state.clone());
+
+        event = ProcessValue::process_child_values(event, self, state.clone());
 
         if let Some(ref mut event) = event.0 {
             if let Some(project_id) = self.config.project_id {

@@ -106,6 +106,8 @@ pub struct FieldAttrs {
     pub name: Option<&'static str>,
     /// If the field is required.
     pub required: bool,
+    /// If the field should be non-empty.
+    pub nonempty: bool,
     /// The maximum char length of this field.
     pub max_chars: Option<MaxChars>,
     /// The maximum bag size of this field.
@@ -117,6 +119,7 @@ pub struct FieldAttrs {
 const DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
     name: None,
     required: false,
+    nonempty: false,
     max_chars: None,
     bag_size: None,
     pii_kind: None,

@@ -654,6 +654,19 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 span: Span::call_site(),
             };
 
+            let nonempty = nonempty.unwrap_or(false);
+
+            if nonempty {
+                if required.is_none() {
+                    panic!("`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used.");
+                }
+            }
+
+            let nonempty_attr = LitBool {
+                value: nonempty,
+                span: Span::call_site(),
+            };
+
             (quote! {
                 let #bi = __obj.remove(#field_name);
             }).to_tokens(&mut from_value_body);
@@ -676,15 +689,6 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 }).to_tokens(&mut from_value_body);
             }
 
-            if nonempty.unwrap_or(false) {
-                if required.is_none() {
-                    panic!("`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used.");
-                }
-                (quote! {
-                    let mut #bi = #bi;
-                    #bi.require_nonempty_value();
-                }).to_tokens(&mut from_value_body);
-            }
 
             if let Some(match_regex) = match_regex {
                 (quote! {
@@ -704,6 +708,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 const #field_attrs_name: crate::processor::FieldAttrs = crate::processor::FieldAttrs {
                     name: Some(#field_name),
                     required: #required_attr,
+                    nonempty: #nonempty_attr,
                     max_chars: #max_chars_attr,
                     bag_size: #bag_size_attr,
                     pii_kind: #pii_kind_attr,
