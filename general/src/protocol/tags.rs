@@ -17,14 +17,11 @@ impl std::ops::Deref for Tags {
 impl FromValue for Tags {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         type TagTuple = (Annotated<LenientString>, Annotated<LenientString>);
-        fn check_chars(x: String) -> Result<String, Annotated<String>> {
+        fn check_chars(x: String) -> Annotated<String> {
             if x.contains('\n') {
-                Err(Annotated::from_error(
-                    "invalid character in tag",
-                    Some(Value::String(x)),
-                ))
+                Annotated::from_error("invalid character in tag", Some(Value::String(x)))
             } else {
-                Ok(x)
+                Annotated::new(x)
             }
         }
 
