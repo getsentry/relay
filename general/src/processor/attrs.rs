@@ -1,6 +1,10 @@
 use std::borrow::Cow;
 use std::fmt;
 
+use lazy_static;
+
+use regex::Regex;
+
 /// The maximum length of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
 pub enum MaxChars {
@@ -106,6 +110,10 @@ pub struct FieldAttrs {
     pub name: Option<&'static str>,
     /// If the field is required.
     pub required: bool,
+    /// If the field should be non-empty.
+    pub nonempty: bool,
+    /// A regex to validate the (string) value against.
+    pub match_regex: Option<Regex>,
     /// The maximum char length of this field.
     pub max_chars: Option<MaxChars>,
     /// The maximum bag size of this field.
@@ -114,13 +122,17 @@ pub struct FieldAttrs {
     pub pii_kind: Option<PiiKind>,
 }
 
-const DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-    name: None,
-    required: false,
-    max_chars: None,
-    bag_size: None,
-    pii_kind: None,
-};
+lazy_static::lazy_static! {
+    static ref DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
+        name: None,
+        required: false,
+        nonempty: false,
+        match_regex: None,
+        max_chars: None,
+        bag_size: None,
+        pii_kind: None,
+    };
+}
 
 impl Default for FieldAttrs {
     fn default() -> FieldAttrs {

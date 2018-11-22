@@ -432,12 +432,12 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         binding.style = synstructure::BindStyle::MoveMut;
     }
     let mut from_value_body = TokenStream::new();
+    let mut to_value_body = TokenStream::new();
+    let mut process_value_body = TokenStream::new();
     (quote! {
         use lazy_static::lazy_static;
         use regex::Regex;
-    }).to_tokens(&mut from_value_body);
-    let mut to_value_body = TokenStream::new();
-    let mut process_value_body = TokenStream::new();
+    }).to_tokens(&mut process_value_body);
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
     let mut process_func = None;
@@ -492,7 +492,6 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         let mut required = None;
         let mut nonempty = None;
         let mut match_regex = None;
-        let regex_bi = Ident::new(&format!("{}_REGEX", field_name), Span::call_site());
         let mut legacy_aliases = vec![];
         for attr in &bi.ast().attrs {
             let meta = match attr.interpret_meta() {
@@ -648,6 +647,17 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 span: Span::call_site(),
             };
 
+            let nonempty = nonempty.unwrap_or(false);
+
+            if nonempty && required.is_none() {
+                panic!("`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used.");
+            }
+
+            let nonempty_attr = LitBool {
+                value: nonempty,
+                span: Span::call_site(),
+            };
+
             (quote! {
                 let #bi = __obj.remove(#field_name);
             }).to_tokens(&mut from_value_body);
@@ -670,39 +680,29 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 }).to_tokens(&mut from_value_body);
             }
 
-            if nonempty.unwrap_or(false) {
-                if required.is_none() {
-                    panic!("`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used.");
-                }
-                (quote! {
-                    let mut #bi = #bi;
-                    #bi.require_nonempty_value();
-                }).to_tokens(&mut from_value_body);
-            }
-
-            if let Some(match_regex) = match_regex {
-                (quote! {
-                    lazy_static! {
-                        static ref #regex_bi: Regex = Regex::new(#match_regex).unwrap();
-                    }
-
-                    let mut #bi = #bi;
-                    #bi.require_regex(&#regex_bi);
-                }).to_tokens(&mut from_value_body);
-            }
+            let match_regex_attr = if let Some(match_regex) = match_regex {
+                quote!(Some(Regex::new(#match_regex).unwrap()))
+            } else {
+                quote!(None)
+            };
 
             (quote! {
                 __map.insert(#field_name.to_string(), crate::processor::ToValue::to_value(#bi));
             }).to_tokens(&mut to_value_body);
             (quote! {
-                const #field_attrs_name: crate::processor::FieldAttrs = crate::processor::FieldAttrs {
-                    name: Some(#field_name),
-                    required: #required_attr,
-                    max_chars: #max_chars_attr,
-                    bag_size: #bag_size_attr,
-                    pii_kind: #pii_kind_attr,
-                };
-                let #bi = crate::processor::ProcessValue::process_value(#bi, __processor, __state.enter_static(#field_name, Some(::std::borrow::Cow::Borrowed(&#field_attrs_name))));
+                lazy_static! {
+                    static ref #field_attrs_name: crate::processor::FieldAttrs = crate::processor::FieldAttrs {
+                        name: Some(#field_name),
+                        required: #required_attr,
+                        nonempty: #nonempty_attr,
+                        match_regex: #match_regex_attr,
+                        max_chars: #max_chars_attr,
+                        bag_size: #bag_size_attr,
+                        pii_kind: #pii_kind_attr,
+                    };
+                }
+
+                let #bi = crate::processor::ProcessValue::process_value(#bi, __processor, __state.enter_static(#field_name, Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))));
             }).to_tokens(&mut process_value_body);
             (quote! {
                 if !#bi.skip_serialization() {
