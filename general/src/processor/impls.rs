@@ -87,6 +87,15 @@ impl<T: ToValue> ToValue for Array<T> {
         }
         children
     }
+
+    fn skip_serialization(&self) -> bool {
+        for item in self.iter() {
+            if !item.skip_serialization() {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl<T: ProcessValue> ProcessValue for Array<T> {
@@ -187,6 +196,15 @@ impl<T: ToValue> ToValue for Object<T> {
             }
         }
         children
+    }
+
+    fn skip_serialization(&self) -> bool {
+        for (_, value) in self.iter() {
+            if !value.skip_serialization() {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -470,4 +488,51 @@ fn test_unsigned_integers() {
         Annotated::<u64>::from_json("-1").unwrap(),
         Annotated::from_error("expected an unsigned integer", Some(Value::I64(-1)))
     );
+}
+
+#[test]
+fn test_empty_containers_skipped() {
+    #[derive(Debug, ToValue)]
+    struct Helper {
+        items: Annotated<Array<String>>,
+    }
+
+    let helper = Annotated::new(Helper {
+        items: Annotated::new(vec![]),
+    });
+
+    assert_eq_str!(helper.to_json().unwrap(), "{}");
+}
+
+#[test]
+fn test_empty_containers_not_skipped_if_configured() {
+    #[derive(Debug, ToValue)]
+    #[metastructure(skip_serialization = "never")]
+    struct NeverSkip(Array<String>);
+
+    #[derive(Debug, ToValue)]
+    struct NeverSkipHelper {
+        items: Annotated<NeverSkip>,
+    }
+
+    let helper = Annotated::new(NeverSkipHelper {
+        items: Annotated::new(NeverSkip(vec![])),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[]}"#);
+}
+
+#[test]
+fn test_wrapper_structs_and_skip_serialization() {
+    #[derive(Debug, ToValue)]
+    struct BasicWrapper(Array<String>);
+
+    #[derive(Debug, ToValue)]
+    struct BasicHelper {
+        items: Annotated<BasicWrapper>,
+    }
+
+    let helper = Annotated::new(BasicHelper {
+        items: Annotated::new(BasicWrapper(vec![])),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), "{}");
 }

@@ -330,7 +330,15 @@ impl<T: ToValue> Annotated<T> {
 
     /// Checks if this value can be skipped upon serialization.
     pub fn skip_serialization(&self) -> bool {
-        self.0.is_none() && self.1.is_empty()
+        if !self.1.is_empty() {
+            return false;
+        }
+
+        if let Some(ref value) = self.0 {
+            value.skip_serialization()
+        } else {
+            true
+        }
     }
 }
 

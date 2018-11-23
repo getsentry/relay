@@ -52,6 +52,12 @@ pub trait ToValue: Debug {
             },
         }
     }
+
+    /// Whether the value should not be serialized. Should at least return true if the value would
+    /// serialize to an empty array, empty object or null.
+    fn skip_serialization(&self) -> bool {
+        false
+    }
 }
 
 macro_rules! process_method {
