@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+- `libsemaphore`: Expose CABI for normalizing event data.
+
 ## 0.2.0
 
 Our first major iteration on Relay has landed!
