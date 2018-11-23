@@ -87,6 +87,15 @@ impl<T: ToValue> ToValue for Array<T> {
         }
         children
     }
+
+    fn skip_serialization(&self) -> bool {
+        for item in self.iter() {
+            if !item.skip_serialization() {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl<T: ProcessValue> ProcessValue for Array<T> {
@@ -187,6 +196,15 @@ impl<T: ToValue> ToValue for Object<T> {
             }
         }
         children
+    }
+
+    fn skip_serialization(&self) -> bool {
+        for (_, value) in self.iter() {
+            if !value.skip_serialization() {
+                return false;
+            }
+        }
+        true
     }
 }
 

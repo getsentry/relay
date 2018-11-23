@@ -106,6 +106,14 @@ fn process_wrapper_struct_derive(
                     {
                         crate::processor::ToValue::extract_child_meta(&self.0)
                     }
+
+                    #[inline(always)]
+                    fn skip_serialization(&self) -> bool
+                    where
+                        Self: Sized,
+                    {
+                        crate::processor::ToValue::skip_serialization(&self.0)
+                    }
                 }
             })
         }
@@ -440,6 +448,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     }).to_tokens(&mut process_value_body);
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
+    let mut skip_serialization_body = TokenStream::new();
     let mut process_func = None;
     let mut tmp_idx = 0;
 
@@ -717,6 +726,12 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 }
             }).to_tokens(&mut extract_child_meta_body);
         }
+
+        (quote! {
+            if !#bi.skip_serialization() {
+                return false;
+            }
+        }).to_tokens(&mut skip_serialization_body);
     }
 
     let ast = s.ast();
@@ -808,6 +823,12 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         let #serialize_pat = *self;
                         #extract_child_meta_body;
                         __child_meta
+                    }
+
+                    fn skip_serialization(&self) -> bool {
+                        let #serialize_pat = self;
+                        #skip_serialization_body;
+                        true
                     }
                 }
             })
