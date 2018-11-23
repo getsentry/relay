@@ -262,10 +262,15 @@ pub struct Event {
     pub errors: Annotated<Array<EventProcessingError>>,
 
     /// Project key which sent this event.
+    // TODO: capsize?
     pub key_id: Annotated<String>,
 
-    /// Project key which sent this event.
+    /// Project which sent this event.
     pub project: Annotated<u64>,
+
+    /// Project which sent this event.
+    // TODO: capsize?
+    pub checksum: Annotated<String>,
 
     /// CSP (security) reports.
     // TODO: typing

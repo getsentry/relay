@@ -222,6 +222,14 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                                 }).unwrap_or(true)
                         }).unwrap_or(true)
                 });
+
+                if event.server_name.0.is_some() {
+                    let server_name = mem::replace(&mut event.server_name, Annotated::empty());
+                    tags.0.push(Annotated::new((
+                        Annotated::new("server_name".to_owned()),
+                        server_name,
+                    )));
+                }
             }
 
             // port of src/sentry/eventtypes
