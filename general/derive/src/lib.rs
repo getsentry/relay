@@ -200,17 +200,16 @@ fn process_enum_struct_derive(
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
 
-    let process_state_clone = if process_func.is_some() {
-        Some(quote! {
-            let __state_clone = __state.clone();
-        })
-    } else {
-        None
-    };
-    let invoke_process_func = process_func.map(|func_name| {
+    let process_value = process_func.map(|func_name| {
         let func_name = Ident::new(&func_name, Span::call_site());
         quote! {
-            let __result = __processor.#func_name(__result, __state_clone);
+            fn process_value<P: crate::processor::Processor>(
+                __value: crate::types::Annotated<Self>,
+                __processor: &mut P,
+                __state: crate::processor::ProcessingState
+            ) -> crate::types::Annotated<Self> {
+                __processor.#func_name(__value, __state)
+            }
         }
     });
 
@@ -394,14 +393,13 @@ fn process_enum_struct_derive(
                         __processor: &mut P,
                         __state: crate::processor::ProcessingState
                     ) -> crate::types::Annotated<Self> {
-                        #process_state_clone
-                        let __result = match __value {
+                        match __value {
                             #process_value_body
                             crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta),
-                        };
-                        #invoke_process_func
-                        __result
+                        }
                     }
+
+                    #process_value
                 }
             })
         }
