@@ -423,7 +423,7 @@ impl Annotated<String> {
                     Chunk::Text { text } => {
                         let mut remaining = String::new();
                         for c in text.chars() {
-                            if length < limit - 3 {
+                            if length + 3 < limit {
                                 remaining.push(c);
                             } else {
                                 break;
