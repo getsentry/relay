@@ -423,3 +423,44 @@ fn test_untagged_context_deserialize() {
 
     assert_eq_dbg!(contexts, Annotated::from_json(json).unwrap());
 }
+
+#[test]
+fn test_context_processing() {
+    use crate::processor::{ProcessValue, ProcessingState, Processor};
+    use crate::protocol::Event;
+
+    let event = Annotated::new(Event {
+        contexts: Annotated::new(Contexts({
+            let mut contexts = Object::new();
+            contexts.insert(
+                "runtime".to_owned(),
+                Annotated::new(Context::Runtime(Box::new(RuntimeContext {
+                    name: Annotated::new("php".to_owned()),
+                    version: Annotated::new("7.1.20-1+ubuntu16.04.1+deb.sury.org+1".to_owned()),
+                    ..Default::default()
+                }))),
+            );
+            contexts
+        })),
+        ..Default::default()
+    });
+
+    struct FooProcessor {
+        called: bool,
+    }
+
+    impl Processor for FooProcessor {
+        fn process_context(
+            &mut self,
+            context: Annotated<Context>,
+            state: ProcessingState,
+        ) -> Annotated<Context> {
+            self.called = true;
+            Context::process_child_values(context, self, state)
+        }
+    }
+
+    let mut processor = FooProcessor { called: false };
+    event.process(&mut processor);
+    assert!(processor.called);
+}
