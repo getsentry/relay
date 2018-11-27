@@ -365,13 +365,13 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
 
     for bi in variant.bindings() {
         let field_attrs = parse_field_attributes(&bi.ast().attrs);
-        let field_name = field_attrs.field_name_override.unwrap_or_else(||
+        let field_name = field_attrs.field_name_override.unwrap_or_else(|| {
             bi.ast()
                 .ident
                 .as_ref()
                 .expect("can not derive struct tuples")
-                .to_string(),
-        );
+                .to_string()
+        });
         let field_name = LitStr::new(&field_name, Span::call_site());
 
         if field_attrs.additional_properties {
