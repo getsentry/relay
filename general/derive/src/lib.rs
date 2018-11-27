@@ -146,61 +146,20 @@ fn process_enum_struct_derive(
         return Err(s);
     }
 
-    let mut process_func = None;
-    let mut tag_key = "type".to_string();
-    for attr in &s.ast().attrs {
-        let meta = match attr.interpret_meta() {
-            Some(meta) => meta,
-            None => continue,
-        };
-        if meta.name() != "metastructure" {
-            continue;
-        }
-
-        if let Meta::List(metalist) = meta {
-            for nested_meta in metalist.nested {
-                match nested_meta {
-                    NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
-                    NestedMeta::Meta(meta) => match meta {
-                        Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
-                            if ident == "process_func" {
-                                match lit {
-                                    Lit::Str(litstr) => {
-                                        process_func = Some(litstr.value());
-                                    }
-                                    _ => {
-                                        panic!("Got non string literal for field");
-                                    }
-                                }
-                            } else if ident == "tag_key" {
-                                match lit {
-                                    Lit::Str(litstr) => {
-                                        tag_key = litstr.value();
-                                    }
-                                    _ => {
-                                        panic!("Got non string literal for tag_key");
-                                    }
-                                }
-                            } else {
-                                panic!("Unknown attribute")
-                            }
-                        }
-                        _ => panic!("Unsupported attribute"),
-                    },
-                }
-            }
-        }
-    }
+    let type_attrs = parse_type_attributes(&s.ast().attrs);
 
     let type_name = &s.ast().ident;
-    let tag_key_str = LitStr::new(&tag_key, Span::call_site());
+    let tag_key_str = LitStr::new(
+        &type_attrs.tag_key.unwrap_or_else(|| "type".to_string()),
+        Span::call_site(),
+    );
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
     let mut process_value_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
 
-    let process_value = process_func.map(|func_name| {
+    let process_value = type_attrs.process_func.map(|func_name| {
         let func_name = Ident::new(&func_name, Span::call_site());
         quote! {
             fn process_value<P: crate::processor::Processor>(
@@ -214,54 +173,13 @@ fn process_enum_struct_derive(
     });
 
     for variant in s.variants() {
+        let variant_attrs = parse_variant_attributes(&variant.ast().attrs);
         let mut variant_name = &variant.ast().ident;
-        let mut tag = Some(variant.ast().ident.to_string().to_lowercase());
+        let tag = variant_attrs
+            .tag_override
+            .unwrap_or(variant_name.to_string().to_lowercase());
 
-        for attr in variant.ast().attrs {
-            let meta = match attr.interpret_meta() {
-                Some(meta) => meta,
-                None => continue,
-            };
-            if meta.name() != "metastructure" {
-                continue;
-            }
-
-            if let Meta::List(metalist) = meta {
-                for nested_meta in metalist.nested {
-                    match nested_meta {
-                        NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
-                        NestedMeta::Meta(meta) => match meta {
-                            Meta::Word(ident) => {
-                                if ident == "fallback_variant" {
-                                    tag = None;
-                                } else {
-                                    panic!("Unknown attribute {}", ident);
-                                }
-                            }
-                            Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
-                                if ident == "tag" {
-                                    match lit {
-                                        Lit::Str(litstr) => {
-                                            tag = Some(litstr.value());
-                                        }
-                                        _ => {
-                                            panic!("Got non string literal for tag");
-                                        }
-                                    }
-                                } else {
-                                    panic!("Unknown key {}", ident);
-                                }
-                            }
-                            other => {
-                                panic!("Unexpected or bad attribute {}", other.name());
-                            }
-                        },
-                    }
-                }
-            }
-        }
-
-        if let Some(tag) = tag {
+        if !variant_attrs.fallback_variant {
             let tag = LitStr::new(&tag, Span::call_site());
             (quote! {
                 Some(#tag) => {
@@ -438,172 +356,25 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     }).to_tokens(&mut process_value_body);
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
-    let mut process_func = None;
     let mut tmp_idx = 0;
 
-    for attr in &s.ast().attrs {
-        let meta = match attr.interpret_meta() {
-            Some(meta) => meta,
-            None => continue,
-        };
-        if meta.name() != "metastructure" {
-            continue;
-        }
-
-        if let Meta::List(metalist) = meta {
-            for nested_meta in metalist.nested {
-                match nested_meta {
-                    NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
-                    NestedMeta::Meta(meta) => match meta {
-                        Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
-                            if ident == "process_func" {
-                                match lit {
-                                    Lit::Str(litstr) => {
-                                        process_func = Some(litstr.value());
-                                    }
-                                    _ => {
-                                        panic!("Got non string literal for field");
-                                    }
-                                }
-                            } else {
-                                panic!("Unknown attribute")
-                            }
-                        }
-                        _ => panic!("Unsupported attribute"),
-                    },
-                }
-            }
-        }
+    let type_attrs = parse_type_attributes(&s.ast().attrs);
+    if type_attrs.tag_key.is_some() {
+        panic!("tag_key not supported on structs");
     }
 
     for bi in variant.bindings() {
-        let mut additional_properties = false;
-        let mut field_name = bi
-            .ast()
-            .ident
-            .as_ref()
-            .expect("can not derive struct tuples")
-            .to_string();
-        let mut max_chars_attr = quote!(None);
-        let mut bag_size_attr = quote!(None);
-        let mut pii_kind_attr = quote!(None);
-        let mut required = None;
-        let mut nonempty = None;
-        let mut match_regex = None;
-        let mut legacy_aliases = vec![];
-        for attr in &bi.ast().attrs {
-            let meta = match attr.interpret_meta() {
-                Some(meta) => meta,
-                None => continue,
-            };
-            if meta.name() != "metastructure" {
-                continue;
-            }
-
-            if let Meta::List(metalist) = meta {
-                for nested_meta in metalist.nested {
-                    match nested_meta {
-                        NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
-                        NestedMeta::Meta(meta) => match meta {
-                            Meta::Word(ident) => {
-                                if ident == "additional_properties" {
-                                    additional_properties = true;
-                                } else {
-                                    panic!("Unknown attribute {}", ident);
-                                }
-                            }
-                            Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
-                                if ident == "field" {
-                                    match lit {
-                                        Lit::Str(litstr) => {
-                                            field_name = litstr.value();
-                                        }
-                                        _ => {
-                                            panic!("Got non string literal for field");
-                                        }
-                                    }
-                                } else if ident == "required" {
-                                    match lit {
-                                        Lit::Str(litstr) => match litstr.value().as_str() {
-                                            "true" => required = Some(true),
-                                            "false" => required = Some(false),
-                                            other => panic!("Unknown value {}", other),
-                                        },
-                                        _ => {
-                                            panic!("Got non string literal for required");
-                                        }
-                                    }
-                                } else if ident == "nonempty" {
-                                    match lit {
-                                        Lit::Str(litstr) => match litstr.value().as_str() {
-                                            "true" => nonempty = Some(true),
-                                            "false" => nonempty = Some(false),
-                                            other => panic!("Unknown value {}", other),
-                                        },
-                                        _ => {
-                                            panic!("Got non string literal for required");
-                                        }
-                                    }
-                                } else if ident == "match_regex" {
-                                    match lit {
-                                        Lit::Str(litstr) => {
-                                            match_regex = Some(litstr.value().clone())
-                                        }
-                                        _ => panic!("Got non string literal for match_regex"),
-                                    }
-                                } else if ident == "max_chars" {
-                                    match lit {
-                                        Lit::Str(litstr) => {
-                                            let attr = parse_max_chars(litstr.value().as_str());
-                                            max_chars_attr = quote!(Some(#attr));
-                                        }
-                                        _ => {
-                                            panic!("Got non string literal for max_chars");
-                                        }
-                                    }
-                                } else if ident == "bag_size" {
-                                    match lit {
-                                        Lit::Str(litstr) => {
-                                            let attr = parse_bag_size(litstr.value().as_str());
-                                            bag_size_attr = quote!(Some(#attr));
-                                        }
-                                        _ => {
-                                            panic!("Got non string literal for bag_size");
-                                        }
-                                    }
-                                } else if ident == "pii_kind" {
-                                    match lit {
-                                        Lit::Str(litstr) => {
-                                            let attr = parse_pii_kind(litstr.value().as_str());
-                                            pii_kind_attr = quote!(Some(#attr));
-                                        }
-                                        _ => {
-                                            panic!("Got non string literal for pii_kind");
-                                        }
-                                    }
-                                } else if ident == "legacy_alias" {
-                                    match lit {
-                                        Lit::Str(litstr) => {
-                                            legacy_aliases.push(litstr.value());
-                                        }
-                                        _ => {
-                                            panic!("Got non string literal for legacy_alias");
-                                        }
-                                    }
-                                }
-                            }
-                            other => {
-                                panic!("Unexpected or bad attribute {}", other.name());
-                            }
-                        },
-                    }
-                }
-            }
-        }
-
+        let field_attrs = parse_field_attributes(&bi.ast().attrs);
+        let field_name = field_attrs.field_name_override.unwrap_or(
+            bi.ast()
+                .ident
+                .as_ref()
+                .expect("can not derive struct tuples")
+                .to_string(),
+        );
         let field_name = LitStr::new(&field_name, Span::call_site());
 
-        if additional_properties {
+        if field_attrs.additional_properties {
             (quote! {
                 let #bi = __obj.into_iter().map(|(__key, __value)| (__key, crate::processor::FromValue::from_value(__value))).collect();
             }).to_tokens(&mut from_value_body);
@@ -641,26 +412,24 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 Span::call_site(),
             );
             let required_attr = LitBool {
-                value: required.unwrap_or(false),
+                value: field_attrs.required,
                 span: Span::call_site(),
             };
-
-            let nonempty = nonempty.unwrap_or(false);
-
-            if nonempty && required.is_none() {
-                panic!("`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used.");
-            }
 
             let nonempty_attr = LitBool {
-                value: nonempty,
+                value: field_attrs.nonempty,
                 span: Span::call_site(),
             };
+
+            let max_chars_attr = field_attrs.max_chars;
+            let bag_size_attr = field_attrs.bag_size;
+            let pii_kind_attr = field_attrs.pii_kind;
 
             (quote! {
                 let #bi = __obj.remove(#field_name);
             }).to_tokens(&mut from_value_body);
 
-            for legacy_alias in legacy_aliases {
+            for legacy_alias in field_attrs.legacy_aliases {
                 let legacy_field_name = LitStr::new(&legacy_alias, Span::call_site());
                 (quote! {
                     let #bi = #bi.or(__obj.remove(#legacy_field_name));
@@ -671,14 +440,14 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 let #bi = crate::processor::FromValue::from_value(#bi.unwrap_or_else(|| crate::types::Annotated(None, crate::types::Meta::default())));
             }).to_tokens(&mut from_value_body);
 
-            if required.unwrap_or(false) {
+            if field_attrs.required {
                 (quote! {
                     let mut #bi = #bi;
                     #bi.require_value();
                 }).to_tokens(&mut from_value_body);
             }
 
-            let match_regex_attr = if let Some(match_regex) = match_regex {
+            let match_regex_attr = if let Some(match_regex) = field_attrs.match_regex {
                 quote!(Some(Regex::new(#match_regex).unwrap()))
             } else {
                 quote!(None)
@@ -733,7 +502,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     }
     let serialize_pat = variant.pat();
 
-    let process_value = process_func.map(|func_name| {
+    let process_value = type_attrs.process_func.map(|func_name| {
         let func_name = Ident::new(&func_name, Span::call_site());
         quote! {
             fn process_value<P: crate::processor::Processor>(
@@ -873,4 +642,255 @@ fn parse_pii_kind(kind: &str) -> TokenStream {
         "databag" => quote!(crate::processor::PiiKind::Databag),
         _ => panic!("invalid pii_kind variant '{}'", kind),
     }
+}
+
+#[derive(Default)]
+struct TypeAttrs {
+    process_func: Option<String>,
+    tag_key: Option<String>,
+}
+
+fn parse_type_attributes(attrs: &[syn::Attribute]) -> TypeAttrs {
+    let mut rv = TypeAttrs::default();
+
+    for attr in attrs {
+        let meta = match attr.interpret_meta() {
+            Some(meta) => meta,
+            None => continue,
+        };
+        if meta.name() != "metastructure" {
+            continue;
+        }
+
+        if let Meta::List(metalist) = meta {
+            for nested_meta in metalist.nested {
+                match nested_meta {
+                    NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
+                    NestedMeta::Meta(meta) => match meta {
+                        Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
+                            if ident == "process_func" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        rv.process_func = Some(litstr.value());
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for field");
+                                    }
+                                }
+                            } else if ident == "tag_key" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        rv.tag_key = Some(litstr.value());
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for tag_key");
+                                    }
+                                }
+                            } else {
+                                panic!("Unknown attribute")
+                            }
+                        }
+                        _ => panic!("Unsupported attribute"),
+                    },
+                }
+            }
+        }
+    }
+
+    rv
+}
+
+#[derive(Default)]
+struct FieldAttrs {
+    additional_properties: bool,
+    field_name_override: Option<String>,
+    required: bool,
+    nonempty: bool,
+    match_regex: Option<String>,
+    max_chars: TokenStream,
+    bag_size: TokenStream,
+    pii_kind: TokenStream,
+    legacy_aliases: Vec<String>,
+}
+
+fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
+    let mut rv = FieldAttrs::default();
+    rv.max_chars = quote!(None);
+    rv.bag_size = quote!(None);
+    rv.pii_kind = quote!(None);
+
+    let mut required = None;
+
+    for attr in attrs {
+        let meta = match attr.interpret_meta() {
+            Some(meta) => meta,
+            None => continue,
+        };
+        if meta.name() != "metastructure" {
+            continue;
+        }
+
+        if let Meta::List(metalist) = meta {
+            for nested_meta in metalist.nested {
+                match nested_meta {
+                    NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
+                    NestedMeta::Meta(meta) => match meta {
+                        Meta::Word(ident) => {
+                            if ident == "additional_properties" {
+                                rv.additional_properties = true;
+                            } else {
+                                panic!("Unknown attribute {}", ident);
+                            }
+                        }
+                        Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
+                            if ident == "field" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        rv.field_name_override = Some(litstr.value());
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for field");
+                                    }
+                                }
+                            } else if ident == "required" {
+                                match lit {
+                                    Lit::Str(litstr) => match litstr.value().as_str() {
+                                        "true" => required = Some(true),
+                                        "false" => required = Some(false),
+                                        other => panic!("Unknown value {}", other),
+                                    },
+                                    _ => {
+                                        panic!("Got non string literal for required");
+                                    }
+                                }
+                            } else if ident == "nonempty" {
+                                match lit {
+                                    Lit::Str(litstr) => match litstr.value().as_str() {
+                                        "true" => rv.nonempty = true,
+                                        "false" => rv.nonempty = false,
+                                        other => panic!("Unknown value {}", other),
+                                    },
+                                    _ => {
+                                        panic!("Got non string literal for required");
+                                    }
+                                }
+                            } else if ident == "match_regex" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        rv.match_regex = Some(litstr.value().clone())
+                                    }
+                                    _ => panic!("Got non string literal for match_regex"),
+                                }
+                            } else if ident == "max_chars" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        let attr = parse_max_chars(litstr.value().as_str());
+                                        rv.max_chars = quote!(Some(#attr));
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for max_chars");
+                                    }
+                                }
+                            } else if ident == "bag_size" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        let attr = parse_bag_size(litstr.value().as_str());
+                                        rv.bag_size = quote!(Some(#attr));
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for bag_size");
+                                    }
+                                }
+                            } else if ident == "pii_kind" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        let attr = parse_pii_kind(litstr.value().as_str());
+                                        rv.pii_kind = quote!(Some(#attr));
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for pii_kind");
+                                    }
+                                }
+                            } else if ident == "legacy_alias" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        rv.legacy_aliases.push(litstr.value());
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for legacy_alias");
+                                    }
+                                }
+                            }
+                        }
+                        other => {
+                            panic!("Unexpected or bad attribute {}", other.name());
+                        }
+                    },
+                }
+            }
+        }
+    }
+    if required.is_none() && rv.nonempty {
+        panic!(
+            "`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used."
+        );
+    }
+
+    rv.required = required.unwrap_or(false);
+    rv
+}
+
+#[derive(Default)]
+struct VariantAttrs {
+    tag_override: Option<String>,
+    fallback_variant: bool,
+}
+
+fn parse_variant_attributes(attrs: &[syn::Attribute]) -> VariantAttrs {
+    let mut rv = VariantAttrs::default();
+    for attr in attrs {
+        let meta = match attr.interpret_meta() {
+            Some(meta) => meta,
+            None => continue,
+        };
+        if meta.name() != "metastructure" {
+            continue;
+        }
+
+        if let Meta::List(metalist) = meta {
+            for nested_meta in metalist.nested {
+                match nested_meta {
+                    NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
+                    NestedMeta::Meta(meta) => match meta {
+                        Meta::Word(ident) => {
+                            if ident == "fallback_variant" {
+                                rv.tag_override = None;
+                                rv.fallback_variant = true;
+                            } else {
+                                panic!("Unknown attribute {}", ident);
+                            }
+                        }
+                        Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
+                            if ident == "tag" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        rv.tag_override = Some(litstr.value());
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for tag");
+                                    }
+                                }
+                            } else {
+                                panic!("Unknown key {}", ident);
+                            }
+                        }
+                        other => {
+                            panic!("Unexpected or bad attribute {}", other.name());
+                        }
+                    },
+                }
+            }
+        }
+    }
+    rv
 }
