@@ -177,7 +177,7 @@ fn process_enum_struct_derive(
         let mut variant_name = &variant.ast().ident;
         let tag = variant_attrs
             .tag_override
-            .unwrap_or(variant_name.to_string().to_lowercase());
+            .unwrap_or_else(|| variant_name.to_string().to_lowercase());
 
         if !variant_attrs.fallback_variant {
             let tag = LitStr::new(&tag, Span::call_site());
@@ -365,7 +365,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
 
     for bi in variant.bindings() {
         let field_attrs = parse_field_attributes(&bi.ast().attrs);
-        let field_name = field_attrs.field_name_override.unwrap_or(
+        let field_name = field_attrs.field_name_override.unwrap_or_else(||
             bi.ast()
                 .ident
                 .as_ref()
@@ -713,6 +713,7 @@ struct FieldAttrs {
     legacy_aliases: Vec<String>,
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
 fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
     let mut rv = FieldAttrs::default();
     rv.max_chars = quote!(None);
