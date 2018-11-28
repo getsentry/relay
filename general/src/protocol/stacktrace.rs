@@ -216,7 +216,6 @@ fn test_stacktrace_roundtrip() {
             );
             map
         },
-        ..Default::default()
     });
 
     assert_eq_dbg!(stack, Annotated::from_json(json).unwrap());
