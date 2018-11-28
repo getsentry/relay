@@ -59,6 +59,19 @@ fn process_wrapper_struct_derive(
         return Err(s);
     }
 
+    let mut skip_serialization_body = TokenStream::new();
+
+    let type_attrs = parse_type_attributes(&s.ast().attrs);
+    if type_attrs.tag_key.is_some() {
+        panic!("tag_key not supported on structs");
+    }
+
+    if type_attrs.never_skip_serialization {
+        quote!(false)
+    } else {
+        quote!(crate::processor::ToValue::skip_serialization(&self.0))
+    }.to_tokens(&mut skip_serialization_body);
+
     let name = &s.ast().ident;
 
     Ok(match t {
@@ -105,6 +118,14 @@ fn process_wrapper_struct_derive(
                         Self: Sized,
                     {
                         crate::processor::ToValue::extract_child_meta(&self.0)
+                    }
+
+                    #[inline(always)]
+                    fn skip_serialization(&self) -> bool
+                    where
+                        Self: Sized,
+                    {
+                        #skip_serialization_body
                     }
                 }
             })
@@ -356,11 +377,17 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     }).to_tokens(&mut process_value_body);
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
+    let mut skip_serialization_body = TokenStream::new();
     let mut tmp_idx = 0;
 
     let type_attrs = parse_type_attributes(&s.ast().attrs);
     if type_attrs.tag_key.is_some() {
         panic!("tag_key not supported on structs");
+    }
+    if type_attrs.never_skip_serialization {
+        (quote! {
+            return false;
+        }).to_tokens(&mut skip_serialization_body);
     }
 
     for bi in variant.bindings() {
@@ -484,6 +511,12 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 }
             }).to_tokens(&mut extract_child_meta_body);
         }
+
+        (quote! {
+            if !#bi.skip_serialization() {
+                return false;
+            }
+        }).to_tokens(&mut skip_serialization_body);
     }
 
     let ast = s.ast();
@@ -576,6 +609,13 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         #extract_child_meta_body;
                         __child_meta
                     }
+
+                    #[allow(unreachable_code)]
+                    fn skip_serialization(&self) -> bool {
+                        let #serialize_pat = self;
+                        #skip_serialization_body;
+                        true
+                    }
                 }
             })
         }
@@ -648,6 +688,7 @@ fn parse_pii_kind(kind: &str) -> TokenStream {
 struct TypeAttrs {
     process_func: Option<String>,
     tag_key: Option<String>,
+    never_skip_serialization: bool,
 }
 
 fn parse_type_attributes(attrs: &[syn::Attribute]) -> TypeAttrs {
@@ -684,6 +725,16 @@ fn parse_type_attributes(attrs: &[syn::Attribute]) -> TypeAttrs {
                                     }
                                     _ => {
                                         panic!("Got non string literal for tag_key");
+                                    }
+                                }
+                            } else if ident == "skip_serialization" {
+                                match lit {
+                                    Lit::Str(litstr) => match litstr.value().as_ref() {
+                                        "never" => rv.never_skip_serialization = true,
+                                        _ => panic!("Unknown value for skip_serialization"),
+                                    },
+                                    _ => {
+                                        panic!("Got non string literal for skip_serialization");
                                     }
                                 }
                             } else {

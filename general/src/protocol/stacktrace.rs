@@ -183,7 +183,9 @@ fn test_stacktrace_roundtrip() {
     use crate::types::Map;
     let json = r#"{
   "frames": [
-    {}
+    {
+      "function": "foobar"
+    }
   ],
   "registers": {
     "cspr": "0x20000000",
@@ -194,7 +196,10 @@ fn test_stacktrace_roundtrip() {
   "other": "value"
 }"#;
     let stack = Annotated::new(Stacktrace {
-        frames: Annotated::new(vec![Annotated::new(Default::default())]),
+        frames: Annotated::new(vec![Annotated::new(Frame {
+            function: Annotated::new("foobar".to_string()),
+            ..Default::default()
+        })]),
         registers: {
             let mut map = Map::new();
             map.insert("cspr".to_string(), Annotated::new(RegVal(0x2000_0000)));
@@ -219,19 +224,19 @@ fn test_stacktrace_roundtrip() {
 
 #[test]
 fn test_stacktrace_default_values() {
-    let json = r#"{
-  "frames": [
-    {}
-  ]
-}"#;
-    let stack = Annotated::new(Stacktrace {
+    let json = "{}";
+    let input = Annotated::new(Stacktrace {
         frames: Annotated::new(vec![Annotated::new(Default::default())]),
-        registers: Annotated::empty(),
-        other: Default::default(),
+        ..Default::default()
     });
 
-    assert_eq_dbg!(stack, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, stack.to_json_pretty().unwrap());
+    let output = Annotated::new(Stacktrace {
+        frames: Annotated::from_error("value required", None),
+        ..Default::default()
+    });
+
+    assert_eq_str!(json, input.to_json_pretty().unwrap());
+    assert_eq_dbg!(output, Annotated::from_json(json).unwrap());
 }
 
 #[test]

@@ -19,12 +19,16 @@ pub struct LogEntry {
 
     /// Positional parameters to be interpolated into the log message.
     #[metastructure(pii_kind = "databag")]
-    pub params: Annotated<Array<Value>>,
+    pub params: Annotated<Params>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii_kind = "databag")]
     pub other: Object<Value>,
 }
+
+#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[metastructure(skip_serialization = "never")]
+pub struct Params(Array<Value>);
 
 impl FromValue for LogEntry {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
@@ -40,7 +44,7 @@ impl FromValue for LogEntry {
                 struct Helper {
                     message: Annotated<String>,
                     formatted: Annotated<String>,
-                    params: Annotated<Array<Value>>,
+                    params: Annotated<Params>,
                     #[metastructure(additional_properties)]
                     other: Object<Value>,
                 }
@@ -81,10 +85,10 @@ fn test_logentry_roundtrip() {
     let entry = Annotated::new(LogEntry {
         message: Annotated::new("Hello, %s %s!".to_string()),
         formatted: Annotated::empty(),
-        params: Annotated::new(vec![
+        params: Annotated::new(Params(vec![
             Annotated::new(Value::String("World".to_string())),
             Annotated::new(Value::I64(1)),
-        ]),
+        ])),
         other: {
             let mut map = Object::new();
             map.insert(
@@ -113,4 +117,16 @@ fn test_logentry_from_message() {
 
     assert_eq_dbg!(entry, Annotated::from_json(input).unwrap());
     assert_eq_str!(output, entry.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_logenty_empty_params() {
+    let input = r#"{"params":[]}"#;
+    let entry = Annotated::new(LogEntry {
+        params: Annotated::new(Params(vec![])),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(entry, Annotated::from_json(input).unwrap());
+    assert_eq_str!(input, entry.to_json().unwrap());
 }
