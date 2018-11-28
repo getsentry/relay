@@ -536,3 +536,23 @@ fn test_wrapper_structs_and_skip_serialization() {
     });
     assert_eq_str!(helper.to_json().unwrap(), "{}");
 }
+
+#[test]
+fn test_skip_serialization_on_regular_structs() {
+    #[derive(Debug, Default, ToValue)]
+    #[metastructure(skip_serialization = "never")]
+    struct Wrapper {
+        foo: Annotated<u64>,
+    }
+
+    #[derive(Debug, Default, ToValue)]
+    struct Helper {
+        foo: Annotated<Wrapper>,
+    }
+
+    let helper = Annotated::new(Helper {
+        foo: Annotated::new(Wrapper::default()),
+    });
+
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"foo":{}}"#);
+}

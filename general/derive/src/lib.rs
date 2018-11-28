@@ -610,6 +610,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         __child_meta
                     }
 
+                    #[allow(unreachable_code)]
                     fn skip_serialization(&self) -> bool {
                         let #serialize_pat = self;
                         #skip_serialization_body;
