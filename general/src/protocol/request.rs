@@ -1,8 +1,8 @@
 use cookie::Cookie;
 use url::form_urlencoded;
 
-use crate::processor::{FromValue, ToValue};
-use crate::types::{Annotated, Map, Object, Value};
+use crate::processor::FromValue;
+use crate::types::{Annotated, Array, Map, Object, Value};
 
 /// A map holding cookies.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
@@ -58,101 +58,80 @@ impl FromValue for Cookies {
 
 /// A map holding headers.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
-pub struct Headers(pub Map<String, String>);
+pub struct Headers(pub Array<(Annotated<String>, Annotated<String>)>);
 
 impl std::ops::Deref for Headers {
-    type Target = Map<String, String>;
+    type Target = Array<(Annotated<String>, Annotated<String>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-fn normalize_header(key: &str) -> String {
-    key.split('-')
-        .enumerate()
-        .fold(String::new(), |mut all, (i, part)| {
-            // join
-            if i > 0 {
-                all.push_str("-");
+impl Headers {
+    pub fn get_header(&self, key: &str) -> Option<&Annotated<String>> {
+        for item in self.0.iter() {
+            if let Annotated(Some((ref k, ref v)), _) = item {
+                if k.0.as_ref().map(|x| x.as_str()) == Some(key) && v.0.is_some() {
+                    return Some(v);
+                }
             }
-
-            // capitalize the first characters
-            let mut chars = part.chars();
-            if let Some(c) = chars.next() {
-                all.extend(c.to_uppercase());
-            }
-
-            // copy all others
-            all.extend(chars);
-            all
-        })
+        }
+        None
+    }
 }
 
 impl FromValue for Headers {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         type HeaderTuple = (Annotated<String>, Annotated<String>);
-        match value {
-            Annotated(Some(Value::Array(items)), mut meta) => {
-                let mut rv = Map::new();
-                let mut bad_items = vec![];
-                for item in items.into_iter() {
-                    match HeaderTuple::from_value(item) {
-                        // simple case: valid key.  In that case we take the value as such and
-                        // merge it with the tuple level metadata.
-                        Annotated(
-                            Some((Annotated(Some(key), _), Annotated(value, value_meta))),
-                            pair_meta,
-                        ) => {
-                            rv.insert(
-                                normalize_header(&key),
-                                Annotated(value, pair_meta.merge(value_meta)),
-                            );
-                        }
-                        // complex case: we didn't get a key out for one reason or another
-                        // which means we cannot create a entry in the hashmap.
-                        Annotated(
-                            Some((Annotated(None, mut key_meta), value @ Annotated(..))),
-                            _,
-                        ) => {
-                            let mut value = ToValue::to_value(value);
-                            let key = key_meta.take_original_value();
-                            let value = value.0.take().or_else(|| value.1.take_original_value());
-                            if let (Some(key), Some(value)) = (key, value) {
-                                bad_items.push(Annotated::new(Value::Array(vec![
-                                    Annotated::new(key),
-                                    Annotated::new(value),
-                                ])));
-                            }
-                        }
-                        Annotated(_, mut pair_meta) => {
-                            if let Some(value) = pair_meta.take_original_value() {
-                                bad_items.push(Annotated::new(value));
-                            }
-                        }
+        fn normalize_header(key: &str) -> String {
+            key.split('-')
+                .enumerate()
+                .fold(String::new(), |mut all, (i, part)| {
+                    // join
+                    if i > 0 {
+                        all.push_str("-");
                     }
-                }
-                if !bad_items.is_empty() {
-                    meta.add_error(
-                        "invalid non-header values",
-                        if bad_items.is_empty() {
-                            None
-                        } else {
-                            Some(Value::Array(bad_items))
-                        },
+
+                    // capitalize the first characters
+                    let mut chars = part.chars();
+                    if let Some(c) = chars.next() {
+                        all.extend(c.to_uppercase());
+                    }
+
+                    // copy all others
+                    all.extend(chars);
+                    all
+                })
+        }
+
+        match value {
+            Annotated(Some(Value::Array(items)), meta) => {
+                let mut rv = Vec::new();
+                for item in items.into_iter() {
+                    rv.push(
+                        HeaderTuple::from_value(item).map_value(|tuple| {
+                            (tuple.0.and_then(|k| normalize_header(&k)), tuple.1)
+                        }),
                     );
                 }
                 Annotated(Some(Headers(rv)), meta)
             }
-            Annotated(Some(Value::Object(items)), meta) => Annotated(
-                Some(Headers(
-                    items
-                        .into_iter()
-                        .map(|(key, value)| (normalize_header(&key), String::from_value(value)))
-                        .collect(),
-                )),
-                meta,
-            ),
+            Annotated(Some(Value::Object(items)), meta) => {
+                let mut rv = Vec::new();
+                for (key, value) in items.into_iter() {
+                    rv.push((normalize_header(&key), String::from_value(value)));
+                }
+                rv.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+                Annotated(
+                    Some(Headers(
+                        rv.into_iter()
+                            .map(|(k, v)| Annotated::new((Annotated::new(k), v)))
+                            .collect(),
+                    )),
+                    meta,
+                )
+            }
             other => FromValue::from_value(other).map_value(Headers),
         }
     }
@@ -272,18 +251,21 @@ fn test_header_normalization() {
   "x-sentry": "version=8"
 }"#;
 
-    let mut map = Map::new();
-    map.insert(
-        "Accept".to_string(),
+    let mut headers = Vec::new();
+    headers.push(Annotated::new((
+        Annotated::new("-Other-".to_string()),
+        Annotated::new("header".to_string()),
+    )));
+    headers.push(Annotated::new((
+        Annotated::new("Accept".to_string()),
         Annotated::new("application/json".to_string()),
-    );
-    map.insert(
-        "X-Sentry".to_string(),
+    )));
+    headers.push(Annotated::new((
+        Annotated::new("X-Sentry".to_string()),
         Annotated::new("version=8".to_string()),
-    );
-    map.insert("-Other-".to_string(), Annotated::new("header".to_string()));
+    )));
 
-    let headers = Annotated::new(Headers(map));
+    let headers = Annotated::new(Headers(headers));
     assert_eq_dbg!(headers, Annotated::from_json(json).unwrap());
 }
 
@@ -293,13 +275,13 @@ fn test_header_from_sequence() {
   ["accept", "application/json"]
 ]"#;
 
-    let mut map = Map::new();
-    map.insert(
-        "Accept".to_string(),
+    let mut headers = Vec::new();
+    headers.push(Annotated::new((
+        Annotated::new("Accept".to_string()),
         Annotated::new("application/json".to_string()),
-    );
+    )));
 
-    let headers = Annotated::new(Headers(map));
+    let headers = Annotated::new(Headers(headers));
     assert_eq_dbg!(headers, Annotated::from_json(json).unwrap());
 
     let json = r#"[
@@ -310,7 +292,85 @@ fn test_header_from_sequence() {
   23
 ]"#;
     let headers = Annotated::<Headers>::from_json(json).unwrap();
-    assert_eq_str!(headers.to_json().unwrap(), r#"{"Accept":"application/json","Whatever":null,"_meta":{"":{"err":["invalid non-header values"],"val":[[1,2],["a","b","c"],23]},"Whatever":{"":{"err":["expected a string"],"val":42}}}}"#);
+    #[derive(ToValue, Debug)]
+    pub struct Container {
+        headers: Annotated<Headers>,
+    }
+    assert_eq_str!(
+        Annotated::new(Container { headers })
+            .to_json_pretty()
+            .unwrap(),
+        r#"{
+  "headers": [
+    [
+      "Accept",
+      "application/json"
+    ],
+    [
+      "Whatever",
+      null
+    ],
+    [
+      null,
+      null
+    ],
+    null,
+    null
+  ],
+  "_meta": {
+    "headers": {
+      "1": {
+        "1": {
+          "": {
+            "err": [
+              "expected a string"
+            ],
+            "val": 42
+          }
+        }
+      },
+      "2": {
+        "0": {
+          "": {
+            "err": [
+              "expected a string"
+            ],
+            "val": 1
+          }
+        },
+        "1": {
+          "": {
+            "err": [
+              "expected a string"
+            ],
+            "val": 2
+          }
+        }
+      },
+      "3": {
+        "": {
+          "err": [
+            "expected tuple"
+          ],
+          "val": [
+            "a",
+            "b",
+            "c"
+          ]
+        }
+      },
+      "4": {
+        "": {
+          "err": [
+            "expected tuple"
+          ],
+          "val": 23
+        }
+      }
+    }
+  }
+}"#
+    );
 }
 
 #[test]
@@ -328,9 +388,12 @@ fn test_request_roundtrip() {
   "cookies": {
     "GOOGLE": "1"
   },
-  "headers": {
-    "Referer": "https://google.com/"
-  },
+  "headers": [
+    [
+      "Referer",
+      "https://google.com/"
+    ]
+  ],
   "env": {
     "REMOTE_ADDR": "213.47.147.207"
   },
@@ -358,12 +421,12 @@ fn test_request_roundtrip() {
             map
         })),
         headers: Annotated::new(Headers({
-            let mut map = Map::new();
-            map.insert(
-                "Referer".to_string(),
+            let mut headers = Vec::new();
+            headers.push(Annotated::new((
+                Annotated::new("Referer".to_string()),
                 Annotated::new("https://google.com/".to_string()),
-            );
-            map
+            )));
+            headers
         })),
         env: Annotated::new({
             let mut map = Object::new();
