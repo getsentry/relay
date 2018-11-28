@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.2
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+- store: Fix segfault when trying to process contexts.
+- store: Fix trimming state "leaking" between interfaces, leading to excessive trimming.
+- store: Don't serialize empty arrays and objects (with a few exceptions).
+
+
 ## 0.2.1
 
 For users of relay, nothing changed at all. This is a release to test embedding
