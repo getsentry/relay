@@ -1,33 +1,35 @@
+use take_mut::take;
+
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::types::{Annotated, Array, Map, Object, Value};
 
 pub struct SchemaProcessor;
 
 impl Processor for SchemaProcessor {
-    fn process_string(
-        &mut self,
-        mut value: Annotated<String>,
-        state: ProcessingState,
-    ) -> Annotated<String> {
-        value = check_nonempty_value(value, &state);
-        value = check_match_regex_value(value, &state);
-        value
+    fn process_string(&mut self, value: &mut Annotated<String>, state: ProcessingState) {
+        take(value, |mut value| {
+            value = check_nonempty_value(value, &state);
+            value = check_match_regex_value(value, &state);
+            value
+        });
     }
 
     fn process_object<T: ProcessValue>(
         &mut self,
-        value: Annotated<Object<T>>,
+        value: &mut Annotated<Object<T>>,
         state: ProcessingState,
-    ) -> Annotated<Object<T>> {
-        ProcessValue::process_child_values(check_nonempty_value(value, &state), self, state)
+    ) {
+        take(value, |value| check_nonempty_value(value, &state));
+        ProcessValue::process_child_values(value, self, state);
     }
 
     fn process_array<T: ProcessValue>(
         &mut self,
-        value: Annotated<Array<T>>,
+        value: &mut Annotated<Array<T>>,
         state: ProcessingState,
-    ) -> Annotated<Array<T>> {
-        ProcessValue::process_child_values(check_nonempty_value(value, &state), self, state)
+    ) {
+        take(value, |value| check_nonempty_value(value, &state));
+        ProcessValue::process_child_values(value, self, state)
     }
 }
 

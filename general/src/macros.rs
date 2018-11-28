@@ -25,10 +25,10 @@ macro_rules! primitive_process_value {
     ($type:ident, $process_func:ident) => {
         impl crate::processor::ProcessValue for $type {
             fn process_value<P: Processor>(
-                value: Annotated<$type>,
+                value: &mut Annotated<$type>,
                 processor: &mut P,
                 state: ProcessingState,
-            ) -> Annotated<$type> {
+            ) {
                 processor.$process_func(value, state)
             }
         }

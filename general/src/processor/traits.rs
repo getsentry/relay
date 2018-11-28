@@ -69,7 +69,7 @@ macro_rules! process_method {
         #[doc = "Processes values of type `"]
         #[doc = $help_ty]
         #[doc = "`."]
-        fn $name(&mut self, value: Annotated<$ty>, state: ProcessingState) -> Annotated<$ty>
+        fn $name(&mut self, value: &mut Annotated<$ty>, state: ProcessingState)
             where Self: Sized
         {
             ProcessValue::process_child_values(value, self, state)
@@ -93,10 +93,9 @@ pub trait Processor {
     #[inline(always)]
     fn process_array<T: ProcessValue>(
         &mut self,
-        value: Annotated<Array<T>>,
+        value: &mut Annotated<Array<T>>,
         state: ProcessingState,
-    ) -> Annotated<Array<T>>
-    where
+    ) where
         Self: Sized,
     {
         ProcessValue::process_child_values(value, self, state)
@@ -104,10 +103,9 @@ pub trait Processor {
     #[inline(always)]
     fn process_object<T: ProcessValue>(
         &mut self,
-        value: Annotated<Object<T>>,
+        value: &mut Annotated<Object<T>>,
         state: ProcessingState,
-    ) -> Annotated<Object<T>>
-    where
+    ) where
         Self: Sized,
     {
         ProcessValue::process_child_values(value, self, state)
@@ -116,10 +114,9 @@ pub trait Processor {
     #[inline(always)]
     fn process_values<T: ProcessValue>(
         &mut self,
-        value: Annotated<crate::protocol::Values<T>>,
+        value: &mut Annotated<crate::protocol::Values<T>>,
         state: ProcessingState,
-    ) -> Annotated<crate::protocol::Values<T>>
-    where
+    ) where
         Self: Sized,
     {
         ProcessValue::process_child_values(value, self, state)
@@ -153,11 +150,10 @@ pub trait ProcessValue: ToValue + FromValue + Debug {
     /// Executes a processor on the tree.
     #[inline(always)]
     fn process_value<P: Processor>(
-        value: Annotated<Self>,
+        value: &mut Annotated<Self>,
         processor: &mut P,
         state: ProcessingState,
-    ) -> Annotated<Self>
-    where
+    ) where
         Self: Sized,
     {
         ProcessValue::process_child_values(value, processor, state)
@@ -166,15 +162,14 @@ pub trait ProcessValue: ToValue + FromValue + Debug {
     /// Only processes the child values.
     #[inline(always)]
     fn process_child_values<P: Processor>(
-        value: Annotated<Self>,
+        value: &mut Annotated<Self>,
         processor: &mut P,
         state: ProcessingState,
-    ) -> Annotated<Self>
-    where
+    ) where
         Self: Sized,
     {
         let _processor = processor;
         let _state = state;
-        value
+        let _value = value;
     }
 }

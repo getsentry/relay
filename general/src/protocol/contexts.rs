@@ -450,11 +450,7 @@ fn test_context_processing() {
     }
 
     impl Processor for FooProcessor {
-        fn process_context(
-            &mut self,
-            context: Annotated<Context>,
-            state: ProcessingState,
-        ) -> Annotated<Context> {
+        fn process_context(&mut self, context: &mut Annotated<Context>, state: ProcessingState) {
             self.called = true;
             Context::process_child_values(context, self, state)
         }

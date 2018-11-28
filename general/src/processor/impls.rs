@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
+use take_mut::take;
 use uuid::Uuid;
 
 use crate::processor::{FromValue, ProcessValue, ProcessingState, Processor, ToValue};
@@ -100,33 +101,34 @@ impl<T: ToValue> ToValue for Array<T> {
 
 impl<T: ProcessValue> ProcessValue for Array<T> {
     fn process_value<P: Processor>(
-        value: Annotated<Self>,
+        value: &mut Annotated<Self>,
         processor: &mut P,
         state: ProcessingState,
-    ) -> Annotated<Self> {
+    ) {
         processor.process_array(value, state)
     }
 
     fn process_child_values<P: Processor>(
-        value: Annotated<Self>,
+        value: &mut Annotated<Self>,
         processor: &mut P,
         state: ProcessingState,
-    ) -> Annotated<Self> {
-        match value {
+    ) {
+        take(value, |value| match value {
             Annotated(Some(value), meta) => Annotated(
                 Some(
                     value
                         .into_iter()
                         .enumerate()
-                        .map(|(idx, v)| {
+                        .map(|(idx, mut v)| {
                             let inner_state = state.enter_index(idx, None);
-                            ProcessValue::process_value(v, processor, inner_state)
+                            ProcessValue::process_value(&mut v, processor, inner_state);
+                            v
                         }).collect(),
                 ),
                 meta,
             ),
             Annotated(None, meta) => Annotated(None, meta),
-        }
+        });
     }
 }
 
@@ -210,34 +212,23 @@ impl<T: ToValue> ToValue for Object<T> {
 
 impl<T: ProcessValue> ProcessValue for Object<T> {
     fn process_value<P: Processor>(
-        value: Annotated<Self>,
+        value: &mut Annotated<Self>,
         processor: &mut P,
         state: ProcessingState,
-    ) -> Annotated<Self> {
+    ) {
         processor.process_object(value, state)
     }
 
     fn process_child_values<P: Processor>(
-        value: Annotated<Self>,
+        value: &mut Annotated<Self>,
         processor: &mut P,
         state: ProcessingState,
-    ) -> Annotated<Self> {
-        match value {
-            Annotated(Some(value), meta) => Annotated(
-                Some(
-                    value
-                        .into_iter()
-                        .map(|(k, v)| {
-                            let v = {
-                                let inner_state = state.enter_borrowed(&k, None);
-                                ProcessValue::process_value(v, processor, inner_state)
-                            };
-                            (k, v)
-                        }).collect(),
-                ),
-                meta,
-            ),
-            Annotated(None, meta) => Annotated(None, meta),
+    ) {
+        if let Annotated(Some(ref mut value), _) = value {
+            for (k, mut v) in value.iter_mut() {
+                let inner_state = state.enter_borrowed(&k, None);
+                ProcessValue::process_value(v, processor, inner_state)
+            }
         }
     }
 }
@@ -294,68 +285,59 @@ impl ToValue for Value {
 
 impl ProcessValue for Value {
     fn process_value<P: Processor>(
-        value: Annotated<Self>,
+        value: &mut Annotated<Self>,
         processor: &mut P,
         state: ProcessingState,
-    ) -> Annotated<Self> {
-        match value {
+    ) {
+        take(value, |value| match value {
             Annotated(Some(Value::Null), meta) => Annotated(Some(Value::Null), meta),
             Annotated(Some(Value::Bool(value)), meta) => {
-                ProcessValue::process_value(Annotated(Some(value), meta), processor, state)
-                    .map_value(Value::Bool)
+                let mut tmp = Annotated(Some(value), meta);
+                ProcessValue::process_value(&mut tmp, processor, state);
+                tmp.map_value(Value::Bool)
             }
             Annotated(Some(Value::I64(value)), meta) => {
-                ProcessValue::process_value(Annotated(Some(value), meta), processor, state)
-                    .map_value(Value::I64)
+                let mut tmp = Annotated(Some(value), meta);
+                ProcessValue::process_value(&mut tmp, processor, state);
+                tmp.map_value(Value::I64)
             }
             Annotated(Some(Value::U64(value)), meta) => {
-                ProcessValue::process_value(Annotated(Some(value), meta), processor, state)
-                    .map_value(Value::U64)
+                let mut tmp = Annotated(Some(value), meta);
+                ProcessValue::process_value(&mut tmp, processor, state);
+                tmp.map_value(Value::U64)
             }
             Annotated(Some(Value::F64(value)), meta) => {
-                ProcessValue::process_value(Annotated(Some(value), meta), processor, state)
-                    .map_value(Value::F64)
+                let mut tmp = Annotated(Some(value), meta);
+                ProcessValue::process_value(&mut tmp, processor, state);
+                tmp.map_value(Value::F64)
             }
             Annotated(Some(Value::String(value)), meta) => {
-                ProcessValue::process_value(Annotated(Some(value), meta), processor, state)
-                    .map_value(Value::String)
+                let mut tmp = Annotated(Some(value), meta);
+                ProcessValue::process_value(&mut tmp, processor, state);
+                tmp.map_value(Value::String)
             }
-            Annotated(Some(Value::Object(items)), meta) => ProcessValue::process_value(
-                Annotated(
-                    Some(
-                        items
-                            .into_iter()
-                            .map(|(k, v)| {
-                                let v = {
-                                    let inner_state = state.enter_borrowed(k.as_str(), None);
-                                    ProcessValue::process_value(v, processor, inner_state)
-                                };
-                                (k, v)
-                            }).collect(),
-                    ),
-                    meta,
-                ),
-                processor,
-                state,
-            ).map_value(Value::Object),
-            Annotated(Some(Value::Array(items)), meta) => ProcessValue::process_value(
-                Annotated(
-                    Some(
-                        items
-                            .into_iter()
-                            .enumerate()
-                            .map(|(idx, v)| {
-                                let inner_state = state.enter_index(idx, None);
-                                ProcessValue::process_value(v, processor, inner_state)
-                            }).collect(),
-                    ),
-                    meta,
-                ),
-                processor,
-                state,
-            ).map_value(Value::Array),
+            Annotated(Some(Value::Object(mut items)), meta) => {
+                for (k, mut v) in items.iter_mut() {
+                    let inner_state = state.enter_borrowed(k.as_str(), None);
+                    ProcessValue::process_value(v, processor, inner_state);
+                }
+
+                let mut tmp = Annotated(Some(items), meta);
+                ProcessValue::process_value(&mut tmp, processor, state);
+                tmp.map_value(Value::Object)
+            }
+            Annotated(Some(Value::Array(mut items)), meta) => {
+                for (idx, mut v) in items.iter_mut().enumerate() {
+                    let inner_state = state.enter_index(idx, None);
+                    ProcessValue::process_value(v, processor, inner_state);
+                }
+
+                let mut tmp = Annotated(Some(items), meta);
+                ProcessValue::process_value(&mut tmp, processor, state);
+                tmp.map_value(Value::Array)
+            }
             Annotated(None, meta) => Annotated(None, meta),
-        }
+        })
     }
 }
 
@@ -422,10 +404,10 @@ impl ToValue for DateTime<Utc> {
 
 impl ProcessValue for DateTime<Utc> {
     fn process_value<P: Processor>(
-        value: Annotated<Self>,
+        value: &mut Annotated<Self>,
         processor: &mut P,
         state: ProcessingState,
-    ) -> Annotated<Self> {
+    ) {
         processor.process_datetime(value, state)
     }
 }
@@ -469,16 +451,17 @@ impl<T: ProcessValue> ProcessValue for Box<T> {
     /// Executes a processor on the tree.
     #[inline(always)]
     fn process_child_values<P: Processor>(
-        value: Annotated<Self>,
+        value: &mut Annotated<Self>,
         processor: &mut P,
         state: ProcessingState,
-    ) -> Annotated<Self>
-    where
+    ) where
         Self: Sized,
     {
-        let value: Annotated<T> = Annotated(value.0.map(|x| *x), value.1);
-        let rv = ProcessValue::process_value(value, processor, state);
-        Annotated(rv.0.map(Box::new), rv.1)
+        take(value, |value| {
+            let mut tmp: Annotated<T> = Annotated(value.0.map(|x| *x), value.1);
+            ProcessValue::process_value(&mut tmp, processor, state);
+            Annotated(tmp.0.map(Box::new), tmp.1)
+        });
     }
 }
 

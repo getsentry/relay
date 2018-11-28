@@ -222,8 +222,9 @@ impl<T> Annotated<T> {
 
 impl<T: ProcessValue> Annotated<T> {
     /// Estimates the size in bytes this would be in JSON.
-    pub fn process<P: Processor>(self, processor: &mut P) -> Annotated<T> {
-        ProcessValue::process_value(self, processor, ProcessingState::root())
+    pub fn process<P: Processor>(mut self, processor: &mut P) -> Annotated<T> {
+        ProcessValue::process_value(&mut self, processor, ProcessingState::root());
+        self
     }
 }
 

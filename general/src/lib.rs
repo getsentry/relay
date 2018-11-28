@@ -12,6 +12,7 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate serde_urlencoded;
 extern crate smallvec;
+extern crate take_mut;
 extern crate url;
 extern crate uuid;
 

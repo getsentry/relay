@@ -22,6 +22,7 @@ smallvec = { version = "0.6.5", features = ["serde"] }
 url = "1.7.2"
 uuid = { version = "0.7.1", features = ["v4", "serde"] }
 num-traits = "0.2.6"
+take_mut = "0.2.2"
 
 [dev-dependencies]
 difference = "2.0.0"

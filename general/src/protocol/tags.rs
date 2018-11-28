@@ -1,3 +1,5 @@
+use take_mut::take;
+
 use crate::processor::{FromValue, ProcessValue, ProcessingState, Processor};
 use crate::protocol::LenientString;
 use crate::types::{Annotated, Array, Value};
@@ -67,11 +69,10 @@ impl FromValue for Tags {
 impl ProcessValue for Tags {
     #[inline(always)]
     fn process_value<P: Processor>(
-        value: Annotated<Self>,
+        value: &mut Annotated<Self>,
         processor: &mut P,
         state: ProcessingState,
-    ) -> Annotated<Self>
-    where
+    ) where
         Self: Sized,
     {
         #[derive(Debug, PartialEq, FromValue, ToValue, ProcessValue)]
@@ -82,24 +83,24 @@ impl ProcessValue for Tags {
             value: Annotated<String>,
         }
 
-        let v: Annotated<Array<RealTags>> = ProcessValue::process_value(
-            value.map_value(|tags| {
+        take(value, |value| {
+            let mut v: Annotated<Array<RealTags>> = value.map_value(|tags| {
                 tags.0
                     .into_iter()
                     .map(|value| value.map_value(|(key, value)| RealTags { key, value }))
                     .collect()
-            }),
-            processor,
-            state,
-        );
+            });
 
-        v.map_value(|tags| {
-            Tags(
-                tags.into_iter()
-                    .map(|value| value.map_value(|RealTags { key, value }| (key, value)))
-                    .collect(),
-            )
-        })
+            ProcessValue::process_value(&mut v, processor, state);
+
+            v.map_value(|tags| {
+                Tags(
+                    tags.into_iter()
+                        .map(|value| value.map_value(|RealTags { key, value }| (key, value)))
+                        .collect(),
+                )
+            })
+        });
     }
 }
 

@@ -135,21 +135,18 @@ fn process_wrapper_struct_derive(
                 gen impl crate::processor::ProcessValue for @Self {
                     #[inline(always)]
                     fn process_child_values<P: crate::processor::Processor>(
-                        __value: crate::types::Annotated<Self>,
+                        __value: &mut crate::types::Annotated<Self>,
                         __processor: &mut P,
                         __state: crate::processor::ProcessingState
-                    ) -> crate::types::Annotated<Self> {
-                        let __new_annotated = match __value {
+                    ) {
+                        ::take_mut::take(__value, |__value| match __value {
                             crate::types::Annotated(Some(__value), __meta) => {
-                                crate::processor::ProcessValue::process_value(
-                                    crate::types::Annotated(Some(__value.0), __meta), __processor, __state)
+                                let mut tmp = crate::types::Annotated(Some(__value.0), __meta);
+                                crate::processor::ProcessValue::process_value(&mut tmp, __processor, __state);
+                                tmp.map_value(#name)
                             }
                             crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta)
-                        };
-                        match __new_annotated {
-                            crate::types::Annotated(Some(__value), __meta) => crate::types::Annotated(Some(#name(__value)), __meta),
-                            crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta)
-                        }
+                        });
                     }
                 }
             })
@@ -184,11 +181,11 @@ fn process_enum_struct_derive(
         let func_name = Ident::new(&func_name, Span::call_site());
         quote! {
             fn process_value<P: crate::processor::Processor>(
-                __value: crate::types::Annotated<Self>,
+                __value: &mut crate::types::Annotated<Self>,
                 __processor: &mut P,
                 __state: crate::processor::ProcessingState
-            ) -> crate::types::Annotated<Self> {
-                __processor.#func_name(__value, __state)
+            ) {
+                __processor.#func_name(__value, __state);
             }
         }
     });
@@ -233,8 +230,9 @@ fn process_enum_struct_derive(
             }).to_tokens(&mut serialize_body);
             (quote! {
                 crate::types::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
-                    crate::processor::ProcessValue::process_value(crate::types::Annotated(Some(*__value), __meta), __processor, __state)
-                        .map_value(|__value| #type_name::#variant_name(Box::new(__value)))
+                    let mut tmp = crate::types::Annotated(Some(*__value), __meta);
+                    crate::processor::ProcessValue::process_value(&mut tmp, __processor, __state);
+                    tmp.map_value(|__value| #type_name::#variant_name(Box::new(__value)))
                 }
             }).to_tokens(&mut process_value_body);
         } else {
@@ -263,8 +261,9 @@ fn process_enum_struct_derive(
             }).to_tokens(&mut serialize_body);
             (quote! {
                 crate::types::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
-                    crate::processor::ProcessValue::process_value(crate::types::Annotated(Some(__value), __meta), __processor, __state)
-                        .map_value(#type_name::#variant_name)
+                    let mut tmp = crate::types::Annotated(Some(__value), __meta);
+                    crate::processor::ProcessValue::process_value(&mut tmp, __processor, __state);
+                    tmp.map_value(#type_name::#variant_name)
                 }
             }).to_tokens(&mut process_value_body);
         }
@@ -328,14 +327,14 @@ fn process_enum_struct_derive(
             s.gen_impl(quote! {
                 gen impl crate::processor::ProcessValue for @Self {
                     fn process_child_values<P: crate::processor::Processor>(
-                        __value: crate::types::Annotated<Self>,
+                        __value: &mut crate::types::Annotated<Self>,
                         __processor: &mut P,
                         __state: crate::processor::ProcessingState
-                    ) -> crate::types::Annotated<Self> {
-                        match __value {
+                    ) {
+                        ::take_mut::take(__value, |__value| match __value {
                             #process_value_body
                             crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta),
-                        }
+                        });
                     }
 
                     #process_value
@@ -401,6 +400,10 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         });
         let field_name = LitStr::new(&field_name, Span::call_site());
 
+        (quote! {
+            let mut #bi = #bi;
+        }).to_tokens(&mut process_value_body);
+
         if field_attrs.additional_properties {
             (quote! {
                 let #bi = __obj.into_iter().map(|(__key, __value)| (__key, crate::processor::FromValue::from_value(__value))).collect();
@@ -409,10 +412,9 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, crate::processor::ToValue::to_value(__value))));
             }).to_tokens(&mut to_value_body);
             (quote! {
-                let #bi = #bi.into_iter().map(|(__key, __value)| {
-                    let __value = crate::processor::ProcessValue::process_value(__value, __processor, __state.enter_borrowed(__key.as_str(), None));
-                    (__key, __value)
-                }).collect();
+                for (__key, mut __value) in #bi.iter_mut() {
+                    crate::processor::ProcessValue::process_value(__value, __processor, __state.enter_borrowed(__key.as_str(), None));
+                }
             }).to_tokens(&mut process_value_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
@@ -496,7 +498,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     };
                 }
 
-                let #bi = crate::processor::ProcessValue::process_value(#bi, __processor, __state.enter_static(#field_name, Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))));
+                crate::processor::ProcessValue::process_value(&mut #bi, __processor, __state.enter_static(#field_name, Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))));
             }).to_tokens(&mut process_value_body);
             (quote! {
                 if !#bi.skip_serialization() {
@@ -539,10 +541,10 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         let func_name = Ident::new(&func_name, Span::call_site());
         quote! {
             fn process_value<P: crate::processor::Processor>(
-                __value: crate::types::Annotated<Self>,
+                __value: &mut crate::types::Annotated<Self>,
                 __processor: &mut P,
                 __state: crate::processor::ProcessingState
-            ) -> crate::types::Annotated<Self> {
+            ) {
                 __processor.#func_name(__value, __state)
             }
         }
@@ -624,18 +626,20 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 gen impl crate::processor::ProcessValue for @Self {
                     #process_value
                     fn process_child_values<P: crate::processor::Processor>(
-                        __value: crate::types::Annotated<Self>,
+                        __value: &mut crate::types::Annotated<Self>,
                         __processor: &mut P,
                         __state: crate::processor::ProcessingState
-                    ) -> crate::types::Annotated<Self> {
-                        let crate::types::Annotated(__value, __meta) = __value;
-                        if let Some(__value) = __value {
-                            let #to_value_pat = __value;
-                            #process_value_body;
-                            crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
-                        } else {
-                            crate::types::Annotated(None, __meta)
-                        }
+                    ) {
+                        ::take_mut::take(__value, |__value| {
+                            let crate::types::Annotated(__value, __meta) = __value;
+                            if let Some(__value) = __value {
+                                let #to_value_pat = __value;
+                                #process_value_body;
+                                crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
+                            } else {
+                                crate::types::Annotated(None, __meta)
+                            }
+                        });
                     }
                 }
             })
