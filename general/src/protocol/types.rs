@@ -6,7 +6,6 @@ use std::str::FromStr;
 use failure::Fail;
 use serde::ser::{Serialize, SerializeSeq, Serializer};
 use serde_derive::{Deserialize, Serialize};
-use take_mut::take;
 
 use crate::processor::{
     FromValue, ProcessValue, ProcessingState, Processor, SerializePayload, ToValue,
@@ -563,20 +562,19 @@ macro_rules! value_impl_for_tuple {
 
         #[allow(non_snake_case, unused_variables, unused_assignments)]
         impl<$($name: ProcessValue),*> ProcessValue for ($(Annotated<$name>,)*) {
+            #[cfg_attr(feature = "cargo-clippy", allow(eval_order_dependence))]
             fn process_value<P: Processor>(
                 value: &mut Annotated<Self>,
                 processor: &mut P,
                 state: ProcessingState,
             ) {
-                take(value, |value| value.map_value(|($(mut $name,)*)| {
+                if let Annotated(Some(($($name,)*)), meta) = value {
                     let mut idx = 0;
-                    ($(#[cfg_attr(feature = "cargo-clippy", allow(eval_order_dependence))]{
-                        ProcessValue::process_value(&mut $name, processor, state.enter_index(idx, None));
+                    $(
+                        ProcessValue::process_value($name, processor, state.enter_index(idx, None));
                         idx += 1;
-                    },)*);
-
-                    ($($name,)*)
-                }));
+                     )*;
+                }
             }
         }
         value_impl_for_tuple_peel!($($name,)*);

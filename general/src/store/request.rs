@@ -22,13 +22,13 @@ fn infer_content_type(body: &Annotated<Value>) -> Option<String> {
     }
 }
 
-fn normalize_url(mut request: Request) -> Request {
-    if let Annotated(Some(url_string), mut meta) = request.url {
+fn normalize_url(request: &mut Request) {
+    if let Annotated(Some(ref mut url_string), ref mut meta) = request.url {
         match Url::parse(&url_string) {
             Ok(mut url) => {
                 // If either the query string or fragment is specified both as part of
                 // the URL and as separate attribute, the attribute wins.
-                request.query_string = request.query_string.or_else(|| {
+                request.query_string.get_or_insert_with(|| {
                     Query(
                         url.query_pairs()
                             .map(|(k, v)| (k.into(), Annotated::new(v.into())))
@@ -36,9 +36,12 @@ fn normalize_url(mut request: Request) -> Request {
                     )
                 });
 
-                request.fragment = request
-                    .fragment
-                    .or_else(|| url.fragment().map(str::to_string));
+                if let Some(fragment) = url.fragment() {
+                    request
+                        .fragment
+                        .0
+                        .get_or_insert_with(|| fragment.to_string());
+                }
 
                 // Remove the fragment and query since they have been moved to their own
                 // parameters to avoid duplication or inconsistencies.
@@ -47,35 +50,32 @@ fn normalize_url(mut request: Request) -> Request {
 
                 // TODO: Check if this generates unwanted effects with `meta.remarks`
                 // when the URL was already PII stripped.
-                request.url = Annotated(Some(url.into_string()), meta);
+                *url_string = url.into_string();
             }
             Err(err) => {
                 meta.add_error(err.to_string(), None);
-                request.url = Annotated(Some(url_string), meta);
             }
         }
     }
-
-    request
 }
 
-fn normalize_method(method: Annotated<String>) -> Annotated<String> {
-    method
-        .filter_map(Annotated::is_valid, |method| method.to_uppercase())
-        .filter_map(Annotated::is_valid, |method| {
-            if METHOD_RE.is_match(&method) {
-                Annotated::new(method)
-            } else {
-                Annotated::from_error("invalid http method", None)
-            }
-        })
+fn normalize_method(method: &mut Annotated<String>) {
+    if let Some(ref mut method) = method.0 {
+        *method = method.to_uppercase();
+    }
+
+    if method
+        .0
+        .as_ref()
+        .map(|x| METHOD_RE.is_match(x))
+        .unwrap_or(true)
+    {
+        *method = Annotated::from_error("invalid http method", None);
+    }
 }
 
-fn set_auto_remote_addr(
-    env: Annotated<Object<Value>>,
-    remote_addr: &str,
-) -> Annotated<Object<Value>> {
-    env.and_then(|mut env| {
+fn set_auto_remote_addr(env: &mut Annotated<Object<Value>>, remote_addr: &str) {
+    if let Some(ref mut env) = env.0 {
         env.entry("REMOTE_ADDR".to_string()).and_modify(|value| {
             value.modify(|value| {
                 value.filter_map(Annotated::is_valid, |v| match v.as_str() {
@@ -84,19 +84,18 @@ fn set_auto_remote_addr(
                 })
             })
         });
-        env
-    })
+    }
 }
 
-pub fn normalize_request(mut request: Request, client_ip: Option<&str>) -> Request {
-    request.method = normalize_method(request.method);
+pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
+    normalize_method(&mut request.method);
 
     if request.url.is_valid() {
-        request = normalize_url(request);
+        normalize_url(request);
     }
 
     if let Some(ref client_ip) = client_ip {
-        request.env = set_auto_remote_addr(request.env, client_ip);
+        set_auto_remote_addr(&mut request.env, client_ip);
     }
 
     if !request.inferred_content_type.is_present() {
@@ -109,6 +108,4 @@ pub fn normalize_request(mut request: Request, client_ip: Option<&str>) -> Reque
 
         request.inferred_content_type.set_value(content_type);
     }
-
-    request
 }

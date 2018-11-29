@@ -110,22 +110,12 @@ impl<T: ProcessValue> ProcessValue for Array<T> {
         processor: &mut P,
         state: ProcessingState,
     ) {
-        take(value, |value| match value {
-            Annotated(Some(value), meta) => Annotated(
-                Some(
-                    value
-                        .into_iter()
-                        .enumerate()
-                        .map(|(idx, mut v)| {
-                            let inner_state = state.enter_index(idx, None);
-                            ProcessValue::process_value(&mut v, processor, inner_state);
-                            v
-                        }).collect(),
-                ),
-                meta,
-            ),
-            Annotated(None, meta) => Annotated(None, meta),
-        });
+        if let Annotated(Some(ref mut value), _) = value {
+            for (idx, mut v) in value.iter_mut().enumerate() {
+                let inner_state = state.enter_index(idx, None);
+                ProcessValue::process_value(v, processor, inner_state);
+            }
+        }
     }
 }
 

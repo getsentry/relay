@@ -334,53 +334,44 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         state: ProcessingState,
     ) {
         ProcessValue::process_child_values(breadcrumb, self, state);
-        take(breadcrumb, |breadcrumb| {
-            breadcrumb.and_then(|breadcrumb| Breadcrumb {
-                ty: breadcrumb.ty.or_else(|| "default".to_string()),
-                level: breadcrumb.level.or_else(|| Level::Info),
-                ..breadcrumb
-            })
-        });
+        if let Some(ref mut breadcrumb) = breadcrumb.0 {
+            breadcrumb.ty.0.get_or_insert_with(|| "default".to_string());
+            breadcrumb.level.0.get_or_insert(Level::Info);
+        }
     }
 
     fn process_request(&mut self, request: &mut Annotated<Request>, state: ProcessingState) {
         ProcessValue::process_child_values(request, self, state);
         let client_ip = self.config.client_ip.as_ref().map(String::as_str);
-        take(request, |request| {
-            request.and_then(|r| request::normalize_request(r, client_ip))
-        });
+        if let Some(ref mut request) = request.0 {
+            request::normalize_request(request, client_ip);
+        }
     }
 
     fn process_user(&mut self, user: &mut Annotated<User>, state: ProcessingState) {
         ProcessValue::process_child_values(user, self, state);
 
-        take(user, |user| {
-            user.filter_map(Annotated::is_valid, |user| User {
-                ip_address: user.ip_address.and_then(|ip| {
-                    // Fill in ip addresses marked as {{auto}}
-                    if ip.is_auto() {
-                        if let Some(ref client_ip) = self.config.client_ip {
-                            return IpAddr(client_ip.clone());
-                        }
-                    }
-                    ip
-                }),
-                ..user
-            }).filter_map(Annotated::is_valid, |mut user| {
-                // Infer user.geo from user.ip_address
-                if let (None, Some(geoip_lookup), Some(ip_address)) = (
-                    user.geo.0.as_ref(),
-                    self.geoip_lookup.as_ref(),
-                    user.ip_address.0.as_ref(),
-                ) {
-                    if let Ok(Some(geo)) = geoip_lookup.lookup(&ip_address.0) {
-                        user.geo = Annotated::new(geo);
-                        // TODO: Errorhandling
+        if let Some(ref mut user) = user.0 {
+            if let Some(ref mut ip_address) = user.ip_address.0 {
+                // Fill in ip addresses marked as {{auto}}
+                if ip_address.is_auto() {
+                    if let Some(ref client_ip) = self.config.client_ip {
+                        *ip_address = IpAddr(client_ip.clone());
                     }
                 }
-                user
-            })
-        });
+            }
+
+            if let (None, Some(geoip_lookup), Some(ip_address)) = (
+                user.geo.0.as_ref(),
+                self.geoip_lookup.as_ref(),
+                user.ip_address.0.as_ref(),
+            ) {
+                if let Ok(Some(geo)) = geoip_lookup.lookup(&ip_address.0) {
+                    user.geo = Annotated::new(geo);
+                    // TODO: Errorhandling
+                }
+            }
+        }
     }
 
     fn process_client_sdk_info(
