@@ -382,18 +382,20 @@ fn test_string_trimming() {
 
     let value = Annotated::new("This is my long string I want to have trimmed down!".to_string());
     let new_value = value.trim_string(MaxChars::Hard(20));
+
     assert_eq_dbg!(
         new_value,
         Annotated(
             Some("This is my long s...".into()),
-            Meta {
-                remarks: vec![Remark {
+            {
+                let mut meta = Meta::default();
+                meta.add_remark(Remark {
                     ty: RemarkType::Substituted,
                     rule_id: "!limit".to_string(),
                     range: Some((17, 20)),
-                }].into(),
-                original_length: Some(51),
-                ..Default::default()
+                });
+                meta.set_original_length(Some(51));
+                meta
             }
         )
     );

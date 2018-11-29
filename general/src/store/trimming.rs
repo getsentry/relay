@@ -99,7 +99,7 @@ impl Processor for TrimmingProcessor {
                         }
                     }
                     if rv.len() != original_length {
-                        meta.original_length = Some(original_length as u32);
+                        meta.set_original_length(Some(original_length as u32));
                     }
                     self.bag_size_state = old_bag_size_state;
                     value = Annotated(Some(rv), meta);
@@ -165,7 +165,7 @@ impl Processor for TrimmingProcessor {
                         }
                     }
                     if rv.len() != original_length {
-                        meta.original_length = Some(original_length as u32);
+                        meta.set_original_length(Some(original_length as u32));
                     }
                     value = Annotated(Some(rv), meta);
                 }
