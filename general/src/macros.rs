@@ -1,7 +1,6 @@
 macro_rules! primitive_to_value {
     ($type:ident, $meta_type:ident) => {
         impl crate::processor::ToValue for $type {
-            #[inline(always)]
             fn to_value(value: Annotated<Self>) -> Annotated<Value> {
                 match value {
                     Annotated(Some(value), meta) => Annotated(Some(Value::$meta_type(value)), meta),
@@ -9,7 +8,6 @@ macro_rules! primitive_to_value {
                 }
             }
 
-            #[inline(always)]
             fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,

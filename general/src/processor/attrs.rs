@@ -176,7 +176,6 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Derives a processing state by entering a static key.
-    #[inline(always)]
     pub fn enter_static(
         &'a self,
         key: &'static str,
@@ -190,7 +189,6 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Derives a processing state by entering a borrowed key.
-    #[inline(always)]
     pub fn enter_borrowed(
         &'a self,
         key: &'a str,
@@ -204,7 +202,6 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Derives a processing state by entering an index.
-    #[inline(always)]
     pub fn enter_index(
         &'a self,
         idx: usize,
@@ -218,13 +215,11 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Returns the path in the processing state.
-    #[inline(always)]
     pub fn path(&'a self) -> Path<'a> {
         Path(&self)
     }
 
     /// Returns the field attributes.
-    #[inline(always)]
     pub fn attrs(&self) -> &FieldAttrs {
         match self.attrs {
             Some(ref cow) => &cow,
@@ -239,7 +234,6 @@ pub struct Path<'a>(&'a ProcessingState<'a>);
 
 impl<'a> Path<'a> {
     /// Returns the current key if there is one
-    #[inline(always)]
     pub fn key(&self) -> Option<&str> {
         self.0.path.as_ref().and_then(|value| match *value {
             PathItem::StaticKey(s) => Some(s),
@@ -249,7 +243,6 @@ impl<'a> Path<'a> {
     }
 
     /// Returns the current index if there is one
-    #[inline(always)]
     pub fn index(&self) -> Option<usize> {
         self.0.path.as_ref().and_then(|value| match *value {
             PathItem::StaticKey(_) => None,

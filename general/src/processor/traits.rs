@@ -21,7 +21,6 @@ pub trait ToValue: Debug {
         Self: Sized;
 
     /// Extracts children meta map out of a value.
-    #[inline(always)]
     fn extract_child_meta(&self) -> MetaMap
     where
         Self: Sized,
@@ -39,7 +38,6 @@ pub trait ToValue: Debug {
     ///
     /// This should not be overridden by implementators, instead `extract_child_meta`
     /// should be provided instead.
-    #[inline(always)]
     fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
     where
         Self: Sized,
@@ -65,7 +63,6 @@ macro_rules! process_method {
         process_method!($name, $ty, stringify!($ty));
     };
     ($name:ident, $ty:ty, $help_ty:expr) => {
-        #[inline(always)]
         #[doc = "Processes values of type `"]
         #[doc = $help_ty]
         #[doc = "`."]
@@ -90,7 +87,6 @@ pub trait Processor {
     // values and databags
     process_method!(process_value, Value);
 
-    #[inline(always)]
     fn process_array<T: ProcessValue>(
         &mut self,
         value: &mut Annotated<Array<T>>,
@@ -100,7 +96,6 @@ pub trait Processor {
     {
         ProcessValue::process_child_values(value, self, state)
     }
-    #[inline(always)]
     fn process_object<T: ProcessValue>(
         &mut self,
         value: &mut Annotated<Object<T>>,
@@ -111,7 +106,6 @@ pub trait Processor {
         ProcessValue::process_child_values(value, self, state)
     }
 
-    #[inline(always)]
     fn process_values<T: ProcessValue>(
         &mut self,
         value: &mut Annotated<crate::protocol::Values<T>>,
@@ -148,7 +142,6 @@ pub trait Processor {
 /// `process_child_values`.
 pub trait ProcessValue: ToValue + FromValue + Debug {
     /// Executes a processor on the tree.
-    #[inline(always)]
     fn process_value<P: Processor>(
         value: &mut Annotated<Self>,
         processor: &mut P,
@@ -160,7 +153,6 @@ pub trait ProcessValue: ToValue + FromValue + Debug {
     }
 
     /// Only processes the child values.
-    #[inline(always)]
     fn process_child_values<P: Processor>(
         value: &mut Annotated<Self>,
         processor: &mut P,
