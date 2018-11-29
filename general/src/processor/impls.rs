@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::mem;
 
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use serde::ser::{SerializeMap, SerializeSeq};
@@ -110,16 +111,16 @@ impl<T: ProcessValue> ProcessValue for Array<T> {
         state: ProcessingState,
     ) -> Annotated<Self> {
         match value {
-            Annotated(Some(value), meta) => Annotated(
-                Some(
+            Annotated(Some(mut value), meta) => Annotated(
+                Some({
+                    for (idx, v) in value.iter_mut().enumerate() {
+                        let inner_state = state.enter_index(idx, None);
+                        let value =
+                            Annotated(v.0.take(), mem::replace(&mut v.1, Default::default()));
+                        *v = ProcessValue::process_value(value, processor, inner_state);
+                    }
                     value
-                        .into_iter()
-                        .enumerate()
-                        .map(|(idx, v)| {
-                            let inner_state = state.enter_index(idx, None);
-                            ProcessValue::process_value(v, processor, inner_state)
-                        }).collect(),
-                ),
+                }),
                 meta,
             ),
             Annotated(None, meta) => Annotated(None, meta),
@@ -219,18 +220,16 @@ impl<T: ProcessValue> ProcessValue for Object<T> {
         state: ProcessingState,
     ) -> Annotated<Self> {
         match value {
-            Annotated(Some(value), meta) => Annotated(
-                Some(
+            Annotated(Some(mut value), meta) => Annotated(
+                Some({
+                    for (k, v) in value.iter_mut() {
+                        let inner_state = state.enter_borrowed(&k, None);
+                        let mut value =
+                            Annotated(v.0.take(), mem::replace(&mut v.1, Default::default()));
+                        *v = ProcessValue::process_value(value, processor, inner_state);
+                    }
                     value
-                        .into_iter()
-                        .map(|(k, v)| {
-                            let v = {
-                                let inner_state = state.enter_borrowed(&k, None);
-                                ProcessValue::process_value(v, processor, inner_state)
-                            };
-                            (k, v)
-                        }).collect(),
-                ),
+                }),
                 meta,
             ),
             Annotated(None, meta) => Annotated(None, meta),
@@ -313,35 +312,33 @@ impl ProcessValue for Value {
                 ProcessValue::process_value(Annotated(Some(value), meta), processor, state)
                     .map_value(Value::String)
             }
-            Annotated(Some(Value::Object(items)), meta) => ProcessValue::process_value(
+            Annotated(Some(Value::Object(mut items)), meta) => ProcessValue::process_value(
                 Annotated(
-                    Some(
+                    Some({
+                        for (k, v) in items.iter_mut() {
+                            let inner_state = state.enter_borrowed(&k, None);
+                            let mut value =
+                                Annotated(v.0.take(), mem::replace(&mut v.1, Default::default()));
+                            *v = ProcessValue::process_value(value, processor, inner_state);
+                        }
                         items
-                            .into_iter()
-                            .map(|(k, v)| {
-                                let v = {
-                                    let inner_state = state.enter_borrowed(k.as_str(), None);
-                                    ProcessValue::process_value(v, processor, inner_state)
-                                };
-                                (k, v)
-                            }).collect(),
-                    ),
+                    }),
                     meta,
                 ),
                 processor,
                 state,
             ).map_value(Value::Object),
-            Annotated(Some(Value::Array(items)), meta) => ProcessValue::process_value(
+            Annotated(Some(Value::Array(mut items)), meta) => ProcessValue::process_value(
                 Annotated(
-                    Some(
+                    Some({
+                        for (idx, v) in items.iter_mut().enumerate() {
+                            let inner_state = state.enter_index(idx, None);
+                            let value =
+                                Annotated(v.0.take(), mem::replace(&mut v.1, Default::default()));
+                            *v = ProcessValue::process_value(value, processor, inner_state);
+                        }
                         items
-                            .into_iter()
-                            .enumerate()
-                            .map(|(idx, v)| {
-                                let inner_state = state.enter_index(idx, None);
-                                ProcessValue::process_value(v, processor, inner_state)
-                            }).collect(),
-                    ),
+                    }),
                     meta,
                 ),
                 processor,

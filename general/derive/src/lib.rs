@@ -403,10 +403,14 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, crate::processor::ToValue::to_value(__value))));
             }).to_tokens(&mut to_value_body);
             (quote! {
-                let #bi = #bi.into_iter().map(|(__key, __value)| {
-                    let __value = crate::processor::ProcessValue::process_value(__value, __processor, __state.enter_borrowed(__key.as_str(), None));
-                    (__key, __value)
-                }).collect();
+                let #bi = {
+                    for (__key, mut __value) in #bi.iter_mut() {
+                        let __inner_state = __state.enter_borrowed(__key.as_str(), None);
+                        let mut __new_value = crate::types::Annotated(__value.0.take(), ::std::mem::replace(&mut __value.1, Default::default()));
+                        *__value = crate::processor::ProcessValue::process_value(__new_value, __processor, __inner_state);
+                    }
+                    #bi
+                };
             }).to_tokens(&mut process_value_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
@@ -525,6 +529,10 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     let to_value_pat = variant.pat();
     let to_structure_assemble_pat = variant.pat();
     for binding in variant.bindings_mut() {
+        binding.style = synstructure::BindStyle::MoveMut;
+    }
+    let to_process_value_pat = variant.pat();
+    for binding in variant.bindings_mut() {
         binding.style = synstructure::BindStyle::Ref;
     }
     let serialize_pat = variant.pat();
@@ -624,7 +632,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     ) -> crate::types::Annotated<Self> {
                         let crate::types::Annotated(__value, __meta) = __value;
                         if let Some(__value) = __value {
-                            let #to_value_pat = __value;
+                            let #to_process_value_pat = __value;
                             #process_value_body;
                             crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
                         } else {
