@@ -65,7 +65,6 @@ impl FromValue for Tags {
 }
 
 impl ProcessValue for Tags {
-    #[inline(always)]
     fn process_value<P: Processor>(
         value: Annotated<Self>,
         processor: &mut P,

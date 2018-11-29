@@ -13,7 +13,6 @@ use crate::types::{Annotated, Array, MetaMap, MetaTree, Object, Value};
 pub struct SerializePayload<'a, T: 'a>(pub &'a Annotated<T>);
 
 impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
-    #[inline(always)]
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -50,7 +49,6 @@ impl<T: FromValue> FromValue for Array<T> {
 }
 
 impl<T: ToValue> ToValue for Array<T> {
-    #[inline(always)]
     fn to_value(value: Annotated<Self>) -> Annotated<Value> {
         match value {
             Annotated(Some(value), meta) => Annotated(
@@ -62,7 +60,6 @@ impl<T: ToValue> ToValue for Array<T> {
             Annotated(None, meta) => Annotated(None, meta),
         }
     }
-    #[inline(always)]
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
@@ -168,7 +165,6 @@ impl<T: ToValue> ToValue for Object<T> {
         }
     }
 
-    #[inline(always)]
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
@@ -243,19 +239,16 @@ impl<T: ProcessValue> ProcessValue for Object<T> {
 }
 
 impl FromValue for Value {
-    #[inline(always)]
     fn from_value(value: Annotated<Value>) -> Annotated<Value> {
         value
     }
 }
 
 impl ToValue for Value {
-    #[inline(always)]
     fn to_value(value: Annotated<Value>) -> Annotated<Value> {
         value
     }
 
-    #[inline(always)]
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
@@ -448,7 +441,6 @@ impl<T: ToValue> ToValue for Box<T> {
         ToValue::to_value(Annotated(value.0.map(|x| *x), value.1))
     }
 
-    #[inline(always)]
     fn extract_child_meta(&self) -> MetaMap
     where
         Self: Sized,
@@ -467,7 +459,6 @@ impl<T: ToValue> ToValue for Box<T> {
 
 impl<T: ProcessValue> ProcessValue for Box<T> {
     /// Executes a processor on the tree.
-    #[inline(always)]
     fn process_child_values<P: Processor>(
         value: Annotated<Self>,
         processor: &mut P,

@@ -78,7 +78,6 @@ impl ToValue for Fingerprint {
         }
     }
 
-    #[inline(always)]
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         Self: Sized,

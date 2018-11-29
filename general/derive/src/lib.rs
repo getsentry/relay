@@ -78,7 +78,6 @@ fn process_wrapper_struct_derive(
         Trait::From=> {
             s.gen_impl(quote! {
                 gen impl crate::processor::FromValue for @Self {
-                    #[inline(always)]
                     fn from_value(
                         __value: crate::types::Annotated<crate::types::Value>,
                     ) -> crate::types::Annotated<Self> {
@@ -95,7 +94,6 @@ fn process_wrapper_struct_derive(
                 extern crate serde as __serde;
 
                 gen impl crate::processor::ToValue for @Self {
-                    #[inline(always)]
                     fn to_value(
                         mut __value: crate::types::Annotated<Self>
                     ) -> crate::types::Annotated<crate::types::Value> {
@@ -103,7 +101,6 @@ fn process_wrapper_struct_derive(
                         crate::processor::ToValue::to_value(__value)
                     }
 
-                    #[inline(always)]
                     fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>
                     where
                         Self: Sized,
@@ -112,7 +109,6 @@ fn process_wrapper_struct_derive(
                         crate::processor::ToValue::serialize_payload(&self.0, __serializer)
                     }
 
-                    #[inline(always)]
                     fn extract_child_meta(&self) -> crate::types::MetaMap
                     where
                         Self: Sized,
@@ -120,7 +116,6 @@ fn process_wrapper_struct_derive(
                         crate::processor::ToValue::extract_child_meta(&self.0)
                     }
 
-                    #[inline(always)]
                     fn skip_serialization(&self) -> bool
                     where
                         Self: Sized,
@@ -133,7 +128,6 @@ fn process_wrapper_struct_derive(
         Trait::Process=> {
             s.gen_impl(quote! {
                 gen impl crate::processor::ProcessValue for @Self {
-                    #[inline(always)]
                     fn process_child_values<P: crate::processor::Processor>(
                         __value: crate::types::Annotated<Self>,
                         __processor: &mut P,
