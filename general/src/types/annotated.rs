@@ -5,8 +5,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_derive::Serialize;
 use serde_json;
 
-use crate::processor::{FromValue, ProcessValue, ProcessingState, Processor, ToValue};
-use crate::types::{Meta, Object, Value};
+use crate::processor::{ProcessValue, ProcessingState, Processor};
+use crate::types::{FromValue, Meta, Object, ToValue, Value};
 
 /// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
@@ -480,11 +480,4 @@ fn test_annotated_deserialize_with_meta() {
 
     let json = annotated_value.to_json().unwrap();
     assert_eq_str!(json, r#"{"id":null,"type":"testing","_meta":{"id":{"":{"err":["invalid id","expected an unsigned integer"],"val":"blaflasel"}},"type":{"":{"err":["invalid type"]}}}}"#);
-}
-
-#[test]
-fn test_estimate_size() {
-    let json = r#"{"a":["Hello","World","aha","hmm",false,{"blub":42,"x":true},null]}"#;
-    let value = Annotated::<Object<Value>>::from_json(json).unwrap();
-    assert_eq!(value.estimate_size(), json.len());
 }

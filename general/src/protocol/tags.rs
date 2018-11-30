@@ -1,6 +1,6 @@
-use crate::processor::{FromValue, ProcessValue, ProcessingState, Processor};
+use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::LenientString;
-use crate::types::{Annotated, Array, Value};
+use crate::types::{Annotated, Array, FromValue, Value};
 
 /// Manual key/value tag pairs.
 #[derive(Debug, Clone, PartialEq, ToValue)]

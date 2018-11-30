@@ -8,17 +8,19 @@ use serde::ser::{Serialize, Serializer};
 #[cfg(test)]
 use chrono::TimeZone;
 
-use crate::processor::{FromValue, ProcessValue, ToValue};
+use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, Level, LogEntry,
     Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
 };
-use crate::types::{Annotated, Array, Object, Value};
+use crate::types::{Annotated, Array, FromValue, Object, ToValue, Value};
 
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EventId(pub uuid::Uuid);
 primitive_meta_structure_through_string!(EventId, "event id");
+
+impl ProcessValue for EventId {}
 
 impl fmt::Display for EventId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

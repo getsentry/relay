@@ -7,10 +7,10 @@ use failure::Fail;
 use serde::ser::{Serialize, SerializeSeq, Serializer};
 use serde_derive::{Deserialize, Serialize};
 
-use crate::processor::{
-    FromValue, ProcessValue, ProcessingState, Processor, SerializePayload, ToValue,
+use crate::processor::{ProcessValue, ProcessingState, Processor};
+use crate::types::{
+    Annotated, Array, FromValue, Meta, MetaMap, Object, SerializePayload, ToValue, Value,
 };
-use crate::types::{Annotated, Array, Meta, MetaMap, Object, Value};
 
 /// A array like wrapper used in various places.
 #[derive(Clone, Debug, PartialEq, ToValue, ProcessValue)]

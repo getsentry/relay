@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 
-use crate::processor::FromValue;
-use crate::types::{Annotated, Object, Value};
+use crate::types::{Annotated, FromValue, Object, Value};
 
 /// Device information.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]

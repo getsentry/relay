@@ -3,60 +3,7 @@ use std::fmt::Debug;
 use chrono::{DateTime, Utc};
 
 use crate::processor::ProcessingState;
-use crate::types::{Annotated, Array, MetaMap, MetaTree, Object, Value};
-
-/// Implemented for all meta structures.
-pub trait FromValue: Debug {
-    /// Creates a meta structure from an annotated boxed value.
-    fn from_value(value: Annotated<Value>) -> Annotated<Self>
-    where
-        Self: Sized;
-}
-
-/// Implemented for all meta structures.
-pub trait ToValue: Debug {
-    /// Boxes the meta structure back into a value.
-    fn to_value(value: Annotated<Self>) -> Annotated<Value>
-    where
-        Self: Sized;
-
-    /// Extracts children meta map out of a value.
-    fn extract_child_meta(&self) -> MetaMap
-    where
-        Self: Sized,
-    {
-        Default::default()
-    }
-
-    /// Efficiently serializes the payload directly.
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
-    where
-        Self: Sized,
-        S: serde::Serializer;
-
-    /// Extracts the meta tree out of annotated value.
-    ///
-    /// This should not be overridden by implementators, instead `extract_child_meta`
-    /// should be provided instead.
-    fn extract_meta_tree(value: &Annotated<Self>) -> MetaTree
-    where
-        Self: Sized,
-    {
-        MetaTree {
-            meta: value.1.clone(),
-            children: match value.0 {
-                Some(ref value) => ToValue::extract_child_meta(value),
-                None => Default::default(),
-            },
-        }
-    }
-
-    /// Whether the value should not be serialized. Should at least return true if the value would
-    /// serialize to an empty array, empty object or null.
-    fn skip_serialization(&self) -> bool {
-        false
-    }
-}
+use crate::types::{Annotated, Array, FromValue, Object, ToValue, Value};
 
 macro_rules! process_method {
     ($name:ident, $ty:ty) => {
@@ -143,7 +90,7 @@ pub trait Processor {
 /// calls into `process_child_values`.  The default behavior that is
 /// implemented is to make `process_value` directly call into
 /// `process_child_values`.
-pub trait ProcessValue: ToValue + FromValue + Debug {
+pub trait ProcessValue: FromValue + ToValue + Debug {
     /// Executes a processor on the tree.
     fn process_value<P: Processor>(
         value: Annotated<Self>,

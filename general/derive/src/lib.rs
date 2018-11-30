@@ -69,7 +69,7 @@ fn process_wrapper_struct_derive(
     if type_attrs.never_skip_serialization {
         quote!(false)
     } else {
-        quote!(crate::processor::ToValue::skip_serialization(&self.0))
+        quote!(crate::types::ToValue::skip_serialization(&self.0))
     }.to_tokens(&mut skip_serialization_body);
 
     let name = &s.ast().ident;
@@ -77,11 +77,11 @@ fn process_wrapper_struct_derive(
     Ok(match t {
         Trait::From=> {
             s.gen_impl(quote! {
-                gen impl crate::processor::FromValue for @Self {
+                gen impl crate::types::FromValue for @Self {
                     fn from_value(
                         __value: crate::types::Annotated<crate::types::Value>,
                     ) -> crate::types::Annotated<Self> {
-                        match crate::processor::FromValue::from_value(__value) {
+                        match crate::types::FromValue::from_value(__value) {
                             Annotated(Some(__value), __meta) => Annotated(Some(#name(__value)), __meta),
                             Annotated(None, __meta) => Annotated(None, __meta),
                         }
@@ -93,12 +93,12 @@ fn process_wrapper_struct_derive(
             s.gen_impl(quote! {
                 extern crate serde as __serde;
 
-                gen impl crate::processor::ToValue for @Self {
+                gen impl crate::types::ToValue for @Self {
                     fn to_value(
                         mut __value: crate::types::Annotated<Self>
                     ) -> crate::types::Annotated<crate::types::Value> {
                         let __value = __value.map_value(|x| x.0);
-                        crate::processor::ToValue::to_value(__value)
+                        crate::types::ToValue::to_value(__value)
                     }
 
                     fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>
@@ -106,14 +106,14 @@ fn process_wrapper_struct_derive(
                         Self: Sized,
                         S: __serde::ser::Serializer
                     {
-                        crate::processor::ToValue::serialize_payload(&self.0, __serializer)
+                        crate::types::ToValue::serialize_payload(&self.0, __serializer)
                     }
 
                     fn extract_child_meta(&self) -> crate::types::MetaMap
                     where
                         Self: Sized,
                     {
-                        crate::processor::ToValue::extract_child_meta(&self.0)
+                        crate::types::ToValue::extract_child_meta(&self.0)
                     }
 
                     fn skip_serialization(&self) -> bool
@@ -198,13 +198,13 @@ fn process_enum_struct_derive(
             let tag = LitStr::new(&tag, Span::call_site());
             (quote! {
                 Some(#tag) => {
-                    crate::processor::FromValue::from_value(crate::types::Annotated(Some(crate::types::Value::Object(__object)), __meta))
+                    crate::types::FromValue::from_value(crate::types::Annotated(Some(crate::types::Value::Object(__object)), __meta))
                         .map_value(|__value| #type_name::#variant_name(Box::new(__value)))
                 }
             }).to_tokens(&mut from_value_body);
             (quote! {
                 crate::types::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
-                    let mut __rv = crate::processor::ToValue::to_value(crate::types::Annotated(Some(__value), __meta));
+                    let mut __rv = crate::types::ToValue::to_value(crate::types::Annotated(Some(__value), __meta));
                     if let crate::types::Annotated(Some(crate::types::Value::Object(ref mut __object)), _) = __rv {
                         __object.insert(#tag_key_str.to_string(), Annotated::new(crate::types::Value::String(#tag.to_string())));
                     }
@@ -213,13 +213,13 @@ fn process_enum_struct_derive(
             }).to_tokens(&mut to_value_body);
             (quote! {
                 #type_name::#variant_name(ref __value) => {
-                    crate::processor::ToValue::extract_child_meta(__value)
+                    crate::types::ToValue::extract_child_meta(__value)
                 }
             }).to_tokens(&mut extract_child_meta_body);
             (quote! {
                 #type_name::#variant_name(ref __value) => {
                     let mut __map_ser = __serde::Serializer::serialize_map(__serializer, None)?;
-                    crate::processor::ToValue::serialize_payload(__value, __serde::private::ser::FlatMapSerializer(&mut __map_ser))?;
+                    crate::types::ToValue::serialize_payload(__value, __serde::private::ser::FlatMapSerializer(&mut __map_ser))?;
                     __serde::ser::SerializeMap::serialize_key(&mut __map_ser, #tag_key_str)?;
                     __serde::ser::SerializeMap::serialize_value(&mut __map_ser, #tag)?;
                     __serde::ser::SerializeMap::end(__map_ser)
@@ -242,17 +242,17 @@ fn process_enum_struct_derive(
             }).to_tokens(&mut from_value_body);
             (quote! {
                 crate::types::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
-                    crate::processor::ToValue::to_value(crate::types::Annotated(Some(__value), __meta))
+                    crate::types::ToValue::to_value(crate::types::Annotated(Some(__value), __meta))
                 }
             }).to_tokens(&mut to_value_body);
             (quote! {
                 #type_name::#variant_name(ref __value) => {
-                    crate::processor::ToValue::extract_child_meta(__value)
+                    crate::types::ToValue::extract_child_meta(__value)
                 }
             }).to_tokens(&mut extract_child_meta_body);
             (quote! {
                 #type_name::#variant_name(ref __value) => {
-                    crate::processor::ToValue::serialize_payload(__value, __serializer)
+                    crate::types::ToValue::serialize_payload(__value, __serializer)
                 }
             }).to_tokens(&mut serialize_body);
             (quote! {
@@ -267,7 +267,7 @@ fn process_enum_struct_derive(
     Ok(match t {
         Trait::From=> {
             s.gen_impl(quote! {
-                gen impl crate::processor::FromValue for @Self {
+                gen impl crate::types::FromValue for @Self {
                     fn from_value(
                         __value: crate::types::Annotated<crate::types::Value>,
                     ) -> crate::types::Annotated<Self> {
@@ -288,7 +288,7 @@ fn process_enum_struct_derive(
             s.gen_impl(quote! {
                 extern crate serde as __serde;
 
-                gen impl crate::processor::ToValue for @Self {
+                gen impl crate::types::ToValue for @Self {
                     fn to_value(
                         __value: crate::types::Annotated<Self>
                     ) -> crate::types::Annotated<crate::types::Value> {
@@ -397,10 +397,10 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
 
         if field_attrs.additional_properties {
             (quote! {
-                let #bi = __obj.into_iter().map(|(__key, __value)| (__key, crate::processor::FromValue::from_value(__value))).collect();
+                let #bi = __obj.into_iter().map(|(__key, __value)| (__key, crate::types::FromValue::from_value(__value))).collect();
             }).to_tokens(&mut from_value_body);
             (quote! {
-                __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, crate::processor::ToValue::to_value(__value))));
+                __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, crate::types::ToValue::to_value(__value))));
             }).to_tokens(&mut to_value_body);
             (quote! {
                 let #bi = {
@@ -416,13 +416,13 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 for (__key, __value) in #bi.iter() {
                     if !__value.skip_serialization() {
                         __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, __key)?;
-                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::processor::SerializePayload(__value))?;
+                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(__value))?;
                     }
                 }
             }).to_tokens(&mut serialize_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
-                    let __inner_tree = crate::processor::ToValue::extract_meta_tree(__value);
+                    let __inner_tree = crate::types::ToValue::extract_meta_tree(__value);
                     if !__inner_tree.is_empty() {
                         __child_meta.insert(__key.to_string(), __inner_tree);
                     }
@@ -462,7 +462,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             }
 
             (quote! {
-                let #bi = crate::processor::FromValue::from_value(#bi.unwrap_or_else(|| crate::types::Annotated(None, crate::types::Meta::default())));
+                let #bi = crate::types::FromValue::from_value(#bi.unwrap_or_else(|| crate::types::Annotated(None, crate::types::Meta::default())));
             }).to_tokens(&mut from_value_body);
 
             if field_attrs.required {
@@ -479,7 +479,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             };
 
             (quote! {
-                __map.insert(#field_name.to_string(), crate::processor::ToValue::to_value(#bi));
+                __map.insert(#field_name.to_string(), crate::types::ToValue::to_value(#bi));
             }).to_tokens(&mut to_value_body);
             (quote! {
                 lazy_static! {
@@ -499,11 +499,11 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             (quote! {
                 if !#bi.skip_serialization() {
                     __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, #field_name)?;
-                    __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::processor::SerializePayload(#bi))?;
+                    __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(#bi))?;
                 }
             }).to_tokens(&mut serialize_body);
             (quote! {
-                let __inner_tree = crate::processor::ToValue::extract_meta_tree(#bi);
+                let __inner_tree = crate::types::ToValue::extract_meta_tree(#bi);
                 if !__inner_tree.is_empty() {
                     __child_meta.insert(#field_name.to_string(), __inner_tree);
                 }
@@ -553,7 +553,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     match t {
         Trait::From=> {
             s.gen_impl(quote! {
-                gen impl crate::processor::FromValue for @Self {
+                gen impl crate::types::FromValue for @Self {
                     fn from_value(
                         __value: crate::types::Annotated<crate::types::Value>,
                     ) -> crate::types::Annotated<Self> {
@@ -576,7 +576,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             s.gen_impl(quote! {
                 extern crate serde as __serde;
 
-                gen impl crate::processor::ToValue for @Self {
+                gen impl crate::types::ToValue for @Self {
                     fn to_value(
                         __value: crate::types::Annotated<Self>
                     ) -> crate::types::Annotated<crate::types::Value> {

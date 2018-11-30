@@ -98,8 +98,8 @@ fn test_nonempty_base<T>()
 where
     T: Default
         + PartialEq
-        + crate::processor::FromValue
-        + crate::processor::ToValue
+        + crate::types::FromValue
+        + crate::types::ToValue
         + crate::processor::ProcessValue,
 {
     #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]

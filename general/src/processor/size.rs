@@ -2,8 +2,7 @@ use serde::de::value::Error;
 use serde::ser::{self, Serialize};
 use smallvec::SmallVec;
 
-use crate::processor::ToValue;
-use crate::types::Annotated;
+use crate::types::{Annotated, ToValue};
 
 /// Estimates the size in bytes this would be in JSON.
 pub fn estimate_size<T: ToValue>(value: &Annotated<T>) -> usize {
@@ -385,4 +384,11 @@ impl<'a> ser::SerializeStructVariant for &'a mut SizeEstimatingSerializer {
         self.size += 2;
         Ok(())
     }
+}
+
+#[test]
+fn test_estimate_size() {
+    let json = r#"{"a":["Hello","World","aha","hmm",false,{"blub":42,"x":true},null]}"#;
+    let value = Annotated::<Object<Value>>::from_json(json).unwrap();
+    assert_eq!(estimate_size(&value), json.len());
 }

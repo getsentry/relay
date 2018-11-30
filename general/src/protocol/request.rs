@@ -1,8 +1,7 @@
 use cookie::Cookie;
 use url::form_urlencoded;
 
-use crate::processor::{FromValue, ToValue};
-use crate::types::{Annotated, Map, Object, Value};
+use crate::types::{Annotated, FromValue, Map, Object, ToValue, Value};
 
 /// A map holding cookies.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]

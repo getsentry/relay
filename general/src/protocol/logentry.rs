@@ -1,6 +1,5 @@
-use crate::processor::FromValue;
 use crate::protocol::LenientString;
-use crate::types::{Annotated, Array, Object, Value};
+use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// A log entry message.
 ///

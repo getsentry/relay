@@ -1,6 +1,6 @@
-use crate::processor::{FromValue, ProcessValue, ToValue};
+use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
-use crate::types::{Annotated, Value};
+use crate::types::{Annotated, FromValue, ToValue, Value};
 
 /// A fingerprint value.
 #[derive(Debug, Clone, PartialEq)]
