@@ -1,5 +1,5 @@
 use crate::processor::{
-    map_value_chunked, Chunk, MaxChars, ProcessValue, ProcessingState, Processor,
+    estimate_size, map_value_chunked, Chunk, MaxChars, ProcessValue, ProcessingState, Processor,
 };
 use crate::types::{Annotated, Array, Object, Remark, RemarkType};
 
@@ -90,7 +90,7 @@ impl Processor for TrimmingProcessor {
                         };
 
                         // update sizes
-                        let value_len = trimmed_value.estimate_size() + 1;
+                        let value_len = estimate_size(&trimmed_value) + 1;
                         bag_size_state.size_remaining =
                             bag_size_state.size_remaining.saturating_sub(value_len);
                         self.bag_size_state = Some(bag_size_state);
@@ -156,7 +156,7 @@ impl Processor for TrimmingProcessor {
                         let trimmed_value = ProcessValue::process_value(value, self, inner_state);
 
                         // update sizes
-                        let value_len = trimmed_value.estimate_size();
+                        let value_len = estimate_size(&trimmed_value);
                         bag_size_state.size_remaining =
                             bag_size_state.size_remaining.saturating_sub(value_len);
                         self.bag_size_state = Some(bag_size_state);
@@ -181,7 +181,8 @@ impl Processor for TrimmingProcessor {
     }
 }
 
-pub fn trim_string(value: Annotated<String>, max_chars: MaxChars) -> Annotated<String> {
+/// Trims the string to the given maximum length and updates meta data.
+fn trim_string(value: Annotated<String>, max_chars: MaxChars) -> Annotated<String> {
     let limit = max_chars.limit();
     let allowance_limit = limit + max_chars.allowance();
 

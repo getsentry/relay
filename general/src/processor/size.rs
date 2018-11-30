@@ -2,11 +2,23 @@ use serde::de::value::Error;
 use serde::ser::{self, Serialize};
 use smallvec::SmallVec;
 
+use crate::processor::ToValue;
+use crate::types::Annotated;
+
+/// Estimates the size in bytes this would be in JSON.
+pub fn estimate_size<T: ToValue>(value: &Annotated<T>) -> usize {
+    let mut ser = SizeEstimatingSerializer::new();
+    if let Some(ref value) = value.0 {
+        ToValue::serialize_payload(value, &mut ser).unwrap();
+    }
+    ser.size()
+}
+
 /// Helper serializer that efficiently determines how much space something might take.
 ///
 /// This counts in estimated bytes.
 #[derive(Default)]
-pub struct SizeEstimatingSerializer {
+struct SizeEstimatingSerializer {
     size: usize,
     item_stack: SmallVec<[bool; 16]>,
 }

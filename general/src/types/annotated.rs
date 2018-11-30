@@ -5,9 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_derive::Serialize;
 use serde_json;
 
-use crate::processor::{
-    FromValue, ProcessValue, ProcessingState, Processor, SizeEstimatingSerializer, ToValue,
-};
+use crate::processor::{FromValue, ProcessValue, ProcessingState, Processor, ToValue};
 use crate::types::{Meta, Object, Value};
 
 /// Represents a tree of meta objects.
@@ -223,17 +221,6 @@ impl<T: ProcessValue> Annotated<T> {
     /// Estimates the size in bytes this would be in JSON.
     pub fn process<P: Processor>(self, processor: &mut P) -> Annotated<T> {
         ProcessValue::process_value(self, processor, ProcessingState::root())
-    }
-}
-
-impl<T: ToValue> Annotated<T> {
-    /// Estimates the size in bytes this would be in JSON.
-    pub fn estimate_size(&self) -> usize {
-        let mut ser = SizeEstimatingSerializer::new();
-        if let Some(ref value) = self.0 {
-            ToValue::serialize_payload(value, &mut ser).unwrap();
-        }
-        ser.size()
     }
 }
 
