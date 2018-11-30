@@ -11,4 +11,4 @@ pub use self::attrs::{BagSize, FieldAttrs, MaxChars, Path, PiiKind, ProcessingSt
 pub use self::chunks::{join_chunks, map_value_chunked, split_chunks, Chunk};
 pub use self::funcs::{process_value, require_value};
 pub use self::size::estimate_size;
-pub use self::traits::{ProcessValue, Processor};
+pub use self::traits::{ProcessResult, ProcessValue, Processor};

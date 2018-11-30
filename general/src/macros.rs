@@ -1,17 +1,3 @@
-macro_rules! primitive_process_value {
-    ($type:ident, $process_func:ident) => {
-        impl crate::processor::ProcessValue for $type {
-            fn process_value<P: crate::processor::Processor>(
-                value: crate::types::Annotated<$type>,
-                processor: &mut P,
-                state: crate::processor::ProcessingState,
-            ) -> Annotated<$type> {
-                processor.$process_func(value, state)
-            }
-        }
-    };
-}
-
 macro_rules! primitive_to_value {
     ($type:ident, $meta_type:ident) => {
         impl crate::types::ToValue for $type {
