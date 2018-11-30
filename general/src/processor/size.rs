@@ -374,29 +374,3 @@ impl<'a> ser::SerializeStructVariant for &'a mut SizeEstimatingSerializer {
         Ok(())
     }
 }
-
-#[test]
-fn test_string_trimming() {
-    use crate::processor::MaxChars;
-    use crate::types::{Annotated, Meta, Remark, RemarkType};
-
-    let value = Annotated::new("This is my long string I want to have trimmed down!".to_string());
-    let new_value = value.trim_string(MaxChars::Hard(20));
-
-    assert_eq_dbg!(
-        new_value,
-        Annotated(
-            Some("This is my long s...".into()),
-            {
-                let mut meta = Meta::default();
-                meta.add_remark(Remark {
-                    ty: RemarkType::Substituted,
-                    rule_id: "!limit".to_string(),
-                    range: Some((17, 20)),
-                });
-                meta.set_original_length(Some(51));
-                meta
-            }
-        )
-    );
-}

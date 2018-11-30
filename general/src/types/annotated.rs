@@ -6,10 +6,9 @@ use serde_derive::Serialize;
 use serde_json;
 
 use crate::processor::{
-    join_chunks, split_chunks, Chunk, FromValue, MaxChars, ProcessValue, ProcessingState,
-    Processor, SizeEstimatingSerializer, ToValue,
+    FromValue, ProcessValue, ProcessingState, Processor, SizeEstimatingSerializer, ToValue,
 };
-use crate::types::{Meta, Object, RemarkType, Value};
+use crate::types::{Meta, Object, Value};
 
 /// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
@@ -373,85 +372,6 @@ impl Annotated<Value> {
             _ => {}
         }
         self.1 = meta_tree.meta;
-    }
-}
-
-impl Annotated<String> {
-    pub fn map_value_chunked<F>(self, f: F) -> Annotated<String>
-    where
-        F: FnOnce(Vec<Chunk>) -> Vec<Chunk>,
-    {
-        let Annotated(old_value, mut meta) = self;
-        let new_value = old_value.map(|value| {
-            let old_chunks = split_chunks(&value, meta.iter_remarks());
-            let new_chunks = f(old_chunks);
-            let (new_value, remarks) = join_chunks(new_chunks);
-            *meta.remarks_mut() = remarks.into_iter().collect();
-            if new_value != value {
-                meta.set_original_length(Some(value.chars().count() as u32));
-            }
-            new_value
-        });
-        Annotated(new_value, meta)
-    }
-
-    pub fn trim_string(self, max_chars: MaxChars) -> Annotated<String> {
-        let limit = max_chars.limit();
-        let allowance_limit = limit + max_chars.allowance();
-
-        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() <= allowance_limit {
-            return self;
-        }
-
-        // otherwise we trim down to max chars
-        self.map_value_chunked(|chunks| {
-            let mut length = 0;
-            let mut rv = vec![];
-
-            for chunk in chunks {
-                let chunk_chars = chunk.chars();
-
-                // if the entire chunk fits, just put it in
-                if length + chunk_chars < limit {
-                    rv.push(chunk);
-                    length += chunk_chars;
-                    continue;
-                }
-
-                match chunk {
-                    // if there is enough space for this chunk and the 3 character
-                    // ellipsis marker we can push the remaining chunk
-                    Chunk::Redaction { .. } => {
-                        if length + chunk_chars + 3 < allowance_limit {
-                            rv.push(chunk);
-                        }
-                    }
-
-                    // if this is a text chunk, we can put the remaining characters in.
-                    Chunk::Text { text } => {
-                        let mut remaining = String::new();
-                        for c in text.chars() {
-                            if length + 3 < limit {
-                                remaining.push(c);
-                            } else {
-                                break;
-                            }
-                            length += 1;
-                        }
-                        rv.push(Chunk::Text { text: remaining });
-                    }
-                }
-
-                rv.push(Chunk::Redaction {
-                    text: "...".to_string(),
-                    rule_id: "!limit".to_string(),
-                    ty: RemarkType::Substituted,
-                });
-                break;
-            }
-
-            rv
-        })
     }
 }
 

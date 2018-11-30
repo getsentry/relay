@@ -1,4 +1,6 @@
-use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
+use crate::processor::{
+    map_value_chunked, Chunk, MaxChars, ProcessValue, ProcessingState, Processor,
+};
 use crate::types::{Annotated, Array, Object, Remark, RemarkType};
 
 #[derive(Clone, Copy, Debug)]
@@ -26,13 +28,13 @@ impl Processor for TrimmingProcessor {
     ) -> Annotated<String> {
         // field local max chars
         if let Some(max_chars) = state.attrs().max_chars {
-            value = value.trim_string(max_chars);
+            value = trim_string(value, max_chars);
         }
 
         // the remaining size in bytes is used when we're in bag stripping mode.
         if let Some(mut bag_size_state) = self.bag_size_state {
             let chars_left = bag_size_state.size_remaining;
-            value = value.trim_string(MaxChars::Hard(chars_left));
+            value = trim_string(value, MaxChars::Hard(chars_left));
             if let Some(ref value) = value.0 {
                 bag_size_state.size_remaining = bag_size_state
                     .size_remaining
@@ -179,6 +181,88 @@ impl Processor for TrimmingProcessor {
     }
 }
 
+pub fn trim_string(value: Annotated<String>, max_chars: MaxChars) -> Annotated<String> {
+    let limit = max_chars.limit();
+    let allowance_limit = limit + max_chars.allowance();
+
+    if value.0.is_none() || value.0.as_ref().unwrap().chars().count() <= allowance_limit {
+        return value;
+    }
+
+    // otherwise we trim down to max chars
+    map_value_chunked(value, |chunks| {
+        let mut length = 0;
+        let mut rv = vec![];
+
+        for chunk in chunks {
+            let chunk_chars = chunk.chars();
+
+            // if the entire chunk fits, just put it in
+            if length + chunk_chars < limit {
+                rv.push(chunk);
+                length += chunk_chars;
+                continue;
+            }
+
+            match chunk {
+                // if there is enough space for this chunk and the 3 character
+                // ellipsis marker we can push the remaining chunk
+                Chunk::Redaction { .. } => {
+                    if length + chunk_chars + 3 < allowance_limit {
+                        rv.push(chunk);
+                    }
+                }
+
+                // if this is a text chunk, we can put the remaining characters in.
+                Chunk::Text { text } => {
+                    let mut remaining = String::new();
+                    for c in text.chars() {
+                        if length + 3 < limit {
+                            remaining.push(c);
+                        } else {
+                            break;
+                        }
+                        length += 1;
+                    }
+                    rv.push(Chunk::Text { text: remaining });
+                }
+            }
+
+            rv.push(Chunk::Redaction {
+                text: "...".to_string(),
+                rule_id: "!limit".to_string(),
+                ty: RemarkType::Substituted,
+            });
+            break;
+        }
+
+        rv
+    })
+}
+
+#[test]
+fn test_string_trimming() {
+    use crate::processor::MaxChars;
+    use crate::types::{Annotated, Meta, Remark, RemarkType};
+
+    let value = Annotated::new("This is my long string I want to have trimmed down!".to_string());
+    let new_value = trim_string(value, MaxChars::Hard(20));
+
+    assert_eq_dbg!(
+        new_value,
+        Annotated(Some("This is my long s...".into()), {
+            let mut meta = Meta::default();
+            meta.add_remark(Remark {
+                ty: RemarkType::Substituted,
+                rule_id: "!limit".to_string(),
+                range: Some((17, 20)),
+            });
+            meta.set_original_length(Some(51));
+            meta
+        })
+    );
+}
+
 #[test]
 fn test_basic_trimming() {
     use crate::protocol::Event;
@@ -198,7 +282,10 @@ fn test_basic_trimming() {
 
     assert_eq_dbg!(
         event.0.unwrap().culprit,
-        Annotated::new(repeat("x").take(300).collect::<String>()).trim_string(MaxChars::Symbol)
+        trim_string(
+            Annotated::new(repeat("x").take(300).collect::<String>()),
+            MaxChars::Symbol
+        )
     );
 }
 
