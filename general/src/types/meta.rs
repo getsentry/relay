@@ -173,6 +173,13 @@ pub struct Meta {
 }
 
 impl Meta {
+    /// From an error
+    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Self {
+        let mut rv = Self::default();
+        rv.add_error(err, value);
+        rv
+    }
+
     /// The original length of this field, if applicable.
     pub fn original_length(&self) -> Option<usize> {
         self.original_length.map(|x| x as usize)
@@ -237,7 +244,7 @@ impl Meta {
     }
 
     /// Merges this meta with another one.
-    pub fn merge(mut self, other: Meta) -> Meta {
+    pub fn merge(mut self, other: Self) -> Self {
         self.remarks.extend(other.remarks.into_iter());
         self.errors.extend(other.errors.into_iter());
         if self.original_length.is_none() {
@@ -248,17 +255,10 @@ impl Meta {
         }
         self
     }
-
-    /// From an error
-    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Meta {
-        let mut rv = Self::default();
-        rv.add_error(err, value);
-        rv
-    }
 }
 
 impl Default for Meta {
-    fn default() -> Meta {
+    fn default() -> Self {
         Meta {
             remarks: SmallVec::new(),
             errors: SmallVec::new(),

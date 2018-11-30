@@ -73,18 +73,18 @@ pub struct Annotated<T>(pub Option<T>, pub Meta);
 impl<T> Annotated<T> {
     /// Creates a new annotated value without meta data.
     #[inline]
-    pub fn new(value: T) -> Annotated<T> {
+    pub fn new(value: T) -> Self {
         Annotated(Some(value), Meta::default())
     }
 
     /// Creates an empty annotated value without meta data.
     #[inline]
-    pub fn empty() -> Annotated<T> {
+    pub fn empty() -> Self {
         Annotated(None, Meta::default())
     }
 
     /// From an error
-    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Annotated<T> {
+    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Self {
         Annotated(None, Meta::from_error(err, value))
     }
 
@@ -114,15 +114,18 @@ impl<T> Annotated<T> {
     }
 
     #[inline]
+    #[deprecated]
     pub fn is_valid(&self) -> bool {
         !self.1.has_errors()
     }
 
     #[inline]
+    #[deprecated]
     pub fn is_present(&self) -> bool {
         self.0.is_some()
     }
 
+    #[deprecated]
     pub fn modify<F>(&mut self, f: F)
     where
         F: FnOnce(Self) -> Self,
@@ -146,7 +149,7 @@ impl<T> Annotated<T> {
     pub fn or_else<F, R>(self, f: F) -> Self
     where
         F: FnOnce() -> R,
-        R: Into<Annotated<T>>,
+        R: Into<Self>,
     {
         if self.0.is_none() {
             let Annotated(value, meta) = f().into();
@@ -156,11 +159,12 @@ impl<T> Annotated<T> {
         }
     }
 
+    #[deprecated]
     pub fn filter_map<P, F, R>(self, predicate: P, f: F) -> Self
     where
-        P: FnOnce(&Annotated<T>) -> bool,
+        P: FnOnce(&Self) -> bool,
         F: FnOnce(T) -> R,
-        R: Into<Annotated<T>>,
+        R: Into<Self>,
     {
         if predicate(&self) {
             self.and_then(f)
@@ -198,9 +202,7 @@ impl<T> Annotated<T> {
 
 impl<'de, T: FromValue> Annotated<T> {
     /// Deserializes an annotated from a deserializer
-    pub fn deserialize_with_meta<D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Annotated<T>, D::Error> {
+    pub fn deserialize_with_meta<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = match serde_json::Value::deserialize(deserializer)? {
             serde_json::Value::Object(mut map) => {
                 let meta_tree = map
@@ -219,12 +221,12 @@ impl<'de, T: FromValue> Annotated<T> {
     }
 
     /// Deserializes an annotated from a JSON string.
-    pub fn from_json(s: &'de str) -> Result<Annotated<T>, serde_json::Error> {
+    pub fn from_json(s: &'de str) -> Result<Self, serde_json::Error> {
         Self::deserialize_with_meta(&mut serde_json::Deserializer::from_str(s))
     }
 
     /// Deserializes an annotated from JSON bytes.
-    pub fn from_json_bytes(b: &'de [u8]) -> Result<Annotated<T>, serde_json::Error> {
+    pub fn from_json_bytes(b: &'de [u8]) -> Result<Self, serde_json::Error> {
         Self::deserialize_with_meta(&mut serde_json::Deserializer::from_slice(b))
     }
 }

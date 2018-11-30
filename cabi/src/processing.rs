@@ -1,12 +1,15 @@
-use std::os::raw::c_char;
 use std::ffi::CStr;
+use std::os::raw::c_char;
 
 use serde_json;
 
+// TODO: Migrate this to semaphore_common::processor
 use semaphore_common::processor_compat::chunks;
-use semaphore_common::v8_compat::Remark;
+
+use semaphore_common::processor::process_value;
 use semaphore_common::protocol::{Annotated, Event};
 use semaphore_common::store::{GeoIpLookup, StoreConfig, StoreNormalizeProcessor};
+use semaphore_common::v8_compat::Remark;
 
 use crate::core::SemaphoreStr;
 
@@ -76,7 +79,7 @@ ffi_fn! {
     ) -> Result<SemaphoreStr> {
         let event = Annotated::<Event>::from_json((*event).as_str())?;
         let processor = normalizer as *mut StoreNormalizeProcessor;
-        let processed_event = event.process(&mut *processor);
+        let processed_event = process_value(event, &mut *processor);
         Ok(SemaphoreStr::from_string(processed_event.to_json()?))
     }
 }
