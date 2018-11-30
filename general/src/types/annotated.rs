@@ -70,35 +70,15 @@ pub type MetaMap = BTreeMap<String, MetaTree>;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
-pub trait IntoAnnotated<T> {
-    fn into_annotated(self) -> Annotated<T>;
-}
-
-impl<T> IntoAnnotated<T> for Annotated<T> {
-    fn into_annotated(self) -> Annotated<T> {
-        self
-    }
-}
-
-impl<T> IntoAnnotated<T> for T {
-    fn into_annotated(self) -> Annotated<T> {
-        Annotated::new(self)
-    }
-}
-
-impl<T> IntoAnnotated<T> for Option<T> {
-    fn into_annotated(self) -> Annotated<T> {
-        Annotated(self, Meta::default())
-    }
-}
-
 impl<T> Annotated<T> {
     /// Creates a new annotated value without meta data.
+    #[inline]
     pub fn new(value: T) -> Annotated<T> {
         Annotated(Some(value), Meta::default())
     }
 
     /// Creates an empty annotated value without meta data.
+    #[inline]
     pub fn empty() -> Annotated<T> {
         Annotated(None, Meta::default())
     }
@@ -108,30 +88,37 @@ impl<T> Annotated<T> {
         Annotated(None, Meta::from_error(err, value))
     }
 
+    #[inline]
     pub fn value(&self) -> Option<&T> {
         self.0.as_ref()
     }
 
+    #[inline]
     pub fn value_mut(&mut self) -> &mut Option<T> {
         &mut self.0
     }
 
+    #[inline]
     pub fn set_value(&mut self, value: Option<T>) {
         self.0 = value;
     }
 
+    #[inline]
     pub fn meta(&self) -> &Meta {
         &self.1
     }
 
+    #[inline]
     pub fn meta_mut(&mut self) -> &mut Meta {
         &mut self.1
     }
 
+    #[inline]
     pub fn is_valid(&self) -> bool {
         !self.1.has_errors()
     }
 
+    #[inline]
     pub fn is_present(&self) -> bool {
         self.0.is_some()
     }
@@ -146,10 +133,10 @@ impl<T> Annotated<T> {
     pub fn and_then<F, U, R>(self, f: F) -> Annotated<U>
     where
         F: FnOnce(T) -> R,
-        R: IntoAnnotated<U>,
+        R: Into<Annotated<U>>,
     {
         if let Some(value) = self.0 {
-            let Annotated(value, meta) = f(value).into_annotated();
+            let Annotated(value, meta) = f(value).into();
             Annotated(value, self.1.merge(meta))
         } else {
             Annotated(None, self.1)
@@ -159,10 +146,10 @@ impl<T> Annotated<T> {
     pub fn or_else<F, R>(self, f: F) -> Self
     where
         F: FnOnce() -> R,
-        R: IntoAnnotated<T>,
+        R: Into<Annotated<T>>,
     {
         if self.0.is_none() {
-            let Annotated(value, meta) = f().into_annotated();
+            let Annotated(value, meta) = f().into();
             Annotated(value, self.1.merge(meta))
         } else {
             self
@@ -173,7 +160,7 @@ impl<T> Annotated<T> {
     where
         P: FnOnce(&Annotated<T>) -> bool,
         F: FnOnce(T) -> R,
-        R: IntoAnnotated<T>,
+        R: Into<Annotated<T>>,
     {
         if predicate(&self) {
             self.and_then(f)
@@ -344,6 +331,18 @@ impl Annotated<Value> {
             _ => {}
         }
         self.1 = meta_tree.meta;
+    }
+}
+
+impl<T> From<T> for Annotated<T> {
+    fn from(t: T) -> Self {
+        Annotated::new(t)
+    }
+}
+
+impl<T> From<Option<T>> for Annotated<T> {
+    fn from(option: Option<T>) -> Self {
+        Annotated(option, Meta::default())
     }
 }
 
