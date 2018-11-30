@@ -193,6 +193,12 @@ impl std::ops::Deref for Contexts {
     }
 }
 
+impl std::ops::DerefMut for Contexts {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl FromValue for Contexts {
     fn from_value(mut annotated: Annotated<Value>) -> Annotated<Self> {
         if let Annotated(Some(Value::Object(ref mut items)), _) = annotated {
@@ -425,8 +431,9 @@ fn test_untagged_context_deserialize() {
 
 #[test]
 fn test_context_processing() {
-    use crate::processor::{ProcessValue, ProcessingState, Processor};
+    use crate::processor::{ProcessResult, ProcessingState, Processor};
     use crate::protocol::Event;
+    use crate::types::Meta;
 
     let event = Annotated::new(Event {
         contexts: Annotated::new(Contexts({
@@ -449,17 +456,19 @@ fn test_context_processing() {
     }
 
     impl Processor for FooProcessor {
+        #[inline]
         fn process_context(
             &mut self,
-            context: Annotated<Context>,
+            value: &mut Context,
+            meta: &mut Meta,
             state: ProcessingState,
-        ) -> Annotated<Context> {
+        ) -> ProcessResult {
             self.called = true;
-            Context::process_child_values(context, self, state)
+            ProcessResult::default()
         }
     }
 
     let mut processor = FooProcessor { called: false };
-    crate::processor::process_value(event, &mut processor);
+    crate::processor::process_value(&mut event, &mut processor, ProcessingState::default());
     assert!(processor.called);
 }

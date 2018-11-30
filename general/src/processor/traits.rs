@@ -47,21 +47,21 @@ pub trait Processor {
     process_method!(process_array, crate::types::Array<T>);
     process_method!(process_object, crate::types::Object<T>);
 
-    // process_method!(process_values, crate::protocol::Values<T>);
-    // process_method!(process_event, crate::protocol::Event);
-    // process_method!(process_exception, crate::protocol::Exception);
-    // process_method!(process_stacktrace, crate::protocol::Stacktrace);
-    // process_method!(process_frame, crate::protocol::Frame);
-    // process_method!(process_request, crate::protocol::Request);
-    // process_method!(process_user, crate::protocol::User);
-    // process_method!(process_client_sdk_info, crate::protocol::ClientSdkInfo);
-    // process_method!(process_debug_meta, crate::protocol::DebugMeta);
-    // process_method!(process_geo, crate::protocol::Geo);
-    // process_method!(process_logentry, crate::protocol::LogEntry);
-    // process_method!(process_thread, crate::protocol::Thread);
-    // process_method!(process_context, crate::protocol::Context);
-    // process_method!(process_breadcrumb, crate::protocol::Breadcrumb);
-    // process_method!(process_template_info, crate::protocol::TemplateInfo);
+    process_method!(process_values, crate::protocol::Values<T>);
+    process_method!(process_event, crate::protocol::Event);
+    process_method!(process_exception, crate::protocol::Exception);
+    process_method!(process_stacktrace, crate::protocol::Stacktrace);
+    process_method!(process_frame, crate::protocol::Frame);
+    process_method!(process_request, crate::protocol::Request);
+    process_method!(process_user, crate::protocol::User);
+    process_method!(process_client_sdk_info, crate::protocol::ClientSdkInfo);
+    process_method!(process_debug_meta, crate::protocol::DebugMeta);
+    process_method!(process_geo, crate::protocol::Geo);
+    process_method!(process_logentry, crate::protocol::LogEntry);
+    process_method!(process_thread, crate::protocol::Thread);
+    process_method!(process_context, crate::protocol::Context);
+    process_method!(process_breadcrumb, crate::protocol::Breadcrumb);
+    process_method!(process_template_info, crate::protocol::TemplateInfo);
 }
 
 /// TODO(ja): Doc this

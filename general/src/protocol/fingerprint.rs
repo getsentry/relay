@@ -14,6 +14,12 @@ impl std::ops::Deref for Fingerprint {
     }
 }
 
+impl std::ops::DerefMut for Fingerprint {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl From<Vec<String>> for Fingerprint {
     fn from(vec: Vec<String>) -> Fingerprint {
         Fingerprint(vec)

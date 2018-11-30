@@ -15,6 +15,12 @@ impl std::ops::Deref for Cookies {
     }
 }
 
+impl std::ops::DerefMut for Cookies {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl FromValue for Cookies {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
@@ -64,6 +70,12 @@ impl std::ops::Deref for Headers {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl std::ops::DerefMut for Headers {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -166,6 +178,12 @@ impl std::ops::Deref for Query {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl std::ops::DerefMut for Query {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

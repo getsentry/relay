@@ -313,6 +313,95 @@ impl<T: ToValue> ToValue for Box<T> {
     }
 }
 
+macro_rules! tuple_meta_structure {
+    ($($name: ident),+) => {
+        impl< $( $name: FromValue ),* > FromValue for ( $( Annotated<$name>, )* ) {
+            #[allow(non_snake_case, unused_variables)]
+            fn from_value(annotated: Annotated<Value>) -> Annotated<Self> {
+                let mut n = 0;
+                $(let $name = (); n += 1;)*
+                match annotated {
+                    Annotated(Some(Value::Array(items)), mut meta) => {
+                        if items.len() != n {
+                            meta.add_unexpected_value_error("tuple", Value::Array(items));
+                            return Annotated(None, meta);
+                        }
+
+                        let mut iter = items.into_iter();
+                        Annotated(Some((
+                            $({
+                                let $name = ();
+                                FromValue::from_value(iter.next().unwrap())
+                            },)*
+                        )), meta)
+                    }
+                    Annotated(Some(value), mut meta) => {
+                        meta.add_unexpected_value_error("tuple", value);
+                        Annotated(None, meta)
+                    }
+                    Annotated(None, meta) => Annotated(None, meta)
+                }
+            }
+        }
+
+        impl< $( $name: ToValue ),* > ToValue for ( $( Annotated<$name>, )* ) {
+            #[allow(non_snake_case, unused_variables)]
+            fn to_value(annotated: Annotated<Self>) -> Annotated<Value> {
+                match annotated {
+                    Annotated(Some(($($name,)*)), meta) => {
+                        Annotated(Some(Value::Array(vec![
+                            $(ToValue::to_value($name),)*
+                        ])), meta)
+                    }
+                    Annotated(None, meta) => Annotated(None, meta)
+                }
+            }
+
+            #[allow(non_snake_case, unused_variables)]
+            fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                let mut s = s.serialize_seq(None)?;
+                let ($(ref $name,)*) = self;
+                $(s.serialize_element(&SerializePayload($name))?;)*;
+                s.end()
+            }
+
+            #[allow(non_snake_case, unused_variables, unused_assignments)]
+            fn extract_child_meta(&self) -> MetaMap
+            where
+                Self: Sized,
+            {
+                let mut children = MetaMap::new();
+                let ($(ref $name,)*) = self;
+                let mut idx = 0;
+                $({
+                    let tree = ToValue::extract_meta_tree($name);
+                    if !tree.is_empty() {
+                        children.insert(idx.to_string(), tree);
+                    }
+                    idx += 1;
+                })*;
+                children
+            }
+        }
+    }
+}
+
+tuple_meta_structure!(T1);
+tuple_meta_structure!(T1, T2);
+tuple_meta_structure!(T1, T2, T3);
+tuple_meta_structure!(T1, T2, T3, T4);
+tuple_meta_structure!(T1, T2, T3, T4, T5);
+tuple_meta_structure!(T1, T2, T3, T4, T5, T6);
+tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7);
+tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8);
+tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
+tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
+
 #[test]
 fn test_unsigned_integers() {
     assert_eq!(

@@ -1,4 +1,4 @@
-use crate::processor::{ProcessValue, ProcessingState, Processor};
+use crate::processor::{process_value, ProcessValue, ProcessingState, Processor};
 use crate::protocol::LenientString;
 use crate::types::{Annotated, Array, FromValue, Value};
 
@@ -11,6 +11,12 @@ impl std::ops::Deref for Tags {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl std::ops::DerefMut for Tags {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -65,40 +71,14 @@ impl FromValue for Tags {
 }
 
 impl ProcessValue for Tags {
-    fn process_value<P: Processor>(
-        value: Annotated<Self>,
-        processor: &mut P,
-        state: ProcessingState,
-    ) -> Annotated<Self>
+    #[inline]
+    fn process_child_values<P>(value: &mut Self, processor: &mut P, state: ProcessingState)
     where
-        Self: Sized,
+        P: Processor,
     {
-        #[derive(Debug, PartialEq, FromValue, ToValue, ProcessValue)]
-        struct RealTags {
-            #[metastructure(max_chars = "tag_key")]
-            key: Annotated<String>,
-            #[metastructure(max_chars = "tag_value")]
-            value: Annotated<String>,
+        for (index, annotated_tuple) in value.iter_mut().enumerate() {
+            process_value(annotated_tuple, processor, state.enter_index(index, None));
         }
-
-        let v: Annotated<Array<RealTags>> = ProcessValue::process_value(
-            value.map_value(|tags| {
-                tags.0
-                    .into_iter()
-                    .map(|value| value.map_value(|(key, value)| RealTags { key, value }))
-                    .collect()
-            }),
-            processor,
-            state,
-        );
-
-        v.map_value(|tags| {
-            Tags(
-                tags.into_iter()
-                    .map(|value| value.map_value(|RealTags { key, value }| (key, value)))
-                    .collect(),
-            )
-        })
     }
 }
 

@@ -301,11 +301,14 @@ fn process_enum_struct_derive(
             })
         }
         Trait::Process => {
+            let clone_state = type_attrs.process_func.as_ref().map(|_| {
+                quote! { let __state_clone = __state.clone(); }
+            });
             let process_value = type_attrs.process_func.map(|func_name| {
                 let func_name = Ident::new(&func_name, Span::call_site());
                 quote! {
                     if __result == crate::processor::ProcessResult::Keep {
-                        return __processor.#func_name(__value, __meta, __state);
+                        return __processor.#func_name(__value, __meta, __state_clone);
                     }
                 }
             });
@@ -323,6 +326,8 @@ fn process_enum_struct_derive(
                     where
                         P: crate::processor::Processor,
                     {
+                        #clone_state
+
                         let __result = match __value {
                             #process_value_body
                         };
@@ -617,14 +622,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         Trait::Process => {
             let process_value = type_attrs.process_func.map(|func_name| {
                 let func_name = Ident::new(&func_name, Span::call_site());
-                quote! { __processor.#func_name(__value, __meta, __state) }
-            }).unwrap_or_else(|| {
-                quote! { crate::processor::ProcessResult::default() }
-            });
-
-            s.gen_impl(quote! {
-                #[automatically_derived]
-                gen impl crate::processor::ProcessValue for @Self {
+                quote! {
                     #[inline]
                     fn process_value<P>(
                         __value: &mut Self,
@@ -635,9 +633,20 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     where
                         P: crate::processor::Processor,
                     {
-                        crate::processor::ProcessValue::process_child_values(__value, __processor, __state);
-                        #process_value
+                        crate::processor::ProcessValue::process_child_values(
+                            __value,
+                            __processor,
+                            __state.clone()
+                        );
+                        __processor.#func_name(__value, __meta, __state)
                     }
+                }
+            });
+
+            s.gen_impl(quote! {
+                #[automatically_derived]
+                gen impl crate::processor::ProcessValue for @Self {
+                    #process_value
 
                     #[inline]
                     fn process_child_values<P>(
