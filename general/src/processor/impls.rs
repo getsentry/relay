@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::processor::{process_value, ProcessResult, ProcessValue, ProcessingState, Processor};
@@ -77,6 +78,8 @@ impl ProcessValue for f64 {
         processor.process_f64(value, meta, state)
     }
 }
+
+impl ProcessValue for DateTime<Utc> {}
 
 impl ProcessValue for Uuid {}
 

@@ -133,7 +133,7 @@ fn process_wrapper_struct_derive(
                     __value: &mut Self,
                     __meta: &mut crate::types::Meta,
                     __processor: &mut P,
-                    __state: crate::types::ProcessingState,
+                    __state: crate::processor::ProcessingState,
                 ) -> crate::processor::ProcessResult
                 where
                     P: crate::processor::Processor,
@@ -304,7 +304,7 @@ fn process_enum_struct_derive(
             let process_value = type_attrs.process_func.map(|func_name| {
                 let func_name = Ident::new(&func_name, Span::call_site());
                 quote! {
-                    if __result == ProcessResult::Keep {
+                    if __result == crate::processor::ProcessResult::Keep {
                         return __processor.#func_name(__value, __meta, __state);
                     }
                 }
@@ -605,6 +605,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         __child_meta
                     }
 
+                    #[allow(unreachable_code)]
                     fn skip_serialization(&self) -> bool {
                         let #serialize_pat = self;
                         #skip_serialization_body;
