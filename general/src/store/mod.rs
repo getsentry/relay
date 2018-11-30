@@ -474,6 +474,9 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
     }
 }
 
+#[cfg(test)]
+use crate::processor::process_value;
+
 #[test]
 fn test_handles_type_in_value() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
@@ -483,7 +486,7 @@ fn test_handles_type_in_value() {
         ..Default::default()
     });
 
-    let exception = exception.process(&mut processor).0.unwrap();
+    let exception = process_value(exception, &mut processor).0.unwrap();
     assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
     assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
 
@@ -492,7 +495,7 @@ fn test_handles_type_in_value() {
         ..Default::default()
     });
 
-    let exception = exception.process(&mut processor).0.unwrap();
+    let exception = process_value(exception, &mut processor).0.unwrap();
     assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
     assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
 }
@@ -505,7 +508,7 @@ fn test_json_value() {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
         ..Default::default()
     });
-    let exception = exception.process(&mut processor).0.unwrap();
+    let exception = process_value(exception, &mut processor).0.unwrap();
 
     // Don't split a json-serialized value on the colon
     assert_eq_dbg!(
@@ -520,7 +523,7 @@ fn test_exception_invalid() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
     let exception = Annotated::new(Exception::default());
-    let exception = exception.process(&mut processor);
+    let exception = process_value(exception, &mut processor);
 
     assert_eq_dbg!(
         exception.1.iter_errors().collect_tuple(),
@@ -540,7 +543,7 @@ fn test_geo_from_ip_address() {
         ..Default::default()
     });
 
-    let user = user.process(&mut processor);
+    let user = process_value(user, &mut processor);
 
     let expected = Annotated::new(Geo {
         country_code: Annotated::new("AT".to_string()),
@@ -564,7 +567,7 @@ fn test_schema_processor_invoked() {
     });
 
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-    let event = event.process(&mut processor).0.unwrap();
+    let event = process_value(event, &mut processor).0.unwrap();
 
     assert_eq_dbg!(event.user.0.unwrap().email.0, None);
 }

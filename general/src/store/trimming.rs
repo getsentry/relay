@@ -241,6 +241,9 @@ fn trim_string(value: Annotated<String>, max_chars: MaxChars) -> Annotated<Strin
     })
 }
 
+#[cfg(test)]
+use crate::processor::process_value;
+
 #[test]
 fn test_string_trimming() {
     use crate::processor::MaxChars;
@@ -279,7 +282,7 @@ fn test_basic_trimming() {
         ..Default::default()
     });
 
-    let event = event.process(&mut processor);
+    let event = process_value(event, &mut processor);
 
     assert_eq_dbg!(
         event.0.unwrap().culprit,
@@ -320,7 +323,7 @@ fn test_databag_stripping() {
         ..Default::default()
     });
 
-    let stripped_event = event.process(&mut processor);
+    let stripped_event = process_value(event, &mut processor);
     let stripped_extra = stripped_event.0.unwrap().extra;
 
     let json = stripped_extra.to_json().unwrap();
@@ -351,7 +354,7 @@ fn test_databag_array_stripping() {
         ..Default::default()
     });
 
-    let stripped_event = event.process(&mut processor);
+    let stripped_event = process_value(event, &mut processor);
     let stripped_extra = stripped_event.0.unwrap().extra;
 
     let json = stripped_extra.to_json_pretty().unwrap();
@@ -474,7 +477,7 @@ fn test_tags_stripping() {
         ..Default::default()
     });
 
-    let stripped_event = event.process(&mut processor);
+    let stripped_event = process_value(event, &mut processor);
     let json = stripped_event
         .0
         .unwrap()
@@ -532,7 +535,7 @@ fn test_databag_state_leak() {
     });
 
     let mut processor = TrimmingProcessor::new();
-    let stripped_event = event.clone().process(&mut processor);
+    let stripped_event = process_value(event.clone(), &mut processor);
 
     assert_eq_str!(
         event.to_json_pretty().unwrap(),

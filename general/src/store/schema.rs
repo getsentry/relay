@@ -94,6 +94,9 @@ fn check_match_regex_value(
 }
 
 #[cfg(test)]
+use crate::processor::process_value;
+
+#[cfg(test)]
 fn test_nonempty_base<T>()
 where
     T: Default
@@ -113,7 +116,7 @@ where
         bar: Annotated::new(T::default()),
         bar2: Annotated::new(T::default()),
     });
-    let wrapper = wrapper.process(&mut SchemaProcessor);
+    let wrapper = process_value(wrapper, &mut SchemaProcessor);
 
     assert_eq!(
         wrapper,
@@ -148,7 +151,7 @@ fn test_release_newlines() {
         ..Default::default()
     });
 
-    let event = event.process(&mut SchemaProcessor);
+    let event = process_value(event, &mut SchemaProcessor);
 
     assert_eq_dbg!(
         event,
@@ -171,7 +174,7 @@ fn test_invalid_email() {
         ..Default::default()
     });
 
-    let user = user.process(&mut SchemaProcessor);
+    let user = process_value(user, &mut SchemaProcessor);
 
     assert_eq_dbg!(
         user,

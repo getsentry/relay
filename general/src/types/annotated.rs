@@ -5,7 +5,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_derive::Serialize;
 use serde_json;
 
-use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::types::{FromValue, Meta, Object, ToValue, Value};
 
 /// Represents a tree of meta objects.
@@ -214,13 +213,6 @@ impl<T> Annotated<T> {
         F: FnOnce() -> T,
     {
         self.0.get_or_insert_with(f)
-    }
-}
-
-impl<T: ProcessValue> Annotated<T> {
-    /// Estimates the size in bytes this would be in JSON.
-    pub fn process<P: Processor>(self, processor: &mut P) -> Annotated<T> {
-        ProcessValue::process_value(self, processor, ProcessingState::root())
     }
 }
 
