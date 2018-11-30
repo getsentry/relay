@@ -1,10 +1,10 @@
 // This module only defines traits, every parameter is used by definition
-#![cfg_attr(feature = "cargo-clippy", allow(unused_variables))]
+#![allow(unused_variables)]
 
 use std::fmt::Debug;
 
 use crate::processor::ProcessingState;
-use crate::types::{Array, FromValue, Meta, Object, ToValue, Value};
+use crate::types::{FromValue, Meta, ToValue};
 
 macro_rules! process_method {
     ($name: ident, $ty:ident $(::$path:ident)*) => {
@@ -43,9 +43,9 @@ pub trait Processor {
     process_method!(process_f64, f64);
     process_method!(process_bool, bool);
 
-    process_method!(process_value, Value);
-    process_method!(process_array, Array<T>);
-    process_method!(process_object, Object<T>);
+    process_method!(process_value, crate::types::Value);
+    process_method!(process_array, crate::types::Array<T>);
+    process_method!(process_object, crate::types::Object<T>);
 
     // process_method!(process_event, crate::protocol::Values<T>);
     // process_method!(process_event, crate::protocol::Event);
