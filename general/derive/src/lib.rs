@@ -145,6 +145,22 @@ fn process_wrapper_struct_derive(
                         __state,
                     )
                 }
+
+                #[inline]
+                fn process_child_values<P>(
+                    __value: &mut Self,
+                    __processor: &mut P,
+                    __state: crate::processor::ProcessingState,
+                )
+                where
+                    P: crate::processor::Processor,
+                {
+                    crate::processor::ProcessValue::process_child_values(
+                        &mut __value.0,
+                        __processor,
+                        __state,
+                    )
+                }
             }
         }),
     })
@@ -169,6 +185,7 @@ fn process_enum_struct_derive(
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
     let mut process_value_body = TokenStream::new();
+    let mut process_child_values_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
 
@@ -242,6 +259,16 @@ fn process_enum_struct_derive(
                 )
             }
         }).to_tokens(&mut process_value_body);
+
+        (quote! {
+            #type_name::#variant_name(__value) => {
+                crate::processor::ProcessValue::process_child_values(
+                    __value,
+                    __processor,
+                    __state,
+                )
+            }
+        }).to_tokens(&mut process_child_values_body);
     }
 
     Ok(match t {
@@ -335,6 +362,20 @@ fn process_enum_struct_derive(
                         #process_value
 
                         __result
+                    }
+
+                    #[inline]
+                    fn process_child_values<P>(
+                        __value: &mut Self,
+                        __processor: &mut P,
+                        __state: crate::processor::ProcessingState,
+                    )
+                    where
+                        P: crate::processor::Processor,
+                    {
+                        match __value {
+                            #process_child_values_body
+                        }
                     }
                 }
             })
@@ -633,11 +674,6 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     where
                         P: crate::processor::Processor,
                     {
-                        crate::processor::ProcessValue::process_child_values(
-                            __value,
-                            __processor,
-                            __state.clone()
-                        );
                         __processor.#func_name(__value, __meta, __state)
                     }
                 }

@@ -15,6 +15,7 @@ macro_rules! process_method {
             meta: &mut Meta,
             state: ProcessingState,
         ) -> ProcessResult {
+            ProcessValue::process_child_values(value, self, state);
             Default::default()
         }
     };
@@ -30,13 +31,14 @@ macro_rules! process_method {
         where
             $($param: ProcessValue),*
         {
+            ProcessValue::process_child_values(value, self, state);
             Default::default()
         }
     };
 }
 
 /// A trait for processing processable values.
-pub trait Processor {
+pub trait Processor: Sized {
     process_method!(process_string, String);
     process_method!(process_u64, u64);
     process_method!(process_i64, i64);
@@ -86,8 +88,6 @@ impl From<()> for ProcessResult {
 /// A recursively processable value.
 pub trait ProcessValue: FromValue + ToValue + Debug {
     /// Executes a processor on this value.
-    ///
-    /// This should call `Self::process_child_values` before invoking the processor.
     #[inline]
     fn process_value<P>(
         value: &mut Self,
@@ -98,7 +98,6 @@ pub trait ProcessValue: FromValue + ToValue + Debug {
     where
         P: Processor,
     {
-        Self::process_child_values(value, processor, state);
         Default::default()
     }
 

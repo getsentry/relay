@@ -97,7 +97,6 @@ where
     where
         P: Processor,
     {
-        Self::process_child_values(value, processor, state.clone());
         processor.process_array(value, meta, state)
     }
 
@@ -126,7 +125,6 @@ where
     where
         P: Processor,
     {
-        Self::process_child_values(value, processor, state.clone());
         processor.process_object(value, meta, state)
     }
 

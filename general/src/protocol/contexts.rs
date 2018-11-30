@@ -435,7 +435,7 @@ fn test_context_processing() {
     use crate::protocol::Event;
     use crate::types::Meta;
 
-    let event = Annotated::new(Event {
+    let mut event = Annotated::new(Event {
         contexts: Annotated::new(Contexts({
             let mut contexts = Object::new();
             contexts.insert(
@@ -459,9 +459,9 @@ fn test_context_processing() {
         #[inline]
         fn process_context(
             &mut self,
-            value: &mut Context,
-            meta: &mut Meta,
-            state: ProcessingState,
+            _value: &mut Context,
+            _meta: &mut Meta,
+            _state: ProcessingState,
         ) -> ProcessResult {
             self.called = true;
             ProcessResult::default()
