@@ -23,11 +23,11 @@ impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
     }
 }
 
-primitive_meta_structure!(String, String, "a string", process_string);
-primitive_meta_structure!(bool, Bool, "a boolean", process_bool);
-numeric_meta_structure!(u64, U64, "an unsigned integer", process_u64);
-numeric_meta_structure!(i64, I64, "a signed integer", process_i64);
-numeric_meta_structure!(f64, F64, "a floating point value", process_f64);
+primitive_meta_structure!(String, String, "a string");
+primitive_meta_structure!(bool, Bool, "a boolean");
+numeric_meta_structure!(u64, U64, "an unsigned integer");
+numeric_meta_structure!(i64, I64, "a signed integer");
+numeric_meta_structure!(f64, F64, "a floating point value");
 primitive_meta_structure_through_string!(Uuid, "a uuid");
 
 impl<T: FromValue> FromValue for Array<T> {

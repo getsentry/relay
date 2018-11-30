@@ -388,6 +388,7 @@ impl<'a> ser::SerializeStructVariant for &'a mut SizeEstimatingSerializer {
 
 #[test]
 fn test_estimate_size() {
+    use crate::types::{Object, Value};
     let json = r#"{"a":["Hello","World","aha","hmm",false,{"blub":42,"x":true},null]}"#;
     let value = Annotated::<Object<Value>>::from_json(json).unwrap();
     assert_eq!(estimate_size(&value), json.len());

@@ -34,7 +34,7 @@ macro_rules! primitive_to_value {
 }
 
 macro_rules! numeric_meta_structure {
-    ($type:ident, $meta_type:ident, $expectation:expr, $process_func:ident) => {
+    ($type:ident, $meta_type:ident, $expectation:expr) => {
         impl crate::types::FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 value.and_then(|value| {
@@ -104,7 +104,7 @@ macro_rules! primitive_meta_structure_through_string {
 }
 
 macro_rules! primitive_meta_structure {
-    ($type:ident, $meta_type:ident, $expectation:expr, $process_func:ident) => {
+    ($type:ident, $meta_type:ident, $expectation:expr) => {
         impl crate::types::FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
