@@ -10,7 +10,7 @@ mod meta;
 mod traits;
 mod value;
 
-pub use self::annotated::{Annotated, IsEmpty, MetaMap, MetaTree};
+pub use self::annotated::{Annotated, MetaMap, MetaTree};
 pub use self::impls::SerializePayload;
 pub use self::meta::{Meta, Range, Remark, RemarkType};
 pub use self::traits::{FromValue, ToValue};

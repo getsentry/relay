@@ -367,43 +367,6 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Annotated<T> {
     }
 }
 
-/// Utility trait to find out if an object is empty.
-pub trait IsEmpty {
-    /// A generic check if the object is considered empty.
-    fn generic_is_empty(&self) -> bool;
-}
-
-impl<T> IsEmpty for Vec<T> {
-    fn generic_is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
-impl IsEmpty for String {
-    fn generic_is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
-impl<T: IsEmpty> Annotated<T> {
-    /// Attaches a value required error if the value is null or an empty string
-    pub fn require_nonempty_value(&mut self) {
-        if self.1.has_errors() {
-            return;
-        }
-
-        if self
-            .0
-            .as_ref()
-            .map(|x| x.generic_is_empty())
-            .unwrap_or(true)
-        {
-            self.0 = None;
-            self.1.add_error("non-empty value required", None);
-        }
-    }
-}
-
 #[test]
 fn test_annotated_deserialize_with_meta() {
     #[derive(ToValue, FromValue, Debug)]
