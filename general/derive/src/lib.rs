@@ -468,7 +468,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             if field_attrs.required {
                 (quote! {
                     let mut #bi = #bi;
-                    #bi.require_value();
+                    crate::processor::require_value(&mut #bi);
                 }).to_tokens(&mut from_value_body);
             }
 
