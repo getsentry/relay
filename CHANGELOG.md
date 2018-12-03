@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+- store: Fix main performance issues.
+
 ## 0.2.2
 
 For users of relay, nothing changed at all. This is a release to test embedding
