@@ -66,6 +66,53 @@ impl MetaTree {
 /// Meta for children.
 pub type MetaMap = BTreeMap<String, MetaTree>;
 
+/// Used to indicate how to handle an annotated value in a callback.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ValueAction {
+    /// Keeps the value as is.
+    Keep,
+
+    /// Discards the value.
+    Discard,
+}
+
+impl ValueAction {
+    /// Returns the result of `f` if the current action is `ValueAction::Keep`.
+    #[inline]
+    pub fn and_then<F>(self, mut f: F) -> Self
+    where
+        F: FnMut() -> Self,
+    {
+        match self {
+            ValueAction::Keep => f(),
+            ValueAction::Discard => self,
+        }
+    }
+}
+
+impl Default for ValueAction {
+    #[inline]
+    fn default() -> Self {
+        ValueAction::Keep
+    }
+}
+
+impl From<()> for ValueAction {
+    fn from(_: ()) -> Self {
+        ValueAction::Keep
+    }
+}
+
+impl From<bool> for ValueAction {
+    fn from(b: bool) -> Self {
+        if b {
+            ValueAction::Keep
+        } else {
+            ValueAction::Discard
+        }
+    }
+}
+
 /// Wrapper for data fields with optional meta data.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Annotated<T>(pub Option<T>, pub Meta);
@@ -150,6 +197,23 @@ impl<T> Annotated<T> {
         F: FnOnce() -> T,
     {
         self.0.get_or_insert_with(f)
+    }
+
+    /// Modifies this value based on the action returned by `f`.
+    #[inline]
+    pub fn apply<F, R>(&mut self, f: F)
+    where
+        F: FnOnce(&mut T, &mut Meta) -> R,
+        R: Into<ValueAction>,
+    {
+        let result = match (self.0.as_mut(), &mut self.1) {
+            (Some(value), meta) => f(value, meta).into(),
+            (None, _) => Default::default(),
+        };
+
+        if result == ValueAction::Discard {
+            self.0 = None;
+        }
     }
 }
 

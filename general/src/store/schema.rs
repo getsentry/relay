@@ -1,5 +1,5 @@
-use crate::processor::{ProcessResult, ProcessValue, ProcessingState, Processor};
-use crate::types::{Array, Map, Meta, Object};
+use crate::processor::{ProcessValue, ProcessingState, Processor};
+use crate::types::{Array, Map, Meta, Object, ValueAction};
 
 pub struct SchemaProcessor;
 
@@ -9,7 +9,7 @@ impl Processor for SchemaProcessor {
         value: &mut String,
         meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult {
+    ) -> ValueAction {
         verify_value_nonempty(value, meta, &state)
             .and_then(|| verify_value_pattern(value, meta, &state))
     }
@@ -19,7 +19,7 @@ impl Processor for SchemaProcessor {
         value: &mut Array<T>,
         meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         T: ProcessValue,
     {
@@ -32,7 +32,7 @@ impl Processor for SchemaProcessor {
         value: &mut Object<T>,
         meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         T: ProcessValue,
     {
@@ -65,19 +65,15 @@ impl IsEmpty for String {
     }
 }
 
-fn verify_value_nonempty<T>(
-    value: &mut T,
-    meta: &mut Meta,
-    state: &ProcessingState,
-) -> ProcessResult
+fn verify_value_nonempty<T>(value: &mut T, meta: &mut Meta, state: &ProcessingState) -> ValueAction
 where
     T: IsEmpty,
 {
     if state.attrs().nonempty && value.is_empty() {
         meta.add_error("non-empty value required", None);
-        ProcessResult::Discard
+        ValueAction::Discard
     } else {
-        ProcessResult::Keep
+        ValueAction::Keep
     }
 }
 
@@ -85,16 +81,16 @@ fn verify_value_pattern(
     value: &mut String,
     meta: &mut Meta,
     state: &ProcessingState,
-) -> ProcessResult {
+) -> ValueAction {
     if let Some(ref regex) = state.attrs().match_regex {
         if !regex.is_match(value) {
             let original_value = std::mem::replace(value, String::new());
             meta.add_error("invalid characters in string", Some(original_value.into()));
-            return ProcessResult::Discard;
+            return ValueAction::Discard;
         }
     }
 
-    ProcessResult::Keep
+    ValueAction::Keep
 }
 
 #[cfg(test)]

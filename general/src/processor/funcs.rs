@@ -1,21 +1,5 @@
-use crate::processor::{ProcessResult, ProcessValue, ProcessingState, Processor};
-use crate::types::{Annotated, Meta};
-
-#[inline]
-pub fn apply_value<T, F, R>(annotated: &mut Annotated<T>, f: F)
-where
-    F: FnOnce(&mut T, &mut Meta) -> R,
-    R: Into<ProcessResult>,
-{
-    let result = match (annotated.0.as_mut(), &mut annotated.1) {
-        (Some(value), meta) => f(value, meta).into(),
-        (None, _) => Default::default(),
-    };
-
-    if result == ProcessResult::Discard {
-        annotated.0 = None;
-    }
-}
+use crate::processor::{ProcessValue, ProcessingState, Processor};
+use crate::types::Annotated;
 
 /// Processes the value using the given processor.
 #[inline]
@@ -24,9 +8,7 @@ where
     T: ProcessValue,
     P: Processor,
 {
-    apply_value(annotated, |value, meta| {
-        ProcessValue::process_value(value, meta, processor, state)
-    })
+    annotated.apply(|value, meta| ProcessValue::process_value(value, meta, processor, state))
 }
 
 /// Attaches a value required error if the value is missing.

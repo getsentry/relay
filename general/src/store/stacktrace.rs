@@ -2,7 +2,6 @@ use std::mem;
 
 use url::Url;
 
-use crate::processor::apply_value;
 use crate::protocol::{Frame, Stacktrace};
 use crate::types::{Annotated, Array, Meta};
 
@@ -18,7 +17,7 @@ pub fn process_non_raw_stacktrace(stacktrace: &mut Stacktrace, _meta: &mut Meta)
     // exception.raw_stacktrace)
     if let Some(frames) = stacktrace.frames.value_mut() {
         for frame in frames.iter_mut() {
-            apply_value(frame, process_non_raw_frame);
+            frame.apply(process_non_raw_frame);
         }
     }
 }
@@ -68,7 +67,7 @@ fn test_coerces_url_filenames() {
         ..Default::default()
     });
 
-    apply_value(&mut frame, process_non_raw_frame);
+    frame.apply(process_non_raw_frame);
     let frame = frame.value().unwrap();
 
     assert_eq!(frame.filename.as_str(), Some("/foo.js"));
@@ -84,7 +83,7 @@ fn test_does_not_overwrite_filename() {
         ..Default::default()
     });
 
-    apply_value(&mut frame, process_non_raw_frame);
+    frame.apply(process_non_raw_frame);
     let frame = frame.value().unwrap();
 
     assert_eq!(frame.filename.0, Some("foo.js".to_string()));
@@ -99,7 +98,7 @@ fn test_ignores_results_with_empty_path() {
         ..Default::default()
     });
 
-    apply_value(&mut frame, process_non_raw_frame);
+    frame.apply(process_non_raw_frame);
     let frame = frame.value().unwrap();
 
     assert_eq!(frame.filename.0, Some("http://foo.com".to_string()));
@@ -123,7 +122,7 @@ fn test_frame_hard_limit() {
         create_frame("foo5.py"),
     ]);
 
-    apply_value(&mut frames, |f, m| enforce_frame_hard_limit(f, m, 3));
+    frames.apply(|f, m| enforce_frame_hard_limit(f, m, 3));
 
     let mut expected_meta = Meta::default();
     expected_meta.set_original_length(Some(5));

@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::processor::{process_value, ProcessResult, ProcessValue, ProcessingState, Processor};
-use crate::types::{Annotated, Array, Meta, Object, Value};
+use crate::processor::{process_value, ProcessValue, ProcessingState, Processor};
+use crate::types::{Annotated, Array, Meta, Object, Value, ValueAction};
 
 impl ProcessValue for String {
     #[inline]
@@ -11,7 +11,7 @@ impl ProcessValue for String {
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         P: Processor,
     {
@@ -26,7 +26,7 @@ impl ProcessValue for bool {
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         P: Processor,
     {
@@ -41,7 +41,7 @@ impl ProcessValue for u64 {
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         P: Processor,
     {
@@ -56,7 +56,7 @@ impl ProcessValue for i64 {
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         P: Processor,
     {
@@ -71,7 +71,7 @@ impl ProcessValue for f64 {
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         P: Processor,
     {
@@ -93,7 +93,7 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         P: Processor,
     {
@@ -121,7 +121,7 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         P: Processor,
     {
@@ -149,7 +149,7 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         P: Processor,
     {
@@ -164,7 +164,7 @@ impl ProcessValue for Value {
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         P: Processor,
     {

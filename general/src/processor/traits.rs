@@ -4,7 +4,7 @@
 use std::fmt::Debug;
 
 use crate::processor::ProcessingState;
-use crate::types::{FromValue, Meta, ToValue};
+use crate::types::{FromValue, Meta, ToValue, ValueAction};
 
 macro_rules! process_method {
     ($name: ident, $ty:ident $(::$path:ident)*) => {
@@ -14,7 +14,7 @@ macro_rules! process_method {
             value: &mut $ty $(::$path)*,
             meta: &mut Meta,
             state: ProcessingState,
-        ) -> ProcessResult {
+        ) -> ValueAction {
             ProcessValue::process_child_values(value, self, state);
             Default::default()
         }
@@ -27,7 +27,7 @@ macro_rules! process_method {
             value: &mut $ty $(::$path)* <$($param),*>,
             meta: &mut Meta,
             state: ProcessingState,
-        ) -> ProcessResult
+        ) -> ValueAction
         where
             $($param: ProcessValue),*
         {
@@ -66,47 +66,6 @@ pub trait Processor: Sized {
     process_method!(process_template_info, crate::protocol::TemplateInfo);
 }
 
-/// TODO(ja): Doc this
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ProcessResult {
-    Keep,
-    Discard,
-}
-
-impl ProcessResult {
-    pub fn and_then<F>(self, mut f: F) -> Self
-    where
-        F: FnMut() -> Self,
-    {
-        match self {
-            ProcessResult::Keep => f(),
-            ProcessResult::Discard => self,
-        }
-    }
-}
-
-impl Default for ProcessResult {
-    fn default() -> Self {
-        ProcessResult::Keep
-    }
-}
-
-impl From<()> for ProcessResult {
-    fn from(_: ()) -> Self {
-        ProcessResult::Keep
-    }
-}
-
-impl From<bool> for ProcessResult {
-    fn from(b: bool) -> Self {
-        if b {
-            ProcessResult::Keep
-        } else {
-            ProcessResult::Discard
-        }
-    }
-}
-
 /// A recursively processable value.
 pub trait ProcessValue: FromValue + ToValue + Debug {
     /// Executes a processor on this value.
@@ -116,7 +75,7 @@ pub trait ProcessValue: FromValue + ToValue + Debug {
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         P: Processor,
     {

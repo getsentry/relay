@@ -431,9 +431,9 @@ fn test_untagged_context_deserialize() {
 
 #[test]
 fn test_context_processing() {
-    use crate::processor::{ProcessResult, ProcessingState, Processor};
+    use crate::processor::{ProcessingState, Processor};
     use crate::protocol::Event;
-    use crate::types::Meta;
+    use crate::types::{Meta, ValueAction};
 
     let mut event = Annotated::new(Event {
         contexts: Annotated::new(Contexts({
@@ -462,9 +462,9 @@ fn test_context_processing() {
             _value: &mut Context,
             _meta: &mut Meta,
             _state: ProcessingState,
-        ) -> ProcessResult {
+        ) -> ValueAction {
             self.called = true;
-            ProcessResult::default()
+            ValueAction::default()
         }
     }
 

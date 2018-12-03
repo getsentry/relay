@@ -9,12 +9,12 @@ use regex::Regex;
 use serde_derive::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::processor::{apply_value, ProcessResult, ProcessValue, ProcessingState, Processor};
+use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Event, EventId, EventType, Exception, Frame, IpAddr, Level, Request,
     Stacktrace, TagEntry, Tags, User,
 };
-use crate::types::{Annotated, Meta, Object};
+use crate::types::{Annotated, Meta, Object, ValueAction};
 
 mod geo;
 mod mechanism;
@@ -90,7 +90,7 @@ impl<'a> StoreNormalizeProcessor<'a> {
             event.received.set_value(Some(current_timestamp));
         }
 
-        apply_value(&mut event.timestamp, |timestamp, meta| {
+        event.timestamp.apply(|timestamp, meta| {
             if let Some(secs) = self.config.max_secs_in_future {
                 if *timestamp > current_timestamp + Duration::seconds(secs) {
                     // TODO: Set original vlaue
@@ -235,7 +235,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         event: &mut Event,
         meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult {
+    ) -> ValueAction {
         schema::SchemaProcessor.process_event(event, meta, state.clone());
         ProcessValue::process_child_values(event, self, state.clone());
 
@@ -257,10 +257,9 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             event.client_sdk.set_value(self.config.get_sdk_info());
         }
 
-        apply_value(
-            &mut event.stacktrace,
-            stacktrace::process_non_raw_stacktrace,
-        );
+        event
+            .stacktrace
+            .apply(stacktrace::process_non_raw_stacktrace);
 
         if event.level.value().is_none() {
             event.level.set_value(Some(Level::Error));
@@ -286,7 +285,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
         self.normalize_timestamps(event);
 
-        apply_value(&mut event.platform, |platform, _| {
+        event.platform.apply(|platform, _| {
             // TODO: keep original value?
             self.config.valid_platforms.contains(platform)
         });
@@ -317,7 +316,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         // Trimming should happen at end to ensure derived tags are the right length.
         self.trimming_processor.process_event(event, meta, state);
 
-        ProcessResult::Keep
+        ValueAction::Keep
     }
 
     fn process_breadcrumb(
@@ -325,7 +324,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         breadcrumb: &mut Breadcrumb,
         _meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult {
+    ) -> ValueAction {
         ProcessValue::process_child_values(breadcrumb, self, state);
 
         if breadcrumb.ty.value().is_none() {
@@ -336,7 +335,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             breadcrumb.level.set_value(Some(Level::Info));
         }
 
-        ProcessResult::Keep
+        ValueAction::Keep
     }
 
     fn process_request(
@@ -344,13 +343,13 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         request: &mut Request,
         _meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult {
+    ) -> ValueAction {
         ProcessValue::process_child_values(request, self, state);
 
         let client_ip = self.config.client_ip.as_ref().map(String::as_str);
         request::normalize_request(request, client_ip);
 
-        ProcessResult::Keep
+        ValueAction::Keep
     }
 
     fn process_user(
@@ -358,7 +357,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         user: &mut User,
         _meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult {
+    ) -> ValueAction {
         ProcessValue::process_child_values(user, self, state);
 
         // Fill in ip addresses marked as {{auto}}
@@ -381,7 +380,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             }
         }
 
-        ProcessResult::Keep
+        ValueAction::Keep
     }
 
     fn process_exception(
@@ -389,13 +388,12 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         exception: &mut Exception,
         meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult {
+    ) -> ValueAction {
         ProcessValue::process_child_values(exception, self, state);
 
-        apply_value(
-            &mut exception.stacktrace,
-            stacktrace::process_non_raw_stacktrace,
-        );
+        exception
+            .stacktrace
+            .apply(stacktrace::process_non_raw_stacktrace);
 
         lazy_static! {
             static ref TYPE_VALUE_RE: Regex = Regex::new(r"^(\w+):(.*)$").unwrap();
@@ -417,10 +415,10 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         if exception.ty.value().is_none() && exception.value.value().is_none() {
             // TODO: Store original value
             meta.add_error("type or value required", None);
-            return ProcessResult::Discard;
+            return ValueAction::Discard;
         }
 
-        ProcessResult::Keep
+        ValueAction::Keep
     }
 
     fn process_frame(
@@ -428,7 +426,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         frame: &mut Frame,
         _meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult {
+    ) -> ValueAction {
         ProcessValue::process_child_values(frame, self, state);
 
         if frame.in_app.value().is_none() {
@@ -459,7 +457,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             }
         }
 
-        ProcessResult::Keep
+        ValueAction::Keep
     }
 
     fn process_stacktrace(
@@ -467,11 +465,11 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         stacktrace: &mut Stacktrace,
         _meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult {
+    ) -> ValueAction {
         if let Some(limit) = self.config.stacktrace_frames_hard_limit {
-            apply_value(&mut stacktrace.frames, |frames, meta| {
-                stacktrace::enforce_frame_hard_limit(frames, meta, limit)
-            });
+            stacktrace
+                .frames
+                .apply(|frames, meta| stacktrace::enforce_frame_hard_limit(frames, meta, limit));
         }
 
         ProcessValue::process_child_values(stacktrace, self, state);
@@ -479,7 +477,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         // TODO: port slim_frame_data and call it here (needs to run after process_frame because of
         // `in_app`)
 
-        ProcessResult::Keep
+        ValueAction::Keep
     }
 }
 

@@ -1,8 +1,6 @@
 use crate::processor::{estimate_size, process_chunked_value, Chunk, MaxChars};
-use crate::processor::{
-    process_value, BagSize, ProcessResult, ProcessValue, ProcessingState, Processor,
-};
-use crate::types::{Array, Meta, Object, Remark, RemarkType};
+use crate::processor::{process_value, BagSize, ProcessValue, ProcessingState, Processor};
+use crate::types::{Array, Meta, Object, Remark, RemarkType, ValueAction};
 
 #[derive(Clone, Copy, Debug)]
 struct BagSizeState {
@@ -36,7 +34,7 @@ impl Processor for TrimmingProcessor {
         value: &mut String,
         meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult {
+    ) -> ValueAction {
         if let Some(ref mut bag_size_state) = self.bag_size_state {
             println!("got a bag size state {:?}", bag_size_state);
             println!("  for state {:#?}", state);
@@ -49,7 +47,7 @@ impl Processor for TrimmingProcessor {
             trim_string(value, meta, max_chars);
         }
 
-        ProcessResult::Keep
+        ValueAction::Keep
     }
 
     fn process_array<T>(
@@ -57,12 +55,12 @@ impl Processor for TrimmingProcessor {
         value: &mut Array<T>,
         meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         T: ProcessValue,
     {
         let old_bag_size_state = self.bag_size_state;
-        let mut result = ProcessResult::Keep;
+        let mut result = ValueAction::Keep;
 
         // If we encounter a bag size attribute it resets the depth and size
         // that is permitted below it.
@@ -85,7 +83,7 @@ impl Processor for TrimmingProcessor {
                     rule_id: "!limit".to_string(),
                     range: None,
                 });
-                result = ProcessResult::Discard;
+                result = ValueAction::Discard;
             } else {
                 let original_length = value.len();
 
@@ -126,12 +124,12 @@ impl Processor for TrimmingProcessor {
         value: &mut Object<T>,
         meta: &mut Meta,
         state: ProcessingState,
-    ) -> ProcessResult
+    ) -> ValueAction
     where
         T: ProcessValue,
     {
         let old_bag_size_state = self.bag_size_state;
-        let mut result = ProcessResult::Keep;
+        let mut result = ValueAction::Keep;
 
         // If we encounter a bag size attribute it resets the depth and size
         // that is permitted below it.
@@ -154,7 +152,7 @@ impl Processor for TrimmingProcessor {
                     rule_id: "!limit".to_string(),
                     range: None,
                 });
-                result = ProcessResult::Discard;
+                result = ValueAction::Discard;
             } else {
                 let original_length = value.len();
 
@@ -251,8 +249,6 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
 }
 
 #[cfg(test)]
-use crate::processor::apply_value;
-#[cfg(test)]
 use crate::types::Annotated;
 
 #[test]
@@ -261,7 +257,7 @@ fn test_string_trimming() {
     use crate::types::{Annotated, Meta, Remark, RemarkType};
 
     let mut value = Annotated::new("This is my long string I want to have trimmed!".to_string());
-    apply_value(&mut value, |v, m| trim_string(v, m, MaxChars::Hard(20)));
+    value.apply(|v, m| trim_string(v, m, MaxChars::Hard(20)));
 
     assert_eq_dbg!(
         value,
@@ -296,7 +292,7 @@ fn test_basic_trimming() {
     process_value(&mut event, &mut processor, Default::default());
 
     let mut expected = Annotated::new(repeat("x").take(300).collect::<String>());
-    apply_value(&mut expected, |v, m| trim_string(v, m, MaxChars::Symbol));
+    expected.apply(|v, m| trim_string(v, m, MaxChars::Symbol));
     assert_eq_dbg!(event.value().unwrap().culprit, expected);
 }
 

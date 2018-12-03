@@ -3,9 +3,8 @@ use regex::Regex;
 use serde::de::IgnoredAny;
 use url::Url;
 
-use crate::processor::{apply_value, ProcessResult};
 use crate::protocol::{Query, Request};
-use crate::types::{Annotated, Meta, Object, Value};
+use crate::types::{Annotated, Meta, Object, Value, ValueAction};
 
 lazy_static! {
     static ref METHOD_RE: Regex = Regex::new(r"^[A-Z\-_]{3,32}$").unwrap();
@@ -64,16 +63,16 @@ fn normalize_url(request: &mut Request) {
     request.url.set_value(Some(url.into_string()));
 }
 
-fn normalize_method(method: &mut String, meta: &mut Meta) -> ProcessResult {
+fn normalize_method(method: &mut String, meta: &mut Meta) -> ValueAction {
     method.make_ascii_uppercase();
 
     if !meta.has_errors() && METHOD_RE.is_match(&method) {
         let original_method = std::mem::replace(method, String::new());
         meta.add_error("invalid http method", Some(Value::String(original_method)));
-        return ProcessResult::Discard;
+        return ValueAction::Discard;
     }
 
-    ProcessResult::Keep
+    ValueAction::Keep
 }
 
 fn set_auto_remote_addr(env: &mut Object<Value>, remote_addr: &str) {
@@ -87,13 +86,13 @@ fn set_auto_remote_addr(env: &mut Object<Value>, remote_addr: &str) {
 }
 
 pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
-    apply_value(&mut request.method, normalize_method);
+    request.method.apply(normalize_method);
     normalize_url(request);
 
     if let Some(ref client_ip) = client_ip {
-        apply_value(&mut request.env, |env, _meta| {
-            set_auto_remote_addr(env, client_ip)
-        });
+        request
+            .env
+            .apply(|env, _meta| set_auto_remote_addr(env, client_ip));
     }
 
     if request.inferred_content_type.value().is_none() {

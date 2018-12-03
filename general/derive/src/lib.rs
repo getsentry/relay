@@ -134,7 +134,7 @@ fn process_wrapper_struct_derive(
                     __meta: &mut crate::types::Meta,
                     __processor: &mut P,
                     __state: crate::processor::ProcessingState,
-                ) -> crate::processor::ProcessResult
+                ) -> crate::types::ValueAction
                 where
                     P: crate::processor::Processor,
                 {
@@ -331,7 +331,7 @@ fn process_enum_struct_derive(
             let process_value = type_attrs.process_func.map(|func_name| {
                 let func_name = Ident::new(&func_name, Span::call_site());
                 quote! {
-                    if __result == crate::processor::ProcessResult::Keep {
+                    if __result == crate::types::ValueAction::Keep {
                         return __processor.#func_name(__value, __meta, __state_clone);
                     }
                 }
@@ -354,7 +354,7 @@ fn process_enum_struct_derive(
                         __meta: &mut crate::types::Meta,
                         __processor: &mut P,
                         __state: crate::processor::ProcessingState,
-                    ) -> crate::processor::ProcessResult
+                    ) -> crate::types::ValueAction
                     where
                         P: crate::processor::Processor,
                     {
@@ -761,7 +761,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                             __processor,
                             __state,
                         );
-                        crate::processor::ProcessResult::default()
+                        crate::types::ValueAction::default()
                     }
                 });
 
@@ -774,7 +774,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         __meta: &mut crate::types::Meta,
                         __processor: &mut P,
                         __state: crate::processor::ProcessingState,
-                    ) -> crate::processor::ProcessResult
+                    ) -> crate::types::ValueAction
                     where
                         P: crate::processor::Processor,
                     {
