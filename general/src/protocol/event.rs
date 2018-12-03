@@ -37,7 +37,7 @@ impl FromStr for EventId {
 }
 
 /// The type of event we're dealing with.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum EventType {
     Default,
     Error,

@@ -63,7 +63,7 @@ impl FromValue for LogEntry {
                 )
             }
             x => Annotated::new(LogEntry {
-                formatted: LenientString::from_value(x).map_value(|x| x.0),
+                formatted: LenientString::from_value(x).map_value(|x| x.into_inner()),
                 ..Default::default()
             }),
         }
