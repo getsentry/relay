@@ -36,8 +36,6 @@ impl Processor for TrimmingProcessor {
         state: ProcessingState,
     ) -> ValueAction {
         if let Some(ref mut bag_size_state) = self.bag_size_state {
-            println!("got a bag size state {:?}", bag_size_state);
-            println!("  for state {:#?}", state);
             trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
 
             bag_size_state.size_remaining = bag_size_state
