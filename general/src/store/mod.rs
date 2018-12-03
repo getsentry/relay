@@ -9,12 +9,12 @@ use regex::Regex;
 use serde_derive::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::processor::{ProcessValue, ProcessingState, Processor};
+use crate::processor::{apply_value, ProcessResult, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Event, EventId, EventType, Exception, Frame, IpAddr, Level, Request,
-    Stacktrace, Tags, User,
+    Stacktrace, TagEntry, Tags, User,
 };
-use crate::types::{Annotated, Array, Meta, Object, Value};
+use crate::types::{Annotated, Meta, Object};
 
 mod geo;
 mod mechanism;
@@ -25,26 +25,6 @@ mod stacktrace;
 mod trimming;
 
 pub use crate::store::geo::GeoIpLookup;
-
-fn parse_type_and_value(
-    ty: Annotated<String>,
-    value: Annotated<String>,
-) -> (Annotated<String>, Annotated<String>) {
-    lazy_static! {
-        static ref TYPE_VALUE_RE: Regex = Regex::new(r"^(\w+):(.*)$").unwrap();
-    }
-
-    if let (None, Some(value_str)) = (ty.0.as_ref(), value.0.as_ref()) {
-        if let Some((ref cap,)) = TYPE_VALUE_RE.captures_iter(value_str).collect_tuple() {
-            return (
-                Annotated::new(cap[1].to_string()),
-                Annotated::new(cap[2].trim().to_string()),
-            );
-        }
-    }
-
-    (ty, value)
-}
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -103,6 +83,148 @@ impl<'a> StoreNormalizeProcessor<'a> {
     pub fn config(&self) -> &StoreConfig {
         &self.config
     }
+
+    fn normalize_timestamps(&self, event: &mut Event) {
+        let current_timestamp = Utc::now();
+        if event.received.value().is_none() {
+            event.received.set_value(Some(current_timestamp));
+        }
+
+        apply_value(&mut event.timestamp, |timestamp, meta| {
+            if let Some(secs) = self.config.max_secs_in_future {
+                if *timestamp > current_timestamp + Duration::seconds(secs) {
+                    // TODO: Set original vlaue
+                    meta.add_error("Invalid timestamp (in future)", None);
+                    *timestamp = current_timestamp;
+                }
+            }
+
+            if let Some(secs) = self.config.max_secs_in_past {
+                if *timestamp < current_timestamp - Duration::seconds(secs) {
+                    // TODO: Set original vlaue
+                    meta.add_error("Invalid timestamp (too old)", None);
+                    *timestamp = current_timestamp;
+                }
+            }
+        });
+
+        if event.timestamp.value().is_none() {
+            event.timestamp.set_value(Some(current_timestamp));
+        }
+    }
+
+    fn normalize_event_tags(&self, event: &mut Event) {
+        let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
+
+        // Fix case where legacy apps pass environment as a tag instead of a top level key
+        if event.environment.value().is_none() {
+            tags.retain(|tag| tag.value().and_then(|tag| tag.key()) != Some("environment"));
+        }
+
+        // These tags are special and are used in pairing with `sentry:{}`. They should not be allowed
+        // to be set via data ingest due to ambiguity.
+        tags.retain(|tag| match tag.value().and_then(|tag| tag.key()) {
+            Some("release") | Some("dist") | Some("filename") | Some("function") => false,
+            _ => true,
+        });
+
+        if event.server_name.value().is_some() {
+            tags.push(Annotated::new(TagEntry(
+                Annotated::new("server_name".to_string()),
+                std::mem::replace(&mut event.server_name, Annotated::empty()),
+            )));
+        }
+    }
+
+    fn infer_event_type(&self, event: &Event) -> EventType {
+        // port of src/sentry/eventtypes
+        //
+        // the SDKs currently do not describe event types, and we must infer
+        // them from available attributes
+
+        let has_exceptions = event
+            .exceptions
+            .value()
+            .and_then(|exceptions| exceptions.values.value())
+            .filter(|values| !values.is_empty())
+            .is_some();
+
+        if has_exceptions {
+            EventType::Error
+        } else if event.csp.value().is_some() {
+            EventType::Csp
+        } else if event.hpkp.value().is_some() {
+            EventType::Hpkp
+        } else if event.expectct.value().is_some() {
+            EventType::ExpectCT
+        } else if event.expectstaple.value().is_some() {
+            EventType::ExpectStaple
+        } else {
+            EventType::Default
+        }
+    }
+
+    fn normalize_user_ip(&self, event: &mut Event) {
+        let http_ip = event
+            .request
+            .value()
+            .and_then(|request| request.env.value())
+            .and_then(|env| env.get("REMOTE_ADDR"))
+            .and_then(|addr| addr.as_str());
+
+        // If there is no User ip_address, update it either from the Http interface
+        // or the client_ip of the request.
+        if let Some(http_ip) = http_ip {
+            self.set_user_ip(&mut event.user, http_ip);
+        } else if let Some(ref client_ip) = self.config.client_ip {
+            let should_use_client_ip = self.config.is_public_auth
+                || match event.platform.as_str() {
+                    Some("javascript") | Some("cocoa") | Some("objc") => true,
+                    _ => false,
+                };
+
+            if should_use_client_ip {
+                self.set_user_ip(&mut event.user, client_ip.as_str());
+            }
+        }
+    }
+
+    fn set_user_ip(&self, user: &mut Annotated<User>, ip_address: &str) {
+        let user = user.value_mut().get_or_insert_with(User::default);
+        if user.ip_address.value().is_none() {
+            user.ip_address = Annotated::new(IpAddr(ip_address.to_string()));
+        }
+    }
+
+    fn normalize_exceptions(&self, event: &mut Event) {
+        let os_hint = mechanism::OsHint::from_event(&event);
+
+        if let Some(exception_values) = event.exceptions.value_mut() {
+            if let Some(exceptions) = exception_values.values.value_mut() {
+                if exceptions.len() == 1 && event.stacktrace.value().is_some() {
+                    if let Some(exception) = exceptions.get_mut(0) {
+                        if let Some(exception) = exception.value_mut() {
+                            mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
+                            event.stacktrace = Annotated::empty();
+                        }
+                    }
+                }
+
+                // Exception mechanism needs SDK information to resolve proper names in
+                // exception meta (such as signal names). "SDK Information" really means
+                // the operating system version the event was generated on. Some
+                // normalization still works without sdk_info, such as mach_exception
+                // names (they can only occur on macOS).
+                for exception in exceptions {
+                    if let Some(exception) = exception.value_mut() {
+                        if let Some(mechanism) = exception.mechanism.value_mut() {
+                            mechanism::normalize_mechanism_meta(mechanism, os_hint);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<'a> Processor for StoreNormalizeProcessor<'a> {
@@ -110,363 +232,254 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     fn process_event(
         &mut self,
-        mut event: Annotated<Event>,
+        event: &mut Event,
+        meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<Event> {
-        event = schema::SchemaProcessor.process_event(event, state.clone());
+    ) -> ProcessResult {
+        schema::SchemaProcessor.process_event(event, meta, state.clone());
+        ProcessValue::process_child_values(event, self, state.clone());
 
-        event = ProcessValue::process_child_values(event, self, state.clone());
+        // Override the project_id, even if it was set in the payload
+        if let Some(project_id) = self.config.project_id {
+            event.project.set_value(Some(project_id));
+        }
 
-        if let Some(ref mut event) = event.0 {
-            if let Some(project_id) = self.config.project_id {
-                event.project.0 = Some(project_id);
-            }
+        // Override the key_id, even if it was set in the payload
+        if let Some(ref key_id) = self.config.key_id {
+            event.key_id.set_value(Some(key_id.clone()));
+        }
 
-            if let Some(ref key_id) = self.config.key_id {
-                event.key_id.0 = Some(key_id.clone());
-            }
+        if event.errors.value().is_none() {
+            event.errors.set_value(Some(Vec::new()));
+        }
 
-            event.errors.0.get_or_insert_with(Vec::new);
+        if event.client_sdk.value().is_none() {
+            event.client_sdk.set_value(self.config.get_sdk_info());
+        }
 
-            stacktrace::process_non_raw_stacktrace(&mut event.stacktrace);
+        apply_value(
+            &mut event.stacktrace,
+            stacktrace::process_non_raw_stacktrace,
+        );
 
-            let current_timestamp = Utc::now();
+        if event.level.value().is_none() {
+            event.level.set_value(Some(Level::Error));
+        }
 
-            event.level.0.get_or_insert(Level::Error);
-            event.id.0.get_or_insert_with(|| EventId(Uuid::new_v4()));
-            event.received.0 = Some(current_timestamp);
-            event.logger.0.get_or_insert_with(String::new);
+        if event.id.value().is_none() {
+            event.id.set_value(Some(EventId(Uuid::new_v4())));
+        }
 
-            if event.dist.0.is_some() && event.release.0.is_none() {
-                event.dist.0 = None;
-            }
+        if event.logger.value().is_none() {
+            event.logger.set_value(Some(String::new()));
+        }
 
-            if let Some(ref mut dist) = event.dist.0 {
-                *dist = dist.trim().to_owned();
-            }
+        if event.dist.value().is_some() && event.release.value().is_none() {
+            event.dist.set_value(None);
+        }
 
-            event.timestamp = event
-                .timestamp
-                .clone()
-                .filter_map(Annotated::is_valid, |timestamp| {
-                    if let Some(secs) = self.config.max_secs_in_future {
-                        if timestamp > current_timestamp + Duration::seconds(secs) {
-                            return Annotated(
-                                Some(current_timestamp),
-                                Meta::from_error("Invalid timestamp (in future)", None),
-                            );
-                        }
-                    }
-
-                    if let Some(secs) = self.config.max_secs_in_past {
-                        if timestamp < current_timestamp - Duration::seconds(secs) {
-                            return Annotated(
-                                Some(current_timestamp),
-                                Meta::from_error("Invalid timestamp (too old)", None),
-                            );
-                        }
-                    }
-
-                    Annotated::new(timestamp)
-                }).or_else(|| current_timestamp);
-
-            if let Some(ref mut platform) = event.platform.0 {
-                if !self.config.valid_platforms.contains(platform) {
-                    *platform = "other".to_string();
-                }
-            }
-
-            event.platform.0.get_or_insert_with(|| "other".to_string());
-
-            event.extra.0.get_or_insert_with(Object::new);
-
-            {
-                let mut tags = event.tags.0.get_or_insert_with(|| Tags(Default::default()));
-
-                // Fix case where legacy apps pass environment as a tag instead of a top level key
-                // TODO (alex) save() just reinserts the environment into the tags
-                if event.environment.0.is_none() {
-                    let mut new_tags = vec![];
-                    for tuple in tags.0.drain(..) {
-                        if let Annotated(
-                            Some((Annotated(Some(ref k), _), Annotated(Some(ref v), _))),
-                            _,
-                        ) = tuple
-                        {
-                            if k == "environment" {
-                                event.environment.0 = Some(v.clone());
-                                continue;
-                            }
-                        }
-
-                        new_tags.push(tuple);
-                    }
-
-                    tags.0 = new_tags;
-                }
-
-                // These tags are special and are used in pairing with `sentry:{}`
-                // they should not be allowed to be set via data ingest due to ambiguity
-                tags.0.retain(|x| {
-                    x.0.as_ref()
-                        .map(|(key, _)| {
-                            key.0
-                                .as_ref()
-                                .map(|key| {
-                                    key != "release"
-                                        && key != "dist"
-                                        && key != "user"
-                                        && key != "filename"
-                                        && key != "function"
-                                }).unwrap_or(true)
-                        }).unwrap_or(true)
-                });
-
-                if event.server_name.0.is_some() {
-                    let server_name = mem::replace(&mut event.server_name, Annotated::empty());
-                    tags.0.push(Annotated::new((
-                        Annotated::new("server_name".to_owned()),
-                        server_name,
-                    )));
-                }
-            }
-
-            // port of src/sentry/eventtypes
-            //
-            // the SDKs currently do not describe event types, and we must infer
-            // them from available attributes
-            let has_exceptions = event
-                .exceptions
-                .0
-                .as_ref()
-                .and_then(|exceptions| exceptions.values.0.as_ref())
-                .filter(|values| !values.is_empty())
-                .is_some();
-
-            event.ty = Annotated::new(if has_exceptions {
-                EventType::Error
-            } else if event.csp.0.is_some() {
-                EventType::Csp
-            } else if event.hpkp.0.is_some() {
-                EventType::Hpkp
-            } else if event.expectct.0.is_some() {
-                EventType::ExpectCT
-            } else if event.expectstaple.0.is_some() {
-                EventType::ExpectStaple
-            } else {
-                EventType::Default
-            });
-
-            if let Some(ref version) = self.config.protocol_version {
-                event.version = Annotated::new(version.clone());
-            }
-
-            let os_hint = mechanism::OsHint::from_event(&event);
-
-            if let Some(ref mut exception_values) = event.exceptions.0 {
-                if let Some(ref mut exceptions) = exception_values.values.0 {
-                    if exceptions.len() == 1 && event.stacktrace.0.is_some() {
-                        if let Some(ref mut exception) =
-                            exceptions.get_mut(0).and_then(|x| x.0.as_mut())
-                        {
-                            mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
-                            event.stacktrace = Annotated::empty();
-                        }
-                    }
-
-                    // Exception mechanism needs SDK information to resolve proper names in
-                    // exception meta (such as signal names). "SDK Information" really means
-                    // the operating system version the event was generated on. Some
-                    // normalization still works without sdk_info, such as mach_exception
-                    // names (they can only occur on macOS).
-                    for mut exception in exceptions.iter_mut() {
-                        if let Some(ref mut exception) = exception.0 {
-                            if let Some(ref mut mechanism) = exception.mechanism.0 {
-                                mechanism::normalize_mechanism_meta(mechanism, os_hint);
-                            }
-                        }
-                    }
-                }
-            }
-
-            let http_ip = event
-                .request
-                .0
-                .as_ref()
-                .and_then(|request| request.env.0.as_ref())
-                .and_then(|env| env.get("REMOTE_ADDR"))
-                .and_then(|addr| addr.0.as_ref());
-
-            // If there is no User ip_address, update it either from the Http interface
-            // or the client_ip of the request.
-            if let Some(Value::String(http_ip)) = http_ip {
-                let mut user = event.user.0.get_or_insert_with(Default::default);
-                if user.ip_address.0.is_none() {
-                    user.ip_address = Annotated::new(IpAddr(http_ip.clone()));
-                }
-            } else if let Some(ref client_ip) = self.config.client_ip {
-                let should_use_client_ip =
-                    self.config.is_public_auth || match event.platform.0.as_ref().map(|x| &**x) {
-                        Some("javascript") | Some("cocoa") | Some("objc") => true,
-                        _ => false,
-                    };
-
-                if should_use_client_ip {
-                    let mut user = event.user.0.get_or_insert_with(Default::default);
-                    if user.ip_address.0.is_none() {
-                        user.ip_address = Annotated::new(IpAddr(client_ip.clone()));
-                    }
-                }
+        if let Some(dist) = event.dist.value_mut() {
+            if dist.trim() != dist {
+                *dist = dist.trim().to_string();
             }
         }
 
+        self.normalize_timestamps(event);
+
+        apply_value(&mut event.platform, |platform, _| {
+            // TODO: keep original value?
+            self.config.valid_platforms.contains(platform)
+        });
+
+        if event.platform.value().is_none() {
+            event.platform.set_value(Some("other".to_string()));
+        }
+
+        if event.extra.value().is_none() {
+            event.extra.set_value(Some(Object::new()));
+        }
+
+        self.normalize_event_tags(event);
+
+        event.ty = Annotated::new(self.infer_event_type(event));
+
+        if let Some(ref version) = self.config.protocol_version {
+            event.version = Annotated::new(version.clone());
+        }
+
+        self.normalize_exceptions(event);
+        self.normalize_user_ip(event);
+
         // Do this before trimming such that we do not needlessly trim other if we're just going to
         // throw it away
-        event = remove_other::RemoveOtherProcessor.process_event(event, state.clone());
+        remove_other::RemoveOtherProcessor.process_event(event, meta, state.clone());
 
         // Trimming should happen at end to ensure derived tags are the right length.
-        event = self.trimming_processor.process_event(event, state);
+        self.trimming_processor.process_event(event, meta, state);
 
-        event
+        ProcessResult::Keep
     }
 
     fn process_breadcrumb(
         &mut self,
-        breadcrumb: Annotated<Breadcrumb>,
+        breadcrumb: &mut Breadcrumb,
+        _meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<Breadcrumb> {
-        let breadcrumb = ProcessValue::process_child_values(breadcrumb, self, state);
-        breadcrumb.and_then(|breadcrumb| Breadcrumb {
-            ty: breadcrumb.ty.or_else(|| "default".to_string()),
-            level: breadcrumb.level.or_else(|| Level::Info),
-            ..breadcrumb
-        })
+    ) -> ProcessResult {
+        ProcessValue::process_child_values(breadcrumb, self, state);
+
+        if breadcrumb.ty.value().is_none() {
+            breadcrumb.ty.set_value(Some("default".to_string()));
+        }
+
+        if breadcrumb.level.value().is_none() {
+            breadcrumb.level.set_value(Some(Level::Info));
+        }
+
+        ProcessResult::Keep
     }
 
     fn process_request(
         &mut self,
-        request: Annotated<Request>,
+        request: &mut Request,
+        _meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<Request> {
-        let request = ProcessValue::process_child_values(request, self, state);
+    ) -> ProcessResult {
+        ProcessValue::process_child_values(request, self, state);
+
         let client_ip = self.config.client_ip.as_ref().map(String::as_str);
-        request.and_then(|r| request::normalize_request(r, client_ip))
+        request::normalize_request(request, client_ip);
+
+        ProcessResult::Keep
     }
 
-    fn process_user(&mut self, user: Annotated<User>, state: ProcessingState) -> Annotated<User> {
-        let user = ProcessValue::process_child_values(user, self, state);
+    fn process_user(
+        &mut self,
+        user: &mut User,
+        _meta: &mut Meta,
+        state: ProcessingState,
+    ) -> ProcessResult {
+        ProcessValue::process_child_values(user, self, state);
 
-        user.filter_map(Annotated::is_valid, |user| User {
-            ip_address: user.ip_address.and_then(|ip| {
-                // Fill in ip addresses marked as {{auto}}
-                if ip.is_auto() {
-                    if let Some(ref client_ip) = self.config.client_ip {
-                        return IpAddr(client_ip.clone());
-                    }
-                }
-                ip
-            }),
-            ..user
-        }).filter_map(Annotated::is_valid, |mut user| {
-            // Infer user.geo from user.ip_address
-            if let (None, Some(geoip_lookup), Some(ip_address)) = (
-                user.geo.0.as_ref(),
-                self.geoip_lookup.as_ref(),
-                user.ip_address.0.as_ref(),
-            ) {
-                if let Ok(Some(geo)) = geoip_lookup.lookup(&ip_address.0) {
-                    user.geo = Annotated::new(geo);
-                    // TODO: Errorhandling
+        // Fill in ip addresses marked as {{auto}}
+        if let Some(ref mut ip_address) = user.ip_address.value_mut() {
+            if ip_address.is_auto() {
+                if let Some(ref client_ip) = self.config.client_ip {
+                    *ip_address = IpAddr(client_ip.clone());
                 }
             }
-            user
-        })
-    }
+        }
 
-    fn process_client_sdk_info(
-        &mut self,
-        info: Annotated<ClientSdkInfo>,
-        state: ProcessingState,
-    ) -> Annotated<ClientSdkInfo> {
-        let info = ProcessValue::process_child_values(info, self, state);
-        info.or_else(|| self.config.get_sdk_info())
+        // Infer user.geo from user.ip_address
+        if user.geo.value().is_none() {
+            if let Some(ref geoip_lookup) = self.geoip_lookup {
+                if let Some(ip_address) = user.ip_address.value() {
+                    if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
+                        user.geo.set_value(Some(geo));
+                    }
+                }
+            }
+        }
+
+        ProcessResult::Keep
     }
 
     fn process_exception(
         &mut self,
-        exception: Annotated<Exception>,
+        exception: &mut Exception,
+        meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<Exception> {
-        let exception = ProcessValue::process_child_values(exception, self, state);
+    ) -> ProcessResult {
+        ProcessValue::process_child_values(exception, self, state);
 
-        exception
-            .and_then(|mut exception| {
-                stacktrace::process_non_raw_stacktrace(&mut exception.stacktrace);
+        apply_value(
+            &mut exception.stacktrace,
+            stacktrace::process_non_raw_stacktrace,
+        );
 
-                let (ty, value) = parse_type_and_value(
-                    exception.ty.clone(),
-                    exception.value.clone().map_value(|x| x.0),
-                );
-                exception.ty = ty;
-                exception.value = value.map_value(|x| x.into());
-                exception
-            }).filter_map(Annotated::is_valid, |exception| {
-                match (&exception.ty.0, &exception.value.0) {
-                    (None, None) => Annotated(
-                        Some(exception),
-                        Meta::from_error("type or value required", None),
-                    ),
-                    _ => Annotated::new(exception),
+        lazy_static! {
+            static ref TYPE_VALUE_RE: Regex = Regex::new(r"^(\w+):(.*)$").unwrap();
+        }
+
+        if exception.ty.value().is_none() {
+            if let Some(value_str) = exception.value.value_mut() {
+                let new_values = TYPE_VALUE_RE
+                    .captures(value_str)
+                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_string().into()));
+
+                if let Some((new_type, new_value)) = new_values {
+                    exception.ty.set_value(Some(new_type));
+                    *value_str = new_value;
                 }
-            })
+            }
+        }
+
+        if exception.ty.value().is_none() && exception.value.value().is_none() {
+            // TODO: Store original value
+            meta.add_error("type or value required", None);
+            return ProcessResult::Discard;
+        }
+
+        ProcessResult::Keep
     }
 
     fn process_frame(
         &mut self,
-        frame: Annotated<Frame>,
+        frame: &mut Frame,
+        _meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<Frame> {
-        fn remove_questionmark(value: String) -> Option<String> {
-            if value == "?" {
-                None
-            } else {
-                Some(value)
+    ) -> ProcessResult {
+        ProcessValue::process_child_values(frame, self, state);
+
+        if frame.in_app.value().is_none() {
+            frame.in_app.set_value(Some(false));
+        }
+
+        if frame.function.as_str() == Some("?") {
+            frame.function.set_value(None);
+        }
+
+        if frame.symbol.as_str() == Some("?") {
+            frame.symbol.set_value(None);
+        }
+
+        if let Some(lines) = frame.pre_lines.value_mut() {
+            for line in lines {
+                if line.value().is_none() {
+                    line.set_value(Some("".to_string()));
+                }
             }
         }
 
-        fn fill_lines(values: Array<String>) -> Array<String> {
-            values
-                .into_iter()
-                .map(|line| line.or_else(String::new))
-                .collect()
+        if let Some(lines) = frame.post_lines.value_mut() {
+            for line in lines {
+                if line.value().is_none() {
+                    line.set_value(Some("".to_string()));
+                }
+            }
         }
 
-        let frame = ProcessValue::process_child_values(frame, self, state);
-
-        frame.filter_map(Annotated::is_valid, |frame| Frame {
-            in_app: frame.in_app.or_else(|| false),
-            function: frame.function.and_then(remove_questionmark),
-            symbol: frame.symbol.and_then(remove_questionmark),
-            pre_lines: frame.pre_lines.and_then(fill_lines),
-            post_lines: frame.post_lines.and_then(fill_lines),
-            ..frame
-        })
+        ProcessResult::Keep
     }
 
     fn process_stacktrace(
         &mut self,
-        mut stacktrace: Annotated<Stacktrace>,
+        stacktrace: &mut Stacktrace,
+        _meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<Stacktrace> {
+    ) -> ProcessResult {
         if let Some(limit) = self.config.stacktrace_frames_hard_limit {
-            stacktrace::enforce_frame_hard_limit(&mut stacktrace, limit);
+            apply_value(&mut stacktrace.frames, |frames, meta| {
+                stacktrace::enforce_frame_hard_limit(frames, meta, limit)
+            });
         }
 
-        stacktrace = ProcessValue::process_child_values(stacktrace, self, state);
+        ProcessValue::process_child_values(stacktrace, self, state);
 
         // TODO: port slim_frame_data and call it here (needs to run after process_frame because of
         // `in_app`)
-        stacktrace
+
+        ProcessResult::Keep
     }
 }
 
@@ -477,52 +490,52 @@ use crate::processor::process_value;
 fn test_handles_type_in_value() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
-    let exception = Annotated::new(Exception {
+    let mut exception = Annotated::new(Exception {
         value: Annotated::new("ValueError: unauthorized".to_string().into()),
         ..Default::default()
     });
 
-    let exception = process_value(exception, &mut processor).0.unwrap();
-    assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
-    assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
+    process_value(&mut exception, &mut processor, Default::default());
+    let exception = exception.value().unwrap();
+    assert_eq_dbg!(exception.value.as_str(), Some("unauthorized"));
+    assert_eq_dbg!(exception.ty.as_str(), Some("ValueError"));
 
-    let exception = Annotated::new(Exception {
+    let mut exception = Annotated::new(Exception {
         value: Annotated::new("ValueError:unauthorized".to_string().into()),
         ..Default::default()
     });
 
-    let exception = process_value(exception, &mut processor).0.unwrap();
-    assert_eq_dbg!(exception.value.0, Some("unauthorized".to_string().into()));
-    assert_eq_dbg!(exception.ty.0, Some("ValueError".to_string()));
+    process_value(&mut exception, &mut processor, Default::default());
+    let exception = exception.value().unwrap();
+    assert_eq_dbg!(exception.value.as_str(), Some("unauthorized"));
+    assert_eq_dbg!(exception.ty.as_str(), Some("ValueError"));
 }
 
 #[test]
 fn test_json_value() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
-    let exception = Annotated::new(Exception {
+    let mut exception = Annotated::new(Exception {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
         ..Default::default()
     });
-    let exception = process_value(exception, &mut processor).0.unwrap();
+    process_value(&mut exception, &mut processor, Default::default());
+    let exception = exception.value().unwrap();
 
     // Don't split a json-serialized value on the colon
-    assert_eq_dbg!(
-        exception.value.0,
-        Some(r#"{"unauthorized":true}"#.to_string().into())
-    );
-    assert_eq_dbg!(exception.ty.0, None);
+    assert_eq_dbg!(exception.value.as_str(), Some(r#"{"unauthorized":true}"#));
+    assert_eq_dbg!(exception.ty.value(), None);
 }
 
 #[test]
 fn test_exception_invalid() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
-    let exception = Annotated::new(Exception::default());
-    let exception = process_value(exception, &mut processor);
+    let mut exception = Annotated::new(Exception::default());
+    process_value(&mut exception, &mut processor, Default::default());
 
     assert_eq_dbg!(
-        exception.1.iter_errors().collect_tuple(),
+        exception.meta().iter_errors().collect_tuple(),
         Some(("type or value required",))
     );
 }
@@ -534,12 +547,12 @@ fn test_geo_from_ip_address() {
     let lookup = GeoIpLookup::open("../GeoLite2-City.mmdb").unwrap();
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), Some(&lookup));
 
-    let user = Annotated::new(User {
+    let mut user = Annotated::new(User {
         ip_address: Annotated::new(IpAddr("213.47.147.207".to_string())),
         ..Default::default()
     });
 
-    let user = process_value(user, &mut processor);
+    process_value(&mut user, &mut processor, Default::default());
 
     let expected = Annotated::new(Geo {
         country_code: Annotated::new("AT".to_string()),
@@ -547,14 +560,14 @@ fn test_geo_from_ip_address() {
         region: Annotated::new("Austria".to_string()),
         ..Default::default()
     });
-    assert_eq_dbg!(user.0.unwrap().geo, expected)
+    assert_eq_dbg!(user.value().unwrap().geo, expected)
 }
 
 #[test]
 fn test_schema_processor_invoked() {
     use crate::protocol::User;
 
-    let event = Annotated::new(Event {
+    let mut event = Annotated::new(Event {
         user: Annotated::new(User {
             email: Annotated::new("bananabread".to_owned()),
             ..Default::default()
@@ -563,7 +576,10 @@ fn test_schema_processor_invoked() {
     });
 
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-    let event = process_value(event, &mut processor).0.unwrap();
+    process_value(&mut event, &mut processor, Default::default());
 
-    assert_eq_dbg!(event.user.0.unwrap().email.0, None);
+    assert_eq_dbg!(
+        event.value().unwrap().user.value().unwrap().email.value(),
+        None
+    );
 }

@@ -186,8 +186,10 @@ impl Meta {
     }
 
     /// Updates the original length of this annotation.
-    pub fn set_original_length(&mut self, original_length: Option<u32>) {
-        self.original_length = original_length;
+    pub fn set_original_length(&mut self, original_length: Option<usize>) {
+        if self.original_length.is_none() {
+            self.original_length = original_length.map(|x| x as u32);
+        }
     }
 
     /// Iterates all remarks on this field.
@@ -226,6 +228,16 @@ impl Meta {
     /// Adds an unexpected value error.
     pub fn add_unexpected_value_error(&mut self, expectation: &str, value: Value) {
         self.add_error(format!("expected {}", expectation), Some(value));
+    }
+
+    /// Returns a reference to the original value, if any.
+    pub fn original_value(&self) -> Option<&Value> {
+        self.original_value.as_ref()
+    }
+
+    /// Sets the original value.
+    pub fn set_original_value(&mut self, original_value: Option<Value>) {
+        self.original_value = original_value;
     }
 
     /// Take out the original value.

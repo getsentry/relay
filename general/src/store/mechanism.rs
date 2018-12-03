@@ -563,32 +563,34 @@ pub enum OsHint {
 }
 
 impl OsHint {
-    pub fn from_event(event: &Event) -> Option<OsHint> {
-        if let Some(ref debug_meta) = event.debug_meta.0 {
-            if let Some(ref sdk_info) = debug_meta.system_sdk.0 {
-                return normalize_sdk_name(&sdk_info.sdk_name.0);
-            }
-        }
-
-        if let Some(ref contexts) = event.contexts.0 {
-            if let Some(&Annotated(Some(Context::Os(ref os_context)), _)) = contexts.0.get("os") {
-                return normalize_sdk_name(&os_context.name.0);
-            }
-        }
-
-        None
-    }
-}
-
-fn normalize_sdk_name(name: &Option<String>) -> Option<OsHint> {
-    if let Some(ref name) = name {
-        match &**name {
+    fn from_name(name: &str) -> Option<OsHint> {
+        match name {
             "ios" | "watchos" | "tvos" | "macos" => Some(OsHint::Darwin),
             "linux" | "android" => Some(OsHint::Linux),
             "windows" => Some(OsHint::Windows),
             _ => None,
         }
-    } else {
+    }
+
+    pub fn from_event(event: &Event) -> Option<OsHint> {
+        if let Some(debug_meta) = event.debug_meta.value() {
+            if let Some(sdk_info) = debug_meta.system_sdk.value() {
+                if let Some(name) = sdk_info.sdk_name.as_str() {
+                    return Self::from_name(name);
+                }
+            }
+        }
+
+        if let Some(contexts) = event.contexts.value() {
+            if let Some(context) = contexts.get("os") {
+                if let Some(&Context::Os(ref os_context)) = context.value() {
+                    if let Some(name) = os_context.name.as_str() {
+                        return Self::from_name(name);
+                    }
+                }
+            }
+        }
+
         None
     }
 }

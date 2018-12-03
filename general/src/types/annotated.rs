@@ -113,26 +113,6 @@ impl<T> Annotated<T> {
         &mut self.1
     }
 
-    #[inline]
-    #[deprecated]
-    pub fn is_valid(&self) -> bool {
-        !self.1.has_errors()
-    }
-
-    #[inline]
-    #[deprecated]
-    pub fn is_present(&self) -> bool {
-        self.0.is_some()
-    }
-
-    #[deprecated]
-    pub fn modify<F>(&mut self, f: F)
-    where
-        F: FnOnce(Self) -> Self,
-    {
-        *self = f(std::mem::replace(self, Annotated::empty()));
-    }
-
     pub fn and_then<F, U, R>(self, f: F) -> Annotated<U>
     where
         F: FnOnce(T) -> R,
@@ -143,33 +123,6 @@ impl<T> Annotated<T> {
             Annotated(value, self.1.merge(meta))
         } else {
             Annotated(None, self.1)
-        }
-    }
-
-    pub fn or_else<F, R>(self, f: F) -> Self
-    where
-        F: FnOnce() -> R,
-        R: Into<Self>,
-    {
-        if self.0.is_none() {
-            let Annotated(value, meta) = f().into();
-            Annotated(value, self.1.merge(meta))
-        } else {
-            self
-        }
-    }
-
-    #[deprecated]
-    pub fn filter_map<P, F, R>(self, predicate: P, f: F) -> Self
-    where
-        P: FnOnce(&Self) -> bool,
-        F: FnOnce(T) -> R,
-        R: Into<Self>,
-    {
-        if predicate(&self) {
-            self.and_then(f)
-        } else {
-            self
         }
     }
 
@@ -197,6 +150,25 @@ impl<T> Annotated<T> {
         F: FnOnce() -> T,
     {
         self.0.get_or_insert_with(f)
+    }
+}
+
+impl<T> Annotated<T>
+where
+    T: AsRef<str>,
+{
+    /// Returns a reference to the string value if set.
+    #[inline]
+    pub fn as_str(&self) -> Option<&str> {
+        self.value().map(AsRef::as_ref)
+    }
+}
+
+impl Annotated<Value> {
+    /// Returns a reference to the string value if this value is a string and it is set.
+    #[inline]
+    pub fn as_str(&self) -> Option<&str> {
+        self.value().and_then(Value::as_str)
     }
 }
 

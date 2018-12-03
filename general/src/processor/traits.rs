@@ -9,7 +9,7 @@ use crate::types::{FromValue, Meta, ToValue};
 macro_rules! process_method {
     ($name: ident, $ty:ident $(::$path:ident)*) => {
         #[inline]
-        fn $name (
+        fn $name(
             &mut self,
             value: &mut $ty $(::$path)*,
             meta: &mut Meta,
@@ -73,6 +73,18 @@ pub enum ProcessResult {
     Discard,
 }
 
+impl ProcessResult {
+    pub fn and_then<F>(self, mut f: F) -> Self
+    where
+        F: FnMut() -> Self,
+    {
+        match self {
+            ProcessResult::Keep => f(),
+            ProcessResult::Discard => self,
+        }
+    }
+}
+
 impl Default for ProcessResult {
     fn default() -> Self {
         ProcessResult::Keep
@@ -82,6 +94,16 @@ impl Default for ProcessResult {
 impl From<()> for ProcessResult {
     fn from(_: ()) -> Self {
         ProcessResult::Keep
+    }
+}
+
+impl From<bool> for ProcessResult {
+    fn from(b: bool) -> Self {
+        if b {
+            ProcessResult::Keep
+        } else {
+            ProcessResult::Discard
+        }
     }
 }
 

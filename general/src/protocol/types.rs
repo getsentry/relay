@@ -192,6 +192,12 @@ impl IpAddr {
     }
 }
 
+impl AsRef<str> for IpAddr {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
 impl FromValue for IpAddr {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
@@ -342,9 +348,14 @@ impl LenientString {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Unwraps the inner raw string.
+    pub fn into_inner(self) -> String {
+        self.0
+    }
 }
 
-impl std::convert::AsRef<str> for LenientString {
+impl AsRef<str> for LenientString {
     fn as_ref(&self) -> &str {
         &self.0
     }
@@ -405,9 +416,14 @@ impl JsonLenientString {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Unwraps the inner raw string.
+    pub fn into_inner(self) -> String {
+        self.0
+    }
 }
 
-impl std::convert::AsRef<str> for JsonLenientString {
+impl AsRef<str> for JsonLenientString {
     fn as_ref(&self) -> &str {
         &self.0
     }

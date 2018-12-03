@@ -3,8 +3,9 @@ use regex::Regex;
 use serde::de::IgnoredAny;
 use url::Url;
 
+use crate::processor::{apply_value, ProcessResult};
 use crate::protocol::{Query, Request};
-use crate::types::{Annotated, Object, Value};
+use crate::types::{Annotated, Meta, Object, Value};
 
 lazy_static! {
     static ref METHOD_RE: Regex = Regex::new(r"^[A-Z\-_]{3,32}$").unwrap();
@@ -22,84 +23,80 @@ fn infer_content_type(body: &Annotated<Value>) -> Option<String> {
     }
 }
 
-fn normalize_url(mut request: Request) -> Request {
-    if let Annotated(Some(url_string), mut meta) = request.url {
-        match Url::parse(&url_string) {
-            Ok(mut url) => {
-                // If either the query string or fragment is specified both as part of
-                // the URL and as separate attribute, the attribute wins.
-                request.query_string = request.query_string.or_else(|| {
-                    Query(
-                        url.query_pairs()
-                            .map(|(k, v)| (k.into(), Annotated::new(v.into())))
-                            .collect(),
-                    )
-                });
+fn normalize_url(request: &mut Request) {
+    let url_result = match request.url.value() {
+        Some(url_string) => Url::parse(url_string),
+        None => return,
+    };
 
-                request.fragment = request
-                    .fragment
-                    .or_else(|| url.fragment().map(str::to_string));
+    let mut url = match url_result {
+        Ok(url) => url,
+        Err(err) => {
+            // TODO: Remove value here or not?
+            request.url.meta_mut().add_error(err.to_string(), None);
+            return;
+        }
+    };
 
-                // Remove the fragment and query since they have been moved to their own
-                // parameters to avoid duplication or inconsistencies.
-                url.set_fragment(None);
-                url.set_query(None);
+    // If either the query string or fragment is specified both as part of
+    // the URL and as separate attribute, the attribute wins.
+    if request.query_string.value().is_none() {
+        request.query_string.set_value(Some(Query(
+            url.query_pairs()
+                .map(|(k, v)| (k.into(), Annotated::new(v.into())))
+                .collect(),
+        )));
+    }
 
-                // TODO: Check if this generates unwanted effects with `meta.remarks`
-                // when the URL was already PII stripped.
-                request.url = Annotated(Some(url.into_string()), meta);
-            }
-            Err(err) => {
-                meta.add_error(err.to_string(), None);
-                request.url = Annotated(Some(url_string), meta);
+    if request.fragment.value().is_none() {
+        request
+            .fragment
+            .set_value(url.fragment().map(str::to_string));
+    }
+
+    // Remove the fragment and query since they have been moved to their own
+    // parameters to avoid duplication or inconsistencies.
+    url.set_fragment(None);
+    url.set_query(None);
+
+    // TODO: Check if this generates unwanted effects with `meta.remarks`
+    // when the URL was already PII stripped.
+    request.url.set_value(Some(url.into_string()));
+}
+
+fn normalize_method(method: &mut String, meta: &mut Meta) -> ProcessResult {
+    method.make_ascii_uppercase();
+
+    if !meta.has_errors() && METHOD_RE.is_match(&method) {
+        let original_method = std::mem::replace(method, String::new());
+        meta.add_error("invalid http method", Some(Value::String(original_method)));
+        return ProcessResult::Discard;
+    }
+
+    ProcessResult::Keep
+}
+
+fn set_auto_remote_addr(env: &mut Object<Value>, remote_addr: &str) {
+    if let Some(entry) = env.get_mut("REMOTE_ADDR") {
+        if let Some(value) = entry.value_mut() {
+            if value.as_str() == Some("{{auto}}") {
+                *value = Value::String(remote_addr.to_string());
             }
         }
     }
-
-    request
 }
 
-fn normalize_method(method: Annotated<String>) -> Annotated<String> {
-    method
-        .filter_map(Annotated::is_valid, |method| method.to_uppercase())
-        .filter_map(Annotated::is_valid, |method| {
-            if METHOD_RE.is_match(&method) {
-                Annotated::new(method)
-            } else {
-                Annotated::from_error("invalid http method", None)
-            }
-        })
-}
-
-fn set_auto_remote_addr(
-    env: Annotated<Object<Value>>,
-    remote_addr: &str,
-) -> Annotated<Object<Value>> {
-    env.and_then(|mut env| {
-        env.entry("REMOTE_ADDR".to_string()).and_modify(|value| {
-            value.modify(|value| {
-                value.filter_map(Annotated::is_valid, |v| match v.as_str() {
-                    Some("{{auto}}") => Value::String(remote_addr.to_string()),
-                    _ => v,
-                })
-            })
-        });
-        env
-    })
-}
-
-pub fn normalize_request(mut request: Request, client_ip: Option<&str>) -> Request {
-    request.method = normalize_method(request.method);
-
-    if request.url.is_valid() {
-        request = normalize_url(request);
-    }
+pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
+    apply_value(&mut request.method, normalize_method);
+    normalize_url(request);
 
     if let Some(ref client_ip) = client_ip {
-        request.env = set_auto_remote_addr(request.env, client_ip);
+        apply_value(&mut request.env, |env, _meta| {
+            set_auto_remote_addr(env, client_ip)
+        });
     }
 
-    if !request.inferred_content_type.is_present() {
+    if request.inferred_content_type.value().is_none() {
         let content_type = request
             .headers
             .value()
@@ -109,6 +106,4 @@ pub fn normalize_request(mut request: Request, client_ip: Option<&str>) -> Reque
 
         request.inferred_content_type.set_value(content_type);
     }
-
-    request
 }

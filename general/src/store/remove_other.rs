@@ -1,25 +1,22 @@
-use crate::processor::{ProcessingState, Processor};
+use crate::processor::{ProcessResult, ProcessingState, Processor};
 
 use crate::protocol::Event;
-use crate::types::{Annotated, Meta};
+use crate::types::Meta;
 
 pub struct RemoveOtherProcessor;
 
 impl Processor for RemoveOtherProcessor {
     fn process_event(
         &mut self,
-        event: Annotated<Event>,
+        event: &mut Event,
+        meta: &mut Meta,
         _state: ProcessingState,
-    ) -> Annotated<Event> {
-        event.filter_map(Annotated::is_valid, |mut event| {
-            let mut meta = Meta::default();
-            for key in event.other.keys() {
-                meta.add_error(format!("Unknown key: {}", key), None);
-            }
+    ) -> ProcessResult {
+        for key in event.other.keys() {
+            meta.add_error(format!("Unknown key: {}", key), None);
+        }
 
-            event.other.clear();
-
-            Annotated(Some(event), meta)
-        })
+        event.other.clear();
+        ProcessResult::Keep
     }
 }

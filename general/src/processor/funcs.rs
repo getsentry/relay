@@ -2,7 +2,7 @@ use crate::processor::{ProcessResult, ProcessValue, ProcessingState, Processor};
 use crate::types::{Annotated, Meta};
 
 #[inline]
-fn apply_value<T, F, R>(annotated: &mut Annotated<T>, f: F)
+pub fn apply_value<T, F, R>(annotated: &mut Annotated<T>, f: F)
 where
     F: FnOnce(&mut T, &mut Meta) -> R,
     R: Into<ProcessResult>,

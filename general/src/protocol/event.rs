@@ -301,6 +301,7 @@ pub struct Event {
 
 #[test]
 fn test_event_roundtrip() {
+    use crate::protocol::TagEntry;
     use crate::types::{Map, Meta};
 
     // NOTE: Interfaces will be tested separately.
@@ -377,7 +378,7 @@ fn test_event_roundtrip() {
         environment: Annotated::new("myenv".to_string()),
         tags: {
             let mut items = Array::new();
-            items.push(Annotated::new((
+            items.push(Annotated::new(TagEntry(
                 Annotated::new("tag".to_string()),
                 Annotated::new("value".to_string()),
             )));

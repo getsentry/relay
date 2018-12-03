@@ -1,13 +1,66 @@
-use crate::processor::{process_value, ProcessValue, ProcessingState, Processor};
 use crate::protocol::LenientString;
 use crate::types::{Annotated, Array, FromValue, Value};
 
+fn check_chars(x: String) -> Annotated<String> {
+    if x.contains('\n') {
+        Annotated::from_error("invalid character in tag", Some(Value::String(x)))
+    } else {
+        Annotated::new(x)
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, ToValue, ProcessValue)]
+pub struct TagEntry(
+    #[metastructure(max_chars = "tag_key")] pub Annotated<String>,
+    #[metastructure(max_chars = "tag_value")] pub Annotated<String>,
+);
+
+impl TagEntry {
+    fn from_entry(entry: (String, Annotated<Value>)) -> Annotated<Self> {
+        let (key, value) = entry;
+        Annotated::from(TagEntry(
+            check_chars(key).map_value(|k| k.trim().replace(" ", "-")),
+            LenientString::from_value(value).and_then(|v| check_chars(v.into_inner())),
+        ))
+    }
+
+    pub fn key(&self) -> Option<&str> {
+        self.0.as_str()
+    }
+
+    pub fn key_mut(&mut self) -> &mut Option<String> {
+        self.0.value_mut()
+    }
+
+    pub fn value(&self) -> Option<&str> {
+        self.1.as_str()
+    }
+
+    pub fn value_mut(&mut self) -> &mut Option<String> {
+        self.1.value_mut()
+    }
+}
+
+impl FromValue for TagEntry {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        type TagTuple = (Annotated<LenientString>, Annotated<LenientString>);
+
+        TagTuple::from_value(value).map_value(|(key, value)| {
+            TagEntry(
+                key.and_then(|k| check_chars(k.into_inner()))
+                    .map_value(|k: String| k.trim().replace(" ", "-")),
+                value.and_then(|v| check_chars(v.into_inner())),
+            )
+        })
+    }
+}
+
 /// Manual key/value tag pairs.
-#[derive(Debug, Clone, PartialEq, ToValue)]
-pub struct Tags(pub Array<(Annotated<String>, Annotated<String>)>);
+#[derive(Debug, Default, Clone, PartialEq, ToValue, ProcessValue)]
+pub struct Tags(pub Array<TagEntry>);
 
 impl std::ops::Deref for Tags {
-    type Target = Array<(Annotated<String>, Annotated<String>)>;
+    type Target = Array<TagEntry>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -22,62 +75,20 @@ impl std::ops::DerefMut for Tags {
 
 impl FromValue for Tags {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        type TagTuple = (Annotated<LenientString>, Annotated<LenientString>);
-        fn check_chars(x: String) -> Annotated<String> {
-            if x.contains('\n') {
-                Annotated::from_error("invalid character in tag", Some(Value::String(x)))
-            } else {
-                Annotated::new(x)
-            }
-        }
-
         match value {
             Annotated(Some(Value::Array(items)), meta) => {
-                let mut rv = Vec::new();
-                for item in items.into_iter() {
-                    rv.push(TagTuple::from_value(item).map_value(|tuple| {
-                        (
-                            tuple
-                                .0
-                                .and_then(|k| check_chars(k.0))
-                                .map_value(|x: String| x.trim().replace(" ", "-")),
-                            tuple.1.and_then(|v| check_chars(v.0)),
-                        )
-                    }));
-                }
-                Annotated(Some(Tags(rv)), meta)
+                let entries = items.into_iter().map(TagEntry::from_value).collect();
+                Annotated(Some(Tags(entries)), meta)
             }
             Annotated(Some(Value::Object(items)), meta) => {
-                let mut rv = Vec::new();
-                for (key, value) in items.into_iter() {
-                    rv.push((
-                        key.trim().replace(" ", "-"),
-                        LenientString::from_value(value),
-                    ));
-                }
-                rv.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-                Annotated(
-                    Some(Tags(
-                        rv.into_iter()
-                            .map(|(k, v)| Annotated::new((Annotated::new(k), v.map_value(|x| x.0))))
-                            .collect(),
-                    )),
-                    meta,
-                )
+                let entries = items.into_iter().map(TagEntry::from_entry).collect();
+                Annotated(Some(Tags(entries)), meta)
             }
-            other => FromValue::from_value(other).map_value(Tags),
-        }
-    }
-}
-
-impl ProcessValue for Tags {
-    #[inline]
-    fn process_child_values<P>(value: &mut Self, processor: &mut P, state: ProcessingState)
-    where
-        P: Processor,
-    {
-        for (index, annotated_tuple) in value.iter_mut().enumerate() {
-            process_value(annotated_tuple, processor, state.enter_index(index, None));
+            Annotated(Some(other), mut meta) => {
+                meta.add_unexpected_value_error("tags", other);
+                Annotated(None, meta)
+            }
+            Annotated(None, meta) => Annotated(None, meta),
         }
     }
 }
@@ -92,19 +103,19 @@ fn test_tags_from_object() {
 }"#;
 
     let mut arr = Array::new();
-    arr.push(Annotated::new((
+    arr.push(Annotated::new(TagEntry(
         Annotated::new("blah".to_string()),
         Annotated::new("blub".to_string()),
     )));
-    arr.push(Annotated::new((
+    arr.push(Annotated::new(TagEntry(
         Annotated::new("bool".to_string()),
         Annotated::new("True".to_string()),
     )));
-    arr.push(Annotated::new((
+    arr.push(Annotated::new(TagEntry(
         Annotated::new("foo-bar".to_string()),
         Annotated::new("baz".to_string()),
     )));
-    arr.push(Annotated::new((
+    arr.push(Annotated::new(TagEntry(
         Annotated::new("non-string".to_string()),
         Annotated::new("42".to_string()),
     )));
@@ -123,19 +134,19 @@ fn test_tags_from_array() {
 ]"#;
 
     let mut arr = Array::new();
-    arr.push(Annotated::new((
+    arr.push(Annotated::new(TagEntry(
         Annotated::new("bool".to_string()),
         Annotated::new("True".to_string()),
     )));
-    arr.push(Annotated::new((
+    arr.push(Annotated::new(TagEntry(
         Annotated::new("foo-bar".to_string()),
         Annotated::new("baz".to_string()),
     )));
-    arr.push(Annotated::new((
+    arr.push(Annotated::new(TagEntry(
         Annotated::new("23".to_string()),
         Annotated::new("42".to_string()),
     )));
-    arr.push(Annotated::new((
+    arr.push(Annotated::new(TagEntry(
         Annotated::new("blah".to_string()),
         Annotated::new("blub".to_string()),
     )));

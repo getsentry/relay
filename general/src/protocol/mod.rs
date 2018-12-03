@@ -33,7 +33,7 @@ pub use self::logentry::LogEntry;
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
 pub use self::request::{Cookies, Headers, Query, Request};
 pub use self::stacktrace::{Frame, Stacktrace};
-pub use self::tags::Tags;
+pub use self::tags::{TagEntry, Tags};
 pub use self::templateinfo::TemplateInfo;
 pub use self::thread::Thread;
 pub use self::types::{

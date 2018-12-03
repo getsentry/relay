@@ -24,7 +24,7 @@
 
 use std::fmt;
 
-use crate::types::{Annotated, Remark, RemarkType};
+use crate::types::{Meta, Remark, RemarkType};
 
 /// A type for dealing with chunks of annotated text.
 #[derive(Clone, Debug, PartialEq)]
@@ -153,24 +153,20 @@ where
     (rv, remarks)
 }
 
-/// Splits the string into chunks, maps each chunk and then joins chunks again, emitting the correct
+/// Splits the string into chunks, maps each chunk and then joins chunks again, emitting
 /// remarks along the process.
-pub fn map_value_chunked<F>(value: Annotated<String>, f: F) -> Annotated<String>
+pub fn process_chunked_value<F>(value: &mut String, meta: &mut Meta, f: F)
 where
     F: FnOnce(Vec<Chunk>) -> Vec<Chunk>,
 {
-    let Annotated(old_value, mut meta) = value;
-    let new_value = old_value.map(|value| {
-        let old_chunks = split_chunks(&value, meta.iter_remarks());
-        let new_chunks = f(old_chunks);
-        let (new_value, remarks) = join_chunks(new_chunks);
+    let chunks = split_chunks(&value, meta.iter_remarks());
+    let (new_value, remarks) = join_chunks(f(chunks));
+
+    if new_value != *value {
         *meta.remarks_mut() = remarks.into_iter().collect();
-        if new_value != value {
-            meta.set_original_length(Some(value.chars().count() as u32));
-        }
-        new_value
-    });
-    Annotated(new_value, meta)
+        meta.set_original_length(Some(value.chars().count()));
+        *value = new_value;
+    }
 }
 
 #[test]
