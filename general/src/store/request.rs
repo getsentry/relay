@@ -99,8 +99,8 @@ pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
         let content_type = request
             .headers
             .value()
-            .and_then(|headers| headers.get("Content-Type"))
-            .and_then(|annotated| annotated.value().cloned())
+            .and_then(|headers| headers.get_header("Content-Type"))
+            .map(|value| value.to_string())
             .or_else(|| infer_content_type(&request.data));
 
         request.inferred_content_type.set_value(content_type);
