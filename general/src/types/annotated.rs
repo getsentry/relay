@@ -181,15 +181,6 @@ impl<T> Annotated<T> {
         Annotated(self.0.map(f), self.1)
     }
 
-    /// Replaces the value option of an `Annotated<T>` with the result of `f` if the value is not
-    /// `None` and returns a new `Annotated<U>`.
-    pub fn and_then_value<U, F>(self, f: F) -> Annotated<U>
-    where
-        F: FnOnce(T) -> Option<U>,
-    {
-        Annotated(self.0.and_then(f), self.1)
-    }
-
     /// Inserts a value computed from `f` into the value if it is `None`, then returns a mutable
     /// reference to the contained value.
     pub fn get_or_insert_with<F>(&mut self, f: F) -> &mut T
