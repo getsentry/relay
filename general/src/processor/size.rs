@@ -64,59 +64,72 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
     type SerializeStruct = Self;
     type SerializeStructVariant = Self;
 
+    #[inline]
     fn serialize_bool(self, v: bool) -> Result<(), Error> {
         self.size += if v { 4 } else { 5 };
         Ok(())
     }
 
+    #[inline(always)]
     fn serialize_i8(self, v: i8) -> Result<(), Error> {
         self.serialize_i64(i64::from(v))
     }
 
+    #[inline(always)]
     fn serialize_i16(self, v: i16) -> Result<(), Error> {
         self.serialize_i64(i64::from(v))
     }
 
+    #[inline(always)]
     fn serialize_i32(self, v: i32) -> Result<(), Error> {
         self.serialize_i64(i64::from(v))
     }
 
+    #[inline]
     fn serialize_i64(self, v: i64) -> Result<(), Error> {
         self.size += &v.to_string().len();
         Ok(())
     }
 
+    #[inline(always)]
     fn serialize_u8(self, v: u8) -> Result<(), Error> {
         self.serialize_u64(u64::from(v))
     }
 
+    #[inline(always)]
     fn serialize_u16(self, v: u16) -> Result<(), Error> {
         self.serialize_u64(u64::from(v))
     }
 
+    #[inline(always)]
     fn serialize_u32(self, v: u32) -> Result<(), Error> {
         self.serialize_u64(u64::from(v))
     }
 
+    #[inline]
     fn serialize_u64(self, v: u64) -> Result<(), Error> {
         self.size += &v.to_string().len();
         Ok(())
     }
 
+    #[inline(always)]
     fn serialize_f32(self, v: f32) -> Result<(), Error> {
         self.serialize_f64(f64::from(v))
     }
 
+    #[inline]
     fn serialize_f64(self, v: f64) -> Result<(), Error> {
         self.size += &v.to_string().len();
         Ok(())
     }
 
+    #[inline(always)]
     fn serialize_char(self, _v: char) -> Result<(), Error> {
         self.size += 1;
         Ok(())
     }
 
+    #[inline(always)]
     fn serialize_str(self, v: &str) -> Result<(), Error> {
         self.size += v.len() + 2;
         Ok(())
@@ -131,10 +144,12 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
         seq.end()
     }
 
+    #[inline(always)]
     fn serialize_none(self) -> Result<(), Error> {
         self.serialize_unit()
     }
 
+    #[inline(always)]
     fn serialize_some<T>(self, value: &T) -> Result<(), Error>
     where
         T: ?Sized + Serialize,
@@ -142,15 +157,18 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
         value.serialize(self)
     }
 
+    #[inline(always)]
     fn serialize_unit(self) -> Result<(), Error> {
         self.size += 4;
         Ok(())
     }
 
+    #[inline(always)]
     fn serialize_unit_struct(self, _name: &'static str) -> Result<(), Error> {
         self.serialize_unit()
     }
 
+    #[inline(always)]
     fn serialize_unit_variant(
         self,
         _name: &'static str,
@@ -160,6 +178,7 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
         self.serialize_str(variant)
     }
 
+    #[inline(always)]
     fn serialize_newtype_struct<T>(self, _name: &'static str, value: &T) -> Result<(), Error>
     where
         T: ?Sized + Serialize,
@@ -190,10 +209,12 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
         Ok(self)
     }
 
+    #[inline(always)]
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Error> {
         self.serialize_seq(Some(len))
     }
 
+    #[inline(always)]
     fn serialize_tuple_struct(
         self,
         _name: &'static str,
@@ -222,6 +243,7 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
         Ok(self)
     }
 
+    #[inline(always)]
     fn serialize_struct(
         self,
         _name: &'static str,
@@ -276,6 +298,7 @@ impl<'a> ser::SerializeTuple for &'a mut SizeEstimatingSerializer {
         value.serialize(&mut **self)
     }
 
+    #[inline(always)]
     fn end(self) -> Result<(), Error> {
         self.size += 1;
         Ok(())
@@ -295,6 +318,7 @@ impl<'a> ser::SerializeTupleStruct for &'a mut SizeEstimatingSerializer {
         value.serialize(&mut **self)
     }
 
+    #[inline(always)]
     fn end(self) -> Result<(), Error> {
         self.size += 1;
         Ok(())
@@ -313,6 +337,7 @@ impl<'a> ser::SerializeTupleVariant for &'a mut SizeEstimatingSerializer {
         value.serialize(&mut **self)
     }
 
+    #[inline(always)]
     fn end(self) -> Result<(), Error> {
         self.size += 2;
         Ok(())
@@ -339,6 +364,7 @@ impl<'a> ser::SerializeMap for &'a mut SizeEstimatingSerializer {
         value.serialize(&mut **self)
     }
 
+    #[inline(always)]
     fn end(self) -> Result<(), Error> {
         self.pop();
         self.size += 1;
@@ -360,6 +386,7 @@ impl<'a> ser::SerializeStruct for &'a mut SizeEstimatingSerializer {
         value.serialize(&mut **self)
     }
 
+    #[inline(always)]
     fn end(self) -> Result<(), Error> {
         self.size += 1;
         Ok(())
@@ -380,6 +407,7 @@ impl<'a> ser::SerializeStructVariant for &'a mut SizeEstimatingSerializer {
         value.serialize(&mut **self)
     }
 
+    #[inline(always)]
     fn end(self) -> Result<(), Error> {
         self.size += 2;
         Ok(())
