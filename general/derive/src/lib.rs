@@ -432,18 +432,29 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         }).to_tokens(&mut skip_serialization_body);
     }
 
-    for bi in variant.bindings() {
+    let mut is_tuple_struct = false;
+    for (index, bi) in variant.bindings().iter().enumerate() {
+        if bi.ast().ident.is_none() {
+            is_tuple_struct = true;
+        } else if is_tuple_struct {
+            panic!("invalid tuple struct");
+        }
+
         let field_attrs = parse_field_attributes(&bi.ast().attrs);
         let field_name = field_attrs.field_name_override.unwrap_or_else(|| {
             bi.ast()
                 .ident
                 .as_ref()
-                .expect("can not derive struct tuples")
-                .to_string()
+                .map(|ident| ident.to_string())
+                .unwrap_or_else(|| index.to_string())
         });
         let field_name = LitStr::new(&field_name, Span::call_site());
 
         if field_attrs.additional_properties {
+            if is_tuple_struct {
+                panic!("additional_properties not allowed in tuple struct");
+            }
+
             (quote! {
                 let #bi = __obj.into_iter().map(|(__key, __value)| (__key, crate::types::FromValue::from_value(__value))).collect();
             }).to_tokens(&mut from_value_body);
@@ -497,15 +508,21 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             let bag_size_attr = field_attrs.bag_size;
             let pii_kind_attr = field_attrs.pii_kind;
 
-            (quote! {
-                let #bi = __obj.remove(#field_name);
-            }).to_tokens(&mut from_value_body);
-
-            for legacy_alias in field_attrs.legacy_aliases {
-                let legacy_field_name = LitStr::new(&legacy_alias, Span::call_site());
+            if is_tuple_struct {
                 (quote! {
-                    let #bi = #bi.or(__obj.remove(#legacy_field_name));
+                    let #bi = __arr.next();
                 }).to_tokens(&mut from_value_body);
+            } else {
+                (quote! {
+                    let #bi = __obj.remove(#field_name);
+                }).to_tokens(&mut from_value_body);
+
+                for legacy_alias in field_attrs.legacy_aliases {
+                    let legacy_field_name = LitStr::new(&legacy_alias, Span::call_site());
+                    (quote! {
+                        let #bi = #bi.or(__obj.remove(#legacy_field_name));
+                    }).to_tokens(&mut from_value_body);
+                }
             }
 
             (quote! {
@@ -525,9 +542,50 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 quote!(None)
             };
 
+            if is_tuple_struct {
+                (quote! {
+                    __arr.push(crate::types::ToValue::to_value(#bi));
+                }).to_tokens(&mut to_value_body);
+                (quote! {
+                    if !#bi.skip_serialization() {
+                        __serde::ser::SerializeSeq::serialize_element(&mut __seq_serializer, &crate::types::SerializePayload(#bi))?;
+                    }
+                }).to_tokens(&mut serialize_body);
+            } else {
+                (quote! {
+                    __map.insert(#field_name.to_string(), crate::types::ToValue::to_value(#bi));
+                }).to_tokens(&mut to_value_body);
+                (quote! {
+                    if !#bi.skip_serialization() {
+                        __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, #field_name)?;
+                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(#bi))?;
+                    }
+                }).to_tokens(&mut serialize_body);
+            }
+
             (quote! {
-                __map.insert(#field_name.to_string(), crate::types::ToValue::to_value(#bi));
-            }).to_tokens(&mut to_value_body);
+                let __inner_tree = crate::types::ToValue::extract_meta_tree(#bi);
+                if !__inner_tree.is_empty() {
+                    __child_meta.insert(#field_name.to_string(), __inner_tree);
+                }
+            }).to_tokens(&mut extract_child_meta_body);
+
+            let enter_state = if is_tuple_struct {
+                quote!{
+                    __state.enter_index(
+                        #index,
+                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))
+                    )
+                }
+            } else {
+                quote! {
+                    __state.enter_static(
+                        #field_name,
+                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))
+                    )
+                }
+            };
+
             (quote! {
                 __lazy_static::lazy_static! {
                     static ref #field_attrs_name: crate::processor::FieldAttrs = crate::processor::FieldAttrs {
@@ -544,24 +602,9 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 let #bi = crate::processor::process_value(
                     #bi,
                     __processor,
-                    __state.enter_static(
-                        #field_name,
-                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))
-                    )
+                    #enter_state,
                 );
             }).to_tokens(&mut process_child_values_body);
-            (quote! {
-                if !#bi.skip_serialization() {
-                    __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, #field_name)?;
-                    __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(#bi))?;
-                }
-            }).to_tokens(&mut serialize_body);
-            (quote! {
-                let __inner_tree = crate::types::ToValue::extract_meta_tree(#bi);
-                if !__inner_tree.is_empty() {
-                    __child_meta.insert(#field_name.to_string(), __inner_tree);
-                }
-            }).to_tokens(&mut extract_child_meta_body);
         }
 
         (quote! {
@@ -593,6 +636,23 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
 
     match t {
         Trait::From => {
+            let valid_match_arm = if is_tuple_struct {
+                quote! {
+                    crate::types::Annotated(Some(crate::types::Value::Array(mut __arr)), __meta) => {
+                        let __arr = __arr.into_iter();
+                        #from_value_body;
+                        crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
+                    }
+                }
+            } else {
+                quote! {
+                    crate::types::Annotated(Some(crate::types::Value::Object(mut __obj)), __meta) => {
+                        #from_value_body;
+                        crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
+                    }
+                }
+            };
+
             s.gen_impl(quote! {
                 #[automatically_derived]
                 gen impl crate::types::FromValue for @Self {
@@ -600,10 +660,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         __value: crate::types::Annotated<crate::types::Value>,
                     ) -> crate::types::Annotated<Self> {
                         match __value {
-                            crate::types::Annotated(Some(crate::types::Value::Object(mut __obj)), __meta) => {
-                                #from_value_body;
-                                crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
-                            }
+                            #valid_match_arm
                             crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta),
                             crate::types::Annotated(Some(__value), mut __meta) => {
                                 __meta.add_unexpected_value_error(#expectation, __value);
@@ -615,6 +672,36 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             })
         }
         Trait::To => {
+            let to_value = if is_tuple_struct {
+                quote! {
+                    let mut __arr = crate::types::Array::new();
+                    let #to_value_pat = __value;
+                    #to_value_body;
+                    crate::types::Annotated(Some(crate::types::Value::Array(__arr)), __meta)
+                }
+            } else {
+                quote! {
+                    let mut __map = crate::types::Object::new();
+                    let #to_value_pat = __value;
+                    #to_value_body;
+                    crate::types::Annotated(Some(crate::types::Value::Object(__map)), __meta)
+                }
+            };
+
+            let serialize_payload = if is_tuple_struct {
+                quote! {
+                    let mut __seq_serializer = __serde::ser::Serializer::serialize_seq(__serializer, None)?;
+                    #serialize_body;
+                    __serde::ser::SerializeSeq::end(__seq_serializer)
+                }
+            } else {
+                quote! {
+                    let mut __map_serializer = __serde::ser::Serializer::serialize_map(__serializer, None)?;
+                    #serialize_body;
+                    __serde::ser::SerializeMap::end(__map_serializer)
+                }
+            };
+
             s.gen_impl(quote! {
                 extern crate serde as __serde;
 
@@ -625,10 +712,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     ) -> crate::types::Annotated<crate::types::Value> {
                         let crate::types::Annotated(__value, __meta) = __value;
                         if let Some(__value) = __value {
-                            let mut __map = crate::types::Object::new();
-                            let #to_value_pat = __value;
-                            #to_value_body;
-                            crate::types::Annotated(Some(crate::types::Value::Object(__map)), __meta)
+                            #to_value
                         } else {
                             crate::types::Annotated(None, __meta)
                         }
@@ -640,9 +724,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         S: __serde::ser::Serializer
                     {
                         let #serialize_pat = *self;
-                        let mut __map_serializer = __serde::ser::Serializer::serialize_map(__serializer, None)?;
-                        #serialize_body;
-                        __serde::ser::SerializeMap::end(__map_serializer)
+                        #serialize_payload
                     }
 
                     fn extract_child_meta(&self) -> crate::types::MetaMap
@@ -665,21 +747,23 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             })
         }
         Trait::Process => {
-            let process_value = type_attrs.process_func.map(|func_name| {
-                let func_name = Ident::new(&func_name, Span::call_site());
-                quote! {
-                    __processor.#func_name(__value, __meta, __state)
-                }
-            }).unwrap_or_else(|| {
-                quote! {
-                    crate::processor::ProcessValue::process_child_values(
-                        __value,
-                        __processor,
-                        __state,
-                    );
-                    crate::processor::ProcessResult::default()
-                }
-            });
+            let process_value = type_attrs
+                .process_func
+                .map(|func_name| {
+                    let func_name = Ident::new(&func_name, Span::call_site());
+                    quote! {
+                        __processor.#func_name(__value, __meta, __state)
+                    }
+                }).unwrap_or_else(|| {
+                    quote! {
+                        crate::processor::ProcessValue::process_child_values(
+                            __value,
+                            __processor,
+                            __state,
+                        );
+                        crate::processor::ProcessResult::default()
+                    }
+                });
 
             s.gen_impl(quote! {
                 #[automatically_derived]
