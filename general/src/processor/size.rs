@@ -385,18 +385,15 @@ fn test_string_trimming() {
 
     assert_eq_dbg!(
         new_value,
-        Annotated(
-            Some("This is my long s...".into()),
-            {
-                let mut meta = Meta::default();
-                meta.add_remark(Remark {
-                    ty: RemarkType::Substituted,
-                    rule_id: "!limit".to_string(),
-                    range: Some((17, 20)),
-                });
-                meta.set_original_length(Some(51));
-                meta
-            }
-        )
+        Annotated(Some("This is my long s...".into()), {
+            let mut meta = Meta::default();
+            meta.add_remark(Remark {
+                ty: RemarkType::Substituted,
+                rule_id: "!limit".to_string(),
+                range: Some((17, 20)),
+            });
+            meta.set_original_length(Some(51));
+            meta
+        })
     );
 }
