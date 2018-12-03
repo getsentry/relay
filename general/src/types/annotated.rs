@@ -20,16 +20,21 @@ pub struct MetaTree {
 }
 
 impl MetaTree {
-    fn from_json_value(value: serde_json::Value) -> Self {
+    fn from_value(value: Annotated<Value>) -> Self {
         match value {
-            serde_json::Value::Object(mut map) => MetaTree {
+            Annotated(Some(Value::Object(mut map)), _) => MetaTree {
                 meta: map
                     .remove("")
-                    .and_then(|value| serde_json::from_value(value).ok())
-                    .unwrap_or_default(),
+                    .and_then(|value| {
+                        // this is not the fastest operation because we cannot currently
+                        // deserialize stright from a `Value`.  However since we expect
+                        // to handle very few meta data initially this is okay enough
+                        let value: serde_json::Value = value.into();
+                        serde_json::from_value(value).ok()
+                    }).unwrap_or_default(),
                 children: map
                     .into_iter()
-                    .map(|(k, v)| (k, MetaTree::from_json_value(v)))
+                    .map(|(k, v)| (k, MetaTree::from_value(v)))
                     .collect(),
             },
             _ => MetaTree::default(),
@@ -230,21 +235,21 @@ impl Annotated<Value> {
 impl<'de, T: FromValue> Annotated<T> {
     /// Deserializes an annotated from a deserializer
     pub fn deserialize_with_meta<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let value = match serde_json::Value::deserialize(deserializer)? {
-            serde_json::Value::Object(mut map) => {
-                let meta_tree = map
-                    .remove("_meta")
-                    .map(MetaTree::from_json_value)
-                    .unwrap_or_default();
+        Ok(FromValue::from_value(
+            match Value::deserialize(deserializer)? {
+                Value::Object(mut map) => {
+                    let meta_tree = map
+                        .remove("_meta")
+                        .map(MetaTree::from_value)
+                        .unwrap_or_default();
 
-                let mut value: Annotated<Value> = serde_json::Value::Object(map).into();
-                value.attach_meta_tree(meta_tree);
-                value
-            }
-            value => value.into(),
-        };
-
-        Ok(FromValue::from_value(value))
+                    let mut value: Annotated<Value> = Annotated::new(Value::Object(map));
+                    value.attach_meta_tree(meta_tree);
+                    value
+                }
+                value => Annotated::new(value),
+            },
+        ))
     }
 
     /// Deserializes an annotated from a JSON string.

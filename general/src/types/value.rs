@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::str;
 
+use serde;
+use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
-use serde_derive::Deserialize;
 
 use crate::types::{Annotated, Meta};
 
@@ -16,8 +18,7 @@ pub type Map<K, T> = BTreeMap<K, Annotated<T>>;
 pub type Object<T> = Map<String, T>;
 
 /// Represents a boxed value.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Null,
     Bool(bool),
@@ -209,5 +210,114 @@ impl From<Array<Value>> for Value {
 impl From<Object<Value>> for Value {
     fn from(value: Object<Value>) -> Self {
         Value::Object(value)
+    }
+}
+
+impl<'de> Deserialize<'de> for Value {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ValueVisitor;
+
+        impl<'de> Visitor<'de> for ValueVisitor {
+            type Value = Value;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("any valid JSON value")
+            }
+
+            #[inline]
+            fn visit_bool<E>(self, value: bool) -> Result<Value, E> {
+                Ok(Value::Bool(value))
+            }
+
+            #[inline]
+            fn visit_i64<E>(self, value: i64) -> Result<Value, E> {
+                Ok(Value::I64(value))
+            }
+
+            #[inline]
+            fn visit_u64<E>(self, value: u64) -> Result<Value, E> {
+                let signed_value = value as i64;
+                if signed_value as u64 == value {
+                    Ok(Value::I64(signed_value))
+                } else {
+                    Ok(Value::U64(value))
+                }
+            }
+
+            #[inline]
+            fn visit_f64<E>(self, value: f64) -> Result<Value, E> {
+                Ok(Value::F64(value))
+            }
+
+            #[inline]
+            fn visit_str<E>(self, value: &str) -> Result<Value, E>
+            where
+                E: serde::de::Error,
+            {
+                self.visit_string(String::from(value))
+            }
+
+            #[inline]
+            fn visit_string<E>(self, value: String) -> Result<Value, E> {
+                Ok(Value::String(value))
+            }
+
+            #[inline]
+            fn visit_none<E>(self) -> Result<Value, E> {
+                Ok(Value::Null)
+            }
+
+            #[inline]
+            fn visit_some<D>(self, deserializer: D) -> Result<Value, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                Deserialize::deserialize(deserializer)
+            }
+
+            #[inline]
+            fn visit_unit<E>(self) -> Result<Value, E> {
+                Ok(Value::Null)
+            }
+
+            #[inline]
+            fn visit_seq<V>(self, mut visitor: V) -> Result<Value, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let mut vec = Vec::new();
+
+                while let Some(elem) = visitor.next_element()? {
+                    vec.push(Annotated::new(elem));
+                }
+
+                Ok(Value::Array(vec))
+            }
+
+            fn visit_map<V>(self, mut visitor: V) -> Result<Value, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                match visitor.next_key()? {
+                    Some(first_key) => {
+                        let mut values = Map::new();
+
+                        values.insert(first_key, visitor.next_value()?);
+                        while let Some((key, value)) = visitor.next_entry()? {
+                            values.insert(key, Annotated::new(value));
+                        }
+
+                        Ok(Value::Object(values))
+                    }
+                    None => Ok(Value::Object(Map::new())),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(ValueVisitor)
     }
 }
