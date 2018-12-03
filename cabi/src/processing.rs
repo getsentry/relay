@@ -77,9 +77,9 @@ ffi_fn! {
         normalizer: *mut SemaphoreStoreNormalizer,
         event: *const SemaphoreStr,
     ) -> Result<SemaphoreStr> {
-        let event = Annotated::<Event>::from_json((*event).as_str())?;
         let processor = normalizer as *mut StoreNormalizeProcessor;
-        let processed_event = process_value(event, &mut *processor);
-        Ok(SemaphoreStr::from_string(processed_event.to_json()?))
+        let mut event = Annotated::<Event>::from_json((*event).as_str())?;
+        process_value(&mut event, &mut *processor, Default::default());
+        Ok(SemaphoreStr::from_string(event.to_json()?))
     }
 }
