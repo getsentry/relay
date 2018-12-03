@@ -597,41 +597,46 @@ impl OsHint {
 
 /// Normalizes the exception mechanism in place.
 pub fn normalize_mechanism_meta(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
-    if let Some(ref mut meta) = mechanism.meta.0 {
-        if let Some(os_hint) = os_hint {
-            if let Some(ref mut cerror) = meta.errno.0 {
-                if cerror.name.0.is_none() {
-                    if let Some(name) = cerror.number.0.and_then(|x| get_errno_name(x, os_hint)) {
-                        cerror.name = Annotated::new(name.to_owned());
-                    }
-                }
-            }
+    let meta = match mechanism.meta.value_mut() {
+        Some(meta) => meta,
+        None => return,
+    };
 
-            if let Some(ref mut signal) = meta.signal.0 {
-                if let Some(signo) = signal.number.0 {
-                    if signal.name.0.is_none() {
-                        if let Some(name) = get_signal_name(signo, os_hint) {
-                            signal.name = Annotated::new(name.to_owned());
-                        }
-                    }
-
-                    if os_hint == OsHint::Darwin && signal.code_name.0.is_none() {
-                        if let Some(code_name) =
-                            signal.code.0.and_then(|x| get_signal_code_name(signo, x))
-                        {
-                            signal.code_name = Annotated::new(code_name.to_owned());
-                        }
+    if let Some(os_hint) = os_hint {
+        if let Some(cerror) = meta.errno.value_mut() {
+            if cerror.name.value().is_none() {
+                if let Some(errno) = cerror.number.value() {
+                    if let Some(name) = get_errno_name(*errno, os_hint) {
+                        cerror.name = Annotated::new(name.to_string());
                     }
                 }
             }
         }
 
-        if let Some(ref mut mach_exception) = meta.mach_exception.0 {
-            if let Some(number) = mach_exception.ty.0 {
-                if mach_exception.name.0.is_none() {
-                    if let Some(name) = get_mach_exception_name(number) {
-                        mach_exception.name = Annotated::new(name.to_owned());
+        if let Some(signal) = meta.signal.value_mut() {
+            if let Some(signo) = signal.number.value() {
+                if signal.name.value().is_none() {
+                    if let Some(name) = get_signal_name(*signo, os_hint) {
+                        signal.name = Annotated::new(name.to_owned());
                     }
+                }
+
+                if os_hint == OsHint::Darwin && signal.code_name.value().is_none() {
+                    if let Some(code) = signal.code.value() {
+                        if let Some(code_name) = get_signal_code_name(*signo, *code) {
+                            signal.code_name = Annotated::new(code_name.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(mach_exception) = meta.mach_exception.value_mut() {
+        if let Some(number) = mach_exception.ty.value() {
+            if mach_exception.name.value().is_none() {
+                if let Some(name) = get_mach_exception_name(*number) {
+                    mach_exception.name = Annotated::new(name.to_owned());
                 }
             }
         }
@@ -668,10 +673,10 @@ fn test_normalize_errno() {
 
     normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
 
-    let errno = mechanism.meta.0.unwrap().errno.0.unwrap();
+    let errno = mechanism.meta.value().unwrap().errno.value().unwrap();
     assert_eq!(
         errno,
-        CError {
+        &CError {
             number: Annotated::new(2),
             name: Annotated::new("ENOENT".to_string()),
         }
@@ -694,10 +699,10 @@ fn test_normalize_errno_override() {
 
     normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
 
-    let errno = mechanism.meta.0.unwrap().errno.0.unwrap();
+    let errno = mechanism.meta.value().unwrap().errno.value().unwrap();
     assert_eq!(
         errno,
-        CError {
+        &CError {
             number: Annotated::new(2),
             name: Annotated::new("OVERRIDDEN".to_string()),
         }
@@ -720,10 +725,10 @@ fn test_normalize_errno_fail() {
 
     normalize_mechanism_meta(&mut mechanism, None);
 
-    let errno = mechanism.meta.0.unwrap().errno.0.unwrap();
+    let errno = mechanism.meta.value().unwrap().errno.value().unwrap();
     assert_eq!(
         errno,
-        CError {
+        &CError {
             number: Annotated::new(2),
             ..Default::default()
         }
@@ -747,10 +752,10 @@ fn test_normalize_signal() {
 
     normalize_mechanism_meta(&mut mechanism, Some(OsHint::Darwin));
 
-    let signal = mechanism.meta.0.unwrap().signal.0.unwrap();
+    let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
     assert_eq!(
         signal,
-        PosixSignal {
+        &PosixSignal {
             number: Annotated::new(11),
             code: Annotated::new(0),
             name: Annotated::new("SIGSEGV".to_string()),
@@ -775,11 +780,11 @@ fn test_normalize_partial_signal() {
 
     normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
 
-    let signal = mechanism.meta.0.unwrap().signal.0.unwrap();
+    let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
     assert_eq!(
         signal,
-        PosixSignal {
+        &PosixSignal {
             number: Annotated::new(11),
             name: Annotated::new("SIGSEGV".to_string()),
             ..Default::default()
@@ -805,11 +810,11 @@ fn test_normalize_signal_override() {
 
     normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
 
-    let signal = mechanism.meta.0.unwrap().signal.0.unwrap();
+    let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
     assert_eq!(
         signal,
-        PosixSignal {
+        &PosixSignal {
             number: Annotated::new(11),
             code: Annotated::new(0),
             name: Annotated::new("OVERRIDDEN".to_string()),
@@ -835,11 +840,11 @@ fn test_normalize_signal_fail() {
 
     normalize_mechanism_meta(&mut mechanism, None);
 
-    let signal = mechanism.meta.0.unwrap().signal.0.unwrap();
+    let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
     assert_eq!(
         signal,
-        PosixSignal {
+        &PosixSignal {
             number: Annotated::new(11),
             code: Annotated::new(0),
             ..Default::default()
@@ -868,10 +873,17 @@ fn test_normalize_mach() {
 
     normalize_mechanism_meta(&mut mechanism, None);
 
-    let mach_exception = mechanism.meta.0.unwrap().mach_exception.0.unwrap();
+    let mach_exception = mechanism
+        .meta
+        .value()
+        .unwrap()
+        .mach_exception
+        .value()
+        .unwrap();
+
     assert_eq!(
         mach_exception,
-        MachException {
+        &MachException {
             ty: Annotated::new(1),
             code: Annotated::new(1),
             subcode: Annotated::new(8),
@@ -901,10 +913,16 @@ fn test_normalize_mach_override() {
 
     normalize_mechanism_meta(&mut mechanism, None);
 
-    let mach_exception = mechanism.meta.0.unwrap().mach_exception.0.unwrap();
+    let mach_exception = mechanism
+        .meta
+        .value()
+        .unwrap()
+        .mach_exception
+        .value()
+        .unwrap();
     assert_eq!(
         mach_exception,
-        MachException {
+        &MachException {
             ty: Annotated::new(1),
             code: Annotated::new(1),
             subcode: Annotated::new(8),
@@ -934,10 +952,16 @@ fn test_normalize_mach_fail() {
 
     normalize_mechanism_meta(&mut mechanism, None);
 
-    let mach_exception = mechanism.meta.0.unwrap().mach_exception.0.unwrap();
+    let mach_exception = mechanism
+        .meta
+        .value()
+        .unwrap()
+        .mach_exception
+        .value()
+        .unwrap();
     assert_eq!(
         mach_exception,
-        MachException {
+        &MachException {
             ty: Annotated::new(99),
             code: Annotated::new(1),
             subcode: Annotated::new(8),

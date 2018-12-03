@@ -86,8 +86,8 @@ fn test_does_not_overwrite_filename() {
     frame.apply(process_non_raw_frame);
     let frame = frame.value().unwrap();
 
-    assert_eq!(frame.filename.0, Some("foo.js".to_string()));
-    assert_eq!(frame.abs_path.0, Some("http://foo.com/foo.js".to_string()));
+    assert_eq!(frame.filename.as_str(), Some("foo.js"));
+    assert_eq!(frame.abs_path.as_str(), Some("http://foo.com/foo.js"));
 }
 
 #[test]
@@ -101,8 +101,8 @@ fn test_ignores_results_with_empty_path() {
     frame.apply(process_non_raw_frame);
     let frame = frame.value().unwrap();
 
-    assert_eq!(frame.filename.0, Some("http://foo.com".to_string()));
-    assert_eq!(frame.abs_path.0, frame.filename.0);
+    assert_eq!(frame.filename.as_str(), Some("http://foo.com"));
+    assert_eq!(frame.abs_path.as_str(), frame.filename.as_str());
 }
 
 #[test]
