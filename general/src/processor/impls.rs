@@ -7,7 +7,7 @@ use crate::types::{Annotated, Array, Meta, Object, Value, ValueAction};
 impl ProcessValue for String {
     #[inline]
     fn process_value<P>(
-        value: &mut Self,
+        &mut self,
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
@@ -15,14 +15,14 @@ impl ProcessValue for String {
     where
         P: Processor,
     {
-        processor.process_string(value, meta, state)
+        processor.process_string(self, meta, state)
     }
 }
 
 impl ProcessValue for bool {
     #[inline]
     fn process_value<P>(
-        value: &mut Self,
+        &mut self,
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
@@ -30,14 +30,14 @@ impl ProcessValue for bool {
     where
         P: Processor,
     {
-        processor.process_bool(value, meta, state)
+        processor.process_bool(self, meta, state)
     }
 }
 
 impl ProcessValue for u64 {
     #[inline]
     fn process_value<P>(
-        value: &mut Self,
+        &mut self,
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
@@ -45,14 +45,14 @@ impl ProcessValue for u64 {
     where
         P: Processor,
     {
-        processor.process_u64(value, meta, state)
+        processor.process_u64(self, meta, state)
     }
 }
 
 impl ProcessValue for i64 {
     #[inline]
     fn process_value<P>(
-        value: &mut Self,
+        &mut self,
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
@@ -60,14 +60,14 @@ impl ProcessValue for i64 {
     where
         P: Processor,
     {
-        processor.process_i64(value, meta, state)
+        processor.process_i64(self, meta, state)
     }
 }
 
 impl ProcessValue for f64 {
     #[inline]
     fn process_value<P>(
-        value: &mut Self,
+        &mut self,
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
@@ -75,7 +75,7 @@ impl ProcessValue for f64 {
     where
         P: Processor,
     {
-        processor.process_f64(value, meta, state)
+        processor.process_f64(self, meta, state)
     }
 }
 
@@ -89,7 +89,7 @@ where
 {
     #[inline]
     fn process_value<P>(
-        value: &mut Self,
+        &mut self,
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
@@ -97,15 +97,15 @@ where
     where
         P: Processor,
     {
-        processor.process_array(value, meta, state)
+        processor.process_array(self, meta, state)
     }
 
     #[inline]
-    fn process_child_values<P>(value: &mut Self, processor: &mut P, state: ProcessingState)
+    fn process_child_values<P>(&mut self, processor: &mut P, state: ProcessingState)
     where
         P: Processor,
     {
-        for (index, element) in value.iter_mut().enumerate() {
+        for (index, element) in self.iter_mut().enumerate() {
             process_value(element, processor, state.enter_index(index, None));
         }
     }
@@ -117,7 +117,7 @@ where
 {
     #[inline]
     fn process_value<P>(
-        value: &mut Self,
+        &mut self,
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
@@ -125,15 +125,15 @@ where
     where
         P: Processor,
     {
-        processor.process_object(value, meta, state)
+        processor.process_object(self, meta, state)
     }
 
     #[inline]
-    fn process_child_values<P>(value: &mut Self, processor: &mut P, state: ProcessingState)
+    fn process_child_values<P>(&mut self, processor: &mut P, state: ProcessingState)
     where
         P: Processor,
     {
-        for (k, v) in value.iter_mut() {
+        for (k, v) in self.iter_mut() {
             process_value(v, processor, state.enter_borrowed(k, None));
         }
     }
@@ -145,7 +145,7 @@ where
 {
     #[inline]
     fn process_value<P>(
-        value: &mut Self,
+        &mut self,
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
@@ -153,14 +153,14 @@ where
     where
         P: Processor,
     {
-        ProcessValue::process_value(value.as_mut(), meta, processor, state)
+        ProcessValue::process_value(self.as_mut(), meta, processor, state)
     }
 }
 
 impl ProcessValue for Value {
     #[inline]
     fn process_value<P>(
-        value: &mut Self,
+        &mut self,
         meta: &mut Meta,
         processor: &mut P,
         state: ProcessingState,
@@ -168,15 +168,15 @@ impl ProcessValue for Value {
     where
         P: Processor,
     {
-        match value {
+        match self {
             Value::Null => Default::default(),
-            Value::Bool(v) => ProcessValue::process_value(v, meta, processor, state),
-            Value::I64(v) => ProcessValue::process_value(v, meta, processor, state),
-            Value::U64(v) => ProcessValue::process_value(v, meta, processor, state),
-            Value::F64(v) => ProcessValue::process_value(v, meta, processor, state),
-            Value::String(v) => ProcessValue::process_value(v, meta, processor, state),
-            Value::Array(v) => ProcessValue::process_value(v, meta, processor, state),
-            Value::Object(v) => ProcessValue::process_value(v, meta, processor, state),
+            Value::Bool(value) => ProcessValue::process_value(value, meta, processor, state),
+            Value::I64(value) => ProcessValue::process_value(value, meta, processor, state),
+            Value::U64(value) => ProcessValue::process_value(value, meta, processor, state),
+            Value::F64(value) => ProcessValue::process_value(value, meta, processor, state),
+            Value::String(value) => ProcessValue::process_value(value, meta, processor, state),
+            Value::Array(value) => ProcessValue::process_value(value, meta, processor, state),
+            Value::Object(value) => ProcessValue::process_value(value, meta, processor, state),
         }
     }
 }
@@ -186,11 +186,11 @@ macro_rules! process_tuple {
         impl< $( $name: ProcessValue ),* > ProcessValue for ( $( Annotated<$name>, )* ) {
             #[inline]
             #[allow(non_snake_case, unused_assignments)]
-            fn process_child_values<P>(value: &mut Self, processor: &mut P, state: ProcessingState)
+            fn process_child_values<P>(&mut self, processor: &mut P, state: ProcessingState)
             where
                 P: Processor,
             {
-                let ($(ref mut $name,)*) = *value;
+                let ($(ref mut $name,)*) = *self;
                 let mut index = 0;
 
                 $(

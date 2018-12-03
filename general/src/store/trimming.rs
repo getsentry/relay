@@ -112,7 +112,7 @@ impl Processor for TrimmingProcessor {
                 }
             }
         } else {
-            ProcessValue::process_child_values(value, self, state);
+            value.process_child_values(self, state);
         }
 
         self.bag_size_state = old_bag_size_state;
@@ -181,7 +181,7 @@ impl Processor for TrimmingProcessor {
                 }
             }
         } else {
-            ProcessValue::process_child_values(value, self, state);
+            value.process_child_values(self, state);
         }
 
         self.bag_size_state = old_bag_size_state;

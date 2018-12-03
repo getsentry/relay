@@ -23,7 +23,7 @@ impl Processor for SchemaProcessor {
     where
         T: ProcessValue,
     {
-        ProcessValue::process_child_values(value, self, state.clone());
+        value.process_child_values(self, state.clone());
         verify_value_nonempty(value, meta, &state)
     }
 
@@ -36,7 +36,7 @@ impl Processor for SchemaProcessor {
     where
         T: ProcessValue,
     {
-        ProcessValue::process_child_values(value, self, state.clone());
+        value.process_child_values(self, state.clone());
         verify_value_nonempty(value, meta, &state)
     }
 }

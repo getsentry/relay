@@ -237,7 +237,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         state: ProcessingState,
     ) -> ValueAction {
         schema::SchemaProcessor.process_event(event, meta, state.clone());
-        ProcessValue::process_child_values(event, self, state.clone());
+        event.process_child_values(self, state.clone());
 
         // Override the project_id, even if it was set in the payload
         if let Some(project_id) = self.config.project_id {
@@ -325,7 +325,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: ProcessingState,
     ) -> ValueAction {
-        ProcessValue::process_child_values(breadcrumb, self, state);
+        breadcrumb.process_child_values(self, state);
 
         if breadcrumb.ty.value().is_none() {
             breadcrumb.ty.set_value(Some("default".to_string()));
@@ -344,7 +344,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: ProcessingState,
     ) -> ValueAction {
-        ProcessValue::process_child_values(request, self, state);
+        request.process_child_values(self, state);
 
         let client_ip = self.config.client_ip.as_ref().map(String::as_str);
         request::normalize_request(request, client_ip);
@@ -358,7 +358,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: ProcessingState,
     ) -> ValueAction {
-        ProcessValue::process_child_values(user, self, state);
+        user.process_child_values(self, state);
 
         // Fill in ip addresses marked as {{auto}}
         if let Some(ref mut ip_address) = user.ip_address.value_mut() {
@@ -389,7 +389,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         meta: &mut Meta,
         state: ProcessingState,
     ) -> ValueAction {
-        ProcessValue::process_child_values(exception, self, state);
+        exception.process_child_values(self, state);
 
         exception
             .stacktrace
@@ -427,7 +427,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: ProcessingState,
     ) -> ValueAction {
-        ProcessValue::process_child_values(frame, self, state);
+        frame.process_child_values(self, state);
 
         if frame.in_app.value().is_none() {
             frame.in_app.set_value(Some(false));
@@ -472,7 +472,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
                 .apply(|frames, meta| stacktrace::enforce_frame_hard_limit(frames, meta, limit));
         }
 
-        ProcessValue::process_child_values(stacktrace, self, state);
+        stacktrace.process_child_values(self, state);
 
         // TODO: port slim_frame_data and call it here (needs to run after process_frame because of
         // `in_app`)
