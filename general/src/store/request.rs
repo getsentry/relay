@@ -103,7 +103,7 @@ pub fn normalize_request(mut request: Request, client_ip: Option<&str>) -> Reque
         let content_type = request
             .headers
             .value()
-            .and_then(|headers| headers.get("Content-Type"))
+            .and_then(|headers| headers.get_header("Content-Type"))
             .and_then(|annotated| annotated.value().cloned())
             .or_else(|| infer_content_type(&request.data));
 
