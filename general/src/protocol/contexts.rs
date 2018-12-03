@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 
-use crate::processor::FromValue;
-use crate::types::{Annotated, Object, Value};
+use crate::types::{Annotated, FromValue, Object, Value};
 
 /// Device information.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
@@ -191,6 +190,12 @@ impl std::ops::Deref for Contexts {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl std::ops::DerefMut for Contexts {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -426,10 +431,11 @@ fn test_untagged_context_deserialize() {
 
 #[test]
 fn test_context_processing() {
-    use crate::processor::{ProcessValue, ProcessingState, Processor};
+    use crate::processor::{ProcessingState, Processor};
     use crate::protocol::Event;
+    use crate::types::{Meta, ValueAction};
 
-    let event = Annotated::new(Event {
+    let mut event = Annotated::new(Event {
         contexts: Annotated::new(Contexts({
             let mut contexts = Object::new();
             contexts.insert(
@@ -450,17 +456,19 @@ fn test_context_processing() {
     }
 
     impl Processor for FooProcessor {
+        #[inline]
         fn process_context(
             &mut self,
-            context: Annotated<Context>,
-            state: ProcessingState,
-        ) -> Annotated<Context> {
+            _value: &mut Context,
+            _meta: &mut Meta,
+            _state: ProcessingState,
+        ) -> ValueAction {
             self.called = true;
-            Context::process_child_values(context, self, state)
+            ValueAction::default()
         }
     }
 
     let mut processor = FooProcessor { called: false };
-    event.process(&mut processor);
+    crate::processor::process_value(&mut event, &mut processor, ProcessingState::default());
     assert!(processor.called);
 }

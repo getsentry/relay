@@ -2,11 +2,22 @@ use serde::de::value::Error;
 use serde::ser::{self, Serialize};
 use smallvec::SmallVec;
 
+use crate::types::{Annotated, ToValue};
+
+/// Estimates the size in bytes this would be in JSON.
+pub fn estimate_size<T: ToValue>(value: &Annotated<T>) -> usize {
+    let mut ser = SizeEstimatingSerializer::new();
+    if let Some(ref value) = value.0 {
+        ToValue::serialize_payload(value, &mut ser).unwrap();
+    }
+    ser.size()
+}
+
 /// Helper serializer that efficiently determines how much space something might take.
 ///
 /// This counts in estimated bytes.
 #[derive(Default)]
-pub struct SizeEstimatingSerializer {
+struct SizeEstimatingSerializer {
     size: usize,
     item_stack: SmallVec<[bool; 16]>,
 }
@@ -376,24 +387,9 @@ impl<'a> ser::SerializeStructVariant for &'a mut SizeEstimatingSerializer {
 }
 
 #[test]
-fn test_string_trimming() {
-    use crate::processor::MaxChars;
-    use crate::types::{Annotated, Meta, Remark, RemarkType};
-
-    let value = Annotated::new("This is my long string I want to have trimmed down!".to_string());
-    let new_value = value.trim_string(MaxChars::Hard(20));
-
-    assert_eq_dbg!(
-        new_value,
-        Annotated(Some("This is my long s...".into()), {
-            let mut meta = Meta::default();
-            meta.add_remark(Remark {
-                ty: RemarkType::Substituted,
-                rule_id: "!limit".to_string(),
-                range: Some((17, 20)),
-            });
-            meta.set_original_length(Some(51));
-            meta
-        })
-    );
+fn test_estimate_size() {
+    use crate::types::{Object, Value};
+    let json = r#"{"a":["Hello","World","aha","hmm",false,{"blub":42,"x":true},null]}"#;
+    let value = Annotated::<Object<Value>>::from_json(json).unwrap();
+    assert_eq!(estimate_size(&value), json.len());
 }

@@ -167,7 +167,7 @@ pub struct ProcessingState<'a> {
 
 impl<'a> ProcessingState<'a> {
     /// Returns the root processing state.
-    pub fn root() -> ProcessingState<'a> {
+    pub fn root() -> Self {
         ProcessingState {
             parent: None,
             path: None,
@@ -180,7 +180,7 @@ impl<'a> ProcessingState<'a> {
         &'a self,
         key: &'static str,
         attrs: Option<Cow<'static, FieldAttrs>>,
-    ) -> ProcessingState<'a> {
+    ) -> Self {
         ProcessingState {
             parent: Some(self),
             path: Some(PathItem::StaticKey(key)),
@@ -189,11 +189,7 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Derives a processing state by entering a borrowed key.
-    pub fn enter_borrowed(
-        &'a self,
-        key: &'a str,
-        attrs: Option<Cow<'static, FieldAttrs>>,
-    ) -> ProcessingState<'a> {
+    pub fn enter_borrowed(&'a self, key: &'a str, attrs: Option<Cow<'static, FieldAttrs>>) -> Self {
         ProcessingState {
             parent: Some(self),
             path: Some(PathItem::StaticKey(key)),
@@ -202,11 +198,7 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Derives a processing state by entering an index.
-    pub fn enter_index(
-        &'a self,
-        idx: usize,
-        attrs: Option<Cow<'static, FieldAttrs>>,
-    ) -> ProcessingState<'a> {
+    pub fn enter_index(&'a self, idx: usize, attrs: Option<Cow<'static, FieldAttrs>>) -> Self {
         ProcessingState {
             parent: Some(self),
             path: Some(PathItem::Index(idx)),
@@ -225,6 +217,12 @@ impl<'a> ProcessingState<'a> {
             Some(ref cow) => &cow,
             None => &DEFAULT_FIELD_ATTRS,
         }
+    }
+}
+
+impl<'a> Default for ProcessingState<'a> {
+    fn default() -> Self {
+        ProcessingState::root()
     }
 }
 

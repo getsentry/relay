@@ -163,3 +163,51 @@ impl From<Annotated<Value>> for serde_json::Value {
         value.0.map(From::from).unwrap_or(serde_json::Value::Null)
     }
 }
+
+impl From<()> for Value {
+    fn from(_: ()) -> Self {
+        Value::Null
+    }
+}
+
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Value::Bool(value)
+    }
+}
+
+impl From<i64> for Value {
+    fn from(value: i64) -> Self {
+        Value::I64(value)
+    }
+}
+
+impl From<u64> for Value {
+    fn from(value: u64) -> Self {
+        Value::U64(value)
+    }
+}
+
+impl From<f64> for Value {
+    fn from(value: f64) -> Self {
+        Value::F64(value)
+    }
+}
+
+impl From<String> for Value {
+    fn from(value: String) -> Self {
+        Value::String(value)
+    }
+}
+
+impl From<Array<Value>> for Value {
+    fn from(value: Array<Value>) -> Self {
+        Value::Array(value)
+    }
+}
+
+impl From<Object<Value>> for Value {
+    fn from(value: Object<Value>) -> Self {
+        Value::Object(value)
+    }
+}

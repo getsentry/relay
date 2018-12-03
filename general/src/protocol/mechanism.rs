@@ -1,5 +1,4 @@
-use crate::processor::FromValue;
-use crate::types::{Annotated, Object, Value};
+use crate::types::{Annotated, FromValue, Object, Value};
 
 /// POSIX signal with optional extended data.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]

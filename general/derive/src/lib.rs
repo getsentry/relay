@@ -1,4 +1,6 @@
 #![recursion_limit = "256"]
+#![cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
+
 extern crate syn;
 
 #[macro_use]
@@ -69,89 +71,101 @@ fn process_wrapper_struct_derive(
     if type_attrs.never_skip_serialization {
         quote!(false)
     } else {
-        quote!(crate::processor::ToValue::skip_serialization(&self.0))
+        quote!(crate::types::ToValue::skip_serialization(&self.0))
     }.to_tokens(&mut skip_serialization_body);
 
     let name = &s.ast().ident;
 
     Ok(match t {
-        Trait::From=> {
-            s.gen_impl(quote! {
-                gen impl crate::processor::FromValue for @Self {
-                    fn from_value(
-                        __value: crate::types::Annotated<crate::types::Value>,
-                    ) -> crate::types::Annotated<Self> {
-                        match crate::processor::FromValue::from_value(__value) {
-                            Annotated(Some(__value), __meta) => Annotated(Some(#name(__value)), __meta),
-                            Annotated(None, __meta) => Annotated(None, __meta),
-                        }
+        Trait::From => s.gen_impl(quote! {
+            #[automatically_derived]
+            gen impl crate::types::FromValue for @Self {
+                fn from_value(
+                    __value: crate::types::Annotated<crate::types::Value>,
+                ) -> crate::types::Annotated<Self> {
+                    match crate::types::FromValue::from_value(__value) {
+                        Annotated(Some(__value), __meta) => Annotated(Some(#name(__value)), __meta),
+                        Annotated(None, __meta) => Annotated(None, __meta),
                     }
                 }
-            })
-        }
-        Trait::To=> {
-            s.gen_impl(quote! {
-                extern crate serde as __serde;
+            }
+        }),
+        Trait::To => s.gen_impl(quote! {
+            extern crate serde as __serde;
 
-                gen impl crate::processor::ToValue for @Self {
-                    fn to_value(
-                        mut __value: crate::types::Annotated<Self>
-                    ) -> crate::types::Annotated<crate::types::Value> {
-                        let __value = __value.map_value(|x| x.0);
-                        crate::processor::ToValue::to_value(__value)
-                    }
-
-                    fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>
-                    where
-                        Self: Sized,
-                        S: __serde::ser::Serializer
-                    {
-                        crate::processor::ToValue::serialize_payload(&self.0, __serializer)
-                    }
-
-                    fn extract_child_meta(&self) -> crate::types::MetaMap
-                    where
-                        Self: Sized,
-                    {
-                        crate::processor::ToValue::extract_child_meta(&self.0)
-                    }
-
-                    fn skip_serialization(&self) -> bool
-                    where
-                        Self: Sized,
-                    {
-                        #skip_serialization_body
-                    }
+            #[automatically_derived]
+            gen impl crate::types::ToValue for @Self {
+                fn to_value(
+                    mut __value: crate::types::Annotated<Self>
+                ) -> crate::types::Annotated<crate::types::Value> {
+                    let __value = __value.map_value(|x| x.0);
+                    crate::types::ToValue::to_value(__value)
                 }
-            })
-        }
-        Trait::Process=> {
-            s.gen_impl(quote! {
-                gen impl crate::processor::ProcessValue for @Self {
-                    fn process_child_values<P: crate::processor::Processor>(
-                        __value: crate::types::Annotated<Self>,
-                        __processor: &mut P,
-                        __state: crate::processor::ProcessingState
-                    ) -> crate::types::Annotated<Self> {
-                        let __new_annotated = match __value {
-                            crate::types::Annotated(Some(__value), __meta) => {
-                                crate::processor::ProcessValue::process_value(
-                                    crate::types::Annotated(Some(__value.0), __meta), __processor, __state)
-                            }
-                            crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta)
-                        };
-                        match __new_annotated {
-                            crate::types::Annotated(Some(__value), __meta) => crate::types::Annotated(Some(#name(__value)), __meta),
-                            crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta)
-                        }
-                    }
+
+                fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>
+                where
+                    Self: Sized,
+                    S: __serde::ser::Serializer
+                {
+                    crate::types::ToValue::serialize_payload(&self.0, __serializer)
                 }
-            })
-        }
+
+                fn extract_child_meta(&self) -> crate::types::MetaMap
+                where
+                    Self: Sized,
+                {
+                    crate::types::ToValue::extract_child_meta(&self.0)
+                }
+
+                fn skip_serialization(&self) -> bool
+                where
+                    Self: Sized,
+                {
+                    #skip_serialization_body
+                }
+            }
+        }),
+        Trait::Process => s.gen_impl(quote! {
+            #[automatically_derived]
+            gen impl crate::processor::ProcessValue for @Self {
+                #[inline]
+                fn process_value<P>(
+                    &mut self,
+                    __meta: &mut crate::types::Meta,
+                    __processor: &mut P,
+                    __state: crate::processor::ProcessingState,
+                ) -> crate::types::ValueAction
+                where
+                    P: crate::processor::Processor,
+                {
+                    crate::processor::ProcessValue::process_value(
+                        &mut self.0,
+                        __meta,
+                        __processor,
+                        __state,
+                    )
+                }
+
+                #[inline]
+                fn process_child_values<P>(
+                    &mut self,
+                    __processor: &mut P,
+                    __state: crate::processor::ProcessingState,
+                )
+                where
+                    P: crate::processor::Processor,
+                {
+                    crate::processor::ProcessValue::process_child_values(
+                        &mut self.0,
+                        __processor,
+                        __state,
+                    )
+                }
+            }
+        }),
     })
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
 fn process_enum_struct_derive(
     s: synstructure::Structure,
     t: Trait,
@@ -171,21 +185,9 @@ fn process_enum_struct_derive(
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
     let mut process_value_body = TokenStream::new();
+    let mut process_child_values_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
-
-    let process_value = type_attrs.process_func.map(|func_name| {
-        let func_name = Ident::new(&func_name, Span::call_site());
-        quote! {
-            fn process_value<P: crate::processor::Processor>(
-                __value: crate::types::Annotated<Self>,
-                __processor: &mut P,
-                __state: crate::processor::ProcessingState
-            ) -> crate::types::Annotated<Self> {
-                __processor.#func_name(__value, __state)
-            }
-        }
-    });
 
     for variant in s.variants() {
         let variant_attrs = parse_variant_attributes(&variant.ast().attrs);
@@ -198,13 +200,13 @@ fn process_enum_struct_derive(
             let tag = LitStr::new(&tag, Span::call_site());
             (quote! {
                 Some(#tag) => {
-                    crate::processor::FromValue::from_value(crate::types::Annotated(Some(crate::types::Value::Object(__object)), __meta))
+                    crate::types::FromValue::from_value(crate::types::Annotated(Some(crate::types::Value::Object(__object)), __meta))
                         .map_value(|__value| #type_name::#variant_name(Box::new(__value)))
                 }
             }).to_tokens(&mut from_value_body);
             (quote! {
                 crate::types::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
-                    let mut __rv = crate::processor::ToValue::to_value(crate::types::Annotated(Some(__value), __meta));
+                    let mut __rv = crate::types::ToValue::to_value(crate::types::Annotated(Some(__value), __meta));
                     if let crate::types::Annotated(Some(crate::types::Value::Object(ref mut __object)), _) = __rv {
                         __object.insert(#tag_key_str.to_string(), Annotated::new(crate::types::Value::String(#tag.to_string())));
                     }
@@ -213,24 +215,13 @@ fn process_enum_struct_derive(
             }).to_tokens(&mut to_value_body);
             (quote! {
                 #type_name::#variant_name(ref __value) => {
-                    crate::processor::ToValue::extract_child_meta(__value)
-                }
-            }).to_tokens(&mut extract_child_meta_body);
-            (quote! {
-                #type_name::#variant_name(ref __value) => {
                     let mut __map_ser = __serde::Serializer::serialize_map(__serializer, None)?;
-                    crate::processor::ToValue::serialize_payload(__value, __serde::private::ser::FlatMapSerializer(&mut __map_ser))?;
+                    crate::types::ToValue::serialize_payload(__value, __serde::private::ser::FlatMapSerializer(&mut __map_ser))?;
                     __serde::ser::SerializeMap::serialize_key(&mut __map_ser, #tag_key_str)?;
                     __serde::ser::SerializeMap::serialize_value(&mut __map_ser, #tag)?;
                     __serde::ser::SerializeMap::end(__map_ser)
                 }
             }).to_tokens(&mut serialize_body);
-            (quote! {
-                crate::types::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
-                    crate::processor::ProcessValue::process_value(crate::types::Annotated(Some(*__value), __meta), __processor, __state)
-                        .map_value(|__value| #type_name::#variant_name(Box::new(__value)))
-                }
-            }).to_tokens(&mut process_value_body);
         } else {
             (quote! {
                 _ => {
@@ -242,32 +233,49 @@ fn process_enum_struct_derive(
             }).to_tokens(&mut from_value_body);
             (quote! {
                 crate::types::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
-                    crate::processor::ToValue::to_value(crate::types::Annotated(Some(__value), __meta))
+                    crate::types::ToValue::to_value(crate::types::Annotated(Some(__value), __meta))
                 }
             }).to_tokens(&mut to_value_body);
             (quote! {
                 #type_name::#variant_name(ref __value) => {
-                    crate::processor::ToValue::extract_child_meta(__value)
-                }
-            }).to_tokens(&mut extract_child_meta_body);
-            (quote! {
-                #type_name::#variant_name(ref __value) => {
-                    crate::processor::ToValue::serialize_payload(__value, __serializer)
+                    crate::types::ToValue::serialize_payload(__value, __serializer)
                 }
             }).to_tokens(&mut serialize_body);
-            (quote! {
-                crate::types::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
-                    crate::processor::ProcessValue::process_value(crate::types::Annotated(Some(__value), __meta), __processor, __state)
-                        .map_value(#type_name::#variant_name)
-                }
-            }).to_tokens(&mut process_value_body);
         }
+
+        (quote! {
+            #type_name::#variant_name(ref __value) => {
+                crate::types::ToValue::extract_child_meta(__value)
+            }
+        }).to_tokens(&mut extract_child_meta_body);
+
+        (quote! {
+            #type_name::#variant_name(__value) => {
+                crate::processor::ProcessValue::process_value(
+                    __value,
+                    __meta,
+                    __processor,
+                    __state,
+                )
+            }
+        }).to_tokens(&mut process_value_body);
+
+        (quote! {
+            #type_name::#variant_name(__value) => {
+                crate::processor::ProcessValue::process_child_values(
+                    __value,
+                    __processor,
+                    __state,
+                )
+            }
+        }).to_tokens(&mut process_child_values_body);
     }
 
     Ok(match t {
-        Trait::From=> {
+        Trait::From => {
             s.gen_impl(quote! {
-                gen impl crate::processor::FromValue for @Self {
+                #[automatically_derived]
+                gen impl crate::types::FromValue for @Self {
                     fn from_value(
                         __value: crate::types::Annotated<crate::types::Value>,
                     ) -> crate::types::Annotated<Self> {
@@ -284,11 +292,12 @@ fn process_enum_struct_derive(
                 }
             })
         }
-        Trait::To=> {
+        Trait::To => {
             s.gen_impl(quote! {
                 extern crate serde as __serde;
 
-                gen impl crate::processor::ToValue for @Self {
+                #[automatically_derived]
+                gen impl crate::types::ToValue for @Self {
                     fn to_value(
                         __value: crate::types::Annotated<Self>
                     ) -> crate::types::Annotated<crate::types::Value> {
@@ -318,28 +327,66 @@ fn process_enum_struct_derive(
                 }
             })
         }
-        Trait::Process=> {
+        Trait::Process => {
+            let process_value = type_attrs.process_func.map(|func_name| {
+                let func_name = Ident::new(&func_name, Span::call_site());
+                quote! {
+                    if __result == crate::types::ValueAction::Keep {
+                        return __processor.#func_name(self, __meta, __state_clone);
+                    }
+                }
+            }).unwrap_or_else(|| {
+                quote! {
+                    crate::processor::ProcessValue::process_child_values(
+                        self,
+                        __processor,
+                        __state_clone,
+                    );
+                }
+            });
+
             s.gen_impl(quote! {
+                #[automatically_derived]
                 gen impl crate::processor::ProcessValue for @Self {
-                    fn process_child_values<P: crate::processor::Processor>(
-                        __value: crate::types::Annotated<Self>,
+                    #[inline]
+                    fn process_value<P>(
+                        &mut self,
+                        __meta: &mut crate::types::Meta,
                         __processor: &mut P,
-                        __state: crate::processor::ProcessingState
-                    ) -> crate::types::Annotated<Self> {
-                        match __value {
+                        __state: crate::processor::ProcessingState,
+                    ) -> crate::types::ValueAction
+                    where
+                        P: crate::processor::Processor,
+                    {
+                        let __state_clone = __state.clone();
+                        let __result = match self {
                             #process_value_body
-                            crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta),
-                        }
+                        };
+
+                        #process_value
+
+                        __result
                     }
 
-                    #process_value
+                    #[inline]
+                    fn process_child_values<P>(
+                        &mut self,
+                        __processor: &mut P,
+                        __state: crate::processor::ProcessingState,
+                    )
+                    where
+                        P: crate::processor::Processor,
+                    {
+                        match self {
+                            #process_child_values_body
+                        }
+                    }
                 }
             })
         }
     })
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
 fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStream {
     let s = match process_wrapper_struct_derive(s, t) {
         Ok(stream) => return stream,
@@ -364,15 +411,16 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     }
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
-    let mut process_value_body = TokenStream::new();
-    (quote! {
-        use lazy_static::lazy_static;
-        use regex::Regex;
-    }).to_tokens(&mut process_value_body);
+    let mut process_child_values_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
     let mut skip_serialization_body = TokenStream::new();
     let mut tmp_idx = 0;
+
+    (quote! {
+        extern crate lazy_static as __lazy_static;
+        extern crate regex as __regex;
+    }).to_tokens(&mut process_child_values_body);
 
     let type_attrs = parse_type_attributes(&s.ast().attrs);
     if type_attrs.tag_key.is_some() {
@@ -384,45 +432,55 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
         }).to_tokens(&mut skip_serialization_body);
     }
 
-    for bi in variant.bindings() {
+    let mut is_tuple_struct = false;
+    for (index, bi) in variant.bindings().iter().enumerate() {
+        if bi.ast().ident.is_none() {
+            is_tuple_struct = true;
+        } else if is_tuple_struct {
+            panic!("invalid tuple struct");
+        }
+
         let field_attrs = parse_field_attributes(&bi.ast().attrs);
         let field_name = field_attrs.field_name_override.unwrap_or_else(|| {
             bi.ast()
                 .ident
                 .as_ref()
-                .expect("can not derive struct tuples")
-                .to_string()
+                .map(|ident| ident.to_string())
+                .unwrap_or_else(|| index.to_string())
         });
         let field_name = LitStr::new(&field_name, Span::call_site());
 
         if field_attrs.additional_properties {
+            if is_tuple_struct {
+                panic!("additional_properties not allowed in tuple struct");
+            }
+
             (quote! {
-                let #bi = __obj.into_iter().map(|(__key, __value)| (__key, crate::processor::FromValue::from_value(__value))).collect();
+                let #bi = __obj.into_iter().map(|(__key, __value)| (__key, crate::types::FromValue::from_value(__value))).collect();
             }).to_tokens(&mut from_value_body);
             (quote! {
-                __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, crate::processor::ToValue::to_value(__value))));
+                __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, crate::types::ToValue::to_value(__value))));
             }).to_tokens(&mut to_value_body);
             (quote! {
                 let #bi = {
-                    for (__key, mut __value) in #bi.iter_mut() {
+                    for (__key, __value) in #bi.iter_mut() {
                         let __inner_state = __state.enter_borrowed(__key.as_str(), None);
-                        let mut __new_value = crate::types::Annotated(__value.0.take(), ::std::mem::replace(&mut __value.1, Default::default()));
-                        *__value = crate::processor::ProcessValue::process_value(__new_value, __processor, __inner_state);
+                        crate::processor::process_value(__value, __processor, __inner_state);
                     }
                     #bi
                 };
-            }).to_tokens(&mut process_value_body);
+            }).to_tokens(&mut process_child_values_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
                     if !__value.skip_serialization() {
                         __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, __key)?;
-                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::processor::SerializePayload(__value))?;
+                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(__value))?;
                     }
                 }
             }).to_tokens(&mut serialize_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
-                    let __inner_tree = crate::processor::ToValue::extract_meta_tree(__value);
+                    let __inner_tree = crate::types::ToValue::extract_meta_tree(__value);
                     if !__inner_tree.is_empty() {
                         __child_meta.insert(__key.to_string(), __inner_tree);
                     }
@@ -450,39 +508,86 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             let bag_size_attr = field_attrs.bag_size;
             let pii_kind_attr = field_attrs.pii_kind;
 
-            (quote! {
-                let #bi = __obj.remove(#field_name);
-            }).to_tokens(&mut from_value_body);
-
-            for legacy_alias in field_attrs.legacy_aliases {
-                let legacy_field_name = LitStr::new(&legacy_alias, Span::call_site());
+            if is_tuple_struct {
                 (quote! {
-                    let #bi = #bi.or(__obj.remove(#legacy_field_name));
+                    let #bi = __arr.next();
                 }).to_tokens(&mut from_value_body);
+            } else {
+                (quote! {
+                    let #bi = __obj.remove(#field_name);
+                }).to_tokens(&mut from_value_body);
+
+                for legacy_alias in field_attrs.legacy_aliases {
+                    let legacy_field_name = LitStr::new(&legacy_alias, Span::call_site());
+                    (quote! {
+                        let #bi = #bi.or(__obj.remove(#legacy_field_name));
+                    }).to_tokens(&mut from_value_body);
+                }
             }
 
             (quote! {
-                let #bi = crate::processor::FromValue::from_value(#bi.unwrap_or_else(|| crate::types::Annotated(None, crate::types::Meta::default())));
+                let #bi = crate::types::FromValue::from_value(#bi.unwrap_or_else(|| crate::types::Annotated(None, crate::types::Meta::default())));
             }).to_tokens(&mut from_value_body);
 
             if field_attrs.required {
                 (quote! {
                     let mut #bi = #bi;
-                    #bi.require_value();
+                    crate::processor::require_value(&mut #bi);
                 }).to_tokens(&mut from_value_body);
             }
 
             let match_regex_attr = if let Some(match_regex) = field_attrs.match_regex {
-                quote!(Some(Regex::new(#match_regex).unwrap()))
+                quote!(Some(__regex::Regex::new(#match_regex).unwrap()))
             } else {
                 quote!(None)
             };
 
+            if is_tuple_struct {
+                (quote! {
+                    __arr.push(crate::types::ToValue::to_value(#bi));
+                }).to_tokens(&mut to_value_body);
+                (quote! {
+                    if !#bi.skip_serialization() {
+                        __serde::ser::SerializeSeq::serialize_element(&mut __seq_serializer, &crate::types::SerializePayload(#bi))?;
+                    }
+                }).to_tokens(&mut serialize_body);
+            } else {
+                (quote! {
+                    __map.insert(#field_name.to_string(), crate::types::ToValue::to_value(#bi));
+                }).to_tokens(&mut to_value_body);
+                (quote! {
+                    if !#bi.skip_serialization() {
+                        __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, #field_name)?;
+                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(#bi))?;
+                    }
+                }).to_tokens(&mut serialize_body);
+            }
+
             (quote! {
-                __map.insert(#field_name.to_string(), crate::processor::ToValue::to_value(#bi));
-            }).to_tokens(&mut to_value_body);
+                let __inner_tree = crate::types::ToValue::extract_meta_tree(#bi);
+                if !__inner_tree.is_empty() {
+                    __child_meta.insert(#field_name.to_string(), __inner_tree);
+                }
+            }).to_tokens(&mut extract_child_meta_body);
+
+            let enter_state = if is_tuple_struct {
+                quote!{
+                    __state.enter_index(
+                        #index,
+                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))
+                    )
+                }
+            } else {
+                quote! {
+                    __state.enter_static(
+                        #field_name,
+                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))
+                    )
+                }
+            };
+
             (quote! {
-                lazy_static! {
+                __lazy_static::lazy_static! {
                     static ref #field_attrs_name: crate::processor::FieldAttrs = crate::processor::FieldAttrs {
                         name: Some(#field_name),
                         required: #required_attr,
@@ -494,20 +599,12 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     };
                 }
 
-                let #bi = crate::processor::ProcessValue::process_value(#bi, __processor, __state.enter_static(#field_name, Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))));
-            }).to_tokens(&mut process_value_body);
-            (quote! {
-                if !#bi.skip_serialization() {
-                    __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, #field_name)?;
-                    __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::processor::SerializePayload(#bi))?;
-                }
-            }).to_tokens(&mut serialize_body);
-            (quote! {
-                let __inner_tree = crate::processor::ToValue::extract_meta_tree(#bi);
-                if !__inner_tree.is_empty() {
-                    __child_meta.insert(#field_name.to_string(), __inner_tree);
-                }
-            }).to_tokens(&mut extract_child_meta_body);
+                let #bi = crate::processor::process_value(
+                    #bi,
+                    __processor,
+                    #enter_state,
+                );
+            }).to_tokens(&mut process_child_values_body);
         }
 
         (quote! {
@@ -529,39 +626,41 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     let to_value_pat = variant.pat();
     let to_structure_assemble_pat = variant.pat();
     for binding in variant.bindings_mut() {
-        binding.style = synstructure::BindStyle::MoveMut;
+        binding.style = synstructure::BindStyle::RefMut;
     }
-    let to_process_value_pat = variant.pat();
+    let process_value_pat = variant.pat();
     for binding in variant.bindings_mut() {
         binding.style = synstructure::BindStyle::Ref;
     }
     let serialize_pat = variant.pat();
 
-    let process_value = type_attrs.process_func.map(|func_name| {
-        let func_name = Ident::new(&func_name, Span::call_site());
-        quote! {
-            fn process_value<P: crate::processor::Processor>(
-                __value: crate::types::Annotated<Self>,
-                __processor: &mut P,
-                __state: crate::processor::ProcessingState
-            ) -> crate::types::Annotated<Self> {
-                __processor.#func_name(__value, __state)
-            }
-        }
-    });
-
     match t {
-        Trait::From=> {
+        Trait::From => {
+            let valid_match_arm = if is_tuple_struct {
+                quote! {
+                    crate::types::Annotated(Some(crate::types::Value::Array(mut __arr)), __meta) => {
+                        let __arr = __arr.into_iter();
+                        #from_value_body;
+                        crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
+                    }
+                }
+            } else {
+                quote! {
+                    crate::types::Annotated(Some(crate::types::Value::Object(mut __obj)), __meta) => {
+                        #from_value_body;
+                        crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
+                    }
+                }
+            };
+
             s.gen_impl(quote! {
-                gen impl crate::processor::FromValue for @Self {
+                #[automatically_derived]
+                gen impl crate::types::FromValue for @Self {
                     fn from_value(
                         __value: crate::types::Annotated<crate::types::Value>,
                     ) -> crate::types::Annotated<Self> {
                         match __value {
-                            crate::types::Annotated(Some(crate::types::Value::Object(mut __obj)), __meta) => {
-                                #from_value_body;
-                                crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
-                            }
+                            #valid_match_arm
                             crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta),
                             crate::types::Annotated(Some(__value), mut __meta) => {
                                 __meta.add_unexpected_value_error(#expectation, __value);
@@ -572,20 +671,48 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 }
             })
         }
-        Trait::To=> {
+        Trait::To => {
+            let to_value = if is_tuple_struct {
+                quote! {
+                    let mut __arr = crate::types::Array::new();
+                    let #to_value_pat = __value;
+                    #to_value_body;
+                    crate::types::Annotated(Some(crate::types::Value::Array(__arr)), __meta)
+                }
+            } else {
+                quote! {
+                    let mut __map = crate::types::Object::new();
+                    let #to_value_pat = __value;
+                    #to_value_body;
+                    crate::types::Annotated(Some(crate::types::Value::Object(__map)), __meta)
+                }
+            };
+
+            let serialize_payload = if is_tuple_struct {
+                quote! {
+                    let mut __seq_serializer = __serde::ser::Serializer::serialize_seq(__serializer, None)?;
+                    #serialize_body;
+                    __serde::ser::SerializeSeq::end(__seq_serializer)
+                }
+            } else {
+                quote! {
+                    let mut __map_serializer = __serde::ser::Serializer::serialize_map(__serializer, None)?;
+                    #serialize_body;
+                    __serde::ser::SerializeMap::end(__map_serializer)
+                }
+            };
+
             s.gen_impl(quote! {
                 extern crate serde as __serde;
 
-                gen impl crate::processor::ToValue for @Self {
+                #[automatically_derived]
+                gen impl crate::types::ToValue for @Self {
                     fn to_value(
                         __value: crate::types::Annotated<Self>
                     ) -> crate::types::Annotated<crate::types::Value> {
                         let crate::types::Annotated(__value, __meta) = __value;
                         if let Some(__value) = __value {
-                            let mut __map = crate::types::Object::new();
-                            let #to_value_pat = __value;
-                            #to_value_body;
-                            crate::types::Annotated(Some(crate::types::Value::Object(__map)), __meta)
+                            #to_value
                         } else {
                             crate::types::Annotated(None, __meta)
                         }
@@ -597,9 +724,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         S: __serde::ser::Serializer
                     {
                         let #serialize_pat = *self;
-                        let mut __map_serializer = __serde::ser::Serializer::serialize_map(__serializer, None)?;
-                        #serialize_body;
-                        __serde::ser::SerializeMap::end(__map_serializer)
+                        #serialize_payload
                     }
 
                     fn extract_child_meta(&self) -> crate::types::MetaMap
@@ -621,23 +746,40 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 }
             })
         }
-        Trait::Process=> {
+        Trait::Process => {
+            let process_value = type_attrs.process_func.map(|func_name| {
+                let func_name = Ident::new(&func_name, Span::call_site());
+                quote! {
+                    fn process_value<P>(
+                        &mut self,
+                        __meta: &mut crate::types::Meta,
+                        __processor: &mut P,
+                        __state: crate::processor::ProcessingState,
+                    ) -> crate::types::ValueAction
+                    where
+                        P: crate::processor::Processor,
+                    {
+                        __processor.#func_name(self, __meta, __state)
+                    }
+                }
+            });
+
             s.gen_impl(quote! {
+                #[automatically_derived]
                 gen impl crate::processor::ProcessValue for @Self {
                     #process_value
-                    fn process_child_values<P: crate::processor::Processor>(
-                        __value: crate::types::Annotated<Self>,
+
+                    #[inline]
+                    fn process_child_values<P>(
+                        &mut self,
                         __processor: &mut P,
                         __state: crate::processor::ProcessingState
-                    ) -> crate::types::Annotated<Self> {
-                        let crate::types::Annotated(__value, __meta) = __value;
-                        if let Some(__value) = __value {
-                            let #to_process_value_pat = __value;
-                            #process_value_body;
-                            crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
-                        } else {
-                            crate::types::Annotated(None, __meta)
-                        }
+                    )
+                    where
+                        P: crate::processor::Processor,
+                    {
+                        let #process_value_pat = self;
+                        #process_child_values_body
                     }
                 }
             })
@@ -766,7 +908,6 @@ struct FieldAttrs {
     legacy_aliases: Vec<String>,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
 fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
     let mut rv = FieldAttrs::default();
     rv.max_chars = quote!(None);

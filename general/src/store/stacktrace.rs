@@ -3,7 +3,7 @@ use std::mem;
 use url::Url;
 
 use crate::protocol::{Frame, Stacktrace};
-use crate::types::Annotated;
+use crate::types::{Annotated, Array, Meta};
 
 fn is_url(filename: &str) -> bool {
     filename.starts_with("file:")
@@ -12,29 +12,27 @@ fn is_url(filename: &str) -> bool {
         || filename.starts_with("applewebdata:")
 }
 
-pub fn process_non_raw_stacktrace(stacktrace: &mut Annotated<Stacktrace>) {
-    // this processing should only be done for non raw frames (i.e. not for
+pub fn process_non_raw_stacktrace(stacktrace: &mut Stacktrace, _meta: &mut Meta) {
+    // XXX: this processing should only be done for non raw frames (i.e. not for
     // exception.raw_stacktrace)
-    if let Some(ref mut stacktrace) = stacktrace.0 {
-        if let Some(ref mut frames) = stacktrace.frames.0 {
-            for mut frame in frames.iter_mut() {
-                process_non_raw_frame(&mut frame);
-            }
+    if let Some(frames) = stacktrace.frames.value_mut() {
+        for frame in frames.iter_mut() {
+            frame.apply(process_non_raw_frame);
         }
     }
 }
 
-pub fn process_non_raw_frame(frame: &mut Annotated<Frame>) {
-    if let Some(ref mut frame) = frame.0 {
-        if frame.abs_path.0.is_none() {
-            frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
-        }
+pub fn process_non_raw_frame(frame: &mut Frame, _meta: &mut Meta) {
+    if frame.abs_path.value().is_none() {
+        frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
+    }
 
-        if let (None, Some(abs_path)) = (frame.filename.0.as_ref(), frame.abs_path.0.as_ref()) {
+    if frame.filename.value().is_none() {
+        if let Some(abs_path) = frame.abs_path.value_mut() {
             frame.filename = Annotated::new(abs_path.clone());
 
-            if is_url(&abs_path) {
-                if let Ok(url) = Url::parse(&abs_path) {
+            if is_url(abs_path) {
+                if let Ok(url) = Url::parse(abs_path) {
                     let path = url.path();
 
                     if !path.is_empty() && path != "/" {
@@ -46,18 +44,17 @@ pub fn process_non_raw_frame(frame: &mut Annotated<Frame>) {
     }
 }
 
-pub fn enforce_frame_hard_limit(stacktrace: &mut Annotated<Stacktrace>, limit: usize) {
-    if let Some(ref mut stacktrace) = stacktrace.0 {
-        if let Some(ref mut frames) = stacktrace.frames.0 {
-            // Trim down the frame list to a hard limit. Leave the last frame in place in case
-            // it's useful for debugging.
-            if frames.len() >= limit {
-                let last_elem = frames.pop();
-                frames.truncate(limit - 1);
-                if let Some(last_elem) = last_elem {
-                    frames.push(last_elem);
-                }
-            }
+pub fn enforce_frame_hard_limit(frames: &mut Array<Frame>, meta: &mut Meta, limit: usize) {
+    // Trim down the frame list to a hard limit. Leave the last frame in place in case
+    // it's useful for debugging.
+    let original_length = frames.len();
+    if original_length >= limit {
+        meta.set_original_length(Some(original_length));
+
+        let last_frame = frames.pop();
+        frames.truncate(limit - 1);
+        if let Some(last_frame) = last_frame {
+            frames.push(last_frame);
         }
     }
 }
@@ -70,11 +67,11 @@ fn test_coerces_url_filenames() {
         ..Default::default()
     });
 
-    process_non_raw_frame(&mut frame);
-    let frame = frame.0.unwrap();
+    frame.apply(process_non_raw_frame);
+    let frame = frame.value().unwrap();
 
-    assert_eq!(frame.filename.0, Some("/foo.js".to_string()));
-    assert_eq!(frame.abs_path.0, Some("http://foo.com/foo.js".to_string()));
+    assert_eq!(frame.filename.as_str(), Some("/foo.js"));
+    assert_eq!(frame.abs_path.as_str(), Some("http://foo.com/foo.js"));
 }
 
 #[test]
@@ -86,11 +83,11 @@ fn test_does_not_overwrite_filename() {
         ..Default::default()
     });
 
-    process_non_raw_frame(&mut frame);
-    let frame = frame.0.unwrap();
+    frame.apply(process_non_raw_frame);
+    let frame = frame.value().unwrap();
 
-    assert_eq!(frame.filename.0, Some("foo.js".to_string()));
-    assert_eq!(frame.abs_path.0, Some("http://foo.com/foo.js".to_string()));
+    assert_eq!(frame.filename.as_str(), Some("foo.js"));
+    assert_eq!(frame.abs_path.as_str(), Some("http://foo.com/foo.js"));
 }
 
 #[test]
@@ -101,11 +98,11 @@ fn test_ignores_results_with_empty_path() {
         ..Default::default()
     });
 
-    process_non_raw_frame(&mut frame);
-    let frame = frame.0.unwrap();
+    frame.apply(process_non_raw_frame);
+    let frame = frame.value().unwrap();
 
-    assert_eq!(frame.filename.0, Some("http://foo.com".to_string()));
-    assert_eq!(frame.abs_path.0, frame.filename.0);
+    assert_eq!(frame.filename.as_str(), Some("http://foo.com"));
+    assert_eq!(frame.abs_path.as_str(), frame.filename.as_str());
 }
 
 #[test]
@@ -117,29 +114,29 @@ fn test_frame_hard_limit() {
         })
     }
 
-    let mut stacktrace = Annotated::new(Stacktrace {
-        frames: Annotated::new(vec![
-            create_frame("foo1.py"),
-            create_frame("foo2.py"),
-            create_frame("foo3.py"),
-            create_frame("foo4.py"),
-            create_frame("foo5.py"),
-        ]),
-        ..Default::default()
-    });
+    let mut frames = Annotated::new(vec![
+        create_frame("foo1.py"),
+        create_frame("foo2.py"),
+        create_frame("foo3.py"),
+        create_frame("foo4.py"),
+        create_frame("foo5.py"),
+    ]);
 
-    enforce_frame_hard_limit(&mut stacktrace, 3);
+    frames.apply(|f, m| enforce_frame_hard_limit(f, m, 3));
+
+    let mut expected_meta = Meta::default();
+    expected_meta.set_original_length(Some(5));
 
     assert_eq_dbg!(
-        stacktrace,
-        Annotated::new(Stacktrace {
-            frames: Annotated::new(vec![
+        frames,
+        Annotated(
+            Some(vec![
                 create_frame("foo1.py"),
                 create_frame("foo2.py"),
                 create_frame("foo5.py"),
             ]),
-            ..Default::default()
-        })
+            expected_meta
+        )
     );
 }
 

@@ -1,10 +1,20 @@
-use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
-use crate::types::{Annotated, Array, Object, Remark, RemarkType};
+use crate::processor::{estimate_size, process_chunked_value, Chunk, MaxChars};
+use crate::processor::{process_value, BagSize, ProcessValue, ProcessingState, Processor};
+use crate::types::{Array, Meta, Object, Remark, RemarkType, ValueAction};
 
 #[derive(Clone, Copy, Debug)]
 struct BagSizeState {
     size_remaining: usize,
     depth_remaining: usize,
+}
+
+impl From<BagSize> for BagSizeState {
+    fn from(bag_size: BagSize) -> Self {
+        BagSizeState {
+            size_remaining: bag_size.max_size(),
+            depth_remaining: bag_size.max_depth() + 1,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -14,47 +24,45 @@ pub struct TrimmingProcessor {
 
 impl TrimmingProcessor {
     pub fn new() -> Self {
-        Default::default()
+        Self::default()
     }
 }
 
 impl Processor for TrimmingProcessor {
     fn process_string(
         &mut self,
-        mut value: Annotated<String>,
+        value: &mut String,
+        meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<String> {
-        // field local max chars
-        if let Some(max_chars) = state.attrs().max_chars {
-            value = value.trim_string(max_chars);
+    ) -> ValueAction {
+        if let Some(ref mut bag_size_state) = self.bag_size_state {
+            println!("got a bag size state {:?}", bag_size_state);
+            println!("  for state {:#?}", state);
+            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
+
+            bag_size_state.size_remaining = bag_size_state
+                .size_remaining
+                .saturating_sub(value.chars().count());
+        } else if let Some(max_chars) = state.attrs().max_chars {
+            trim_string(value, meta, max_chars);
         }
 
-        // the remaining size in bytes is used when we're in bag stripping mode.
-        if let Some(mut bag_size_state) = self.bag_size_state {
-            let chars_left = bag_size_state.size_remaining;
-            value = value.trim_string(MaxChars::Hard(chars_left));
-            if let Some(ref value) = value.0 {
-                bag_size_state.size_remaining = bag_size_state
-                    .size_remaining
-                    .saturating_sub(value.chars().count());
-            }
-            self.bag_size_state = Some(bag_size_state);
-        }
-
-        value
+        ValueAction::Keep
     }
 
-    fn process_object<T: ProcessValue>(
+    fn process_array<T>(
         &mut self,
-        mut value: Annotated<Object<T>>,
+        value: &mut Array<T>,
+        meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<Object<T>>
+    ) -> ValueAction
     where
-        Self: Sized,
+        T: ProcessValue,
     {
         let old_bag_size_state = self.bag_size_state;
+        let mut result = ValueAction::Keep;
 
-        // if we encounter a bag size attribute it resets the depth and size
+        // If we encounter a bag size attribute it resets the depth and size
         // that is permitted below it.
         if let Some(bag_size) = state.attrs().bag_size {
             self.bag_size_state = Some(BagSizeState {
@@ -63,67 +71,67 @@ impl Processor for TrimmingProcessor {
             });
         }
 
-        // if we need to check the bag size, then we go down a different path
+        // If we need to check the bag size, then we go down a different path
         if let Some(mut bag_size_state) = self.bag_size_state {
             bag_size_state.depth_remaining = bag_size_state.depth_remaining.saturating_sub(1);
             bag_size_state.size_remaining = bag_size_state.size_remaining.saturating_sub(2);
             self.bag_size_state = Some(bag_size_state);
 
-            if let Annotated(Some(items), mut meta) = value {
-                if bag_size_state.depth_remaining == 0 {
-                    self.bag_size_state = old_bag_size_state;
-                    meta.add_remark(Remark {
-                        ty: RemarkType::Removed,
-                        rule_id: "!limit".to_string(),
-                        range: None,
-                    });
-                    value = Annotated(None, meta);
-                } else {
-                    let original_length = items.len();
-                    let mut rv = Object::new();
-                    for (key, value) in items.into_iter() {
-                        let trimmed_value = {
-                            let inner_state = state.enter_borrowed(&key, None);
-                            ProcessValue::process_value(value, self, inner_state)
-                        };
+            if bag_size_state.depth_remaining == 0 {
+                meta.add_remark(Remark {
+                    ty: RemarkType::Removed,
+                    rule_id: "!limit".to_string(),
+                    range: None,
+                });
+                result = ValueAction::Discard;
+            } else {
+                let original_length = value.len();
 
-                        // update sizes
-                        let value_len = trimmed_value.estimate_size() + 1;
-                        bag_size_state.size_remaining =
-                            bag_size_state.size_remaining.saturating_sub(value_len);
-                        self.bag_size_state = Some(bag_size_state);
+                let mut split_index = None;
+                for (index, item) in value.iter_mut().enumerate() {
+                    if bag_size_state.size_remaining == 0 {
+                        split_index = Some(index);
+                        break;
+                    }
 
-                        rv.insert(key, trimmed_value);
-                        if bag_size_state.size_remaining == 0 {
-                            break;
-                        }
-                    }
-                    if rv.len() != original_length {
-                        meta.set_original_length(Some(original_length as u32));
-                    }
-                    self.bag_size_state = old_bag_size_state;
-                    value = Annotated(Some(rv), meta);
+                    let item_state = state.enter_index(index, None);
+                    process_value(item, self, item_state);
+
+                    let item_length = estimate_size(&item) + 1;
+                    bag_size_state.size_remaining =
+                        bag_size_state.size_remaining.saturating_sub(item_length);
+                    self.bag_size_state = Some(bag_size_state);
+                }
+
+                if let Some(split_index) = split_index {
+                    value.split_off(split_index);
+                }
+
+                if value.len() != original_length {
+                    meta.set_original_length(Some(original_length));
                 }
             }
         } else {
-            value = ProcessValue::process_child_values(value, self, state);
+            value.process_child_values(self, state);
         }
 
         self.bag_size_state = old_bag_size_state;
-        value
+        result
     }
 
-    fn process_array<T: ProcessValue>(
+    fn process_object<T>(
         &mut self,
-        mut value: Annotated<Array<T>>,
+        value: &mut Object<T>,
+        meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<Array<T>>
+    ) -> ValueAction
     where
-        Self: Sized,
+        T: ProcessValue,
     {
         let old_bag_size_state = self.bag_size_state;
+        let mut result = ValueAction::Keep;
 
-        // if we encounter a bag size attribute it resets the depth and size
+        // If we encounter a bag size attribute it resets the depth and size
         // that is permitted below it.
         if let Some(bag_size) = state.attrs().bag_size {
             self.bag_size_state = Some(BagSizeState {
@@ -132,51 +140,138 @@ impl Processor for TrimmingProcessor {
             });
         }
 
-        // if we need to check the bag size, then we go down a different path
+        // If we need to check the bag size, then we go down a different path
         if let Some(mut bag_size_state) = self.bag_size_state {
             bag_size_state.depth_remaining = bag_size_state.depth_remaining.saturating_sub(1);
             bag_size_state.size_remaining = bag_size_state.size_remaining.saturating_sub(2);
             self.bag_size_state = Some(bag_size_state);
 
-            if let Annotated(Some(items), mut meta) = value {
-                if bag_size_state.depth_remaining == 0 {
-                    meta.add_remark(Remark {
-                        ty: RemarkType::Removed,
-                        rule_id: "!limit".to_string(),
-                        range: None,
-                    });
-                    value = Annotated(None, meta);
-                } else {
-                    let original_length = items.len();
-                    let mut rv = Array::new();
-                    for (idx, value) in items.into_iter().enumerate() {
-                        let inner_state = state.enter_index(idx, None);
-                        let trimmed_value = ProcessValue::process_value(value, self, inner_state);
+            if bag_size_state.depth_remaining == 0 {
+                meta.add_remark(Remark {
+                    ty: RemarkType::Removed,
+                    rule_id: "!limit".to_string(),
+                    range: None,
+                });
+                result = ValueAction::Discard;
+            } else {
+                let original_length = value.len();
 
-                        // update sizes
-                        let value_len = trimmed_value.estimate_size();
-                        bag_size_state.size_remaining =
-                            bag_size_state.size_remaining.saturating_sub(value_len);
-                        self.bag_size_state = Some(bag_size_state);
+                let mut split_key = None;
+                for (key, item) in value.iter_mut() {
+                    if bag_size_state.size_remaining == 0 {
+                        split_key = Some(key.to_owned());
+                        break;
+                    }
 
-                        rv.push(trimmed_value);
-                        if bag_size_state.size_remaining == 0 {
-                            break;
-                        }
-                    }
-                    if rv.len() != original_length {
-                        meta.set_original_length(Some(original_length as u32));
-                    }
-                    value = Annotated(Some(rv), meta);
+                    let item_state = state.enter_borrowed(key, None);
+                    process_value(item, self, item_state);
+
+                    let item_length = estimate_size(&item) + 1;
+                    bag_size_state.size_remaining =
+                        bag_size_state.size_remaining.saturating_sub(item_length);
+                    self.bag_size_state = Some(bag_size_state);
+                }
+
+                if let Some(split_key) = split_key {
+                    value.split_off(&split_key);
+                }
+
+                if value.len() != original_length {
+                    meta.set_original_length(Some(original_length));
                 }
             }
         } else {
-            value = ProcessValue::process_child_values(value, self, state);
+            value.process_child_values(self, state);
         }
 
         self.bag_size_state = old_bag_size_state;
-        value
+        result
     }
+}
+
+/// Trims the string to the given maximum length and updates meta data.
+fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
+    let soft_limit = max_chars.limit();
+    let hard_limit = soft_limit + max_chars.allowance();
+
+    if value.chars().count() <= hard_limit {
+        return;
+    }
+
+    process_chunked_value(value, meta, |chunks| {
+        let mut length = 0;
+        let mut new_chunks = vec![];
+
+        for chunk in chunks {
+            let chunk_chars = chunk.chars();
+
+            // if the entire chunk fits, just put it in
+            if length + chunk_chars < soft_limit {
+                new_chunks.push(chunk);
+                length += chunk_chars;
+                continue;
+            }
+
+            match chunk {
+                // if there is enough space for this chunk and the 3 character
+                // ellipsis marker we can push the remaining chunk
+                Chunk::Redaction { .. } => {
+                    if length + chunk_chars + 3 < hard_limit {
+                        new_chunks.push(chunk);
+                    }
+                }
+
+                // if this is a text chunk, we can put the remaining characters in.
+                Chunk::Text { text } => {
+                    let mut remaining = String::new();
+                    for c in text.chars() {
+                        if length + 3 < soft_limit {
+                            remaining.push(c);
+                        } else {
+                            break;
+                        }
+                        length += 1;
+                    }
+                    new_chunks.push(Chunk::Text { text: remaining });
+                }
+            }
+
+            new_chunks.push(Chunk::Redaction {
+                text: "...".to_string(),
+                rule_id: "!limit".to_string(),
+                ty: RemarkType::Substituted,
+            });
+            break;
+        }
+
+        new_chunks
+    });
+}
+
+#[cfg(test)]
+use crate::types::Annotated;
+
+#[test]
+fn test_string_trimming() {
+    use crate::processor::MaxChars;
+    use crate::types::{Annotated, Meta, Remark, RemarkType};
+
+    let mut value = Annotated::new("This is my long string I want to have trimmed!".to_string());
+    value.apply(|v, m| trim_string(v, m, MaxChars::Hard(20)));
+
+    assert_eq_dbg!(
+        value,
+        Annotated(Some("This is my long s...".into()), {
+            let mut meta = Meta::default();
+            meta.add_remark(Remark {
+                ty: RemarkType::Substituted,
+                rule_id: "!limit".to_string(),
+                range: Some((17, 20)),
+            });
+            meta.set_original_length(Some(46));
+            meta
+        })
+    );
 }
 
 #[test]
@@ -189,17 +284,16 @@ fn test_basic_trimming() {
 
     let mut processor = TrimmingProcessor::new();
 
-    let event = Annotated::new(Event {
+    let mut event = Annotated::new(Event {
         culprit: Annotated::new(repeat("x").take(300).collect::<String>()),
         ..Default::default()
     });
 
-    let event = event.process(&mut processor);
+    process_value(&mut event, &mut processor, Default::default());
 
-    assert_eq_dbg!(
-        event.0.unwrap().culprit,
-        Annotated::new(repeat("x").take(300).collect::<String>()).trim_string(MaxChars::Symbol)
-    );
+    let mut expected = Annotated::new(repeat("x").take(300).collect::<String>());
+    expected.apply(|v, m| trim_string(v, m, MaxChars::Symbol));
+    assert_eq_dbg!(event.value().unwrap().culprit, expected);
 }
 
 #[test]
@@ -227,14 +321,13 @@ fn test_databag_stripping() {
         map.insert("key_2".to_string(), make_nested_object(5));
         map
     });
-    let event = Annotated::new(Event {
+    let mut event = Annotated::new(Event {
         extra: databag,
         ..Default::default()
     });
 
-    let stripped_event = event.process(&mut processor);
-    let stripped_extra = stripped_event.0.unwrap().extra;
-
+    process_value(&mut event, &mut processor, Default::default());
+    let stripped_extra = &event.value().unwrap().extra;
     let json = stripped_extra.to_json().unwrap();
 
     assert_eq_str!(json, r#"{"key_1":"value 1","key_2":{"key5":{"key4":{"key3":{"key2":null}}}},"_meta":{"key_2":{"key5":{"key4":{"key3":{"key2":{"":{"rem":[["!limit","x"]]}}}}}}}}"#);
@@ -258,14 +351,13 @@ fn test_databag_array_stripping() {
         }
         map
     });
-    let event = Annotated::new(Event {
+    let mut event = Annotated::new(Event {
         extra: databag,
         ..Default::default()
     });
 
-    let stripped_event = event.process(&mut processor);
-    let stripped_extra = stripped_event.0.unwrap().extra;
-
+    process_value(&mut event, &mut processor, Default::default());
+    let stripped_extra = &event.value().unwrap().extra;
     let json = stripped_extra.to_json_pretty().unwrap();
 
     assert_eq_str!(json, r#"{
@@ -372,23 +464,23 @@ fn test_databag_array_stripping() {
 
 #[test]
 fn test_tags_stripping() {
-    use crate::protocol::{Event, Tags};
+    use crate::protocol::{Event, TagEntry, Tags};
     use crate::types::Annotated;
     use std::iter::repeat;
 
     let mut processor = TrimmingProcessor::new();
 
-    let event = Annotated::new(Event {
-        tags: Annotated::new(Tags(vec![Annotated::new((
+    let mut event = Annotated::new(Event {
+        tags: Annotated::new(Tags(vec![Annotated::new(TagEntry(
             Annotated::new(repeat("x").take(200).collect()),
             Annotated::new(repeat("x").take(300).collect()),
         ))])),
         ..Default::default()
     });
 
-    let stripped_event = event.process(&mut processor);
-    let json = stripped_event
-        .0
+    process_value(&mut event, &mut processor, Default::default());
+    let json = event
+        .value()
         .unwrap()
         .tags
         .payload_to_json_pretty()
@@ -444,7 +536,8 @@ fn test_databag_state_leak() {
     });
 
     let mut processor = TrimmingProcessor::new();
-    let stripped_event = event.clone().process(&mut processor);
+    let mut stripped_event = event.clone();
+    process_value(&mut stripped_event, &mut processor, Default::default());
 
     assert_eq_str!(
         event.to_json_pretty().unwrap(),

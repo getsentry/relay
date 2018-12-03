@@ -5,11 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_derive::Serialize;
 use serde_json;
 
-use crate::processor::{
-    join_chunks, split_chunks, Chunk, FromValue, MaxChars, ProcessValue, ProcessingState,
-    Processor, SizeEstimatingSerializer, ToValue,
-};
-use crate::types::{Meta, Object, RemarkType, Value};
+use crate::types::{FromValue, Meta, Object, ToValue, Value};
 
 /// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
@@ -70,126 +66,110 @@ impl MetaTree {
 /// Meta for children.
 pub type MetaMap = BTreeMap<String, MetaTree>;
 
+/// Used to indicate how to handle an annotated value in a callback.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ValueAction {
+    /// Keeps the value as is.
+    Keep,
+
+    /// Discards the value.
+    Discard,
+}
+
+impl ValueAction {
+    /// Returns the result of `f` if the current action is `ValueAction::Keep`.
+    #[inline]
+    pub fn and_then<F>(self, mut f: F) -> Self
+    where
+        F: FnMut() -> Self,
+    {
+        match self {
+            ValueAction::Keep => f(),
+            ValueAction::Discard => self,
+        }
+    }
+}
+
+impl Default for ValueAction {
+    #[inline]
+    fn default() -> Self {
+        ValueAction::Keep
+    }
+}
+
+impl From<()> for ValueAction {
+    fn from(_: ()) -> Self {
+        ValueAction::Keep
+    }
+}
+
+impl From<bool> for ValueAction {
+    fn from(b: bool) -> Self {
+        if b {
+            ValueAction::Keep
+        } else {
+            ValueAction::Discard
+        }
+    }
+}
+
 /// Wrapper for data fields with optional meta data.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
-pub trait IntoAnnotated<T> {
-    fn into_annotated(self) -> Annotated<T>;
-}
-
-impl<T> IntoAnnotated<T> for Annotated<T> {
-    fn into_annotated(self) -> Annotated<T> {
-        self
-    }
-}
-
-impl<T> IntoAnnotated<T> for T {
-    fn into_annotated(self) -> Annotated<T> {
-        Annotated::new(self)
-    }
-}
-
-impl<T> IntoAnnotated<T> for Option<T> {
-    fn into_annotated(self) -> Annotated<T> {
-        Annotated(self, Meta::default())
-    }
-}
-
 impl<T> Annotated<T> {
     /// Creates a new annotated value without meta data.
-    pub fn new(value: T) -> Annotated<T> {
+    #[inline]
+    pub fn new(value: T) -> Self {
         Annotated(Some(value), Meta::default())
     }
 
     /// Creates an empty annotated value without meta data.
-    pub fn empty() -> Annotated<T> {
+    #[inline]
+    pub fn empty() -> Self {
         Annotated(None, Meta::default())
     }
 
     /// From an error
-    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Annotated<T> {
+    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Self {
         Annotated(None, Meta::from_error(err, value))
     }
 
-    /// Attaches a value required error if the value is missing.
-    pub fn require_value(&mut self) {
-        if self.0.is_none() && !self.1.has_errors() {
-            self.1.add_error("value required", None);
-        }
-    }
-
+    #[inline]
     pub fn value(&self) -> Option<&T> {
         self.0.as_ref()
     }
 
+    #[inline]
     pub fn value_mut(&mut self) -> &mut Option<T> {
         &mut self.0
     }
 
+    #[inline]
     pub fn set_value(&mut self, value: Option<T>) {
         self.0 = value;
     }
 
+    #[inline]
     pub fn meta(&self) -> &Meta {
         &self.1
     }
 
+    #[inline]
     pub fn meta_mut(&mut self) -> &mut Meta {
         &mut self.1
-    }
-
-    pub fn is_valid(&self) -> bool {
-        !self.1.has_errors()
-    }
-
-    pub fn is_present(&self) -> bool {
-        self.0.is_some()
-    }
-
-    pub fn modify<F>(&mut self, f: F)
-    where
-        F: FnOnce(Self) -> Self,
-    {
-        *self = f(std::mem::replace(self, Annotated::empty()));
     }
 
     pub fn and_then<F, U, R>(self, f: F) -> Annotated<U>
     where
         F: FnOnce(T) -> R,
-        R: IntoAnnotated<U>,
+        R: Into<Annotated<U>>,
     {
         if let Some(value) = self.0 {
-            let Annotated(value, meta) = f(value).into_annotated();
+            let Annotated(value, meta) = f(value).into();
             Annotated(value, self.1.merge(meta))
         } else {
             Annotated(None, self.1)
-        }
-    }
-
-    pub fn or_else<F, R>(self, f: F) -> Self
-    where
-        F: FnOnce() -> R,
-        R: IntoAnnotated<T>,
-    {
-        if self.0.is_none() {
-            let Annotated(value, meta) = f().into_annotated();
-            Annotated(value, self.1.merge(meta))
-        } else {
-            self
-        }
-    }
-
-    pub fn filter_map<P, F, R>(self, predicate: P, f: F) -> Self
-    where
-        P: FnOnce(&Annotated<T>) -> bool,
-        F: FnOnce(T) -> R,
-        R: IntoAnnotated<T>,
-    {
-        if predicate(&self) {
-            self.and_then(f)
-        } else {
-            self
         }
     }
 
@@ -201,15 +181,6 @@ impl<T> Annotated<T> {
         Annotated(self.0.map(f), self.1)
     }
 
-    /// Replaces the value option of an `Annotated<T>` with the result of `f` if the value is not
-    /// `None` and returns a new `Annotated<U>`.
-    pub fn and_then_value<U, F>(self, f: F) -> Annotated<U>
-    where
-        F: FnOnce(T) -> Option<U>,
-    {
-        Annotated(self.0.and_then(f), self.1)
-    }
-
     /// Inserts a value computed from `f` into the value if it is `None`, then returns a mutable
     /// reference to the contained value.
     pub fn get_or_insert_with<F>(&mut self, f: F) -> &mut T
@@ -218,31 +189,47 @@ impl<T> Annotated<T> {
     {
         self.0.get_or_insert_with(f)
     }
-}
 
-impl<T: ProcessValue> Annotated<T> {
-    /// Estimates the size in bytes this would be in JSON.
-    pub fn process<P: Processor>(self, processor: &mut P) -> Annotated<T> {
-        ProcessValue::process_value(self, processor, ProcessingState::root())
+    /// Modifies this value based on the action returned by `f`.
+    #[inline]
+    pub fn apply<F, R>(&mut self, f: F)
+    where
+        F: FnOnce(&mut T, &mut Meta) -> R,
+        R: Into<ValueAction>,
+    {
+        let result = match (self.0.as_mut(), &mut self.1) {
+            (Some(value), meta) => f(value, meta).into(),
+            (None, _) => Default::default(),
+        };
+
+        if result == ValueAction::Discard {
+            self.0 = None;
+        }
     }
 }
 
-impl<T: ToValue> Annotated<T> {
-    /// Estimates the size in bytes this would be in JSON.
-    pub fn estimate_size(&self) -> usize {
-        let mut ser = SizeEstimatingSerializer::new();
-        if let Some(ref value) = self.0 {
-            ToValue::serialize_payload(value, &mut ser).unwrap();
-        }
-        ser.size()
+impl<T> Annotated<T>
+where
+    T: AsRef<str>,
+{
+    /// Returns a reference to the string value if set.
+    #[inline]
+    pub fn as_str(&self) -> Option<&str> {
+        self.value().map(AsRef::as_ref)
+    }
+}
+
+impl Annotated<Value> {
+    /// Returns a reference to the string value if this value is a string and it is set.
+    #[inline]
+    pub fn as_str(&self) -> Option<&str> {
+        self.value().and_then(Value::as_str)
     }
 }
 
 impl<'de, T: FromValue> Annotated<T> {
     /// Deserializes an annotated from a deserializer
-    pub fn deserialize_with_meta<D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Annotated<T>, D::Error> {
+    pub fn deserialize_with_meta<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = match serde_json::Value::deserialize(deserializer)? {
             serde_json::Value::Object(mut map) => {
                 let meta_tree = map
@@ -261,12 +248,12 @@ impl<'de, T: FromValue> Annotated<T> {
     }
 
     /// Deserializes an annotated from a JSON string.
-    pub fn from_json(s: &'de str) -> Result<Annotated<T>, serde_json::Error> {
+    pub fn from_json(s: &'de str) -> Result<Self, serde_json::Error> {
         Self::deserialize_with_meta(&mut serde_json::Deserializer::from_str(s))
     }
 
     /// Deserializes an annotated from JSON bytes.
-    pub fn from_json_bytes(b: &'de [u8]) -> Result<Annotated<T>, serde_json::Error> {
+    pub fn from_json_bytes(b: &'de [u8]) -> Result<Self, serde_json::Error> {
         Self::deserialize_with_meta(&mut serde_json::Deserializer::from_slice(b))
     }
 }
@@ -376,82 +363,15 @@ impl Annotated<Value> {
     }
 }
 
-impl Annotated<String> {
-    pub fn map_value_chunked<F>(self, f: F) -> Annotated<String>
-    where
-        F: FnOnce(Vec<Chunk>) -> Vec<Chunk>,
-    {
-        let Annotated(old_value, mut meta) = self;
-        let new_value = old_value.map(|value| {
-            let old_chunks = split_chunks(&value, meta.iter_remarks());
-            let new_chunks = f(old_chunks);
-            let (new_value, remarks) = join_chunks(new_chunks);
-            *meta.remarks_mut() = remarks.into_iter().collect();
-            if new_value != value {
-                meta.set_original_length(Some(value.chars().count() as u32));
-            }
-            new_value
-        });
-        Annotated(new_value, meta)
+impl<T> From<T> for Annotated<T> {
+    fn from(t: T) -> Self {
+        Annotated::new(t)
     }
+}
 
-    pub fn trim_string(self, max_chars: MaxChars) -> Annotated<String> {
-        let limit = max_chars.limit();
-        let allowance_limit = limit + max_chars.allowance();
-
-        if self.0.is_none() || self.0.as_ref().unwrap().chars().count() <= allowance_limit {
-            return self;
-        }
-
-        // otherwise we trim down to max chars
-        self.map_value_chunked(|chunks| {
-            let mut length = 0;
-            let mut rv = vec![];
-
-            for chunk in chunks {
-                let chunk_chars = chunk.chars();
-
-                // if the entire chunk fits, just put it in
-                if length + chunk_chars < limit {
-                    rv.push(chunk);
-                    length += chunk_chars;
-                    continue;
-                }
-
-                match chunk {
-                    // if there is enough space for this chunk and the 3 character
-                    // ellipsis marker we can push the remaining chunk
-                    Chunk::Redaction { .. } => {
-                        if length + chunk_chars + 3 < allowance_limit {
-                            rv.push(chunk);
-                        }
-                    }
-
-                    // if this is a text chunk, we can put the remaining characters in.
-                    Chunk::Text { text } => {
-                        let mut remaining = String::new();
-                        for c in text.chars() {
-                            if length + 3 < limit {
-                                remaining.push(c);
-                            } else {
-                                break;
-                            }
-                            length += 1;
-                        }
-                        rv.push(Chunk::Text { text: remaining });
-                    }
-                }
-
-                rv.push(Chunk::Redaction {
-                    text: "...".to_string(),
-                    rule_id: "!limit".to_string(),
-                    ty: RemarkType::Substituted,
-                });
-                break;
-            }
-
-            rv
-        })
+impl<T> From<Option<T>> for Annotated<T> {
+    fn from(option: Option<T>) -> Self {
+        Annotated(option, Meta::default())
     }
 }
 
@@ -473,43 +393,6 @@ impl<T: Serialize> Serialize for Annotated<T> {
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Annotated<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Ok(Annotated::new(Deserialize::deserialize(deserializer)?))
-    }
-}
-
-/// Utility trait to find out if an object is empty.
-pub trait IsEmpty {
-    /// A generic check if the object is considered empty.
-    fn generic_is_empty(&self) -> bool;
-}
-
-impl<T> IsEmpty for Vec<T> {
-    fn generic_is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
-impl IsEmpty for String {
-    fn generic_is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
-impl<T: IsEmpty> Annotated<T> {
-    /// Attaches a value required error if the value is null or an empty string
-    pub fn require_nonempty_value(&mut self) {
-        if self.1.has_errors() {
-            return;
-        }
-
-        if self
-            .0
-            .as_ref()
-            .map(|x| x.generic_is_empty())
-            .unwrap_or(true)
-        {
-            self.0 = None;
-            self.1.add_error("non-empty value required", None);
-        }
     }
 }
 
@@ -573,11 +456,4 @@ fn test_annotated_deserialize_with_meta() {
 
     let json = annotated_value.to_json().unwrap();
     assert_eq_str!(json, r#"{"id":null,"type":"testing","_meta":{"id":{"":{"err":["invalid id","expected an unsigned integer"],"val":"blaflasel"}},"type":{"":{"err":["invalid type"]}}}}"#);
-}
-
-#[test]
-fn test_estimate_size() {
-    let json = r#"{"a":["Hello","World","aha","hmm",false,{"blub":42,"x":true},null]}"#;
-    let value = Annotated::<Object<Value>>::from_json(json).unwrap();
-    assert_eq!(value.estimate_size(), json.len());
 }

@@ -1,6 +1,6 @@
-use crate::processor::{FromValue, ProcessValue, ToValue};
+use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
-use crate::types::{Annotated, Value};
+use crate::types::{Annotated, FromValue, ToValue, Value};
 
 /// A fingerprint value.
 #[derive(Debug, Clone, PartialEq)]
@@ -11,6 +11,12 @@ impl std::ops::Deref for Fingerprint {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl std::ops::DerefMut for Fingerprint {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

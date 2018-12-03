@@ -1,8 +1,7 @@
 use cookie::Cookie;
 use url::form_urlencoded;
 
-use crate::processor::FromValue;
-use crate::types::{Annotated, Array, Map, Object, Value};
+use crate::types::{Annotated, Array, FromValue, Map, Object, Value};
 
 /// A map holding cookies.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
@@ -13,6 +12,12 @@ impl std::ops::Deref for Cookies {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl std::ops::DerefMut for Cookies {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -60,6 +65,20 @@ impl FromValue for Cookies {
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
 pub struct Headers(pub Array<(Annotated<String>, Annotated<String>)>);
 
+impl Headers {
+    pub fn get_header(&self, key: &str) -> Option<&str> {
+        for item in self.iter() {
+            if let Some((ref k, ref v)) = item.value() {
+                if k.as_str() == Some(key) {
+                    return v.as_str();
+                }
+            }
+        }
+
+        None
+    }
+}
+
 impl std::ops::Deref for Headers {
     type Target = Array<(Annotated<String>, Annotated<String>)>;
 
@@ -68,51 +87,44 @@ impl std::ops::Deref for Headers {
     }
 }
 
-impl Headers {
-    pub fn get_header(&self, key: &str) -> Option<&Annotated<String>> {
-        for item in self.0.iter() {
-            if let Annotated(Some((ref k, ref v)), _) = item {
-                if k.0.as_ref().map(|x| x.as_str()) == Some(key) && v.0.is_some() {
-                    return Some(v);
-                }
-            }
-        }
-        None
+impl std::ops::DerefMut for Headers {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
+}
+
+fn normalize_header(key: &str) -> String {
+    key.split('-')
+        .enumerate()
+        .fold(String::new(), |mut all, (i, part)| {
+            // join
+            if i > 0 {
+                all.push_str("-");
+            }
+
+            // capitalize the first characters
+            let mut chars = part.chars();
+            if let Some(c) = chars.next() {
+                all.extend(c.to_uppercase());
+            }
+
+            // copy all others
+            all.extend(chars);
+            all
+        })
 }
 
 impl FromValue for Headers {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         type HeaderTuple = (Annotated<String>, Annotated<String>);
-        fn normalize_header(key: &str) -> String {
-            key.split('-')
-                .enumerate()
-                .fold(String::new(), |mut all, (i, part)| {
-                    // join
-                    if i > 0 {
-                        all.push_str("-");
-                    }
-
-                    // capitalize the first characters
-                    let mut chars = part.chars();
-                    if let Some(c) = chars.next() {
-                        all.extend(c.to_uppercase());
-                    }
-
-                    // copy all others
-                    all.extend(chars);
-                    all
-                })
-        }
 
         match value {
             Annotated(Some(Value::Array(items)), meta) => {
                 let mut rv = Vec::new();
                 for item in items.into_iter() {
                     rv.push(
-                        HeaderTuple::from_value(item).map_value(|tuple| {
-                            (tuple.0.and_then(|k| normalize_header(&k)), tuple.1)
-                        }),
+                        HeaderTuple::from_value(item)
+                            .map_value(|(k, v)| (k.and_then(|k| normalize_header(&k)), v)),
                     );
                 }
                 Annotated(Some(Headers(rv)), meta)
@@ -146,6 +158,12 @@ impl std::ops::Deref for Query {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl std::ops::DerefMut for Query {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

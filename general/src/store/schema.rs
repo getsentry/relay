@@ -1,186 +1,188 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::types::{Annotated, Array, Map, Object, Value};
+use crate::types::{Array, Map, Meta, Object, ValueAction};
 
 pub struct SchemaProcessor;
 
 impl Processor for SchemaProcessor {
     fn process_string(
         &mut self,
-        mut value: Annotated<String>,
+        value: &mut String,
+        meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<String> {
-        value = check_nonempty_value(value, &state);
-        value = check_match_regex_value(value, &state);
-        value
+    ) -> ValueAction {
+        verify_value_nonempty(value, meta, &state)
+            .and_then(|| verify_value_pattern(value, meta, &state))
     }
 
-    fn process_object<T: ProcessValue>(
+    fn process_array<T>(
         &mut self,
-        value: Annotated<Object<T>>,
+        value: &mut Array<T>,
+        meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<Object<T>> {
-        ProcessValue::process_child_values(check_nonempty_value(value, &state), self, state)
+    ) -> ValueAction
+    where
+        T: ProcessValue,
+    {
+        value.process_child_values(self, state.clone());
+        verify_value_nonempty(value, meta, &state)
     }
 
-    fn process_array<T: ProcessValue>(
+    fn process_object<T>(
         &mut self,
-        value: Annotated<Array<T>>,
+        value: &mut Object<T>,
+        meta: &mut Meta,
         state: ProcessingState,
-    ) -> Annotated<Array<T>> {
-        ProcessValue::process_child_values(check_nonempty_value(value, &state), self, state)
+    ) -> ValueAction
+    where
+        T: ProcessValue,
+    {
+        value.process_child_values(self, state.clone());
+        verify_value_nonempty(value, meta, &state)
     }
 }
 
 /// Utility trait to find out if an object is empty.
 trait IsEmpty {
     /// A generic check if the object is considered empty.
-    fn generic_is_empty(&self) -> bool;
+    fn is_empty(&self) -> bool;
 }
 
 impl<T> IsEmpty for Vec<T> {
-    fn generic_is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.is_empty()
     }
 }
 
 impl<K, V> IsEmpty for Map<K, V> {
-    fn generic_is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.is_empty()
     }
 }
 
 impl IsEmpty for String {
-    fn generic_is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.is_empty()
     }
 }
 
-fn check_nonempty_value<T>(mut annotated: Annotated<T>, state: &ProcessingState) -> Annotated<T>
+fn verify_value_nonempty<T>(value: &mut T, meta: &mut Meta, state: &ProcessingState) -> ValueAction
 where
     T: IsEmpty,
 {
-    if state.attrs().nonempty && !annotated.1.has_errors() && annotated
-        .0
-        .as_ref()
-        .map(|x| x.generic_is_empty())
-        .unwrap_or(true)
-    {
-        annotated.0 = None;
-        annotated.1.add_error("non-empty value required", None);
+    if state.attrs().nonempty && value.is_empty() {
+        meta.add_error("non-empty value required", None);
+        ValueAction::Discard
+    } else {
+        ValueAction::Keep
     }
-
-    annotated
 }
 
-fn check_match_regex_value(
-    mut annotated: Annotated<String>,
+fn verify_value_pattern(
+    value: &mut String,
+    meta: &mut Meta,
     state: &ProcessingState,
-) -> Annotated<String> {
+) -> ValueAction {
     if let Some(ref regex) = state.attrs().match_regex {
-        if !annotated.1.has_errors() && annotated
-            .0
-            .as_ref()
-            .map(|x| !regex.is_match(&x))
-            .unwrap_or(false)
-        {
-            annotated.1.add_error(
-                "Invalid characters in string",
-                annotated.0.take().map(Value::String),
-            );
+        if !regex.is_match(value) {
+            let original_value = std::mem::replace(value, String::new());
+            meta.add_error("invalid characters in string", Some(original_value.into()));
+            return ValueAction::Discard;
         }
     }
 
-    annotated
+    ValueAction::Keep
 }
 
 #[cfg(test)]
-fn test_nonempty_base<T>()
-where
-    T: Default
-        + PartialEq
-        + crate::processor::FromValue
-        + crate::processor::ToValue
-        + crate::processor::ProcessValue,
-{
-    #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
-    struct Foo<T> {
-        #[metastructure(required = "true", nonempty = "true")]
-        bar: Annotated<T>,
-        bar2: Annotated<T>,
+mod tests {
+    use super::SchemaProcessor;
+    use crate::processor::process_value;
+    use crate::types::{Annotated, Array, Object, Value};
+
+    fn assert_nonempty_base<T>()
+    where
+        T: Default + PartialEq + crate::processor::ProcessValue,
+    {
+        #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+        struct Foo<T> {
+            #[metastructure(required = "true", nonempty = "true")]
+            bar: Annotated<T>,
+            bar2: Annotated<T>,
+        }
+
+        let mut wrapper = Annotated::new(Foo {
+            bar: Annotated::new(T::default()),
+            bar2: Annotated::new(T::default()),
+        });
+        process_value(&mut wrapper, &mut SchemaProcessor, Default::default());
+
+        assert_eq_dbg!(
+            wrapper,
+            Annotated::new(Foo {
+                bar: Annotated::from_error("non-empty value required", None),
+                bar2: Annotated::new(T::default())
+            })
+        );
     }
 
-    let wrapper = Annotated::new(Foo {
-        bar: Annotated::new(T::default()),
-        bar2: Annotated::new(T::default()),
-    });
-    let wrapper = wrapper.process(&mut SchemaProcessor);
+    #[test]
+    fn test_nonempty_string() {
+        assert_nonempty_base::<String>();
+    }
 
-    assert_eq!(
-        wrapper,
-        Annotated::new(Foo {
-            bar: Annotated::from_error("non-empty value required", None),
-            bar2: Annotated::new(T::default())
-        })
-    );
-}
+    #[test]
+    fn test_nonempty_array() {
+        assert_nonempty_base::<Array<u64>>();
+    }
 
-#[test]
-fn test_nonempty_string() {
-    test_nonempty_base::<String>();
-}
+    #[test]
+    fn test_nonempty_object() {
+        assert_nonempty_base::<Object<u64>>();
+    }
 
-#[test]
-fn test_nonempty_array() {
-    test_nonempty_base::<Array<u64>>();
-}
+    #[test]
+    fn test_release_newlines() {
+        use crate::protocol::Event;
 
-#[test]
-fn test_nonempty_object() {
-    test_nonempty_base::<Object<u64>>();
-}
-
-#[test]
-fn test_release_newlines() {
-    use crate::protocol::Event;
-
-    let event = Annotated::new(Event {
-        release: Annotated::new("a\nb".to_string()),
-        ..Default::default()
-    });
-
-    let event = event.process(&mut SchemaProcessor);
-
-    assert_eq_dbg!(
-        event,
-        Annotated::new(Event {
-            release: Annotated::from_error(
-                "Invalid characters in string",
-                Some(Value::String("a\nb".into())),
-            ),
+        let mut event = Annotated::new(Event {
+            release: Annotated::new("a\nb".to_string()),
             ..Default::default()
-        })
-    );
-}
+        });
 
-#[test]
-fn test_invalid_email() {
-    use crate::protocol::User;
+        process_value(&mut event, &mut SchemaProcessor, Default::default());
 
-    let user = Annotated::new(User {
-        email: Annotated::new("bananabread".to_owned()),
-        ..Default::default()
-    });
+        assert_eq_dbg!(
+            event,
+            Annotated::new(Event {
+                release: Annotated::from_error(
+                    "invalid characters in string",
+                    Some(Value::String("a\nb".into())),
+                ),
+                ..Default::default()
+            })
+        );
+    }
 
-    let user = user.process(&mut SchemaProcessor);
+    #[test]
+    fn test_invalid_email() {
+        use crate::protocol::User;
 
-    assert_eq_dbg!(
-        user,
-        Annotated::new(User {
-            email: Annotated::from_error(
-                "Invalid characters in string",
-                Some(Value::String("bananabread".to_string()))
-            ),
+        let mut user = Annotated::new(User {
+            email: Annotated::new("bananabread".to_owned()),
             ..Default::default()
-        })
-    );
+        });
+
+        process_value(&mut user, &mut SchemaProcessor, Default::default());
+
+        assert_eq_dbg!(
+            user,
+            Annotated::new(User {
+                email: Annotated::from_error(
+                    "invalid characters in string",
+                    Some(Value::String("bananabread".to_string()))
+                ),
+                ..Default::default()
+            })
+        );
+    }
 }
