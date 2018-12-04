@@ -100,16 +100,11 @@ impl FromValue for EventType {
 }
 
 impl ToValue for EventType {
-    fn to_value(value: Annotated<Self>) -> Annotated<Value>
+    fn to_value(self) -> Value
     where
         Self: Sized,
     {
-        match value {
-            Annotated(Some(value), meta) => {
-                Annotated(Some(Value::String(format!("{}", value))), meta)
-            }
-            Annotated(None, meta) => Annotated(None, meta),
-        }
+        Value::String(format!("{}", self))
     }
 
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>

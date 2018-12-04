@@ -48,16 +48,12 @@ impl<T: FromValue> FromValue for Array<T> {
 }
 
 impl<T: ToValue> ToValue for Array<T> {
-    fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-        match value {
-            Annotated(Some(value), meta) => Annotated(
-                Some(Value::Array(
-                    value.into_iter().map(ToValue::to_value).collect(),
-                )),
-                meta,
-            ),
-            Annotated(None, meta) => Annotated(None, meta),
-        }
+    fn to_value(self) -> Value {
+        Value::Array(
+            self.into_iter()
+                .map(|x| Annotated::map_value(x, ToValue::to_value))
+                .collect(),
+        )
     }
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
@@ -117,19 +113,12 @@ impl<T: FromValue> FromValue for Object<T> {
 }
 
 impl<T: ToValue> ToValue for Object<T> {
-    fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-        match value {
-            Annotated(Some(value), meta) => Annotated(
-                Some(Value::Object(
-                    value
-                        .into_iter()
-                        .map(|(k, v)| (k, ToValue::to_value(v)))
-                        .collect(),
-                )),
-                meta,
-            ),
-            Annotated(None, meta) => Annotated(None, meta),
-        }
+    fn to_value(self) -> Value {
+        Value::Object(
+            self.into_iter()
+                .map(|(k, v)| (k, Annotated::map_value(v, ToValue::to_value)))
+                .collect(),
+        )
     }
 
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
@@ -178,8 +167,8 @@ impl FromValue for Value {
 }
 
 impl ToValue for Value {
-    fn to_value(value: Annotated<Value>) -> Annotated<Value> {
-        value
+    fn to_value(self) -> Value {
+        self
     }
 
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
@@ -261,13 +250,8 @@ impl FromValue for DateTime<Utc> {
 }
 
 impl ToValue for DateTime<Utc> {
-    fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-        match value {
-            Annotated(Some(value), meta) => {
-                Annotated(Some(Value::F64(datetime_to_timestamp(value))), meta)
-            }
-            Annotated(None, meta) => Annotated(None, meta),
-        }
+    fn to_value(self) -> Value {
+        Value::F64(datetime_to_timestamp(self))
     }
 
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
@@ -290,11 +274,11 @@ impl<T: FromValue> FromValue for Box<T> {
 }
 
 impl<T: ToValue> ToValue for Box<T> {
-    fn to_value(value: Annotated<Self>) -> Annotated<Value>
+    fn to_value(self) -> Value
     where
         Self: Sized,
     {
-        ToValue::to_value(Annotated(value.0.map(|x| *x), value.1))
+        ToValue::to_value(*self)
     }
 
     fn extract_child_meta(&self) -> MetaMap
@@ -346,15 +330,9 @@ macro_rules! tuple_meta_structure {
 
         impl< $( $name: ToValue ),* > ToValue for ( $( Annotated<$name>, )* ) {
             #[allow(non_snake_case, unused_variables)]
-            fn to_value(annotated: Annotated<Self>) -> Annotated<Value> {
-                match annotated {
-                    Annotated(Some(($($name,)*)), meta) => {
-                        Annotated(Some(Value::Array(vec![
-                            $(ToValue::to_value($name),)*
-                        ])), meta)
-                    }
-                    Annotated(None, meta) => Annotated(None, meta)
-                }
+            fn to_value(self) -> Value {
+                let ($($name,)*) = self;
+                Value::Array(vec![$(Annotated::map_value($name, ToValue::to_value),)*])
             }
 
             #[allow(non_snake_case, unused_variables)]

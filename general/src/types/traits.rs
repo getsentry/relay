@@ -13,7 +13,7 @@ pub trait FromValue: Debug {
 /// Implemented for all meta structures.
 pub trait ToValue: Debug {
     /// Boxes the meta structure back into a value.
-    fn to_value(value: Annotated<Self>) -> Annotated<Value>
+    fn to_value(self) -> Value
     where
         Self: Sized;
 

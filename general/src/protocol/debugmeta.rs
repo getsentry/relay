@@ -85,8 +85,8 @@ impl FromValue for DebugId {
 }
 
 impl ToValue for DebugId {
-    fn to_value(annotated: Annotated<Self>) -> Annotated<Value> {
-        annotated.map_value(|id| Value::String(id.to_string()))
+    fn to_value(self) -> Value {
+        Value::String(self.to_string())
     }
 
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>

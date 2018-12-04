@@ -1,11 +1,8 @@
 macro_rules! primitive_to_value {
     ($type:ident, $meta_type:ident) => {
         impl crate::types::ToValue for $type {
-            fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-                match value {
-                    Annotated(Some(value), meta) => Annotated(Some(Value::$meta_type(value)), meta),
-                    Annotated(None, meta) => Annotated(None, meta),
-                }
+            fn to_value(self) -> Value {
+                Value::$meta_type(self)
             }
 
             fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
@@ -70,13 +67,8 @@ macro_rules! primitive_meta_structure_through_string {
         }
 
         impl crate::types::ToValue for $type {
-            fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-                match value {
-                    Annotated(Some(value), meta) => {
-                        Annotated(Some(Value::String(value.to_string())), meta)
-                    }
-                    Annotated(None, meta) => Annotated(None, meta),
-                }
+            fn to_value(self) -> Value {
+                Value::String(self.to_string())
             }
             fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
