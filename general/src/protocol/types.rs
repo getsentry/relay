@@ -115,7 +115,7 @@ macro_rules! hex_metrastructure {
                         Ok(value) => Annotated(Some(value), meta),
                         Err(err) => {
                             meta.add_error(err.to_string());
-                            meta.set_original_value(Some(Value::String(value.to_string())));
+                            meta.set_original_value(Some(value.to_string()));
                             Annotated(None, meta)
                         }
                     },
@@ -287,7 +287,7 @@ impl FromValue for Level {
                 Ok(value) => Annotated(Some(value), meta),
                 Err(err) => {
                     meta.add_error(err.to_string());
-                    meta.set_original_value(Some(Value::String(value.to_string())));
+                    meta.set_original_value(Some(value.to_string()));
                     Annotated(None, meta)
                 }
             },
@@ -295,7 +295,7 @@ impl FromValue for Level {
                 Some(value) => Annotated(Some(value), meta),
                 None => {
                     meta.add_error("unknown numeric level");
-                    meta.set_original_value(Some(Value::U64(val)));
+                    meta.set_original_value(Some(val));
                     Annotated(None, meta)
                 }
             },
@@ -304,7 +304,7 @@ impl FromValue for Level {
                     Some(value) => Annotated(Some(value), meta),
                     None => {
                         meta.add_error("unknown numeric level");
-                        meta.set_original_value(Some(Value::I64(val)));
+                        meta.set_original_value(Some(val));
                         Annotated(None, meta)
                     }
                 }
@@ -391,7 +391,7 @@ impl FromValue for LenientString {
                     Annotated(Some(num.trunc().to_string()), meta)
                 } else {
                     meta.add_error("non integer value");
-                    meta.set_original_value(Some(Value::F64(num)));
+                    meta.set_original_value(Some(num));
                     Annotated(None, meta)
                 }
             }

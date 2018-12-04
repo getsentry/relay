@@ -5,7 +5,7 @@ use serde::ser::{Serialize, SerializeSeq, Serializer};
 use serde_derive::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::types::Value;
+use crate::types::{ToValue, Value};
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
 pub type Range = (usize, usize);
@@ -285,8 +285,11 @@ impl Meta {
     }
 
     /// Sets the original value.
-    pub fn set_original_value(&mut self, original_value: Option<Value>) {
-        self.upsert().original_value = original_value;
+    pub fn set_original_value<T>(&mut self, original_value: Option<T>)
+    where
+        T: ToValue,
+    {
+        self.upsert().original_value = original_value.map(ToValue::to_value);
     }
 
     /// Take out the original value.

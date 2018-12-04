@@ -53,7 +53,7 @@ macro_rules! primitive_meta_structure_through_string {
                         Ok(value) => Annotated(Some(value), meta),
                         Err(err) => {
                             meta.add_error(err.to_string());
-                            meta.set_original_value(Some(Value::String(value.to_string())));
+                            meta.set_original_value(Some(value.to_string()));
                             Annotated(None, meta)
                         }
                     },

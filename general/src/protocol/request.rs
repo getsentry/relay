@@ -39,7 +39,7 @@ impl FromValue for Cookies {
                         }
                         Err(err) => {
                             meta.add_error(err.to_string());
-                            meta.set_original_value(Some(Value::String(cookie.to_string())));
+                            meta.set_original_value(Some(cookie.to_string()));
                         }
                     }
                 }

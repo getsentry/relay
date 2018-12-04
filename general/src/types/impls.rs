@@ -226,7 +226,7 @@ impl FromValue for DateTime<Utc> {
                     Ok(value) => Annotated(Some(value), meta),
                     Err(err) => {
                         meta.add_error(err.to_string());
-                        meta.set_original_value(Some(Value::String(value.to_string())));
+                        meta.set_original_value(Some(value.to_string()));
                         Annotated(None, meta)
                     }
                 }
@@ -312,7 +312,7 @@ macro_rules! tuple_meta_structure {
                     Annotated(Some(Value::Array(items)), mut meta) => {
                         if items.len() != n {
                             meta.add_error("expected tuple");
-                            meta.set_original_value(Some(Value::Array(items)));
+                            meta.set_original_value(Some(items));
                             return Annotated(None, meta);
                         }
 

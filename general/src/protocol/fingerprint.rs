@@ -48,7 +48,7 @@ impl FromValue for Fingerprint {
 
                 if !bad_values.is_empty() {
                     meta.add_error("bad values in fingerprint");
-                    meta.set_original_value(Some(Value::Array(bad_values)));
+                    meta.set_original_value(Some(bad_values));
                 }
                 Annotated(
                     if fingerprint.is_empty() && meta.has_errors() {
