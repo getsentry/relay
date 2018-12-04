@@ -95,11 +95,8 @@ fn process_wrapper_struct_derive(
 
             #[automatically_derived]
             gen impl crate::types::ToValue for @Self {
-                fn to_value(
-                    mut __value: crate::types::Annotated<Self>
-                ) -> crate::types::Annotated<crate::types::Value> {
-                    let __value = __value.map_value(|x| x.0);
-                    crate::types::ToValue::to_value(__value)
+                fn to_value(self) -> crate::types::Value {
+                    crate::types::ToValue::to_value(self.0)
                 }
 
                 fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>
@@ -205,9 +202,9 @@ fn process_enum_struct_derive(
                 }
             }).to_tokens(&mut from_value_body);
             (quote! {
-                crate::types::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
-                    let mut __rv = crate::types::ToValue::to_value(crate::types::Annotated(Some(__value), __meta));
-                    if let crate::types::Annotated(Some(crate::types::Value::Object(ref mut __object)), _) = __rv {
+                #type_name::#variant_name(__value) => {
+                    let mut __rv = crate::types::ToValue::to_value(__value);
+                    if let crate::types::Value::Object(ref mut __object) = __rv {
                         __object.insert(#tag_key_str.to_string(), Annotated::new(crate::types::Value::String(#tag.to_string())));
                     }
                     __rv
@@ -232,8 +229,8 @@ fn process_enum_struct_derive(
                 }
             }).to_tokens(&mut from_value_body);
             (quote! {
-                crate::types::Annotated(Some(#type_name::#variant_name(__value)), __meta) => {
-                    crate::types::ToValue::to_value(crate::types::Annotated(Some(__value), __meta))
+                #type_name::#variant_name(__value) => {
+                    crate::types::ToValue::to_value(__value)
                 }
             }).to_tokens(&mut to_value_body);
             (quote! {
@@ -298,12 +295,9 @@ fn process_enum_struct_derive(
 
                 #[automatically_derived]
                 gen impl crate::types::ToValue for @Self {
-                    fn to_value(
-                        __value: crate::types::Annotated<Self>
-                    ) -> crate::types::Annotated<crate::types::Value> {
-                        match __value {
+                    fn to_value(self) -> crate::types::Value {
+                        match self {
                             #to_value_body
-                            crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta),
                         }
                     }
 
@@ -459,7 +453,10 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 let #bi = __obj.into_iter().map(|(__key, __value)| (__key, crate::types::FromValue::from_value(__value))).collect();
             }).to_tokens(&mut from_value_body);
             (quote! {
-                __map.extend(#bi.into_iter().map(|(__key, __value)| (__key, crate::types::ToValue::to_value(__value))));
+                __map.extend(#bi.into_iter().map(|(__key, __value)| (
+                    __key,
+                    Annotated::map_value(__value, crate::types::ToValue::to_value)
+                )));
             }).to_tokens(&mut to_value_body);
             (quote! {
                 let #bi = {
@@ -544,7 +541,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
 
             if is_tuple_struct {
                 (quote! {
-                    __arr.push(crate::types::ToValue::to_value(#bi));
+                    __arr.push(Annotated::map_value(#bi, crate::types::ToValue::to_value));
                 }).to_tokens(&mut to_value_body);
                 (quote! {
                     if !#bi.skip_serialization() {
@@ -553,7 +550,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 }).to_tokens(&mut serialize_body);
             } else {
                 (quote! {
-                    __map.insert(#field_name.to_string(), crate::types::ToValue::to_value(#bi));
+                    __map.insert(#field_name.to_string(), Annotated::map_value(#bi, crate::types::ToValue::to_value));
                 }).to_tokens(&mut to_value_body);
                 (quote! {
                     if !#bi.skip_serialization() {
@@ -675,16 +672,16 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             let to_value = if is_tuple_struct {
                 quote! {
                     let mut __arr = crate::types::Array::new();
-                    let #to_value_pat = __value;
+                    let #to_value_pat = self;
                     #to_value_body;
-                    crate::types::Annotated(Some(crate::types::Value::Array(__arr)), __meta)
+                    crate::types::Value::Array(__arr)
                 }
             } else {
                 quote! {
                     let mut __map = crate::types::Object::new();
-                    let #to_value_pat = __value;
+                    let #to_value_pat = self;
                     #to_value_body;
-                    crate::types::Annotated(Some(crate::types::Value::Object(__map)), __meta)
+                    crate::types::Value::Object(__map)
                 }
             };
 
@@ -707,15 +704,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
 
                 #[automatically_derived]
                 gen impl crate::types::ToValue for @Self {
-                    fn to_value(
-                        __value: crate::types::Annotated<Self>
-                    ) -> crate::types::Annotated<crate::types::Value> {
-                        let crate::types::Annotated(__value, __meta) = __value;
-                        if let Some(__value) = __value {
-                            #to_value
-                        } else {
-                            crate::types::Annotated(None, __meta)
-                        }
+                    fn to_value(self) -> crate::types::Value {
+                        #to_value
                     }
 
                     fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>

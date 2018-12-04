@@ -133,13 +133,8 @@ macro_rules! hex_metrastructure {
         }
 
         impl ToValue for $type {
-            fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-                match value {
-                    Annotated(Some(value), meta) => {
-                        Annotated(Some(Value::String(value.to_string())), meta)
-                    }
-                    Annotated(None, meta) => Annotated(None, meta),
-                }
+            fn to_value(self) -> Value {
+                Value::String(self.to_string())
             }
             fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
@@ -321,11 +316,8 @@ impl FromValue for Level {
 }
 
 impl ToValue for Level {
-    fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-        match value {
-            Annotated(Some(value), meta) => Annotated(Some(Value::String(value.to_string())), meta),
-            Annotated(None, meta) => Annotated(None, meta),
-        }
+    fn to_value(self) -> Value {
+        Value::String(self.to_string())
     }
 
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
@@ -490,13 +482,10 @@ impl FromValue for ThreadId {
 }
 
 impl ToValue for ThreadId {
-    fn to_value(value: Annotated<Self>) -> Annotated<Value> {
-        match value {
-            Annotated(Some(ThreadId::String(value)), meta) => {
-                Annotated(Some(Value::String(value)), meta)
-            }
-            Annotated(Some(ThreadId::Int(value)), meta) => Annotated(Some(Value::U64(value)), meta),
-            Annotated(None, meta) => Annotated(None, meta),
+    fn to_value(self) -> Value {
+        match self {
+            ThreadId::String(value) => Value::String(value),
+            ThreadId::Int(value) => Value::U64(value),
         }
     }
 

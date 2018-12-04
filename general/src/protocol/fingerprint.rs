@@ -68,20 +68,11 @@ impl FromValue for Fingerprint {
 }
 
 impl ToValue for Fingerprint {
-    fn to_value(value: Annotated<Self>) -> Annotated<Value>
+    fn to_value(self) -> Value
     where
         Self: Sized,
     {
-        match value {
-            Annotated(Some(value), mut meta) => match serde_json::to_value(value.0) {
-                Ok(value) => Annotated(Some(value.into()), meta),
-                Err(err) => {
-                    meta.add_error(err.to_string(), None);
-                    Annotated(None, meta)
-                }
-            },
-            Annotated(None, meta) => Annotated(None, meta),
-        }
+        Value::Array(self.0.into_iter().map(|x| Annotated::new(Value::String(x))).collect())
     }
 
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
