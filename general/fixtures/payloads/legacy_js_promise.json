@@ -1,0 +1,94 @@
+{
+  "breadcrumbs": {
+    "values": [
+      {
+        "category": "sentry",
+        "event_id": "2c6cd1fbe9eb40a698d8bfa9eca34828",
+        "level": "error",
+        "message": "Error: captureException",
+        "timestamp": 1532444284.908
+      },
+      {
+        "category": "sentry",
+        "event_id": "b2c595e016164e5baa63ed087e44978b",
+        "level": "error",
+        "message": "captureMessage",
+        "timestamp": 1532444284.911
+      },
+      {
+        "category": "sentry",
+        "event_id": "6795167296744bb1b608e007d78b8de3",
+        "level": "error",
+        "message": "Error: regular exception",
+        "timestamp": 1532444284.913
+      }
+    ]
+  },
+  "environment": "development",
+  "event_id": "73a215504d4b4d8c858e95026ca7fa2d",
+  "exception": {
+    "mechanism": {
+      "handled": false,
+      "type": "onunhandledrejection"
+    },
+    "values": [
+      {
+        "stacktrace": {
+          "frames": [
+            {
+              "colno": 3,
+              "filename": "http://localhost:5001/error.js",
+              "function": "?",
+              "in_app": true,
+              "lineno": 14
+            },
+            {
+              "colno": 3,
+              "filename": "http://localhost:5001/error.js",
+              "function": "?",
+              "in_app": true,
+              "lineno": 5
+            },
+            {
+              "colno": null,
+              "filename": "<anonymous>",
+              "function": "new Promise",
+              "in_app": true,
+              "lineno": null
+            },
+            {
+              "colno": 12,
+              "filename": "http://localhost:5001/error.js",
+              "function": "?",
+              "in_app": true,
+              "lineno": 6
+            }
+          ]
+        },
+        "type": "Error",
+        "value": "promise exception"
+      }
+    ]
+  },
+  "extra": {
+    "planet": {
+      "name": "Earth"
+    },
+    "session:duration": 157
+  },
+  "logger": "javascript",
+  "platform": "javascript",
+  "project": "297378",
+  "release": "randomRelease",
+  "request": {
+    "headers": {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.119 Safari/537.36"
+    },
+    "url": "http://localhost:5001/"
+  },
+  "tags": {
+    "git_commit": "c0deb10c4"
+  },
+  "transaction": "http://localhost:5001/error.js",
+  "trimHeadFrames": 0
+}

@@ -1,0 +1,234 @@
+{
+  "breadcrumbs": [
+    {
+      "category": "electron",
+      "message": "app.will-finish-launching",
+      "timestamp": 1532692006.665,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "app.ready",
+      "timestamp": 1532692006.715,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "app.session-created",
+      "timestamp": 1532692006.734,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "app.web-contents-created",
+      "timestamp": 1532692006.754,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "app.browser-window-created",
+      "timestamp": 1532692006.796,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "app.browser-window-focus",
+      "timestamp": 1532692006.918,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "WebContents[1].dom-ready",
+      "timestamp": 1532692007.165,
+      "type": "ui"
+    },
+    {
+      "category": "ui.click",
+      "message": "body > div.main > div.group > a.crash",
+      "timestamp": 1532692011.34
+    }
+  ],
+  "contexts": {
+    "app": {
+      "app_name": "Sentry Crash Test",
+      "app_version": "2.0.2"
+    },
+    "chrome": {
+      "name": "Chrome",
+      "type": "runtime",
+      "version": "61.0.3163.100"
+    },
+    "device": {
+      "arch": "x64"
+    },
+    "node": {
+      "name": "Node",
+      "type": "runtime",
+      "version": "8.9.3"
+    },
+    "os": {
+      "build": "17G65",
+      "kernel_version": "17.7.0",
+      "name": "Mac OS X",
+      "version": "10.13.6"
+    },
+    "runtime": {
+      "name": "Electron",
+      "version": "2.0.2"
+    }
+  },
+  "environment": "development",
+  "event_id": "ae3a2cc6e08741c5b09946c65c022469",
+  "exception": {
+    "values": [
+      {
+        "stacktrace": {
+          "frames": [
+            {
+              "colno": 20,
+              "context_line": "            return emit(event, ...args);",
+              "filename": "/Users/haza/Projects/sentry-electron/dist/main/backend.js",
+              "function": "WebContents.emitter.emit.args [as emit]",
+              "in_app": false,
+              "lineno": 278,
+              "module": "backend",
+              "post_context": [
+                "        };",
+                "    }",
+                "    /** Loads new native crashes from disk and sends them to Sentry. */",
+                "    sendNativeCrashes(extra) {",
+                "        return __awaiter(this, void 0, void 0, function* () {",
+                "            // Whenever we are called, assume that the crashes we are going to load down",
+                "            // below have occurred recently. This means, we can use the same event data"
+              ],
+              "pre_context": [
+                "                    category: 'electron',",
+                "                    message: `${category}.${event}`,",
+                "                    timestamp: new Date().getTime() / 1000,",
+                "                    type: 'ui',",
+                "                };",
+                "                minimal_1.addBreadcrumb(breadcrumb);",
+                "            }"
+              ]
+            },
+            {
+              "colno": 7,
+              "filename": "events.js",
+              "function": "WebContents.emit",
+              "in_app": false,
+              "lineno": 214,
+              "module": "events"
+            },
+            {
+              "colno": 13,
+              "filename": "events.js",
+              "function": "emitTwo",
+              "in_app": false,
+              "lineno": 126,
+              "module": "events"
+            },
+            {
+              "colno": 13,
+              "context_line": "    ipcMain.emit(channel, event, ...args)",
+              "filename": "app:///node_modules/electron/dist/Electron.app/Contents/Resources/electron.asar/browser/api/web-contents.js",
+              "function": "WebContents.<anonymous>",
+              "in_app": false,
+              "lineno": 286,
+              "module": "electron.dist.Electron.app.Contents.Resources.electron.asar.browser.api:web-contents",
+              "post_context": [
+                "  })",
+                "  this.on('ipc-message-sync', function (event, [channel, ...args]) {",
+                "    Object.defineProperty(event, 'returnValue', {",
+                "      set: function (value) {",
+                "        return event.sendReply(JSON.stringify(value))",
+                "      },",
+                "      get: function () {}"
+              ],
+              "pre_context": [
+                "",
+                "  // Every remote callback from renderer process would add a listenter to the",
+                "  // render-view-deleted event, so ignore the listenters warning.",
+                "  this.setMaxListeners(0)",
+                "",
+                "  // Dispatch IPC messages to the ipc module.",
+                "  this.on('ipc-message', function (event, [channel, ...args]) {"
+              ]
+            },
+            {
+              "colno": 7,
+              "filename": "events.js",
+              "function": "EventEmitter.emit",
+              "in_app": false,
+              "lineno": 211,
+              "module": "events"
+            },
+            {
+              "colno": 13,
+              "filename": "events.js",
+              "function": "emitOne",
+              "in_app": false,
+              "lineno": 116,
+              "module": "events"
+            },
+            {
+              "colno": 9,
+              "context_line": "  throw new Error('Error triggered in main processes');",
+              "filename": "app:///main.js",
+              "function": "EventEmitter.ipcMain.on",
+              "in_app": true,
+              "lineno": 38,
+              "module": "main",
+              "post_context": [
+                "});",
+                "",
+                "ipcMain.on('demo.crash', () => {",
+                "  console.log('process.crash()');",
+                "  process.crash();",
+                "});",
+                ""
+              ],
+              "pre_context": [
+                "",
+                "app.on('window-all-closed', () => app.quit());",
+                "",
+                "// The IPC handlers below trigger errors in the here (main process) when",
+                "// the user clicks on corresponding buttons in the UI (renderer).",
+                "ipcMain.on('demo.error', () => {",
+                "  console.log('Error triggered in main processes');"
+              ]
+            }
+          ]
+        },
+        "type": "Error",
+        "value": "Error triggered in main processes"
+      }
+    ]
+  },
+  "extra": {
+    "crashed_process": "browser"
+  },
+  "level": "fatal",
+  "message": "Error: Error triggered in main processes",
+  "release": "sentry-electron-test@2.0.2",
+  "sdk": {
+    "name": "sentry.javascript.electron",
+    "packages": [
+      {
+        "name": "npm:@sentry/node",
+        "version": "4.0.0-beta.11"
+      },
+      {
+        "name": "npm:@sentry/node",
+        "version": "0.8.0"
+      }
+    ],
+    "version": "0.8.0"
+  },
+  "tags": {
+    "event_type": "javascript"
+  },
+  "transaction": "main at EventEmitter.ipcMain.on",
+  "user": {
+    "ip_address": "{{auto}}"
+  }
+}

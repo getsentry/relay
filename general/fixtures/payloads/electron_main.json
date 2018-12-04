@@ -1,0 +1,252 @@
+{
+  "breadcrumbs": [
+    {
+      "category": "electron",
+      "message": "app.will-finish-launching",
+      "timestamp": 1532344755.697,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "app.ready",
+      "timestamp": 1532344755.729,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "app.session-created",
+      "timestamp": 1532344755.748,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "app.web-contents-created",
+      "timestamp": 1532344755.778,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "app.browser-window-created",
+      "timestamp": 1532344755.819,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "app.browser-window-focus",
+      "timestamp": 1532344756.031,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "WebContents[1].dom-ready",
+      "timestamp": 1532344756.631,
+      "type": "ui"
+    },
+    {
+      "category": "ui.click",
+      "message": "body",
+      "timestamp": 1532344759.124
+    },
+    {
+      "category": "ui.click",
+      "message": "body > div.main > div.group > a.crash",
+      "timestamp": 1532344759.992
+    },
+    {
+      "category": "console",
+      "level": "log",
+      "message": "{\"environment\":\"development\",\"extra\":{\"crashed_process\":\"renderer[1]\",\"crashed_url\":\"app:///dist/index.html\",\"session:duration\":3397},\"release\":\"sentry-electron-test@2.0.2\",\"user\":{\"ip_address\":\"{{auto}}\"},\"sdk\":{\"name\":\"sentry-electron\",\"version\":\"0.7.0\"},\"exception\":{\"mechanism\":{\"handled\":false,\"type\":\"onerror\"},\"values\":[{\"stacktrace\":{\"frames\":[{\"colno\":1,\"filename\":\"<anonymous>\",\"function\":\"?\",\"in_app\":true,\"lineno\":1},{\"colno\":83106,\"filename\":\"eval at <anonymous> (unknown source), <anonymous>\",\"function\":\"window.errorRenderer\",\"in_app\":true,\"lineno\":2}]},\"type\":\"Error\",\"value\":\"Error triggered in renderer process\"}]},\"logger\":\"javascript\",\"platform\":\"javascript\",\"project\":\"3\",\"request\":{\"headers\":{},\"url\":\"app:///dist/index.html\"},\"transaction\":\"eval at <anonymous> (unknown source), <anonymous>\",\"tags\":{\"event_type\":\"javascript\"},\"event_id\":\"a568161a4f9f4d8d946a366908e3fb57\",\"breadcrumbs\":[{\"timestamp\":1532344755.697,\"category\":\"electron\",\"message\":\"app.will-finish-launching\",\"type\":\"ui\"},{\"timestamp\":1532344755.729,\"category\":\"electron\",\"message\":\"app.ready\",\"type\":\"ui\"},{\"timestamp\":1532344755.748,\"category\":\"electron\",\"message\":\"app.session-created\",\"type\":\"ui\"},{\"timestamp\":1532344755.778,\"category\":\"electron\",\"message\":\"app.web-contents-created\",\"type\":\"ui\"},{\"timestamp\":1532344755.819,\"category\":\"electron\",\"message\":\"app.browser-window-created\",\"type\":\"ui\"},{\"timestamp\":1532344756.031,\"category\":\"electron\",\"message\":\"app.browser-window-focus\",\"type\":\"ui\"},{\"timestamp\":1532344756.631,\"category\":\"electron\",\"message\":\"WebContents[1].dom-ready\",\"type\":\"ui\"},{\"timestamp\":1532344759.124,\"category\":\"ui.click\",\"message\":\"body\"},{\"timestamp\":1532344759.992,\"category\":\"ui.click\",\"message\":\"body > div.main > div.group > a.crash\"}],\"contexts\":{\"app\":{\"app_name\":\"Sentry Crash Test\",\"app_version\":\"2.0.2\"},\"chrome\":{\"name\":\"Chrome\",\"type\":\"runtime\",\"version\":\"61.0.3163.100\"},\"device\":{\"arch\":\"x64\"},\"node\":{\"name\":\"Node\",\"type\":\"runtime\",\"version\":\"8.9.3\"},\"os\":{\"kernel_version\":\"17.7.0\",\"name\":\"Mac OS X\",\"version\":\"10.13.6\",\"build\":\"17G65\"},\"runtime\":{\"name\":\"Electron\",\"version\":\"2.0.2\"}}}",
+      "timestamp": 1532344760.023
+    },
+    {
+      "category": "electron",
+      "message": "app.browser-window-blur",
+      "timestamp": 1532344762.303,
+      "type": "ui"
+    },
+    {
+      "category": "electron",
+      "message": "app.browser-window-focus",
+      "timestamp": 1532344787.18,
+      "type": "ui"
+    },
+    {
+      "category": "ui.click",
+      "message": "body > div.main > div.group > a.crash",
+      "timestamp": 1532344788.938
+    }
+  ],
+  "contexts": {
+    "app": {
+      "app_name": "Sentry Crash Test",
+      "app_version": "2.0.2"
+    },
+    "chrome": {
+      "name": "Chrome",
+      "type": "runtime",
+      "version": "61.0.3163.100"
+    },
+    "device": {
+      "arch": "x64"
+    },
+    "node": {
+      "name": "Node",
+      "type": "runtime",
+      "version": "8.9.3"
+    },
+    "os": {
+      "build": "17G65",
+      "kernel_version": "17.7.0",
+      "name": "Mac OS X",
+      "version": "10.13.6"
+    },
+    "runtime": {
+      "name": "Electron",
+      "version": "2.0.2"
+    }
+  },
+  "environment": "development",
+  "event_id": "f45706e6390542a2830b8aac75043bf2",
+  "exception": {
+    "values": [
+      {
+        "stacktrace": {
+          "frames": [
+            {
+              "colno": 20,
+              "context_line": "            return emit(event, ...args);",
+              "filename": "/Users/jauer/Coding/sentry-electron/dist/main/backend.js",
+              "function": "WebContents.emitter.emit.args [as emit]",
+              "in_app": false,
+              "lineno": 282,
+              "module": "backend",
+              "post_context": [
+                "        };",
+                "    }",
+                "    /** Loads new native crashes from disk and sends them to Sentry. */",
+                "    sendNativeCrashes(extra) {",
+                "        return __awaiter(this, void 0, void 0, function* () {",
+                "            // Whenever we are called, assume that the crashes we are going to load down",
+                "            // below have occurred recently. This means, we can use the same event data"
+              ],
+              "pre_context": [
+                "                    category: 'electron',",
+                "                    message: `${category}.${event}`,",
+                "                    timestamp: new Date().getTime() / 1000,",
+                "                    type: 'ui',",
+                "                };",
+                "                minimal_1.addBreadcrumb(breadcrumb);",
+                "            }"
+              ]
+            },
+            {
+              "colno": 7,
+              "filename": "events.js",
+              "function": "WebContents.emit",
+              "in_app": false,
+              "lineno": 214,
+              "module": "events"
+            },
+            {
+              "colno": 13,
+              "filename": "events.js",
+              "function": "emitTwo",
+              "in_app": false,
+              "lineno": 126,
+              "module": "events"
+            },
+            {
+              "colno": 13,
+              "context_line": "    ipcMain.emit(channel, event, ...args)",
+              "filename": "app:///node_modules/electron/dist/Electron.app/Contents/Resources/electron.asar/browser/api/web-contents.js",
+              "function": "WebContents.<anonymous>",
+              "in_app": false,
+              "lineno": 286,
+              "module": "electron.dist.Electron.app.Contents.Resources.electron.asar.browser.api:web-contents",
+              "post_context": [
+                "  })",
+                "  this.on('ipc-message-sync', function (event, [channel, ...args]) {",
+                "    Object.defineProperty(event, 'returnValue', {",
+                "      set: function (value) {",
+                "        return event.sendReply(JSON.stringify(value))",
+                "      },",
+                "      get: function () {}"
+              ],
+              "pre_context": [
+                "",
+                "  // Every remote callback from renderer process would add a listenter to the",
+                "  // render-view-deleted event, so ignore the listenters warning.",
+                "  this.setMaxListeners(0)",
+                "",
+                "  // Dispatch IPC messages to the ipc module.",
+                "  this.on('ipc-message', function (event, [channel, ...args]) {"
+              ]
+            },
+            {
+              "colno": 7,
+              "filename": "events.js",
+              "function": "EventEmitter.emit",
+              "in_app": false,
+              "lineno": 211,
+              "module": "events"
+            },
+            {
+              "colno": 13,
+              "filename": "events.js",
+              "function": "emitOne",
+              "in_app": false,
+              "lineno": 116,
+              "module": "events"
+            },
+            {
+              "colno": 9,
+              "context_line": "  throw new Error('Error triggered in main processes');",
+              "filename": "app:///main.js",
+              "function": "EventEmitter.ipcMain.on",
+              "in_app": true,
+              "lineno": 38,
+              "module": "main",
+              "post_context": [
+                "});",
+                "",
+                "ipcMain.on('demo.crash', () => {",
+                "  console.log('process.crash()');",
+                "  process.crash();",
+                "});",
+                ""
+              ],
+              "pre_context": [
+                "",
+                "app.on('window-all-closed', () => app.quit());",
+                "",
+                "// The IPC handlers below trigger errors in the here (main process) when",
+                "// the user clicks on corresponding buttons in the UI (renderer).",
+                "ipcMain.on('demo.error', () => {",
+                "  console.log('Error triggered in main processes');"
+              ]
+            }
+          ]
+        },
+        "type": "Error",
+        "value": "Error triggered in main processes"
+      }
+    ]
+  },
+  "extra": {
+    "crashed_process": "browser"
+  },
+  "level": "fatal",
+  "message": "Error: Error triggered in main processes",
+  "release": "sentry-electron-test@2.0.2",
+  "sdk": {
+    "name": "sentry-electron",
+    "version": "0.7.0"
+  },
+  "tags": {
+    "event_type": "javascript"
+  },
+  "transaction": "main at EventEmitter.ipcMain.on",
+  "user": {
+    "ip_address": "{{auto}}"
+  }
+}

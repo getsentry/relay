@@ -1,0 +1,63 @@
+{
+  "breadcrumbs": {
+    "values": [
+      {
+        "category": "sentry",
+        "event_id": "2c6cd1fbe9eb40a698d8bfa9eca34828",
+        "level": "error",
+        "message": "Error: captureException",
+        "timestamp": 1532444284.908
+      }
+    ]
+  },
+  "environment": "development",
+  "event_id": "b2c595e016164e5baa63ed087e44978b",
+  "extra": {
+    "planet": {
+      "name": "Earth"
+    },
+    "session:duration": 14
+  },
+  "fingerprint": [
+    "captureMessage"
+  ],
+  "logger": "javascript",
+  "message": "captureMessage",
+  "platform": "javascript",
+  "project": "297378",
+  "release": "randomRelease",
+  "request": {
+    "headers": {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.119 Safari/537.36"
+    },
+    "url": "http://localhost:5001/"
+  },
+  "stacktrace": {
+    "frames": [
+      {
+        "colno": 3,
+        "filename": "http://localhost:5001/error.js",
+        "function": "?",
+        "in_app": true,
+        "lineno": 14
+      },
+      {
+        "colno": 9,
+        "filename": "http://localhost:5001/error.js",
+        "function": "?",
+        "in_app": true,
+        "lineno": 3
+      },
+      {
+        "colno": 13,
+        "filename": "https://cdn.ravenjs.com/3.26.4/raven.js",
+        "function": "Raven.captureMessage",
+        "in_app": false,
+        "lineno": 652
+      }
+    ]
+  },
+  "tags": {
+    "git_commit": "c0deb10c4"
+  }
+}

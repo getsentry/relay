@@ -1,0 +1,79 @@
+{
+  "breadcrumbs": {
+    "values": [
+      {
+        "category": "sentry",
+        "event_id": "2c6cd1fbe9eb40a698d8bfa9eca34828",
+        "level": "error",
+        "message": "Error: captureException",
+        "timestamp": 1532444284.908
+      },
+      {
+        "category": "sentry",
+        "event_id": "b2c595e016164e5baa63ed087e44978b",
+        "level": "error",
+        "message": "captureMessage",
+        "timestamp": 1532444284.911
+      }
+    ]
+  },
+  "environment": "development",
+  "event_id": "6795167296744bb1b608e007d78b8de3",
+  "exception": {
+    "mechanism": {
+      "handled": false,
+      "type": "onerror"
+    },
+    "values": [
+      {
+        "stacktrace": {
+          "frames": [
+            {
+              "colno": 3,
+              "filename": "http://localhost:5001/error.js",
+              "function": "?",
+              "in_app": true,
+              "lineno": 14
+            },
+            {
+              "colno": 3,
+              "filename": "http://localhost:5001/error.js",
+              "function": "?",
+              "in_app": true,
+              "lineno": 13
+            },
+            {
+              "colno": 11,
+              "filename": "http://localhost:5001/error.js",
+              "function": "foo",
+              "in_app": true,
+              "lineno": 10
+            }
+          ]
+        },
+        "type": "Error",
+        "value": "regular exception"
+      }
+    ]
+  },
+  "extra": {
+    "planet": {
+      "name": "Earth"
+    },
+    "session:duration": 16
+  },
+  "logger": "javascript",
+  "platform": "javascript",
+  "project": "297378",
+  "release": "randomRelease",
+  "request": {
+    "headers": {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.119 Safari/537.36"
+    },
+    "url": "http://localhost:5001/"
+  },
+  "tags": {
+    "git_commit": "c0deb10c4"
+  },
+  "transaction": "http://localhost:5001/error.js"
+}

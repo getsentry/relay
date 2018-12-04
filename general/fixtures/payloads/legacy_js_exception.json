@@ -1,0 +1,55 @@
+{
+  "environment": "development",
+  "event_id": "2c6cd1fbe9eb40a698d8bfa9eca34828",
+  "exception": {
+    "mechanism": {
+      "handled": true,
+      "type": "generic"
+    },
+    "values": [
+      {
+        "stacktrace": {
+          "frames": [
+            {
+              "colno": 3,
+              "filename": "http://localhost:5001/error.js",
+              "function": "?",
+              "in_app": true,
+              "lineno": 14
+            },
+            {
+              "colno": 26,
+              "filename": "http://localhost:5001/error.js",
+              "function": "?",
+              "in_app": true,
+              "lineno": 2
+            }
+          ]
+        },
+        "type": "Error",
+        "value": "captureException"
+      }
+    ]
+  },
+  "extra": {
+    "planet": {
+      "name": "Earth"
+    },
+    "session:duration": 9
+  },
+  "logger": "javascript",
+  "platform": "javascript",
+  "project": "297378",
+  "release": "randomRelease",
+  "request": {
+    "headers": {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.119 Safari/537.36"
+    },
+    "url": "http://localhost:5001/"
+  },
+  "tags": {
+    "git_commit": "c0deb10c4"
+  },
+  "transaction": "http://localhost:5001/error.js",
+  "trimHeadFrames": 0
+}
