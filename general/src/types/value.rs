@@ -290,11 +290,9 @@ impl<'de> Deserialize<'de> for Value {
                 V: SeqAccess<'de>,
             {
                 let mut vec = Vec::new();
-
                 while let Some(elem) = visitor.next_element()? {
                     vec.push(Annotated::new(elem));
                 }
-
                 Ok(Value::Array(vec))
             }
 
@@ -302,19 +300,11 @@ impl<'de> Deserialize<'de> for Value {
             where
                 V: MapAccess<'de>,
             {
-                match visitor.next_key()? {
-                    Some(first_key) => {
-                        let mut values = Map::new();
-
-                        values.insert(first_key, visitor.next_value()?);
-                        while let Some((key, value)) = visitor.next_entry()? {
-                            values.insert(key, Annotated::new(value));
-                        }
-
-                        Ok(Value::Object(values))
-                    }
-                    None => Ok(Value::Object(Map::new())),
+                let mut values = Map::new();
+                while let Some((key, value)) = visitor.next_entry()? {
+                    values.insert(key, Annotated::new(value));
                 }
+                Ok(Value::Object(values))
             }
         }
 
