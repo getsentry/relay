@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+- store: Remove stray print statement.
+
 ## 0.2.3
 
 For users of relay, nothing changed at all. This is a release to test embedding
