@@ -347,7 +347,7 @@ fn test_event_roundtrip() {
             Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
             {
                 let mut meta = Meta::default();
-                meta.add_error("some error", None);
+                meta.add_error("some error");
                 meta
             },
         ),
@@ -450,18 +450,18 @@ fn test_event_default_values_with_meta() {
             Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
             {
                 let mut meta = Meta::default();
-                meta.add_error("some error", None);
+                meta.add_error("some error");
                 meta
             },
         ),
         fingerprint: Annotated(Some(vec!["{{ default }}".to_string()].into()), {
             let mut meta = Meta::default();
-            meta.add_error("some error", None);
+            meta.add_error("some error");
             meta
         }),
         platform: Annotated(Some("other".to_string()), {
             let mut meta = Meta::default();
-            meta.add_error("some error", None);
+            meta.add_error("some error");
             meta
         }),
         ..Default::default()

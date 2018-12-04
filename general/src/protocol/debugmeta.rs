@@ -70,7 +70,8 @@ impl FromValue for DebugId {
             Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                 Ok(value) => Annotated(Some(value), meta),
                 Err(err) => {
-                    meta.add_error(err.to_string(), Some(Value::String(value.to_string())));
+                    meta.add_error(err.to_string());
+                    meta.set_original_value(Some(Value::String(value.to_string())));
                     Annotated(None, meta)
                 }
             },

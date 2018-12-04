@@ -32,7 +32,7 @@ fn normalize_url(request: &mut Request) {
         Ok(url) => url,
         Err(err) => {
             // TODO: Remove value here or not?
-            request.url.meta_mut().add_error(err.to_string(), None);
+            request.url.meta_mut().add_error(err.to_string());
             return;
         }
     };
@@ -67,9 +67,8 @@ fn normalize_method(method: &mut String, meta: &mut Meta) -> ValueAction {
     method.make_ascii_uppercase();
 
     if !meta.has_errors() && METHOD_RE.is_match(&method) {
-        let original_method = std::mem::replace(method, String::new());
-        meta.add_error("invalid http method", Some(Value::String(original_method)));
-        return ValueAction::Discard;
+        meta.add_error("invalid http method");
+        return ValueAction::MoveIntoOriginalValue;
     }
 
     ValueAction::Keep

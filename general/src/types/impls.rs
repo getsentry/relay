@@ -40,7 +40,8 @@ impl<T: FromValue> FromValue for Array<T> {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("array", value);
+                meta.add_error("expected array");
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
         }
@@ -105,7 +106,8 @@ impl<T: FromValue> FromValue for Object<T> {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("object", value);
+                meta.add_error("expected object");
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
         }
@@ -223,7 +225,8 @@ impl FromValue for DateTime<Utc> {
                 match parsed {
                     Ok(value) => Annotated(Some(value), meta),
                     Err(err) => {
-                        meta.add_error(err.to_string(), Some(Value::String(value.to_string())));
+                        meta.add_error(err.to_string());
+                        meta.set_original_value(Some(Value::String(value.to_string())));
                         Annotated(None, meta)
                     }
                 }
@@ -242,7 +245,8 @@ impl FromValue for DateTime<Utc> {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("timestamp", value);
+                meta.add_error("expected timestamp");
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
         }
@@ -307,7 +311,8 @@ macro_rules! tuple_meta_structure {
                 match annotated {
                     Annotated(Some(Value::Array(items)), mut meta) => {
                         if items.len() != n {
-                            meta.add_unexpected_value_error("tuple", Value::Array(items));
+                            meta.add_error("expected tuple");
+                            meta.set_original_value(Some(Value::Array(items)));
                             return Annotated(None, meta);
                         }
 
@@ -320,7 +325,8 @@ macro_rules! tuple_meta_structure {
                         )), meta)
                     }
                     Annotated(Some(value), mut meta) => {
-                        meta.add_unexpected_value_error("tuple", value);
+                        meta.add_error("expected tuple");
+                        meta.set_original_value(Some(value));
                         Annotated(None, meta)
                     }
                     Annotated(None, meta) => Annotated(None, meta)
