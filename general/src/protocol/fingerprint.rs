@@ -72,7 +72,12 @@ impl ToValue for Fingerprint {
     where
         Self: Sized,
     {
-        Value::Array(self.0.into_iter().map(|x| Annotated::new(Value::String(x))).collect())
+        Value::Array(
+            self.0
+                .into_iter()
+                .map(|x| Annotated::new(Value::String(x)))
+                .collect(),
+        )
     }
 
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>

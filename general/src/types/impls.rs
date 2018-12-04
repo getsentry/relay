@@ -49,7 +49,11 @@ impl<T: FromValue> FromValue for Array<T> {
 
 impl<T: ToValue> ToValue for Array<T> {
     fn to_value(self) -> Value {
-        Value::Array(self.into_iter().map(|x| Annotated::map_value(x, ToValue::to_value)).collect())
+        Value::Array(
+            self.into_iter()
+                .map(|x| Annotated::map_value(x, ToValue::to_value))
+                .collect(),
+        )
     }
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
@@ -110,10 +114,11 @@ impl<T: FromValue> FromValue for Object<T> {
 
 impl<T: ToValue> ToValue for Object<T> {
     fn to_value(self) -> Value {
-        Value::Object(self
-            .into_iter()
-            .map(|(k, v)| (k, Annotated::map_value(v, ToValue::to_value)))
-            .collect())
+        Value::Object(
+            self.into_iter()
+                .map(|(k, v)| (k, Annotated::map_value(v, ToValue::to_value)))
+                .collect(),
+        )
     }
 
     fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
