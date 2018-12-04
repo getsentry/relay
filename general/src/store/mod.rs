@@ -93,17 +93,19 @@ impl<'a> StoreNormalizeProcessor<'a> {
         event.timestamp.apply(|timestamp, meta| {
             if let Some(secs) = self.config.max_secs_in_future {
                 if *timestamp > current_timestamp + Duration::seconds(secs) {
-                    // TODO: Set original vlaue
                     meta.add_error("Invalid timestamp (in future)");
+                    return ValueAction::MoveIntoOriginalValue;
                 }
             }
 
             if let Some(secs) = self.config.max_secs_in_past {
                 if *timestamp < current_timestamp - Duration::seconds(secs) {
-                    // TODO: Set original value
                     meta.add_error("Invalid timestamp (too old)");
+                    return ValueAction::MoveIntoOriginalValue;
                 }
             }
+
+            ValueAction::Keep
         });
 
         if event.timestamp.value().is_none() {
