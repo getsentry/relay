@@ -138,7 +138,7 @@ impl Serialize for Remark {
 
 /// Meta information for a data field in the event payload.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Meta {
+pub struct MetaInner {
     /// Remarks detailling modifications of this field.
     #[serde(
         default,
@@ -172,6 +172,35 @@ pub struct Meta {
     original_value: Option<Value>,
 }
 
+impl MetaInner {
+    pub fn is_empty(&self) -> bool {
+        self.original_length.is_none() && self.remarks.is_empty() && self.errors.is_empty()
+    }
+}
+
+/// Meta information for a data field in the event payload.
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct Meta(Option<Box<MetaInner>>);
+
+impl<'de> Deserialize<'de> for Meta {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Meta, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(match <Option<MetaInner>>::deserialize(deserializer)? {
+            Some(value) => {
+                if value.is_empty() {
+                    Meta(None)
+                } else {
+                    Meta(Some(Box::new(value)))
+                }
+            }
+            None => Meta(None),
+        })
+    }
+}
+
 impl Meta {
     /// From an error
     pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Self {
@@ -180,48 +209,70 @@ impl Meta {
         rv
     }
 
+    fn upsert(&mut self) -> &mut MetaInner {
+        if let Some(ref mut rv) = self.0 {
+            rv
+        } else {
+            self.0 = Some(Box::new(MetaInner::default()));
+            self.0.as_mut().unwrap()
+        }
+    }
+
     /// The original length of this field, if applicable.
     pub fn original_length(&self) -> Option<usize> {
-        self.original_length.map(|x| x as usize)
+        self.0
+            .as_ref()
+            .and_then(|x| x.original_length.map(|x| x as usize))
     }
 
     /// Updates the original length of this annotation.
     pub fn set_original_length(&mut self, original_length: Option<usize>) {
-        if self.original_length.is_none() {
-            self.original_length = original_length.map(|x| x as u32);
+        let inner = self.upsert();
+        if inner.original_length.is_none() {
+            inner.original_length = original_length.map(|x| x as u32);
         }
     }
 
     /// Iterates all remarks on this field.
     pub fn iter_remarks(&self) -> impl Iterator<Item = &Remark> {
-        self.remarks.iter()
+        match self.0 {
+            Some(ref inner) => &inner.remarks[..],
+            None => &[][..],
+        }.into_iter()
     }
 
     /// Indicates whether this field has remarks.
     pub fn has_remarks(&self) -> bool {
-        !self.remarks.is_empty()
+        self.0.as_ref().map_or(false, |x| x.remarks.is_empty())
     }
 
-    /// Returns a mutable reference to the remarks of this field.
-    pub fn remarks_mut(&mut self) -> &mut SmallVec<[Remark; 3]> {
-        &mut self.remarks
+    /// Clears all remarks
+    pub fn clear_remarks(&mut self) {
+        if let Some(ref mut inner) = self.0 {
+            inner.remarks.clear();
+        }
     }
 
     /// Adds a remark.
     pub fn add_remark(&mut self, remark: Remark) {
-        self.remarks.push(remark);
+        self.upsert().remarks.push(remark);
     }
 
     /// Iterates errors on this field.
     pub fn iter_errors(&self) -> impl Iterator<Item = &str> {
-        self.errors.iter().map(|x| x.as_str())
+        match self.0 {
+            Some(ref inner) => &inner.errors[..],
+            None => &[][..],
+        }.into_iter()
+        .map(|x| x.as_str())
     }
 
     /// Mutable reference to errors of this field.
     pub fn add_error<S: Into<String>>(&mut self, err: S, value: Option<Value>) {
-        self.errors.push(err.into());
+        let inner = self.upsert();
+        inner.errors.push(err.into());
         if let Some(value) = value {
-            self.original_value = Some(value);
+            inner.original_value = Some(value);
         }
     }
 
@@ -232,46 +283,50 @@ impl Meta {
 
     /// Returns a reference to the original value, if any.
     pub fn original_value(&self) -> Option<&Value> {
-        self.original_value.as_ref()
+        self.0.as_ref().and_then(|x| x.original_value.as_ref())
     }
 
     /// Sets the original value.
     pub fn set_original_value(&mut self, original_value: Option<Value>) {
-        self.original_value = original_value;
+        self.upsert().original_value = original_value;
     }
 
     /// Take out the original value.
     pub fn take_original_value(&mut self) -> Option<Value> {
-        self.original_value.take()
+        self.0.as_mut().and_then(|x| x.original_value.take())
     }
 
     /// Indicates whether this field has errors.
     pub fn has_errors(&self) -> bool {
-        !self.errors.is_empty()
+        self.0.as_ref().map_or(false, |x| !x.errors.is_empty())
     }
 
     /// Indicates whether this field has meta data attached.
     pub fn is_empty(&self) -> bool {
-        self.original_length.is_none() && self.remarks.is_empty() && self.errors.is_empty()
+        self.0.as_ref().map_or(true, |x| x.is_empty())
     }
 
     /// Merges this meta with another one.
     pub fn merge(mut self, other: Self) -> Self {
-        self.remarks.extend(other.remarks.into_iter());
-        self.errors.extend(other.errors.into_iter());
-        if self.original_length.is_none() {
-            self.original_length = other.original_length;
-        }
-        if self.original_value.is_none() {
-            self.original_value = other.original_value;
+        if let Some(other_inner) = other.0 {
+            let other_inner = *other_inner;
+            let inner = self.upsert();
+            inner.remarks.extend(other_inner.remarks.into_iter());
+            inner.errors.extend(other_inner.errors.into_iter());
+            if inner.original_length.is_none() {
+                inner.original_length = other_inner.original_length;
+            }
+            if inner.original_value.is_none() {
+                inner.original_value = other_inner.original_value;
+            }
         }
         self
     }
 }
 
-impl Default for Meta {
+impl Default for MetaInner {
     fn default() -> Self {
-        Meta {
+        MetaInner {
             remarks: SmallVec::new(),
             errors: SmallVec::new(),
             original_length: None,
@@ -280,10 +335,23 @@ impl Default for Meta {
     }
 }
 
-impl PartialEq for Meta {
+impl PartialEq for MetaInner {
     fn eq(&self, other: &Self) -> bool {
         self.remarks == other.remarks
             && self.errors == other.errors
             && self.original_length == other.original_length
+    }
+}
+
+impl PartialEq for Meta {
+    fn eq(&self, other: &Self) -> bool {
+        if self.is_empty() && other.is_empty() {
+            true
+        } else {
+            match (self.0.as_ref(), other.0.as_ref()) {
+                (Some(a), Some(b)) => a == b,
+                _ => false,
+            }
+        }
     }
 }

@@ -163,7 +163,10 @@ where
     let (new_value, remarks) = join_chunks(f(chunks));
 
     if new_value != *value {
-        *meta.remarks_mut() = remarks.into_iter().collect();
+        meta.clear_remarks();
+        for remark in remarks.into_iter() {
+            meta.add_remark(remark);
+        }
         meta.set_original_length(Some(value.chars().count()));
         *value = new_value;
     }
