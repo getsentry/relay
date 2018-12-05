@@ -7,8 +7,8 @@ use failure::Fail;
 use serde::ser::{Serialize, Serializer};
 use serde_derive::{Deserialize, Serialize};
 
-use crate::processor::ProcessValue;
-use crate::types::{Annotated, Array, FromValue, Meta, Object, ToValue, Value};
+use crate::processor::{process_value, ProcessValue, ProcessingState, Processor};
+use crate::types::{Annotated, Array, FromValue, Meta, Object, ToValue, Value, ValueAction};
 
 /// A array like wrapper used in various places.
 #[derive(Clone, Debug, PartialEq, ToValue, ProcessValue)]
@@ -83,6 +83,69 @@ impl<T: FromValue> FromValue for Values<T> {
             Annotated(Some(value), mut meta) => {
                 meta.add_unexpected_value_error("array or values", value);
                 Annotated(None, meta)
+            }
+        }
+    }
+}
+
+/// A mixture of a hashmap and an array.
+#[derive(Clone, Debug, PartialEq, ToValue)]
+#[metastructure(process_func = "process_values")]
+pub struct PairList<T>(pub Array<(Annotated<String>, Annotated<T>)>);
+
+impl<T> std::ops::Deref for PairList<T> {
+    type Target = Array<(Annotated<String>, Annotated<T>)>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> std::ops::DerefMut for PairList<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<T: FromValue> FromValue for PairList<T> {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        type Pair<T> = (Annotated<String>, Annotated<T>);
+
+        match value {
+            Annotated(Some(Value::Array(items)), meta) => {
+                let mut rv = Vec::new();
+                for item in items.into_iter() {
+                    rv.push(Pair::<T>::from_value(item));
+                }
+                Annotated(Some(PairList(rv)), meta)
+            }
+            other => FromValue::from_value(other).map_value(PairList),
+        }
+    }
+}
+
+impl<T: ProcessValue> ProcessValue for PairList<T> {
+    #[inline]
+    fn process_value<P>(
+        &mut self,
+        meta: &mut Meta,
+        processor: &mut P,
+        state: ProcessingState,
+    ) -> ValueAction
+    where
+        P: Processor,
+    {
+        processor.process_pairlist(self, meta, state)
+    }
+
+    fn process_child_values<P>(&mut self, processor: &mut P, state: ProcessingState)
+    where
+        P: Processor,
+    {
+        for pair in self.0.iter_mut() {
+            if let Some((ref mut k, ref mut v)) = pair.0 {
+                process_value(k, processor, state.enter_index(0, None));
+                process_value(v, processor, state.enter_index(1, None));
             }
         }
     }

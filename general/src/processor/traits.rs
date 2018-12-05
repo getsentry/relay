@@ -49,7 +49,9 @@ pub trait Processor: Sized {
     process_method!(process_array, crate::types::Array<T>);
     process_method!(process_object, crate::types::Object<T>);
 
+    process_method!(process_pairlist, crate::protocol::PairList<T>);
     process_method!(process_values, crate::protocol::Values<T>);
+
     process_method!(process_event, crate::protocol::Event);
     process_method!(process_exception, crate::protocol::Exception);
     process_method!(process_stacktrace, crate::protocol::Stacktrace);

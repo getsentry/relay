@@ -37,7 +37,7 @@ pub use self::tags::{TagEntry, Tags};
 pub use self::templateinfo::TemplateInfo;
 pub use self::thread::Thread;
 pub use self::types::{
-    Addr, InvalidRegVal, IpAddr, JsonLenientString, LenientString, Level, ParseLevelError, RegVal,
-    ThreadId, Values,
+    Addr, InvalidRegVal, IpAddr, JsonLenientString, LenientString, Level, PairList,
+    ParseLevelError, RegVal, ThreadId, Values,
 };
 pub use self::user::{Geo, User};

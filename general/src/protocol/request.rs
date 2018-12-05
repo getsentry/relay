@@ -1,6 +1,7 @@
 use cookie::Cookie;
 use url::form_urlencoded;
 
+use crate::protocol::PairList;
 use crate::types::{Annotated, Array, FromValue, Map, Object, Value};
 
 /// A map holding cookies.
@@ -61,7 +62,7 @@ impl FromValue for Cookies {
 
 /// A map holding headers.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
-pub struct Headers(pub Array<(Annotated<String>, Annotated<String>)>);
+pub struct Headers(pub PairList<String>);
 
 impl Headers {
     pub fn get_header(&self, key: &str) -> Option<&str> {
@@ -125,7 +126,7 @@ impl FromValue for Headers {
                             .map_value(|(k, v)| (k.and_then(|k| normalize_header(&k)), v)),
                     );
                 }
-                Annotated(Some(Headers(rv)), meta)
+                Annotated(Some(Headers(PairList(rv))), meta)
             }
             Annotated(Some(Value::Object(items)), meta) => {
                 let mut rv = Vec::new();
@@ -134,15 +135,15 @@ impl FromValue for Headers {
                 }
                 rv.sort_unstable_by(|a, b| a.0.cmp(&b.0));
                 Annotated(
-                    Some(Headers(
+                    Some(Headers(PairList(
                         rv.into_iter()
                             .map(|(k, v)| Annotated::new((Annotated::new(k), v)))
                             .collect(),
-                    )),
+                    ))),
                     meta,
                 )
             }
-            other => FromValue::from_value(other).map_value(Headers),
+            other => FromValue::from_value(other).map_value(|x| Headers(PairList(x))),
         }
     }
 }
@@ -281,7 +282,7 @@ fn test_header_normalization() {
         Annotated::new("version=8".to_string()),
     )));
 
-    let headers = Annotated::new(Headers(headers));
+    let headers = Annotated::new(Headers(PairList(headers)));
     assert_eq_dbg!(headers, Annotated::from_json(json).unwrap());
 }
 
@@ -297,7 +298,7 @@ fn test_header_from_sequence() {
         Annotated::new("application/json".to_string()),
     )));
 
-    let headers = Annotated::new(Headers(headers));
+    let headers = Annotated::new(Headers(PairList(headers)));
     assert_eq_dbg!(headers, Annotated::from_json(json).unwrap());
 
     let json = r#"[
@@ -442,7 +443,7 @@ fn test_request_roundtrip() {
                 Annotated::new("Referer".to_string()),
                 Annotated::new("https://google.com/".to_string()),
             )));
-            headers
+            PairList(headers)
         })),
         env: Annotated::new({
             let mut map = Object::new();
