@@ -6,9 +6,7 @@ use serde_json;
 use crate::pii::builtin::BUILTIN_RULES_MAP;
 use crate::pii::rules::{Rule, RuleSpec};
 use crate::pii::text::apply_rule_to_chunks;
-use crate::processor::{
-    process_chunked_value, PiiKind, ProcessingState, Processor,
-};
+use crate::processor::{process_chunked_value, PiiKind, ProcessingState, Processor};
 use crate::types::{Meta, ValueAction};
 
 /// Common config vars.

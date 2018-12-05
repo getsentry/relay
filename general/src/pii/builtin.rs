@@ -173,7 +173,7 @@ declare_builtin_rules! {
 #[cfg(test)]
 mod tests {
     use crate::pii::processor::{PiiConfig, PiiProcessor};
-    use crate::processor::{PiiKind, ProcessingState, process_value};
+    use crate::processor::{process_value, PiiKind, ProcessingState};
     use crate::types::{Annotated, Object, Remark, RemarkType, Value};
     use std::collections::BTreeMap;
 
