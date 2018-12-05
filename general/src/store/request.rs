@@ -68,7 +68,7 @@ fn normalize_method(method: &mut String, meta: &mut Meta) -> ValueAction {
 
     if !meta.has_errors() && METHOD_RE.is_match(&method) {
         meta.add_error("invalid http method");
-        return ValueAction::MoveIntoOriginalValue;
+        return ValueAction::DeleteSoft;
     }
 
     ValueAction::Keep

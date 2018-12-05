@@ -71,7 +71,7 @@ where
 {
     if state.attrs().nonempty && value.is_empty() {
         meta.add_error("non-empty value required");
-        ValueAction::Discard
+        ValueAction::DeleteHard
     } else {
         ValueAction::Keep
     }
@@ -85,7 +85,7 @@ fn verify_value_pattern(
     if let Some(ref regex) = state.attrs().match_regex {
         if !regex.is_match(value) {
             meta.add_error("invalid characters in string");
-            return ValueAction::MoveIntoOriginalValue;
+            return ValueAction::DeleteSoft;
         }
     }
 

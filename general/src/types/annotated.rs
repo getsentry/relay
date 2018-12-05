@@ -77,10 +77,11 @@ pub enum ValueAction {
     /// Keeps the value as is.
     Keep,
 
-    /// Discards the value.
-    Discard,
+    /// Discards the value entirely.
+    DeleteHard,
 
-    MoveIntoOriginalValue,
+    /// Discards the value and moves it into meta's `original_value`.
+    DeleteSoft,
 }
 
 impl ValueAction {
@@ -92,7 +93,7 @@ impl ValueAction {
     {
         match self {
             ValueAction::Keep => f(),
-            ValueAction::Discard | ValueAction::MoveIntoOriginalValue => self,
+            ValueAction::DeleteHard | ValueAction::DeleteSoft => self,
         }
     }
 }
@@ -115,7 +116,7 @@ impl From<bool> for ValueAction {
         if b {
             ValueAction::Keep
         } else {
-            ValueAction::Discard
+            ValueAction::DeleteHard
         }
     }
 }
@@ -336,9 +337,9 @@ impl<T: ToValue> Annotated<T> {
         };
 
         match result {
-            ValueAction::Discard => self.0 = None,
+            ValueAction::DeleteHard => self.0 = None,
             ValueAction::Keep => (),
-            ValueAction::MoveIntoOriginalValue => {
+            ValueAction::DeleteSoft => {
                 self.1
                     .set_original_value(self.0.take().map(ToValue::to_value));
             }

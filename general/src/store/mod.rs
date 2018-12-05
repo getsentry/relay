@@ -94,14 +94,14 @@ impl<'a> StoreNormalizeProcessor<'a> {
             if let Some(secs) = self.config.max_secs_in_future {
                 if *timestamp > current_timestamp + Duration::seconds(secs) {
                     meta.add_error("Invalid timestamp (in future)");
-                    return ValueAction::MoveIntoOriginalValue;
+                    return ValueAction::DeleteSoft;
                 }
             }
 
             if let Some(secs) = self.config.max_secs_in_past {
                 if *timestamp < current_timestamp - Duration::seconds(secs) {
                     meta.add_error("Invalid timestamp (too old)");
-                    return ValueAction::MoveIntoOriginalValue;
+                    return ValueAction::DeleteSoft;
                 }
             }
 
@@ -414,7 +414,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
         if exception.ty.value().is_none() && exception.value.value().is_none() {
             meta.add_error("type or value required");
-            return ValueAction::MoveIntoOriginalValue;
+            return ValueAction::DeleteSoft;
         }
 
         ValueAction::Keep
