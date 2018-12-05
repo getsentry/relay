@@ -172,7 +172,8 @@ declare_builtin_rules! {
 // TODO: Move these tests to /tests
 #[cfg(test)]
 mod tests {
-    use crate::pii::processor::{PiiConfig, PiiProcessor};
+    use crate::pii::config::PiiConfig;
+    use crate::pii::processor::PiiProcessor;
     use crate::processor::{process_value, PiiKind, ProcessingState};
     use crate::types::{Annotated, Object, Remark, RemarkType, Value};
     use std::collections::BTreeMap;

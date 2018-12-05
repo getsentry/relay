@@ -7,7 +7,7 @@ use serde::de::{Deserialize, Deserializer, Error};
 use serde::ser::{Serialize, Serializer};
 use serde_derive::{Deserialize, Serialize};
 
-use crate::pii::processor::PiiConfig;
+use crate::pii::config::PiiConfig;
 use crate::pii::redactions::Redaction;
 
 /// A regex pattern for text replacement.

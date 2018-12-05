@@ -7,7 +7,7 @@ use regex::Regex;
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 
-use crate::pii::processor::PiiConfig;
+use crate::pii::config::PiiConfig;
 use crate::pii::redactions::{HashAlgorithm, Redaction};
 use crate::pii::rules::{Rule, RuleType};
 use crate::processor::Chunk;
