@@ -340,8 +340,7 @@ impl<T: ToValue> Annotated<T> {
             ValueAction::DeleteHard => self.0 = None,
             ValueAction::Keep => (),
             ValueAction::DeleteSoft => {
-                self.1
-                    .set_original_value(self.0.take().map(ToValue::to_value));
+                self.1.set_original_value(self.0.take());
             }
         }
     }
