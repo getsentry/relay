@@ -7,9 +7,9 @@ use crate::pii::builtin::BUILTIN_RULES_MAP;
 use crate::pii::rules::{Rule, RuleSpec};
 use crate::pii::text::apply_rule_to_chunks;
 use crate::processor::{
-    process_chunked_value, process_value, PiiKind, ProcessValue, ProcessingState, Processor,
+    process_chunked_value, PiiKind, ProcessingState, Processor,
 };
-use crate::types::{Annotated, Meta, ValueAction};
+use crate::types::{Meta, ValueAction};
 
 /// Common config vars.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -100,12 +100,6 @@ impl<'a> PiiProcessor<'a> {
     /// Returns a reference to the config.
     pub fn config(&self) -> &PiiConfig {
         self.config
-    }
-
-    /// Shortcut to process a root value.
-    pub fn process_root_value<T: ProcessValue>(&mut self, mut value: Annotated<T>) -> Annotated<T> {
-        process_value(&mut value, self, ProcessingState::default());
-        value
     }
 }
 

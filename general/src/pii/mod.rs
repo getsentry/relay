@@ -12,3 +12,4 @@ pub use self::redactions::{
 pub use self::rules::{
     AliasRule, MultipleRule, Pattern, PatternRule, RedactPairRule, Rule, RuleType,
 };
+pub use self::builtin::BUILTIN_RULES;

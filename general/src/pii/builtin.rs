@@ -173,7 +173,7 @@ declare_builtin_rules! {
 #[cfg(test)]
 mod tests {
     use crate::pii::processor::{PiiConfig, PiiProcessor};
-    use crate::processor::PiiKind;
+    use crate::processor::{PiiKind, ProcessingState, process_value};
     use crate::types::{Annotated, Object, Remark, RemarkType, Value};
     use std::collections::BTreeMap;
 
@@ -198,11 +198,11 @@ mod tests {
             };
             let input = $input.to_string();
             let mut processor = PiiProcessor::new(&config);
-            let root = Annotated::new(FreeformRoot {
+            let mut root = Annotated::new(FreeformRoot {
                 value: Annotated::new(input),
             });
-            let processed_root = processor.process_root_value(root);
-            let root = processed_root.0.unwrap();
+            process_value(&mut root, &mut processor, ProcessingState::default());
+            let root = root.0.unwrap();
             assert_eq_str!(root.value.value().unwrap(), $output);
             let remarks = $remarks;
             assert_eq_dbg!(
