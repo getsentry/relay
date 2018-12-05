@@ -93,19 +93,19 @@ impl<'a> StoreNormalizeProcessor<'a> {
         event.timestamp.apply(|timestamp, meta| {
             if let Some(secs) = self.config.max_secs_in_future {
                 if *timestamp > current_timestamp + Duration::seconds(secs) {
-                    // TODO: Set original vlaue
-                    meta.add_error("Invalid timestamp (in future)", None);
-                    *timestamp = current_timestamp;
+                    meta.add_error("Invalid timestamp (in future)");
+                    return ValueAction::DeleteSoft;
                 }
             }
 
             if let Some(secs) = self.config.max_secs_in_past {
                 if *timestamp < current_timestamp - Duration::seconds(secs) {
-                    // TODO: Set original vlaue
-                    meta.add_error("Invalid timestamp (too old)", None);
-                    *timestamp = current_timestamp;
+                    meta.add_error("Invalid timestamp (too old)");
+                    return ValueAction::DeleteSoft;
                 }
             }
+
+            ValueAction::Keep
         });
 
         if event.timestamp.value().is_none() {
@@ -128,7 +128,7 @@ impl<'a> StoreNormalizeProcessor<'a> {
             _ => true,
         });
 
-        if event.server_name.value().is_some() {
+        if event.server_name.value_mut().is_some() {
             tags.push(Annotated::new(TagEntry(
                 Annotated::new("server_name".to_string()),
                 std::mem::replace(&mut event.server_name, Annotated::empty()),
@@ -413,9 +413,8 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         }
 
         if exception.ty.value().is_none() && exception.value.value().is_none() {
-            // TODO: Store original value
-            meta.add_error("type or value required", None);
-            return ValueAction::Discard;
+            meta.add_error("type or value required");
+            return ValueAction::DeleteSoft;
         }
 
         ValueAction::Keep

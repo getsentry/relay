@@ -77,8 +77,11 @@ pub enum ValueAction {
     /// Keeps the value as is.
     Keep,
 
-    /// Discards the value.
-    Discard,
+    /// Discards the value entirely.
+    DeleteHard,
+
+    /// Discards the value and moves it into meta's `original_value`.
+    DeleteSoft,
 }
 
 impl ValueAction {
@@ -90,7 +93,7 @@ impl ValueAction {
     {
         match self {
             ValueAction::Keep => f(),
-            ValueAction::Discard => self,
+            ValueAction::DeleteHard | ValueAction::DeleteSoft => self,
         }
     }
 }
@@ -113,7 +116,7 @@ impl From<bool> for ValueAction {
         if b {
             ValueAction::Keep
         } else {
-            ValueAction::Discard
+            ValueAction::DeleteHard
         }
     }
 }
@@ -137,7 +140,12 @@ impl<T> Annotated<T> {
 
     /// From an error
     pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Self {
-        Annotated(None, Meta::from_error(err, value))
+        Annotated(None, {
+            let mut meta = Meta::default();
+            meta.add_error(err);
+            meta.set_original_value(value);
+            meta
+        })
     }
 
     #[inline]
@@ -193,23 +201,6 @@ impl<T> Annotated<T> {
         F: FnOnce() -> T,
     {
         self.0.get_or_insert_with(f)
-    }
-
-    /// Modifies this value based on the action returned by `f`.
-    #[inline]
-    pub fn apply<F, R>(&mut self, f: F)
-    where
-        F: FnOnce(&mut T, &mut Meta) -> R,
-        R: Into<ValueAction>,
-    {
-        let result = match (self.0.as_mut(), &mut self.1) {
-            (Some(value), meta) => f(value, meta).into(),
-            (None, _) => Default::default(),
-        };
-
-        if result == ValueAction::Discard {
-            self.0 = None;
-        }
     }
 }
 
@@ -332,6 +323,27 @@ impl<T: ToValue> Annotated<T> {
             true
         }
     }
+
+    /// Modifies this value based on the action returned by `f`.
+    #[inline]
+    pub fn apply<F, R>(&mut self, f: F)
+    where
+        F: FnOnce(&mut T, &mut Meta) -> R,
+        R: Into<ValueAction>,
+    {
+        let result = match (self.0.as_mut(), &mut self.1) {
+            (Some(value), meta) => f(value, meta).into(),
+            (None, _) => Default::default(),
+        };
+
+        match result {
+            ValueAction::DeleteHard => self.0 = None,
+            ValueAction::Keep => (),
+            ValueAction::DeleteSoft => {
+                self.1.set_original_value(self.0.take());
+            }
+        }
+    }
 }
 
 impl Annotated<Value> {
@@ -339,7 +351,7 @@ impl Annotated<Value> {
         match self {
             Annotated(Some(Value::Object(object)), meta) => Annotated(Some(object), meta),
             Annotated(Some(_), mut meta) => {
-                meta.add_error("expected object", None);
+                meta.add_error("expected object");
                 Annotated(None, meta)
             }
             Annotated(None, meta) => Annotated(None, meta),

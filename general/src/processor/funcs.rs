@@ -14,6 +14,6 @@ where
 /// Attaches a value required error if the value is missing.
 pub fn require_value<T>(annotated: &mut Annotated<T>) {
     if annotated.value().is_none() && !annotated.meta().has_errors() {
-        annotated.meta_mut().add_error("value required", None);
+        annotated.meta_mut().add_error("value required");
     }
 }

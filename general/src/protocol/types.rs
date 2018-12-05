@@ -114,7 +114,8 @@ macro_rules! hex_metrastructure {
                     Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                         Ok(value) => Annotated(Some(value), meta),
                         Err(err) => {
-                            meta.add_error(err.to_string(), Some(Value::String(value.to_string())));
+                            meta.add_error(err.to_string());
+                            meta.set_original_value(Some(value));
                             Annotated(None, meta)
                         }
                     },
@@ -285,14 +286,16 @@ impl FromValue for Level {
             Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                 Ok(value) => Annotated(Some(value), meta),
                 Err(err) => {
-                    meta.add_error(err.to_string(), Some(Value::String(value.to_string())));
+                    meta.add_error(err.to_string());
+                    meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 }
             },
             Annotated(Some(Value::U64(val)), mut meta) => match Level::from_python_level(val) {
                 Some(value) => Annotated(Some(value), meta),
                 None => {
-                    meta.add_error("unknown numeric level", Some(Value::U64(val)));
+                    meta.add_error("unknown numeric level");
+                    meta.set_original_value(Some(val));
                     Annotated(None, meta)
                 }
             },
@@ -300,7 +303,8 @@ impl FromValue for Level {
                 match Level::from_python_level(val as u64) {
                     Some(value) => Annotated(Some(value), meta),
                     None => {
-                        meta.add_error("unknown numeric level", Some(Value::I64(val)));
+                        meta.add_error("unknown numeric level");
+                        meta.set_original_value(Some(val));
                         Annotated(None, meta)
                     }
                 }
@@ -386,7 +390,8 @@ impl FromValue for LenientString {
                 if num.abs() < (1i64 << 53) as f64 {
                     Annotated(Some(num.trunc().to_string()), meta)
                 } else {
-                    meta.add_error("non integer value", Some(Value::F64(num)));
+                    meta.add_error("non integer value");
+                    meta.set_original_value(Some(num));
                     Annotated(None, meta)
                 }
             }

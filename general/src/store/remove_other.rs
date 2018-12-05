@@ -12,7 +12,7 @@ impl Processor for RemoveOtherProcessor {
         _state: ProcessingState,
     ) -> ValueAction {
         for key in event.other.keys() {
-            meta.add_error(format!("Unknown key: {}", key), None);
+            meta.add_error(format!("Unknown key: {}", key));
         }
 
         event.other.clear();

@@ -5,7 +5,7 @@ use serde::ser::{Serialize, SerializeSeq, Serializer};
 use serde_derive::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::types::Value;
+use crate::types::{ToValue, Value};
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
 pub type Range = (usize, usize);
@@ -203,9 +203,9 @@ impl<'de> Deserialize<'de> for Meta {
 
 impl Meta {
     /// From an error
-    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Self {
+    pub fn from_error<S: Into<String>>(err: S) -> Self {
         let mut rv = Self::default();
-        rv.add_error(err, value);
+        rv.add_error(err);
         rv
     }
 
@@ -268,17 +268,15 @@ impl Meta {
     }
 
     /// Mutable reference to errors of this field.
-    pub fn add_error<S: Into<String>>(&mut self, err: S, value: Option<Value>) {
+    pub fn add_error<S: Into<String>>(&mut self, err: S) {
         let inner = self.upsert();
         inner.errors.push(err.into());
-        if let Some(value) = value {
-            inner.original_value = Some(value);
-        }
     }
 
     /// Adds an unexpected value error.
     pub fn add_unexpected_value_error(&mut self, expectation: &str, value: Value) {
-        self.add_error(format!("expected {}", expectation), Some(value));
+        self.add_error(format!("expected {}", expectation));
+        self.set_original_value(Some(value));
     }
 
     /// Returns a reference to the original value, if any.
@@ -287,8 +285,11 @@ impl Meta {
     }
 
     /// Sets the original value.
-    pub fn set_original_value(&mut self, original_value: Option<Value>) {
-        self.upsert().original_value = original_value;
+    pub fn set_original_value<T>(&mut self, original_value: Option<T>)
+    where
+        T: ToValue,
+    {
+        self.upsert().original_value = original_value.map(ToValue::to_value);
     }
 
     /// Take out the original value.

@@ -81,7 +81,7 @@ impl Processor for TrimmingProcessor {
                     rule_id: "!limit".to_string(),
                     range: None,
                 });
-                result = ValueAction::Discard;
+                result = ValueAction::DeleteHard;
             } else {
                 let original_length = value.len();
 
@@ -150,7 +150,7 @@ impl Processor for TrimmingProcessor {
                     rule_id: "!limit".to_string(),
                     range: None,
                 });
-                result = ValueAction::Discard;
+                result = ValueAction::DeleteHard;
             } else {
                 let original_length = value.len();
 

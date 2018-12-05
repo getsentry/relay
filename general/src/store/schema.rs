@@ -70,8 +70,8 @@ where
     T: IsEmpty,
 {
     if state.attrs().nonempty && value.is_empty() {
-        meta.add_error("non-empty value required", None);
-        ValueAction::Discard
+        meta.add_error("non-empty value required");
+        ValueAction::DeleteHard
     } else {
         ValueAction::Keep
     }
@@ -84,9 +84,8 @@ fn verify_value_pattern(
 ) -> ValueAction {
     if let Some(ref regex) = state.attrs().match_regex {
         if !regex.is_match(value) {
-            let original_value = std::mem::replace(value, String::new());
-            meta.add_error("invalid characters in string", Some(original_value.into()));
-            return ValueAction::Discard;
+            meta.add_error("invalid characters in string");
+            return ValueAction::DeleteSoft;
         }
     }
 
