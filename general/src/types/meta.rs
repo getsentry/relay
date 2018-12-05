@@ -311,7 +311,10 @@ impl Error {
 
     /// Creates an error that describes an invalid value.
     pub fn expected(expectation: &str) -> Self {
-        Error::invalid(format!("expected {}", expectation))
+        // Does not use `Error::invalid` to avoid the string copy.
+        Error::with(ErrorKind::InvalidData, |error| {
+            error.insert("reason", format!("expected {}", expectation));
+        })
     }
 
     /// Returns the kind of this error.
