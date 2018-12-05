@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::fmt;
 
 use lazy_static;
+use serde_derive::{Deserialize, Serialize};
 
 use regex::Regex;
 
@@ -89,7 +90,7 @@ impl BagSize {
 }
 
 /// The type of PII contained on a field.
-#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash, PartialOrd, Ord, Eq, Serialize, Deserialize)]
 pub enum PiiKind {
     Freeform,
     Ip,
