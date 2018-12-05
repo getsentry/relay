@@ -71,7 +71,7 @@ impl FromValue for DebugId {
                 Ok(value) => Annotated(Some(value), meta),
                 Err(err) => {
                     meta.add_error(err.to_string());
-                    meta.set_original_value(Some(value.to_string()));
+                    meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 }
             },
