@@ -17,17 +17,13 @@ pub struct LogEntry {
     pub formatted: Annotated<String>,
 
     /// Positional parameters to be interpolated into the log message.
-    #[metastructure(pii_kind = "databag")]
-    pub params: Annotated<Params>,
+    #[metastructure(pii_kind = "databag", skip_serialization = "null")]
+    pub params: Annotated<Array<Value>>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii_kind = "databag")]
     pub other: Object<Value>,
 }
-
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
-#[metastructure(skip_serialization = "never")]
-pub struct Params(Array<Value>);
 
 impl FromValue for LogEntry {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
@@ -43,7 +39,7 @@ impl FromValue for LogEntry {
                 struct Helper {
                     message: Annotated<String>,
                     formatted: Annotated<String>,
-                    params: Annotated<Params>,
+                    params: Annotated<Array<Value>>,
                     #[metastructure(additional_properties)]
                     other: Object<Value>,
                 }
@@ -84,10 +80,10 @@ fn test_logentry_roundtrip() {
     let entry = Annotated::new(LogEntry {
         message: Annotated::new("Hello, %s %s!".to_string()),
         formatted: Annotated::empty(),
-        params: Annotated::new(Params(vec![
+        params: Annotated::new(vec![
             Annotated::new(Value::String("World".to_string())),
             Annotated::new(Value::I64(1)),
-        ])),
+        ]),
         other: {
             let mut map = Object::new();
             map.insert(
@@ -122,7 +118,7 @@ fn test_logentry_from_message() {
 fn test_logenty_empty_params() {
     let input = r#"{"params":[]}"#;
     let entry = Annotated::new(LogEntry {
-        params: Annotated::new(Params(vec![])),
+        params: Annotated::new(vec![]),
         ..Default::default()
     });
 

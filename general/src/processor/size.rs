@@ -2,13 +2,13 @@ use serde::de::value::Error;
 use serde::ser::{self, Serialize};
 use smallvec::SmallVec;
 
-use crate::types::{Annotated, ToValue};
+use crate::types::{Annotated, SkipSerialization, ToValue};
 
 /// Estimates the size in bytes this would be in JSON.
 pub fn estimate_size<T: ToValue>(value: &Annotated<T>) -> usize {
     let mut ser = SizeEstimatingSerializer::new();
     if let Some(ref value) = value.0 {
-        ToValue::serialize_payload(value, &mut ser).unwrap();
+        ToValue::serialize_payload(value, &mut ser, SkipSerialization::Null).unwrap();
     }
     ser.size()
 }

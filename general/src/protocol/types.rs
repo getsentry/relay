@@ -8,7 +8,9 @@ use serde::ser::{Serialize, Serializer};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::processor::ProcessValue;
-use crate::types::{Annotated, Array, Error, ErrorKind, FromValue, Meta, Object, ToValue, Value};
+use crate::types::{
+    Annotated, Array, Error, ErrorKind, FromValue, Meta, Object, SkipSerialization, ToValue, Value,
+};
 
 /// A array like wrapper used in various places.
 #[derive(Clone, Debug, PartialEq, ToValue, ProcessValue)]
@@ -139,7 +141,11 @@ macro_rules! hex_metrastructure {
             fn to_value(self) -> Value {
                 Value::String(self.to_string())
             }
-            fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+            fn serialize_payload<S>(
+                &self,
+                s: S,
+                _behavior: crate::types::SkipSerialization,
+            ) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
                 S: Serializer,
@@ -329,7 +335,7 @@ impl ToValue for Level {
         Value::String(self.to_string())
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
@@ -501,7 +507,7 @@ impl ToValue for ThreadId {
         }
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,

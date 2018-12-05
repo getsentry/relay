@@ -2,6 +2,13 @@ use std::fmt::Debug;
 
 use crate::types::{Annotated, MetaMap, MetaTree, Value};
 
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum SkipSerialization {
+    Null,
+    Empty,
+    Never,
+}
+
 /// Implemented for all meta structures.
 pub trait FromValue: Debug {
     /// Creates a meta structure from an annotated boxed value.
@@ -26,7 +33,7 @@ pub trait ToValue: Debug {
     }
 
     /// Efficiently serializes the payload directly.
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: serde::Serializer;
@@ -50,7 +57,8 @@ pub trait ToValue: Debug {
 
     /// Whether the value should not be serialized. Should at least return true if the value would
     /// serialize to an empty array, empty object or null.
-    fn skip_serialization(&self) -> bool {
+    fn skip_serialization(&self, behavior: SkipSerialization) -> bool {
+        let _behavior = behavior;
         false
     }
 }

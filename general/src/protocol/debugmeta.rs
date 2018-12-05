@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::processor::ProcessValue;
 use crate::protocol::Addr;
-use crate::types::{Annotated, Array, Error, FromValue, Object, ToValue, Value};
+use crate::types::{Annotated, Array, Error, FromValue, Object, SkipSerialization, ToValue, Value};
 
 /// Holds information about the system SDK.
 ///
@@ -91,7 +91,7 @@ impl ToValue for DebugId {
         Value::String(self.to_string())
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {

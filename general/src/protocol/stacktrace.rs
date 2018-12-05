@@ -66,7 +66,7 @@ pub struct Frame {
 
     /// Local variables in a convenient format.
     #[metastructure(pii_kind = "databag")]
-    pub vars: Annotated<Object<Value>>,
+    pub vars: Annotated<FrameVariables>,
 
     /// Start address of the containing code module (image).
     pub image_addr: Annotated<Addr>,
@@ -86,11 +86,24 @@ pub struct Frame {
     pub other: Object<Value>,
 }
 
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+pub struct FrameVariables(#[metastructure(skip_serialization = "never")] pub Object<Value>);
+
+impl From<Object<Value>> for FrameVariables {
+    fn from(value: Object<Value>) -> FrameVariables {
+        FrameVariables(value)
+    }
+}
+
 /// Holds information about an entirey stacktrace.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace {
-    #[metastructure(required = "true", nonempty = "true")]
+    #[metastructure(
+        required = "true",
+        nonempty = "true",
+        skip_serialization = "empty"
+    )]
     pub frames: Annotated<Array<Frame>>,
 
     /// Register values of the thread (top frame).
@@ -149,7 +162,7 @@ fn test_frame_roundtrip() {
                 "variable".to_string(),
                 Annotated::new(Value::String("value".to_string())),
             );
-            Annotated::new(map)
+            Annotated::new(map.into())
         },
         image_addr: Annotated::new(Addr(0x400)),
         instruction_addr: Annotated::new(Addr(0x404)),
@@ -252,4 +265,45 @@ fn test_stacktrace_invalid() {
     });
 
     assert_eq_dbg!(stack, Annotated::from_json("{}").unwrap());
+}
+
+#[test]
+fn test_frame_vars_null_preserved() {
+    let json = r#"{
+  "vars": {
+    "despacito": null
+  }
+}"#;
+    let frame = Annotated::new(Frame {
+        vars: Annotated::new({
+            let mut obj = Object::new();
+            obj.insert("despacito".to_string(), Annotated::new(Value::Null));
+            obj.into()
+        }),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(Annotated::from_json(json).unwrap(), frame);
+    assert_eq_str!(json, frame.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_frame_vars_empty_annotated_is_serialized() {
+    let output = r#"{
+  "vars": {
+    "despacito": null,
+    "despacito2": null
+  }
+}"#;
+    let frame = Annotated::new(Frame {
+        vars: Annotated::new({
+            let mut obj = Object::new();
+            obj.insert("despacito".to_string(), Annotated::new(Value::Null));
+            obj.insert("despacito2".to_string(), Annotated::empty());
+            obj.into()
+        }),
+        ..Default::default()
+    });
+
+    assert_eq_str!(output, frame.to_json_pretty().unwrap());
 }

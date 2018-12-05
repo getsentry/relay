@@ -13,7 +13,9 @@ use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, Level, LogEntry,
     Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
 };
-use crate::types::{Annotated, Array, ErrorKind, FromValue, Object, ToValue, Value};
+use crate::types::{
+    Annotated, Array, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
+};
 
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -111,7 +113,7 @@ impl ToValue for EventType {
         Value::String(format!("{}", self))
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
