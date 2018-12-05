@@ -39,6 +39,22 @@ macro_rules! rule_alias {
 }
 
 declare_builtin_rules! {
+    // anything
+    "@anything" => rule_alias!("@anything:replace");
+    "@anything:replace" => RuleSpec {
+        ty: RuleType::Anything,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[redacted]".into(),
+        }),
+    };
+    "@anything:hash" => RuleSpec {
+        ty: RuleType::Anything,
+        redaction: Redaction::Hash(HashRedaction {
+            algorithm: HashAlgorithm::HmacSha1,
+            key: None,
+        }),
+    };
+
     // ip rules
     "@ip" => rule_alias!("@ip:replace");
     "@ip:replace" => RuleSpec {
@@ -175,7 +191,7 @@ mod tests {
     use crate::pii::config::PiiConfig;
     use crate::pii::processor::PiiProcessor;
     use crate::processor::{process_value, PiiKind, ProcessingState};
-    use crate::types::{Annotated, Object, Remark, RemarkType, Value};
+    use crate::types::{Annotated, Remark, RemarkType};
     use std::collections::BTreeMap;
 
     #[derive(ToValue, FromValue, ProcessValue, Debug, Clone, PartialEq)]
@@ -213,10 +229,32 @@ mod tests {
         }};
     }
 
-    #[derive(ToValue, FromValue, ProcessValue, Debug, Clone)]
-    struct DatabagRoot {
-        #[metastructure(pii_kind = "databag")]
-        value: Annotated<Object<Value>>,
+    #[test]
+    fn test_anything() {
+        assert_freeform_rule!(
+            rule = "@anything";
+            input = "before 127.0.0.1 after";
+            output = "[redacted]";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@anything:replace", (0, 10)),
+            ];
+        );
+        assert_freeform_rule!(
+            rule = "@anything:replace";
+            input = "before 127.0.0.1 after";
+            output = "[redacted]";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@anything:replace", (0, 10)),
+            ];
+        );
+        assert_freeform_rule!(
+            rule = "@anything:hash";
+            input = "before 127.0.0.1 after";
+            output = "3D8FF1CECA9B899D532AA6679E952801DF9E5C74";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "@anything:hash", (0, 40)),
+            ];
+        );
     }
 
     #[test]

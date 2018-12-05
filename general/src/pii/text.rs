@@ -32,6 +32,7 @@ lazy_static! {
         set.insert(1);
         set
     };
+    static ref ANYTHING_REGEX: Regex = Regex::new(".*").unwrap();
     static ref IMEI_REGEX: Regex = Regex::new(
         r#"(?x)
             \b
@@ -125,6 +126,7 @@ fn apply_rule_to_chunks_impl(
     }
 
     match rule.spec.ty {
+        RuleType::Anything => apply_regex!(&ANYTHING_REGEX, None),
         RuleType::Pattern(ref pattern) => {
             apply_regex!(&pattern.pattern.0, pattern.replace_groups.as_ref())
         }
@@ -154,7 +156,6 @@ fn apply_rule_to_chunks_impl(
             }
         }
         // does not apply here
-        RuleType::Anything => {}
         RuleType::RedactPair { .. } => {}
     }
 
