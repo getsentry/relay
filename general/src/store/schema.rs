@@ -1,5 +1,5 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::types::{Array, Map, Meta, Object, ValueAction};
+use crate::types::{Array, Error, Map, Meta, Object, ValueAction};
 
 pub struct SchemaProcessor;
 
@@ -70,7 +70,7 @@ where
     T: IsEmpty,
 {
     if state.attrs().nonempty && value.is_empty() {
-        meta.add_error("non-empty value required");
+        meta.add_error(Error::expected("non-empty value"));
         ValueAction::DeleteHard
     } else {
         ValueAction::Keep
@@ -84,7 +84,7 @@ fn verify_value_pattern(
 ) -> ValueAction {
     if let Some(ref regex) = state.attrs().match_regex {
         if !regex.is_match(value) {
-            meta.add_error("invalid characters in string");
+            meta.add_error(Error::invalid("invalid characters in string"));
             return ValueAction::DeleteSoft;
         }
     }
@@ -96,7 +96,7 @@ fn verify_value_pattern(
 mod tests {
     use super::SchemaProcessor;
     use crate::processor::process_value;
-    use crate::types::{Annotated, Array, Object, Value};
+    use crate::types::{Annotated, Array, Error, Object, Value};
 
     fn assert_nonempty_base<T>()
     where
@@ -118,7 +118,7 @@ mod tests {
         assert_eq_dbg!(
             wrapper,
             Annotated::new(Foo {
-                bar: Annotated::from_error("non-empty value required", None),
+                bar: Annotated::from_error(Error::expected("non-empty value"), None),
                 bar2: Annotated::new(T::default())
             })
         );
@@ -154,7 +154,7 @@ mod tests {
             event,
             Annotated::new(Event {
                 release: Annotated::from_error(
-                    "invalid characters in string",
+                    Error::invalid("invalid characters in string"),
                     Some(Value::String("a\nb".into())),
                 ),
                 ..Default::default()
@@ -177,7 +177,7 @@ mod tests {
             user,
             Annotated::new(User {
                 email: Annotated::from_error(
-                    "invalid characters in string",
+                    Error::invalid("invalid characters in string"),
                     Some(Value::String("bananabread".to_string()))
                 ),
                 ..Default::default()

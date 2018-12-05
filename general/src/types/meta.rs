@@ -1,11 +1,12 @@
 use std::fmt;
+use std::str::FromStr;
 
 use serde::de::{self, Deserialize, Deserializer, IgnoredAny};
 use serde::ser::{Serialize, SerializeSeq, Serializer};
 use serde_derive::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::types::{ToValue, Value};
+use crate::types::{Map, ToValue, Value};
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
 pub type Range = (usize, usize);
@@ -136,6 +137,267 @@ impl Serialize for Remark {
     }
 }
 
+/// The kind of an `Error`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ErrorKind {
+    /// The data does not fit the schema or is semantically incorrect.
+    InvalidData,
+
+    /// The structure is missing a required attribute.
+    MissingAttribute,
+
+    /// The attribute is not allowed in this structure.
+    InvalidAttribute,
+
+    /// This value was too long and removed entirely.
+    ValueTooLong,
+
+    /// The timestamp is too old.
+    PastTimestamp,
+
+    /// The timestamp lies in the future, likely due to clock drift.
+    FutureTimestamp,
+
+    /// Any other unknown error for forward compatibility.
+    Unknown(String),
+}
+
+impl ErrorKind {
+    /// Parses an error kind from a `&str` or `String`.
+    fn parse<S>(string: S) -> Self
+    where
+        S: AsRef<str> + Into<String>,
+    {
+        match string.as_ref() {
+            "invalid_data" => ErrorKind::InvalidData,
+            "missing_attribute" => ErrorKind::MissingAttribute,
+            "invalid_attribute" => ErrorKind::InvalidAttribute,
+            "value_too_long" => ErrorKind::ValueTooLong,
+            "past_timestamp" => ErrorKind::PastTimestamp,
+            "future_timestamp" => ErrorKind::FutureTimestamp,
+            _ => ErrorKind::Unknown(string.into()),
+        }
+    }
+
+    /// Returns the string representation of this error kind.
+    pub fn as_str(&self) -> &str {
+        match self {
+            ErrorKind::InvalidData => "invalid_data",
+            ErrorKind::MissingAttribute => "missing_attribute",
+            ErrorKind::InvalidAttribute => "invalid_attribute",
+            ErrorKind::ValueTooLong => "value_too_long",
+            ErrorKind::PastTimestamp => "past_timestamp",
+            ErrorKind::FutureTimestamp => "future_timestamp",
+            ErrorKind::Unknown(error) => &error,
+        }
+    }
+
+    /// Returns a human readable description of this error kind.
+    pub fn description(&self) -> &'static str {
+        match self {
+            ErrorKind::InvalidData => "Discarded invalid data",
+            ErrorKind::MissingAttribute => "Missing value for required attribute",
+            ErrorKind::InvalidAttribute => "Discarded unknown attribute",
+            ErrorKind::ValueTooLong => "Discarded value exceeding maximum length",
+            ErrorKind::PastTimestamp => "Invalid timestamp (too old)",
+            ErrorKind::FutureTimestamp => "Invalid timestamp (in future)",
+            ErrorKind::Unknown(_) => "Unknown error",
+        }
+    }
+}
+
+impl fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl From<String> for ErrorKind {
+    fn from(string: String) -> Self {
+        ErrorKind::parse(string)
+    }
+}
+
+impl<'a> From<&'a str> for ErrorKind {
+    fn from(string: &'a str) -> Self {
+        ErrorKind::parse(string)
+    }
+}
+
+impl FromStr for ErrorKind {
+    type Err = ();
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Ok(ErrorKind::from(string))
+    }
+}
+
+impl<'de> Deserialize<'de> for ErrorKind {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ErrorKindVisitor;
+
+        impl<'de> de::Visitor<'de> for ErrorKindVisitor {
+            type Value = ErrorKind;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                write!(formatter, "a meta remark")
+            }
+
+            fn visit_str<E>(self, string: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(ErrorKind::from(string))
+            }
+
+            fn visit_string<E>(self, string: String) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(ErrorKind::from(string))
+            }
+        }
+
+        deserializer.deserialize_str(ErrorKindVisitor)
+    }
+}
+
+impl Serialize for ErrorKind {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+/// An error with an enumerable kind and optional data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Error {
+    kind: ErrorKind,
+    data: Map<String, Value>,
+}
+
+impl Error {
+    /// Creates a new error with the given data.
+    #[inline]
+    fn with_data(kind: ErrorKind, data: Map<String, Value>) -> Self {
+        Error { kind, data }
+    }
+
+    /// Creates a new error without data.
+    #[inline]
+    pub fn new(kind: ErrorKind) -> Self {
+        Error::with_data(kind, Default::default())
+    }
+
+    /// Creates a new error and allows instant modification in a function.
+    #[inline]
+    pub fn with<F>(kind: ErrorKind, f: F) -> Self
+    where
+        F: FnOnce(&mut Self),
+    {
+        let mut error = Error::new(kind);
+        f(&mut error);
+        error
+    }
+
+    /// Creates an invalid data error with a plain text reason.
+    pub fn invalid<S>(reason: S) -> Self
+    where
+        S: std::fmt::Display,
+    {
+        Error::with(ErrorKind::InvalidData, |error| {
+            error.insert("reason", reason.to_string());
+        })
+    }
+
+    /// Creates an error that describes an invalid value.
+    pub fn expected(expectation: &str) -> Self {
+        Error::invalid(format!("expected {}", expectation))
+    }
+
+    /// Returns the kind of this error.
+    pub fn kind(&self) -> &ErrorKind {
+        &self.kind
+    }
+
+    /// Inserts a new key into the data bag of this error.
+    pub fn insert<K, V>(&mut self, key: K, value: V) -> Option<Value>
+    where
+        K: Into<String>,
+        V: Into<Value>,
+    {
+        self.data.insert(key.into(), value.into())
+    }
+
+    /// Retrieves a key from the data bag of this error.
+    pub fn get<K>(&self, key: K) -> Option<&Value>
+    where
+        K: AsRef<str>,
+    {
+        self.data.get(key.as_ref())
+    }
+}
+
+impl From<ErrorKind> for Error {
+    fn from(kind: ErrorKind) -> Self {
+        Error::new(kind)
+    }
+}
+
+impl<'de> Deserialize<'de> for Error {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ErrorVisitor;
+
+        impl<'de> de::Visitor<'de> for ErrorVisitor {
+            type Value = Error;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                write!(formatter, "a meta remark")
+            }
+
+            fn visit_str<E>(self, string: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Error::new(ErrorKind::from(string)))
+            }
+
+            fn visit_string<E>(self, string: String) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Error::new(ErrorKind::from(string)))
+            }
+
+            fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                let kind = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::custom("missing error kind"))?;
+                let data = seq.next_element()?.unwrap_or_default();
+
+                // Drain the sequence
+                while let Some(IgnoredAny) = seq.next_element()? {}
+
+                Ok(Error::with_data(kind, data))
+            }
+        }
+
+        deserializer.deserialize_any(ErrorVisitor)
+    }
+}
+
+impl Serialize for Error {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if self.data.is_empty() {
+            return self.kind.serialize(serializer);
+        }
+
+        let mut seq = serializer.serialize_seq(None)?;
+        seq.serialize_element(&self.kind)?;
+        seq.serialize_element(&self.data)?;
+        seq.end()
+    }
+}
+
 /// Meta information for a data field in the event payload.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MetaInner {
@@ -147,13 +409,13 @@ pub struct MetaInner {
     )]
     remarks: SmallVec<[Remark; 3]>,
 
-    /// Errors that happened during deserialization or processing.
+    /// Errors that happened during normalization or processing.
     #[serde(
         default,
         skip_serializing_if = "SmallVec::is_empty",
         rename = "err"
     )]
-    errors: SmallVec<[String; 3]>,
+    errors: SmallVec<[Error; 3]>,
 
     /// The original length of modified text fields or collections.
     #[serde(
@@ -203,19 +465,14 @@ impl<'de> Deserialize<'de> for Meta {
 
 impl Meta {
     /// From an error
-    pub fn from_error<S: Into<String>>(err: S) -> Self {
-        let mut rv = Self::default();
-        rv.add_error(err);
-        rv
+    pub fn from_error<E: Into<Error>>(err: E) -> Self {
+        let mut meta = Self::default();
+        meta.add_error(err);
+        meta
     }
 
     fn upsert(&mut self) -> &mut MetaInner {
-        if let Some(ref mut rv) = self.0 {
-            rv
-        } else {
-            self.0 = Some(Box::new(MetaInner::default()));
-            self.0.as_mut().unwrap()
-        }
+        self.0.get_or_insert_with(|| Box::new(MetaInner::default()))
     }
 
     /// The original length of this field, if applicable.
@@ -259,24 +516,16 @@ impl Meta {
     }
 
     /// Iterates errors on this field.
-    pub fn iter_errors(&self) -> impl Iterator<Item = &str> {
+    pub fn iter_errors(&self) -> impl Iterator<Item = &Error> {
         match self.0 {
             Some(ref inner) => &inner.errors[..],
             None => &[][..],
         }.into_iter()
-        .map(|x| x.as_str())
     }
 
     /// Mutable reference to errors of this field.
-    pub fn add_error<S: Into<String>>(&mut self, err: S) {
-        let inner = self.upsert();
-        inner.errors.push(err.into());
-    }
-
-    /// Adds an unexpected value error.
-    pub fn add_unexpected_value_error(&mut self, expectation: &str, value: Value) {
-        self.add_error(format!("expected {}", expectation));
-        self.set_original_value(Some(value));
+    pub fn add_error<E: Into<Error>>(&mut self, err: E) {
+        self.upsert().errors.push(err.into());
     }
 
     /// Returns a reference to the original value, if any.

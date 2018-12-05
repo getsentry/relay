@@ -660,7 +660,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                             #valid_match_arm
                             crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta),
                             crate::types::Annotated(Some(__value), mut __meta) => {
-                                __meta.add_unexpected_value_error(#expectation, __value);
+                                __meta.add_error(crate::types::Error::expected(#expectation));
+                                __meta.set_original_value(Some(__value));
                                 crate::types::Annotated(None, __meta)
                             }
                         }

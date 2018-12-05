@@ -12,6 +12,6 @@ mod value;
 
 pub use self::annotated::{Annotated, MetaMap, MetaTree, ValueAction};
 pub use self::impls::SerializePayload;
-pub use self::meta::{Meta, Range, Remark, RemarkType};
+pub use self::meta::{Error, ErrorKind, Meta, Range, Remark, RemarkType};
 pub use self::traits::{FromValue, ToValue};
 pub use self::value::{Array, Map, Object, Value, ValueDescription};

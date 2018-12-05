@@ -12,10 +12,10 @@ use crate::types::{Annotated, Meta};
 pub type Array<T> = Vec<Annotated<T>>;
 
 /// Alias for maps.
-pub type Map<K, T> = BTreeMap<K, Annotated<T>>;
+pub type Map<K, T> = BTreeMap<K, T>;
 
 /// Alias for typed objects.
-pub type Object<T> = Map<String, T>;
+pub type Object<T> = Map<String, Annotated<T>>;
 
 /// Represents a boxed value.
 #[derive(Debug, Clone, PartialEq)]

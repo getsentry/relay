@@ -1,7 +1,7 @@
 use cookie::Cookie;
 use url::form_urlencoded;
 
-use crate::types::{Annotated, Array, FromValue, Map, Object, Value};
+use crate::types::{Annotated, Array, Error, FromValue, Map, Object, Value};
 
 /// A map holding cookies.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
@@ -38,7 +38,7 @@ impl FromValue for Cookies {
                             );
                         }
                         Err(err) => {
-                            meta.add_error(err.to_string());
+                            meta.add_error(Error::invalid(err));
                             meta.set_original_value(Some(cookie.to_string()));
                         }
                     }
@@ -52,7 +52,8 @@ impl FromValue for Cookies {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("cookies", value);
+                meta.add_error(Error::expected("cookies"));
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
         }
@@ -207,7 +208,8 @@ impl FromValue for Query {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("query-string or map", value);
+                meta.add_error(Error::expected("query-string or map"));
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
         }
@@ -339,7 +341,12 @@ fn test_header_from_sequence() {
         "1": {
           "": {
             "err": [
-              "expected a string"
+              [
+                "invalid_data",
+                {
+                  "reason": "expected a string"
+                }
+              ]
             ],
             "val": 42
           }
@@ -349,7 +356,12 @@ fn test_header_from_sequence() {
         "0": {
           "": {
             "err": [
-              "expected a string"
+              [
+                "invalid_data",
+                {
+                  "reason": "expected a string"
+                }
+              ]
             ],
             "val": 1
           }
@@ -357,7 +369,12 @@ fn test_header_from_sequence() {
         "1": {
           "": {
             "err": [
-              "expected a string"
+              [
+                "invalid_data",
+                {
+                  "reason": "expected a string"
+                }
+              ]
             ],
             "val": 2
           }
@@ -366,7 +383,12 @@ fn test_header_from_sequence() {
       "3": {
         "": {
           "err": [
-            "expected tuple"
+            [
+              "invalid_data",
+              {
+                "reason": "expected a tuple"
+              }
+            ]
           ],
           "val": [
             "a",
@@ -378,7 +400,12 @@ fn test_header_from_sequence() {
       "4": {
         "": {
           "err": [
-            "expected tuple"
+            [
+              "invalid_data",
+              {
+                "reason": "expected a tuple"
+              }
+            ]
           ],
           "val": 23
         }
@@ -511,8 +538,10 @@ fn test_query_string_legacy_nested() {
 
 #[test]
 fn test_query_invalid() {
-    let query =
-        Annotated::<Query>::from_error("expected query-string or map", Some(Value::U64(64)));
+    let query = Annotated::<Query>::from_error(
+        Error::expected("query-string or map"),
+        Some(Value::U64(64)),
+    );
     assert_eq_dbg!(query, Annotated::from_json("42").unwrap());
 }
 
@@ -543,7 +572,7 @@ fn test_cookies_object() {
     map.insert("foo".to_string(), Annotated::new("bar".to_string()));
     map.insert(
         "invalid".to_string(),
-        Annotated::from_error("expected a string", Some(Value::U64(42))),
+        Annotated::from_error(Error::expected("a string"), Some(Value::U64(42))),
     );
 
     let cookies = Annotated::new(Cookies(map));
@@ -552,6 +581,7 @@ fn test_cookies_object() {
 
 #[test]
 fn test_cookies_invalid() {
-    let cookies = Annotated::<Cookies>::from_error("expected cookies", Some(Value::I64(42)));
+    let cookies =
+        Annotated::<Cookies>::from_error(Error::expected("cookies"), Some(Value::I64(42)));
     assert_eq_dbg!(cookies, Annotated::from_json("42").unwrap());
 }
