@@ -1,7 +1,7 @@
 use std::fmt;
 
 use failure::Fail;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// An error response from an api.
 #[derive(Serialize, Deserialize, Default, Debug)]

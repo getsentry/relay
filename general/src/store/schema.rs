@@ -65,7 +65,11 @@ impl IsEmpty for String {
     }
 }
 
-fn verify_value_nonempty<T>(value: &mut T, meta: &mut Meta, state: &ProcessingState<'_>) -> ValueAction
+fn verify_value_nonempty<T>(
+    value: &mut T,
+    meta: &mut Meta,
+    state: &ProcessingState<'_>,
+) -> ValueAction
 where
     T: IsEmpty,
 {

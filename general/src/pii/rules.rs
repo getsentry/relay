@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use regex::{Regex, RegexBuilder};
-use serde::{Serialize, Serializer, Deserialize, Deserializer, de::Error};
+use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::pii::config::PiiConfig;
 use crate::pii::redactions::Redaction;
