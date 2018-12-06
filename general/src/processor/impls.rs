@@ -1,8 +1,20 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::processor::{process_value, ProcessValue, ProcessingState, Processor};
+use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, FieldAttrs, PiiKind};
 use crate::types::{Annotated, Array, Meta, Object, Value, ValueAction};
+
+const FREEFORM_PII_ATTRS: FieldAttrs = FieldAttrs {
+    name: None,
+    required: false,
+    nonempty: false,
+    match_regex: None,
+    max_chars: None,
+    bag_size: None,
+    pii_kind: Some(PiiKind::Freeform),
+};
 
 impl ProcessValue for String {
     #[inline]
@@ -106,7 +118,8 @@ where
         P: Processor,
     {
         for (index, element) in self.iter_mut().enumerate() {
-            process_value(element, processor, state.enter_index(index, None));
+            let attrs = state.attrs().pii_kind.map(|_| Cow::Borrowed(&FREEFORM_PII_ATTRS));
+            process_value(element, processor, state.enter_index(index, attrs));
         }
     }
 }
@@ -134,7 +147,8 @@ where
         P: Processor,
     {
         for (k, v) in self.iter_mut() {
-            process_value(v, processor, state.enter_borrowed(k, None));
+            let attrs = state.attrs().pii_kind.map(|_| Cow::Borrowed(&FREEFORM_PII_ATTRS));
+            process_value(v, processor, state.enter_borrowed(k, attrs));
         }
     }
 }
