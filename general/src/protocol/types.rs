@@ -9,7 +9,7 @@ use serde::ser::{Serialize, Serializer};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, PiiKind, FieldAttrs};
-use crate::types::{Annotated, Array, FromValue, Meta, Object, ToValue, Value, ValueAction};
+use crate::types::{Annotated, Array, FromValue, Meta, Object, ToValue, Value, ValueAction, Error, ErrorKind};
 
 const FREEFORM_PII_ATTRS: FieldAttrs = FieldAttrs {
     name: None,
@@ -92,7 +92,8 @@ impl<T: FromValue> FromValue for Values<T> {
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("array or values", value);
+                meta.add_error(Error::expected("array or values"));
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
         }
@@ -189,7 +190,7 @@ macro_rules! hex_metrastructure {
                     Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                         Ok(value) => Annotated(Some(value), meta),
                         Err(err) => {
-                            meta.add_error(err.to_string());
+                            meta.add_error(Error::invalid(err));
                             meta.set_original_value(Some(value));
                             Annotated(None, meta)
                         }
@@ -201,7 +202,8 @@ macro_rules! hex_metrastructure {
                     }
                     Annotated(None, meta) => Annotated(None, meta),
                     Annotated(Some(value), mut meta) => {
-                        meta.add_unexpected_value_error($expectation, value);
+                        meta.add_error(Error::expected($expectation));
+                        meta.set_original_value(Some(value));
                         Annotated(None, meta)
                     }
                 }
@@ -276,13 +278,15 @@ impl FromValue for IpAddr {
                 if value == "{{auto}}" || net::IpAddr::from_str(&value).is_ok() {
                     return Annotated(Some(IpAddr(value)), meta);
                 }
-                meta.add_unexpected_value_error("an ip address", Value::String(value));
+                meta.add_error(Error::expected("an ip address"));
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("an ip address", value);
+                meta.add_error(Error::expected("an ip address"));
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
         }
@@ -361,7 +365,7 @@ impl FromValue for Level {
             Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                 Ok(value) => Annotated(Some(value), meta),
                 Err(err) => {
-                    meta.add_error(err.to_string());
+                    meta.add_error(Error::invalid(err));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 }
@@ -369,7 +373,7 @@ impl FromValue for Level {
             Annotated(Some(Value::U64(val)), mut meta) => match Level::from_python_level(val) {
                 Some(value) => Annotated(Some(value), meta),
                 None => {
-                    meta.add_error("unknown numeric level");
+                    meta.add_error(ErrorKind::InvalidData);
                     meta.set_original_value(Some(val));
                     Annotated(None, meta)
                 }
@@ -378,7 +382,7 @@ impl FromValue for Level {
                 match Level::from_python_level(val as u64) {
                     Some(value) => Annotated(Some(value), meta),
                     None => {
-                        meta.add_error("unknown numeric level");
+                        meta.add_error(ErrorKind::InvalidData);
                         meta.set_original_value(Some(val));
                         Annotated(None, meta)
                     }
@@ -387,7 +391,8 @@ impl FromValue for Level {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("level", value);
+                meta.add_error(Error::expected("level"));
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
         }
@@ -465,14 +470,15 @@ impl FromValue for LenientString {
                 if num.abs() < (1i64 << 53) as f64 {
                     Annotated(Some(num.trunc().to_string()), meta)
                 } else {
-                    meta.add_error("non integer value");
+                    meta.add_error(Error::expected("number with JSON precision"));
                     meta.set_original_value(Some(num));
                     Annotated(None, meta)
                 }
             }
             Annotated(None, meta) | Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("primitive", value);
+                meta.add_error(Error::expected("primitive value"));
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
         }.map_value(LenientString)
@@ -554,7 +560,8 @@ impl FromValue for ThreadId {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("thread id", value);
+                meta.add_error(Error::expected("thread id"));
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
         }
@@ -727,7 +734,7 @@ fn test_ip_addr() {
     );
     assert_eq_dbg!(
         Annotated::from_error(
-            "expected an ip address",
+            Error::expected("an ip address"),
             Some(Value::String("clearly invalid value".into()))
         ),
         Annotated::<IpAddr>::from_json("\"clearly invalid value\"").unwrap()

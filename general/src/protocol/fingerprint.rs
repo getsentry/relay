@@ -1,6 +1,6 @@
 use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
-use crate::types::{Annotated, FromValue, ToValue, Value};
+use crate::types::{Annotated, Error, ErrorKind, FromValue, ToValue, Value};
 
 /// A fingerprint value.
 #[derive(Debug, Clone, PartialEq)]
@@ -36,6 +36,7 @@ impl FromValue for Fingerprint {
             Annotated(Some(Value::Array(array)), mut meta) => {
                 let mut fingerprint = vec![];
                 let mut bad_values = vec![];
+
                 for elem in array {
                     let Annotated(value, mut elem_meta) = LenientString::from_value(elem);
                     if let (Some(value), false) = (value, elem_meta.has_errors()) {
@@ -47,9 +48,15 @@ impl FromValue for Fingerprint {
                 }
 
                 if !bad_values.is_empty() {
-                    meta.add_error("bad values in fingerprint");
-                    meta.set_original_value(Some(bad_values));
+                    if meta.original_length().is_none() {
+                        meta.set_original_length(Some(fingerprint.len() + bad_values.len()));
+                    }
+
+                    meta.add_error(Error::with(ErrorKind::InvalidData, |error| {
+                        error.insert("value", bad_values);
+                    }));
                 }
+
                 Annotated(
                     if fingerprint.is_empty() && meta.has_errors() {
                         None
@@ -60,7 +67,8 @@ impl FromValue for Fingerprint {
                 )
             }
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("array", value);
+                meta.add_error(Error::expected("array"));
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
             Annotated(None, meta) => Annotated(None, meta),
@@ -135,38 +143,46 @@ fn test_fingerprint_float_trunc() {
 
 #[test]
 fn test_fingerprint_float_strip() {
+    use crate::types::Meta;
+
+    let bad_values = vec![Annotated::new(Value::F64(-1e100))];
+
+    let mut meta = Meta::from_error(Error::with(ErrorKind::InvalidData, |e| {
+        e.insert("value", bad_values);
+    }));
+    meta.set_original_length(Some(1));
+
     assert_eq_dbg!(
-        Annotated::from_error(
-            "bad values in fingerprint",
-            Some(Value::Array(vec![Annotated::new(Value::F64(-1e100))]))
-        ),
+        Annotated(None, meta),
         Annotated::<Fingerprint>::from_json("[-1e100]").unwrap()
     );
 }
 
 #[test]
 fn test_fingerprint_float_bounds() {
+    use crate::types::Meta;
+
+    let bad_values = vec![Annotated::new(Value::F64(
+        #[cfg_attr(feature = "cargo-clippy", allow(excessive_precision))]
+        1.797_693_134_862_315_7e+308,
+    ))];
+
+    let mut meta = Meta::from_error(Error::with(ErrorKind::InvalidData, |e| {
+        e.insert("value", bad_values);
+    }));
+    meta.set_original_length(Some(1));
+
     assert_eq_dbg!(
-        Annotated::from_error(
-            "bad values in fingerprint",
-            Some(Value::Array(vec![Annotated::new(Value::F64(
-                #[cfg_attr(feature = "cargo-clippy", allow(excessive_precision))]
-                1.797_693_134_862_315_7e+308
-            ))]))
-        ),
+        Annotated(None, meta),
         Annotated::<Fingerprint>::from_json("[1.7976931348623157e+308]").unwrap()
     );
 }
 
 #[test]
 fn test_fingerprint_invalid_fallback() {
-    use crate::types::Meta;
     // XXX: review, this was changed after refactor
     assert_eq_dbg!(
-        Annotated(
-            Some(Fingerprint(vec!["a".to_string(), "d".to_string()])),
-            Meta::default()
-        ),
+        Annotated::new(Fingerprint(vec!["a".to_string(), "d".to_string()])),
         Annotated::<Fingerprint>::from_json("[\"a\", null, \"d\"]").unwrap()
     );
 }

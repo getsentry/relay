@@ -224,6 +224,8 @@ fn test_stacktrace_roundtrip() {
 
 #[test]
 fn test_stacktrace_default_values() {
+    use crate::types::ErrorKind;
+
     let json = "{}";
     let input = Annotated::new(Stacktrace {
         frames: Annotated::new(vec![Annotated::new(Default::default())]),
@@ -231,7 +233,7 @@ fn test_stacktrace_default_values() {
     });
 
     let output = Annotated::new(Stacktrace {
-        frames: Annotated::from_error("value required", None),
+        frames: Annotated::from_error(ErrorKind::MissingAttribute, None),
         ..Default::default()
     });
 
@@ -241,8 +243,10 @@ fn test_stacktrace_default_values() {
 
 #[test]
 fn test_stacktrace_invalid() {
+    use crate::types::ErrorKind;
+
     let stack = Annotated::new(Stacktrace {
-        frames: Annotated::from_error("value required", None),
+        frames: Annotated::from_error(ErrorKind::MissingAttribute, None),
         registers: Annotated::empty(),
         other: Default::default(),
     });

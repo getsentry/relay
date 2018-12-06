@@ -14,7 +14,7 @@ use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Event, EventId, EventType, Exception, Frame, IpAddr, Level, Request,
     Stacktrace, TagEntry, Tags, User,
 };
-use crate::types::{Annotated, Meta, Object, ValueAction};
+use crate::types::{Annotated, Error, ErrorKind, Meta, Object, ValueAction};
 
 mod geo;
 mod mechanism;
@@ -93,14 +93,14 @@ impl<'a> StoreNormalizeProcessor<'a> {
         event.timestamp.apply(|timestamp, meta| {
             if let Some(secs) = self.config.max_secs_in_future {
                 if *timestamp > current_timestamp + Duration::seconds(secs) {
-                    meta.add_error("Invalid timestamp (in future)");
+                    meta.add_error(ErrorKind::FutureTimestamp);
                     return ValueAction::DeleteSoft;
                 }
             }
 
             if let Some(secs) = self.config.max_secs_in_past {
                 if *timestamp < current_timestamp - Duration::seconds(secs) {
-                    meta.add_error("Invalid timestamp (too old)");
+                    meta.add_error(ErrorKind::PastTimestamp);
                     return ValueAction::DeleteSoft;
                 }
             }
@@ -413,7 +413,9 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         }
 
         if exception.ty.value().is_none() && exception.value.value().is_none() {
-            meta.add_error("type or value required");
+            meta.add_error(Error::with(ErrorKind::MissingAttribute, |error| {
+                error.insert("attribute", "type or value");
+            }));
             return ValueAction::DeleteSoft;
         }
 
@@ -531,9 +533,13 @@ fn test_exception_invalid() {
     let mut exception = Annotated::new(Exception::default());
     process_value(&mut exception, &mut processor, Default::default());
 
+    let expected = Error::with(ErrorKind::MissingAttribute, |error| {
+        error.insert("attribute", "type or value");
+    });
+
     assert_eq_dbg!(
         exception.meta().iter_errors().collect_tuple(),
-        Some(("type or value required",))
+        Some((&expected,))
     );
 }
 

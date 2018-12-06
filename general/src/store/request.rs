@@ -4,7 +4,7 @@ use serde::de::IgnoredAny;
 use url::Url;
 
 use crate::protocol::{Query, Request};
-use crate::types::{Annotated, Meta, Object, Value, ValueAction};
+use crate::types::{Annotated, ErrorKind, Meta, Object, Value, ValueAction};
 
 lazy_static! {
     static ref METHOD_RE: Regex = Regex::new(r"^[A-Z\-_]{3,32}$").unwrap();
@@ -30,9 +30,9 @@ fn normalize_url(request: &mut Request) {
 
     let mut url = match url_result {
         Ok(url) => url,
-        Err(err) => {
+        Err(_) => {
             // TODO: Remove value here or not?
-            request.url.meta_mut().add_error(err.to_string());
+            request.url.meta_mut().add_error(ErrorKind::InvalidData);
             return;
         }
     };
@@ -67,7 +67,7 @@ fn normalize_method(method: &mut String, meta: &mut Meta) -> ValueAction {
     method.make_ascii_uppercase();
 
     if !meta.has_errors() && METHOD_RE.is_match(&method) {
-        meta.add_error("invalid http method");
+        meta.add_error(ErrorKind::InvalidData);
         return ValueAction::DeleteSoft;
     }
 

@@ -13,7 +13,7 @@ use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, Level, LogEntry,
     Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
 };
-use crate::types::{Annotated, Array, FromValue, Object, ToValue, Value};
+use crate::types::{Annotated, Array, ErrorKind, FromValue, Object, ToValue, Value};
 
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -90,9 +90,13 @@ impl fmt::Display for EventType {
 impl FromValue for EventType {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match <String as FromValue>::from_value(value) {
-            Annotated(Some(value), meta) => match EventType::from_str(&value) {
-                Ok(x) => Annotated(Some(x), meta),
-                Err(_) => Annotated::from_error("invalid event type", None),
+            Annotated(Some(value), mut meta) => match value.parse() {
+                Ok(eventtype) => Annotated(Some(eventtype), meta),
+                Err(_) => {
+                    meta.add_error(ErrorKind::InvalidData);
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                }
             },
             Annotated(None, meta) => Annotated(None, meta),
         }
@@ -335,7 +339,7 @@ fn test_event_roundtrip() {
     "event_id": {
       "": {
         "err": [
-          "some error"
+          "invalid_data"
         ]
       }
     }
@@ -345,11 +349,7 @@ fn test_event_roundtrip() {
     let event = Annotated::new(Event {
         id: Annotated(
             Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
-            {
-                let mut meta = Meta::default();
-                meta.add_error("some error");
-                meta
-            },
+            Meta::from_error(ErrorKind::InvalidData),
         ),
         level: Annotated::new(Level::Debug),
         fingerprint: Annotated::new(vec!["myprint".to_string()].into()),
@@ -424,21 +424,21 @@ fn test_event_default_values_with_meta() {
     "event_id": {
       "": {
         "err": [
-          "some error"
+          "invalid_data"
         ]
       }
     },
     "fingerprint": {
       "": {
         "err": [
-          "some error"
+          "invalid_data"
         ]
       }
     },
     "platform": {
       "": {
         "err": [
-          "some error"
+          "invalid_data"
         ]
       }
     }
@@ -448,22 +448,16 @@ fn test_event_default_values_with_meta() {
     let event = Annotated::new(Event {
         id: Annotated(
             Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
-            {
-                let mut meta = Meta::default();
-                meta.add_error("some error");
-                meta
-            },
+            Meta::from_error(ErrorKind::InvalidData),
         ),
-        fingerprint: Annotated(Some(vec!["{{ default }}".to_string()].into()), {
-            let mut meta = Meta::default();
-            meta.add_error("some error");
-            meta
-        }),
-        platform: Annotated(Some("other".to_string()), {
-            let mut meta = Meta::default();
-            meta.add_error("some error");
-            meta
-        }),
+        fingerprint: Annotated(
+            Some(vec!["{{ default }}".to_string()].into()),
+            Meta::from_error(ErrorKind::InvalidData),
+        ),
+        platform: Annotated(
+            Some("other".to_string()),
+            Meta::from_error(ErrorKind::InvalidData),
+        ),
         ..Default::default()
     });
 

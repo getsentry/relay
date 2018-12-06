@@ -1,11 +1,11 @@
-use std::collections::BTreeMap;
-
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::types::{Annotated, Array, FromValue, MetaMap, MetaTree, Object, ToValue, Value};
+use crate::types::{
+    Annotated, Array, Error, FromValue, Map, MetaMap, MetaTree, Object, ToValue, Value,
+};
 
 // This needs to be public because the derive crate emits it
 #[doc(hidden)]
@@ -27,7 +27,7 @@ primitive_meta_structure!(String, String, "a string");
 primitive_meta_structure!(bool, Bool, "a boolean");
 numeric_meta_structure!(u64, U64, "an unsigned integer");
 numeric_meta_structure!(i64, I64, "a signed integer");
-numeric_meta_structure!(f64, F64, "a floating point value");
+numeric_meta_structure!(f64, F64, "a floating point number");
 primitive_meta_structure_through_string!(Uuid, "a uuid");
 
 impl<T: FromValue> FromValue for Array<T> {
@@ -40,7 +40,7 @@ impl<T: FromValue> FromValue for Array<T> {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error("expected array");
+                meta.add_error(Error::expected("object"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
@@ -106,7 +106,7 @@ impl<T: FromValue> FromValue for Object<T> {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error("expected object");
+                meta.add_error(Error::expected("object"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
@@ -138,7 +138,7 @@ impl<T: ToValue> ToValue for Object<T> {
         map_ser.end()
     }
 
-    fn extract_child_meta(&self) -> BTreeMap<String, MetaTree>
+    fn extract_child_meta(&self) -> Map<String, MetaTree>
     where
         Self: Sized,
     {
@@ -181,7 +181,7 @@ impl ToValue for Value {
         Serialize::serialize(self, s)
     }
 
-    fn extract_child_meta(&self) -> BTreeMap<String, MetaTree>
+    fn extract_child_meta(&self) -> Map<String, MetaTree>
     where
         Self: Sized,
     {
@@ -225,7 +225,7 @@ impl FromValue for DateTime<Utc> {
                 match parsed {
                     Ok(value) => Annotated(Some(value), meta),
                     Err(err) => {
-                        meta.add_error(err.to_string());
+                        meta.add_error(Error::invalid(err));
                         meta.set_original_value(Some(value));
                         Annotated(None, meta)
                     }
@@ -245,7 +245,7 @@ impl FromValue for DateTime<Utc> {
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error("expected timestamp");
+                meta.add_error(Error::expected("timestamp"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
@@ -311,7 +311,7 @@ macro_rules! tuple_meta_structure {
                 match annotated {
                     Annotated(Some(Value::Array(items)), mut meta) => {
                         if items.len() != n {
-                            meta.add_error("expected tuple");
+                            meta.add_error(Error::expected("a tuple"));
                             meta.set_original_value(Some(items));
                             return Annotated(None, meta);
                         }
@@ -325,7 +325,7 @@ macro_rules! tuple_meta_structure {
                         )), meta)
                     }
                     Annotated(Some(value), mut meta) => {
-                        meta.add_error("expected tuple");
+                        meta.add_error(Error::expected("a tuple"));
                         meta.set_original_value(Some(value));
                         Annotated(None, meta)
                     }
@@ -390,7 +390,7 @@ tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 fn test_unsigned_integers() {
     assert_eq!(
         Annotated::<u64>::from_json("-1").unwrap(),
-        Annotated::from_error("expected an unsigned integer", Some(Value::I64(-1)))
+        Annotated::from_error(Error::expected("an unsigned integer"), Some(Value::I64(-1)))
     );
 }
 
