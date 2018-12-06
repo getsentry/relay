@@ -899,8 +899,8 @@ enum SkipSerialization {
 }
 
 impl SkipSerialization {
-    fn as_tokens(&self) -> TokenStream {
-        match *self {
+    fn as_tokens(self) -> TokenStream {
+        match self {
             SkipSerialization::Never => quote!(crate::types::SkipSerialization::Never),
             SkipSerialization::Null => quote!(crate::types::SkipSerialization::Null),
             SkipSerialization::Empty => quote!(crate::types::SkipSerialization::Empty),
