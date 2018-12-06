@@ -1,11 +1,16 @@
 use crate::protocol::LenientString;
-use crate::types::{Annotated, Array, FromValue, Value};
+use crate::types::{Annotated, Array, Error, FromValue, Value};
 
-fn check_chars(x: String) -> Annotated<String> {
-    if x.contains('\n') {
-        Annotated::from_error("invalid character in tag", Some(Value::String(x)))
+fn check_chars(string: String) -> Annotated<String> {
+    if string.contains('\n') {
+        let mut annotated = Annotated::empty();
+        annotated
+            .meta_mut()
+            .add_error(Error::invalid("invalid characters in tag"));
+        annotated.meta_mut().set_original_value(Some(string));
+        annotated
     } else {
-        Annotated::new(x)
+        Annotated::new(string)
     }
 }
 
@@ -85,7 +90,8 @@ impl FromValue for Tags {
                 Annotated(Some(Tags(entries)), meta)
             }
             Annotated(Some(other), mut meta) => {
-                meta.add_unexpected_value_error("tags", other);
+                meta.add_error(Error::expected("tags"));
+                meta.set_original_value(Some(other));
                 Annotated(None, meta)
             }
             Annotated(None, meta) => Annotated(None, meta),

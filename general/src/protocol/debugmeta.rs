@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::processor::ProcessValue;
 use crate::protocol::Addr;
-use crate::types::{Annotated, Array, FromValue, Object, ToValue, Value};
+use crate::types::{Annotated, Array, Error, FromValue, Object, ToValue, Value};
 
 /// Holds information about the system SDK.
 ///
@@ -70,14 +70,15 @@ impl FromValue for DebugId {
             Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                 Ok(value) => Annotated(Some(value), meta),
                 Err(err) => {
-                    meta.add_error(err.to_string());
+                    meta.add_error(Error::invalid(err));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 }
             },
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("debug id", value);
+                meta.add_error(Error::expected("debug id"));
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
             Annotated(None, meta) => Annotated(None, meta),

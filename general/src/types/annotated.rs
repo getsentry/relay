@@ -1,11 +1,9 @@
-use std::collections::BTreeMap;
-
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_derive::Serialize;
 use serde_json;
 
-use crate::types::{FromValue, Meta, Object, ToValue, Value};
+use crate::types::{Error, FromValue, Map, Meta, ToValue, Value};
 
 /// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
@@ -69,7 +67,7 @@ impl MetaTree {
 }
 
 /// Meta for children.
-pub type MetaMap = BTreeMap<String, MetaTree>;
+pub type MetaMap = Map<String, MetaTree>;
 
 /// Used to indicate how to handle an annotated value in a callback.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -138,11 +136,13 @@ impl<T> Annotated<T> {
         Annotated(None, Meta::default())
     }
 
-    /// From an error
-    pub fn from_error<S: Into<String>>(err: S, value: Option<Value>) -> Self {
+    // Creates an empty annotated value with error attached.
+    pub fn from_error<E>(err: E, value: Option<Value>) -> Self
+    where
+        E: Into<Error>,
+    {
         Annotated(None, {
-            let mut meta = Meta::default();
-            meta.add_error(err);
+            let mut meta = Meta::from_error(err);
             meta.set_original_value(value);
             meta
         })
@@ -347,17 +347,6 @@ impl<T: ToValue> Annotated<T> {
 }
 
 impl Annotated<Value> {
-    pub fn into_object(self) -> Annotated<Object<Value>> {
-        match self {
-            Annotated(Some(Value::Object(object)), meta) => Annotated(Some(object), meta),
-            Annotated(Some(_), mut meta) => {
-                meta.add_error("expected object");
-                Annotated(None, meta)
-            }
-            Annotated(None, meta) => Annotated(None, meta),
-        }
-    }
-
     fn attach_meta_tree(&mut self, mut meta_tree: MetaTree) {
         match self.0 {
             Some(Value::Array(ref mut items)) => {
@@ -415,6 +404,8 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Annotated<T> {
 
 #[test]
 fn test_annotated_deserialize_with_meta() {
+    use crate::types::ErrorKind;
+
     #[derive(ToValue, FromValue, Debug)]
     struct Foo {
         id: Annotated<u64>,
@@ -430,12 +421,12 @@ fn test_annotated_deserialize_with_meta() {
             "_meta": {
                 "id": {
                     "": {
-                        "err": ["invalid id"]
+                        "err": ["unknown_error"]
                     }
                 },
                 "type": {
                     "": {
-                        "err": ["invalid type"]
+                        "err": ["invalid_data"]
                     }
                 }
             }
@@ -446,14 +437,16 @@ fn test_annotated_deserialize_with_meta() {
     assert_eq!(annotated_value.0.as_ref().unwrap().id.0, None);
     assert_eq!(
         annotated_value
-            .0
-            .as_ref()
+            .value()
             .unwrap()
             .id
-            .1
+            .meta()
             .iter_errors()
-            .collect::<Vec<_>>(),
-        vec!["invalid id", "expected an unsigned integer"]
+            .collect::<Vec<&Error>>(),
+        vec![
+            &Error::new(ErrorKind::Unknown("unknown_error".to_string())),
+            &Error::expected("an unsigned integer")
+        ],
     );
     assert_eq!(
         annotated_value.0.as_ref().unwrap().ty.0,
@@ -461,16 +454,44 @@ fn test_annotated_deserialize_with_meta() {
     );
     assert_eq!(
         annotated_value
-            .0
-            .as_ref()
+            .value()
             .unwrap()
             .ty
-            .1
+            .meta()
             .iter_errors()
-            .collect::<Vec<_>>(),
-        vec!["invalid type"]
+            .collect::<Vec<&Error>>(),
+        vec![&Error::new(ErrorKind::InvalidData)],
     );
 
-    let json = annotated_value.to_json().unwrap();
-    assert_eq_str!(json, r#"{"id":null,"type":"testing","_meta":{"id":{"":{"err":["invalid id","expected an unsigned integer"],"val":"blaflasel"}},"type":{"":{"err":["invalid type"]}}}}"#);
+    let json = annotated_value.to_json_pretty().unwrap();
+    assert_eq_str!(
+        json,
+        r#"{
+  "id": null,
+  "type": "testing",
+  "_meta": {
+    "id": {
+      "": {
+        "err": [
+          "unknown_error",
+          [
+            "invalid_data",
+            {
+              "reason": "expected an unsigned integer"
+            }
+          ]
+        ],
+        "val": "blaflasel"
+      }
+    },
+    "type": {
+      "": {
+        "err": [
+          "invalid_data"
+        ]
+      }
+    }
+  }
+}"#
+    );
 }

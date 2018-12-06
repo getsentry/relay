@@ -11,6 +11,9 @@ macro_rules! assert_eq_str {
             difference::Changeset::new(&left, &right, "\n")
         )
     }};
+    ($left:expr, $right:expr) => {
+        assert_eq_str($left, $right)
+    };
 }
 
 macro_rules! assert_eq_dbg {
@@ -26,4 +29,7 @@ macro_rules! assert_eq_dbg {
             difference::Changeset::new(&format!("{:#?}", left), &format!("{:#?}", right), "\n")
         )
     }};
+    ($left:expr, $right:expr) => {
+        assert_eq_dbg($left, $right)
+    };
 }

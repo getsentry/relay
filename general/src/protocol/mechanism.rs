@@ -1,4 +1,4 @@
-use crate::types::{Annotated, FromValue, Object, Value};
+use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// POSIX signal with optional extended data.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
@@ -190,7 +190,8 @@ impl FromValue for Mechanism {
             }
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_unexpected_value_error("exception mechanism", value);
+                meta.add_error(Error::expected("exception mechanism"));
+                meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
             Annotated(None, meta) => Annotated(None, meta),
@@ -305,6 +306,8 @@ fn test_mechanism_empty() {
 
 #[test]
 fn test_mechanism_invalid_meta() {
+    use crate::types::ErrorKind;
+
     let json = r#"{
   "type":"mytype",
   "meta": {
@@ -317,17 +320,17 @@ fn test_mechanism_invalid_meta() {
         ty: Annotated::new("mytype".to_string()),
         meta: Annotated::new(MechanismMeta {
             errno: Annotated::new(CError {
-                number: Annotated::from_error("value required", None),
+                number: Annotated::from_error(ErrorKind::MissingAttribute, None),
                 name: Annotated::new("ENOENT".to_string()),
             }),
             mach_exception: Annotated::new(MachException {
-                ty: Annotated::from_error("value required", None),
-                code: Annotated::from_error("value required", None),
-                subcode: Annotated::from_error("value required", None),
+                ty: Annotated::from_error(ErrorKind::MissingAttribute, None),
+                code: Annotated::from_error(ErrorKind::MissingAttribute, None),
+                subcode: Annotated::from_error(ErrorKind::MissingAttribute, None),
                 name: Annotated::new("EXC_BAD_ACCESS".to_string()),
             }),
             signal: Annotated::new(PosixSignal {
-                number: Annotated::from_error("value required", None),
+                number: Annotated::from_error(ErrorKind::MissingAttribute, None),
                 code: Annotated::empty(),
                 name: Annotated::new("SIGSEGV".to_string()),
                 code_name: Annotated::empty(),
