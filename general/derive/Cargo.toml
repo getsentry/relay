@@ -4,10 +4,10 @@ version = "0.2.4"
 authors = ["Armin Ronacher <armin.ronacher@active-4.com>"]
 
 [dependencies]
-quote = "0.6.8"
-syn = "0.15.11"
+quote = "0.6.10"
+syn = "0.15.22"
 synstructure = "0.10.1"
-proc-macro2 = "0.4.20"
+proc-macro2 = "0.4.24"
 
 [lib]
 proc-macro = true

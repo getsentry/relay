@@ -4,7 +4,7 @@ use std::str::FromStr;
 use base64;
 use chrono::{DateTime, Duration, Utc};
 use ed25519_dalek;
-use rand::{thread_rng, OsRng, RngCore};
+use rand::{rngs::OsRng, thread_rng, RngCore};
 use sentry_types::Uuid;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
