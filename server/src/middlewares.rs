@@ -4,6 +4,8 @@ use actix_web::error::Error;
 use actix_web::middleware::{Finished, Middleware, Response, Started};
 use actix_web::{http::header, Body, HttpRequest, HttpResponse};
 
+use semaphore_common::metric;
+
 use crate::constants::SERVER;
 use crate::utils::ApiErrorResponse;
 

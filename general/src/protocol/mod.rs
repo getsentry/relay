@@ -14,7 +14,6 @@ mod tags;
 mod templateinfo;
 mod thread;
 mod types;
-
 mod user;
 
 pub use self::breadcrumb::Breadcrumb;

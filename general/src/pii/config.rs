@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
-use serde_derive::{Deserialize, Serialize};
-use serde_json;
+use serde::{Deserialize, Serialize};
 
 use crate::pii::builtin::BUILTIN_RULES_MAP;
 use crate::pii::rules::{Rule, RuleSpec};

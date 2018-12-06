@@ -1,10 +1,11 @@
 use std::io::{self, Read};
 
-use actix::ResponseFuture;
+use ::actix::ResponseFuture;
 use actix_web::http::{header, StatusCode};
 use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
-use base64::{self, DecodeError};
+use base64::DecodeError;
 use bytes::{Bytes, BytesMut};
+use failure::Fail;
 use flate2::read::ZlibDecoder;
 use futures::prelude::*;
 

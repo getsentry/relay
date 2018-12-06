@@ -8,12 +8,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use failure::{Backtrace, Context, Fail};
-use log;
 use sentry_types::Dsn;
-use serde::de::DeserializeOwned;
-use serde::ser::Serialize;
-use serde_json;
-use serde_yaml;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use crate::types::ByteSize;
@@ -55,7 +51,7 @@ impl ConfigError {
 }
 
 impl Fail for ConfigError {
-    fn cause(&self) -> Option<&Fail> {
+    fn cause(&self) -> Option<&dyn Fail> {
         self.inner.cause()
     }
 
@@ -420,7 +416,7 @@ impl Config {
     ///
     /// This also writes the credentials back to the file.
     pub fn regenerate_credentials(&mut self) -> Result<(), ConfigError> {
-        info!("generating new relay credentials");
+        log::info!("generating new relay credentials");
         let (sk, pk) = generate_key_pair();
         let creds = Credentials {
             secret_key: sk,

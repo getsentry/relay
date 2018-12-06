@@ -4,8 +4,7 @@ use std::net;
 use std::str::FromStr;
 
 use failure::Fail;
-use serde::ser::{Serialize, Serializer};
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::processor::ProcessValue;
 use crate::types::{

@@ -1,4 +1,4 @@
-use actix::ResponseFuture;
+use ::actix::ResponseFuture;
 use actix_web::{http::Method, Error, Json};
 use futures::prelude::*;
 

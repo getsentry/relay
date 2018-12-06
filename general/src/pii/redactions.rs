@@ -1,5 +1,5 @@
 //! Redactions for rules.
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 /// Defines the hash algorithm to use for hashing
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]

@@ -1,4 +1,4 @@
-use actix::prelude::*;
+use ::actix::prelude::*;
 use actix_web::{http::Method, Error, Json};
 use futures::{future, Future};
 
@@ -28,9 +28,10 @@ fn get_project_configs(
                 if project_state.config.trusted_relays.contains(&public_key) {
                     Some((*project_state).clone())
                 } else {
-                    debug!(
+                    log::debug!(
                         "Public key {} does not have access to project {}",
-                        public_key, project_id
+                        public_key,
+                        project_id
                     );
                     None
                 }

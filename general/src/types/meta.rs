@@ -1,9 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use serde::de::{self, Deserialize, Deserializer, IgnoredAny};
-use serde::ser::{Serialize, SerializeSeq, Serializer};
-use serde_derive::{Deserialize, Serialize};
+use serde::{de, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 
 use crate::types::{Map, ToValue, Value};
@@ -109,7 +107,7 @@ impl<'de> Deserialize<'de> for Remark {
                 let end = seq.next_element()?;
 
                 // Drain the sequence
-                while let Some(IgnoredAny) = seq.next_element()? {}
+                while let Some(de::IgnoredAny) = seq.next_element()? {}
 
                 let range = match (start, end) {
                     (Some(start), Some(end)) => Some((start, end)),
@@ -245,14 +243,14 @@ impl<'de> Deserialize<'de> for ErrorKind {
 
             fn visit_str<E>(self, string: &str) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 Ok(ErrorKind::from(string))
             }
 
             fn visit_string<E>(self, string: String) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 Ok(ErrorKind::from(string))
             }
@@ -359,14 +357,14 @@ impl<'de> Deserialize<'de> for Error {
 
             fn visit_str<E>(self, string: &str) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 Ok(Error::new(ErrorKind::from(string)))
             }
 
             fn visit_string<E>(self, string: String) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 Ok(Error::new(ErrorKind::from(string)))
             }
@@ -378,7 +376,7 @@ impl<'de> Deserialize<'de> for Error {
                 let data = seq.next_element()?.unwrap_or_default();
 
                 // Drain the sequence
-                while let Some(IgnoredAny) = seq.next_element()? {}
+                while let Some(de::IgnoredAny) = seq.next_element()? {}
 
                 Ok(Error::with_data(kind, data))
             }

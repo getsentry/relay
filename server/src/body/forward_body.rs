@@ -1,7 +1,8 @@
-use actix::ResponseFuture;
+use ::actix::ResponseFuture;
 use actix_web::http::{header, StatusCode};
 use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
 use bytes::{Bytes, BytesMut};
+use failure::Fail;
 use futures::prelude::*;
 
 /// A set of errors that can occur during parsing json payloads

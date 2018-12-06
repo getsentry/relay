@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
-use crate::pii::config::PiiConfig;
-use crate::pii::rules::Rule;
 use crate::pii::text::apply_rule_to_chunks;
+use crate::pii::{PiiConfig, Rule};
 use crate::processor::{process_chunked_value, PiiKind, ProcessingState, Processor};
 use crate::types::{Meta, ValueAction};
 

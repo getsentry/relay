@@ -1,7 +1,8 @@
 use std::fmt;
 use std::str;
 
-use regex::{self, Regex};
+use lazy_static::lazy_static;
+use regex::Regex;
 
 lazy_static! {
     static ref GLOB_RE: Regex = Regex::new(r#"\?|\*\*|\*"#).unwrap();

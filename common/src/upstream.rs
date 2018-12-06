@@ -4,6 +4,7 @@ use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::str::FromStr;
 
+use failure::Fail;
 use sentry_types::{Dsn, Scheme};
 use url::Url;
 

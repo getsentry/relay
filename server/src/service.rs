@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use actix::prelude::*;
+use ::actix::prelude::*;
 use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
@@ -156,9 +156,9 @@ where
     H: server::IntoHttpHandler + 'static,
     F: Fn() -> H + Send + Clone + 'static,
 {
-    info!("spawning http server");
+    log::info!("spawning http server");
     for (addr, scheme) in server.addrs_with_scheme() {
-        info!("  listening on: {}://{}/", scheme, addr);
+        log::info!("  listening on: {}://{}/", scheme, addr);
     }
 }
 

@@ -1,28 +1,3 @@
-extern crate chrono;
-extern crate clap;
-extern crate console;
-extern crate dialoguer;
-extern crate env_logger;
-extern crate failure;
-extern crate futures;
-#[cfg(not(windows))]
-extern crate openssl_probe;
-extern crate pretty_env_logger;
-extern crate serde;
-extern crate serde_json;
-
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate sentry;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate lazy_static;
-
-extern crate semaphore_common;
-extern crate semaphore_server;
-
 mod cli;
 mod cliapp;
 mod setup;

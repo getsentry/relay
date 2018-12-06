@@ -2,15 +2,17 @@
 
 use std::sync::Arc;
 
-use actix::prelude::*;
+use ::actix::prelude::*;
 use actix_web::http::{Method, StatusCode};
 use actix_web::middleware::cors::Cors;
 use actix_web::{HttpRequest, HttpResponse, Json, ResponseError};
+use failure::Fail;
 use futures::prelude::*;
-use sentry::{self, Hub};
+use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
+use serde::Serialize;
 
-use semaphore_common::{ProjectId, ProjectIdParseError, Uuid};
+use semaphore_common::{metric, tryf, ProjectId, ProjectIdParseError, Uuid};
 
 use crate::actors::events::{EventError, QueueEvent};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError};

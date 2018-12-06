@@ -3,17 +3,18 @@ use std::borrow::Cow;
 use std::str;
 use std::sync::Arc;
 
-use actix::fut;
-use actix::prelude::*;
+use ::actix::fut;
+use ::actix::prelude::*;
 use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse, SendRequestError};
 use actix_web::http::{header, Method, StatusCode};
 use actix_web::{error::JsonPayloadError, Error as ActixError, HttpMessage};
+use failure::Fail;
 use futures::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use semaphore_common::{
-    Config, RegisterChallenge, RegisterRequest, RegisterResponse, Registration, RetryBackoff,
+    tryf, Config, RegisterChallenge, RegisterRequest, RegisterResponse, Registration, RetryBackoff,
 };
 
 use crate::utils::LogError;
@@ -166,14 +167,14 @@ impl Actor for UpstreamRelay {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        info!("upstream relay started");
+        log::info!("upstream relay started");
 
         self.backoff.reset();
         context.notify(Authenticate);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("upstream relay stopped");
+        log::info!("upstream relay stopped");
     }
 }
 
@@ -190,7 +191,7 @@ impl Handler<Authenticate> for UpstreamRelay {
         let credentials = match self.config.credentials() {
             Some(x) => x,
             None => {
-                warn!(
+                log::warn!(
                     "no credentials configured, not authenticating. \
                      Other relays will not be able to use this relay."
                 );
@@ -198,7 +199,7 @@ impl Handler<Authenticate> for UpstreamRelay {
             }
         };
 
-        info!(
+        log::info!(
             "registering with upstream ({})",
             self.config.upstream_descriptor()
         );
@@ -210,22 +211,22 @@ impl Handler<Authenticate> for UpstreamRelay {
             .send_query(request)
             .into_actor(self)
             .and_then(|challenge, slf, _ctx| {
-                debug!("got register challenge (token = {})", challenge.token());
+                log::debug!("got register challenge (token = {})", challenge.token());
                 slf.auth_state = AuthState::RegisterChallengeResponse;
                 let challenge_response = challenge.create_response();
 
-                debug!("sending register challenge response");
+                log::debug!("sending register challenge response");
                 slf.send_query(challenge_response).into_actor(slf)
             })
             .map(|_, slf, _ctx| {
-                debug!("relay successfully registered with upstream");
+                log::debug!("relay successfully registered with upstream");
                 slf.auth_state = AuthState::Registered;
             })
             .map_err(|err, slf, ctx| {
-                error!("authentication encountered error: {}", LogError(&err));
+                log::error!("authentication encountered error: {}", LogError(&err));
 
                 let interval = slf.backoff.next_backoff();
-                debug!(
+                log::debug!(
                     "scheduling authentication retry in {} seconds",
                     interval.as_secs()
                 );

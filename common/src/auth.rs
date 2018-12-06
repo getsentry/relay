@@ -1,14 +1,11 @@
 use std::fmt;
 use std::str::FromStr;
 
-use base64;
 use chrono::{DateTime, Duration, Utc};
-use ed25519_dalek;
+use failure::Fail;
 use rand::{rngs::OsRng, thread_rng, RngCore};
 use sentry_types::Uuid;
-use serde::de::DeserializeOwned;
-use serde::ser::Serialize;
-use serde_json;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::Sha512;
 
 /// Alias for relay IDs (UUIDs)

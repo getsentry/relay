@@ -1,19 +1,12 @@
 #![recursion_limit = "256"]
 #![allow(clippy::cyclomatic_complexity)]
 
-extern crate syn;
-
-#[macro_use]
-extern crate synstructure;
-#[macro_use]
-extern crate quote;
-extern crate proc_macro2;
-
 use std::str::FromStr;
 
 use proc_macro2::{Span, TokenStream};
-use quote::ToTokens;
+use quote::{quote, ToTokens};
 use syn::{Data, Ident, Lit, LitBool, LitStr, Meta, MetaNameValue, NestedMeta};
+use synstructure::decl_derive;
 
 #[derive(Debug, Clone, Copy)]
 enum Trait {
@@ -185,7 +178,7 @@ fn process_enum_struct_derive(
 
     for variant in s.variants() {
         let variant_attrs = parse_variant_attributes(&variant.ast().attrs);
-        let mut variant_name = &variant.ast().ident;
+        let variant_name = &variant.ast().ident;
         let tag = variant_attrs
             .tag_override
             .unwrap_or_else(|| variant_name.to_string().to_lowercase());

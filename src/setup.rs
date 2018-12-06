@@ -4,32 +4,28 @@ use std::io::Write;
 use std::mem;
 
 use chrono::{DateTime, Utc};
-use console;
-use env_logger;
 use failure::Error;
 use log::{Level, LevelFilter};
-use pretty_env_logger;
-use sentry;
-use serde_json;
+use serde::{Deserialize, Serialize};
 
 use semaphore_common::{metrics, Config, LogFormat};
 
 /// Print spawn infos to the log.
 pub fn dump_spawn_infos(config: &Config) {
-    info!(
+    log::info!(
         "launching relay from config folder {}",
         config.path().display()
     );
 
     match config.relay_id() {
-        Some(id) => info!("  relay id: {}", id),
-        None => info!("  relay id: -"),
+        Some(id) => log::info!("  relay id: {}", id),
+        None => log::info!("  relay id: -"),
     };
     match config.public_key() {
-        Some(key) => info!("  public key: {}", key),
-        None => info!("  public key: -"),
+        Some(key) => log::info!("  public key: {}", key),
+        None => log::info!("  public key: -"),
     };
-    info!("  log level: {}", config.log_level_filter());
+    log::info!("  log level: {}", config.log_level_filter());
 }
 
 /// Dumps out credential info.
@@ -51,7 +47,7 @@ pub fn init_logging(config: &Config) {
             .sentry_dsn()
             .map(|dsn| dsn.to_string().parse().unwrap()),
         in_app_include: vec!["semaphore_common::", "semaphore_server::", "semaphore::"],
-        release: sentry_crate_release!(),
+        release: sentry::sentry_crate_release!(),
         ..Default::default()
     });
 

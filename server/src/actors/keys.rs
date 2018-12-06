@@ -5,10 +5,12 @@ use std::mem;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use actix::fut;
-use actix::prelude::*;
+use ::actix::fut;
+use ::actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, ResponseError};
+use failure::Fail;
 use futures::{future, future::Shared, sync::oneshot, Future};
+use serde::{Deserialize, Serialize};
 
 use semaphore_common::{Config, PublicKey, RelayId, RetryBackoff};
 
@@ -144,7 +146,7 @@ impl KeyCache {
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_keys(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.key_channels, HashMap::new());
-        debug!(
+        log::debug!(
             "updating public keys for {} relays (attempt {})",
             channels.len(),
             self.backoff.attempt(),
@@ -166,12 +168,12 @@ impl KeyCache {
                         for (id, channel) in channels {
                             let key = response.public_keys.remove(&id).unwrap_or(None);
                             slf.keys.insert(id, KeyState::from_option(key.clone()));
-                            debug!("relay {} public key updated", id);
+                            log::debug!("relay {} public key updated", id);
                             channel.send(key).ok();
                         }
                     }
                     Err(error) => {
-                        error!("error fetching public keys: {}", LogError(&error));
+                        log::error!("error fetching public keys: {}", LogError(&error));
 
                         if !slf.shutdown.requested() {
                             // Put the channels back into the queue, in addition to channels that have
@@ -204,14 +206,14 @@ impl KeyCache {
         }
 
         if self.config.credentials().is_none() {
-            error!(
+            log::error!(
                 "No credentials configured. Relay {} cannot send requests to this relay.",
                 relay_id
             );
             return Response::ok((relay_id, None));
         }
 
-        debug!("relay {} public key requested", relay_id);
+        log::debug!("relay {} public key requested", relay_id);
         if !self.backoff.started() {
             self.backoff.reset();
             self.schedule_fetch(context);
@@ -233,12 +235,12 @@ impl Actor for KeyCache {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        info!("key cache started");
+        log::info!("key cache started");
         Controller::from_registry().do_send(Subscribe(context.address().recipient()));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("key cache stopped");
+        log::info!("key cache stopped");
     }
 }
 

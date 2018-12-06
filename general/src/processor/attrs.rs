@@ -1,10 +1,8 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use lazy_static;
-use serde_derive::{Deserialize, Serialize};
-
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 /// The maximum length of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]

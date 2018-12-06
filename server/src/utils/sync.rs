@@ -2,7 +2,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use actix::prelude::*;
+use ::actix::prelude::*;
+use failure::Fail;
 use futures::future::Shared;
 use futures::prelude::*;
 use futures::sync::oneshot;
@@ -131,7 +132,7 @@ impl<F, E> SyncedFuture<F, E> {
             Ok(Async::Ready(v)) => Ok(Async::Ready(v)),
             Ok(Async::NotReady) => match timeout.poll() {
                 Err(_) => {
-                    error!("synced future spawned after timeout expired");
+                    log::error!("synced future spawned after timeout expired");
                     Err(self.error.take().unwrap())
                 }
                 Ok(Async::Ready(_)) => Err(self.error.take().unwrap()),

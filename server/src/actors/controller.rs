@@ -6,9 +6,9 @@
 
 use std::time::Duration;
 
-use actix::actors::signal;
-use actix::fut;
-use actix::prelude::*;
+use ::actix::actors::signal;
+use ::actix::fut;
+use ::actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
 
@@ -31,7 +31,7 @@ pub use crate::utils::TimeoutError;
 ///
 /// ```ignore
 /// # extern crate actix;
-/// # use actix::prelude::*;
+/// # use ::actix::prelude::*;
 /// struct MyActor;
 ///
 /// impl Actor for MyActor {
@@ -93,9 +93,9 @@ impl Controller {
 
         // All actors have started successfully. Run the system, which blocks the current thread
         // until a signal arrives or `Controller::stop` is called.
-        info!("relay server starting");
+        log::info!("relay server starting");
         sys.run();
-        info!("relay shutdown complete");
+        log::info!("relay shutdown complete");
 
         Ok(())
     }
@@ -164,16 +164,16 @@ impl Handler<signal::Signal> for Controller {
     fn handle(&mut self, message: signal::Signal, context: &mut Self::Context) -> Self::Result {
         match message.0 {
             signal::SignalType::Int => {
-                info!("SIGINT received, exiting");
+                log::info!("SIGINT received, exiting");
                 self.shutdown(context, None);
             }
             signal::SignalType::Quit => {
-                info!("SIGQUIT received, exiting");
+                log::info!("SIGQUIT received, exiting");
                 self.shutdown(context, None);
             }
             signal::SignalType::Term => {
                 let timeout = self.timeout;
-                info!("SIGTERM received, stopping in {}s", timeout.as_secs());
+                log::info!("SIGTERM received, stopping in {}s", timeout.as_secs());
                 self.shutdown(context, Some(timeout));
             }
             _ => (),

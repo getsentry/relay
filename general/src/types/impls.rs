@@ -10,7 +10,7 @@ use crate::types::{
 
 // This needs to be public because the derive crate emits it
 #[doc(hidden)]
-pub struct SerializePayload<'a, T: 'a>(pub &'a Annotated<T>, pub SkipSerialization);
+pub struct SerializePayload<'a, T>(pub &'a Annotated<T>, pub SkipSerialization);
 
 impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>

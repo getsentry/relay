@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str;
 
-use serde;
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 

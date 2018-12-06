@@ -1,9 +1,6 @@
 #![cfg(feature = "bench")]
 #![feature(test)]
 
-extern crate semaphore_general;
-extern crate test;
-
 macro_rules! benchmark {
     ($sdk:ident) => {
         mod $sdk {

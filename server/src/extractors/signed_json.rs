@@ -1,11 +1,12 @@
-use actix::prelude::*;
+use ::actix::prelude::*;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
+use failure::Fail;
 use futures::prelude::*;
 use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::de::DeserializeOwned;
 
-use semaphore_common::{PublicKey, RelayId};
+use semaphore_common::{tryf, PublicKey, RelayId};
 
 use crate::actors::keys::GetPublicKey;
 use crate::service::ServiceState;

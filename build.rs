@@ -1,5 +1,3 @@
-extern crate clap;
-
 use clap::Shell;
 use std::env;
 

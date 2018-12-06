@@ -1,7 +1,5 @@
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_derive::Serialize;
-use serde_json;
 
 use crate::types::{Error, FromValue, Map, Meta, SkipSerialization, ToValue, Value};
 

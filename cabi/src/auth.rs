@@ -1,5 +1,5 @@
 use chrono::Duration;
-use serde_json;
+use serde::Serialize;
 
 use semaphore_common::{
     generate_key_pair, generate_relay_id, PublicKey, RegisterRequest, RegisterResponse, SecretKey,

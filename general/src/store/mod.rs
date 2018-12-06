@@ -6,7 +6,7 @@ use chrono::{Duration, Utc};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
