@@ -8,7 +8,7 @@ impl Processor for SchemaProcessor {
         &mut self,
         value: &mut String,
         meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction {
         verify_value_nonempty(value, meta, &state)
             .and_then(|| verify_value_pattern(value, meta, &state))
@@ -18,7 +18,7 @@ impl Processor for SchemaProcessor {
         &mut self,
         value: &mut Array<T>,
         meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction
     where
         T: ProcessValue,
@@ -31,7 +31,7 @@ impl Processor for SchemaProcessor {
         &mut self,
         value: &mut Object<T>,
         meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction
     where
         T: ProcessValue,
@@ -65,7 +65,7 @@ impl IsEmpty for String {
     }
 }
 
-fn verify_value_nonempty<T>(value: &mut T, meta: &mut Meta, state: &ProcessingState) -> ValueAction
+fn verify_value_nonempty<T>(value: &mut T, meta: &mut Meta, state: &ProcessingState<'_>) -> ValueAction
 where
     T: IsEmpty,
 {
@@ -80,7 +80,7 @@ where
 fn verify_value_pattern(
     value: &mut String,
     meta: &mut Meta,
-    state: &ProcessingState,
+    state: &ProcessingState<'_>,
 ) -> ValueAction {
     if let Some(ref regex) = state.attrs().match_regex {
         if !regex.is_match(value) {

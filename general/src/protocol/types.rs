@@ -106,7 +106,7 @@ macro_rules! hex_metrastructure {
         }
 
         impl fmt::Display for $type {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "{:#x}", self.0)
             }
         }
@@ -279,7 +279,7 @@ impl FromStr for Level {
 }
 
 impl fmt::Display for Level {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Level::Debug => write!(f, "debug"),
             Level::Info => write!(f, "info"),

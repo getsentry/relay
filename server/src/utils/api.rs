@@ -43,7 +43,7 @@ impl ApiErrorResponse {
 }
 
 impl fmt::Display for ApiErrorResponse {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(ref detail) = self.detail {
             write!(f, "{}", detail)
         } else {

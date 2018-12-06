@@ -25,7 +25,7 @@ primitive_meta_structure_through_string!(EventId, "event id");
 impl ProcessValue for EventId {}
 
 impl fmt::Display for EventId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.to_simple_ref())
     }
 }
@@ -77,7 +77,7 @@ impl FromStr for EventType {
 }
 
 impl fmt::Display for EventType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             EventType::Default => write!(f, "default"),
             EventType::Error => write!(f, "error"),

@@ -23,16 +23,16 @@ impl str::FromStr for ByteSize {
 }
 
 impl fmt::Display for ByteSize {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.0.value(), self.0.multiple())
     }
 }
 
 impl fmt::Debug for ByteSize {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         pub struct Helper<'a>(&'a ByteSize);
         impl<'a> fmt::Debug for Helper<'a> {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "{}", self.0)
             }
         }
@@ -98,7 +98,7 @@ impl<'de> de::Deserialize<'de> for ByteSize {
         impl<'de> de::Visitor<'de> for V {
             type Value = ByteSize;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("data size")
             }
 

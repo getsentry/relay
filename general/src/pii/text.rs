@@ -98,14 +98,14 @@ lazy_static! {
     ).unwrap();
 }
 
-pub fn apply_rule_to_chunks(rule: &Rule, chunks: Vec<Chunk>) -> Vec<Chunk> {
+pub fn apply_rule_to_chunks(rule: &Rule<'_>, chunks: Vec<Chunk>) -> Vec<Chunk> {
     apply_rule_to_chunks_impl(rule, chunks, None, None)
 }
 
 fn apply_rule_to_chunks_impl(
-    rule: &Rule,
+    rule: &Rule<'_>,
     chunks: Vec<Chunk>,
-    report_rule: Option<&Rule>,
+    report_rule: Option<&Rule<'_>>,
     redaction_override: Option<&Redaction>,
 ) -> Vec<Chunk> {
     let report_rule = report_rule.unwrap_or(rule);
@@ -167,7 +167,7 @@ fn apply_regex_to_chunks(
     chunks: Vec<Chunk>,
     regex: &Regex,
     replace_groups: Option<&BTreeSet<u8>>,
-    rule: &Rule,
+    rule: &Rule<'_>,
     config: &PiiConfig,
 ) -> Vec<Chunk> {
     let mut search_string = String::new();
@@ -265,7 +265,7 @@ fn in_range(range: (Option<i32>, Option<i32>), pos: usize, len: usize) -> bool {
 
 fn insert_replacement_chunks(
     redaction: &Redaction,
-    rule: &Rule,
+    rule: &Rule<'_>,
     config: &PiiConfig,
     text: &str,
     output: &mut Vec<Chunk>,

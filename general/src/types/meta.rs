@@ -92,7 +92,7 @@ impl<'de> Deserialize<'de> for Remark {
         impl<'de> de::Visitor<'de> for RemarkVisitor {
             type Value = Remark;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(formatter, "a meta remark")
             }
 
@@ -205,7 +205,7 @@ impl ErrorKind {
 }
 
 impl fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
@@ -237,7 +237,7 @@ impl<'de> Deserialize<'de> for ErrorKind {
         impl<'de> de::Visitor<'de> for ErrorKindVisitor {
             type Value = ErrorKind;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(formatter, "a meta remark")
             }
 
@@ -351,7 +351,7 @@ impl<'de> Deserialize<'de> for Error {
         impl<'de> de::Visitor<'de> for ErrorVisitor {
             type Value = Error;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(formatter, "a meta remark")
             }
 

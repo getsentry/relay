@@ -5,9 +5,9 @@ use failure::Fail;
 pub struct LogError<'a, E: Fail>(pub &'a E);
 
 impl<'a, E: Fail> fmt::Display for LogError<'a, E> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)?;
-        for cause in (self.0 as &Fail).iter_causes() {
+        for cause in (self.0 as &dyn Fail).iter_causes() {
             write!(f, "\n  caused by: {}", cause)?;
         }
 

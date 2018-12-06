@@ -19,22 +19,22 @@ decl_derive!([ToValue, attributes(metastructure)] => process_to_value);
 decl_derive!([FromValue, attributes(metastructure)] => process_from_value);
 decl_derive!([ProcessValue, attributes(metastructure)] => process_process_value);
 
-fn process_to_value(s: synstructure::Structure) -> TokenStream {
+fn process_to_value(s: synstructure::Structure<'_>) -> TokenStream {
     process_metastructure_impl(s, Trait::To)
 }
 
-fn process_from_value(s: synstructure::Structure) -> TokenStream {
+fn process_from_value(s: synstructure::Structure<'_>) -> TokenStream {
     process_metastructure_impl(s, Trait::From)
 }
 
-fn process_process_value(s: synstructure::Structure) -> TokenStream {
+fn process_process_value(s: synstructure::Structure<'_>) -> TokenStream {
     process_metastructure_impl(s, Trait::Process)
 }
 
 fn process_wrapper_struct_derive(
-    s: synstructure::Structure,
+    s: synstructure::Structure<'_>,
     t: Trait,
-) -> Result<TokenStream, synstructure::Structure> {
+) -> Result<TokenStream, synstructure::Structure<'_>> {
     // The next few blocks are for finding out whether the given type is of the form:
     // struct Foo(Bar)  (tuple struct with a single field)
 
@@ -154,9 +154,9 @@ fn process_wrapper_struct_derive(
 }
 
 fn process_enum_struct_derive(
-    s: synstructure::Structure,
+    s: synstructure::Structure<'_>,
     t: Trait,
-) -> Result<TokenStream, synstructure::Structure> {
+) -> Result<TokenStream, synstructure::Structure<'_>> {
     if let Data::Enum(_) = s.ast().data {
     } else {
         return Err(s);
@@ -377,7 +377,7 @@ fn process_enum_struct_derive(
     })
 }
 
-fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStream {
+fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> TokenStream {
     let s = match process_wrapper_struct_derive(s, t) {
         Ok(stream) => return stream,
         Err(s) => s,

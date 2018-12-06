@@ -61,7 +61,7 @@ impl Fail for ConfigError {
 }
 
 impl fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} (file {})", self.inner, self.filename().display())
     }
 }
@@ -125,7 +125,7 @@ impl Default for Relay {
     fn default() -> Self {
         Relay {
             upstream: "https://ingest.sentry.io/"
-                .parse::<UpstreamDescriptor>()
+                .parse::<UpstreamDescriptor<'_>>()
                 .unwrap(),
             host: "127.0.0.1".parse().unwrap(),
             port: 3000,
@@ -368,7 +368,7 @@ pub struct Config {
 }
 
 impl fmt::Debug for Config {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")
             .field("path", &self.path)
             .field("values", &self.values)
@@ -481,7 +481,7 @@ impl Config {
     }
 
     /// Returns the upstream target as descriptor.
-    pub fn upstream_descriptor(&self) -> &UpstreamDescriptor {
+    pub fn upstream_descriptor(&self) -> &UpstreamDescriptor<'_> {
         &self.values.relay.upstream
     }
 

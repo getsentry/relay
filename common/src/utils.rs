@@ -74,13 +74,13 @@ impl str::FromStr for Glob {
 }
 
 impl fmt::Display for Glob {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad(self.pattern())
     }
 }
 
 impl fmt::Debug for Glob {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Glob").field(&self.pattern()).finish()
     }
 }

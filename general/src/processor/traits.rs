@@ -13,7 +13,7 @@ macro_rules! process_method {
             &mut self,
             value: &mut $ty $(::$path)*,
             meta: &mut Meta,
-            state: ProcessingState,
+            state: ProcessingState<'_>,
         ) -> ValueAction {
             value.process_child_values(self, state);
             Default::default()
@@ -26,7 +26,7 @@ macro_rules! process_method {
             &mut self,
             value: &mut $ty $(::$path)* <$($param),*>,
             meta: &mut Meta,
-            state: ProcessingState,
+            state: ProcessingState<'_>,
         ) -> ValueAction
         where
             $($param: ProcessValue),*
@@ -74,7 +74,7 @@ pub trait ProcessValue: FromValue + ToValue + Debug {
         &mut self,
         meta: &mut Meta,
         processor: &mut P,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction
     where
         P: Processor,
@@ -85,7 +85,7 @@ pub trait ProcessValue: FromValue + ToValue + Debug {
 
     /// Recurses into children of this value.
     #[inline]
-    fn process_child_values<P>(&mut self, processor: &mut P, state: ProcessingState)
+    fn process_child_values<P>(&mut self, processor: &mut P, state: ProcessingState<'_>)
     where
         P: Processor,
     {

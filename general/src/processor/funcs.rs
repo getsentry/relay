@@ -3,7 +3,7 @@ use crate::types::{Annotated, ErrorKind};
 
 /// Processes the value using the given processor.
 #[inline]
-pub fn process_value<T, P>(annotated: &mut Annotated<T>, processor: &mut P, state: ProcessingState)
+pub fn process_value<T, P>(annotated: &mut Annotated<T>, processor: &mut P, state: ProcessingState<'_>)
 where
     T: ProcessValue,
     P: Processor,

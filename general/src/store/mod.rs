@@ -234,7 +234,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         event: &mut Event,
         meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction {
         schema::SchemaProcessor.process_event(event, meta, state.clone());
         event.process_child_values(self, state.clone());
@@ -323,7 +323,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         breadcrumb: &mut Breadcrumb,
         _meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction {
         breadcrumb.process_child_values(self, state);
 
@@ -342,7 +342,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         request: &mut Request,
         _meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction {
         request.process_child_values(self, state);
 
@@ -356,7 +356,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         user: &mut User,
         _meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction {
         user.process_child_values(self, state);
 
@@ -387,7 +387,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         exception: &mut Exception,
         meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction {
         exception.process_child_values(self, state);
 
@@ -426,7 +426,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         frame: &mut Frame,
         _meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction {
         frame.process_child_values(self, state);
 
@@ -465,7 +465,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         stacktrace: &mut Stacktrace,
         _meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction {
         if let Some(limit) = self.config.stacktrace_frames_hard_limit {
             stacktrace
