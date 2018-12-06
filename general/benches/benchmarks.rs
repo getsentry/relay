@@ -1,3 +1,4 @@
+#![cfg(feature = "bench")]
 #![feature(test)]
 
 extern crate semaphore_general;

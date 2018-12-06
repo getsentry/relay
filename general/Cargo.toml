@@ -28,3 +28,6 @@ sha-1 = "0.7.0"
 
 [dev-dependencies]
 difference = "2.0.0"
+
+[features]
+bench = []
