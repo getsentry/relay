@@ -911,7 +911,7 @@ impl SkipSerialization {
 
 impl Default for SkipSerialization {
     fn default() -> SkipSerialization {
-        SkipSerialization::Inherit
+        SkipSerialization::Null
     }
 }
 

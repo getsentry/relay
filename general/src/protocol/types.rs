@@ -18,6 +18,7 @@ use crate::types::{
 pub struct Values<T> {
     /// The values of the collection.
     #[metastructure(required = "true")]
+    #[metastructure(skip_serialization = "empty")]
     pub values: Annotated<Array<T>>,
 
     /// Additional arbitrary fields for forwards compatibility.

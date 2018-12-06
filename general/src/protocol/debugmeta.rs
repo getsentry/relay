@@ -164,9 +164,11 @@ pub enum DebugImage {
 pub struct DebugMeta {
     /// Information about the system SDK (e.g. iOS SDK).
     #[metastructure(field = "sdk_info")]
+    #[metastructure(skip_serialization = "empty")]
     pub system_sdk: Annotated<SystemSdkInfo>,
 
     /// List of debug information files (debug images).
+    #[metastructure(skip_serialization = "empty")]
     pub images: Annotated<Array<DebugImage>>,
 
     /// Additional arbitrary fields for forwards compatibility.

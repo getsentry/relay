@@ -17,7 +17,7 @@ pub struct LogEntry {
     pub formatted: Annotated<String>,
 
     /// Positional parameters to be interpolated into the log message.
-    #[metastructure(pii_kind = "databag", skip_serialization = "null")]
+    #[metastructure(pii_kind = "databag")]
     pub params: Annotated<Array<Value>>,
 
     /// Additional arbitrary fields for forwards compatibility.

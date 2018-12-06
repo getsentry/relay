@@ -7,6 +7,7 @@ use crate::types::{Annotated, Array, Object, Value};
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
     #[metastructure(max_chars = "symbol")]
+    #[metastructure(skip_serialization = "empty")]
     pub function: Annotated<String>,
 
     /// Potentially mangled name of the symbol as it appears in an executable.
@@ -22,6 +23,7 @@ pub struct Frame {
     /// Note that this might also include a class name if that is something the
     /// language natively considers to be part of the stack (for instance in Java).
     #[metastructure(pii_kind = "freeform")]
+    #[metastructure(skip_serialization = "empty")]
     // TODO: Cap? This can be a FS path or a dotted path
     pub module: Annotated<String>,
 
@@ -30,15 +32,18 @@ pub struct Frame {
     /// For instance this can be a dylib for native languages, the name of the jar
     /// or .NET assembly.
     #[metastructure(pii_kind = "freeform")]
+    #[metastructure(skip_serialization = "empty")]
     // TODO: Cap? This can be a FS path or a dotted path
     pub package: Annotated<String>,
 
     /// The source file name (basename only).
     #[metastructure(pii_kind = "freeform", max_chars = "short_path")]
+    #[metastructure(skip_serialization = "empty")]
     pub filename: Annotated<String>,
 
     /// Absolute path to the source file.
     #[metastructure(pii_kind = "freeform", max_chars = "path")]
+    #[metastructure(skip_serialization = "empty")]
     pub abs_path: Annotated<String>,
 
     /// Line number within the source file.
@@ -51,14 +56,17 @@ pub struct Frame {
 
     /// Source code leading up to the current line.
     #[metastructure(field = "pre_context")]
+    #[metastructure(skip_serialization = "empty")]
     pub pre_lines: Annotated<Array<String>>,
 
     /// Source code of the current line.
     #[metastructure(field = "context_line")]
+    #[metastructure(skip_serialization = "empty")]
     pub current_line: Annotated<String>,
 
     /// Source code of the lines after the current line.
     #[metastructure(field = "post_context")]
+    #[metastructure(skip_serialization = "empty")]
     pub post_lines: Annotated<Array<String>>,
 
     /// Override whether this frame should be considered in-app.
@@ -66,6 +74,7 @@ pub struct Frame {
 
     /// Local variables in a convenient format.
     #[metastructure(pii_kind = "databag")]
+    #[metastructure(skip_serialization = "empty")]
     pub vars: Annotated<FrameVariables>,
 
     /// Start address of the containing code module (image).
