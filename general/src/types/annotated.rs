@@ -321,7 +321,6 @@ impl<T: ToValue> Annotated<T> {
 
     /// Checks if this value can be skipped upon serialization.
     pub fn skip_serialization(&self, behavior: SkipSerialization) -> bool {
-        println!("behavior: {:?}", behavior);
         if behavior == SkipSerialization::Never {
             return false;
         }
