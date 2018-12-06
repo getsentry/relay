@@ -1,15 +1,19 @@
 //! Common types of the protocol.
+use std::borrow::Cow;
 use std::fmt;
 use std::net;
 use std::str::FromStr;
-use std::borrow::Cow;
 
 use failure::Fail;
 use serde::ser::{Serialize, Serializer};
 use serde_derive::{Deserialize, Serialize};
 
-use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, PiiKind, FieldAttrs};
-use crate::types::{Annotated, Array, FromValue, Meta, Object, ToValue, Value, ValueAction, Error, ErrorKind};
+use crate::processor::{
+    process_value, FieldAttrs, PiiKind, ProcessValue, ProcessingState, Processor,
+};
+use crate::types::{
+    Annotated, Array, Error, ErrorKind, FromValue, Meta, Object, ToValue, Value, ValueAction,
+};
 
 const FREEFORM_PII_ATTRS: FieldAttrs = FieldAttrs {
     name: None,
@@ -156,7 +160,10 @@ impl<T: ProcessValue> ProcessValue for PairList<T> {
     {
         for pair in self.0.iter_mut() {
             if let Some((ref mut k, ref mut v)) = pair.0 {
-                let attrs = state.attrs().pii_kind.map(|_| Cow::Borrowed(&FREEFORM_PII_ATTRS));
+                let attrs = state
+                    .attrs()
+                    .pii_kind
+                    .map(|_| Cow::Borrowed(&FREEFORM_PII_ATTRS));
                 process_value(k, processor, state.enter_index(0, attrs.clone()));
                 process_value(v, processor, state.enter_index(1, attrs));
             }

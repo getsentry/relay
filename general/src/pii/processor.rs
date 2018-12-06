@@ -140,7 +140,9 @@ fn test_basic_stripping() {
     process_value(&mut event, &mut processor, Default::default());
 
     let req = event.0.unwrap().request;
-    assert_eq!(req.to_json_pretty().unwrap(), r#"{
+    assert_eq!(
+        req.to_json_pretty().unwrap(),
+        r#"{
   "headers": [
     [
       "Cookie",
@@ -182,5 +184,6 @@ fn test_basic_stripping() {
       }
     }
   }
-}"#);
+}"#
+    );
 }
