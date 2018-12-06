@@ -69,7 +69,7 @@ ffi_fn! {
                                                    sig: *const SemaphoreStr,
                                                    max_age: u32) -> Result<bool> {
         let pk = spk as *const PublicKey;
-        let max_age = Some(Duration::seconds(max_age as i64));
+        let max_age = Some(Duration::seconds(i64::from(max_age)));
         Ok((*pk).verify_timestamp((*data).as_bytes(), (*sig).as_str(), max_age))
     }
 }
@@ -144,12 +144,12 @@ ffi_fn! {
                                               max_age: u32)
         -> Result<SemaphoreStr>
     {
-        let max_age = Duration::seconds(max_age as i64);
+        let max_age = Duration::seconds(i64::from(max_age));
         let req = RegisterRequest::bootstrap_unpack(
             (*data).as_bytes(), (*signature).as_str(), Some(max_age))?;
         let challenge = req.create_challenge();
         Ok(SemaphoreStr::from_string(serde_json::to_string(&SemaphoreChallengeResult {
-            relay_id: req.relay_id().clone(),
+            relay_id: *req.relay_id(),
             public_key: req.public_key().clone(),
             token: challenge.token().to_string(),
         })?))
@@ -180,12 +180,12 @@ ffi_fn! {
                                                max_age: u32)
         -> Result<SemaphoreStr>
     {
-        let max_age = Duration::seconds(max_age as i64);
+        let max_age = Duration::seconds(i64::from(max_age));
         let pk = &*(pk as *const PublicKey);
         let reg_resp: RegisterResponse = pk.unpack(
             (*data).as_bytes(), (*signature).as_str(), Some(max_age))?;
         Ok(SemaphoreStr::from_string(serde_json::to_string(&SemaphoreRegisterResponse {
-            relay_id: reg_resp.relay_id().clone(),
+            relay_id: *reg_resp.relay_id(),
             token: reg_resp.token().to_string(),
         })?))
     }
