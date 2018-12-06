@@ -244,7 +244,6 @@ pub struct Request {
     pub cookies: Annotated<Cookies>,
 
     /// HTTP request headers.
-    #[metastructure(pii_kind = "databag")]
     #[metastructure(pii_kind = "databag", bag_size = "large")]
     pub headers: Annotated<Headers>,
 
