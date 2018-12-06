@@ -1,6 +1,7 @@
 //! PII stripping processor.
 mod builtin;
 mod config;
+mod databag;
 mod processor;
 mod redactions;
 mod rules;
