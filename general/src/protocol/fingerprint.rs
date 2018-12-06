@@ -163,7 +163,7 @@ fn test_fingerprint_float_bounds() {
     use crate::types::Meta;
 
     let bad_values = vec![Annotated::new(Value::F64(
-        #[cfg_attr(feature = "cargo-clippy", allow(excessive_precision))]
+        #[allow(clippy::excessive_precision)]
         1.797_693_134_862_315_7e+308,
     ))];
 

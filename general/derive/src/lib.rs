@@ -1,5 +1,5 @@
 #![recursion_limit = "256"]
-#![cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
+#![allow(clippy::cyclomatic_complexity)]
 
 extern crate syn;
 
@@ -550,7 +550,10 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             }
 
             let match_regex_attr = if let Some(match_regex) = field_attrs.match_regex {
-                quote!(Some(__regex::Regex::new(#match_regex).unwrap()))
+                quote!(Some(
+                    #[allow(clippy::trivial_regex)]
+                    __regex::Regex::new(#match_regex).unwrap()
+                ))
             } else {
                 quote!(None)
             };

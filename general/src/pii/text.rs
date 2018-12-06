@@ -14,18 +14,18 @@ use crate::processor::Chunk;
 use crate::types::RemarkType;
 
 lazy_static! {
-    static ref NULL_SPLIT_RE: Regex = #[cfg_attr(feature = "cargo-clippy", allow(trivial_regex))]
+    static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
     Regex::new("\x00").unwrap();
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 macro_rules! ip {
     (v4s) => { "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)" };
     (v4a) => { concat!(ip!(v4s), "\\.", ip!(v4s), "\\.", ip!(v4s), "\\.", ip!(v4s)) };
     (v6s) => { "[0-9a-fA-F]{1,4}" };
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 lazy_static! {
     static ref GROUP_1: BTreeSet<u8> = {
         let mut set = BTreeSet::new();
@@ -55,7 +55,7 @@ lazy_static! {
                 @
                 [a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*
             \b
-    "#
+        "#
     ).unwrap();
     static ref IPV4_REGEX: Regex = Regex::new(concat!("\\b", ip!(v4a), "\\b")).unwrap();
     static ref IPV6_REGEX: Regex = Regex::new(
@@ -79,7 +79,7 @@ lazy_static! {
     static ref CREDITCARD_REGEX: Regex = Regex::new(
         r#"(?x)
             \d{4}[- ]?\d{4,6}[- ]?\d{4,5}(?:[- ]?\d{4})
-    "#
+        "#
     ).unwrap();
     static ref PATH_REGEX: Regex = Regex::new(
         r#"(?ix)
