@@ -132,9 +132,10 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
         }
     } else if let Some(matches) = matches.subcommand_matches("remove") {
         if config.has_credentials() {
-            if matches.is_present("yes") || Confirmation::with_theme(get_theme())
-                .with_text("Remove stored credentials?")
-                .interact()?
+            if matches.is_present("yes")
+                || Confirmation::with_theme(get_theme())
+                    .with_text("Remove stored credentials?")
+                    .interact()?
             {
                 config.replace_credentials(None)?;
                 println!("Credentials removed");

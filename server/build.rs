@@ -12,7 +12,8 @@ fn main() {
         f,
         "pub const SERVER: &str = \"semaphore/{}\";\n",
         env::var("CARGO_PKG_VERSION").unwrap()
-    ).unwrap();
+    )
+    .unwrap();
     println!("cargo:rerun-if-changed=build.rs\n");
     println!("cargo:rerun-if-changed=Cargo.toml\n");
 }

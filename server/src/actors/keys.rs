@@ -186,7 +186,8 @@ impl KeyCache {
                 }
 
                 fut::ok(())
-            }).sync(&self.shutdown, KeyError::Shutdown)
+            })
+            .sync(&self.shutdown, KeyError::Shutdown)
             .drop_err()
             .spawn(context);
     }

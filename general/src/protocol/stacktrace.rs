@@ -108,11 +108,7 @@ impl From<Object<Value>> for FrameVariables {
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace {
-    #[metastructure(
-        required = "true",
-        nonempty = "true",
-        skip_serialization = "empty"
-    )]
+    #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
     pub frames: Annotated<Array<Frame>>,
 
     /// Register values of the thread (top frame).

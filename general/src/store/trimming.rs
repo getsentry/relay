@@ -511,7 +511,8 @@ fn test_databag_state_leak() {
                     Annotated::new(map)
                 },
                 ..Default::default()
-            })).take(200)
+            }))
+            .take(200)
             .collect(),
         )),
         exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
@@ -523,7 +524,8 @@ fn test_databag_state_leak() {
                         function: Annotated::new("importantFunctionName".to_string()),
                         symbol: Annotated::new("important_symbol".to_string()),
                         ..Default::default()
-                    })).take(200)
+                    }))
+                    .take(200)
                     .collect(),
                 ),
                 ..Default::default()

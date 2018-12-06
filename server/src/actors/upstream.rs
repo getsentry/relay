@@ -141,11 +141,10 @@ impl UpstreamRelay {
         let method = query.method();
         let path = query.path();
 
-        let credentials = tryf!(
-            self.config
-                .credentials()
-                .ok_or(UpstreamRequestError::NoCredentials)
-        );
+        let credentials = tryf!(self
+            .config
+            .credentials()
+            .ok_or(UpstreamRequestError::NoCredentials));
 
         let (json, signature) = credentials.secret_key.pack(query);
 
@@ -156,7 +155,8 @@ impl UpstreamRelay {
                     .header("X-Sentry-Relay-Signature", signature)
                     .header(header::CONTENT_TYPE, "application/json")
                     .body(json)
-            }).and_then(|r| r.json().map_err(UpstreamRequestError::InvalidJson));
+            })
+            .and_then(|r| r.json().map_err(UpstreamRequestError::InvalidJson));
 
         Box::new(future)
     }
@@ -216,10 +216,12 @@ impl Handler<Authenticate> for UpstreamRelay {
 
                 debug!("sending register challenge response");
                 slf.send_query(challenge_response).into_actor(slf)
-            }).map(|_, slf, _ctx| {
+            })
+            .map(|_, slf, _ctx| {
                 debug!("relay successfully registered with upstream");
                 slf.auth_state = AuthState::Registered;
-            }).map_err(|err, slf, ctx| {
+            })
+            .map_err(|err, slf, ctx| {
                 error!("authentication encountered error: {}", LogError(&err));
 
                 let interval = slf.backoff.next_backoff();

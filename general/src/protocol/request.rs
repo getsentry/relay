@@ -201,7 +201,8 @@ impl FromValue for Query {
                                 };
                                 (k, FromValue::from_value(v))
                             }
-                        }).collect(),
+                        })
+                        .collect(),
                 )),
                 meta,
             ),
@@ -536,7 +537,8 @@ fn test_query_string_legacy_nested() {
             "baz": {"a": 42}
         }
     "#
-        ).unwrap()
+        )
+        .unwrap()
     );
 }
 

@@ -224,24 +224,28 @@ fn process_enum_struct_derive(
                     }
                     crate::types::Annotated(Some(#type_name::#variant_name(__object)), __meta)
                 }
-            }).to_tokens(&mut from_value_body);
+            })
+            .to_tokens(&mut from_value_body);
             (quote! {
                 #type_name::#variant_name(__value) => {
                     crate::types::ToValue::to_value(__value)
                 }
-            }).to_tokens(&mut to_value_body);
+            })
+            .to_tokens(&mut to_value_body);
             (quote! {
                 #type_name::#variant_name(ref __value) => {
                     crate::types::ToValue::serialize_payload(__value, __serializer, __behavior)
                 }
-            }).to_tokens(&mut serialize_body);
+            })
+            .to_tokens(&mut serialize_body);
         }
 
         (quote! {
             #type_name::#variant_name(ref __value) => {
                 crate::types::ToValue::extract_child_meta(__value)
             }
-        }).to_tokens(&mut extract_child_meta_body);
+        })
+        .to_tokens(&mut extract_child_meta_body);
 
         (quote! {
             #type_name::#variant_name(__value) => {
@@ -252,7 +256,8 @@ fn process_enum_struct_derive(
                     __state,
                 )
             }
-        }).to_tokens(&mut process_value_body);
+        })
+        .to_tokens(&mut process_value_body);
 
         (quote! {
             #type_name::#variant_name(__value) => {
@@ -262,7 +267,8 @@ fn process_enum_struct_derive(
                     __state,
                 )
             }
-        }).to_tokens(&mut process_child_values_body);
+        })
+        .to_tokens(&mut process_child_values_body);
     }
 
     Ok(match t {
@@ -411,7 +417,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     (quote! {
         extern crate lazy_static as __lazy_static;
         extern crate regex as __regex;
-    }).to_tokens(&mut process_child_values_body);
+    })
+    .to_tokens(&mut process_child_values_body);
 
     let type_attrs = parse_type_attributes(&s.ast().attrs);
     if type_attrs.tag_key.is_some() {
@@ -451,7 +458,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     __key,
                     Annotated::map_value(__value, crate::types::ToValue::to_value)
                 )));
-            }).to_tokens(&mut to_value_body);
+            })
+            .to_tokens(&mut to_value_body);
             (quote! {
                 let #bi = {
                     for (__key, __value) in #bi.iter_mut() {
@@ -460,7 +468,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     }
                     #bi
                 };
-            }).to_tokens(&mut process_child_values_body);
+            })
+            .to_tokens(&mut process_child_values_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
                     if !__value.skip_serialization(#skip_serialization_attr) {
@@ -476,14 +485,16 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         __child_meta.insert(__key.to_string(), __inner_tree);
                     }
                 }
-            }).to_tokens(&mut extract_child_meta_body);
+            })
+            .to_tokens(&mut extract_child_meta_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
                     if !__value.skip_serialization(#skip_serialization_attr) {
                         return false;
                     }
                 }
-            }).to_tokens(&mut skip_serialization_body);
+            })
+            .to_tokens(&mut skip_serialization_body);
         } else {
             let field_attrs_name = Ident::new(
                 &format!("__field_attrs_{}", {
@@ -509,17 +520,20 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             if is_tuple_struct {
                 (quote! {
                     let #bi = __arr.next();
-                }).to_tokens(&mut from_value_body);
+                })
+                .to_tokens(&mut from_value_body);
             } else {
                 (quote! {
                     let #bi = __obj.remove(#field_name);
-                }).to_tokens(&mut from_value_body);
+                })
+                .to_tokens(&mut from_value_body);
 
                 for legacy_alias in field_attrs.legacy_aliases {
                     let legacy_field_name = LitStr::new(&legacy_alias, Span::call_site());
                     (quote! {
                         let #bi = #bi.or(__obj.remove(#legacy_field_name));
-                    }).to_tokens(&mut from_value_body);
+                    })
+                    .to_tokens(&mut from_value_body);
                 }
             }
 
@@ -531,7 +545,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 (quote! {
                     let mut #bi = #bi;
                     crate::processor::require_value(&mut #bi);
-                }).to_tokens(&mut from_value_body);
+                })
+                .to_tokens(&mut from_value_body);
             }
 
             let match_regex_attr = if let Some(match_regex) = field_attrs.match_regex {
@@ -543,7 +558,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             if is_tuple_struct {
                 (quote! {
                     __arr.push(Annotated::map_value(#bi, crate::types::ToValue::to_value));
-                }).to_tokens(&mut to_value_body);
+                })
+                .to_tokens(&mut to_value_body);
                 (quote! {
                     if !#bi.skip_serialization(#skip_serialization_attr) {
                         __serde::ser::SerializeSeq::serialize_element(&mut __seq_serializer, &crate::types::SerializePayload(#bi, __behavior))?;
@@ -566,10 +582,11 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 if !__inner_tree.is_empty() {
                     __child_meta.insert(#field_name.to_string(), __inner_tree);
                 }
-            }).to_tokens(&mut extract_child_meta_body);
+            })
+            .to_tokens(&mut extract_child_meta_body);
 
             let enter_state = if is_tuple_struct {
-                quote!{
+                quote! {
                     __state.enter_index(
                         #index,
                         Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))
@@ -608,7 +625,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 if !#bi.skip_serialization(#skip_serialization_attr) {
                     return false;
                 }
-            }).to_tokens(&mut skip_serialization_body);
+            })
+            .to_tokens(&mut skip_serialization_body);
         }
     }
 

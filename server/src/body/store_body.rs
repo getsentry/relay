@@ -137,7 +137,8 @@ where
                     body.extend_from_slice(&chunk);
                     Ok(body)
                 }
-            }).and_then(|body| {
+            })
+            .and_then(|body| {
                 if body.starts_with(b"{") {
                     return Ok(body);
                 }
@@ -152,7 +153,8 @@ where
                     .map_err(StorePayloadError::Zlib)?;
 
                 Ok(BytesMut::from(bytes))
-            }).map(|body| body.freeze());
+            })
+            .map(|body| body.freeze());
 
         self.fut = Some(Box::new(future));
 

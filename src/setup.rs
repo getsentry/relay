@@ -81,7 +81,8 @@ pub fn init_logging(config: &Config) {
                  semaphore_server=TRACE,\
                  semaphore=TRACE"
             }
-        }.to_string();
+        }
+        .to_string();
 
         env::set_var("RUST_LOG", log);
     }
@@ -131,7 +132,8 @@ pub fn init_logging(config: &Config) {
                             filename: record.file(),
                             lineno: record.line(),
                         },
-                    ).map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+                    )
+                    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
                     buf.write_all(b"\n")?;
                     Ok(())
                 });

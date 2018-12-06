@@ -29,7 +29,8 @@ impl MetaTree {
                         // to handle very few meta data initially this is okay enough
                         let value: serde_json::Value = value.into();
                         serde_json::from_value(value).ok()
-                    }).unwrap_or_default(),
+                    })
+                    .unwrap_or_default(),
                 children: map
                     .into_iter()
                     .map(|(k, v)| (k, MetaTree::from_value(v)))
@@ -444,7 +445,8 @@ fn test_annotated_deserialize_with_meta() {
             }
         }
     "#,
-    ).unwrap();
+    )
+    .unwrap();
 
     assert_eq!(annotated_value.0.as_ref().unwrap().id.0, None);
     assert_eq!(

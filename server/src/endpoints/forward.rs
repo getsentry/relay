@@ -123,7 +123,8 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
             } else {
                 forwarded_response.finish()
             })
-        }).responder()
+        })
+        .responder()
 }
 
 /// Registers this endpoint in the actix-web app.

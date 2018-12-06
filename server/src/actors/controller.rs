@@ -131,7 +131,8 @@ impl Controller {
             .and_then(|_, slf, ctx| {
                 slf.stop(ctx);
                 fut::ok(())
-            }).spawn(context);
+            })
+            .spawn(context);
     }
 }
 

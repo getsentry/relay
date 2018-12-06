@@ -92,14 +92,12 @@ fn store_event(
     }
 
     // Make sure we have a project ID. Does not check if the project exists yet
-    let project_id = tryf!(
-        request
-            .match_info()
-            .get("project")
-            .unwrap_or_default()
-            .parse::<ProjectId>()
-            .map_err(BadStoreRequest::BadProject)
-    );
+    let project_id = tryf!(request
+        .match_info()
+        .get("project")
+        .unwrap_or_default()
+        .parse::<ProjectId>()
+        .map_err(BadStoreRequest::BadProject));
 
     let hub = Hub::from_request(&request);
     hub.configure_scope(|scope| {
@@ -129,21 +127,25 @@ fn store_event(
                         EventAction::RetryAfter(secs) => Err(BadStoreRequest::RateLimited(secs)),
                         EventAction::Discard => Err(BadStoreRequest::EventRejected),
                     },
-                ).and_then(move |_| {
+                )
+                .and_then(move |_| {
                     StoreBody::new(&request)
                         .limit(config.max_event_payload_size())
                         .map_err(BadStoreRequest::PayloadError)
-                }).and_then(move |data| {
+                })
+                .and_then(move |data| {
                     event_manager
                         .send(QueueEvent {
                             data,
                             meta,
                             project,
-                        }).map_err(BadStoreRequest::ScheduleFailed)
+                        })
+                        .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
                         .map(|id| Json(StoreResponse { id }))
                 })
-        }).map_err(move |error| {
+        })
+        .map_err(move |error| {
             metric!(counter("event.rejected") += 1);
             error
         });
@@ -164,8 +166,10 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
             "accept",
             "content-type",
             "authentication",
-        ]).max_age(3600)
+        ])
+        .max_age(3600)
         .resource(r"/api/{project:\d+}/store/", |r| {
             r.method(Method::POST).with(store_event);
-        }).register()
+        })
+        .register()
 }

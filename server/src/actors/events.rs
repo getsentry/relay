@@ -351,18 +351,21 @@ impl Handler<HandleEvent> for EventManager {
                         upstream
                             .send(request)
                             .map_err(ProcessingError::ScheduleFailed)
-                            .and_then(move |result| result.map_err(move |error| match error {
-                                UpstreamRequestError::RateLimited(secs) => {
-                                    project.do_send(RetryAfter { secs });
-                                    ProcessingError::RateLimited(secs)
-                                },
-                                other => ProcessingError::SendFailed(other),
-                            }))
+                            .and_then(move |result| {
+                                result.map_err(move |error| match error {
+                                    UpstreamRequestError::RateLimited(secs) => {
+                                        project.do_send(RetryAfter { secs });
+                                        ProcessingError::RateLimited(secs)
+                                    }
+                                    other => ProcessingError::SendFailed(other),
+                                })
+                            })
                             .inspect(move |_| {
                                 metric!(timer("event.total_time") = start_time.elapsed())
                             })
                     })
-            }).into_actor(self)
+            })
+            .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))

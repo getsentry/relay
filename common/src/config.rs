@@ -556,7 +556,8 @@ impl Config {
                 addr.as_str().to_socket_addrs(),
                 ConfigErrorKind::InvalidValue,
                 &self.path
-            ).collect())
+            )
+            .collect())
         } else {
             Ok(vec![])
         }

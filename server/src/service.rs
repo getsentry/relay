@@ -170,15 +170,17 @@ where
     H: server::IntoHttpHandler + 'static,
     F: Fn() -> H + Send + Clone + 'static,
 {
-    Ok(match ListenFd::from_env()
-        .take_tcp_listener(0)
-        .context(ServerErrorKind::BindFailed)?
-    {
-        Some(listener) => server.listen(listener),
-        None => server
-            .bind(config.listen_addr())
-            .context(ServerErrorKind::BindFailed)?,
-    })
+    Ok(
+        match ListenFd::from_env()
+            .take_tcp_listener(0)
+            .context(ServerErrorKind::BindFailed)?
+        {
+            Some(listener) => server.listen(listener),
+            None => server
+                .bind(config.listen_addr())
+                .context(ServerErrorKind::BindFailed)?,
+        },
+    )
 }
 
 #[cfg(feature = "with_ssl")]

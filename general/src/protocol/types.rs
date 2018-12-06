@@ -413,7 +413,8 @@ impl FromValue for LenientString {
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
-        }.map_value(LenientString)
+        }
+        .map_value(LenientString)
     }
 }
 
@@ -545,7 +546,8 @@ fn test_values_deserialization() {
     }
     let value = Annotated::<Values<Exception>>::from_json(
         r#"{"values": [{"type": "Test", "value": "aha!"}]}"#,
-    ).unwrap();
+    )
+    .unwrap();
     assert_eq!(
         value,
         Annotated::new(Values::new(vec![Annotated::new(Exception {

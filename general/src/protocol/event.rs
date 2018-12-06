@@ -169,10 +169,7 @@ pub struct Event {
     pub transaction: Annotated<String>,
 
     /// Custom parameterized message for this event.
-    #[metastructure(
-        legacy_alias = "sentry.interfaces.Message",
-        legacy_alias = "message"
-    )]
+    #[metastructure(legacy_alias = "sentry.interfaces.Message", legacy_alias = "message")]
     pub logentry: Annotated<LogEntry>,
 
     /// Logger that created the event.
@@ -202,10 +199,7 @@ pub struct Event {
 
     /// Program's distribution identifier.
     // Match whitespace here, which will later get trimmed
-    #[metastructure(
-        max_chars = "symbol",
-        match_regex = r"^\s*[a-zA-Z0-9_.-]+\s*$"
-    )]
+    #[metastructure(max_chars = "symbol", match_regex = r"^\s*[a-zA-Z0-9_.-]+\s*$")]
     pub dist: Annotated<String>,
 
     /// Environment the environment was generated in ("production" or "development").

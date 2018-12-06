@@ -121,7 +121,8 @@ impl Project {
                 }
 
                 fut::ok(())
-            }).drop_err()
+            })
+            .drop_err()
             .spawn(context);
 
         receiver.shared()
@@ -250,7 +251,8 @@ impl ProjectState {
             .map(|e| match self.slug {
                 Some(_) => e > config.project_cache_expiry(),
                 None => e > config.cache_miss_expiry(),
-            }).unwrap_or(false)
+            })
+            .unwrap_or(false)
     }
 
     /// Returns the project config.
@@ -269,9 +271,10 @@ impl ProjectState {
         // If the list of allowed domains is empty, we accept any origin. Otherwise, we have to
         // match with the whitelist.
         let allowed = &self.config().allowed_domains;
-        !allowed.is_empty() && allowed
-            .iter()
-            .any(|x| x.as_str() == "*" || Some(x.as_str()) == origin.host_str())
+        !allowed.is_empty()
+            && allowed
+                .iter()
+                .any(|x| x.as_str() == "*" || Some(x.as_str()) == origin.host_str())
     }
 
     /// Determines whether the given event should be accepted or dropped.
@@ -514,7 +517,8 @@ impl ProjectCache {
                 }
 
                 fut::ok(())
-            }).sync(&self.shutdown, ProjectError::Shutdown)
+            })
+            .sync(&self.shutdown, ProjectError::Shutdown)
             .drop_err()
             .spawn(context);
     }
@@ -695,7 +699,8 @@ impl Handler<FetchProjectState> for ProjectCache {
                 .map(|state| ProjectStateResponse {
                     state: Arc::new(state),
                     is_local: false,
-                }).map_err(|_| ()),
+                })
+                .map_err(|_| ()),
         )
     }
 }
