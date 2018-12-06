@@ -3,7 +3,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_derive::Serialize;
 use serde_json;
 
-use crate::types::{Error, FromValue, Map, Meta, ToValue, Value};
+use crate::types::{Error, FromValue, Map, Meta, SkipSerialization, ToValue, Value};
 
 /// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
@@ -262,7 +262,11 @@ impl<T: ToValue> Annotated<T> {
 
         if let Some(ref value) = self.0 {
             use serde::private::ser::FlatMapSerializer;
-            ToValue::serialize_payload(value, FlatMapSerializer(&mut map_ser))?;
+            ToValue::serialize_payload(
+                value,
+                FlatMapSerializer(&mut map_ser),
+                SkipSerialization::Null,
+            )?;
         }
 
         if !meta_tree.is_empty() {
@@ -292,7 +296,9 @@ impl<T: ToValue> Annotated<T> {
         let mut ser = serde_json::Serializer::new(Vec::with_capacity(128));
 
         match self.0 {
-            Some(ref value) => ToValue::serialize_payload(value, &mut ser)?,
+            Some(ref value) => {
+                ToValue::serialize_payload(value, &mut ser, SkipSerialization::Null)?
+            }
             None => ser.serialize_unit()?,
         }
 
@@ -304,7 +310,9 @@ impl<T: ToValue> Annotated<T> {
         let mut ser = serde_json::Serializer::pretty(Vec::with_capacity(128));
 
         match self.0 {
-            Some(ref value) => ToValue::serialize_payload(value, &mut ser)?,
+            Some(ref value) => {
+                ToValue::serialize_payload(value, &mut ser, SkipSerialization::Null)?
+            }
             None => ser.serialize_unit()?,
         }
 
@@ -312,13 +320,17 @@ impl<T: ToValue> Annotated<T> {
     }
 
     /// Checks if this value can be skipped upon serialization.
-    pub fn skip_serialization(&self) -> bool {
+    pub fn skip_serialization(&self, behavior: SkipSerialization) -> bool {
+        if behavior == SkipSerialization::Never {
+            return false;
+        }
+
         if !self.1.is_empty() {
             return false;
         }
 
         if let Some(ref value) = self.0 {
-            value.skip_serialization()
+            behavior == SkipSerialization::Empty && value.skip_serialization(behavior)
         } else {
             true
         }

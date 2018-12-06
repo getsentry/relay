@@ -4,12 +4,13 @@ use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::types::{
-    Annotated, Array, Error, FromValue, Map, MetaMap, MetaTree, Object, ToValue, Value,
+    Annotated, Array, Error, FromValue, Map, MetaMap, MetaTree, Object, SkipSerialization, ToValue,
+    Value,
 };
 
 // This needs to be public because the derive crate emits it
 #[doc(hidden)]
-pub struct SerializePayload<'a, T: 'a>(pub &'a Annotated<T>);
+pub struct SerializePayload<'a, T: 'a>(pub &'a Annotated<T>, pub SkipSerialization);
 
 impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
@@ -17,7 +18,7 @@ impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
         S: Serializer,
     {
         match *self.0 {
-            Annotated(Some(ref value), _) => ToValue::serialize_payload(value, s),
+            Annotated(Some(ref value), _) => ToValue::serialize_payload(value, s, self.1),
             Annotated(None, _) => s.serialize_unit(),
         }
     }
@@ -56,14 +57,16 @@ impl<T: ToValue> ToValue for Array<T> {
                 .collect(),
         )
     }
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
     {
         let mut seq_ser = s.serialize_seq(Some(self.len()))?;
         for item in self {
-            seq_ser.serialize_element(&SerializePayload(item))?;
+            if !item.skip_serialization(behavior) {
+                seq_ser.serialize_element(&SerializePayload(item, behavior))?;
+            }
         }
         seq_ser.end()
     }
@@ -81,9 +84,9 @@ impl<T: ToValue> ToValue for Array<T> {
         children
     }
 
-    fn skip_serialization(&self) -> bool {
+    fn skip_serialization(&self, behavior: SkipSerialization) -> bool {
         for item in self.iter() {
-            if !item.skip_serialization() {
+            if !item.skip_serialization(behavior) {
                 return false;
             }
         }
@@ -123,16 +126,16 @@ impl<T: ToValue> ToValue for Object<T> {
         )
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
     {
         let mut map_ser = s.serialize_map(Some(self.len()))?;
         for (key, value) in self {
-            if !value.skip_serialization() {
+            if !value.skip_serialization(behavior) {
                 map_ser.serialize_key(&key)?;
-                map_ser.serialize_value(&SerializePayload(value))?;
+                map_ser.serialize_value(&SerializePayload(value, behavior))?;
             }
         }
         map_ser.end()
@@ -152,9 +155,9 @@ impl<T: ToValue> ToValue for Object<T> {
         children
     }
 
-    fn skip_serialization(&self) -> bool {
+    fn skip_serialization(&self, behavior: SkipSerialization) -> bool {
         for (_, value) in self.iter() {
-            if !value.skip_serialization() {
+            if !value.skip_serialization(behavior) {
                 return false;
             }
         }
@@ -173,7 +176,7 @@ impl ToValue for Value {
         self
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
@@ -258,7 +261,7 @@ impl ToValue for DateTime<Utc> {
         Value::F64(datetime_to_timestamp(self))
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
@@ -292,12 +295,12 @@ impl<T: ToValue> ToValue for Box<T> {
         ToValue::extract_child_meta(&**self)
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
     {
-        ToValue::serialize_payload(&**self, s)
+        ToValue::serialize_payload(&**self, s, behavior)
     }
 }
 
@@ -342,13 +345,13 @@ macro_rules! tuple_meta_structure {
             }
 
             #[allow(non_snake_case, unused_variables)]
-            fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+            fn serialize_payload<S>(&self, s: S, behavior: crate::types::SkipSerialization) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
             {
                 let mut s = s.serialize_seq(None)?;
                 let ($(ref $name,)*) = self;
-                $(s.serialize_element(&SerializePayload($name))?;)*;
+                $(s.serialize_element(&SerializePayload($name, behavior))?;)*;
                 s.end()
             }
 
@@ -398,6 +401,7 @@ fn test_unsigned_integers() {
 fn test_empty_containers_skipped() {
     #[derive(Debug, ToValue)]
     struct Helper {
+        #[metastructure(skip_serialization = "empty")]
         items: Annotated<Array<String>>,
     }
 
@@ -411,16 +415,13 @@ fn test_empty_containers_skipped() {
 #[test]
 fn test_empty_containers_not_skipped_if_configured() {
     #[derive(Debug, ToValue)]
-    #[metastructure(skip_serialization = "never")]
-    struct NeverSkip(Array<String>);
-
-    #[derive(Debug, ToValue)]
-    struct NeverSkipHelper {
-        items: Annotated<NeverSkip>,
+    struct NeverSkip {
+        #[metastructure(skip_serialization = "never")]
+        items: Annotated<Array<String>>,
     }
 
-    let helper = Annotated::new(NeverSkipHelper {
-        items: Annotated::new(NeverSkip(vec![])),
+    let helper = Annotated::new(NeverSkip {
+        items: Annotated::new(vec![]),
     });
     assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[]}"#);
 }
@@ -432,6 +433,7 @@ fn test_wrapper_structs_and_skip_serialization() {
 
     #[derive(Debug, ToValue)]
     struct BasicHelper {
+        #[metastructure(skip_serialization = "empty")]
         items: Annotated<BasicWrapper>,
     }
 
@@ -444,13 +446,13 @@ fn test_wrapper_structs_and_skip_serialization() {
 #[test]
 fn test_skip_serialization_on_regular_structs() {
     #[derive(Debug, Default, ToValue)]
-    #[metastructure(skip_serialization = "never")]
     struct Wrapper {
         foo: Annotated<u64>,
     }
 
     #[derive(Debug, Default, ToValue)]
     struct Helper {
+        #[metastructure(skip_serialization = "null")]
         foo: Annotated<Wrapper>,
     }
 

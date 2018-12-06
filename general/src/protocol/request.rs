@@ -234,23 +234,27 @@ pub struct Request {
 
     /// URL encoded HTTP query string.
     #[metastructure(pii_kind = "databag", bag_size = "small")]
+    #[metastructure(skip_serialization = "empty")]
     pub query_string: Annotated<Query>,
 
     /// The fragment of the request URL.
     #[metastructure(pii_kind = "freeform", max_chars = "summary")]
+    #[metastructure(skip_serialization = "empty")]
     pub fragment: Annotated<String>,
 
     /// URL encoded contents of the Cookie header.
     #[metastructure(pii_kind = "databag", bag_size = "medium")]
+    #[metastructure(skip_serialization = "empty")]
     pub cookies: Annotated<Cookies>,
 
     /// HTTP request headers.
-    #[metastructure(pii_kind = "databag")]
     #[metastructure(pii_kind = "databag", bag_size = "large")]
+    #[metastructure(skip_serialization = "empty")]
     pub headers: Annotated<Headers>,
 
     /// Server environment data, such as CGI/WSGI.
     #[metastructure(pii_kind = "databag", bag_size = "large")]
+    #[metastructure(skip_serialization = "empty")]
     pub env: Annotated<Object<Value>>,
 
     /// The inferred content type of the request payload.

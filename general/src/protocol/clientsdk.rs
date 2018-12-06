@@ -22,9 +22,11 @@ pub struct ClientSdkInfo {
     pub version: Annotated<String>,
 
     /// List of integrations that are enabled in the SDK.
+    #[metastructure(skip_serialization = "empty")]
     pub integrations: Annotated<Array<String>>,
 
     /// List of installed and loaded SDK packages.
+    #[metastructure(skip_serialization = "empty")]
     pub packages: Annotated<Array<ClientSdkPackage>>,
 
     /// Additional arbitrary fields for forwards compatibility.

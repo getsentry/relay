@@ -9,6 +9,8 @@ extern crate synstructure;
 extern crate quote;
 extern crate proc_macro2;
 
+use std::str::FromStr;
+
 use proc_macro2::{Span, TokenStream};
 use quote::ToTokens;
 use syn::{Data, Ident, Lit, LitBool, LitStr, Meta, MetaNameValue, NestedMeta};
@@ -61,18 +63,13 @@ fn process_wrapper_struct_derive(
         return Err(s);
     }
 
-    let mut skip_serialization_body = TokenStream::new();
-
     let type_attrs = parse_type_attributes(&s.ast().attrs);
     if type_attrs.tag_key.is_some() {
         panic!("tag_key not supported on structs");
     }
 
-    if type_attrs.never_skip_serialization {
-        quote!(false)
-    } else {
-        quote!(crate::types::ToValue::skip_serialization(&self.0))
-    }.to_tokens(&mut skip_serialization_body);
+    let field_attrs = parse_field_attributes(&s.variants()[0].bindings()[0].ast().attrs);
+    let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
 
     let name = &s.ast().ident;
 
@@ -99,12 +96,12 @@ fn process_wrapper_struct_derive(
                     crate::types::ToValue::to_value(self.0)
                 }
 
-                fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>
+                fn serialize_payload<S>(&self, __serializer: S, __behavior: crate::types::SkipSerialization) -> Result<S::Ok, S::Error>
                 where
                     Self: Sized,
                     S: __serde::ser::Serializer
                 {
-                    crate::types::ToValue::serialize_payload(&self.0, __serializer)
+                    crate::types::ToValue::serialize_payload(&self.0, __serializer, #skip_serialization_attr)
                 }
 
                 fn extract_child_meta(&self) -> crate::types::MetaMap
@@ -114,11 +111,11 @@ fn process_wrapper_struct_derive(
                     crate::types::ToValue::extract_child_meta(&self.0)
                 }
 
-                fn skip_serialization(&self) -> bool
+                fn skip_serialization(&self, __behavior: crate::types::SkipSerialization) -> bool
                 where
                     Self: Sized,
                 {
-                    #skip_serialization_body
+                    crate::types::ToValue::skip_serialization(&self.0, #skip_serialization_attr)
                 }
             }
         }),
@@ -213,7 +210,7 @@ fn process_enum_struct_derive(
             (quote! {
                 #type_name::#variant_name(ref __value) => {
                     let mut __map_ser = __serde::Serializer::serialize_map(__serializer, None)?;
-                    crate::types::ToValue::serialize_payload(__value, __serde::private::ser::FlatMapSerializer(&mut __map_ser))?;
+                    crate::types::ToValue::serialize_payload(__value, __serde::private::ser::FlatMapSerializer(&mut __map_ser), __behavior)?;
                     __serde::ser::SerializeMap::serialize_key(&mut __map_ser, #tag_key_str)?;
                     __serde::ser::SerializeMap::serialize_value(&mut __map_ser, #tag)?;
                     __serde::ser::SerializeMap::end(__map_ser)
@@ -235,7 +232,7 @@ fn process_enum_struct_derive(
             }).to_tokens(&mut to_value_body);
             (quote! {
                 #type_name::#variant_name(ref __value) => {
-                    crate::types::ToValue::serialize_payload(__value, __serializer)
+                    crate::types::ToValue::serialize_payload(__value, __serializer, __behavior)
                 }
             }).to_tokens(&mut serialize_body);
         }
@@ -301,7 +298,7 @@ fn process_enum_struct_derive(
                         }
                     }
 
-                    fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>
+                    fn serialize_payload<S>(&self, __serializer: S, __behavior: crate::types::SkipSerialization) -> Result<S::Ok, S::Error>
                     where
                         S: __serde::ser::Serializer
                     {
@@ -420,11 +417,6 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
     if type_attrs.tag_key.is_some() {
         panic!("tag_key not supported on structs");
     }
-    if type_attrs.never_skip_serialization {
-        (quote! {
-            return false;
-        }).to_tokens(&mut skip_serialization_body);
-    }
 
     let mut is_tuple_struct = false;
     for (index, bi) in variant.bindings().iter().enumerate() {
@@ -443,6 +435,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                 .unwrap_or_else(|| index.to_string())
         });
         let field_name = LitStr::new(&field_name, Span::call_site());
+
+        let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
 
         if field_attrs.additional_properties {
             if is_tuple_struct {
@@ -469,9 +463,9 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
             }).to_tokens(&mut process_child_values_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
-                    if !__value.skip_serialization() {
+                    if !__value.skip_serialization(#skip_serialization_attr) {
                         __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, __key)?;
-                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(__value))?;
+                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(__value, __behavior))?;
                     }
                 }
             }).to_tokens(&mut serialize_body);
@@ -483,6 +477,13 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     }
                 }
             }).to_tokens(&mut extract_child_meta_body);
+            (quote! {
+                for (__key, __value) in #bi.iter() {
+                    if !__value.skip_serialization(#skip_serialization_attr) {
+                        return false;
+                    }
+                }
+            }).to_tokens(&mut skip_serialization_body);
         } else {
             let field_attrs_name = Ident::new(
                 &format!("__field_attrs_{}", {
@@ -544,8 +545,8 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     __arr.push(Annotated::map_value(#bi, crate::types::ToValue::to_value));
                 }).to_tokens(&mut to_value_body);
                 (quote! {
-                    if !#bi.skip_serialization() {
-                        __serde::ser::SerializeSeq::serialize_element(&mut __seq_serializer, &crate::types::SerializePayload(#bi))?;
+                    if !#bi.skip_serialization(#skip_serialization_attr) {
+                        __serde::ser::SerializeSeq::serialize_element(&mut __seq_serializer, &crate::types::SerializePayload(#bi, __behavior))?;
                     }
                 }).to_tokens(&mut serialize_body);
             } else {
@@ -553,9 +554,9 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     __map.insert(#field_name.to_string(), Annotated::map_value(#bi, crate::types::ToValue::to_value));
                 }).to_tokens(&mut to_value_body);
                 (quote! {
-                    if !#bi.skip_serialization() {
+                    if !#bi.skip_serialization(#skip_serialization_attr) {
                         __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, #field_name)?;
-                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(#bi))?;
+                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(#bi, __behavior))?;
                     }
                 }).to_tokens(&mut serialize_body);
             }
@@ -602,13 +603,13 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     #enter_state,
                 );
             }).to_tokens(&mut process_child_values_body);
-        }
 
-        (quote! {
-            if !#bi.skip_serialization() {
-                return false;
-            }
-        }).to_tokens(&mut skip_serialization_body);
+            (quote! {
+                if !#bi.skip_serialization(#skip_serialization_attr) {
+                    return false;
+                }
+            }).to_tokens(&mut skip_serialization_body);
+        }
     }
 
     let ast = s.ast();
@@ -709,7 +710,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                         #to_value
                     }
 
-                    fn serialize_payload<S>(&self, __serializer: S) -> Result<S::Ok, S::Error>
+                    fn serialize_payload<S>(&self, __serializer: S, __behavior: crate::types::SkipSerialization) -> Result<S::Ok, S::Error>
                     where
                         Self: Sized,
                         S: __serde::ser::Serializer
@@ -729,7 +730,7 @@ fn process_metastructure_impl(s: synstructure::Structure, t: Trait) -> TokenStre
                     }
 
                     #[allow(unreachable_code)]
-                    fn skip_serialization(&self) -> bool {
+                    fn skip_serialization(&self, __behavior: crate::types::SkipSerialization) -> bool {
                         let #serialize_pat = self;
                         #skip_serialization_body;
                         true
@@ -823,7 +824,6 @@ fn parse_pii_kind(kind: &str) -> TokenStream {
 struct TypeAttrs {
     process_func: Option<String>,
     tag_key: Option<String>,
-    never_skip_serialization: bool,
 }
 
 fn parse_type_attributes(attrs: &[syn::Attribute]) -> TypeAttrs {
@@ -862,16 +862,6 @@ fn parse_type_attributes(attrs: &[syn::Attribute]) -> TypeAttrs {
                                         panic!("Got non string literal for tag_key");
                                     }
                                 }
-                            } else if ident == "skip_serialization" {
-                                match lit {
-                                    Lit::Str(litstr) => match litstr.value().as_ref() {
-                                        "never" => rv.never_skip_serialization = true,
-                                        _ => panic!("Unknown value for skip_serialization"),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for skip_serialization");
-                                    }
-                                }
                             } else {
                                 panic!("Unknown attribute")
                             }
@@ -897,6 +887,46 @@ struct FieldAttrs {
     bag_size: TokenStream,
     pii_kind: TokenStream,
     legacy_aliases: Vec<String>,
+    skip_serialization: SkipSerialization,
+}
+
+#[derive(Copy, Clone)]
+enum SkipSerialization {
+    Null,
+    Empty,
+    Never,
+    Inherit,
+}
+
+impl SkipSerialization {
+    fn as_tokens(self) -> TokenStream {
+        match self {
+            SkipSerialization::Never => quote!(crate::types::SkipSerialization::Never),
+            SkipSerialization::Null => quote!(crate::types::SkipSerialization::Null),
+            SkipSerialization::Empty => quote!(crate::types::SkipSerialization::Empty),
+            SkipSerialization::Inherit => quote!(__behavior),
+        }
+    }
+}
+
+impl Default for SkipSerialization {
+    fn default() -> SkipSerialization {
+        SkipSerialization::Null
+    }
+}
+
+impl FromStr for SkipSerialization {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, ()> {
+        Ok(match s {
+            "null" => SkipSerialization::Null,
+            "empty" => SkipSerialization::Empty,
+            "never" => SkipSerialization::Never,
+            "inherit" => SkipSerialization::Inherit,
+            _ => Err(())?,
+        })
+    }
 }
 
 fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
@@ -1001,6 +1031,16 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
                                 match lit {
                                     Lit::Str(litstr) => {
                                         rv.legacy_aliases.push(litstr.value());
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for legacy_alias");
+                                    }
+                                }
+                            } else if ident == "skip_serialization" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        rv.skip_serialization = FromStr::from_str(&litstr.value())
+                                            .expect("Unknown value for skip_serialization");
                                     }
                                     _ => {
                                         panic!("Got non string literal for legacy_alias");

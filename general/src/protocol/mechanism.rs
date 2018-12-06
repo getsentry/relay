@@ -89,10 +89,12 @@ pub struct Mechanism {
 
     /// Additional attributes depending on the mechanism type.
     #[metastructure(pii_kind = "databag")]
+    #[metastructure(skip_serialization = "empty")]
     // TODO: Cap?
     pub data: Annotated<Object<Value>>,
 
     /// Operating system or runtime meta information.
+    #[metastructure(skip_serialization = "empty")]
     pub meta: Annotated<MechanismMeta>,
 
     /// Additional arbitrary fields for forwards compatibility.

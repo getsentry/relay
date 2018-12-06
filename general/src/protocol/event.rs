@@ -13,7 +13,9 @@ use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, Level, LogEntry,
     Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
 };
-use crate::types::{Annotated, Array, ErrorKind, FromValue, Object, ToValue, Value};
+use crate::types::{
+    Annotated, Array, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
+};
 
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -111,7 +113,7 @@ impl ToValue for EventType {
         Value::String(format!("{}", self))
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
@@ -178,6 +180,7 @@ pub struct Event {
     pub logger: Annotated<String>,
 
     /// Name and versions of installed modules.
+    #[metastructure(skip_serialization = "empty")]
     pub modules: Annotated<Object<String>>,
 
     /// Platform identifier of this event (defaults to "other").
@@ -215,18 +218,22 @@ pub struct Event {
 
     /// Information about the user who triggered this event.
     #[metastructure(legacy_alias = "sentry.interfaces.User")]
+    #[metastructure(skip_serialization = "empty")]
     pub user: Annotated<User>,
 
     /// Information about a web request that occurred during the event.
     #[metastructure(legacy_alias = "sentry.interfaces.Http")]
+    #[metastructure(skip_serialization = "empty")]
     pub request: Annotated<Request>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
     #[metastructure(legacy_alias = "sentry.interfaces.Contexts")]
+    #[metastructure(skip_serialization = "empty")]
     pub contexts: Annotated<Contexts>,
 
     /// List of breadcrumbs recorded before this event.
     #[metastructure(legacy_alias = "sentry.interfaces.Breadcrumbs")]
+    #[metastructure(skip_serialization = "empty")]
     pub breadcrumbs: Annotated<Values<Breadcrumb>>,
 
     /// One or multiple chained (nested) exceptions.
@@ -235,6 +242,7 @@ pub struct Event {
     pub exceptions: Annotated<Values<Exception>>,
 
     /// Deprecated event stacktrace.
+    #[metastructure(skip_serialization = "empty")]
     pub stacktrace: Annotated<Stacktrace>,
 
     /// Simplified template error location information.
@@ -242,24 +250,30 @@ pub struct Event {
     pub template_info: Annotated<TemplateInfo>,
 
     /// Threads that were active when the event occurred.
+    #[metastructure(skip_serialization = "empty")]
     pub threads: Annotated<Values<Thread>>,
 
     /// Custom tags for this event.
+    #[metastructure(skip_serialization = "empty")]
     pub tags: Annotated<Tags>,
 
     /// Arbitrary extra information set by the user.
     #[metastructure(bag_size = "large")]
+    #[metastructure(skip_serialization = "empty")]
     pub extra: Annotated<Object<Value>>,
 
     /// Meta data for event processing and debugging.
+    #[metastructure(skip_serialization = "empty")]
     pub debug_meta: Annotated<DebugMeta>,
 
     /// Information about the Sentry SDK that generated this event.
     #[metastructure(field = "sdk")]
+    #[metastructure(skip_serialization = "empty")]
     pub client_sdk: Annotated<ClientSdkInfo>,
 
     /// Errors encountered during processing. Intended to be phased out in favor of
     /// annotation/metadata system.
+    #[metastructure(skip_serialization = "empty")]
     pub errors: Annotated<Array<EventProcessingError>>,
 
     /// Project key which sent this event.
