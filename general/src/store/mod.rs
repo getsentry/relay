@@ -115,17 +115,29 @@ impl<'a> StoreNormalizeProcessor<'a> {
 
     fn normalize_event_tags(&self, event: &mut Event) {
         let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
+        let environment = &mut event.environment;
 
-        // Fix case where legacy apps pass environment as a tag instead of a top level key
-        if event.environment.value().is_none() {
-            tags.retain(|tag| tag.value().and_then(|tag| tag.key()) != Some("environment"));
-        }
+        tags.retain(|tag| {
+            let tag = match tag.value() {
+                Some(x) => x,
+                None => return true, // ToValue will decide if we should skip serializing Annotated::empty()
+            };
 
-        // These tags are special and are used in pairing with `sentry:{}`. They should not be allowed
-        // to be set via data ingest due to ambiguity.
-        tags.retain(|tag| match tag.value().and_then(|tag| tag.key()) {
-            Some("release") | Some("dist") | Some("filename") | Some("function") => false,
-            _ => true,
+            match tag.key() {
+                // These tags are special and are used in pairing with `sentry:{}`. They should not be allowed
+                // to be set via data ingest due to ambiguity.
+                Some("release") | Some("dist") | Some("filename") | Some("function") => false,
+
+                // Fix case where legacy apps pass environment as a tag instead of a top level key
+                Some("environment") => {
+                    if let Some(ref value) = tag.value() {
+                        environment.get_or_insert_with(|| value.to_string());
+                    }
+
+                    false
+                }
+                _ => true,
+            }
         });
 
         if event.server_name.value_mut().is_some() {
@@ -584,5 +596,24 @@ fn test_schema_processor_invoked() {
     assert_eq_dbg!(
         event.value().unwrap().user.value().unwrap().email.value(),
         None
+    );
+}
+
+#[test]
+fn test_environment_tag_is_moved() {
+    let mut event = Annotated::new(Event {
+        tags: Annotated::new(Tags(vec![Annotated::new(TagEntry(
+            Annotated::new("environment".to_string()),
+            Annotated::new("despacito".to_string()),
+        ))])),
+        ..Default::default()
+    });
+
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
+    process_value(&mut event, &mut processor, Default::default());
+
+    assert_eq_dbg!(
+        event.0.unwrap().environment.0,
+        Some("despacito".to_string())
     );
 }
