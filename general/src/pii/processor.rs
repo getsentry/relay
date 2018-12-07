@@ -6,7 +6,7 @@ use crate::pii::rules::Rule;
 use crate::pii::text::apply_rule_to_chunks;
 use crate::processor::{process_chunked_value, PiiKind, ProcessValue, ProcessingState, Processor};
 use crate::protocol::PairList;
-use crate::types::{Annotated, Meta, ValueAction};
+use crate::types::{Annotated, Meta, Object, ValueAction};
 
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
@@ -68,6 +68,25 @@ impl<'a> Processor for PiiProcessor<'a> {
                 chunks
             });
         }
+        ValueAction::Keep
+    }
+
+    fn process_object<T: ProcessValue>(
+        &mut self,
+        value: &mut Object<T>,
+        _meta: &mut Meta,
+        state: ProcessingState,
+    ) -> ValueAction {
+        let rules = self.get_rules(&state, PiiKind::Container);
+        if !rules.is_empty() {
+            for (k, v) in value.iter_mut() {
+                for rule in rules {
+                    v.apply(|v, m| apply_rule_to_databag_value(rule, Some(k), v, m));
+                }
+            }
+        }
+
+        value.process_child_values(self, state);
         ValueAction::Keep
     }
 
