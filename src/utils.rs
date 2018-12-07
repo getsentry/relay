@@ -4,6 +4,7 @@ use std::str::FromStr;
 use console::Style;
 use dialoguer::Input;
 use failure::Error;
+use lazy_static::lazy_static;
 
 use dialoguer::theme::{ColorfulTheme, Theme};
 

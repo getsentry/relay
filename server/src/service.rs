@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use actix::prelude::*;
+use ::actix::prelude::*;
 use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
@@ -45,7 +45,7 @@ pub enum ServerErrorKind {
 }
 
 impl Fail for ServerError {
-    fn cause(&self) -> Option<&Fail> {
+    fn cause(&self) -> Option<&dyn Fail> {
         self.inner.cause()
     }
 
@@ -55,7 +55,7 @@ impl Fail for ServerError {
 }
 
 impl fmt::Display for ServerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.inner, f)
     }
 }
@@ -156,9 +156,9 @@ where
     H: server::IntoHttpHandler + 'static,
     F: Fn() -> H + Send + Clone + 'static,
 {
-    info!("spawning http server");
+    log::info!("spawning http server");
     for (addr, scheme) in server.addrs_with_scheme() {
-        info!("  listening on: {}://{}/", scheme, addr);
+        log::info!("  listening on: {}://{}/", scheme, addr);
     }
 }
 
@@ -170,15 +170,17 @@ where
     H: server::IntoHttpHandler + 'static,
     F: Fn() -> H + Send + Clone + 'static,
 {
-    Ok(match ListenFd::from_env()
-        .take_tcp_listener(0)
-        .context(ServerErrorKind::BindFailed)?
-    {
-        Some(listener) => server.listen(listener),
-        None => server
-            .bind(config.listen_addr())
-            .context(ServerErrorKind::BindFailed)?,
-    })
+    Ok(
+        match ListenFd::from_env()
+            .take_tcp_listener(0)
+            .context(ServerErrorKind::BindFailed)?
+        {
+            Some(listener) => server.listen(listener),
+            None => server
+                .bind(config.listen_addr())
+                .context(ServerErrorKind::BindFailed)?,
+        },
+    )
 }
 
 #[cfg(feature = "with_ssl")]

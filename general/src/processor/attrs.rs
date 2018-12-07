@@ -1,10 +1,8 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use lazy_static;
-use serde_derive::{Deserialize, Serialize};
-
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 /// The maximum length of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
@@ -150,7 +148,7 @@ enum PathItem<'a> {
 }
 
 impl<'a> fmt::Display for PathItem<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             PathItem::StaticKey(s) => f.pad(s),
             PathItem::DynamicKey(ref s) => f.pad(s.as_str()),
@@ -267,7 +265,7 @@ impl<'a> Path<'a> {
 }
 
 impl<'a> fmt::Display for Path<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let path = self.0.path();
         for (idx, item) in path.iter().enumerate() {
             if idx > 0 {

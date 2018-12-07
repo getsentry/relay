@@ -1,5 +1,5 @@
-use actix::dev::{MessageResponse, ResponseChannel};
-use actix::prelude::*;
+use ::actix::dev::{MessageResponse, ResponseChannel};
+use ::actix::prelude::*;
 use futures::prelude::*;
 
 #[derive(Debug, Default)]

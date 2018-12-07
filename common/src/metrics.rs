@@ -3,6 +3,7 @@ use std::net::ToSocketAddrs;
 use std::sync::Arc;
 
 use cadence::StatsdClient;
+use lazy_static::lazy_static;
 use parking_lot::RwLock;
 
 lazy_static! {
@@ -39,7 +40,7 @@ pub fn disable() {
 pub fn configure_statsd<A: ToSocketAddrs>(prefix: &str, host: A) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
-        info!("reporting metrics to statsd at {}", addrs[0]);
+        log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
     set_client(StatsdClient::from_udp_host(prefix, &addrs[..]).unwrap());
 }

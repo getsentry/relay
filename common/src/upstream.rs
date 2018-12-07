@@ -4,6 +4,7 @@ use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::str::FromStr;
 
+use failure::Fail;
 use sentry_types::{Dsn, Scheme};
 use url::Url;
 
@@ -121,7 +122,7 @@ impl Default for UpstreamDescriptor<'static> {
 }
 
 impl<'a> fmt::Display for UpstreamDescriptor<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}://{}", &self.scheme, &self.host)?;
         if self.port() != self.scheme.default_port() {
             write!(f, ":{}", self.port())?;
@@ -164,7 +165,7 @@ mod test {
 
     #[test]
     fn test_basic_parsing() {
-        let desc: UpstreamDescriptor = "https://ingest.sentry.io/".parse().unwrap();
+        let desc: UpstreamDescriptor<'_> = "https://ingest.sentry.io/".parse().unwrap();
         assert_eq!(desc.host(), "ingest.sentry.io");
         assert_eq!(desc.port(), 443);
         assert_eq!(desc.scheme(), Scheme::Https);

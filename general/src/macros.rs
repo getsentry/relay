@@ -5,7 +5,11 @@ macro_rules! primitive_to_value {
                 Value::$meta_type(self)
             }
 
-            fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+            fn serialize_payload<S>(
+                &self,
+                s: S,
+                _behavior: crate::types::SkipSerialization,
+            ) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
                 S: serde::Serializer,
@@ -73,7 +77,11 @@ macro_rules! primitive_meta_structure_through_string {
             fn to_value(self) -> Value {
                 Value::String(self.to_string())
             }
-            fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+            fn serialize_payload<S>(
+                &self,
+                s: S,
+                _behavior: crate::types::SkipSerialization,
+            ) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
                 S: serde::ser::Serializer,

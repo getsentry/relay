@@ -14,18 +14,18 @@ use crate::processor::Chunk;
 use crate::types::RemarkType;
 
 lazy_static! {
-    static ref NULL_SPLIT_RE: Regex = #[cfg_attr(feature = "cargo-clippy", allow(trivial_regex))]
+    static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
     Regex::new("\x00").unwrap();
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 macro_rules! ip {
     (v4s) => { "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)" };
     (v4a) => { concat!(ip!(v4s), "\\.", ip!(v4s), "\\.", ip!(v4s), "\\.", ip!(v4s)) };
     (v6s) => { "[0-9a-fA-F]{1,4}" };
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 lazy_static! {
     static ref GROUP_1: BTreeSet<u8> = {
         let mut set = BTreeSet::new();
@@ -55,7 +55,7 @@ lazy_static! {
                 @
                 [a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*
             \b
-    "#
+        "#
     ).unwrap();
     static ref IPV4_REGEX: Regex = Regex::new(concat!("\\b", ip!(v4a), "\\b")).unwrap();
     static ref IPV6_REGEX: Regex = Regex::new(
@@ -79,7 +79,7 @@ lazy_static! {
     static ref CREDITCARD_REGEX: Regex = Regex::new(
         r#"(?x)
             \d{4}[- ]?\d{4,6}[- ]?\d{4,5}(?:[- ]?\d{4})
-    "#
+        "#
     ).unwrap();
     static ref PATH_REGEX: Regex = Regex::new(
         r#"(?ix)
@@ -98,14 +98,14 @@ lazy_static! {
     ).unwrap();
 }
 
-pub fn apply_rule_to_chunks(rule: &Rule, chunks: Vec<Chunk>) -> Vec<Chunk> {
+pub fn apply_rule_to_chunks(rule: &Rule<'_>, chunks: Vec<Chunk>) -> Vec<Chunk> {
     apply_rule_to_chunks_impl(rule, chunks, None, None)
 }
 
 fn apply_rule_to_chunks_impl(
-    rule: &Rule,
+    rule: &Rule<'_>,
     chunks: Vec<Chunk>,
-    report_rule: Option<&Rule>,
+    report_rule: Option<&Rule<'_>>,
     redaction_override: Option<&Redaction>,
 ) -> Vec<Chunk> {
     let report_rule = report_rule.unwrap_or(rule);
@@ -167,7 +167,7 @@ fn apply_regex_to_chunks(
     chunks: Vec<Chunk>,
     regex: &Regex,
     replace_groups: Option<&BTreeSet<u8>>,
-    rule: &Rule,
+    rule: &Rule<'_>,
     config: &PiiConfig,
 ) -> Vec<Chunk> {
     let mut search_string = String::new();
@@ -265,7 +265,7 @@ fn in_range(range: (Option<i32>, Option<i32>), pos: usize, len: usize) -> bool {
 
 fn insert_replacement_chunks(
     redaction: &Redaction,
-    rule: &Rule,
+    rule: &Rule<'_>,
     config: &PiiConfig,
     text: &str,
     output: &mut Vec<Chunk>,

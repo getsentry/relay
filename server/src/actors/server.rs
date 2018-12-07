@@ -1,4 +1,4 @@
-use actix::prelude::*;
+use ::actix::prelude::*;
 use actix_web::server::StopServer;
 use futures::prelude::*;
 

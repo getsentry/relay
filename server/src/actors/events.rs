@@ -1,15 +1,15 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use actix::prelude::*;
+use ::actix::prelude::*;
 use bytes::Bytes;
+use failure::Fail;
 use futures::prelude::*;
-use num_cpus;
-use sentry::{self, integrations::failure::event_from_fail};
-use serde_json;
+use sentry::integrations::failure::event_from_fail;
+use serde::Deserialize;
 
 use semaphore_common::v8_compat::{self, Annotated, Event};
-use semaphore_common::{Config, ProjectId, Uuid};
+use semaphore_common::{metric, Config, ProjectId, Uuid};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::project::{
@@ -99,7 +99,7 @@ struct ProcessEvent {
 }
 
 impl ProcessEvent {
-    fn add_to_sentry_event(&self, event: &mut sentry::protocol::Event) {
+    fn add_to_sentry_event(&self, event: &mut sentry::protocol::Event<'_>) {
         // Inject the body payload for debugging purposes and identify the exception
         event.message = Some(format!("body: {}", String::from_utf8_lossy(&self.data)));
         if let Some(exception) = event.exception.last_mut() {
@@ -134,7 +134,7 @@ impl ProcessEvent {
     }
 
     fn process(&self) -> Result<ProcessEventResponse, ProcessingError> {
-        trace!("processing event {}", self.event_id);
+        log::trace!("processing event {}", self.event_id);
         let mut event = Annotated::<Event>::from_json_bytes(&self.data).map_err(|error| {
             if self.log_failed_payloads {
                 let mut event = event_from_fail(&error);
@@ -192,7 +192,7 @@ impl EventManager {
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
 
-        info!("starting {} event processing workers", thread_count);
+        log::info!("starting {} event processing workers", thread_count);
         let processor = SyncArbiter::start(thread_count, EventProcessor::new);
 
         EventManager {
@@ -208,12 +208,12 @@ impl Actor for EventManager {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        info!("event manager started");
+        log::info!("event manager started");
         Controller::from_registry().do_send(Subscribe(context.address().recipient()));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("event manager stopped");
+        log::info!("event manager stopped");
     }
 }
 
@@ -256,7 +256,7 @@ impl Handler<QueueEvent> for EventManager {
             event_id,
         });
 
-        trace!("queued event {}", event_id);
+        log::trace!("queued event {}", event_id);
         Ok(event_id)
     }
 }
@@ -334,7 +334,7 @@ impl Handler<HandleEvent> for EventManager {
                         .map_err(ProcessingError::ScheduleFailed)
                         .flatten()))
                     .and_then(move |processed| {
-                        trace!("sending event {}", event_id);
+                        log::trace!("sending event {}", event_id);
                         let request = SendRequest::post(format!("/api/{}/store/", project_id))
                             .build(move |builder| {
                                 if let Some(origin) = meta.origin() {
@@ -351,23 +351,26 @@ impl Handler<HandleEvent> for EventManager {
                         upstream
                             .send(request)
                             .map_err(ProcessingError::ScheduleFailed)
-                            .and_then(move |result| result.map_err(move |error| match error {
-                                UpstreamRequestError::RateLimited(secs) => {
-                                    project.do_send(RetryAfter { secs });
-                                    ProcessingError::RateLimited(secs)
-                                },
-                                other => ProcessingError::SendFailed(other),
-                            }))
+                            .and_then(move |result| {
+                                result.map_err(move |error| match error {
+                                    UpstreamRequestError::RateLimited(secs) => {
+                                        project.do_send(RetryAfter { secs });
+                                        ProcessingError::RateLimited(secs)
+                                    }
+                                    other => ProcessingError::SendFailed(other),
+                                })
+                            })
                             .inspect(move |_| {
                                 metric!(timer("event.total_time") = start_time.elapsed())
                             })
                     })
-            }).into_actor(self)
+            })
+            .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(move |error, _, _| {
-                warn!("error processing event {}: {}", event_id, LogError(&error));
+                log::warn!("error processing event {}: {}", event_id, LogError(&error));
                 metric!(counter("event.rejected") += 1);
             });
 

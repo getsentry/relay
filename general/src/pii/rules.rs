@@ -3,9 +3,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use regex::{Regex, RegexBuilder};
-use serde::de::{Deserialize, Deserializer, Error};
-use serde::ser::{Serialize, Serializer};
-use serde_derive::{Deserialize, Serialize};
+use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::pii::config::PiiConfig;
 use crate::pii::redactions::Redaction;
@@ -21,7 +19,7 @@ impl From<&'static str> for Pattern {
 }
 
 impl fmt::Debug for Pattern {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, f)
     }
 }
@@ -133,7 +131,7 @@ impl<'a> Rule<'a> {
         &'a self,
         rule_id: &'a str,
         hide_rule: bool,
-    ) -> Option<(Rule, Option<&'a Rule>, Option<&'a Redaction>)> {
+    ) -> Option<(Rule<'_>, Option<&'a Rule<'_>>, Option<&'a Redaction>)> {
         if let Some(rule) = self.cfg.lookup_rule(rule_id) {
             let report_rule = if hide_rule { Some(self) } else { None };
             let redaction_override = match self.spec.redaction {

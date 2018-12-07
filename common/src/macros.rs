@@ -26,7 +26,7 @@ macro_rules! impl_str_serialization {
                 impl<'de> ::serde::de::Visitor<'de> for V {
                     type Value = $type;
 
-                    fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> fmt::Result {
+                    fn expecting(&self, formatter: &mut ::std::fmt::Formatter<'_>) -> fmt::Result {
                         formatter.write_str($expectation)
                     }
 

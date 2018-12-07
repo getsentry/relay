@@ -1,7 +1,8 @@
+// TODO: Fix casts between SemaphoreGeoIpLookup and GeoIpLookup
+#![allow(clippy::cast_ptr_alignment)]
+
 use std::ffi::CStr;
 use std::os::raw::c_char;
-
-use serde_json;
 
 // TODO: Migrate this to semaphore_common::processor
 use semaphore_common::processor_compat::chunks;

@@ -9,12 +9,13 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-use actix::fut;
-use actix::prelude::*;
+use ::actix::fut;
+use ::actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
 use chrono::{DateTime, Utc};
+use failure::Fail;
 use futures::{future::Shared, sync::oneshot, Future};
-use serde_json;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 use semaphore_common::{
@@ -79,7 +80,7 @@ impl Project {
             }
         }
 
-        debug!("project {} state requested", self.id);
+        log::debug!("project {} state requested", self.id);
 
         let channel = match self.state_channel {
             Some(ref channel) => channel.clone(),
@@ -116,12 +117,13 @@ impl Project {
                 slf.state = state_result.map(|resp| resp.state).ok();
 
                 if let Some(ref state) = slf.state {
-                    debug!("project {} state updated", id);
+                    log::debug!("project {} state updated", id);
                     sender.send(state.clone()).ok();
                 }
 
                 fut::ok(())
-            }).drop_err()
+            })
+            .drop_err()
             .spawn(context);
 
         receiver.shared()
@@ -132,11 +134,11 @@ impl Actor for Project {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        debug!("project {} initialized without state", self.id);
+        log::debug!("project {} initialized without state", self.id);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        debug!("project {} removed from cache", self.id);
+        log::debug!("project {} removed from cache", self.id);
     }
 }
 
@@ -250,7 +252,8 @@ impl ProjectState {
             .map(|e| match self.slug {
                 Some(_) => e > config.project_cache_expiry(),
                 None => e > config.cache_miss_expiry(),
-            }).unwrap_or(false)
+            })
+            .unwrap_or(false)
     }
 
     /// Returns the project config.
@@ -269,9 +272,10 @@ impl ProjectState {
         // If the list of allowed domains is empty, we accept any origin. Otherwise, we have to
         // match with the whitelist.
         let allowed = &self.config().allowed_domains;
-        !allowed.is_empty() && allowed
-            .iter()
-            .any(|x| x.as_str() == "*" || Some(x.as_str()) == origin.host_str())
+        !allowed.is_empty()
+            && allowed
+                .iter()
+                .any(|x| x.as_str() == "*" || Some(x.as_str()) == origin.host_str())
     }
 
     /// Determines whether the given event should be accepted or dropped.
@@ -469,7 +473,7 @@ impl ProjectCache {
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_states(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.state_channels, HashMap::new());
-        debug!(
+        log::debug!(
             "updating project states for {} projects (attempt {})",
             channels.len(),
             self.backoff.attempt(),
@@ -499,11 +503,11 @@ impl ProjectCache {
                         }
                     }
                     Err(error) => {
-                        error!("error fetching project states: {}", LogError(&error));
+                        log::error!("error fetching project states: {}", LogError(&error));
 
                         if !slf.shutdown.requested() {
-                            // Put the channels back into the queue, in addition to channels that have
-                            // been pushed in the meanwhile. We will retry again shortly.
+                            // Put the channels back into the queue, in addition to channels that
+                            // have been pushed in the meanwhile. We will retry again shortly.
                             slf.state_channels.extend(channels);
                         }
                     }
@@ -514,7 +518,8 @@ impl ProjectCache {
                 }
 
                 fut::ok(())
-            }).sync(&self.shutdown, ProjectError::Shutdown)
+            })
+            .sync(&self.shutdown, ProjectError::Shutdown)
             .drop_err()
             .spawn(context);
     }
@@ -534,19 +539,19 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectId, Arc<
     };
 
     // only printed when directory even exists.
-    debug!("Loading local states from directory {:?}", projects_path);
+    log::debug!("Loading local states from directory {:?}", projects_path);
 
     for entry in directory {
         let entry = entry?;
         let path = entry.path();
 
         if !entry.metadata()?.is_file() {
-            warn!("skipping {:?}, not a file", path);
+            log::warn!("skipping {:?}, not a file", path);
             continue;
         }
 
         if path.extension().map(|x| x != "json").unwrap_or(true) {
-            warn!("skipping {:?}, file extension must be .json", path);
+            log::warn!("skipping {:?}, file extension must be .json", path);
             continue;
         }
 
@@ -557,7 +562,7 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectId, Arc<
         {
             Some(id) => id,
             None => {
-                warn!("skipping {:?}, filename is not a valid project id", path);
+                log::warn!("skipping {:?}, filename is not a valid project id", path);
                 continue;
             }
         };
@@ -585,7 +590,7 @@ fn poll_local_states(
                     manager.do_send(UpdateLocalStates { states });
                     sender.take().map(|sender| sender.send(()).ok());
                 }
-                Err(error) => error!(
+                Err(error) => log::error!(
                     "failed to load static project configs: {}",
                     LogError(&error)
                 ),
@@ -602,7 +607,7 @@ impl Actor for ProjectCache {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        info!("project cache started");
+        log::info!("project cache started");
         Controller::from_registry().do_send(Subscribe(context.address().recipient()));
 
         // Start the background thread that reads the local states from disk.
@@ -615,7 +620,7 @@ impl Actor for ProjectCache {
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("project cache stopped");
+        log::info!("project cache stopped");
     }
 }
 
@@ -687,7 +692,7 @@ impl Handler<FetchProjectState> for ProjectCache {
 
         let (sender, receiver) = oneshot::channel();
         if self.state_channels.insert(message.id, sender).is_some() {
-            error!("project {} state fetched multiple times", message.id);
+            log::error!("project {} state fetched multiple times", message.id);
         }
 
         Response::r#async(
@@ -695,7 +700,8 @@ impl Handler<FetchProjectState> for ProjectCache {
                 .map(|state| ProjectStateResponse {
                     state: Arc::new(state),
                     is_local: false,
-                }).map_err(|_| ()),
+                })
+                .map_err(|_| ()),
         )
     }
 }

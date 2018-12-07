@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str;
 
-use serde;
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
@@ -34,7 +33,7 @@ pub enum Value {
 pub struct ValueDescription<'a>(&'a Value);
 
 impl<'a> fmt::Display for ValueDescription<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self.0 {
             Value::Null => f.pad("null"),
             Value::Bool(true) => f.pad("true"),
@@ -51,7 +50,7 @@ impl<'a> fmt::Display for ValueDescription<'a> {
 
 impl Value {
     /// Returns a formattable that gives a helper description of the value.
-    pub fn describe(&self) -> ValueDescription {
+    pub fn describe(&self) -> ValueDescription<'_> {
         ValueDescription(self)
     }
 
@@ -230,7 +229,7 @@ impl<'de> Deserialize<'de> for Value {
         impl<'de> Visitor<'de> for ValueVisitor {
             type Value = Value;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("any valid JSON value")
             }
 

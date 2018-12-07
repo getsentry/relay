@@ -33,7 +33,7 @@ impl Processor for TrimmingProcessor {
         &mut self,
         value: &mut String,
         meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction {
         if let Some(ref mut bag_size_state) = self.bag_size_state {
             trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
@@ -52,7 +52,7 @@ impl Processor for TrimmingProcessor {
         &mut self,
         value: &mut Array<T>,
         meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction
     where
         T: ProcessValue,
@@ -121,7 +121,7 @@ impl Processor for TrimmingProcessor {
         &mut self,
         value: &mut Object<T>,
         meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction
     where
         T: ProcessValue,
@@ -511,7 +511,8 @@ fn test_databag_state_leak() {
                     Annotated::new(map)
                 },
                 ..Default::default()
-            })).take(200)
+            }))
+            .take(200)
             .collect(),
         )),
         exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
@@ -523,7 +524,8 @@ fn test_databag_state_leak() {
                         function: Annotated::new("importantFunctionName".to_string()),
                         symbol: Annotated::new("important_symbol".to_string()),
                         ..Default::default()
-                    })).take(200)
+                    }))
+                    .take(200)
                     .collect(),
                 ),
                 ..Default::default()

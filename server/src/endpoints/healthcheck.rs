@@ -1,8 +1,9 @@
 //! A simple healthcheck endpoint for the relay.
 
-use actix::prelude::*;
+use ::actix::prelude::*;
 use actix_web::{http::Method, Error, HttpResponse};
 use futures::prelude::*;
+use serde::Serialize;
 
 use crate::extractors::CurrentServiceState;
 use crate::service::ServiceApp;
@@ -14,7 +15,7 @@ struct HealthcheckResponse {
     is_healthy: bool,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
+#[allow(clippy::needless_pass_by_value)]
 fn healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error> {
     Box::new(
         state
@@ -27,7 +28,8 @@ fn healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error
                 } else {
                     Err(())
                 }
-            }).or_else(|_| {
+            })
+            .or_else(|_| {
                 Ok(HttpResponse::ServiceUnavailable()
                     .json(HealthcheckResponse { is_healthy: false }))
             }),

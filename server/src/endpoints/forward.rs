@@ -3,16 +3,18 @@
 //! This endpoint will issue a client request to the upstream and append relay's own headers
 //! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
 
-use actix::prelude::*;
+use ::actix::prelude::*;
 use actix_web::client::ClientRequest;
 use actix_web::http::{header, header::HeaderName, ContentEncoding};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use futures::prelude::*;
+use lazy_static::lazy_static;
+
+use semaphore_common::{Config, GlobMatcher};
 
 use crate::body::ForwardBody;
 use crate::extractors::ForwardedFor;
 use crate::service::{ServiceApp, ServiceState};
-use semaphore_common::{Config, GlobMatcher};
 
 /// Headers that this endpoint must handle and cannot forward.
 static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
@@ -123,7 +125,8 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
             } else {
                 forwarded_response.finish()
             })
-        }).responder()
+        })
+        .responder()
 }
 
 /// Registers this endpoint in the actix-web app.

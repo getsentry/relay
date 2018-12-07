@@ -2,6 +2,7 @@ use std::net::IpAddr;
 
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
+use failure::Fail;
 use url::Url;
 
 use semaphore_common::{Auth, AuthParseError};

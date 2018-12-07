@@ -1,9 +1,9 @@
 //! Redactions for rules.
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 /// Defines the hash algorithm to use for hashing
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(feature = "cargo-clippy", allow(enum_variant_names))]
+#[allow(clippy::enum_variant_names)]
 pub enum HashAlgorithm {
     /// HMAC-SHA1
     #[serde(rename = "HMAC-SHA1")]

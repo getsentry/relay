@@ -39,9 +39,6 @@ matrix:
 
     - name: "check: lint"
       env: SUITE=lint
-      install:
-        - rustup toolchain add beta
-        - rustup override set beta
 
     # -------------------------------------
     # RUST TESTS

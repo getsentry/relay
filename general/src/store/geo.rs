@@ -48,7 +48,7 @@ impl GeoIpLookup {
 }
 
 impl fmt::Debug for GeoIpLookup {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("GeoIpLookup").finish()
     }
 }

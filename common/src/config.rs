@@ -8,12 +8,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use failure::{Backtrace, Context, Fail};
-use log;
 use sentry_types::Dsn;
-use serde::de::DeserializeOwned;
-use serde::ser::Serialize;
-use serde_json;
-use serde_yaml;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use crate::types::ByteSize;
@@ -55,7 +51,7 @@ impl ConfigError {
 }
 
 impl Fail for ConfigError {
-    fn cause(&self) -> Option<&Fail> {
+    fn cause(&self) -> Option<&dyn Fail> {
         self.inner.cause()
     }
 
@@ -65,7 +61,7 @@ impl Fail for ConfigError {
 }
 
 impl fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} (file {})", self.inner, self.filename().display())
     }
 }
@@ -129,7 +125,7 @@ impl Default for Relay {
     fn default() -> Self {
         Relay {
             upstream: "https://ingest.sentry.io/"
-                .parse::<UpstreamDescriptor>()
+                .parse::<UpstreamDescriptor<'_>>()
                 .unwrap(),
             host: "127.0.0.1".parse().unwrap(),
             port: 3000,
@@ -372,7 +368,7 @@ pub struct Config {
 }
 
 impl fmt::Debug for Config {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")
             .field("path", &self.path)
             .field("values", &self.values)
@@ -420,7 +416,7 @@ impl Config {
     ///
     /// This also writes the credentials back to the file.
     pub fn regenerate_credentials(&mut self) -> Result<(), ConfigError> {
-        info!("generating new relay credentials");
+        log::info!("generating new relay credentials");
         let (sk, pk) = generate_key_pair();
         let creds = Credentials {
             secret_key: sk,
@@ -485,7 +481,7 @@ impl Config {
     }
 
     /// Returns the upstream target as descriptor.
-    pub fn upstream_descriptor(&self) -> &UpstreamDescriptor {
+    pub fn upstream_descriptor(&self) -> &UpstreamDescriptor<'_> {
         &self.values.relay.upstream
     }
 
@@ -556,7 +552,8 @@ impl Config {
                 addr.as_str().to_socket_addrs(),
                 ConfigErrorKind::InvalidValue,
                 &self.path
-            ).collect())
+            )
+            .collect())
         } else {
             Ok(vec![])
         }

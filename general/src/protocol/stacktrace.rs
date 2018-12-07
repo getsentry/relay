@@ -7,6 +7,7 @@ use crate::types::{Annotated, Array, Object, Value};
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
     #[metastructure(max_chars = "symbol")]
+    #[metastructure(skip_serialization = "empty")]
     pub function: Annotated<String>,
 
     /// Potentially mangled name of the symbol as it appears in an executable.
@@ -22,6 +23,7 @@ pub struct Frame {
     /// Note that this might also include a class name if that is something the
     /// language natively considers to be part of the stack (for instance in Java).
     #[metastructure(pii_kind = "freeform")]
+    #[metastructure(skip_serialization = "empty")]
     // TODO: Cap? This can be a FS path or a dotted path
     pub module: Annotated<String>,
 
@@ -30,15 +32,18 @@ pub struct Frame {
     /// For instance this can be a dylib for native languages, the name of the jar
     /// or .NET assembly.
     #[metastructure(pii_kind = "freeform")]
+    #[metastructure(skip_serialization = "empty")]
     // TODO: Cap? This can be a FS path or a dotted path
     pub package: Annotated<String>,
 
     /// The source file name (basename only).
     #[metastructure(pii_kind = "freeform", max_chars = "short_path")]
+    #[metastructure(skip_serialization = "empty")]
     pub filename: Annotated<String>,
 
     /// Absolute path to the source file.
     #[metastructure(pii_kind = "freeform", max_chars = "path")]
+    #[metastructure(skip_serialization = "empty")]
     pub abs_path: Annotated<String>,
 
     /// Line number within the source file.
@@ -51,14 +56,17 @@ pub struct Frame {
 
     /// Source code leading up to the current line.
     #[metastructure(field = "pre_context")]
+    #[metastructure(skip_serialization = "empty")]
     pub pre_lines: Annotated<Array<String>>,
 
     /// Source code of the current line.
     #[metastructure(field = "context_line")]
+    #[metastructure(skip_serialization = "empty")]
     pub current_line: Annotated<String>,
 
     /// Source code of the lines after the current line.
     #[metastructure(field = "post_context")]
+    #[metastructure(skip_serialization = "empty")]
     pub post_lines: Annotated<Array<String>>,
 
     /// Override whether this frame should be considered in-app.
@@ -66,7 +74,8 @@ pub struct Frame {
 
     /// Local variables in a convenient format.
     #[metastructure(pii_kind = "databag")]
-    pub vars: Annotated<Object<Value>>,
+    #[metastructure(skip_serialization = "empty")]
+    pub vars: Annotated<FrameVariables>,
 
     /// Start address of the containing code module (image).
     pub image_addr: Annotated<Addr>,
@@ -86,11 +95,20 @@ pub struct Frame {
     pub other: Object<Value>,
 }
 
+#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+pub struct FrameVariables(#[metastructure(skip_serialization = "never")] pub Object<Value>);
+
+impl From<Object<Value>> for FrameVariables {
+    fn from(value: Object<Value>) -> FrameVariables {
+        FrameVariables(value)
+    }
+}
+
 /// Holds information about an entirey stacktrace.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace {
-    #[metastructure(required = "true", nonempty = "true")]
+    #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
     pub frames: Annotated<Array<Frame>>,
 
     /// Register values of the thread (top frame).
@@ -149,7 +167,7 @@ fn test_frame_roundtrip() {
                 "variable".to_string(),
                 Annotated::new(Value::String("value".to_string())),
             );
-            Annotated::new(map)
+            Annotated::new(map.into())
         },
         image_addr: Annotated::new(Addr(0x400)),
         instruction_addr: Annotated::new(Addr(0x404)),
@@ -252,4 +270,45 @@ fn test_stacktrace_invalid() {
     });
 
     assert_eq_dbg!(stack, Annotated::from_json("{}").unwrap());
+}
+
+#[test]
+fn test_frame_vars_null_preserved() {
+    let json = r#"{
+  "vars": {
+    "despacito": null
+  }
+}"#;
+    let frame = Annotated::new(Frame {
+        vars: Annotated::new({
+            let mut obj = Object::new();
+            obj.insert("despacito".to_string(), Annotated::new(Value::Null));
+            obj.into()
+        }),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(Annotated::from_json(json).unwrap(), frame);
+    assert_eq_str!(json, frame.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_frame_vars_empty_annotated_is_serialized() {
+    let output = r#"{
+  "vars": {
+    "despacito": null,
+    "despacito2": null
+  }
+}"#;
+    let frame = Annotated::new(Frame {
+        vars: Annotated::new({
+            let mut obj = Object::new();
+            obj.insert("despacito".to_string(), Annotated::new(Value::Null));
+            obj.insert("despacito2".to_string(), Annotated::empty());
+            obj.into()
+        }),
+        ..Default::default()
+    });
+
+    assert_eq_str!(output, frame.to_json_pretty().unwrap());
 }

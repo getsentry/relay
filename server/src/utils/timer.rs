@@ -1,4 +1,4 @@
-use actix::{fut, prelude::*};
+use ::actix::{fut, prelude::*};
 use std::time::{Duration, Instant};
 use tokio_timer::Delay;
 

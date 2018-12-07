@@ -1,6 +1,5 @@
-use crate::types::Annotated;
-
 use crate::protocol::{Context, Event, Mechanism};
+use crate::types::Annotated;
 
 #[cfg(test)]
 use crate::protocol::{CError, MachException, MechanismMeta, PosixSignal};

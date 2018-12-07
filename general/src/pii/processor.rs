@@ -16,7 +16,7 @@ pub struct PiiProcessor<'a> {
 
 impl<'a> PiiProcessor<'a> {
     /// Creates a new processor based on a config.
-    pub fn new(config: &'a PiiConfig) -> PiiProcessor {
+    pub fn new(config: &'a PiiConfig) -> PiiProcessor<'_> {
         let mut applications = BTreeMap::new();
 
         for (&pii_kind, cfg_applications) in &config.applications {
@@ -47,7 +47,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         &mut self,
         value: &mut String,
         meta: &mut Meta,
-        state: ProcessingState,
+        state: ProcessingState<'_>,
     ) -> ValueAction {
         if let Some(pii_kind) = state.attrs().pii_kind {
             if let Some(rules) = self.applications.get(&pii_kind) {
@@ -115,7 +115,8 @@ fn test_basic_stripping() {
             }
         }
     "#,
-    ).unwrap();
+    )
+    .unwrap();
 
     let mut event = Annotated::new(Event {
         request: Annotated::new(Request {

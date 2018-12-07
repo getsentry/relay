@@ -1,11 +1,12 @@
-use actix::prelude::*;
+use ::actix::prelude::*;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
+use failure::Fail;
 use futures::prelude::*;
 use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::de::DeserializeOwned;
 
-use semaphore_common::{PublicKey, RelayId};
+use semaphore_common::{tryf, PublicKey, RelayId};
 
 use crate::actors::keys::GetPublicKey;
 use crate::service::ServiceState;
@@ -42,22 +43,19 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
     fn from_request(req: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
         macro_rules! extract_header {
             ($name:expr) => {
-                tryf!(
-                    req.headers()
-                        .get($name)
-                        .ok_or(SignatureError::MissingHeader($name))
-                        .and_then(|value| value
-                            .to_str()
-                            .map_err(|_| SignatureError::MalformedHeader($name)))
-                )
+                tryf!(req
+                    .headers()
+                    .get($name)
+                    .ok_or(SignatureError::MissingHeader($name))
+                    .and_then(|value| value
+                        .to_str()
+                        .map_err(|_| SignatureError::MalformedHeader($name))))
             };
         }
 
-        let relay_id: RelayId = tryf!(
-            extract_header!("X-Sentry-Relay-Id")
-                .parse()
-                .map_err(|_| SignatureError::MalformedHeader("X-Sentry-Relay-Id"))
-        );
+        let relay_id: RelayId = tryf!(extract_header!("X-Sentry-Relay-Id")
+            .parse()
+            .map_err(|_| SignatureError::MalformedHeader("X-Sentry-Relay-Id")));
 
         Hub::from_request(req).configure_scope(|scope| {
             // Dump out header value even if not string
@@ -75,7 +73,8 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
                 result?
                     .public_key
                     .ok_or_else(|| Error::from(SignatureError::UnknownRelay))
-            }).join(req.body().map_err(Error::from))
+            })
+            .join(req.body().map_err(Error::from))
             .and_then(move |(public_key, body)| {
                 public_key
                     .unpack(&body, &relay_sig, None)

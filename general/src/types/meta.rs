@@ -1,9 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use serde::de::{self, Deserialize, Deserializer, IgnoredAny};
-use serde::ser::{Serialize, SerializeSeq, Serializer};
-use serde_derive::{Deserialize, Serialize};
+use serde::{de, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 
 use crate::types::{Map, ToValue, Value};
@@ -94,7 +92,7 @@ impl<'de> Deserialize<'de> for Remark {
         impl<'de> de::Visitor<'de> for RemarkVisitor {
             type Value = Remark;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(formatter, "a meta remark")
             }
 
@@ -109,7 +107,7 @@ impl<'de> Deserialize<'de> for Remark {
                 let end = seq.next_element()?;
 
                 // Drain the sequence
-                while let Some(IgnoredAny) = seq.next_element()? {}
+                while let Some(de::IgnoredAny) = seq.next_element()? {}
 
                 let range = match (start, end) {
                     (Some(start), Some(end)) => Some((start, end)),
@@ -207,7 +205,7 @@ impl ErrorKind {
 }
 
 impl fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
@@ -239,20 +237,20 @@ impl<'de> Deserialize<'de> for ErrorKind {
         impl<'de> de::Visitor<'de> for ErrorKindVisitor {
             type Value = ErrorKind;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(formatter, "a meta remark")
             }
 
             fn visit_str<E>(self, string: &str) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 Ok(ErrorKind::from(string))
             }
 
             fn visit_string<E>(self, string: String) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 Ok(ErrorKind::from(string))
             }
@@ -353,20 +351,20 @@ impl<'de> Deserialize<'de> for Error {
         impl<'de> de::Visitor<'de> for ErrorVisitor {
             type Value = Error;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(formatter, "a meta remark")
             }
 
             fn visit_str<E>(self, string: &str) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 Ok(Error::new(ErrorKind::from(string)))
             }
 
             fn visit_string<E>(self, string: String) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 Ok(Error::new(ErrorKind::from(string)))
             }
@@ -378,7 +376,7 @@ impl<'de> Deserialize<'de> for Error {
                 let data = seq.next_element()?.unwrap_or_default();
 
                 // Drain the sequence
-                while let Some(IgnoredAny) = seq.next_element()? {}
+                while let Some(de::IgnoredAny) = seq.next_element()? {}
 
                 Ok(Error::with_data(kind, data))
             }
@@ -405,35 +403,19 @@ impl Serialize for Error {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MetaInner {
     /// Remarks detailling modifications of this field.
-    #[serde(
-        default,
-        skip_serializing_if = "SmallVec::is_empty",
-        rename = "rem"
-    )]
+    #[serde(default, skip_serializing_if = "SmallVec::is_empty", rename = "rem")]
     remarks: SmallVec<[Remark; 3]>,
 
     /// Errors that happened during normalization or processing.
-    #[serde(
-        default,
-        skip_serializing_if = "SmallVec::is_empty",
-        rename = "err"
-    )]
+    #[serde(default, skip_serializing_if = "SmallVec::is_empty", rename = "err")]
     errors: SmallVec<[Error; 3]>,
 
     /// The original length of modified text fields or collections.
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        rename = "len"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "len")]
     original_length: Option<u32>,
 
     /// In some cases the original value might be sent along.
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        rename = "val"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "val")]
     original_value: Option<Value>,
 }
 
@@ -498,7 +480,8 @@ impl Meta {
         match self.0 {
             Some(ref inner) => &inner.remarks[..],
             None => &[][..],
-        }.into_iter()
+        }
+        .into_iter()
     }
 
     /// Indicates whether this field has remarks.
@@ -523,7 +506,8 @@ impl Meta {
         match self.0 {
             Some(ref inner) => &inner.errors[..],
             None => &[][..],
-        }.into_iter()
+        }
+        .into_iter()
     }
 
     /// Mutable reference to errors of this field.

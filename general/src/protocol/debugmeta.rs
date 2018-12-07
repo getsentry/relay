@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::processor::ProcessValue;
 use crate::protocol::Addr;
-use crate::types::{Annotated, Array, Error, FromValue, Object, ToValue, Value};
+use crate::types::{Annotated, Array, Error, FromValue, Object, SkipSerialization, ToValue, Value};
 
 /// Holds information about the system SDK.
 ///
@@ -91,7 +91,7 @@ impl ToValue for DebugId {
         Value::String(self.to_string())
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -164,9 +164,11 @@ pub enum DebugImage {
 pub struct DebugMeta {
     /// Information about the system SDK (e.g. iOS SDK).
     #[metastructure(field = "sdk_info")]
+    #[metastructure(skip_serialization = "empty")]
     pub system_sdk: Annotated<SystemSdkInfo>,
 
     /// List of debug information files (debug images).
+    #[metastructure(skip_serialization = "empty")]
     pub images: Annotated<Array<DebugImage>>,
 
     /// Additional arbitrary fields for forwards compatibility.

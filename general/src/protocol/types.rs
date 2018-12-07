@@ -5,17 +5,17 @@ use std::net;
 use std::str::FromStr;
 
 use failure::Fail;
-use serde::ser::{Serialize, Serializer};
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::processor::{
     process_value, FieldAttrs, PiiKind, ProcessValue, ProcessingState, Processor,
 };
 use crate::types::{
-    Annotated, Array, Error, ErrorKind, FromValue, Meta, Object, ToValue, Value, ValueAction,
+    Annotated, Array, Error, ErrorKind, FromValue, Meta, Object, SkipSerialization, ToValue, Value,
+    ValueAction,
 };
 
-const FREEFORM_PII_ATTRS: FieldAttrs = FieldAttrs {
+static FREEFORM_PII_ATTRS: FieldAttrs = FieldAttrs {
     name: None,
     required: false,
     nonempty: false,
@@ -31,6 +31,7 @@ const FREEFORM_PII_ATTRS: FieldAttrs = FieldAttrs {
 pub struct Values<T> {
     /// The values of the collection.
     #[metastructure(required = "true")]
+    #[metastructure(skip_serialization = "empty")]
     pub values: Annotated<Array<T>>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -186,7 +187,7 @@ macro_rules! hex_metrastructure {
         }
 
         impl fmt::Display for $type {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "{:#x}", self.0)
             }
         }
@@ -221,7 +222,11 @@ macro_rules! hex_metrastructure {
             fn to_value(self) -> Value {
                 Value::String(self.to_string())
             }
-            fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+            fn serialize_payload<S>(
+                &self,
+                s: S,
+                _behavior: crate::types::SkipSerialization,
+            ) -> Result<S::Ok, S::Error>
             where
                 Self: Sized,
                 S: Serializer,
@@ -355,7 +360,7 @@ impl FromStr for Level {
 }
 
 impl fmt::Display for Level {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Level::Debug => write!(f, "debug"),
             Level::Info => write!(f, "info"),
@@ -411,7 +416,7 @@ impl ToValue for Level {
         Value::String(self.to_string())
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
@@ -488,7 +493,8 @@ impl FromValue for LenientString {
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
-        }.map_value(LenientString)
+        }
+        .map_value(LenientString)
     }
 }
 
@@ -583,7 +589,7 @@ impl ToValue for ThreadId {
         }
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
@@ -620,7 +626,8 @@ fn test_values_deserialization() {
     }
     let value = Annotated::<Values<Exception>>::from_json(
         r#"{"values": [{"type": "Test", "value": "aha!"}]}"#,
-    ).unwrap();
+    )
+    .unwrap();
     assert_eq!(
         value,
         Annotated::new(Values::new(vec![Annotated::new(Exception {

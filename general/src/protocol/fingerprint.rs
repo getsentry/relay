@@ -1,6 +1,6 @@
 use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
-use crate::types::{Annotated, Error, ErrorKind, FromValue, ToValue, Value};
+use crate::types::{Annotated, Error, ErrorKind, FromValue, SkipSerialization, ToValue, Value};
 
 /// A fingerprint value.
 #[derive(Debug, Clone, PartialEq)]
@@ -89,7 +89,7 @@ impl ToValue for Fingerprint {
         )
     }
 
-    fn serialize_payload<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: serde::Serializer,
@@ -163,7 +163,7 @@ fn test_fingerprint_float_bounds() {
     use crate::types::Meta;
 
     let bad_values = vec![Annotated::new(Value::F64(
-        #[cfg_attr(feature = "cargo-clippy", allow(excessive_precision))]
+        #[allow(clippy::excessive_precision)]
         1.797_693_134_862_315_7e+308,
     ))];
 

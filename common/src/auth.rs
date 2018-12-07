@@ -1,14 +1,11 @@
 use std::fmt;
 use std::str::FromStr;
 
-use base64;
 use chrono::{DateTime, Duration, Utc};
-use ed25519_dalek;
-use rand::{thread_rng, OsRng, RngCore};
+use failure::Fail;
+use rand::{rngs::OsRng, thread_rng, RngCore};
 use sentry_types::Uuid;
-use serde::de::DeserializeOwned;
-use serde::ser::Serialize;
-use serde_json;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::Sha512;
 
 /// Alias for relay IDs (UUIDs)
@@ -177,7 +174,7 @@ impl FromStr for SecretKey {
 }
 
 impl fmt::Display for SecretKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if f.alternate() {
             write!(
                 f,
@@ -195,7 +192,7 @@ impl fmt::Display for SecretKey {
 }
 
 impl fmt::Debug for SecretKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SecretKey(\"{}\")", self)
     }
 }
@@ -301,7 +298,7 @@ impl FromStr for PublicKey {
 }
 
 impl fmt::Display for PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
@@ -311,7 +308,7 @@ impl fmt::Display for PublicKey {
 }
 
 impl fmt::Debug for PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "PublicKey(\"{}\")", self)
     }
 }
