@@ -1,6 +1,7 @@
 //! Matching rules.
 use std::collections::BTreeSet;
 use std::fmt;
+use std::ops;
 
 use regex::{Regex, RegexBuilder};
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
@@ -11,6 +12,14 @@ use crate::pii::redactions::Redaction;
 /// A regex pattern for text replacement.
 #[derive(Clone)]
 pub struct Pattern(pub Regex);
+
+impl ops::Deref for Pattern {
+    type Target = Regex;
+
+    fn deref(&self) -> &Regex {
+        &self.0
+    }
+}
 
 impl From<&'static str> for Pattern {
     fn from(pattern: &'static str) -> Pattern {
@@ -26,7 +35,7 @@ impl fmt::Debug for Pattern {
 
 impl Serialize for Pattern {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.0.to_string())
+        serializer.serialize_str(&self.to_string())
     }
 }
 

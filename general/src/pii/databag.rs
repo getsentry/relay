@@ -56,7 +56,7 @@ fn apply_rule_to_databag_value_impl<T: ProcessValue>(
         // does not apply here
         RuleType::RedactPair(ref redact_pair) => {
             let key = key.unwrap_or("");
-            if redact_pair.key_pattern.0.is_match(key) {
+            if redact_pair.key_pattern.is_match(key) {
                 meta.add_remark(Remark::new(
                     RemarkType::Removed,
                     report_rule.unwrap_or(rule).id.to_string(),
