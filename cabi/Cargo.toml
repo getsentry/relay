@@ -28,6 +28,5 @@ uuid = "0.7.1"
 [dependencies.semaphore-common]
 path = "../common"
 
-[patch.crates-io]
-serde = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
-serde_derive = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
+[dependencies.semaphore-general]
+path = "../general"

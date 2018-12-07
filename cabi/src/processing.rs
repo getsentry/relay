@@ -4,13 +4,10 @@
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
-// TODO: Migrate this to semaphore_common::processor
-use semaphore_common::processor_compat::chunks;
-
-use semaphore_common::processor::process_value;
-use semaphore_common::protocol::{Annotated, Event};
-use semaphore_common::store::{GeoIpLookup, StoreConfig, StoreNormalizeProcessor};
-use semaphore_common::v8_compat::Remark;
+use semaphore_general::processor::{process_value, split_chunks};
+use semaphore_general::protocol::Event;
+use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreNormalizeProcessor};
+use semaphore_general::types::{Annotated, Remark};
 
 use crate::core::SemaphoreStr;
 
@@ -23,7 +20,7 @@ ffi_fn! {
         remarks: *const SemaphoreStr
     ) -> Result<SemaphoreStr> {
         let remarks: Vec<Remark> = serde_json::from_str((*remarks).as_str())?;
-        let chunks = chunks::split((*string).as_str(), &remarks);
+        let chunks = split_chunks((*string).as_str(), &remarks);
         let json = serde_json::to_string(&chunks)?;
         Ok(json.into())
     }
