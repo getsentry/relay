@@ -81,8 +81,6 @@ fn process_wrapper_struct_derive(
             }
         }),
         Trait::To => s.gen_impl(quote! {
-            extern crate serde as __serde;
-
             #[automatically_derived]
             gen impl crate::types::ToValue for @Self {
                 fn to_value(self) -> crate::types::Value {
@@ -92,7 +90,7 @@ fn process_wrapper_struct_derive(
                 fn serialize_payload<S>(&self, __serializer: S, __behavior: crate::types::SkipSerialization) -> Result<S::Ok, S::Error>
                 where
                     Self: Sized,
-                    S: __serde::ser::Serializer
+                    S: ::serde::ser::Serializer
                 {
                     crate::types::ToValue::serialize_payload(&self.0, __serializer, #skip_serialization_attr)
                 }
@@ -202,11 +200,11 @@ fn process_enum_struct_derive(
             }).to_tokens(&mut to_value_body);
             (quote! {
                 #type_name::#variant_name(ref __value) => {
-                    let mut __map_ser = __serde::Serializer::serialize_map(__serializer, None)?;
-                    crate::types::ToValue::serialize_payload(__value, __serde::private::ser::FlatMapSerializer(&mut __map_ser), __behavior)?;
-                    __serde::ser::SerializeMap::serialize_key(&mut __map_ser, #tag_key_str)?;
-                    __serde::ser::SerializeMap::serialize_value(&mut __map_ser, #tag)?;
-                    __serde::ser::SerializeMap::end(__map_ser)
+                    let mut __map_ser = ::serde::Serializer::serialize_map(__serializer, None)?;
+                    crate::types::ToValue::serialize_payload(__value, ::serde::private::ser::FlatMapSerializer(&mut __map_ser), __behavior)?;
+                    ::serde::ser::SerializeMap::serialize_key(&mut __map_ser, #tag_key_str)?;
+                    ::serde::ser::SerializeMap::serialize_value(&mut __map_ser, #tag)?;
+                    ::serde::ser::SerializeMap::end(__map_ser)
                 }
             }).to_tokens(&mut serialize_body);
         } else {
@@ -287,8 +285,6 @@ fn process_enum_struct_derive(
         }
         Trait::To => {
             s.gen_impl(quote! {
-                extern crate serde as __serde;
-
                 #[automatically_derived]
                 gen impl crate::types::ToValue for @Self {
                     fn to_value(self) -> crate::types::Value {
@@ -299,7 +295,7 @@ fn process_enum_struct_derive(
 
                     fn serialize_payload<S>(&self, __serializer: S, __behavior: crate::types::SkipSerialization) -> Result<S::Ok, S::Error>
                     where
-                        S: __serde::ser::Serializer
+                        S: ::serde::ser::Serializer
                     {
                         match *self {
                             #serialize_body
@@ -407,12 +403,6 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
     let mut skip_serialization_body = TokenStream::new();
     let mut tmp_idx = 0;
 
-    (quote! {
-        extern crate lazy_static as __lazy_static;
-        extern crate regex as __regex;
-    })
-    .to_tokens(&mut process_child_values_body);
-
     let type_attrs = parse_type_attributes(&s.ast().attrs);
     if type_attrs.tag_key.is_some() {
         panic!("tag_key not supported on structs");
@@ -466,8 +456,8 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
             (quote! {
                 for (__key, __value) in #bi.iter() {
                     if !__value.skip_serialization(#skip_serialization_attr) {
-                        __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, __key)?;
-                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(__value, __behavior))?;
+                        ::serde::ser::SerializeMap::serialize_key(&mut __map_serializer, __key)?;
+                        ::serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(__value, __behavior))?;
                     }
                 }
             }).to_tokens(&mut serialize_body);
@@ -549,7 +539,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
             let match_regex_attr = if let Some(match_regex) = field_attrs.match_regex {
                 quote!(Some(
                     #[allow(clippy::trivial_regex)]
-                    __regex::Regex::new(#match_regex).unwrap()
+                    ::regex::Regex::new(#match_regex).unwrap()
                 ))
             } else {
                 quote!(None)
@@ -562,7 +552,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 .to_tokens(&mut to_value_body);
                 (quote! {
                     if !#bi.skip_serialization(#skip_serialization_attr) {
-                        __serde::ser::SerializeSeq::serialize_element(&mut __seq_serializer, &crate::types::SerializePayload(#bi, __behavior))?;
+                        ::serde::ser::SerializeSeq::serialize_element(&mut __seq_serializer, &crate::types::SerializePayload(#bi, __behavior))?;
                     }
                 }).to_tokens(&mut serialize_body);
             } else {
@@ -571,8 +561,8 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 }).to_tokens(&mut to_value_body);
                 (quote! {
                     if !#bi.skip_serialization(#skip_serialization_attr) {
-                        __serde::ser::SerializeMap::serialize_key(&mut __map_serializer, #field_name)?;
-                        __serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(#bi, __behavior))?;
+                        ::serde::ser::SerializeMap::serialize_key(&mut __map_serializer, #field_name)?;
+                        ::serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(#bi, __behavior))?;
                     }
                 }).to_tokens(&mut serialize_body);
             }
@@ -602,7 +592,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
             };
 
             (quote! {
-                __lazy_static::lazy_static! {
+                ::lazy_static::lazy_static! {
                     static ref #field_attrs_name: crate::processor::FieldAttrs = crate::processor::FieldAttrs {
                         name: Some(#field_name),
                         required: #required_attr,
@@ -707,21 +697,19 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
 
             let serialize_payload = if is_tuple_struct {
                 quote! {
-                    let mut __seq_serializer = __serde::ser::Serializer::serialize_seq(__serializer, None)?;
+                    let mut __seq_serializer = ::serde::ser::Serializer::serialize_seq(__serializer, None)?;
                     #serialize_body;
-                    __serde::ser::SerializeSeq::end(__seq_serializer)
+                    ::serde::ser::SerializeSeq::end(__seq_serializer)
                 }
             } else {
                 quote! {
-                    let mut __map_serializer = __serde::ser::Serializer::serialize_map(__serializer, None)?;
+                    let mut __map_serializer = ::serde::ser::Serializer::serialize_map(__serializer, None)?;
                     #serialize_body;
-                    __serde::ser::SerializeMap::end(__map_serializer)
+                    ::serde::ser::SerializeMap::end(__map_serializer)
                 }
             };
 
             s.gen_impl(quote! {
-                extern crate serde as __serde;
-
                 #[automatically_derived]
                 gen impl crate::types::ToValue for @Self {
                     fn to_value(self) -> crate::types::Value {
@@ -731,7 +719,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                     fn serialize_payload<S>(&self, __serializer: S, __behavior: crate::types::SkipSerialization) -> Result<S::Ok, S::Error>
                     where
                         Self: Sized,
-                        S: __serde::ser::Serializer
+                        S: ::serde::ser::Serializer
                     {
                         let #serialize_pat = *self;
                         #serialize_payload
