@@ -377,6 +377,11 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: ProcessingState<'_>,
     ) -> ValueAction {
+        if !user.other.is_empty() {
+            let data = &mut user.data.0.get_or_insert_with(Object::new);
+            data.extend(std::mem::replace(&mut user.other, Object::new()).into_iter());
+        }
+
         user.process_child_values(self, state);
 
         // Fill in ip addresses marked as {{auto}}
@@ -651,4 +656,35 @@ fn test_top_level_keys_moved_into_tags() {
             ))
         ]))
     );
+}
+
+#[test]
+fn test_user_data_moved() {
+    let mut user = Annotated::new(User {
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_owned())),
+            );
+            map
+        },
+        ..Default::default()
+    });
+
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
+    process_value(&mut user, &mut processor, Default::default());
+
+    let user = user.0.unwrap();
+
+    assert_eq_dbg!(user.data, {
+        let mut map = Object::new();
+        map.insert(
+            "other".to_string(),
+            Annotated::new(Value::String("value".to_owned())),
+        );
+        Annotated::new(map)
+    });
+
+    assert_eq_dbg!(user.other, Object::new());
 }
