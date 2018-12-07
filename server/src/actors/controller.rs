@@ -30,7 +30,6 @@ pub use crate::utils::TimeoutError;
 /// ### Example
 ///
 /// ```ignore
-/// # extern crate actix;
 /// # use ::actix::prelude::*;
 /// struct MyActor;
 ///
