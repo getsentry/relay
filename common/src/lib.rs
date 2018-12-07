@@ -24,20 +24,3 @@ pub use crate::utils::*;
 pub use sentry_types::{
     Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError, Scheme, Uuid,
 };
-
-// TODO: all of these should soon be directly imported
-
-// expose the general module entirely
-pub use semaphore_general::store;
-
-/// Processing stuff
-pub mod processor {
-    pub use semaphore_general::pii::*;
-    pub use semaphore_general::processor::*;
-}
-
-/// The v8 version of the protocol.
-pub mod protocol {
-    pub use semaphore_general::protocol::*;
-    pub use semaphore_general::types::*;
-}

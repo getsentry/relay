@@ -7,9 +7,11 @@ use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
-use semaphore_common::processor::{process_value, PiiConfig, PiiProcessor, ProcessingState};
-use semaphore_common::protocol::{Annotated, Event};
 use semaphore_common::{Config, Credentials, MinimalConfig, Uuid};
+use semaphore_general::pii::{PiiConfig, PiiProcessor};
+use semaphore_general::processor::{process_value, ProcessingState};
+use semaphore_general::protocol::Event;
+use semaphore_general::types::Annotated;
 use semaphore_server;
 
 use crate::cliapp::make_app;

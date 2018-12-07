@@ -12,8 +12,8 @@ use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::Serialize;
 
-use semaphore_common::protocol::EventId;
 use semaphore_common::{metric, tryf, ProjectId, ProjectIdParseError};
+use semaphore_general::protocol::EventId;
 
 use crate::actors::events::{EventError, QueueEvent};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError};

@@ -18,8 +18,8 @@ use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use semaphore_common::processor::PiiConfig;
 use semaphore_common::{Config, ProjectId, PublicKey, RetryBackoff, Uuid};
+use semaphore_general::pii::PiiConfig;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};

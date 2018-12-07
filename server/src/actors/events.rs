@@ -9,9 +9,11 @@ use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 use serde_json;
 
-use semaphore_common::processor::{process_value, PiiProcessor, ProcessingState};
-use semaphore_common::protocol::{Annotated, Event, EventId};
 use semaphore_common::{metric, Config, ProjectId, Uuid};
+use semaphore_general::pii::PiiProcessor;
+use semaphore_general::processor::{process_value, ProcessingState};
+use semaphore_general::protocol::{Event, EventId};
+use semaphore_general::types::Annotated;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::project::{
