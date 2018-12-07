@@ -117,7 +117,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 #[cfg(test)]
 use {
     crate::processor::process_value,
-    crate::protocol::{Event, Headers, Request},
+    crate::protocol::{Event, Headers, Request, LogEntry},
     crate::types::Value,
 };
 
@@ -142,6 +142,10 @@ fn test_basic_stripping() {
     .unwrap();
 
     let mut event = Annotated::new(Event {
+        logentry: Annotated::new(LogEntry {
+            formatted: Annotated::new("Hello from 127.0.0.1!".to_string()),
+            ..Default::default()
+        }),
         request: Annotated::new(Request {
             env: {
                 let mut rv = Object::new();
@@ -171,39 +175,46 @@ fn test_basic_stripping() {
     let mut processor = PiiProcessor::new(&config);
     process_value(&mut event, &mut processor, Default::default());
 
-    let req = event.0.unwrap().request;
     assert_eq_str!(
-        req.to_json_pretty().unwrap(),
+        event.to_json_pretty().unwrap(),
         r#"{
-  "headers": [
-    [
-      "Cookie",
-      null
+  "logentry": {
+    "formatted": "Hello from [ip]!"
+  },
+  "request": {
+    "headers": [
+      [
+        "Cookie",
+        null
+      ],
+      [
+        "X-Forwarded-For",
+        "[ip]"
+      ]
     ],
-    [
-      "X-Forwarded-For",
-      "[ip]"
-    ]
-  ],
-  "env": {
-    "SECRET_KEY": null
+    "env": {
+      "SECRET_KEY": null
+    }
   },
   "_meta": {
-    "env": {
-      "SECRET_KEY": {
+    "logentry": {
+      "formatted": {
         "": {
           "rem": [
             [
-              "remove_bad_headers",
-              "x"
+              "@ip:replace",
+              "s",
+              11,
+              15
             ]
-          ]
+          ],
+          "len": 21
         }
       }
     },
-    "headers": {
-      "0": {
-        "1": {
+    "request": {
+      "env": {
+        "SECRET_KEY": {
           "": {
             "rem": [
               [
@@ -214,18 +225,32 @@ fn test_basic_stripping() {
           }
         }
       },
-      "1": {
-        "1": {
-          "": {
-            "rem": [
-              [
-                "@ip:replace",
-                "s",
-                0,
-                4
+      "headers": {
+        "0": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "remove_bad_headers",
+                  "x"
+                ]
               ]
-            ],
-            "len": 9
+            }
+          }
+        },
+        "1": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@ip:replace",
+                  "s",
+                  0,
+                  4
+                ]
+              ],
+              "len": 9
+            }
           }
         }
       }
