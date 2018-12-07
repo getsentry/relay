@@ -81,7 +81,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         if !rules.is_empty() {
             for (k, v) in value.iter_mut() {
                 for rule in rules {
-                    v.apply(|v, m| apply_rule_to_databag_value(rule, Some(k), v, m));
+                    v.apply(|v, m| apply_rule_to_databag_value(rule, Some(k.as_str()), v, m));
                 }
             }
         }
@@ -117,6 +117,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 #[cfg(test)]
 use {
     crate::processor::process_value,
+    crate::types::Value,
     crate::protocol::{Event, Headers, Request},
 };
 
@@ -128,7 +129,7 @@ fn test_basic_stripping() {
             "rules": {
                 "remove_bad_headers": {
                     "type": "redactPair",
-                    "keyPattern": "(?i)cookie"
+                    "keyPattern": "(?i)cookie|secret[-_]?key"
                 }
             },
             "applications": {
@@ -142,6 +143,14 @@ fn test_basic_stripping() {
 
     let mut event = Annotated::new(Event {
         request: Annotated::new(Request {
+            env: {
+                let mut rv = Object::new();
+                rv.insert(
+                    "SECRET_KEY".to_string(),
+                    Annotated::new(Value::String("134141231231231231231312".into())),
+                );
+                Annotated::new(rv)
+            },
             headers: {
                 let mut rv = Vec::new();
                 rv.push(Annotated::new((
@@ -163,7 +172,7 @@ fn test_basic_stripping() {
     process_value(&mut event, &mut processor, Default::default());
 
     let req = event.0.unwrap().request;
-    assert_eq!(
+    assert_eq_str!(
         req.to_json_pretty().unwrap(),
         r#"{
   "headers": [
@@ -176,7 +185,22 @@ fn test_basic_stripping() {
       "[ip]"
     ]
   ],
+  "env": {
+    "SECRET_KEY": null
+  },
   "_meta": {
+    "env": {
+      "SECRET_KEY": {
+        "": {
+          "rem": [
+            [
+              "remove_bad_headers",
+              "x"
+            ]
+          ]
+        }
+      }
+    },
     "headers": {
       "0": {
         "1": {
