@@ -449,10 +449,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
     ) -> ValueAction {
         frame.process_child_values(self, state);
 
-        if frame.in_app.value().is_none() {
-            frame.in_app.set_value(Some(false));
-        }
-
         if frame.function.as_str() == Some("?") {
             frame.function.set_value(None);
         }
