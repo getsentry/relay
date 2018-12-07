@@ -24,7 +24,7 @@
 
 use std::fmt;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::types::{Meta, Remark, RemarkType};
 

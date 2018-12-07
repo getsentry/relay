@@ -24,7 +24,26 @@ impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
     }
 }
 
-primitive_meta_structure!(String, String, "a string");
+primitive_from_value!(String, String, "a string");
+
+impl crate::types::ToValue for String {
+    fn to_value(self) -> Value {
+        Value::String(self)
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: serde::Serializer,
+    {
+        serde::Serialize::serialize(self, s)
+    }
+
+    fn skip_serialization(&self, _behavior: SkipSerialization) -> bool {
+        self.is_empty()
+    }
+}
+
 primitive_meta_structure!(bool, Bool, "a boolean");
 numeric_meta_structure!(u64, U64, "an unsigned integer");
 numeric_meta_structure!(i64, I64, "a signed integer");

@@ -92,7 +92,7 @@ macro_rules! primitive_meta_structure_through_string {
     };
 }
 
-macro_rules! primitive_meta_structure {
+macro_rules! primitive_from_value {
     ($type:ident, $meta_type:ident, $expectation:expr) => {
         impl crate::types::FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
@@ -108,7 +108,12 @@ macro_rules! primitive_meta_structure {
                 }
             }
         }
+    };
+}
 
+macro_rules! primitive_meta_structure {
+    ($type:ident, $meta_type:ident, $expectation:expr) => {
+        primitive_from_value!($type, $meta_type, $expectation);
         primitive_to_value!($type, $meta_type);
     };
 }

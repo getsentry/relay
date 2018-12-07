@@ -159,6 +159,7 @@ pub struct Event {
     pub ty: Annotated<EventType>,
 
     /// Manual fingerprint override.
+    #[metastructure(skip_serialization = "empty")]
     pub fingerprint: Annotated<Fingerprint>,
 
     /// Custom culprit of the event.
@@ -208,7 +209,7 @@ pub struct Event {
     #[metastructure(max_chars = "enumlike", match_regex = r"^[^\r\n\x0C/]+$")]
     pub environment: Annotated<String>,
 
-    /// Deprecated in favor of tags
+    /// Deprecated in favor of tags.
     #[metastructure(max_chars = "symbol")]
     pub site: Annotated<String>,
 
@@ -235,6 +236,7 @@ pub struct Event {
     /// One or multiple chained (nested) exceptions.
     #[metastructure(legacy_alias = "sentry.interfaces.Exception")]
     #[metastructure(field = "exception")]
+    #[metastructure(skip_serialization = "empty")]
     pub exceptions: Annotated<Values<Exception>>,
 
     /// Deprecated event stacktrace.
@@ -484,4 +486,33 @@ fn test_event_type() {
             .0
             .unwrap()
     );
+}
+
+#[test]
+fn test_fingerprint_empty_string() {
+    let json = r#"{
+  "fingerprint": [
+    ""
+  ]
+}"#;
+    let event = Annotated::new(Event {
+        fingerprint: Annotated::new(vec!["".to_string()].into()),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(json, event.to_json_pretty().unwrap());
+    assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
+}
+
+#[test]
+fn test_fingerprint_null_values() {
+    let input = r#"{"fingerprint":[null]}"#;
+    let output = r#"{}"#;
+    let event = Annotated::new(Event {
+        fingerprint: Annotated::new(vec![].into()),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
+    assert_eq_dbg!(output, event.to_json_pretty().unwrap());
 }

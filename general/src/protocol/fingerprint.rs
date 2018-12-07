@@ -96,6 +96,10 @@ impl ToValue for Fingerprint {
     {
         serde::Serialize::serialize(&self.0, s)
     }
+
+    fn skip_serialization(&self, _behavior: SkipSerialization) -> bool {
+        self.0.is_empty()
+    }
 }
 
 // Fingerprints must not be trimmed.

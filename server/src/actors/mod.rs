@@ -23,8 +23,6 @@
 //! ### Example
 //!
 //! ```ignore
-//! # extern crate actix;
-//! # extern crate semaphore_server;
 //! use semaphore_server::controller::Controller;
 //! use semaphore_server::server::Server;
 //!

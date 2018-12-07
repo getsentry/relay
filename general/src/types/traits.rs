@@ -4,8 +4,11 @@ use crate::types::{Annotated, MetaMap, MetaTree, Value};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum SkipSerialization {
+    /// Skip serialization of `null` values
     Null,
+    /// Skip serialization of empty arrays, objects and strings
     Empty,
+    /// Always serialize everything
     Never,
 }
 

@@ -312,3 +312,17 @@ fn test_frame_vars_empty_annotated_is_serialized() {
 
     assert_eq_str!(output, frame.to_json_pretty().unwrap());
 }
+
+#[test]
+fn test_frame_empty_context_line_removed() {
+    let input = r#"{"context_line": ""}"#;
+    let output = r#"{}"#;
+
+    let frame = Annotated::new(Frame {
+        current_line: Annotated::new(String::new()),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(frame, Annotated::from_json(input).unwrap());
+    assert_eq_str!(output, frame.to_json_pretty().unwrap());
+}

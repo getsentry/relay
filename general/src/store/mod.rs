@@ -115,23 +115,42 @@ impl<'a> StoreNormalizeProcessor<'a> {
 
     fn normalize_event_tags(&self, event: &mut Event) {
         let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
+        let environment = &mut event.environment;
 
-        // Fix case where legacy apps pass environment as a tag instead of a top level key
-        if event.environment.value().is_none() {
-            tags.retain(|tag| tag.value().and_then(|tag| tag.key()) != Some("environment"));
-        }
+        tags.retain(|tag| {
+            let tag = match tag.value() {
+                Some(x) => x,
+                None => return true, // ToValue will decide if we should skip serializing Annotated::empty()
+            };
 
-        // These tags are special and are used in pairing with `sentry:{}`. They should not be allowed
-        // to be set via data ingest due to ambiguity.
-        tags.retain(|tag| match tag.value().and_then(|tag| tag.key()) {
-            Some("release") | Some("dist") | Some("filename") | Some("function") => false,
-            _ => true,
+            match tag.key() {
+                // These tags are special and are used in pairing with `sentry:{}`. They should not be allowed
+                // to be set via data ingest due to ambiguity.
+                Some("release") | Some("dist") | Some("filename") | Some("function") => false,
+
+                // Fix case where legacy apps pass environment as a tag instead of a top level key
+                Some("environment") => {
+                    if let Some(ref value) = tag.value() {
+                        environment.get_or_insert_with(|| value.to_string());
+                    }
+
+                    false
+                }
+                _ => true,
+            }
         });
 
-        if event.server_name.value_mut().is_some() {
+        if event.server_name.value().is_some() {
             tags.push(Annotated::new(TagEntry(
                 Annotated::new("server_name".to_string()),
                 std::mem::replace(&mut event.server_name, Annotated::empty()),
+            )));
+        }
+
+        if event.site.value().is_some() {
+            tags.push(Annotated::new(TagEntry(
+                Annotated::new("site".to_string()),
+                std::mem::replace(&mut event.site, Annotated::empty()),
             )));
         }
     }
@@ -358,6 +377,11 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: ProcessingState<'_>,
     ) -> ValueAction {
+        if !user.other.is_empty() {
+            let data = &mut user.data.0.get_or_insert_with(Object::new);
+            data.extend(std::mem::replace(&mut user.other, Object::new()).into_iter());
+        }
+
         user.process_child_values(self, state);
 
         // Fill in ip addresses marked as {{auto}}
@@ -430,10 +454,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
     ) -> ValueAction {
         frame.process_child_values(self, state);
 
-        if frame.in_app.value().is_none() {
-            frame.in_app.set_value(Some(false));
-        }
-
         if frame.function.as_str() == Some("?") {
             frame.function.set_value(None);
         }
@@ -483,7 +503,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 }
 
 #[cfg(test)]
-use crate::processor::process_value;
+use {crate::processor::process_value, crate::types::Value};
 
 #[test]
 fn test_handles_type_in_value() {
@@ -585,4 +605,86 @@ fn test_schema_processor_invoked() {
         event.value().unwrap().user.value().unwrap().email.value(),
         None
     );
+}
+
+#[test]
+fn test_environment_tag_is_moved() {
+    let mut event = Annotated::new(Event {
+        tags: Annotated::new(Tags(vec![Annotated::new(TagEntry(
+            Annotated::new("environment".to_string()),
+            Annotated::new("despacito".to_string()),
+        ))])),
+        ..Default::default()
+    });
+
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
+    process_value(&mut event, &mut processor, Default::default());
+
+    let event = event.0.unwrap();
+
+    assert_eq_dbg!(event.environment.0, Some("despacito".to_string()));
+
+    assert_eq_dbg!(event.tags.0, Some(Tags(vec![])));
+}
+
+#[test]
+fn test_top_level_keys_moved_into_tags() {
+    let mut event = Annotated::new(Event {
+        server_name: Annotated::new("foo".to_string()),
+        site: Annotated::new("foo".to_string()),
+        ..Default::default()
+    });
+
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
+    process_value(&mut event, &mut processor, Default::default());
+
+    let event = event.0.unwrap();
+
+    assert_eq_dbg!(event.site.0, None);
+    assert_eq_dbg!(event.server_name.0, None);
+
+    assert_eq_dbg!(
+        event.tags.0,
+        Some(Tags(vec![
+            Annotated::new(TagEntry(
+                Annotated::new("server_name".to_string()),
+                Annotated::new("foo".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("site".to_string()),
+                Annotated::new("foo".to_string()),
+            ))
+        ]))
+    );
+}
+
+#[test]
+fn test_user_data_moved() {
+    let mut user = Annotated::new(User {
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_owned())),
+            );
+            map
+        },
+        ..Default::default()
+    });
+
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
+    process_value(&mut user, &mut processor, Default::default());
+
+    let user = user.0.unwrap();
+
+    assert_eq_dbg!(user.data, {
+        let mut map = Object::new();
+        map.insert(
+            "other".to_string(),
+            Annotated::new(Value::String("value".to_owned())),
+        );
+        Annotated::new(map)
+    });
+
+    assert_eq_dbg!(user.other, Object::new());
 }

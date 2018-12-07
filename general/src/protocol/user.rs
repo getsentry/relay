@@ -49,7 +49,12 @@ pub struct User {
     /// Approximate geographical location of the end user or device.
     pub geo: Annotated<Geo>,
 
-    /// Additional arbitrary fields for forwards compatibility.
+    /// Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).
+    /// All data from `self.other` should end up here after store normalization.
+    #[metastructure(skip_serialization = "empty")]
+    pub data: Annotated<Object<Value>>,
+
+    /// Additional arbitrary fields, as sent by clients.
     #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
 }
@@ -104,6 +109,9 @@ fn test_user_roundtrip() {
   "ip_address": "{{auto}}",
   "username": "john_doe",
   "name": "John Doe",
+  "data": {
+    "data": "value"
+  },
   "other": "value"
 }"#;
     let user = Annotated::new(User {
@@ -113,6 +121,14 @@ fn test_user_roundtrip() {
         name: Annotated::new("John Doe".to_string()),
         username: Annotated::new("john_doe".to_string()),
         geo: Annotated::empty(),
+        data: {
+            let mut map = Object::new();
+            map.insert(
+                "data".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            Annotated::new(map)
+        },
         other: {
             let mut map = Object::new();
             map.insert(
