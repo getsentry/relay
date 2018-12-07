@@ -89,6 +89,7 @@ impl BagSize {
 
 /// The type of PII contained on a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash, PartialOrd, Ord, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum PiiKind {
     Freeform,
     Ip,
