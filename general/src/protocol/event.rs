@@ -38,6 +38,8 @@ impl FromStr for EventId {
     }
 }
 
+impl_str_serde!(EventId);
+
 /// The type of event we're dealing with.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum EventType {

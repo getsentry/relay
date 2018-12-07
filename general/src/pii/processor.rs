@@ -117,8 +117,8 @@ impl<'a> Processor for PiiProcessor<'a> {
 #[cfg(test)]
 use {
     crate::processor::process_value,
-    crate::types::Value,
     crate::protocol::{Event, Headers, Request},
+    crate::types::Value,
 };
 
 #[test]
