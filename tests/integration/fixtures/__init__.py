@@ -72,17 +72,8 @@ class SentryLike(object):
                 "piiConfig": {
                     "rules": {},
                     "applications": {
-                        "freeform": ["@email", "@mac", "@creditcard", "@userpath"],
-                        "username": ["@userpath"],
-                        "ip": [],
-                        "databag": [
-                            "@email",
-                            "@mac",
-                            "@creditcard",
-                            "@userpath",
-                            "@password",
-                        ],
-                        "email": ["@email"],
+                        "text": ["@email", "@mac", "@creditcard", "@userpath"],
+                        "databag": ["@password"]
                     },
                 },
             },
