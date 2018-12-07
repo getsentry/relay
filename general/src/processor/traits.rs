@@ -20,7 +20,7 @@ macro_rules! process_method {
         }
     };
 
-    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),+ >) => {
+    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),+ > $(, $param_req_key:ident : $param_req_trait:path)*) => {
         #[inline]
         fn $name<$($param),*>(
             &mut self,
@@ -30,6 +30,7 @@ macro_rules! process_method {
         ) -> ValueAction
         where
             $($param: ProcessValue),*
+            $(, $param_req_key : $param_req_trait)*
         {
             value.process_child_values(self, state);
             Default::default()
@@ -49,7 +50,11 @@ pub trait Processor: Sized {
     process_method!(process_array, crate::types::Array<T>);
     process_method!(process_object, crate::types::Object<T>);
 
-    process_method!(process_pairlist, crate::protocol::PairList<T>);
+    process_method!(
+        process_pairlist,
+        crate::protocol::PairList<T>,
+        T: crate::protocol::AsPair
+    );
     process_method!(process_values, crate::protocol::Values<T>);
 
     process_method!(process_event, crate::protocol::Event);

@@ -198,7 +198,7 @@ macro_rules! process_tuple {
                 let mut index = 0;
 
                 $(
-                    process_value($name, processor, state.enter_index(index, None));
+                    process_value($name, processor, state.enter_index(index, state.inner_attrs()));
                     index += 1;
                 )*
             }

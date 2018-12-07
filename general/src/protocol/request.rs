@@ -63,7 +63,7 @@ impl FromValue for Cookies {
 
 /// A map holding headers.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
-pub struct Headers(pub PairList<String>);
+pub struct Headers(pub PairList<(Annotated<String>, Annotated<String>)>);
 
 impl Headers {
     pub fn get_header(&self, key: &str) -> Option<&str> {

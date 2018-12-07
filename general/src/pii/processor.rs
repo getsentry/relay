@@ -5,8 +5,8 @@ use crate::pii::databag::apply_rule_to_databag_value;
 use crate::pii::rules::Rule;
 use crate::pii::text::apply_rule_to_chunks;
 use crate::processor::{process_chunked_value, PiiKind, ProcessValue, ProcessingState, Processor};
-use crate::protocol::PairList;
-use crate::types::{Annotated, Meta, Object, ValueAction};
+use crate::protocol::{AsPair, PairList};
+use crate::types::{Meta, Object, ValueAction};
 
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
@@ -90,7 +90,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         ValueAction::Keep
     }
 
-    fn process_pairlist<T: ProcessValue>(
+    fn process_pairlist<T: ProcessValue + AsPair>(
         &mut self,
         value: &mut PairList<T>,
         _meta: &mut Meta,
@@ -100,9 +100,15 @@ impl<'a> Processor for PiiProcessor<'a> {
         if !rules.is_empty() {
             for pair in value.iter_mut() {
                 for rule in rules {
-                    if let Some((Annotated(ref k, _), ref mut v)) = pair.0 {
+                    if let Some(ref mut pair) = pair.value_mut() {
+                        let (ref mut k, ref mut v) = pair.as_pair();
                         v.apply(|v, m| {
-                            apply_rule_to_databag_value(rule, k.as_ref().map(|x| x.as_str()), v, m)
+                            apply_rule_to_databag_value(
+                                rule,
+                                k.value().as_ref().map(|x| x.as_str()),
+                                v,
+                                m,
+                            )
                         });
                     }
                 }
@@ -117,12 +123,13 @@ impl<'a> Processor for PiiProcessor<'a> {
 #[cfg(test)]
 use {
     crate::processor::process_value,
-    crate::protocol::{Event, Headers, Request, LogEntry},
-    crate::types::Value,
+    crate::protocol::{Event, Headers, LogEntry, Request},
+    crate::types::{Annotated, Value},
 };
 
 #[test]
 fn test_basic_stripping() {
+    use crate::protocol::{TagEntry, Tags};
     let config = PiiConfig::from_json(
         r#"
         {
@@ -169,6 +176,13 @@ fn test_basic_stripping() {
             },
             ..Default::default()
         }),
+        tags: Annotated::new(Tags(
+            vec![Annotated::new(TagEntry(
+                Annotated::new("forwarded_for".to_string()),
+                Annotated::new("127.0.0.1".to_string()),
+            ))]
+            .into(),
+        )),
         ..Default::default()
     });
 
@@ -196,6 +210,12 @@ fn test_basic_stripping() {
       "SECRET_KEY": null
     }
   },
+  "tags": [
+    [
+      "forwarded_for",
+      "[ip]"
+    ]
+  ],
   "_meta": {
     "logentry": {
       "formatted": {
@@ -251,6 +271,23 @@ fn test_basic_stripping() {
               ],
               "len": 9
             }
+          }
+        }
+      }
+    },
+    "tags": {
+      "0": {
+        "1": {
+          "": {
+            "rem": [
+              [
+                "@ip:replace",
+                "s",
+                0,
+                4
+              ]
+            ],
+            "len": 9
           }
         }
       }

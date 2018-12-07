@@ -389,7 +389,7 @@ fn test_event_roundtrip() {
                 Annotated::new("tag".to_string()),
                 Annotated::new("value".to_string()),
             )));
-            Annotated::new(Tags(items))
+            Annotated::new(Tags(items.into()))
         },
         extra: {
             let mut map = Map::new();

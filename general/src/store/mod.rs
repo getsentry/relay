@@ -610,10 +610,13 @@ fn test_schema_processor_invoked() {
 #[test]
 fn test_environment_tag_is_moved() {
     let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(vec![Annotated::new(TagEntry(
-            Annotated::new("environment".to_string()),
-            Annotated::new("despacito".to_string()),
-        ))])),
+        tags: Annotated::new(Tags(
+            vec![Annotated::new(TagEntry(
+                Annotated::new("environment".to_string()),
+                Annotated::new("despacito".to_string()),
+            ))]
+            .into(),
+        )),
         ..Default::default()
     });
 
@@ -624,7 +627,7 @@ fn test_environment_tag_is_moved() {
 
     assert_eq_dbg!(event.environment.0, Some("despacito".to_string()));
 
-    assert_eq_dbg!(event.tags.0, Some(Tags(vec![])));
+    assert_eq_dbg!(event.tags.0, Some(Tags(vec![].into())));
 }
 
 #[test]
@@ -645,16 +648,19 @@ fn test_top_level_keys_moved_into_tags() {
 
     assert_eq_dbg!(
         event.tags.0,
-        Some(Tags(vec![
-            Annotated::new(TagEntry(
-                Annotated::new("server_name".to_string()),
-                Annotated::new("foo".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("site".to_string()),
-                Annotated::new("foo".to_string()),
-            ))
-        ]))
+        Some(Tags(
+            vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("server_name".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("site".to_string()),
+                    Annotated::new("foo".to_string()),
+                ))
+            ]
+            .into()
+        ))
     );
 }
 
