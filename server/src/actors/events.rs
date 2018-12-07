@@ -7,9 +7,13 @@ use failure::Fail;
 use futures::prelude::*;
 use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
+use serde_json;
 
-use semaphore_common::v8_compat::{self, Annotated, Event};
 use semaphore_common::{metric, Config, ProjectId, Uuid};
+use semaphore_general::pii::PiiProcessor;
+use semaphore_general::processor::{process_value, ProcessingState};
+use semaphore_general::protocol::{Event, EventId};
+use semaphore_general::types::Annotated;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::project::{
@@ -40,13 +44,13 @@ macro_rules! clone {
 #[derive(Debug, Fail)]
 pub enum EventError {
     #[fail(display = "invalid JSON data")]
-    InvalidJson(#[cause] v8_compat::Error),
+    InvalidJson(#[cause] serde_json::Error),
 }
 
 #[derive(Debug, Fail)]
 enum ProcessingError {
     #[fail(display = "invalid event data")]
-    InvalidJson(#[cause] v8_compat::Error),
+    InvalidJson(#[cause] serde_json::Error),
 
     #[fail(display = "could not schedule project fetch")]
     ScheduleFailed(#[cause] MailboxError),
@@ -61,7 +65,7 @@ enum ProcessingError {
     EventRejected,
 
     #[fail(display = "could not serialize event payload")]
-    SerializeFailed(#[cause] v8_compat::Error),
+    SerializeFailed(#[cause] serde_json::Error),
 
     #[fail(display = "could not send event to upstream")]
     SendFailed(#[cause] UpstreamRequestError),
@@ -91,7 +95,7 @@ impl Actor for EventProcessor {
 struct ProcessEvent {
     pub data: Bytes,
     pub meta: Arc<EventMeta>,
-    pub event_id: Uuid,
+    pub event_id: EventId,
     pub project_id: ProjectId,
     pub project_state: Arc<ProjectState>,
     pub log_failed_payloads: bool,
@@ -146,15 +150,15 @@ impl ProcessEvent {
         })?;
 
         if let Some(event) = event.value_mut() {
-            event.id.set_value(Some(Some(self.event_id)))
+            event.id = Annotated::new(self.event_id);
         }
 
-        let processed_event = match self.project_state.config.pii_config {
-            Some(ref pii_config) => pii_config.processor().process_root_value(event),
-            None => event,
+        if let Some(ref pii_config) = self.project_state.config.pii_config {
+            let mut processor = PiiProcessor::new(&pii_config);
+            process_value(&mut event, &mut processor, ProcessingState::default());
         };
 
-        let data = processed_event
+        let data = event
             .to_json()
             .map_err(ProcessingError::SerializeFailed)?
             .into();
@@ -220,7 +224,7 @@ impl Actor for EventManager {
 #[derive(Deserialize)]
 struct EventIdHelper {
     #[serde(default, rename = "event_id")]
-    id: Option<Uuid>,
+    id: Option<EventId>,
 }
 
 pub struct QueueEvent {
@@ -230,11 +234,11 @@ pub struct QueueEvent {
 }
 
 impl Message for QueueEvent {
-    type Result = Result<Uuid, EventError>;
+    type Result = Result<EventId, EventError>;
 }
 
 impl Handler<QueueEvent> for EventManager {
-    type Result = Result<Uuid, EventError>;
+    type Result = Result<EventId, EventError>;
 
     fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
         // Ensure that the event has a UUID. It will be returned from this message and from the
@@ -244,7 +248,7 @@ impl Handler<QueueEvent> for EventManager {
         let event_id = serde_json::from_slice::<EventIdHelper>(&message.data)
             .map(|event| event.id)
             .map_err(EventError::InvalidJson)?
-            .unwrap_or_else(Uuid::new_v4);
+            .unwrap_or_else(|| EventId(Uuid::new_v4()));
 
         // Actual event handling is performed asynchronously in a separate future. The lifetime of
         // that future will be tied to the EventManager's context. This allows to keep the Project
@@ -265,7 +269,7 @@ struct HandleEvent {
     pub data: Bytes,
     pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
-    pub event_id: Uuid,
+    pub event_id: EventId,
 }
 
 impl Message for HandleEvent {

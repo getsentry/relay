@@ -11,7 +11,7 @@ def test_store(mini_sentry, relay_chain):
     relay.send_event(42)
     event = mini_sentry.captured_events.get(timeout=1)
 
-    assert event["message"] == "Hello, World!"
+    assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
 def test_store_node_base64(mini_sentry, relay_chain):
@@ -24,7 +24,7 @@ def test_store_node_base64(mini_sentry, relay_chain):
 
     event = mini_sentry.captured_events.get(timeout=1)
 
-    assert event["message"] == "Error: yo mark"
+    assert event["logentry"] == {"formatted": "Error: yo mark"}
 
 
 def test_store_pii_stripping(mini_sentry, relay):
@@ -37,7 +37,7 @@ def test_store_pii_stripping(mini_sentry, relay):
     event = mini_sentry.captured_events.get(timeout=2)
 
     # Email should be stripped:
-    assert event["message"] == "[email]"
+    assert event["logentry"] == {"formatted": "[email]"}
 
 
 def test_event_timeout(mini_sentry, relay):
@@ -59,8 +59,10 @@ def test_event_timeout(mini_sentry, relay):
     sleep(1)  # Sleep so that the second event also has to wait but succeeds
     relay.send_event(42, {"message": "correct"})
 
-    assert mini_sentry.captured_events.get(timeout=1)["message"] == "correct"
-    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+    assert mini_sentry.captured_events.get(timeout=1)["logentry"] == {
+        "formatted": "correct"}
+    pytest.raises(
+        queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
 
 def test_rate_limit(mini_sentry, relay):
@@ -69,6 +71,7 @@ def test_rate_limit(mini_sentry, relay):
     store_event_original = mini_sentry.app.view_functions["store_event"]
 
     rate_limit_sent = False
+
     @mini_sentry.app.endpoint("store_event")
     def store_event():
         # Only send a rate limit header for the first request. If relay sends a
@@ -78,7 +81,7 @@ def test_rate_limit(mini_sentry, relay):
             store_event_original()
         else:
             rate_limit_sent = True
-            return '', 429, { "retry-after": "2" }
+            return '', 429, {"retry-after": "2"}
 
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
@@ -95,4 +98,5 @@ def test_rate_limit(mini_sentry, relay):
     sleep(2)
     relay.send_event(42, {"message": "correct"})
 
-    assert mini_sentry.captured_events.get(timeout=1)["message"] == "correct"
+    assert mini_sentry.captured_events.get(timeout=1)["logentry"] == {
+        "formatted": "correct"}

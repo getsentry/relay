@@ -506,9 +506,13 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 span: Span::call_site(),
             };
 
+            let pii_attr = LitBool {
+                value: field_attrs.pii,
+                span: Span::call_site(),
+            };
+
             let max_chars_attr = field_attrs.max_chars;
             let bag_size_attr = field_attrs.bag_size;
-            let pii_kind_attr = field_attrs.pii_kind;
 
             if is_tuple_struct {
                 (quote! {
@@ -606,7 +610,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                         match_regex: #match_regex_attr,
                         max_chars: #max_chars_attr,
                         bag_size: #bag_size_attr,
-                        pii_kind: #pii_kind_attr,
+                        pii: #pii_attr,
                     };
                 }
 
@@ -818,22 +822,6 @@ fn parse_bag_size(name: &str) -> TokenStream {
     }
 }
 
-fn parse_pii_kind(kind: &str) -> TokenStream {
-    match kind {
-        "freeform" => quote!(crate::processor::PiiKind::Freeform),
-        "ip" => quote!(crate::processor::PiiKind::Ip),
-        "id" => quote!(crate::processor::PiiKind::Id),
-        "username" => quote!(crate::processor::PiiKind::Username),
-        "hostname" => quote!(crate::processor::PiiKind::Hostname),
-        "sensitive" => quote!(crate::processor::PiiKind::Sensitive),
-        "name" => quote!(crate::processor::PiiKind::Name),
-        "email" => quote!(crate::processor::PiiKind::Email),
-        "location" => quote!(crate::processor::PiiKind::Location),
-        "databag" => quote!(crate::processor::PiiKind::Databag),
-        _ => panic!("invalid pii_kind variant '{}'", kind),
-    }
-}
-
 #[derive(Default)]
 struct TypeAttrs {
     process_func: Option<String>,
@@ -896,10 +884,10 @@ struct FieldAttrs {
     field_name_override: Option<String>,
     required: bool,
     nonempty: bool,
+    pii: bool,
     match_regex: Option<String>,
     max_chars: TokenStream,
     bag_size: TokenStream,
-    pii_kind: TokenStream,
     legacy_aliases: Vec<String>,
     skip_serialization: SkipSerialization,
 }
@@ -947,7 +935,6 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
     let mut rv = FieldAttrs::default();
     rv.max_chars = quote!(None);
     rv.bag_size = quote!(None);
-    rv.pii_kind = quote!(None);
 
     let mut required = None;
 
@@ -1031,14 +1018,15 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
                                         panic!("Got non string literal for bag_size");
                                     }
                                 }
-                            } else if ident == "pii_kind" {
+                            } else if ident == "pii" {
                                 match lit {
-                                    Lit::Str(litstr) => {
-                                        let attr = parse_pii_kind(litstr.value().as_str());
-                                        rv.pii_kind = quote!(Some(#attr));
-                                    }
+                                    Lit::Str(litstr) => match litstr.value().as_str() {
+                                        "true" => rv.pii = true,
+                                        "false" => rv.pii = false,
+                                        other => panic!("Unknown value {}", other),
+                                    },
                                     _ => {
-                                        panic!("Got non string literal for pii_kind");
+                                        panic!("Got non string literal for pii");
                                     }
                                 }
                             } else if ident == "legacy_alias" {

@@ -469,10 +469,13 @@ fn test_tags_stripping() {
     let mut processor = TrimmingProcessor::new();
 
     let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(vec![Annotated::new(TagEntry(
-            Annotated::new(repeat("x").take(200).collect()),
-            Annotated::new(repeat("x").take(300).collect()),
-        ))])),
+        tags: Annotated::new(Tags(
+            vec![Annotated::new(TagEntry(
+                Annotated::new(repeat("x").take(200).collect()),
+                Annotated::new(repeat("x").take(300).collect()),
+            ))]
+            .into(),
+        )),
         ..Default::default()
     });
 

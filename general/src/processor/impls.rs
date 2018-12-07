@@ -1,22 +1,8 @@
-use std::borrow::Cow;
-
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::processor::{
-    process_value, FieldAttrs, PiiKind, ProcessValue, ProcessingState, Processor,
-};
+use crate::processor::{process_value, ProcessValue, ProcessingState, Processor};
 use crate::types::{Annotated, Array, Meta, Object, Value, ValueAction};
-
-static FREEFORM_PII_ATTRS: FieldAttrs = FieldAttrs {
-    name: None,
-    required: false,
-    nonempty: false,
-    match_regex: None,
-    max_chars: None,
-    bag_size: None,
-    pii_kind: Some(PiiKind::Freeform),
-};
 
 impl ProcessValue for String {
     #[inline]
@@ -120,11 +106,11 @@ where
         P: Processor,
     {
         for (index, element) in self.iter_mut().enumerate() {
-            let attrs = state
-                .attrs()
-                .pii_kind
-                .map(|_| Cow::Borrowed(&FREEFORM_PII_ATTRS));
-            process_value(element, processor, state.enter_index(index, attrs));
+            process_value(
+                element,
+                processor,
+                state.enter_index(index, state.inner_attrs()),
+            );
         }
     }
 }
@@ -152,11 +138,7 @@ where
         P: Processor,
     {
         for (k, v) in self.iter_mut() {
-            let attrs = state
-                .attrs()
-                .pii_kind
-                .map(|_| Cow::Borrowed(&FREEFORM_PII_ATTRS));
-            process_value(v, processor, state.enter_borrowed(k, attrs));
+            process_value(v, processor, state.enter_borrowed(k, state.inner_attrs()));
         }
     }
 }
@@ -216,7 +198,7 @@ macro_rules! process_tuple {
                 let mut index = 0;
 
                 $(
-                    process_value($name, processor, state.enter_index(index, None));
+                    process_value($name, processor, state.enter_index(index, state.inner_attrs()));
                     index += 1;
                 )*
             }

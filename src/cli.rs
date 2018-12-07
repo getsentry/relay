@@ -7,9 +7,11 @@ use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
-use semaphore_common::processor_compat::PiiConfig;
-use semaphore_common::v8_compat::{Annotated, Event};
 use semaphore_common::{Config, Credentials, MinimalConfig, Uuid};
+use semaphore_general::pii::{PiiConfig, PiiProcessor};
+use semaphore_general::processor::{process_value, ProcessingState};
+use semaphore_general::protocol::Event;
+use semaphore_general::types::Annotated;
 use semaphore_server;
 
 use crate::cliapp::make_app;
@@ -299,12 +301,10 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
     let mut event_json = Vec::new();
     let stdin = io::stdin();
     stdin.lock().read_to_end(&mut event_json)?;
-    let event = EventV8::from_json_bytes(&event_json[..])?;
-    let event = if let Some(pii_config) = pii_config {
-        let processor = pii_config.processor();
-        processor.process_root_value(event)
-    } else {
-        event
+    let mut event = EventV8::from_json_bytes(&event_json[..])?;
+    if let Some(ref pii_config) = pii_config {
+        let mut processor = PiiProcessor::new(pii_config);
+        process_value(&mut event, &mut processor, ProcessingState::default());
     };
 
     if matches.is_present("pretty") {

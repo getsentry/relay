@@ -43,8 +43,3 @@ openssl-probe = "0.1.2"
 
 [build-dependencies]
 clap = { version = "2.32.0", default-features = false }
-
-[patch.crates-io]
-serde = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
-serde_derive = { git = "https://github.com/mitsuhiko/serde", rev = "880a8c0181ad7202950f24cc8f6872994913441d" }
-

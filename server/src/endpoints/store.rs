@@ -12,7 +12,8 @@ use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::Serialize;
 
-use semaphore_common::{metric, tryf, ProjectId, ProjectIdParseError, Uuid};
+use semaphore_common::{metric, tryf, ProjectId, ProjectIdParseError};
+use semaphore_general::protocol::EventId;
 
 use crate::actors::events::{EventError, QueueEvent};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError};
@@ -78,7 +79,7 @@ impl ResponseError for BadStoreRequest {
 
 #[derive(Serialize)]
 struct StoreResponse {
-    id: Uuid,
+    id: EventId,
 }
 
 fn store_event(

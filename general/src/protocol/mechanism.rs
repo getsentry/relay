@@ -77,7 +77,7 @@ pub struct Mechanism {
     pub ty: Annotated<String>,
 
     /// Human readable detail description.
-    #[metastructure(pii_kind = "freeform", max_chars = "message")]
+    #[metastructure(pii = "true", max_chars = "message")]
     pub description: Annotated<String>,
 
     /// Link to online resources describing this error.
@@ -88,7 +88,7 @@ pub struct Mechanism {
     pub handled: Annotated<bool>,
 
     /// Additional attributes depending on the mechanism type.
-    #[metastructure(pii_kind = "databag")]
+    #[metastructure(pii = "true")]
     #[metastructure(skip_serialization = "empty")]
     // TODO: Cap?
     pub data: Annotated<Object<Value>>,

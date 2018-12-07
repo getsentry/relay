@@ -91,16 +91,8 @@ impl BagSize {
 #[derive(Debug, Clone, Copy, PartialEq, Hash, PartialOrd, Ord, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PiiKind {
-    Freeform,
-    Ip,
-    Id,
-    Username,
-    Hostname,
-    Sensitive,
-    Name,
-    Email,
-    Location,
-    Databag,
+    Text,
+    Container,
 }
 
 /// Meta information about a field.
@@ -119,7 +111,7 @@ pub struct FieldAttrs {
     /// The maximum bag size of this field.
     pub bag_size: Option<BagSize>,
     /// The type of PII on the field.
-    pub pii_kind: Option<PiiKind>,
+    pub pii: bool,
 }
 
 lazy_static::lazy_static! {
@@ -130,8 +122,27 @@ lazy_static::lazy_static! {
         match_regex: None,
         max_chars: None,
         bag_size: None,
-        pii_kind: None,
+        pii: false,
     };
+}
+
+lazy_static::lazy_static! {
+    static ref PII_FIELD_ATTRS: FieldAttrs = FieldAttrs {
+        name: None,
+        required: false,
+        nonempty: false,
+        match_regex: None,
+        max_chars: None,
+        bag_size: None,
+        pii: true,
+    };
+}
+
+impl FieldAttrs {
+    /// Like default but with pii turned on.
+    pub fn default_pii() -> &'static FieldAttrs {
+        &*PII_FIELD_ATTRS
+    }
 }
 
 impl Default for FieldAttrs {
@@ -162,7 +173,7 @@ impl<'a> fmt::Display for PathItem<'a> {
 pub struct ProcessingState<'a> {
     parent: Option<&'a ProcessingState<'a>>,
     path: Option<PathItem<'a>>,
-    attrs: Option<Cow<'static, FieldAttrs>>,
+    attrs: Option<Cow<'a, FieldAttrs>>,
 }
 
 impl<'a> ProcessingState<'a> {
@@ -189,7 +200,7 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Derives a processing state by entering a borrowed key.
-    pub fn enter_borrowed(&'a self, key: &'a str, attrs: Option<Cow<'static, FieldAttrs>>) -> Self {
+    pub fn enter_borrowed(&'a self, key: &'a str, attrs: Option<Cow<'a, FieldAttrs>>) -> Self {
         ProcessingState {
             parent: Some(self),
             path: Some(PathItem::StaticKey(key)),
@@ -198,7 +209,7 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Derives a processing state by entering an index.
-    pub fn enter_index(&'a self, idx: usize, attrs: Option<Cow<'static, FieldAttrs>>) -> Self {
+    pub fn enter_index(&'a self, idx: usize, attrs: Option<Cow<'a, FieldAttrs>>) -> Self {
         ProcessingState {
             parent: Some(self),
             path: Some(PathItem::Index(idx)),
@@ -216,6 +227,15 @@ impl<'a> ProcessingState<'a> {
         match self.attrs {
             Some(ref cow) => &cow,
             None => &DEFAULT_FIELD_ATTRS,
+        }
+    }
+
+    /// Derives the attrs for recursion.
+    pub fn inner_attrs(&self) -> Option<Cow<'_, FieldAttrs>> {
+        if self.attrs().pii {
+            Some(Cow::Borrowed(FieldAttrs::default_pii()))
+        } else {
+            None
         }
     }
 }

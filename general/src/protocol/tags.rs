@@ -1,4 +1,4 @@
-use crate::protocol::LenientString;
+use crate::protocol::{AsPair, LenientString, PairList};
 use crate::types::{Annotated, Array, Error, FromValue, Value};
 
 fn check_chars(string: String) -> Annotated<String> {
@@ -16,9 +16,17 @@ fn check_chars(string: String) -> Annotated<String> {
 
 #[derive(Debug, Default, Clone, PartialEq, ToValue, ProcessValue)]
 pub struct TagEntry(
-    #[metastructure(max_chars = "tag_key")] pub Annotated<String>,
-    #[metastructure(max_chars = "tag_value")] pub Annotated<String>,
+    #[metastructure(pii = "true", max_chars = "tag_key")] pub Annotated<String>,
+    #[metastructure(pii = "true", max_chars = "tag_value")] pub Annotated<String>,
 );
+
+impl AsPair for TagEntry {
+    type Value = String;
+
+    fn as_pair(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>) {
+        (&mut self.0, &mut self.1)
+    }
+}
 
 impl TagEntry {
     fn from_entry(entry: (String, Annotated<Value>)) -> Annotated<Self> {
@@ -62,7 +70,7 @@ impl FromValue for TagEntry {
 
 /// Manual key/value tag pairs.
 #[derive(Debug, Default, Clone, PartialEq, ToValue, ProcessValue)]
-pub struct Tags(pub Array<TagEntry>);
+pub struct Tags(#[metastructure(pii = "true")] pub PairList<TagEntry>);
 
 impl std::ops::Deref for Tags {
     type Target = Array<TagEntry>;
@@ -126,7 +134,7 @@ fn test_tags_from_object() {
         Annotated::new("42".to_string()),
     )));
 
-    let tags = Annotated::new(Tags(arr));
+    let tags = Annotated::new(Tags(arr.into()));
     assert_eq_dbg!(tags, Annotated::from_json(json).unwrap());
 }
 
@@ -157,6 +165,6 @@ fn test_tags_from_array() {
         Annotated::new("blub".to_string()),
     )));
 
-    let tags = Annotated::new(Tags(arr));
+    let tags = Annotated::new(Tags(arr.into()));
     assert_eq_dbg!(tags, Annotated::from_json(json).unwrap());
 }

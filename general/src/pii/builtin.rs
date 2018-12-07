@@ -196,7 +196,7 @@ mod tests {
 
     #[derive(ToValue, FromValue, ProcessValue, Debug, Clone, PartialEq)]
     struct FreeformRoot {
-        #[metastructure(pii_kind = "freeform")]
+        #[metastructure(pii = "true")]
         value: Annotated<String>,
     }
 
@@ -209,7 +209,7 @@ mod tests {
                 vars: Default::default(),
                 applications: {
                     let mut map = BTreeMap::new();
-                    map.insert(PiiKind::Freeform, vec![$rule.to_string()]);
+                    map.insert(PiiKind::Text, vec![$rule.to_string()]);
                     map
                 },
             };

@@ -38,6 +38,8 @@ impl FromStr for EventId {
     }
 }
 
+impl_str_serde!(EventId);
+
 /// The type of event we're dealing with.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum EventType {
@@ -191,7 +193,7 @@ pub struct Event {
     pub received: Annotated<DateTime<Utc>>,
 
     /// Server or device name the event was generated on.
-    #[metastructure(pii_kind = "hostname", max_chars = "symbol")]
+    #[metastructure(pii = "true", max_chars = "symbol")]
     pub server_name: Annotated<String>,
 
     /// Program's release identifier.
@@ -304,7 +306,7 @@ pub struct Event {
     pub expectstaple: Annotated<Value>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, pii_kind = "databag")]
+    #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
 }
 
@@ -387,7 +389,7 @@ fn test_event_roundtrip() {
                 Annotated::new("tag".to_string()),
                 Annotated::new("value".to_string()),
             )));
-            Annotated::new(Tags(items))
+            Annotated::new(Tags(items.into()))
         },
         extra: {
             let mut map = Map::new();

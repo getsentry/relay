@@ -26,7 +26,7 @@ def test_graceful_shutdown(mini_sentry, relay):
     relay.send_event(42)
 
     relay.shutdown(sig=signal.SIGTERM)
-    assert mini_sentry.captured_events.get(timeout=0)["message"] == "Hello, World!"
+    assert mini_sentry.captured_events.get(timeout=0)["logentry"] == {"formatted": "Hello, World!"}
 
 
 def test_forced_shutdown(mini_sentry, relay):
@@ -78,7 +78,7 @@ def test_query_retry(failure_type, mini_sentry, relay):
 
     # relay's http timeout is 2 seconds, and retry interval 1s * 1.5^n
     event = mini_sentry.captured_events.get(timeout=4)
-    assert event["message"] == "Hello, World!"
+    assert event["logentry"] == {"formatted": "Hello, World!"}
     assert retry_count == 2
 
     if mini_sentry.test_failures:
@@ -107,7 +107,7 @@ def test_local_project_config(mini_sentry, relay):
     relay.wait_relay_healthcheck()
     relay.send_event(42)
     event = mini_sentry.captured_events.get(timeout=1)
-    assert event["message"] == "Hello, World!"
+    assert event["logentry"] == {"formatted": "Hello, World!"}
 
     relay.config_dir.join("projects").join("42.json").write(json.dumps({"disabled": True}))
     time.sleep(5)

@@ -63,7 +63,7 @@ impl FromValue for Cookies {
 
 /// A map holding headers.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
-pub struct Headers(pub PairList<String>);
+pub struct Headers(pub PairList<(Annotated<String>, Annotated<String>)>);
 
 impl Headers {
     pub fn get_header(&self, key: &str) -> Option<&str> {
@@ -223,7 +223,7 @@ impl FromValue for Query {
 #[metastructure(process_func = "process_request")]
 pub struct Request {
     /// URL of the request.
-    #[metastructure(pii_kind = "freeform", max_chars = "path")]
+    #[metastructure(pii = "true", max_chars = "path")]
     pub url: Annotated<String>,
 
     /// HTTP request method.
@@ -231,31 +231,31 @@ pub struct Request {
 
     /// Request data in any format that makes sense.
     // TODO: Custom logic + info
-    #[metastructure(pii_kind = "databag", bag_size = "large")]
+    #[metastructure(pii = "true", bag_size = "large")]
     pub data: Annotated<Value>,
 
     /// URL encoded HTTP query string.
-    #[metastructure(pii_kind = "databag", bag_size = "small")]
+    #[metastructure(pii = "true", bag_size = "small")]
     #[metastructure(skip_serialization = "empty")]
     pub query_string: Annotated<Query>,
 
     /// The fragment of the request URL.
-    #[metastructure(pii_kind = "freeform", max_chars = "summary")]
+    #[metastructure(pii = "true", max_chars = "summary")]
     #[metastructure(skip_serialization = "empty")]
     pub fragment: Annotated<String>,
 
     /// URL encoded contents of the Cookie header.
-    #[metastructure(pii_kind = "databag", bag_size = "medium")]
+    #[metastructure(pii = "true", bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
     pub cookies: Annotated<Cookies>,
 
     /// HTTP request headers.
-    #[metastructure(pii_kind = "databag", bag_size = "large")]
+    #[metastructure(pii = "true", bag_size = "large")]
     #[metastructure(skip_serialization = "empty")]
     pub headers: Annotated<Headers>,
 
     /// Server environment data, such as CGI/WSGI.
-    #[metastructure(pii_kind = "databag", bag_size = "large")]
+    #[metastructure(pii = "true", bag_size = "large")]
     #[metastructure(skip_serialization = "empty")]
     pub env: Annotated<Object<Value>>,
 
@@ -263,7 +263,7 @@ pub struct Request {
     pub inferred_content_type: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, pii_kind = "databag")]
+    #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
 }
 

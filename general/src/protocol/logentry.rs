@@ -9,19 +9,19 @@ use crate::types::{Annotated, Array, FromValue, Object, Value};
 #[metastructure(process_func = "process_logentry")]
 pub struct LogEntry {
     /// The log message with parameter placeholders (required).
-    #[metastructure(pii_kind = "freeform", max_chars = "message")]
+    #[metastructure(pii = "true", max_chars = "message")]
     pub message: Annotated<String>,
 
     /// The formatted message
-    #[metastructure(pii_kind = "freeform", max_chars = "message")]
+    #[metastructure(pii = "true", max_chars = "message")]
     pub formatted: Annotated<String>,
 
     /// Positional parameters to be interpolated into the log message.
-    #[metastructure(pii_kind = "databag")]
+    #[metastructure(pii = "true")]
     pub params: Annotated<Array<Value>>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, pii_kind = "databag")]
+    #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
 }
 
