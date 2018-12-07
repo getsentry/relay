@@ -73,7 +73,7 @@ class SentryLike(object):
                     "rules": {},
                     "applications": {
                         "text": ["@email", "@mac", "@creditcard", "@userpath"],
-                        "databag": ["@password"]
+                        "container": ["@password"]
                     },
                 },
             },
