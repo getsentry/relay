@@ -40,6 +40,16 @@ impl<'a> PiiProcessor<'a> {
     pub fn config(&self) -> &PiiConfig {
         self.config
     }
+
+    /// Get the rules to apply for a list.
+    pub fn get_rules(&self, state: &ProcessingState, kind: PiiKind) -> &[Rule<'_>] {
+        if state.attrs().pii {
+            self.applications.get(&kind).map(|x| x.as_slice())
+        } else {
+            None
+        }
+        .unwrap_or_default()
+    }
 }
 
 impl<'a> Processor for PiiProcessor<'a> {
@@ -49,15 +59,14 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: ProcessingState<'_>,
     ) -> ValueAction {
-        if let Some(pii_kind) = state.attrs().pii_kind {
-            if let Some(rules) = self.applications.get(&pii_kind) {
-                process_chunked_value(value, meta, |mut chunks| {
-                    for rule in rules {
-                        chunks = apply_rule_to_chunks(rule, chunks);
-                    }
-                    chunks
-                });
-            }
+        let rules = self.get_rules(&state, PiiKind::Text);
+        if !rules.is_empty() {
+            process_chunked_value(value, meta, |mut chunks| {
+                for rule in rules {
+                    chunks = apply_rule_to_chunks(rule, chunks);
+                }
+                chunks
+            });
         }
         ValueAction::Keep
     }
@@ -68,20 +77,14 @@ impl<'a> Processor for PiiProcessor<'a> {
         _meta: &mut Meta,
         state: ProcessingState,
     ) -> ValueAction {
-        if let Some(pii_kind) = state.attrs().pii_kind {
-            if let Some(rules) = self.applications.get(&pii_kind) {
-                for pair in value.iter_mut() {
-                    for rule in rules {
-                        if let Some((Annotated(ref k, _), ref mut v)) = pair.0 {
-                            v.apply(|v, m| {
-                                apply_rule_to_databag_value(
-                                    rule,
-                                    k.as_ref().map(|x| x.as_str()),
-                                    v,
-                                    m,
-                                )
-                            });
-                        }
+        let rules = self.get_rules(&state, PiiKind::Container);
+        if !rules.is_empty() {
+            for pair in value.iter_mut() {
+                for rule in rules {
+                    if let Some((Annotated(ref k, _), ref mut v)) = pair.0 {
+                        v.apply(|v, m| {
+                            apply_rule_to_databag_value(rule, k.as_ref().map(|x| x.as_str()), v, m)
+                        });
                     }
                 }
             }
@@ -110,8 +113,8 @@ fn test_basic_stripping() {
                 }
             },
             "applications": {
-                "freeform": ["@ip"],
-                "databag": ["remove_bad_headers"]
+                "text": ["@ip"],
+                "container": ["remove_bad_headers"]
             }
         }
     "#,

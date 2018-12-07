@@ -119,7 +119,7 @@ pub struct AppContext {
     pub app_start_time: Annotated<DateTime<Utc>>,
 
     /// Device app hash (app specific device ID)
-    #[metastructure(pii_kind = "id")]
+    #[metastructure(pii = "true")]
     #[metastructure(max_chars = "summary")]
     pub device_app_hash: Annotated<String>,
 

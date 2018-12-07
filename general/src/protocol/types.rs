@@ -1,5 +1,4 @@
 //! Common types of the protocol.
-use std::borrow::Cow;
 use std::fmt;
 use std::net;
 use std::str::FromStr;
@@ -7,22 +6,10 @@ use std::str::FromStr;
 use failure::Fail;
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::processor::{
-    process_value, FieldAttrs, PiiKind, ProcessValue, ProcessingState, Processor,
-};
+use crate::processor::{process_value, ProcessValue, ProcessingState, Processor};
 use crate::types::{
     Annotated, Array, Error, ErrorKind, FromValue, Meta, Object, SkipSerialization, ToValue, Value,
     ValueAction,
-};
-
-static FREEFORM_PII_ATTRS: FieldAttrs = FieldAttrs {
-    name: None,
-    required: false,
-    nonempty: false,
-    match_regex: None,
-    max_chars: None,
-    bag_size: None,
-    pii_kind: Some(PiiKind::Freeform),
 };
 
 /// A array like wrapper used in various places.
@@ -161,12 +148,8 @@ impl<T: ProcessValue> ProcessValue for PairList<T> {
     {
         for pair in self.0.iter_mut() {
             if let Some((ref mut k, ref mut v)) = pair.0 {
-                let attrs = state
-                    .attrs()
-                    .pii_kind
-                    .map(|_| Cow::Borrowed(&FREEFORM_PII_ATTRS));
-                process_value(k, processor, state.enter_index(0, attrs.clone()));
-                process_value(v, processor, state.enter_index(1, attrs));
+                process_value(k, processor, state.enter_index(0, state.inner_attrs()));
+                process_value(v, processor, state.enter_index(1, state.inner_attrs()));
             }
         }
     }

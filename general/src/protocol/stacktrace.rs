@@ -22,7 +22,7 @@ pub struct Frame {
     ///
     /// Note that this might also include a class name if that is something the
     /// language natively considers to be part of the stack (for instance in Java).
-    #[metastructure(pii_kind = "freeform")]
+    #[metastructure(pii = "true")]
     #[metastructure(skip_serialization = "empty")]
     // TODO: Cap? This can be a FS path or a dotted path
     pub module: Annotated<String>,
@@ -31,18 +31,18 @@ pub struct Frame {
     ///
     /// For instance this can be a dylib for native languages, the name of the jar
     /// or .NET assembly.
-    #[metastructure(pii_kind = "freeform")]
+    #[metastructure(pii = "true")]
     #[metastructure(skip_serialization = "empty")]
     // TODO: Cap? This can be a FS path or a dotted path
     pub package: Annotated<String>,
 
     /// The source file name (basename only).
-    #[metastructure(pii_kind = "freeform", max_chars = "short_path")]
+    #[metastructure(pii = "true", max_chars = "short_path")]
     #[metastructure(skip_serialization = "empty")]
     pub filename: Annotated<String>,
 
     /// Absolute path to the source file.
-    #[metastructure(pii_kind = "freeform", max_chars = "path")]
+    #[metastructure(pii = "true", max_chars = "path")]
     #[metastructure(skip_serialization = "empty")]
     pub abs_path: Annotated<String>,
 
@@ -73,7 +73,7 @@ pub struct Frame {
     pub in_app: Annotated<bool>,
 
     /// Local variables in a convenient format.
-    #[metastructure(pii_kind = "databag")]
+    #[metastructure(pii = "true")]
     #[metastructure(skip_serialization = "empty")]
     pub vars: Annotated<FrameVariables>,
 

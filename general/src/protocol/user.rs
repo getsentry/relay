@@ -6,15 +6,15 @@ use crate::types::{Annotated, Object, Value};
 #[metastructure(process_func = "process_geo")]
 pub struct Geo {
     /// Two-letter country code (ISO 3166-1 alpha-2).
-    #[metastructure(pii_kind = "location", max_chars = "summary")]
+    #[metastructure(pii = "true", max_chars = "summary")]
     pub country_code: Annotated<String>,
 
     /// Human readable city name.
-    #[metastructure(pii_kind = "location", max_chars = "summary")]
+    #[metastructure(pii = "true", max_chars = "summary")]
     pub city: Annotated<String>,
 
     /// Human readable region name or code.
-    #[metastructure(pii_kind = "location", max_chars = "summary")]
+    #[metastructure(pii = "true", max_chars = "summary")]
     pub region: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -27,30 +27,30 @@ pub struct Geo {
 #[metastructure(process_func = "process_user")]
 pub struct User {
     /// Unique identifier of the user.
-    #[metastructure(pii_kind = "id", max_chars = "enumlike")]
+    #[metastructure(pii = "true", max_chars = "enumlike")]
     pub id: Annotated<JsonLenientString>,
 
     /// Email address of the user.
-    #[metastructure(pii_kind = "email", max_chars = "email", match_regex = r"@")]
+    #[metastructure(pii = "true", max_chars = "email", match_regex = r"@")]
     pub email: Annotated<String>,
 
     /// Remote IP address of the user. Defaults to "{{auto}}".
-    #[metastructure(pii_kind = "ip")]
+    #[metastructure(pii = "true")]
     pub ip_address: Annotated<IpAddr>,
 
     /// Username of the user.
-    #[metastructure(pii_kind = "username", max_chars = "enumlike")]
+    #[metastructure(pii = "true", max_chars = "enumlike")]
     pub username: Annotated<String>,
 
     /// Human readable name of the user.
-    #[metastructure(pii_kind = "name", max_chars = "enumlike")]
+    #[metastructure(pii = "true", max_chars = "enumlike")]
     pub name: Annotated<String>,
 
     /// Approximate geographical location of the end user or device.
     pub geo: Annotated<Geo>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, pii_kind = "databag")]
+    #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
 }
 

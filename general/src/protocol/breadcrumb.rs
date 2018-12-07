@@ -26,11 +26,11 @@ pub struct Breadcrumb {
     pub level: Annotated<Level>,
 
     /// Human readable message for the breadcrumb.
-    #[metastructure(pii_kind = "freeform", max_chars = "message")]
+    #[metastructure(pii = "true", max_chars = "message")]
     pub message: Annotated<String>,
 
     /// Custom user-defined data of this breadcrumb.
-    #[metastructure(pii_kind = "databag", bag_size = "small")]
+    #[metastructure(pii = "true", bag_size = "small")]
     pub data: Annotated<Object<Value>>,
 
     /// Identifier of the event this breadcrumb belongs to.
