@@ -140,10 +140,17 @@ impl<'a> StoreNormalizeProcessor<'a> {
             }
         });
 
-        if event.server_name.value_mut().is_some() {
+        if event.server_name.value().is_some() {
             tags.push(Annotated::new(TagEntry(
                 Annotated::new("server_name".to_string()),
                 std::mem::replace(&mut event.server_name, Annotated::empty()),
+            )));
+        }
+
+        if event.site.value().is_some() {
+            tags.push(Annotated::new(TagEntry(
+                Annotated::new("site".to_string()),
+                std::mem::replace(&mut event.site, Annotated::empty()),
             )));
         }
     }
@@ -612,8 +619,40 @@ fn test_environment_tag_is_moved() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
     process_value(&mut event, &mut processor, Default::default());
 
+    let event = event.0.unwrap();
+
+    assert_eq_dbg!(event.environment.0, Some("despacito".to_string()));
+
+    assert_eq_dbg!(event.tags.0, Some(Tags(vec![])));
+}
+
+#[test]
+fn test_top_level_keys_moved_into_tags() {
+    let mut event = Annotated::new(Event {
+        server_name: Annotated::new("foo".to_string()),
+        site: Annotated::new("foo".to_string()),
+        ..Default::default()
+    });
+
+    let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
+    process_value(&mut event, &mut processor, Default::default());
+
+    let event = event.0.unwrap();
+
+    assert_eq_dbg!(event.site.0, None);
+    assert_eq_dbg!(event.server_name.0, None);
+
     assert_eq_dbg!(
-        event.0.unwrap().environment.0,
-        Some("despacito".to_string())
+        event.tags.0,
+        Some(Tags(vec![
+            Annotated::new(TagEntry(
+                Annotated::new("server_name".to_string()),
+                Annotated::new("foo".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("site".to_string()),
+                Annotated::new("foo".to_string()),
+            ))
+        ]))
     );
 }

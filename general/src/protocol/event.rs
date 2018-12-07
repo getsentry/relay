@@ -207,7 +207,7 @@ pub struct Event {
     #[metastructure(max_chars = "enumlike", match_regex = r"^[^\r\n\x0C/]+$")]
     pub environment: Annotated<String>,
 
-    /// Deprecated in favor of tags
+    /// Deprecated in favor of tags.
     #[metastructure(max_chars = "symbol")]
     pub site: Annotated<String>,
 
