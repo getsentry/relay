@@ -3,13 +3,16 @@ use std::fmt;
 use crate::protocol::Geo;
 use crate::types::Annotated;
 
+/// A geo ip lookup helper based on maxmind db files.
 pub struct GeoIpLookup(maxminddb::OwnedReader<'static>);
 
 impl GeoIpLookup {
+    /// Opens a maxminddb file by path.
     pub fn open(path: &str) -> Result<Self, maxminddb::MaxMindDBError> {
         Ok(GeoIpLookup(maxminddb::Reader::open(path)?))
     }
 
+    /// Looks up an IP address.
     pub fn lookup(&self, ip_address: &str) -> Result<Option<Geo>, maxminddb::MaxMindDBError> {
         // XXX: Why do we parse the IP again after deserializing?
         let ip_address = match ip_address.parse() {

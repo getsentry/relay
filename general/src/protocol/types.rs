@@ -93,9 +93,11 @@ impl<T: FromValue> FromValue for Values<T> {
     }
 }
 
+/// A trait to abstract over pairs.
 pub trait AsPair {
     type Value: ProcessValue;
 
+    /// Extracts the mutable key and value pair from the object.
     fn as_pair(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>);
 }
 

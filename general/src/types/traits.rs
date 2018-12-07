@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use crate::types::{Annotated, MetaMap, MetaTree, Value};
 
+/// Helper enum to indicate if serilization should be skipped.
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum SkipSerialization {
     /// Skip serialization of `null` values
