@@ -155,6 +155,13 @@ matrix:
       language: generic
       osx_image: xcode7.3
       env: SUITE=wheel
+
+      addons:
+        homebrew:
+          packages:
+            - python@3
+          update: true
+
       after_success:
         - npm install -g @zeus-ci/cli
         - zeus upload -t "application/zip+wheel" py/dist/*
