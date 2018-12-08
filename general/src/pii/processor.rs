@@ -6,6 +6,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
+use smallvec::SmallVec;
 
 use crate::pii::config::{RuleRef, SelectorRef};
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType, SelectorType};
@@ -126,15 +127,46 @@ impl<'a> PiiProcessor<'a> {
         self.config
     }
 
-    /// Get the rules to apply for a list.
-    fn get_rules(&self, kind: PiiKind, state: &ProcessingState) -> Vec<RuleRef<'a>> {
-        let mut all_rules = Vec::new();
-        for (selector, rules) in &self.applications {
-            if selector_applies(selector, kind, state) {
-                all_rules.extend(rules);
-            }
+    /// Iterate over all matching rules.
+    fn iter_rules<'b>(
+        &'a self,
+        kind: PiiKind,
+        state: &'b ProcessingState<'b>,
+    ) -> RuleIterator<'a, 'b> {
+        RuleIterator {
+            kind,
+            state,
+            application_iter: self.applications.iter(),
+            pending_refs: None,
         }
-        all_rules
+    }
+}
+
+struct RuleIterator<'a, 'b> {
+    kind: PiiKind,
+    state: &'b ProcessingState<'b>,
+    application_iter: std::collections::btree_map::Iter<'a, SelectorRef<'a>, BTreeSet<RuleRef<'a>>>,
+    pending_refs: Option<std::collections::btree_set::Iter<'a, RuleRef<'a>>>,
+}
+
+impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
+    type Item = RuleRef<'a>;
+
+    fn next(&mut self) -> Option<RuleRef<'a>> {
+        'outer: loop {
+            if let Some(&rv) = self.pending_refs.as_mut().and_then(|x| x.next()) {
+                return Some(rv);
+            }
+
+            while let Some((selector, rules)) = self.application_iter.next() {
+                if selector_applies(selector, self.kind, self.state) {
+                    self.pending_refs = Some(rules.iter());
+                    continue 'outer;
+                }
+            }
+
+            return None;
+        }
     }
 }
 
@@ -145,10 +177,10 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: ProcessingState<'_>,
     ) -> ValueAction {
-        let rules = self.get_rules(PiiKind::Text, &state);
-        if !rules.is_empty() {
+        let mut rules = self.iter_rules(PiiKind::Text, &state).peekable();
+        if rules.peek().is_some() {
             process_chunked_value(string, meta, |chunks| {
-                rules.into_iter().fold(chunks, apply_rule_to_chunks)
+                rules.fold(chunks, apply_rule_to_chunks)
             });
         }
         ValueAction::Keep
@@ -160,8 +192,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         _meta: &mut Meta,
         state: ProcessingState,
     ) -> ValueAction {
-        let rules = self.get_rules(PiiKind::Container, &state);
-        if !rules.is_empty() {
+        let mut rules = self.iter_rules(PiiKind::Container, &state).peekable();
+        if rules.peek().is_some() {
+            let rules: SmallVec<[RuleRef; 16]> = rules.collect();
             for (key, annotated) in object.iter_mut() {
                 for rule in &rules {
                     annotated.apply(|value, meta| {
@@ -181,8 +214,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         _meta: &mut Meta,
         state: ProcessingState,
     ) -> ValueAction {
-        let rules = self.get_rules(PiiKind::Container, &state);
-        if !rules.is_empty() {
+        let mut rules = self.iter_rules(PiiKind::Container, &state).peekable();
+        if rules.peek().is_some() {
+            let rules: SmallVec<[RuleRef; 16]> = rules.collect();
             for annotated in list.iter_mut() {
                 for rule in &rules {
                     if let Some(ref mut pair) = annotated.value_mut() {
