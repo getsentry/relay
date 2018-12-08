@@ -1,18 +1,15 @@
 //! PII stripping processor.
 mod builtin;
 mod config;
-mod databag;
 mod processor;
 mod redactions;
-mod rules;
-mod text;
 
-pub use self::builtin::BUILTIN_RULES;
-pub use self::config::{PiiConfig, Vars};
+pub use self::builtin::{BUILTIN_RULES, BUILTIN_SELECTORS};
+pub use self::config::{
+    AliasRule, AliasSelector, KindSelector, MultipleRule, MultipleSelector, PathSelector, Pattern,
+    PatternRule, PiiConfig, RedactPairRule, RuleSpec, RuleType, SelectorType, Vars,
+};
 pub use self::processor::PiiProcessor;
 pub use self::redactions::{
     HashAlgorithm, HashRedaction, MaskRedaction, Redaction, ReplaceRedaction,
-};
-pub use self::rules::{
-    AliasRule, MultipleRule, Pattern, PatternRule, RedactPairRule, Rule, RuleType,
 };

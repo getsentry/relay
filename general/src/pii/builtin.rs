@@ -2,10 +2,27 @@ use std::collections::BTreeMap;
 
 use lazy_static::lazy_static;
 
-use crate::pii::redactions::{
-    HashAlgorithm, HashRedaction, MaskRedaction, Redaction, ReplaceRedaction,
+use crate::pii::{
+    AliasRule, AliasSelector, HashAlgorithm, HashRedaction, KindSelector, MaskRedaction,
+    RedactPairRule, Redaction, ReplaceRedaction, RuleSpec, RuleType, SelectorType,
 };
-use crate::pii::rules::{AliasRule, RedactPairRule, RuleSpec, RuleType};
+use crate::processor::PiiKind;
+
+pub static BUILTIN_SELECTORS: &[&'static str] = &["text", "container"];
+
+lazy_static! {
+    #[rustfmt::skip]
+    pub(crate) static ref BUILTIN_SELECTORS_MAP: BTreeMap<&'static str, SelectorType> = {
+        let mut map = BTreeMap::new();
+        map.insert("text", SelectorType::Kind(KindSelector { kind: PiiKind::Text }));
+        map.insert("container", SelectorType::Kind(KindSelector { kind: PiiKind::Container }));
+
+        // These are legacy aliases for compatibility
+        map.insert("freeform", SelectorType::Alias(AliasSelector { selector: "text".to_string() }));
+        map.insert("databag", SelectorType::Alias(AliasSelector { selector: "container".to_string() }));
+        map
+    };
+}
 
 macro_rules! declare_builtin_rules {
     ($($rule_id:expr => $spec:expr;)*) => {
@@ -31,7 +48,7 @@ macro_rules! rule_alias {
         RuleSpec {
             ty: RuleType::Alias(AliasRule {
                 rule: ($target).into(),
-                hide_rule: false,
+                hide_inner: false,
             }),
             redaction: Redaction::Default,
         }
@@ -190,7 +207,7 @@ declare_builtin_rules! {
 mod tests {
     use crate::pii::config::PiiConfig;
     use crate::pii::processor::PiiProcessor;
-    use crate::processor::{process_value, PiiKind, ProcessingState};
+    use crate::processor::{process_value, ProcessingState};
     use crate::types::{Annotated, Remark, RemarkType};
     use std::collections::BTreeMap;
 
@@ -200,16 +217,17 @@ mod tests {
         value: Annotated<String>,
     }
 
-    macro_rules! assert_freeform_rule {
+    macro_rules! assert_text_rule {
         (
             rule = $rule:expr; input = $input:expr; output = $output:expr; remarks = $remarks:expr;
         ) => {{
             let config = PiiConfig {
                 rules: Default::default(),
+                selectors: Default::default(),
                 vars: Default::default(),
                 applications: {
                     let mut map = BTreeMap::new();
-                    map.insert(PiiKind::Text, vec![$rule.to_string()]);
+                    map.insert("text".to_string(), vec![$rule.to_string()]);
                     map
                 },
             };
@@ -231,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_anything() {
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@anything";
             input = "before 127.0.0.1 after";
             output = "[redacted]";
@@ -239,7 +257,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@anything:replace", (0, 10)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@anything:replace";
             input = "before 127.0.0.1 after";
             output = "[redacted]";
@@ -247,7 +265,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@anything:replace", (0, 10)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@anything:hash";
             input = "before 127.0.0.1 after";
             output = "3D8FF1CECA9B899D532AA6679E952801DF9E5C74";
@@ -259,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_ipv4() {
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@ip";
             input = "before 127.0.0.1 after";
             output = "before [ip] after";
@@ -267,7 +285,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@ip:replace", (7, 11)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@ip:replace";
             input = "before 127.0.0.1 after";
             output = "before [ip] after";
@@ -275,7 +293,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@ip:replace", (7, 11)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@ip:hash";
             input = "before 127.0.0.1 after";
             output = "before AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741 after";
@@ -287,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_ipv6() {
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@ip";
             input = "before ::1 after";
             output = "before [ip] after";
@@ -295,7 +313,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@ip:replace", (7, 11)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@ip";
             input = "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]";
             output = "[[ip]]";
@@ -303,7 +321,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@ip:replace", (1, 5)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@ip:hash";
             input = "before 2001:0db8:85a3:0000:0000:8a2e:0370:7334 after";
             output = "before 8C3DC9BEED9ADE493670547E24E4E45EDE69FF03 after";
@@ -311,7 +329,7 @@ mod tests {
                 Remark::with_range(RemarkType::Pseudonymized, "@ip:hash", (7, 47)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@ip";
             input = "foo::1";
             output = "foo::1";
@@ -321,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_imei() {
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@imei";
             input = "before 356938035643809 after";
             output = "before [imei] after";
@@ -329,7 +347,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@imei:replace", (7, 13)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@imei:replace";
             input = "before 356938035643809 after";
             output = "before [imei] after";
@@ -337,7 +355,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@imei:replace", (7, 13)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@imei:hash";
             input = "before 356938035643809 after";
             output = "before 3888108AA99417402969D0B47A2CA4ECD2A1AAD3 after";
@@ -349,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_mac() {
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@mac";
             input = "ether 4a:00:04:10:9b:50";
             output = "ether 4a:00:04:**:**:**";
@@ -357,7 +375,7 @@ mod tests {
                 Remark::with_range(RemarkType::Masked, "@mac:mask", (6, 23)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@mac:mask";
             input = "ether 4a:00:04:10:9b:50";
             output = "ether 4a:00:04:**:**:**";
@@ -365,7 +383,7 @@ mod tests {
                 Remark::with_range(RemarkType::Masked, "@mac:mask", (6, 23)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@mac:replace";
             input = "ether 4a:00:04:10:9b:50";
             output = "ether [mac]";
@@ -373,7 +391,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@mac:replace", (6, 11)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@mac:hash";
             input = "ether 4a:00:04:10:9b:50";
             output = "ether 6220F3EE59BF56B32C98323D7DE43286AAF1F8F1";
@@ -385,7 +403,7 @@ mod tests {
 
     #[test]
     fn test_email() {
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@email";
             input = "John Appleseed <john@appleseed.com>";
             output = "John Appleseed <[email]>";
@@ -393,7 +411,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@email:replace", (16, 23)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@email:replace";
             input = "John Appleseed <john@appleseed.com>";
             output = "John Appleseed <[email]>";
@@ -401,7 +419,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@email:replace", (16, 23)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@email:mask";
             input = "John Appleseed <john@appleseed.com>";
             output = "John Appleseed <****@*********.***>";
@@ -409,7 +427,7 @@ mod tests {
                 Remark::with_range(RemarkType::Masked, "@email:mask", (16, 34)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@email:hash";
             input = "John Appleseed <john@appleseed.com>";
             output = "John Appleseed <33835528AC0FFF1B46D167C35FEAAA6F08FD3F46>";
@@ -421,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_creditcard() {
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@creditcard";
             input = "John Appleseed 1234-1234-1234-1234!";
             output = "John Appleseed ****-****-****-1234!";
@@ -429,7 +447,7 @@ mod tests {
                 Remark::with_range(RemarkType::Masked, "@creditcard:mask", (15, 34)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@creditcard:mask";
             input = "John Appleseed 1234-1234-1234-1234!";
             output = "John Appleseed ****-****-****-1234!";
@@ -437,7 +455,7 @@ mod tests {
                 Remark::with_range(RemarkType::Masked, "@creditcard:mask", (15, 34)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@creditcard:replace";
             input = "John Appleseed 1234-1234-1234-1234!";
             output = "John Appleseed [creditcard]!";
@@ -445,7 +463,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@creditcard:replace", (15, 27)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@creditcard:hash";
             input = "John Appleseed 1234-1234-1234-1234!";
             output = "John Appleseed 97227DBC2C4F028628CE96E0A3777F97C07BBC84!";
@@ -457,7 +475,7 @@ mod tests {
 
     #[test]
     fn test_userpath() {
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@userpath";
             input = "C:\\Users\\mitsuhiko\\Desktop";
             output = "C:\\Users\\[user]\\Desktop";
@@ -465,7 +483,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@userpath:replace", (9, 15)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@userpath";
             input = "File in /Users/mitsuhiko/Development/sentry-stripping";
             output = "File in /Users/[user]/Development/sentry-stripping";
@@ -473,7 +491,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@userpath:replace", (15, 21)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@userpath:replace";
             input = "C:\\Windows\\Profiles\\Armin\\Temp";
             output = "C:\\Windows\\Profiles\\[user]\\Temp";
@@ -481,7 +499,7 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@userpath:replace", (20, 26)),
             ];
         );
-        assert_freeform_rule!(
+        assert_text_rule!(
             rule = "@userpath:hash";
             input = "File in /Users/mitsuhiko/Development/sentry-stripping";
             output = "File in /Users/A8791A1A8D11583E0200CC1B9AB971B4D78B8A69/Development/sentry-stripping";
