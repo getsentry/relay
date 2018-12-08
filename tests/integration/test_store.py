@@ -60,13 +60,13 @@ def test_event_timeout(mini_sentry, relay):
     relay.send_event(42, {"message": "correct"})
 
     assert mini_sentry.captured_events.get(timeout=1)["logentry"] == {
-        "formatted": "correct"}
-    pytest.raises(
-        queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+        "formatted": "correct"
+    }
+    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
 
 def test_rate_limit(mini_sentry, relay):
-    from time import sleep, time
+    from time import sleep
 
     store_event_original = mini_sentry.app.view_functions["store_event"]
 
@@ -81,7 +81,7 @@ def test_rate_limit(mini_sentry, relay):
             store_event_original()
         else:
             rate_limit_sent = True
-            return '', 429, {"retry-after": "2"}
+            return "", 429, {"retry-after": "2"}
 
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
@@ -99,4 +99,5 @@ def test_rate_limit(mini_sentry, relay):
     relay.send_event(42, {"message": "correct"})
 
     assert mini_sentry.captured_events.get(timeout=1)["logentry"] == {
-        "formatted": "correct"}
+        "formatted": "correct"
+    }
