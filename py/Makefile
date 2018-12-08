@@ -7,7 +7,7 @@ install: venv
 .PHONY: install
 
 test: install
-	pip install -U pytest
+	../venv/bin/pip install -U pytest
 	@../venv/bin/pytest tests
 .PHONY: test
 
