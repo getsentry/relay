@@ -111,6 +111,8 @@ pub enum RuleType {
     Creditcard,
     /// Sanitizes a path from user data
     Userpath,
+    /// A PEM encoded key
+    Pemkey,
     /// When a regex matches a key, a value is removed
     RedactPair(RedactPairRule),
     /// Applies multiple rules.

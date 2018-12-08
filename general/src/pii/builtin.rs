@@ -176,6 +176,22 @@ declare_builtin_rules! {
         }),
     };
 
+    // pem rules
+    "@pemkey" => rule_alias!("@pemkey:replace");
+    "@pemkey:replace" => RuleSpec {
+        ty: RuleType::Pemkey,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[pemkey]".into(),
+        }),
+    };
+    "@pemkey:hash" => RuleSpec {
+        ty: RuleType::Pemkey,
+        redaction: Redaction::Hash(HashRedaction {
+            algorithm: HashAlgorithm::HmacSha1,
+            key: None,
+        }),
+    };
+
     // user path rules
     "@userpath" => rule_alias!("@userpath:replace");
     "@userpath:replace" => RuleSpec {
@@ -469,6 +485,50 @@ mod tests {
             output = "John Appleseed 97227DBC2C4F028628CE96E0A3777F97C07BBC84!";
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "@creditcard:hash", (15, 55)),
+            ];
+        );
+    }
+
+    #[test]
+    fn test_pemkey() {
+        assert_text_rule!(
+            rule = "@pemkey";
+            input = "This is a comment I left on my key
+
+            -----BEGIN EC PRIVATE KEY-----
+MIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL
+fojr3jkJIxFS07AoLQpsawOFZipxSQHieaAHBgUrgQQAI6GBiQOBhgAEAdaBHsBo
+KBuPVQL2F6z57Xb034TRlpaarne/XGWaCsohtl3YYcFll3A7rV+wHudcKFSvrgjp
+soH5cUhpnhOL9ujuAM7Ldk1G+11Mf7EZ5sjrLe81fSB8S16D2vjtxkf/+mmwwhlM
+HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
+-----END EC PRIVATE KEY-----";
+            output = "This is a comment I left on my key
+
+            -----BEGIN EC PRIVATE KEY-----
+[pemkey]
+-----END EC PRIVATE KEY-----";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@pemkey", (91, 99)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@pemkey:hash";
+            input = "This is a comment I left on my key
+
+            -----BEGIN EC PRIVATE KEY-----
+MIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL
+fojr3jkJIxFS07AoLQpsawOFZipxSQHieaAHBgUrgQQAI6GBiQOBhgAEAdaBHsBo
+KBuPVQL2F6z57Xb034TRlpaarne/XGWaCsohtl3YYcFll3A7rV+wHudcKFSvrgjp
+soH5cUhpnhOL9ujuAM7Ldk1G+11Mf7EZ5sjrLe81fSB8S16D2vjtxkf/+mmwwhlM
+HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
+-----END EC PRIVATE KEY-----";
+            output = "This is a comment I left on my key
+
+            -----BEGIN EC PRIVATE KEY-----
+291134FEC77C62B11E2DC6D89910BB43157294BC
+-----END EC PRIVATE KEY-----";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "@pemkey:hash", (91, 131)),
             ];
         );
     }
