@@ -615,7 +615,7 @@ fn test_basic_stripping() {
         "": {
           "rem": [
             [
-              "@ip:replace",
+              "@ip",
               "s",
               11,
               15
@@ -656,7 +656,7 @@ fn test_basic_stripping() {
             "": {
               "rem": [
                 [
-                  "@ip:replace",
+                  "@ip",
                   "s",
                   0,
                   4
@@ -674,7 +674,7 @@ fn test_basic_stripping() {
           "": {
             "rem": [
               [
-                "@ip:replace",
+                "@ip",
                 "s",
                 0,
                 4

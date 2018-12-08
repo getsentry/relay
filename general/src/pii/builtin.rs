@@ -48,7 +48,7 @@ macro_rules! rule_alias {
         RuleSpec {
             ty: RuleType::Alias(AliasRule {
                 rule: ($target).into(),
-                hide_inner: false,
+                hide_inner: true,
             }),
             redaction: Redaction::Default,
         }
@@ -254,7 +254,7 @@ mod tests {
             input = "before 127.0.0.1 after";
             output = "[redacted]";
             remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@anything:replace", (0, 10)),
+                Remark::with_range(RemarkType::Substituted, "@anything", (0, 10)),
             ];
         );
         assert_text_rule!(
@@ -282,7 +282,7 @@ mod tests {
             input = "before 127.0.0.1 after";
             output = "before [ip] after";
             remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@ip:replace", (7, 11)),
+                Remark::with_range(RemarkType::Substituted, "@ip", (7, 11)),
             ];
         );
         assert_text_rule!(
@@ -310,11 +310,11 @@ mod tests {
             input = "before ::1 after";
             output = "before [ip] after";
             remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@ip:replace", (7, 11)),
+                Remark::with_range(RemarkType::Substituted, "@ip", (7, 11)),
             ];
         );
         assert_text_rule!(
-            rule = "@ip";
+            rule = "@ip:replace";
             input = "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]";
             output = "[[ip]]";
             remarks = vec![
@@ -344,7 +344,7 @@ mod tests {
             input = "before 356938035643809 after";
             output = "before [imei] after";
             remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@imei:replace", (7, 13)),
+                Remark::with_range(RemarkType::Substituted, "@imei", (7, 13)),
             ];
         );
         assert_text_rule!(
@@ -372,7 +372,7 @@ mod tests {
             input = "ether 4a:00:04:10:9b:50";
             output = "ether 4a:00:04:**:**:**";
             remarks = vec![
-                Remark::with_range(RemarkType::Masked, "@mac:mask", (6, 23)),
+                Remark::with_range(RemarkType::Masked, "@mac", (6, 23)),
             ];
         );
         assert_text_rule!(
@@ -408,7 +408,7 @@ mod tests {
             input = "John Appleseed <john@appleseed.com>";
             output = "John Appleseed <[email]>";
             remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@email:replace", (16, 23)),
+                Remark::with_range(RemarkType::Substituted, "@email", (16, 23)),
             ];
         );
         assert_text_rule!(
@@ -444,7 +444,7 @@ mod tests {
             input = "John Appleseed 1234-1234-1234-1234!";
             output = "John Appleseed ****-****-****-1234!";
             remarks = vec![
-                Remark::with_range(RemarkType::Masked, "@creditcard:mask", (15, 34)),
+                Remark::with_range(RemarkType::Masked, "@creditcard", (15, 34)),
             ];
         );
         assert_text_rule!(
@@ -480,11 +480,11 @@ mod tests {
             input = "C:\\Users\\mitsuhiko\\Desktop";
             output = "C:\\Users\\[user]\\Desktop";
             remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@userpath:replace", (9, 15)),
+                Remark::with_range(RemarkType::Substituted, "@userpath", (9, 15)),
             ];
         );
         assert_text_rule!(
-            rule = "@userpath";
+            rule = "@userpath:replace";
             input = "File in /Users/mitsuhiko/Development/sentry-stripping";
             output = "File in /Users/[user]/Development/sentry-stripping";
             remarks = vec![
