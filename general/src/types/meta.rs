@@ -400,7 +400,7 @@ impl Serialize for Error {
 }
 
 /// Meta information for a data field in the event payload.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct MetaInner {
     /// Remarks detailling modifications of this field.
     #[serde(default, skip_serializing_if = "SmallVec::is_empty", rename = "rem")]
@@ -426,8 +426,19 @@ impl MetaInner {
 }
 
 /// Meta information for a data field in the event payload.
-#[derive(Clone, Debug, Default, Serialize)]
+#[derive(Clone, Default, Serialize)]
 pub struct Meta(Option<Box<MetaInner>>);
+
+impl fmt::Debug for Meta {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Meta")
+            .field("remarks", &self.remarks())
+            .field("errors", &self.errors())
+            .field("original_length", &self.original_length())
+            .field("original_value", &self.original_value())
+            .finish()
+    }
+}
 
 impl<'de> Deserialize<'de> for Meta {
     #[inline]
@@ -475,13 +486,16 @@ impl Meta {
         }
     }
 
-    /// Iterates all remarks on this field.
-    pub fn iter_remarks(&self) -> impl Iterator<Item = &Remark> {
+    fn remarks(&self) -> &[Remark] {
         match self.0 {
             Some(ref inner) => &inner.remarks[..],
             None => &[][..],
         }
-        .into_iter()
+    }
+
+    /// Iterates all remarks on this field.
+    pub fn iter_remarks(&self) -> impl Iterator<Item = &Remark> {
+        self.remarks().into_iter()
     }
 
     /// Indicates whether this field has remarks.
@@ -501,13 +515,16 @@ impl Meta {
         self.upsert().remarks.push(remark);
     }
 
-    /// Iterates errors on this field.
-    pub fn iter_errors(&self) -> impl Iterator<Item = &Error> {
+    fn errors(&self) -> &[Error] {
         match self.0 {
             Some(ref inner) => &inner.errors[..],
             None => &[][..],
         }
-        .into_iter()
+    }
+
+    /// Iterates errors on this field.
+    pub fn iter_errors(&self) -> impl Iterator<Item = &Error> {
+        self.errors().into_iter()
     }
 
     /// Mutable reference to errors of this field.

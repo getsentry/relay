@@ -307,7 +307,9 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
         process_value(&mut event, &mut processor, ProcessingState::default());
     };
 
-    if matches.is_present("pretty") {
+    if matches.is_present("debug") {
+        println!("{:#?}", event);
+    } else if matches.is_present("pretty") {
         println!("{}", event.to_json_pretty()?);
     } else {
         println!("{}", event.to_json()?);
