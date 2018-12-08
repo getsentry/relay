@@ -318,7 +318,7 @@ fn apply_rule_to_container<T: ProcessValue>(
     match rule.ty {
         RuleType::RedactPair(ref redact_pair) => {
             if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
-                meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.to_string()));
+                meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
                 ValueAction::DeleteHard
             } else {
                 ValueAction::Keep
