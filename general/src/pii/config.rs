@@ -115,6 +115,8 @@ pub enum RuleType {
     Pemkey,
     /// Auth info from URLs
     UrlAuth,
+    /// US SSN.
+    UsSsn,
     /// When a regex matches a key, a value is removed
     RedactPair(RedactPairRule),
     /// Applies multiple rules.

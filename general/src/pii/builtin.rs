@@ -208,6 +208,30 @@ declare_builtin_rules! {
         }),
     };
 
+    // US SSN
+    "@usssn" => rule_alias!("@usssn:mask");
+    "@usssn:replace" => RuleSpec {
+        ty: RuleType::UsSsn,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[us-ssn]".into(),
+        }),
+    };
+    "@usssn:mask" => RuleSpec {
+        ty: RuleType::UsSsn,
+        redaction: Redaction::Mask(MaskRedaction {
+            mask_char: '*',
+            chars_to_ignore: "-".into(),
+            range: (None, None),
+        }),
+    };
+    "@usssn:hash" => RuleSpec {
+        ty: RuleType::UsSsn,
+        redaction: Redaction::Hash(HashRedaction {
+            algorithm: HashAlgorithm::HmacSha1,
+            key: None,
+        }),
+    };
+
     // user path rules
     "@userpath" => rule_alias!("@userpath:replace");
     "@userpath:replace" => RuleSpec {
@@ -573,6 +597,42 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
             output = "https://2F82AB8A5E3FAD655B5F81E3BEA30D2A14FEF2AC@example.com/";
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "@urlauth:hash", (8, 48)),
+            ];
+        );
+    }
+
+    #[test]
+    fn test_usssn() {
+        assert_text_rule!(
+            rule = "@usssn";
+            input = "Hi I'm Hilda and my SSN is 078-05-1120";
+            output = "Hi I'm Hilda and my SSN is ***-**-****";
+            remarks = vec![
+                Remark::with_range(RemarkType::Masked, "@usssn", (27, 38)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@usssn:mask";
+            input = "Hi I'm Hilda and my SSN is 078-05-1120";
+            output = "Hi I'm Hilda and my SSN is ***-**-****";
+            remarks = vec![
+                Remark::with_range(RemarkType::Masked, "@usssn:mask", (27, 38)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@usssn:replace";
+            input = "Hi I'm Hilda and my SSN is 078-05-1120";
+            output = "Hi I'm Hilda and my SSN is [us-ssn]";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@usssn:replace", (27, 35)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@usssn:hash";
+            input = "Hi I'm Hilda and my SSN is 078-05-1120";
+            output = "Hi I'm Hilda and my SSN is 01328BB9C55B35F354FBC7B60CADAC789DC2035C";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "@usssn:hash", (27, 67)),
             ];
         );
     }
