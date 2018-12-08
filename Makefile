@@ -59,7 +59,7 @@ venv/bin/python: Makefile
 integration-test: venv/bin/python
 	venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist
 	cargo build
-	@tests/venv/bin/pytest tests -n12 --reruns 5
+	@venv/bin/pytest tests -n12 --reruns 5
 .PHONY: integration-test
 
 python-format: venv/bin/python
