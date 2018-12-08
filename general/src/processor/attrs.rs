@@ -174,16 +174,20 @@ pub struct ProcessingState<'a> {
     parent: Option<&'a ProcessingState<'a>>,
     path: Option<PathItem<'a>>,
     attrs: Option<Cow<'a, FieldAttrs>>,
+    depth: usize,
 }
+
+const ROOT_STATE: ProcessingState = ProcessingState {
+    parent: None,
+    path: None,
+    attrs: None,
+    depth: 0,
+};
 
 impl<'a> ProcessingState<'a> {
     /// Returns the root processing state.
     pub fn root() -> Self {
-        ProcessingState {
-            parent: None,
-            path: None,
-            attrs: None,
-        }
+        ROOT_STATE.clone()
     }
 
     /// Derives a processing state by entering a static key.
@@ -196,6 +200,7 @@ impl<'a> ProcessingState<'a> {
             parent: Some(self),
             path: Some(PathItem::StaticKey(key)),
             attrs,
+            depth: self.depth + 1,
         }
     }
 
@@ -205,6 +210,7 @@ impl<'a> ProcessingState<'a> {
             parent: Some(self),
             path: Some(PathItem::StaticKey(key)),
             attrs,
+            depth: self.depth + 1,
         }
     }
 
@@ -214,6 +220,7 @@ impl<'a> ProcessingState<'a> {
             parent: Some(self),
             path: Some(PathItem::Index(idx)),
             attrs,
+            depth: self.depth + 1,
         }
     }
 
@@ -252,6 +259,7 @@ pub struct Path<'a>(&'a ProcessingState<'a>);
 
 impl<'a> Path<'a> {
     /// Returns the current key if there is one
+    #[inline]
     pub fn key(&self) -> Option<&str> {
         self.0.path.as_ref().and_then(|value| match *value {
             PathItem::StaticKey(s) => Some(s),
@@ -261,6 +269,7 @@ impl<'a> Path<'a> {
     }
 
     /// Returns the current index if there is one
+    #[inline]
     pub fn index(&self) -> Option<usize> {
         self.0.path.as_ref().and_then(|value| match *value {
             PathItem::StaticKey(_) => None,
@@ -271,7 +280,7 @@ impl<'a> Path<'a> {
 
     /// Returns a path iterator.
     pub fn iter(&'a self) -> impl Iterator<Item = &'a PathItem<'a>> {
-        let mut items = vec![];
+        let mut items = Vec::with_capacity(self.0.depth);
         let mut ptr = Some(self.0);
         while let Some(p) = ptr {
             if let Some(ref path) = p.path {
@@ -281,6 +290,49 @@ impl<'a> Path<'a> {
         }
         items.reverse();
         items.into_iter()
+    }
+
+    /// Checks if a path starts with a given pattern.
+    pub fn starts_with_pattern(&self, pattern: &str) -> bool {
+        let mut buf = [""; 255];
+        let pattern_len = pattern
+            .split('.')
+            .zip(buf.iter_mut())
+            .map(|(src, dst)| *dst = src)
+            .count();
+
+        if pattern_len >= buf.len() {
+            return false;
+        }
+
+        let mut ptr = Some(self.0);
+        while let Some(p) = ptr {
+            if p.depth == pattern_len {
+                break;
+            }
+            ptr = p.parent;
+        }
+
+        if ptr.is_none() {
+            return false;
+        }
+
+        let mut idx = 0;
+        while let Some(p) = ptr {
+            if let Some(ref key) = p.path().key() {
+                if key != &buf[pattern_len - idx - 1] {
+                    return false;
+                }
+            } else if let Some(index) = p.path().index() {
+                if buf[pattern_len - idx - 1].parse().ok() != Some(index) {
+                    return false;
+                }
+            }
+            idx += 1;
+            ptr = p.parent;
+        }
+
+        true
     }
 }
 
@@ -295,4 +347,20 @@ impl<'a> fmt::Display for Path<'a> {
         }
         Ok(())
     }
+}
+
+#[test]
+fn test_path_matching() {
+    let state = ProcessingState::root();
+    let event_state = state.enter_static("event", None);
+    let user_state = event_state.enter_static("user", None);
+    let extra_state = user_state.enter_static("extra", None);
+    let foo_state = extra_state.enter_static("foo", None);
+    let zero_state = extra_state.enter_index(0, None);
+
+    assert!(foo_state.path().starts_with_pattern("event.user.extra"));
+    assert!(extra_state.path().starts_with_pattern("event.user.extra"));
+    assert!(!user_state.path().starts_with_pattern("event.user.extra"));
+    assert!(zero_state.path().starts_with_pattern("event.user.extra.0"));
+    assert!(!zero_state.path().starts_with_pattern("event.user.extra.1"));
 }

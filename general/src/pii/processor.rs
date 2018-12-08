@@ -269,10 +269,9 @@ fn collect_applications<'a, 'b>(
 fn selector_applies(ty: &SelectorType, kind: PiiKind, state: &ProcessingState) -> bool {
     match ty {
         SelectorType::Kind(selector) => selector.kind == kind,
-        SelectorType::Path(selector) => state.path().to_string().starts_with(&selector.path),
+        SelectorType::Path(selector) => state.path().starts_with_pattern(&selector.path),
         // These are resolved beforehand by the PiiProcessor
-        SelectorType::Multiple(_) => false,
-        SelectorType::Alias(_) => false,
+        SelectorType::Multiple(_) | SelectorType::Alias(_) => false,
     }
 }
 
