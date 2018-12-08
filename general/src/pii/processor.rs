@@ -116,6 +116,14 @@ lazy_static! {
             )
         "#
     ).unwrap();
+    static ref URL_AUTH_REGEX: Regex = Regex::new(
+        r#"(?x)
+            \b(?:
+                (?:[a-z0-9+-]+:)?//
+                ([a-zA-Z0-9%_.-]+(?::[a-zA-Z0-9%_.-]+)?)
+            )@
+        "#
+    ).unwrap();
 }
 
 /// A processor that performs PII stripping.
@@ -352,6 +360,7 @@ fn apply_rule_to_container<T: ProcessValue>(
         | RuleType::Ip
         | RuleType::Creditcard
         | RuleType::Pemkey
+        | RuleType::UrlAuth
         | RuleType::Userpath => ValueAction::Keep,
 
         // These have been resolved by `collect_applications` and will never occur here.
@@ -380,6 +389,7 @@ fn apply_rule_to_chunks(mut chunks: Vec<Chunk>, rule: RuleRef<'_>) -> Vec<Chunk>
         }
         RuleType::Creditcard => apply_regex!(&CREDITCARD_REGEX, None),
         RuleType::Pemkey => apply_regex!(&PEM_KEY_REGEX, Some(&*GROUP_1)),
+        RuleType::UrlAuth => apply_regex!(&URL_AUTH_REGEX, Some(&*GROUP_1)),
         RuleType::Userpath => apply_regex!(&PATH_REGEX, Some(&*GROUP_1)),
         // does not apply here
         RuleType::RedactPair { .. } => {}

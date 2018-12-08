@@ -192,6 +192,22 @@ declare_builtin_rules! {
         }),
     };
 
+    // url secrets
+    "@urlauth" => rule_alias!("@urlauth:replace");
+    "@urlauth:replace" => RuleSpec {
+        ty: RuleType::UrlAuth,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[auth]".into(),
+        }),
+    };
+    "@urlauth:hash" => RuleSpec {
+        ty: RuleType::UrlAuth,
+        redaction: Redaction::Hash(HashRedaction {
+            algorithm: HashAlgorithm::HmacSha1,
+            key: None,
+        }),
+    };
+
     // user path rules
     "@userpath" => rule_alias!("@userpath:replace");
     "@userpath:replace" => RuleSpec {
@@ -508,7 +524,7 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
 [pemkey]
 -----END EC PRIVATE KEY-----";
             remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@pemkey", (91, 99)),
+                Remark::with_range(RemarkType::Substituted, "@pemkey", (79, 87)),
             ];
         );
         assert_text_rule!(
@@ -528,7 +544,35 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
 291134FEC77C62B11E2DC6D89910BB43157294BC
 -----END EC PRIVATE KEY-----";
             remarks = vec![
-                Remark::with_range(RemarkType::Pseudonymized, "@pemkey:hash", (91, 131)),
+                Remark::with_range(RemarkType::Pseudonymized, "@pemkey:hash", (79, 119)),
+            ];
+        );
+    }
+
+    #[test]
+    fn test_urlauth() {
+        assert_text_rule!(
+            rule = "@urlauth";
+            input = "https://username:password@example.com/";
+            output = "https://[auth]@example.com/";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@urlauth", (8, 14)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@urlauth:replace";
+            input = "https://username:password@example.com/";
+            output = "https://[auth]@example.com/";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@urlauth:replace", (8, 14)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@urlauth:hash";
+            input = "https://username:password@example.com/";
+            output = "https://2F82AB8A5E3FAD655B5F81E3BEA30D2A14FEF2AC@example.com/";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "@urlauth:hash", (8, 48)),
             ];
         );
     }

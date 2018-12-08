@@ -113,6 +113,8 @@ pub enum RuleType {
     Userpath,
     /// A PEM encoded key
     Pemkey,
+    /// Auth info from URLs
+    UrlAuth,
     /// When a regex matches a key, a value is removed
     RedactPair(RedactPairRule),
     /// Applies multiple rules.
