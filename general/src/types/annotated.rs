@@ -1,3 +1,5 @@
+use std::fmt;
+
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -119,8 +121,29 @@ impl From<bool> for ValueAction {
 }
 
 /// Wrapper for data fields with optional meta data.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Annotated<T>(pub Option<T>, pub Meta);
+
+impl<T: fmt::Debug> fmt::Debug for Annotated<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Annotated(Some(ref value), ref meta) => {
+                if meta.is_empty() {
+                    fmt::Debug::fmt(value, f)
+                } else {
+                    f.debug_tuple("Annotated").field(value).field(meta).finish()
+                }
+            }
+            Annotated(None, ref meta) => {
+                if meta.is_empty() {
+                    f.pad("~")
+                } else {
+                    fmt::Debug::fmt(meta, f)
+                }
+            }
+        }
+    }
+}
 
 impl<T> Annotated<T> {
     /// Creates a new annotated value without meta data.
