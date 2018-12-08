@@ -167,6 +167,12 @@ pub fn make_app() -> App<'static, 'static> {
                         .help("Pretty print the output JSON"),
                 )
                 .arg(
+                    Arg::with_name("debug")
+                        .long("debug")
+                        .conflicts_with("pretty")
+                        .help("Debug print the internal structure."),
+                )
+                .arg(
                     Arg::with_name("pii_config")
                         .long("pii-config")
                         .value_name("PATH")
