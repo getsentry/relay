@@ -51,6 +51,17 @@ lazy_static! {
             \b([[:xdigit:]]{2}[:-]){5}[[:xdigit:]]{2}\b
         "#
     ).unwrap();
+    static ref UUID_REGEX: Regex = Regex::new(
+        r#"(?ix)
+            \b
+            [a-z0-9]{8}-?
+            [a-z0-9]{4}-?
+            [a-z0-9]{4}-?
+            [a-z0-9]{4}-?
+            [a-z0-9]{12}
+            \b
+        "#
+    ).unwrap();
     static ref EMAIL_REGEX: Regex = Regex::new(
         r#"(?x)
             \b
@@ -149,7 +160,6 @@ impl<'a> PiiProcessor<'a> {
             collect_applications(config, &mut applications, id, rules);
         }
 
-        println!("{:#?}", applications);
         PiiProcessor {
             config,
             applications,
@@ -365,6 +375,7 @@ fn apply_rule_to_container<T: ProcessValue>(
         RuleType::Pattern(..)
         | RuleType::Imei
         | RuleType::Mac
+        | RuleType::Uuid
         | RuleType::Email
         | RuleType::Ip
         | RuleType::Creditcard
@@ -392,6 +403,7 @@ fn apply_rule_to_chunks(mut chunks: Vec<Chunk>, rule: RuleRef<'_>) -> Vec<Chunk>
         }
         RuleType::Imei => apply_regex!(&IMEI_REGEX, None),
         RuleType::Mac => apply_regex!(&MAC_REGEX, None),
+        RuleType::Uuid => apply_regex!(&UUID_REGEX, None),
         RuleType::Email => apply_regex!(&EMAIL_REGEX, None),
         RuleType::Ip => {
             apply_regex!(&IPV4_REGEX, None);

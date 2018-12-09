@@ -103,6 +103,8 @@ pub enum RuleType {
     Imei,
     /// Matches a mac address
     Mac,
+    /// Matches a UUID
+    Uuid,
     /// Matches an email
     Email,
     /// Matches any IP address

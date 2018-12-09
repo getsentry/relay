@@ -128,6 +128,30 @@ declare_builtin_rules! {
         }),
     };
 
+    // uuid rules
+    "@uuid" => rule_alias!("@uuid:mask");
+    "@uuid:replace" => RuleSpec {
+        ty: RuleType::Uuid,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[uuid]".into(),
+        }),
+    };
+    "@uuid:mask" => RuleSpec {
+        ty: RuleType::Uuid,
+        redaction: Redaction::Mask(MaskRedaction {
+            mask_char: '*',
+            chars_to_ignore: "-".into(),
+            range: (None, None),
+        }),
+    };
+    "@uuid:hash" => RuleSpec {
+        ty: RuleType::Uuid,
+        redaction: Redaction::Hash(HashRedaction {
+            algorithm: HashAlgorithm::HmacSha1,
+            key: None,
+        }),
+    };
+
     // email rules
     "@email" => rule_alias!("@email:replace");
     "@email:mask" => RuleSpec {
@@ -453,6 +477,42 @@ mod tests {
             output = "ether 6220F3EE59BF56B32C98323D7DE43286AAF1F8F1";
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "@mac:hash", (6, 46)),
+            ];
+        );
+    }
+
+    #[test]
+    fn test_uuid() {
+        assert_text_rule!(
+            rule = "@uuid";
+            input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
+            output = "user id ********-****-****-****-************";
+            remarks = vec![
+                Remark::with_range(RemarkType::Masked, "@uuid", (8, 44)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@uuid:mask";
+            input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
+            output = "user id ********-****-****-****-************";
+            remarks = vec![
+                Remark::with_range(RemarkType::Masked, "@uuid:mask", (8, 44)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@uuid:hash";
+            input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
+            output = "user id EBFA4DBDAA4A619F10B6DE2ABB630DE0122F5CDB";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "@uuid:hash", (8, 48)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@uuid:replace";
+            input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
+            output = "user id [uuid]";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@uuid:replace", (8, 14)),
             ];
         );
     }
