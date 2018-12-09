@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 
 use crate::pii::{
     AliasRule, AliasSelector, HashAlgorithm, HashRedaction, KindSelector, MaskRedaction,
-    RedactPairRule, Redaction, ReplaceRedaction, RuleSpec, RuleType, SelectorType,
+    MultipleRule, RedactPairRule, Redaction, ReplaceRedaction, RuleSpec, RuleType, SelectorType,
 };
 use crate::processor::PiiKind;
 
@@ -56,6 +56,23 @@ macro_rules! rule_alias {
 }
 
 declare_builtin_rules! {
+    // collections
+    "@common" => RuleSpec {
+        ty: RuleType::Multiple(MultipleRule {
+            rules: vec![
+                "@ip".into(),
+                "@email".into(),
+                "@creditcard".into(),
+                "@pemkey".into(),
+                "@urlauth".into(),
+                "@userpath".into(),
+                "@password".into(),
+            ],
+            hide_inner: false
+        }),
+        redaction: Redaction::Default
+    };
+
     // anything
     "@anything" => rule_alias!("@anything:replace");
     "@anything:replace" => RuleSpec {
