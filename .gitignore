@@ -8,4 +8,4 @@ Cargo.lock
 GeoLite2-City.mmdb
 GeoLiteCity.dat
 target
-tests/venv/
+venv/

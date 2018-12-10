@@ -26,7 +26,9 @@ def test_graceful_shutdown(mini_sentry, relay):
     relay.send_event(42)
 
     relay.shutdown(sig=signal.SIGTERM)
-    assert mini_sentry.captured_events.get(timeout=0)["logentry"] == {"formatted": "Hello, World!"}
+    assert mini_sentry.captured_events.get(timeout=0)["logentry"] == {
+        "formatted": "Hello, World!"
+    }
 
 
 def test_forced_shutdown(mini_sentry, relay):
@@ -98,8 +100,8 @@ def test_local_project_config(mini_sentry, relay):
                 "config": {
                     "allowedDomains": ["*"],
                     "trustedRelays": [],
-                    "piiConfig": {}
-                }
+                    "piiConfig": {},
+                },
             }
         )
     )
@@ -109,7 +111,9 @@ def test_local_project_config(mini_sentry, relay):
     event = mini_sentry.captured_events.get(timeout=1)
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
-    relay.config_dir.join("projects").join("42.json").write(json.dumps({"disabled": True}))
+    relay.config_dir.join("projects").join("42.json").write(
+        json.dumps({"disabled": True})
+    )
     time.sleep(5)
 
     relay.send_event(42)

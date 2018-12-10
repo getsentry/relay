@@ -1,18 +1,14 @@
-venv/bin/python: setup.py
-	rm -rf venv
-	virtualenv venv
-	venv/bin/pip install --upgrade pip
-	venv/bin/pip install pytest
-
-venv: venv/bin/python
+venv:
+	@$(MAKE) -C .. venv/bin/python
 .PHONY: venv
 
 install: venv
-	SEMAPHORE_DEBUG=1 venv/bin/pip install -v --editable .
+	SEMAPHORE_DEBUG=1 ../venv/bin/pip install -v --editable .
 .PHONY: install
 
 test: install
-	@venv/bin/pytest tests
+	../venv/bin/pip install -U pytest
+	@../venv/bin/pytest tests
 .PHONY: test
 
 manylinux:
@@ -20,11 +16,11 @@ manylinux:
 .PHONY: manylinux
 
 wheel: venv
-	@venv/bin/python setup.py bdist_wheel
+	@../venv/bin/python setup.py bdist_wheel
 .PHONY: wheel
 
 sdist: venv
-	@venv/bin/python setup.py sdist --format=zip
+	@../venv/bin/python setup.py sdist --format=zip
 .PHONY: sdist
 
 clean:

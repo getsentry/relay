@@ -1,5 +1,7 @@
 SHELL=/bin/bash
 
+export SEMAPHORE_PYTHON_VERSION := python3
+
 all: test
 .PHONY: all
 
@@ -52,27 +54,37 @@ pytest:
 	@$(MAKE) -C py test
 .PHONY: pytest
 
-tests/venv/bin/python: Makefile
-	rm -rf tests/venv
-	virtualenv -ppython3 tests/venv
-	tests/venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist
+venv/bin/python: Makefile
+	rm -rf venv
+	virtualenv -p $$SEMAPHORE_PYTHON_VERSION venv
 
-integration-test: tests/venv/bin/python
+integration-test: venv/bin/python
+	venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist
 	cargo build
-	@tests/venv/bin/pytest tests -n12 --reruns 5
+	@venv/bin/pytest tests -n12 --reruns 5
 .PHONY: integration-test
 
-format:
+python-format: venv/bin/python
+	venv/bin/pip install -U black
+	venv/bin/black .
+.PHONY: python-format
+
+python-lint: venv/bin/python
+	venv/bin/pip install -U flake8
+	venv/bin/flake8
+.PHONY: python-format
+
+format: python-format
 	@rustup component add rustfmt 2> /dev/null
 	@cargo fmt
 .PHONY: format
 
-format-check:
+format-check: python-format
 	@rustup component add rustfmt 2> /dev/null
 	@cargo fmt -- --check
 .PHONY: format-check
 
-lint:
+lint: python-lint
 	@rustup component add clippy 2> /dev/null
 	@cargo clippy --tests --all -- -D clippy::all
 .PHONY: lint

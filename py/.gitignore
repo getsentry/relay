@@ -1,5 +1,3 @@
-venv
-
 # FFI
 semaphore/_lowlevel*
 

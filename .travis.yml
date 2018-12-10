@@ -1,4 +1,5 @@
-language: rust
+language: python
+python: "3.6"
 
 cache:
   directories:
@@ -24,8 +25,12 @@ branches:
     - master
     - /^release\/[\d.]+$/
 
+before_install:
+  - curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain ${RUST_TOOLCHAIN:-stable}
+  - export PATH=~/.cargo/bin/:$PATH
+
 install: skip
-script: make $SUITE
+script: make -e $SUITE
 
 matrix:
   fast_finish: true
@@ -46,19 +51,19 @@ matrix:
 
     - name: "test: semaphore[linux]"
       os: linux
-      env: SUITE=cargotest-cov
+      env: SUITE=cargotest-cov RUST_TOOLCHAIN=nightly
       sudo: required
       addons:
         apt:
           packages:
             - libssl-dev
             - libgeoip-dev
-      rust: nightly
       install:
         - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
 
     - name: "test: semaphore[macos]"
       os: osx
+      language: generic
       env: SUITE=cargotest
       install: cargo build --all
 
@@ -76,14 +81,10 @@ matrix:
 
     - name: "integration-test: semaphore"
       os: linux
-      env: PYTHON=python3.7 SUITE=integration-test
-      language: python
-      python: "3.7"
+      env: SUITE=integration-test
       # https://github.com/travis-ci/travis-ci/issues/9831
-      dist: xenial
       sudo: true
       install:
-        - curl https://sh.rustup.rs -sSf | sh -s -- -y
         - export PATH=$PATH:$HOME/.cargo/bin
         - wget https://github.com/yyyar/gobetween/releases/download/0.6.0/gobetween_0.6.0_linux_amd64.tar.gz -O - | tar xz; mv gobetween $HOME/.cargo/bin
         - sudo add-apt-repository ppa:vbernat/haproxy-1.8 -y
@@ -121,6 +122,7 @@ matrix:
 
     - name: "release: semaphore[macos]"
       os: osx
+      language: generic
       osx_image: xcode9.2
       env: SUITE=releasebuild
       after_success:
@@ -150,8 +152,10 @@ matrix:
 
     - name: "release: libsemaphore[macos]"
       os: osx
+      language: generic
       osx_image: xcode7.3
-      env: SUITE=wheel
+      env: SUITE=wheel SEMAPHORE_PYTHON_VERSION=python
+
       after_success:
         - npm install -g @zeus-ci/cli
         - zeus upload -t "application/zip+wheel" py/dist/*

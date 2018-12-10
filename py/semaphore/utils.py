@@ -1,4 +1,3 @@
-import io
 import uuid
 import weakref
 from semaphore._lowlevel import ffi, lib
@@ -10,19 +9,17 @@ attached_refs = weakref.WeakKeyDictionary()
 
 
 class _NoDict(type):
-
     def __new__(cls, name, bases, d):
-        d.setdefault('__slots__', ())
+        d.setdefault("__slots__", ())
         return type.__new__(cls, name, bases, d)
 
 
 class RustObject(with_metaclass(_NoDict)):
-    __slots__ = ['_objptr', '_shared']
+    __slots__ = ["_objptr", "_shared"]
     __dealloc_func__ = None
 
     def __init__(self):
-        raise TypeError('Cannot instanciate %r objects' %
-                        self.__class__.__name__)
+        raise TypeError("Cannot instanciate %r objects" % self.__class__.__name__)
 
     @classmethod
     def _from_objptr(cls, ptr, shared=False):
@@ -36,7 +33,7 @@ class RustObject(with_metaclass(_NoDict)):
 
     def _get_objptr(self):
         if not self._objptr:
-            raise RuntimeError('Object is closed')
+            raise RuntimeError("Object is closed")
         return self._objptr
 
     def __del__(self):
@@ -68,8 +65,8 @@ def decode_str(s, free=False):
     """Decodes a SymbolicStr"""
     try:
         if s.len == 0:
-            return u''
-        return ffi.unpack(s.data, s.len).decode('utf-8', 'replace')
+            return u""
+        return ffi.unpack(s.data, s.len).decode("utf-8", "replace")
     finally:
         if free:
             lib.semaphore_str_free(ffi.addressof(s))
@@ -77,9 +74,9 @@ def decode_str(s, free=False):
 
 def encode_str(s):
     """Encodes a SemaphoreStr"""
-    rv = ffi.new('SemaphoreStr *')
+    rv = ffi.new("SemaphoreStr *")
     if isinstance(s, text_type):
-        s = s.encode('utf-8')
+        s = s.encode("utf-8")
     rv.data = ffi.from_buffer(s)
     rv.len = len(s)
     # we have to hold a weak reference here to ensure our string does not
@@ -88,10 +85,9 @@ def encode_str(s):
     return rv
 
 
-
 def make_buf(value):
     buf = memoryview(bytes(value))
-    rv = ffi.new('SemaphoreBuf *')
+    rv = ffi.new("SemaphoreBuf *")
     rv.data = ffi.from_buffer(buf)
     rv.len = len(buf)
     attached_refs[rv] = buf

@@ -20,7 +20,7 @@ class SentryLike(object):
             try:
                 self.get(path).raise_for_status()
                 break
-            except Exception as e:
+            except Exception:
                 time.sleep(backoff)
                 if backoff > 10:
                     raise
@@ -73,7 +73,7 @@ class SentryLike(object):
                     "rules": {},
                     "applications": {
                         "text": ["@email", "@mac", "@creditcard", "@userpath"],
-                        "container": ["@password"]
+                        "container": ["@password"],
                     },
                 },
             },

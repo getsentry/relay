@@ -9,5 +9,5 @@
     "editor.rulers": [80],
     "editor.tabSize": 2
   },
-  "python.pythonPath": "${workspaceFolder}/tests/venv/bin/python"
+  "python.pythonPath": "${workspaceFolder}/venv/bin/python"
 }
