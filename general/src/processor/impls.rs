@@ -10,7 +10,7 @@ impl ProcessValue for String {
         &mut self,
         meta: &mut Meta,
         processor: &mut P,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         P: Processor,
@@ -25,7 +25,7 @@ impl ProcessValue for bool {
         &mut self,
         meta: &mut Meta,
         processor: &mut P,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         P: Processor,
@@ -40,7 +40,7 @@ impl ProcessValue for u64 {
         &mut self,
         meta: &mut Meta,
         processor: &mut P,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         P: Processor,
@@ -55,7 +55,7 @@ impl ProcessValue for i64 {
         &mut self,
         meta: &mut Meta,
         processor: &mut P,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         P: Processor,
@@ -70,7 +70,7 @@ impl ProcessValue for f64 {
         &mut self,
         meta: &mut Meta,
         processor: &mut P,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         P: Processor,
@@ -92,7 +92,7 @@ where
         &mut self,
         meta: &mut Meta,
         processor: &mut P,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         P: Processor,
@@ -101,7 +101,7 @@ where
     }
 
     #[inline]
-    fn process_child_values<P>(&mut self, processor: &mut P, state: ProcessingState<'_>)
+    fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
     where
         P: Processor,
     {
@@ -109,7 +109,7 @@ where
             process_value(
                 element,
                 processor,
-                state.enter_index(index, state.inner_attrs()),
+                &state.enter_index(index, state.inner_attrs()),
             );
         }
     }
@@ -124,7 +124,7 @@ where
         &mut self,
         meta: &mut Meta,
         processor: &mut P,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         P: Processor,
@@ -133,12 +133,12 @@ where
     }
 
     #[inline]
-    fn process_child_values<P>(&mut self, processor: &mut P, state: ProcessingState<'_>)
+    fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
     where
         P: Processor,
     {
         for (k, v) in self.iter_mut() {
-            process_value(v, processor, state.enter_borrowed(k, state.inner_attrs()));
+            process_value(v, processor, &state.enter_borrowed(k, state.inner_attrs()));
         }
     }
 }
@@ -152,7 +152,7 @@ where
         &mut self,
         meta: &mut Meta,
         processor: &mut P,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         P: Processor,
@@ -167,7 +167,7 @@ impl ProcessValue for Value {
         &mut self,
         meta: &mut Meta,
         processor: &mut P,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         P: Processor,
@@ -190,7 +190,7 @@ macro_rules! process_tuple {
         impl< $( $name: ProcessValue ),* > ProcessValue for ( $( Annotated<$name>, )* ) {
             #[inline]
             #[allow(non_snake_case, unused_assignments)]
-            fn process_child_values<P>(&mut self, processor: &mut P, state: ProcessingState<'_>)
+            fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
             where
                 P: Processor,
             {
@@ -198,7 +198,7 @@ macro_rules! process_tuple {
                 let mut index = 0;
 
                 $(
-                    process_value($name, processor, state.enter_index(index, state.inner_attrs()));
+                    process_value($name, processor, &state.enter_index(index, state.inner_attrs()));
                     index += 1;
                 )*
             }

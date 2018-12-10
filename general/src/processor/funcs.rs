@@ -6,7 +6,7 @@ use crate::types::{Annotated, ErrorKind};
 pub fn process_value<T, P>(
     annotated: &mut Annotated<T>,
     processor: &mut P,
-    state: ProcessingState<'_>,
+    state: &ProcessingState<'_>,
 ) where
     T: ProcessValue,
     P: Processor,

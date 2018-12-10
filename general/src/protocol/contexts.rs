@@ -461,7 +461,7 @@ fn test_context_processing() {
             &mut self,
             _value: &mut Context,
             _meta: &mut Meta,
-            _state: ProcessingState<'_>,
+            _state: &ProcessingState<'_>,
         ) -> ValueAction {
             self.called = true;
             ValueAction::default()
@@ -469,6 +469,6 @@ fn test_context_processing() {
     }
 
     let mut processor = FooProcessor { called: false };
-    crate::processor::process_value(&mut event, &mut processor, ProcessingState::default());
+    crate::processor::process_value(&mut event, &mut processor, ProcessingState::root());
     assert!(processor.called);
 }

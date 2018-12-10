@@ -4,7 +4,7 @@
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
-use semaphore_general::processor::{process_value, split_chunks};
+use semaphore_general::processor::{process_value, split_chunks, ProcessingState};
 use semaphore_general::protocol::Event;
 use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreNormalizeProcessor};
 use semaphore_general::types::{Annotated, Remark};
@@ -77,7 +77,7 @@ ffi_fn! {
     ) -> Result<SemaphoreStr> {
         let processor = normalizer as *mut StoreNormalizeProcessor;
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
-        process_value(&mut event, &mut *processor, Default::default());
+        process_value(&mut event, &mut *processor, ProcessingState::root());
         Ok(SemaphoreStr::from_string(event.to_json()?))
     }
 }

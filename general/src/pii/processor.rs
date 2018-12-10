@@ -219,7 +219,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         &mut self,
         string: &mut String,
         meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction {
         let mut rules = self.iter_rules(PiiKind::Text, &state).peekable();
         if rules.peek().is_some() {
@@ -234,7 +234,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         &mut self,
         object: &mut Object<T>,
         _meta: &mut Meta,
-        state: ProcessingState,
+        state: &ProcessingState,
     ) -> ValueAction {
         let mut rules = self.iter_rules(PiiKind::Container, &state).peekable();
         if rules.peek().is_some() {
@@ -256,7 +256,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         &mut self,
         list: &mut PairList<T>,
         _meta: &mut Meta,
-        state: ProcessingState,
+        state: &ProcessingState,
     ) -> ValueAction {
         let mut rules = self.iter_rules(PiiKind::Container, &state).peekable();
         if rules.peek().is_some() {
@@ -667,7 +667,7 @@ fn test_basic_stripping() {
     });
 
     let mut processor = PiiProcessor::new(&config);
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
 
     assert_eq_str!(
         event.to_json_pretty().unwrap(),

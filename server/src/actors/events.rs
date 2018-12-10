@@ -155,7 +155,7 @@ impl ProcessEvent {
 
         if let Some(ref pii_config) = self.project_state.config.pii_config {
             let mut processor = PiiProcessor::new(&pii_config);
-            process_value(&mut event, &mut processor, ProcessingState::default());
+            process_value(&mut event, &mut processor, ProcessingState::root());
         };
 
         let data = event

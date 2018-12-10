@@ -253,10 +253,10 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         event: &mut Event,
         meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction {
-        schema::SchemaProcessor.process_event(event, meta, state.clone());
-        event.process_child_values(self, state.clone());
+        schema::SchemaProcessor.process_event(event, meta, state);
+        event.process_child_values(self, state);
 
         // Override the project_id, even if it was set in the payload
         if let Some(project_id) = self.config.project_id {
@@ -328,9 +328,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         self.normalize_exceptions(event);
         self.normalize_user_ip(event);
 
-        // Do this before trimming such that we do not needlessly trim other if we're just going to
-        // throw it away
-        remove_other::RemoveOtherProcessor.process_event(event, meta, state.clone());
+        remove_other::RemoveOtherProcessor.process_event(event, meta, state);
 
         // Trimming should happen at end to ensure derived tags are the right length.
         self.trimming_processor.process_event(event, meta, state);
@@ -342,7 +340,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         breadcrumb: &mut Breadcrumb,
         _meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction {
         breadcrumb.process_child_values(self, state);
 
@@ -361,7 +359,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         request: &mut Request,
         _meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction {
         request.process_child_values(self, state);
 
@@ -375,7 +373,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         user: &mut User,
         _meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction {
         if !user.other.is_empty() {
             let data = &mut user.data.0.get_or_insert_with(Object::new);
@@ -411,7 +409,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         exception: &mut Exception,
         meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction {
         exception.process_child_values(self, state);
 
@@ -450,7 +448,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         frame: &mut Frame,
         _meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction {
         frame.process_child_values(self, state);
 
@@ -485,7 +483,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         &mut self,
         stacktrace: &mut Stacktrace,
         _meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction {
         if let Some(limit) = self.config.stacktrace_frames_hard_limit {
             stacktrace
@@ -514,7 +512,7 @@ fn test_handles_type_in_value() {
         ..Default::default()
     });
 
-    process_value(&mut exception, &mut processor, Default::default());
+    process_value(&mut exception, &mut processor, ProcessingState::root());
     let exception = exception.value().unwrap();
     assert_eq_dbg!(exception.value.as_str(), Some("unauthorized"));
     assert_eq_dbg!(exception.ty.as_str(), Some("ValueError"));
@@ -524,7 +522,7 @@ fn test_handles_type_in_value() {
         ..Default::default()
     });
 
-    process_value(&mut exception, &mut processor, Default::default());
+    process_value(&mut exception, &mut processor, ProcessingState::root());
     let exception = exception.value().unwrap();
     assert_eq_dbg!(exception.value.as_str(), Some("unauthorized"));
     assert_eq_dbg!(exception.ty.as_str(), Some("ValueError"));
@@ -538,7 +536,7 @@ fn test_json_value() {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
         ..Default::default()
     });
-    process_value(&mut exception, &mut processor, Default::default());
+    process_value(&mut exception, &mut processor, ProcessingState::root());
     let exception = exception.value().unwrap();
 
     // Don't split a json-serialized value on the colon
@@ -551,7 +549,7 @@ fn test_exception_invalid() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
     let mut exception = Annotated::new(Exception::default());
-    process_value(&mut exception, &mut processor, Default::default());
+    process_value(&mut exception, &mut processor, ProcessingState::root());
 
     let expected = Error::with(ErrorKind::MissingAttribute, |error| {
         error.insert("attribute", "type or value");
@@ -575,7 +573,7 @@ fn test_geo_from_ip_address() {
         ..Default::default()
     });
 
-    process_value(&mut user, &mut processor, Default::default());
+    process_value(&mut user, &mut processor, ProcessingState::root());
 
     let expected = Annotated::new(Geo {
         country_code: Annotated::new("AT".to_string()),
@@ -599,7 +597,7 @@ fn test_schema_processor_invoked() {
     });
 
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
 
     assert_eq_dbg!(
         event.value().unwrap().user.value().unwrap().email.value(),
@@ -621,7 +619,7 @@ fn test_environment_tag_is_moved() {
     });
 
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
 
     let event = event.0.unwrap();
 
@@ -639,7 +637,7 @@ fn test_top_level_keys_moved_into_tags() {
     });
 
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
 
     let event = event.0.unwrap();
 
@@ -679,7 +677,7 @@ fn test_user_data_moved() {
     });
 
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-    process_value(&mut user, &mut processor, Default::default());
+    process_value(&mut user, &mut processor, ProcessingState::root());
 
     let user = user.0.unwrap();
 

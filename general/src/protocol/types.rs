@@ -164,7 +164,7 @@ impl<T: ProcessValue + AsPair> ProcessValue for PairList<T> {
         &mut self,
         meta: &mut Meta,
         processor: &mut P,
-        state: ProcessingState,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         P: Processor,
@@ -172,13 +172,13 @@ impl<T: ProcessValue + AsPair> ProcessValue for PairList<T> {
         processor.process_pairlist(self, meta, state)
     }
 
-    fn process_child_values<P>(&mut self, processor: &mut P, state: ProcessingState)
+    fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
     where
         P: Processor,
     {
         for (i, pair) in self.0.iter_mut().enumerate() {
             let state = state.enter_index(i, state.inner_attrs());
-            process_value(pair, processor, state);
+            process_value(pair, processor, &state);
         }
     }
 }

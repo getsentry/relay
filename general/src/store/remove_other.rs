@@ -9,7 +9,7 @@ impl Processor for RemoveOtherProcessor {
         &mut self,
         event: &mut Event,
         _meta: &mut Meta,
-        _state: ProcessingState<'_>,
+        _state: &ProcessingState<'_>,
     ) -> ValueAction {
         for value in event.other.values_mut() {
             value.set_value(None);
