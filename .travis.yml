@@ -30,7 +30,7 @@ before_install:
   - export PATH=~/.cargo/bin/:$PATH
 
 install: skip
-script: make $SUITE
+script: make -e $SUITE
 
 matrix:
   fast_finish: true
@@ -154,16 +154,7 @@ matrix:
       os: osx
       language: generic
       osx_image: xcode7.3
-      env: SUITE=wheel
-
-      addons:
-        homebrew:
-          packages:
-            - python@3
-          update: true
-
-      install:
-        - pip install --user -U virtualenv
+      env: SUITE=wheel SEMAPHORE_PYTHON_VERSION=python
 
       after_success:
         - npm install -g @zeus-ci/cli

@@ -1,5 +1,7 @@
 SHELL=/bin/bash
 
+export SEMAPHORE_PYTHON_VERSION := python3
+
 all: test
 .PHONY: all
 
@@ -54,7 +56,7 @@ pytest:
 
 venv/bin/python: Makefile
 	rm -rf venv
-	virtualenv -ppython3 venv
+	virtualenv -p $$SEMAPHORE_PYTHON_VERSION venv
 
 integration-test: venv/bin/python
 	venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist
