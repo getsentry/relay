@@ -118,7 +118,7 @@ fn process_wrapper_struct_derive(
                     &mut self,
                     __meta: &mut crate::types::Meta,
                     __processor: &mut P,
-                    __state: crate::processor::ProcessingState,
+                    __state: &crate::processor::ProcessingState<'_>,
                 ) -> crate::types::ValueAction
                 where
                     P: crate::processor::Processor,
@@ -135,7 +135,7 @@ fn process_wrapper_struct_derive(
                 fn process_child_values<P>(
                     &mut self,
                     __processor: &mut P,
-                    __state: crate::processor::ProcessingState,
+                    __state: &crate::processor::ProcessingState<'_>,
                 )
                 where
                     P: crate::processor::Processor,
@@ -318,7 +318,7 @@ fn process_enum_struct_derive(
                 let func_name = Ident::new(&func_name, Span::call_site());
                 quote! {
                     if __result == crate::types::ValueAction::Keep {
-                        return __processor.#func_name(self, __meta, __state_clone);
+                        return __processor.#func_name(self, __meta, __state);
                     }
                 }
             }).unwrap_or_else(|| {
@@ -326,7 +326,7 @@ fn process_enum_struct_derive(
                     crate::processor::ProcessValue::process_child_values(
                         self,
                         __processor,
-                        __state_clone,
+                        __state,
                     );
                 }
             });
@@ -339,12 +339,11 @@ fn process_enum_struct_derive(
                         &mut self,
                         __meta: &mut crate::types::Meta,
                         __processor: &mut P,
-                        __state: crate::processor::ProcessingState,
+                        __state: &crate::processor::ProcessingState<'_>,
                     ) -> crate::types::ValueAction
                     where
                         P: crate::processor::Processor,
                     {
-                        let __state_clone = __state.clone();
                         let __result = match self {
                             #process_value_body
                         };
@@ -358,7 +357,7 @@ fn process_enum_struct_derive(
                     fn process_child_values<P>(
                         &mut self,
                         __processor: &mut P,
-                        __state: crate::processor::ProcessingState,
+                        __state: &crate::processor::ProcessingState<'_>,
                     )
                     where
                         P: crate::processor::Processor,
@@ -447,7 +446,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 let #bi = {
                     for (__key, __value) in #bi.iter_mut() {
                         let __inner_state = __state.enter_borrowed(__key.as_str(), None);
-                        crate::processor::process_value(__value, __processor, __inner_state);
+                        crate::processor::process_value(__value, __processor, &__inner_state);
                     }
                     #bi
                 };
@@ -607,7 +606,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 let #bi = crate::processor::process_value(
                     #bi,
                     __processor,
-                    #enter_state,
+                    &#enter_state,
                 );
             }).to_tokens(&mut process_child_values_body);
 
@@ -752,7 +751,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                         &mut self,
                         __meta: &mut crate::types::Meta,
                         __processor: &mut P,
-                        __state: crate::processor::ProcessingState,
+                        __state: &crate::processor::ProcessingState<'_>,
                     ) -> crate::types::ValueAction
                     where
                         P: crate::processor::Processor,
@@ -771,7 +770,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                     fn process_child_values<P>(
                         &mut self,
                         __processor: &mut P,
-                        __state: crate::processor::ProcessingState
+                        __state: &crate::processor::ProcessingState<'_>
                     )
                     where
                         P: crate::processor::Processor,

@@ -33,7 +33,7 @@ impl Processor for TrimmingProcessor {
         &mut self,
         value: &mut String,
         meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction {
         if let Some(ref mut bag_size_state) = self.bag_size_state {
             trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
@@ -52,7 +52,7 @@ impl Processor for TrimmingProcessor {
         &mut self,
         value: &mut Array<T>,
         meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         T: ProcessValue,
@@ -93,7 +93,7 @@ impl Processor for TrimmingProcessor {
                     }
 
                     let item_state = state.enter_index(index, None);
-                    process_value(item, self, item_state);
+                    process_value(item, self, &item_state);
 
                     let item_length = estimate_size(&item) + 1;
                     bag_size_state.size_remaining =
@@ -121,7 +121,7 @@ impl Processor for TrimmingProcessor {
         &mut self,
         value: &mut Object<T>,
         meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         T: ProcessValue,
@@ -162,7 +162,7 @@ impl Processor for TrimmingProcessor {
                     }
 
                     let item_state = state.enter_borrowed(key, None);
-                    process_value(item, self, item_state);
+                    process_value(item, self, &item_state);
 
                     let item_length = estimate_size(&item) + 1;
                     bag_size_state.size_remaining =
@@ -540,7 +540,7 @@ fn test_databag_state_leak() {
 
     let mut processor = TrimmingProcessor::new();
     let mut stripped_event = event.clone();
-    process_value(&mut stripped_event, &mut processor, Default::default());
+    process_value(&mut stripped_event, &mut processor, ProcessingState::root());
 
     assert_eq_str!(
         event.to_json_pretty().unwrap(),

@@ -461,7 +461,7 @@ fn test_context_processing() {
             &mut self,
             _value: &mut Context,
             _meta: &mut Meta,
-            _state: ProcessingState<'_>,
+            _state: &ProcessingState<'_>,
         ) -> ValueAction {
             self.called = true;
             ValueAction::default()

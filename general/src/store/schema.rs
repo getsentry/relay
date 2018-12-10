@@ -8,7 +8,7 @@ impl Processor for SchemaProcessor {
         &mut self,
         value: &mut String,
         meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction {
         verify_value_nonempty(value, meta, &state)
             .and_then(|| verify_value_pattern(value, meta, &state))
@@ -18,26 +18,26 @@ impl Processor for SchemaProcessor {
         &mut self,
         value: &mut Array<T>,
         meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         T: ProcessValue,
     {
-        value.process_child_values(self, state.clone());
-        verify_value_nonempty(value, meta, &state)
+        value.process_child_values(self, state);
+        verify_value_nonempty(value, meta, state)
     }
 
     fn process_object<T>(
         &mut self,
         value: &mut Object<T>,
         meta: &mut Meta,
-        state: ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction
     where
         T: ProcessValue,
     {
-        value.process_child_values(self, state.clone());
-        verify_value_nonempty(value, meta, &state)
+        value.process_child_values(self, state);
+        verify_value_nonempty(value, meta, state)
     }
 }
 
