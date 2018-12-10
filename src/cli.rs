@@ -304,7 +304,7 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
     let mut event = EventV8::from_json_bytes(&event_json[..])?;
     if let Some(ref pii_config) = pii_config {
         let mut processor = PiiProcessor::new(pii_config);
-        process_value(&mut event, &mut processor, ProcessingState::default());
+        process_value(&mut event, &mut processor, ProcessingState::root());
     };
 
     if matches.is_present("debug") {
