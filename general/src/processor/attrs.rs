@@ -177,7 +177,7 @@ pub struct ProcessingState<'a> {
     depth: usize,
 }
 
-const ROOT_STATE: ProcessingState = ProcessingState {
+static ROOT_STATE: ProcessingState = ProcessingState {
     parent: None,
     path: None,
     attrs: None,
