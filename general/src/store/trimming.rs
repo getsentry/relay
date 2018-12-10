@@ -287,7 +287,7 @@ fn test_basic_trimming() {
         ..Default::default()
     });
 
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
 
     let mut expected = Annotated::new(repeat("x").take(300).collect::<String>());
     expected.apply(|v, m| trim_string(v, m, MaxChars::Symbol));
@@ -324,7 +324,7 @@ fn test_databag_stripping() {
         ..Default::default()
     });
 
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
     let stripped_extra = &event.value().unwrap().extra;
     let json = stripped_extra.to_json().unwrap();
 
@@ -354,7 +354,7 @@ fn test_databag_array_stripping() {
         ..Default::default()
     });
 
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
     let stripped_extra = &event.value().unwrap().extra;
     let json = stripped_extra.to_json_pretty().unwrap();
 
@@ -479,7 +479,7 @@ fn test_tags_stripping() {
         ..Default::default()
     });
 
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
     let json = event
         .value()
         .unwrap()

@@ -469,6 +469,6 @@ fn test_context_processing() {
     }
 
     let mut processor = FooProcessor { called: false };
-    crate::processor::process_value(&mut event, &mut processor, ProcessingState::default());
+    crate::processor::process_value(&mut event, &mut processor, ProcessingState::root());
     assert!(processor.called);
 }

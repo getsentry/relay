@@ -667,7 +667,7 @@ fn test_basic_stripping() {
     });
 
     let mut processor = PiiProcessor::new(&config);
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
 
     assert_eq_str!(
         event.to_json_pretty().unwrap(),

@@ -366,7 +366,7 @@ mod tests {
             let mut root = Annotated::new(FreeformRoot {
                 value: Annotated::new(input),
             });
-            process_value(&mut root, &mut processor, ProcessingState::default());
+            process_value(&mut root, &mut processor, ProcessingState::root());
             let root = root.0.unwrap();
             assert_eq_str!(root.value.value().unwrap(), $output);
             let remarks = $remarks;

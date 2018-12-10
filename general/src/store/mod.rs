@@ -512,7 +512,7 @@ fn test_handles_type_in_value() {
         ..Default::default()
     });
 
-    process_value(&mut exception, &mut processor, Default::default());
+    process_value(&mut exception, &mut processor, ProcessingState::root());
     let exception = exception.value().unwrap();
     assert_eq_dbg!(exception.value.as_str(), Some("unauthorized"));
     assert_eq_dbg!(exception.ty.as_str(), Some("ValueError"));
@@ -522,7 +522,7 @@ fn test_handles_type_in_value() {
         ..Default::default()
     });
 
-    process_value(&mut exception, &mut processor, Default::default());
+    process_value(&mut exception, &mut processor, ProcessingState::root());
     let exception = exception.value().unwrap();
     assert_eq_dbg!(exception.value.as_str(), Some("unauthorized"));
     assert_eq_dbg!(exception.ty.as_str(), Some("ValueError"));
@@ -536,7 +536,7 @@ fn test_json_value() {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
         ..Default::default()
     });
-    process_value(&mut exception, &mut processor, Default::default());
+    process_value(&mut exception, &mut processor, ProcessingState::root());
     let exception = exception.value().unwrap();
 
     // Don't split a json-serialized value on the colon
@@ -549,7 +549,7 @@ fn test_exception_invalid() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
 
     let mut exception = Annotated::new(Exception::default());
-    process_value(&mut exception, &mut processor, Default::default());
+    process_value(&mut exception, &mut processor, ProcessingState::root());
 
     let expected = Error::with(ErrorKind::MissingAttribute, |error| {
         error.insert("attribute", "type or value");
@@ -573,7 +573,7 @@ fn test_geo_from_ip_address() {
         ..Default::default()
     });
 
-    process_value(&mut user, &mut processor, Default::default());
+    process_value(&mut user, &mut processor, ProcessingState::root());
 
     let expected = Annotated::new(Geo {
         country_code: Annotated::new("AT".to_string()),
@@ -597,7 +597,7 @@ fn test_schema_processor_invoked() {
     });
 
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
 
     assert_eq_dbg!(
         event.value().unwrap().user.value().unwrap().email.value(),
@@ -619,7 +619,7 @@ fn test_environment_tag_is_moved() {
     });
 
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
 
     let event = event.0.unwrap();
 
@@ -637,7 +637,7 @@ fn test_top_level_keys_moved_into_tags() {
     });
 
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-    process_value(&mut event, &mut processor, Default::default());
+    process_value(&mut event, &mut processor, ProcessingState::root());
 
     let event = event.0.unwrap();
 
@@ -677,7 +677,7 @@ fn test_user_data_moved() {
     });
 
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
-    process_value(&mut user, &mut processor, Default::default());
+    process_value(&mut user, &mut processor, ProcessingState::root());
 
     let user = user.0.unwrap();
 

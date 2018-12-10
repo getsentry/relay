@@ -99,7 +99,7 @@ fn verify_value_pattern(
 #[cfg(test)]
 mod tests {
     use super::SchemaProcessor;
-    use crate::processor::process_value;
+    use crate::processor::{process_value, ProcessingState};
     use crate::types::{Annotated, Array, Error, Object, Value};
 
     fn assert_nonempty_base<T>()
@@ -117,7 +117,7 @@ mod tests {
             bar: Annotated::new(T::default()),
             bar2: Annotated::new(T::default()),
         });
-        process_value(&mut wrapper, &mut SchemaProcessor, Default::default());
+        process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root());
 
         assert_eq_dbg!(
             wrapper,
@@ -152,7 +152,7 @@ mod tests {
             ..Default::default()
         });
 
-        process_value(&mut event, &mut SchemaProcessor, Default::default());
+        process_value(&mut event, &mut SchemaProcessor, ProcessingState::root());
 
         assert_eq_dbg!(
             event,
@@ -175,7 +175,7 @@ mod tests {
             ..Default::default()
         });
 
-        process_value(&mut user, &mut SchemaProcessor, Default::default());
+        process_value(&mut user, &mut SchemaProcessor, ProcessingState::root());
 
         assert_eq_dbg!(
             user,
