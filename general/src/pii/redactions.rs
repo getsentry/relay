@@ -62,7 +62,7 @@ pub struct HashRedaction {
 
 /// Defines how replacements happen.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "method", rename_all = "camelCase")]
+#[serde(tag = "method", rename_all = "snake_case")]
 pub enum Redaction {
     /// The default redaction for this operation (normally equivalent to `Remove`).
     ///
