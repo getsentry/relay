@@ -95,11 +95,4 @@ The password for the `.pfx` file is `password`.
 
 ### Release management
 
-Use the `./scripts/bump-version.sh` script to bump versions:
-
-    # Check that there is a changelog entry, update configuration files, commit and tag the changes
-    $ bash ./scripts/bump-version.sh patch
-    # Check that everything looks good, then push the new release
-    $ git push origin master NEW_VERSION
-
-Do not forget to update `CHANGELOG.md`, the versioning script will remind you to do it.
+We use [craft](https://github.com/getsentry/semaphore) to release new versions.
