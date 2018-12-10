@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.5
+
+- Rewrite of PII stripping logic. This brings potentially breaking changes to
+  the semantics of PII configs. Most importantly field types such as
+  `"freeform"` and `"databag"` are gone, right now there is only `"container"`
+  and `"text"`. All old field types should have become an alias for `"text"`,
+  but take extra care in ensuring your PII rules still work.
+
+- store: Minor fixes to be closer to Python.
+
 ## 0.2.4
 
 For users of relay, nothing changed at all. This is a release to test embedding
