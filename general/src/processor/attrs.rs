@@ -186,8 +186,8 @@ static ROOT_STATE: ProcessingState = ProcessingState {
 
 impl<'a> ProcessingState<'a> {
     /// Returns the root processing state.
-    pub fn root() -> Self {
-        ROOT_STATE.clone()
+    pub fn root() -> &'static ProcessingState<'static> {
+        &ROOT_STATE
     }
 
     /// Derives a processing state by entering a static key.
@@ -249,7 +249,7 @@ impl<'a> ProcessingState<'a> {
 
 impl<'a> Default for ProcessingState<'a> {
     fn default() -> Self {
-        ProcessingState::root()
+        ProcessingState::root().clone()
     }
 }
 
