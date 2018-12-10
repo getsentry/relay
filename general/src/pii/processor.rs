@@ -368,6 +368,7 @@ fn apply_rule_to_container<T: ProcessValue>(
                 ValueAction::Keep
             }
         }
+        RuleType::Never => ValueAction::Keep,
         RuleType::Anything => ValueAction::DeleteHard,
 
         // These are not handled by the container code but will be independently picked
@@ -397,6 +398,7 @@ fn apply_rule_to_chunks(mut chunks: Vec<Chunk>, rule: RuleRef<'_>) -> Vec<Chunk>
     }
 
     match rule.ty {
+        RuleType::Never => {}
         RuleType::Anything => apply_regex!(&ANYTHING_REGEX, None),
         RuleType::Pattern(pattern) => {
             apply_regex!(&pattern.pattern.0, pattern.replace_groups.as_ref())
@@ -613,7 +615,7 @@ fn test_basic_stripping() {
         {
             "rules": {
                 "remove_bad_headers": {
-                    "type": "redactPair",
+                    "type": "redact_pair",
                     "keyPattern": "(?i)cookie|secret[-_]?key"
                 }
             },

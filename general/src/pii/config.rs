@@ -93,8 +93,10 @@ pub struct RedactPairRule {
 
 /// Supported stripping rules.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuleType {
+    /// Never matches
+    Never,
     /// Matches any value.
     Anything,
     /// Applies a regular expression.
@@ -127,6 +129,12 @@ pub enum RuleType {
     Alias(AliasRule),
 }
 
+impl Default for RuleType {
+    fn default() -> RuleType {
+        RuleType::Never
+    }
+}
+
 /// A single rule configuration.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RuleSpec {
@@ -134,6 +142,15 @@ pub struct RuleSpec {
     pub ty: RuleType,
     #[serde(default)]
     pub redaction: Redaction,
+}
+
+impl Default for RuleSpec {
+    fn default() -> RuleSpec {
+        RuleSpec {
+            ty: RuleType::Never,
+            redaction: Redaction::Default,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
