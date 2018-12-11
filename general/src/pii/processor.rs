@@ -227,6 +227,7 @@ macro_rules! value_process_method {
             if rules.peek().is_some() {
                 value_process(value, meta, rules)
             } else {
+                value.process_child_values(self, state);
                 ValueAction::Keep
             }
         }
@@ -248,6 +249,7 @@ macro_rules! value_process_method {
             if rules.peek().is_some() {
                 value_process(value, meta, rules)
             } else {
+                value.process_child_values(self, state);
                 ValueAction::Keep
             }
         }
@@ -324,7 +326,6 @@ impl<'a> Processor for PiiProcessor<'a> {
 
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
-            let mut other_rules = false;
             for (key, annotated) in object.iter_mut() {
                 for rule in &rules {
                     match rule.ty.classify() {
@@ -333,19 +334,14 @@ impl<'a> Processor for PiiProcessor<'a> {
                                 apply_rule_to_container(value, meta, *rule, Some(key.as_str()))
                             });
                         }
-                        _ => {
-                            other_rules = true;
-                            continue;
-                        }
+                        _ => continue,
                     }
                 }
             }
 
-            if other_rules {
-                match value_process(object, meta, rules.into_iter()) {
-                    ValueAction::Keep => {}
-                    other => return other,
-                }
+            match value_process(object, meta, rules.into_iter()) {
+                ValueAction::Keep => {}
+                other => return other,
             }
         }
 
@@ -363,7 +359,6 @@ impl<'a> Processor for PiiProcessor<'a> {
 
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
-            let mut other_rules = false;
             for annotated in list.iter_mut() {
                 for rule in &rules {
                     match rule.ty.classify() {
@@ -375,19 +370,14 @@ impl<'a> Processor for PiiProcessor<'a> {
                                 });
                             }
                         }
-                        _ => {
-                            other_rules = true;
-                            continue;
-                        }
+                        _ => continue,
                     }
                 }
             }
 
-            if other_rules {
-                match value_process(list, meta, rules.into_iter()) {
-                    ValueAction::Keep => {}
-                    other => return other,
-                }
+            match value_process(list, meta, rules.into_iter()) {
+                ValueAction::Keep => {}
+                other => return other,
             }
         }
 
