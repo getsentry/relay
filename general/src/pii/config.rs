@@ -92,7 +92,7 @@ pub struct RedactPairRule {
 }
 
 /// Supported stripping rules.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuleType {
     /// Never matches
@@ -127,6 +127,53 @@ pub enum RuleType {
     Multiple(MultipleRule),
     /// Applies another rule.  Works like a single multiple.
     Alias(AliasRule),
+}
+
+impl<'de> Deserialize<'de> for RuleType {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(tag = "type", rename_all = "snake_case")]
+        enum RuleTypeWithLegacy {
+            Never,
+            Anything,
+            Pattern(PatternRule),
+            Imei,
+            Mac,
+            Uuid,
+            Email,
+            Ip,
+            Creditcard,
+            Userpath,
+            Pemkey,
+            UrlAuth,
+            UsSsn,
+            RedactPair(RedactPairRule),
+            #[serde(rename = "redactPair")]
+            RedactPairLegacy(RedactPairRule),
+            Multiple(MultipleRule),
+            Alias(AliasRule),
+        }
+
+        Ok(match RuleTypeWithLegacy::deserialize(deserializer)? {
+            RuleTypeWithLegacy::Never => RuleType::Never,
+            RuleTypeWithLegacy::Anything => RuleType::Anything,
+            RuleTypeWithLegacy::Pattern(r) => RuleType::Pattern(r),
+            RuleTypeWithLegacy::Imei => RuleType::Imei,
+            RuleTypeWithLegacy::Mac => RuleType::Mac,
+            RuleTypeWithLegacy::Uuid => RuleType::Uuid,
+            RuleTypeWithLegacy::Email => RuleType::Email,
+            RuleTypeWithLegacy::Ip => RuleType::Ip,
+            RuleTypeWithLegacy::Creditcard => RuleType::Creditcard,
+            RuleTypeWithLegacy::Userpath => RuleType::Userpath,
+            RuleTypeWithLegacy::Pemkey => RuleType::Pemkey,
+            RuleTypeWithLegacy::UrlAuth => RuleType::UrlAuth,
+            RuleTypeWithLegacy::UsSsn => RuleType::UsSsn,
+            RuleTypeWithLegacy::RedactPair(r) => RuleType::RedactPair(r),
+            RuleTypeWithLegacy::RedactPairLegacy(r) => RuleType::RedactPair(r),
+            RuleTypeWithLegacy::Multiple(r) => RuleType::Multiple(r),
+            RuleTypeWithLegacy::Alias(r) => RuleType::Alias(r),
+        })
+    }
 }
 
 impl Default for RuleType {
@@ -184,7 +231,7 @@ pub struct AliasSelector {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum SelectorType {
     Kind(KindSelector),
     Path(PathSelector),
