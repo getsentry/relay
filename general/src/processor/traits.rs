@@ -8,19 +8,10 @@ use crate::types::{FromValue, Meta, ToValue, ValueAction};
 
 macro_rules! process_method {
     ($name: ident, $ty:ident $(::$path:ident)*) => {
-        #[inline]
-        fn $name(
-            &mut self,
-            value: &mut $ty $(::$path)*,
-            meta: &mut Meta,
-            state: &ProcessingState<'_>,
-        ) -> ValueAction {
-            value.process_child_values(self, state);
-            Default::default()
-        }
+        process_method!($name, $ty $(::$path)* <>);
     };
 
-    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),+ > $(, $param_req_key:ident : $param_req_trait:path)*) => {
+    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),* > $(, $param_req_key:ident : $param_req_trait:path)*) => {
         #[inline]
         fn $name<$($param),*>(
             &mut self,

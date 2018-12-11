@@ -216,24 +216,10 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
 
 macro_rules! value_process_method {
     ($name: ident, $ty:ident $(::$path:ident)*) => {
-        #[inline]
-        fn $name(
-            &mut self,
-            value: &mut $ty $(::$path)*,
-            meta: &mut Meta,
-            state: &ProcessingState<'_>,
-        ) -> ValueAction {
-            let mut rules = self.iter_rules(PiiKind::Value, &state).peekable();
-            if rules.peek().is_some() {
-                value_process(value, meta, rules)
-            } else {
-                value.process_child_values(self, state);
-                ValueAction::Keep
-            }
-        }
+        value_process_method!($name, $ty $(::$path)* <>);
     };
 
-    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),+ > $(, $param_req_key:ident : $param_req_trait:path)*) => {
+    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),* > $(, $param_req_key:ident : $param_req_trait:path)*) => {
         #[inline]
         fn $name<$($param),*>(
             &mut self,
@@ -262,7 +248,7 @@ fn value_process<'a, T: ProcessValue, I: Iterator<Item = RuleRef<'a>>>(
     rules: I,
 ) -> ValueAction {
     for rule in rules {
-        match apply_rule_to_container(value, meta, rule, None) {
+        match apply_rule_to_value(value, meta, rule, None) {
             ValueAction::Keep => continue,
             other => return other,
         }
@@ -314,7 +300,7 @@ impl<'a> Processor for PiiProcessor<'a> {
             for (key, annotated) in object.iter_mut() {
                 for rule in &rules {
                     annotated.apply(|value, meta| {
-                        apply_rule_to_container(value, meta, *rule, Some(key.as_str()))
+                        apply_rule_to_value(value, meta, *rule, Some(key.as_str()))
                     });
                 }
             }
@@ -344,7 +330,7 @@ impl<'a> Processor for PiiProcessor<'a> {
                     if let Some(ref mut pair) = annotated.value_mut() {
                         let (ref mut key, ref mut value) = pair.as_pair();
                         value.apply(|value, meta| {
-                            apply_rule_to_container(value, meta, *rule, key.as_str())
+                            apply_rule_to_value(value, meta, *rule, key.as_str())
                         });
                     }
                 }
@@ -436,7 +422,7 @@ fn selector_applies(ty: &SelectorType, kind: PiiKind, state: &ProcessingState) -
     }
 }
 
-fn apply_rule_to_container<T: ProcessValue>(
+fn apply_rule_to_value<T: ProcessValue>(
     _value: &mut T,
     meta: &mut Meta,
     rule: RuleRef<'_>,
