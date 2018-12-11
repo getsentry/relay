@@ -92,6 +92,7 @@ impl BagSize {
 #[serde(rename_all = "camelCase")]
 pub enum PiiKind {
     Text,
+    Value,
     Container,
 }
 

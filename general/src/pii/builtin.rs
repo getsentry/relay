@@ -80,6 +80,11 @@ declare_builtin_rules! {
 
     // anything
     "@anything" => rule_alias!("@anything:replace");
+    "@anything:remove" => RuleSpec {
+        ty: RuleType::Anything,
+        redaction: Redaction::Remove,
+        ..Default::default()
+    };
     "@anything:replace" => RuleSpec {
         ty: RuleType::Anything,
         redaction: Redaction::Replace(ReplaceRedaction {

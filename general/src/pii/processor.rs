@@ -8,7 +8,7 @@ use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 use smallvec::SmallVec;
 
-use crate::pii::config::{RuleRef, SelectorRef};
+use crate::pii::config::{RuleClassification, RuleRef, SelectorRef};
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType, SelectorType};
 use crate::processor::{
     process_chunked_value, Chunk, PiiKind, ProcessValue, ProcessingState, Processor,
@@ -214,7 +214,74 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
     }
 }
 
+macro_rules! value_process_method {
+    ($name: ident, $ty:ident $(::$path:ident)*) => {
+        #[inline]
+        fn $name(
+            &mut self,
+            value: &mut $ty $(::$path)*,
+            meta: &mut Meta,
+            state: &ProcessingState<'_>,
+        ) -> ValueAction {
+            let mut rules = self.iter_rules(PiiKind::Value, &state).peekable();
+            if rules.peek().is_some() {
+                value_process(value, meta, rules)
+            } else {
+                ValueAction::Keep
+            }
+        }
+    };
+
+    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),+ > $(, $param_req_key:ident : $param_req_trait:path)*) => {
+        #[inline]
+        fn $name<$($param),*>(
+            &mut self,
+            value: &mut $ty $(::$path)* <$($param),*>,
+            meta: &mut Meta,
+            state: &ProcessingState<'_>,
+        ) -> ValueAction
+        where
+            $($param: ProcessValue),*
+            $(, $param_req_key : $param_req_trait)*
+        {
+            let mut rules = self.iter_rules(PiiKind::Value, &state).peekable();
+            if rules.peek().is_some() {
+                value_process(value, meta, rules)
+            } else {
+                ValueAction::Keep
+            }
+        }
+    };
+}
+
+fn value_process<'a, T: ProcessValue, I: Iterator<Item = RuleRef<'a>>>(
+    value: &mut T,
+    meta: &mut Meta,
+    rules: I,
+) -> ValueAction {
+    for rule in rules {
+        match rule.ty.classify() {
+            RuleClassification::ValueRule | RuleClassification::PairRule => {
+                match apply_rule_to_container(value, meta, rule, None) {
+                    ValueAction::Keep => continue,
+                    other => return other,
+                }
+            }
+            _ => continue,
+        }
+    }
+    ValueAction::Keep
+}
+
 impl<'a> Processor for PiiProcessor<'a> {
+    value_process_method!(process_i64, i64);
+    value_process_method!(process_u64, u64);
+    value_process_method!(process_f64, f64);
+    value_process_method!(process_bool, bool);
+
+    value_process_method!(process_value, crate::types::Value);
+    value_process_method!(process_array, crate::types::Array<T>);
+
     fn process_string(
         &mut self,
         string: &mut String,
@@ -223,9 +290,26 @@ impl<'a> Processor for PiiProcessor<'a> {
     ) -> ValueAction {
         let mut rules = self.iter_rules(PiiKind::Text, &state).peekable();
         if rules.peek().is_some() {
-            process_chunked_value(string, meta, |chunks| {
-                rules.fold(chunks, apply_rule_to_chunks)
+            let rules: SmallVec<[RuleRef; 16]> = rules.collect();
+            let mut other_rules = false;
+
+            process_chunked_value(string, meta, |mut chunks| {
+                for rule in &rules {
+                    match rule.ty.classify() {
+                        RuleClassification::TextRule => {
+                            chunks = apply_rule_to_chunks(chunks, *rule);
+                        }
+                        _ => {
+                            other_rules = true;
+                        }
+                    }
+                }
+                chunks
             });
+
+            if other_rules {
+                return value_process(string, meta, rules.into_iter());
+            }
         }
         ValueAction::Keep
     }
@@ -233,17 +317,34 @@ impl<'a> Processor for PiiProcessor<'a> {
     fn process_object<T: ProcessValue>(
         &mut self,
         object: &mut Object<T>,
-        _meta: &mut Meta,
+        meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
         let mut rules = self.iter_rules(PiiKind::Container, &state).peekable();
+
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
+            let mut other_rules = false;
             for (key, annotated) in object.iter_mut() {
                 for rule in &rules {
-                    annotated.apply(|value, meta| {
-                        apply_rule_to_container(value, meta, *rule, Some(key.as_str()))
-                    });
+                    match rule.ty.classify() {
+                        RuleClassification::ValueRule | RuleClassification::PairRule => {
+                            annotated.apply(|value, meta| {
+                                apply_rule_to_container(value, meta, *rule, Some(key.as_str()))
+                            });
+                        }
+                        _ => {
+                            other_rules = true;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            if other_rules {
+                match value_process(object, meta, rules.into_iter()) {
+                    ValueAction::Keep => {}
+                    other => return other,
                 }
             }
         }
@@ -255,20 +356,37 @@ impl<'a> Processor for PiiProcessor<'a> {
     fn process_pairlist<T: ProcessValue + AsPair>(
         &mut self,
         list: &mut PairList<T>,
-        _meta: &mut Meta,
+        meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
         let mut rules = self.iter_rules(PiiKind::Container, &state).peekable();
+
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
+            let mut other_rules = false;
             for annotated in list.iter_mut() {
                 for rule in &rules {
-                    if let Some(ref mut pair) = annotated.value_mut() {
-                        let (ref mut key, ref mut value) = pair.as_pair();
-                        value.apply(|value, meta| {
-                            apply_rule_to_container(value, meta, *rule, key.as_str())
-                        });
+                    match rule.ty.classify() {
+                        RuleClassification::ValueRule | RuleClassification::PairRule => {
+                            if let Some(ref mut pair) = annotated.value_mut() {
+                                let (ref mut key, ref mut value) = pair.as_pair();
+                                value.apply(|value, meta| {
+                                    apply_rule_to_container(value, meta, *rule, key.as_str())
+                                });
+                            }
+                        }
+                        _ => {
+                            other_rules = true;
+                            continue;
+                        }
                     }
+                }
+            }
+
+            if other_rules {
+                match value_process(list, meta, rules.into_iter()) {
+                    ValueAction::Keep => {}
+                    other => return other,
                 }
             }
         }
