@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.6
+
+- Fix bug where PII stripping would remove containers without leaving any
+  metadata about the retraction.
+- Fix bug where old `redactPair` rules would stop working.
+
 ## 0.2.5
 
 - Rewrite of PII stripping logic. This brings potentially breaking changes to
