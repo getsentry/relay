@@ -369,7 +369,10 @@ fn apply_rule_to_container<T: ProcessValue>(
             }
         }
         RuleType::Never => ValueAction::Keep,
-        RuleType::Anything => ValueAction::DeleteHard,
+        RuleType::Anything => {
+            meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
+            ValueAction::DeleteHard
+        }
 
         // These are not handled by the container code but will be independently picked
         // up by the string matching code later.
@@ -769,6 +772,58 @@ fn test_basic_stripping() {
             ],
             "len": 9
           }
+        }
+      }
+    }
+  }
+}"#
+    );
+}
+
+#[test]
+fn test_redact_containers() {
+    let config = PiiConfig::from_json(
+        r#"
+        {
+            "applications": {
+                "container": ["@anything"]
+            }
+        }
+    "#,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        extra: {
+            let mut map = Object::new();
+            map.insert(
+                "foo".to_string(),
+                Annotated::new(Value::String("bar".to_string())),
+            );
+            Annotated::new(map)
+        },
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    assert_eq_str!(
+        event.to_json_pretty().unwrap(),
+        r#"{
+  "extra": {
+    "foo": null
+  },
+  "_meta": {
+    "extra": {
+      "foo": {
+        "": {
+          "rem": [
+            [
+              "@anything",
+              "x"
+            ]
+          ]
         }
       }
     }
