@@ -86,7 +86,7 @@ pub fn init_logging(config: &Config) {
     let mut log_builder = {
         match (config.log_format(), console::user_attended()) {
             (LogFormat::Auto, true) | (LogFormat::Pretty, _) => {
-                pretty_env_logger::formatted_builder().unwrap()
+                pretty_env_logger::formatted_builder()
             }
             (LogFormat::Auto, false) | (LogFormat::Simplified, _) => {
                 let mut builder = env_logger::Builder::new();
