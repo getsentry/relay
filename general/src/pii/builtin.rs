@@ -383,34 +383,6 @@ mod tests {
     }
 
     #[test]
-    fn test_anything() {
-        assert_text_rule!(
-            rule = "@anything";
-            input = "before 127.0.0.1 after";
-            output = "[redacted]";
-            remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@anything", (0, 10)),
-            ];
-        );
-        assert_text_rule!(
-            rule = "@anything:replace";
-            input = "before 127.0.0.1 after";
-            output = "[redacted]";
-            remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@anything:replace", (0, 10)),
-            ];
-        );
-        assert_text_rule!(
-            rule = "@anything:hash";
-            input = "before 127.0.0.1 after";
-            output = "3D8FF1CECA9B899D532AA6679E952801DF9E5C74";
-            remarks = vec![
-                Remark::with_range(RemarkType::Pseudonymized, "@anything:hash", (0, 40)),
-            ];
-        );
-    }
-
-    #[test]
     fn test_ipv4() {
         assert_text_rule!(
             rule = "@ip";

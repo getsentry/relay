@@ -232,11 +232,17 @@ macro_rules! value_process_method {
             $(, $param_req_key : $param_req_trait)*
         {
             let mut rules = self.iter_rules(PiiKind::Value, &state).peekable();
-            if rules.peek().is_some() {
+            let rv = if rules.peek().is_some() {
                 value_process(value, meta, rules)
             } else {
-                value.process_child_values(self, state);
                 ValueAction::Keep
+            };
+            match rv {
+                ValueAction::Keep => ValueAction::Keep,
+                other => {
+                    value.process_child_values(self, state);
+                    other
+                }
             }
         }
     };
@@ -880,20 +886,16 @@ fn test_redact_containers() {
     assert_eq_str!(
         event.to_json_pretty().unwrap(),
         r#"{
-  "extra": {
-    "foo": null
-  },
+  "extra": null,
   "_meta": {
     "extra": {
-      "foo": {
-        "": {
-          "rem": [
-            [
-              "@anything",
-              "x"
-            ]
+      "": {
+        "rem": [
+          [
+            "@anything",
+            "x"
           ]
-        }
+        ]
       }
     }
   }
