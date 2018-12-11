@@ -129,42 +129,6 @@ pub enum RuleType {
     Alias(AliasRule),
 }
 
-/// The rule classification
-pub enum RuleClassification {
-    /// Applies to an entire value
-    ValueRule,
-    /// Applies to text
-    TextRule,
-    /// Applies to pairs
-    PairRule,
-    /// Dispatching rule
-    DispatchRule,
-}
-
-impl RuleType {
-    /// Returns the classification of the rule.
-    pub fn classify(&self) -> RuleClassification {
-        match *self {
-            RuleType::Never => RuleClassification::ValueRule,
-            RuleType::Anything => RuleClassification::ValueRule,
-            RuleType::Pattern(..) => RuleClassification::TextRule,
-            RuleType::Imei => RuleClassification::TextRule,
-            RuleType::Mac => RuleClassification::TextRule,
-            RuleType::Uuid => RuleClassification::TextRule,
-            RuleType::Email => RuleClassification::TextRule,
-            RuleType::Ip => RuleClassification::TextRule,
-            RuleType::Creditcard => RuleClassification::TextRule,
-            RuleType::Userpath => RuleClassification::TextRule,
-            RuleType::Pemkey => RuleClassification::TextRule,
-            RuleType::UrlAuth => RuleClassification::TextRule,
-            RuleType::UsSsn => RuleClassification::TextRule,
-            RuleType::RedactPair(..) => RuleClassification::PairRule,
-            RuleType::Multiple(..) => RuleClassification::DispatchRule,
-            RuleType::Alias(..) => RuleClassification::DispatchRule,
-        }
-    }
-}
-
 impl<'de> Deserialize<'de> for RuleType {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]

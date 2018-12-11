@@ -8,7 +8,7 @@ use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 use smallvec::SmallVec;
 
-use crate::pii::config::{RuleClassification, RuleRef, SelectorRef};
+use crate::pii::config::{RuleRef, SelectorRef};
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType, SelectorType};
 use crate::processor::{
     process_chunked_value, Chunk, PiiKind, ProcessValue, ProcessingState, Processor,
@@ -262,14 +262,9 @@ fn value_process<'a, T: ProcessValue, I: Iterator<Item = RuleRef<'a>>>(
     rules: I,
 ) -> ValueAction {
     for rule in rules {
-        match rule.ty.classify() {
-            RuleClassification::ValueRule | RuleClassification::PairRule => {
-                match apply_rule_to_container(value, meta, rule, None) {
-                    ValueAction::Keep => continue,
-                    other => return other,
-                }
-            }
-            _ => continue,
+        match apply_rule_to_container(value, meta, rule, None) {
+            ValueAction::Keep => continue,
+            other => return other,
         }
     }
     ValueAction::Keep
@@ -293,25 +288,15 @@ impl<'a> Processor for PiiProcessor<'a> {
         let mut rules = self.iter_rules(PiiKind::Text, &state).peekable();
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
-            let mut other_rules = false;
 
             process_chunked_value(string, meta, |mut chunks| {
                 for rule in &rules {
-                    match rule.ty.classify() {
-                        RuleClassification::TextRule => {
-                            chunks = apply_rule_to_chunks(chunks, *rule);
-                        }
-                        _ => {
-                            other_rules = true;
-                        }
-                    }
+                    chunks = apply_rule_to_chunks(chunks, *rule);
                 }
                 chunks
             });
 
-            if other_rules {
-                return value_process(string, meta, rules.into_iter());
-            }
+            return value_process(string, meta, rules.into_iter());
         }
         ValueAction::Keep
     }
@@ -328,14 +313,9 @@ impl<'a> Processor for PiiProcessor<'a> {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
             for (key, annotated) in object.iter_mut() {
                 for rule in &rules {
-                    match rule.ty.classify() {
-                        RuleClassification::ValueRule | RuleClassification::PairRule => {
-                            annotated.apply(|value, meta| {
-                                apply_rule_to_container(value, meta, *rule, Some(key.as_str()))
-                            });
-                        }
-                        _ => continue,
-                    }
+                    annotated.apply(|value, meta| {
+                        apply_rule_to_container(value, meta, *rule, Some(key.as_str()))
+                    });
                 }
             }
 
@@ -361,16 +341,11 @@ impl<'a> Processor for PiiProcessor<'a> {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
             for annotated in list.iter_mut() {
                 for rule in &rules {
-                    match rule.ty.classify() {
-                        RuleClassification::ValueRule | RuleClassification::PairRule => {
-                            if let Some(ref mut pair) = annotated.value_mut() {
-                                let (ref mut key, ref mut value) = pair.as_pair();
-                                value.apply(|value, meta| {
-                                    apply_rule_to_container(value, meta, *rule, key.as_str())
-                                });
-                            }
-                        }
-                        _ => continue,
+                    if let Some(ref mut pair) = annotated.value_mut() {
+                        let (ref mut key, ref mut value) = pair.as_pair();
+                        value.apply(|value, meta| {
+                            apply_rule_to_container(value, meta, *rule, key.as_str())
+                        });
                     }
                 }
             }
