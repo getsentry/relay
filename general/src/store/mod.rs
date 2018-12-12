@@ -40,6 +40,7 @@ pub struct StoreConfig {
     pub valid_platforms: BTreeSet<String>,
     pub max_secs_in_future: Option<i64>,
     pub max_secs_in_past: Option<i64>,
+    pub enable_trimming: Option<bool>,
 }
 
 impl StoreConfig {
@@ -330,8 +331,10 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
         remove_other::RemoveOtherProcessor.process_event(event, meta, state);
 
-        // Trimming should happen at end to ensure derived tags are the right length.
-        self.trimming_processor.process_event(event, meta, state);
+        if self.config.enable_trimming.unwrap_or(true) {
+            // Trimming should happen at end to ensure derived tags are the right length.
+            self.trimming_processor.process_event(event, meta, state);
+        }
 
         ValueAction::Keep
     }
