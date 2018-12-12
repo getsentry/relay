@@ -4,6 +4,26 @@ use std::fmt;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
+/// The (simplified) type of a value.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ValueType {
+    String,
+    Number,
+    Boolean,
+    DateTime,
+    Array,
+    Map,
+    Event,
+    Exception,
+    Stacktrace,
+    Frame,
+    Request,
+    User,
+    LogEntry,
+    Thread,
+    Breadcrumb,
+}
+
 /// The maximum length of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
 pub enum MaxChars {

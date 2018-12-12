@@ -16,6 +16,9 @@ pub type Map<K, T> = BTreeMap<K, T>;
 /// Alias for typed objects.
 pub type Object<T> = Map<String, Annotated<T>>;
 
+/// Alias for datetimes.
+pub type Timestamp = chrono::DateTime<chrono::Utc>;
+
 /// Represents a boxed value.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {

@@ -11,10 +11,10 @@ use smallvec::SmallVec;
 use crate::pii::config::{RuleRef, SelectorRef};
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType, SelectorType};
 use crate::processor::{
-    process_chunked_value, Chunk, PiiKind, ProcessValue, ProcessingState, Processor,
+    process_chunked_value, Chunk, PiiKind, ProcessValue, ProcessingState, Processor, ValueType
 };
 use crate::protocol::{AsPair, PairList};
-use crate::types::{Meta, Object, Remark, RemarkType, ValueAction};
+use crate::types::{Meta, Object, Remark, RemarkType, Timestamp, ValueAction};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
@@ -176,6 +176,7 @@ impl<'a> PiiProcessor<'a> {
         &'a self,
         kind: PiiKind,
         state: &'b ProcessingState<'b>,
+        value_type: Option<ValueType>,
     ) -> RuleIterator<'a, 'b> {
         RuleIterator {
             kind,
@@ -231,7 +232,7 @@ macro_rules! value_process_method {
             $($param: ProcessValue),*
             $(, $param_req_key : $param_req_trait)*
         {
-            let mut rules = self.iter_rules(PiiKind::Value, &state).peekable();
+            let mut rules = self.iter_rules(PiiKind::Value, &state, value.value_type()).peekable();
             let rv = if rules.peek().is_some() {
                 value_process(value, meta, rules)
             } else {
@@ -267,43 +268,43 @@ impl<'a> Processor for PiiProcessor<'a> {
     value_process_method!(process_u64, u64);
     value_process_method!(process_f64, f64);
     value_process_method!(process_bool, bool);
-
+    value_process_method!(process_timestamp, Timestamp);
     value_process_method!(process_value, crate::types::Value);
     value_process_method!(process_array, crate::types::Array<T>);
 
     fn process_string(
         &mut self,
-        string: &mut String,
+        value: &mut String,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        let mut rules = self.iter_rules(PiiKind::Text, &state).peekable();
+        let mut rules = self.iter_rules(PiiKind::Text, &state, value.value_type()).peekable();
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
 
-            process_chunked_value(string, meta, |mut chunks| {
+            process_chunked_value(value, meta, |mut chunks| {
                 for rule in &rules {
                     chunks = apply_rule_to_chunks(chunks, *rule);
                 }
                 chunks
             });
 
-            return value_process(string, meta, rules.into_iter());
+            return value_process(value, meta, rules.into_iter());
         }
         ValueAction::Keep
     }
 
     fn process_object<T: ProcessValue>(
         &mut self,
-        object: &mut Object<T>,
+        value: &mut Object<T>,
         meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
-        let mut rules = self.iter_rules(PiiKind::Container, &state).peekable();
+        let mut rules = self.iter_rules(PiiKind::Container, &state, value.value_type()).peekable();
 
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
-            for (key, annotated) in object.iter_mut() {
+            for (key, annotated) in value.iter_mut() {
                 for rule in &rules {
                     annotated.apply(|value, meta| {
                         apply_rule_to_value(value, meta, *rule, Some(key.as_str()))
@@ -311,27 +312,27 @@ impl<'a> Processor for PiiProcessor<'a> {
                 }
             }
 
-            match value_process(object, meta, rules.into_iter()) {
+            match value_process(value, meta, rules.into_iter()) {
                 ValueAction::Keep => {}
                 other => return other,
             }
         }
 
-        object.process_child_values(self, state);
+        value.process_child_values(self, state);
         ValueAction::Keep
     }
 
     fn process_pairlist<T: ProcessValue + AsPair>(
         &mut self,
-        list: &mut PairList<T>,
+        value: &mut PairList<T>,
         meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
-        let mut rules = self.iter_rules(PiiKind::Container, &state).peekable();
+        let mut rules = self.iter_rules(PiiKind::Container, &state, value.value_type()).peekable();
 
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
-            for annotated in list.iter_mut() {
+            for annotated in value.iter_mut() {
                 for rule in &rules {
                     if let Some(ref mut pair) = annotated.value_mut() {
                         let (ref mut key, ref mut value) = pair.as_pair();
@@ -342,13 +343,13 @@ impl<'a> Processor for PiiProcessor<'a> {
                 }
             }
 
-            match value_process(list, meta, rules.into_iter()) {
+            match value_process(value, meta, rules.into_iter()) {
                 ValueAction::Keep => {}
                 other => return other,
             }
         }
 
-        list.process_child_values(self, state);
+        value.process_child_values(self, state);
         ValueAction::Keep
     }
 }

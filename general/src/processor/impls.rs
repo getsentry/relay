@@ -1,10 +1,15 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::processor::{process_value, ProcessValue, ProcessingState, Processor};
+use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{Annotated, Array, Meta, Object, Value, ValueAction};
 
 impl ProcessValue for String {
+    #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        Some(ValueType::String)
+    }
+
     #[inline]
     fn process_value<P>(
         &mut self,
@@ -21,6 +26,11 @@ impl ProcessValue for String {
 
 impl ProcessValue for bool {
     #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        Some(ValueType::Boolean)
+    }
+
+    #[inline]
     fn process_value<P>(
         &mut self,
         meta: &mut Meta,
@@ -35,6 +45,11 @@ impl ProcessValue for bool {
 }
 
 impl ProcessValue for u64 {
+    #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        Some(ValueType::Number)
+    }
+
     #[inline]
     fn process_value<P>(
         &mut self,
@@ -51,6 +66,11 @@ impl ProcessValue for u64 {
 
 impl ProcessValue for i64 {
     #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        Some(ValueType::Number)
+    }
+
+    #[inline]
     fn process_value<P>(
         &mut self,
         meta: &mut Meta,
@@ -66,6 +86,11 @@ impl ProcessValue for i64 {
 
 impl ProcessValue for f64 {
     #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        Some(ValueType::Number)
+    }
+
+    #[inline]
     fn process_value<P>(
         &mut self,
         meta: &mut Meta,
@@ -79,7 +104,25 @@ impl ProcessValue for f64 {
     }
 }
 
-impl ProcessValue for DateTime<Utc> {}
+impl ProcessValue for DateTime<Utc> {
+    #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        Some(ValueType::DateTime)
+    }
+
+    #[inline]
+    fn process_value<P>(
+        &mut self,
+        meta: &mut Meta,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ValueAction
+    where
+        P: Processor,
+    {
+        processor.process_timestamp(self, meta, state)
+    }
+}
 
 impl ProcessValue for Uuid {}
 
@@ -87,6 +130,11 @@ impl<T> ProcessValue for Array<T>
 where
     T: ProcessValue,
 {
+    #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        Some(ValueType::Array)
+    }
+
     #[inline]
     fn process_value<P>(
         &mut self,
@@ -119,6 +167,11 @@ impl<T> ProcessValue for Object<T>
 where
     T: ProcessValue,
 {
+    #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        Some(ValueType::Map)
+    }
+
     #[inline]
     fn process_value<P>(
         &mut self,

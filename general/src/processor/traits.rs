@@ -3,8 +3,8 @@
 
 use std::fmt::Debug;
 
-use crate::processor::ProcessingState;
-use crate::types::{FromValue, Meta, ToValue, ValueAction};
+use crate::processor::{ProcessingState, ValueType};
+use crate::types::{FromValue, Meta, Timestamp, ToValue, ValueAction};
 
 macro_rules! process_method {
     ($name: ident, $ty:ident $(::$path:ident)*) => {
@@ -24,7 +24,7 @@ macro_rules! process_method {
             $(, $param_req_key : $param_req_trait)*
         {
             value.process_child_values(self, state);
-            Default::default()
+            ValueAction::Keep
         }
     };
 }
@@ -36,6 +36,7 @@ pub trait Processor: Sized {
     process_method!(process_i64, i64);
     process_method!(process_f64, f64);
     process_method!(process_bool, bool);
+    process_method!(process_timestamp, Timestamp);
 
     process_method!(process_value, crate::types::Value);
     process_method!(process_array, crate::types::Array<T>);
@@ -66,6 +67,12 @@ pub trait Processor: Sized {
 
 /// A recursively processable value.
 pub trait ProcessValue: FromValue + ToValue + Debug {
+    /// Returns the type of the value.
+    #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        None
+    }
+
     /// Executes a processor on this value.
     #[inline]
     fn process_value<P>(
