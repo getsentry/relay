@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 
+use crate::protocol::JsonLenientString;
 use crate::types::{Annotated, FromValue, Object, Value};
 
 /// Device information.
@@ -138,7 +139,7 @@ pub struct AppContext {
 
     /// Internal build ID as it appears on the platform.
     #[metastructure(max_chars = "summary")]
-    pub app_build: Annotated<String>,
+    pub app_build: Annotated<JsonLenientString>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
@@ -352,7 +353,7 @@ fn test_app_context_roundtrip() {
         app_identifier: Annotated::new("foo.bar.baz".to_string()),
         app_name: Annotated::new("Baz App".to_string()),
         app_version: Annotated::new("1.0".to_string()),
-        app_build: Annotated::new("100001".to_string()),
+        app_build: Annotated::new("100001".to_string().into()),
         other: {
             let mut map = Object::new();
             map.insert(
