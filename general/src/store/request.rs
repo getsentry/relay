@@ -4,7 +4,7 @@ use serde::de::IgnoredAny;
 use url::Url;
 
 use crate::protocol::{Query, Request};
-use crate::types::{Annotated, ErrorKind, Meta, Object, Value, ValueAction, FromValue};
+use crate::types::{Annotated, ErrorKind, FromValue, Meta, Object, Value, ValueAction};
 
 lazy_static! {
     static ref METHOD_RE: Regex = Regex::new(r"^[A-Z\-_]{3,32}$").unwrap();
@@ -105,21 +105,15 @@ pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
         request.inferred_content_type.set_value(content_type);
     }
 
-
     if let (None, Some(ref mut headers)) = (request.cookies.value(), request.headers.value_mut()) {
         let cookies = &mut request.cookies;
         headers.retain(|item| {
-            if let Some((
-                Annotated(Some(ref k), _),
-                Annotated(Some(ref v), _)
-            )) = item.value() {
+            if let Some((Annotated(Some(ref k), _), Annotated(Some(ref v), _))) = item.value() {
                 if k != "Cookie" {
                     return true;
                 }
 
-                let new_cookies = FromValue::from_value(
-                    Annotated::new(Value::String(v.clone()))
-                );
+                let new_cookies = FromValue::from_value(Annotated::new(Value::String(v.clone())));
 
                 if new_cookies.meta().has_errors() {
                     return true;
@@ -136,13 +130,17 @@ pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
 
 #[test]
 fn test_cookies_in_header() {
-    use crate::protocol::{Headers, Cookies};
+    use crate::protocol::{Cookies, Headers};
 
     let mut request = Request {
         url: Annotated::new("http://example.com".to_string()),
-        headers: Annotated::new(Headers(vec![
-            Annotated::new((Annotated::new("Cookie".to_string()), Annotated::new("a=b;c=d".to_string())))
-        ].into())),
+        headers: Annotated::new(Headers(
+            vec![Annotated::new((
+                Annotated::new("Cookie".to_string()),
+                Annotated::new("a=b;c=d".to_string()),
+            ))]
+            .into(),
+        )),
         ..Default::default()
     };
 
@@ -159,16 +157,19 @@ fn test_cookies_in_header() {
     );
 }
 
-
 #[test]
 fn test_cookies_in_header_not_overridden() {
-    use crate::protocol::{Headers, Cookies};
+    use crate::protocol::{Cookies, Headers};
 
     let mut request = Request {
         url: Annotated::new("http://example.com".to_string()),
-        headers: Annotated::new(Headers(vec![
-            Annotated::new((Annotated::new("Cookie".to_string()), Annotated::new("a=b;c=d".to_string())))
-        ].into())),
+        headers: Annotated::new(Headers(
+            vec![Annotated::new((
+                Annotated::new("Cookie".to_string()),
+                Annotated::new("a=b;c=d".to_string()),
+            ))]
+            .into(),
+        )),
         cookies: Annotated::new(Cookies({
             let mut map = Object::new();
             map.insert("foo".to_string(), Annotated::new("bar".to_string()));
