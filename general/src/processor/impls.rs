@@ -157,7 +157,7 @@ where
             process_value(
                 element,
                 processor,
-                &state.enter_index(index, state.inner_attrs()),
+                &state.enter_index(index, state.inner_attrs(), ValueType::for_field(element)),
             );
         }
     }
@@ -169,7 +169,7 @@ where
 {
     #[inline]
     fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::Map)
+        Some(ValueType::Object)
     }
 
     #[inline]
@@ -191,7 +191,11 @@ where
         P: Processor,
     {
         for (k, v) in self.iter_mut() {
-            process_value(v, processor, &state.enter_borrowed(k, state.inner_attrs()));
+            process_value(
+                v,
+                processor,
+                &state.enter_borrowed(k, state.inner_attrs(), ValueType::for_field(v)),
+            );
         }
     }
 }
@@ -200,6 +204,11 @@ impl<T> ProcessValue for Box<T>
 where
     T: ProcessValue,
 {
+    #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        (**self).value_type()
+    }
+
     #[inline]
     fn process_value<P>(
         &mut self,
@@ -215,6 +224,20 @@ where
 }
 
 impl ProcessValue for Value {
+    #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        match self {
+            Value::Null => None,
+            Value::Bool(_) => Some(ValueType::Boolean),
+            Value::I64(_) => Some(ValueType::Number),
+            Value::U64(_) => Some(ValueType::Number),
+            Value::F64(_) => Some(ValueType::Number),
+            Value::String(_) => Some(ValueType::String),
+            Value::Array(_) => Some(ValueType::Array),
+            Value::Object(_) => Some(ValueType::Object),
+        }
+    }
+
     #[inline]
     fn process_value<P>(
         &mut self,
@@ -242,6 +265,11 @@ macro_rules! process_tuple {
     ($($name: ident),+) => {
         impl< $( $name: ProcessValue ),* > ProcessValue for ( $( Annotated<$name>, )* ) {
             #[inline]
+            fn value_type(&self) -> Option<ValueType> {
+                Some(ValueType::Array)
+            }
+
+            #[inline]
             #[allow(non_snake_case, unused_assignments)]
             fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
             where
@@ -251,7 +279,7 @@ macro_rules! process_tuple {
                 let mut index = 0;
 
                 $(
-                    process_value($name, processor, &state.enter_index(index, state.inner_attrs()));
+                    process_value($name, processor, &state.enter_index(index, state.inner_attrs(), ValueType::for_field($name)));
                     index += 1;
                 )*
             }

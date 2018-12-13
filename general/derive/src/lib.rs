@@ -66,6 +66,20 @@ fn process_wrapper_struct_derive(
 
     let name = &s.ast().ident;
 
+    let value_type = type_attrs
+        .value_type
+        .map(|value_name| {
+            let value_name = Ident::new(&value_name, Span::call_site());
+            quote! {
+                Some(crate::processor::ValueType::#value_name)
+            }
+        })
+        .unwrap_or_else(|| {
+            quote! {
+                crate::processor::ProcessValue::value_type(&self.0)
+            }
+        });
+
     Ok(match t {
         Trait::From => s.gen_impl(quote! {
             #[automatically_derived]
@@ -113,6 +127,11 @@ fn process_wrapper_struct_derive(
         Trait::Process => s.gen_impl(quote! {
             #[automatically_derived]
             gen impl crate::processor::ProcessValue for @Self {
+                #[inline]
+                fn value_type(&self) -> Option<crate::processor::ValueType> {
+                    #value_type
+                }
+
                 #[inline]
                 fn process_value<P>(
                     &mut self,
@@ -445,7 +464,11 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
             (quote! {
                 let #bi = {
                     for (__key, __value) in #bi.iter_mut() {
-                        let __inner_state = __state.enter_borrowed(__key.as_str(), None);
+                        let __inner_state = __state.enter_borrowed(
+                            __key.as_str(),
+                            None,
+                            crate::processor::ValueType::for_field(__value),
+                        );
                         crate::processor::process_value(__value, __processor, &__inner_state);
                     }
                     #bi
@@ -578,14 +601,16 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 quote! {
                     __state.enter_index(
                         #index,
-                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))
+                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                        crate::processor::ValueType::for_field(#bi),
                     )
                 }
             } else {
                 quote! {
                     __state.enter_static(
                         #field_name,
-                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))
+                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                        crate::processor::ValueType::for_field(#bi),
                     )
                 }
             };

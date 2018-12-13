@@ -1,8 +1,18 @@
 use std::borrow::Cow;
 use std::fmt;
+use std::str::FromStr;
 
+use failure::Fail;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+
+use crate::processor::ProcessValue;
+use crate::types::Annotated;
+
+/// Error for unknown value types.
+#[derive(Debug, Fail)]
+#[fail(display = "unknown value type")]
+pub struct UnknownValueTypeError;
 
 /// The (simplified) type of a value.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -12,7 +22,7 @@ pub enum ValueType {
     Boolean,
     DateTime,
     Array,
-    Map,
+    Object,
     Event,
     Exception,
     Stacktrace,
@@ -22,6 +32,63 @@ pub enum ValueType {
     LogEntry,
     Thread,
     Breadcrumb,
+}
+
+impl ValueType {
+    pub fn for_field<T: ProcessValue>(field: &Annotated<T>) -> Option<Self> {
+        field.value().and_then(ProcessValue::value_type)
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            ValueType::String => "string",
+            ValueType::Number => "number",
+            ValueType::Boolean => "boolean",
+            ValueType::DateTime => "datetime",
+            ValueType::Array => "array",
+            ValueType::Object => "object",
+            ValueType::Event => "event",
+            ValueType::Exception => "exception",
+            ValueType::Stacktrace => "stacktrace",
+            ValueType::Frame => "frame",
+            ValueType::Request => "request",
+            ValueType::User => "user",
+            ValueType::LogEntry => "logentry",
+            ValueType::Thread => "thread",
+            ValueType::Breadcrumb => "breadcrumb",
+        }
+    }
+}
+
+impl fmt::Display for ValueType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+impl FromStr for ValueType {
+    type Err = UnknownValueTypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "string" | "freeform" => ValueType::String,
+            "number" => ValueType::Number,
+            "bool" | "boolean" => ValueType::Boolean,
+            "datetime" => ValueType::DateTime,
+            "array" | "list" => ValueType::Array,
+            "object" | "databag" => ValueType::Object,
+            "event" => ValueType::Event,
+            "exception" => ValueType::Exception,
+            "stacktrace" => ValueType::Stacktrace,
+            "frame" => ValueType::Frame,
+            "request" => ValueType::Request,
+            "user" => ValueType::User,
+            "logentry" => ValueType::LogEntry,
+            "thread" => ValueType::Thread,
+            "breadcrumb" => ValueType::Breadcrumb,
+            _ => return Err(UnknownValueTypeError),
+        })
+    }
 }
 
 /// The maximum length of a field.
@@ -195,6 +262,7 @@ pub struct ProcessingState<'a> {
     parent: Option<&'a ProcessingState<'a>>,
     path: Option<PathItem<'a>>,
     attrs: Option<Cow<'a, FieldAttrs>>,
+    value_type: Option<ValueType>,
     depth: usize,
 }
 
@@ -202,6 +270,7 @@ static ROOT_STATE: ProcessingState = ProcessingState {
     parent: None,
     path: None,
     attrs: None,
+    value_type: None,
     depth: 0,
 };
 
@@ -216,31 +285,45 @@ impl<'a> ProcessingState<'a> {
         &'a self,
         key: &'static str,
         attrs: Option<Cow<'static, FieldAttrs>>,
+        value_type: Option<ValueType>,
     ) -> Self {
         ProcessingState {
             parent: Some(self),
             path: Some(PathItem::StaticKey(key)),
             attrs,
+            value_type,
             depth: self.depth + 1,
         }
     }
 
     /// Derives a processing state by entering a borrowed key.
-    pub fn enter_borrowed(&'a self, key: &'a str, attrs: Option<Cow<'a, FieldAttrs>>) -> Self {
+    pub fn enter_borrowed(
+        &'a self,
+        key: &'a str,
+        attrs: Option<Cow<'a, FieldAttrs>>,
+        value_type: Option<ValueType>,
+    ) -> Self {
         ProcessingState {
             parent: Some(self),
             path: Some(PathItem::StaticKey(key)),
             attrs,
+            value_type,
             depth: self.depth + 1,
         }
     }
 
     /// Derives a processing state by entering an index.
-    pub fn enter_index(&'a self, idx: usize, attrs: Option<Cow<'a, FieldAttrs>>) -> Self {
+    pub fn enter_index(
+        &'a self,
+        idx: usize,
+        attrs: Option<Cow<'a, FieldAttrs>>,
+        value_type: Option<ValueType>,
+    ) -> Self {
         ProcessingState {
             parent: Some(self),
             path: Some(PathItem::Index(idx)),
             attrs,
+            value_type,
             depth: self.depth + 1,
         }
     }
@@ -248,6 +331,10 @@ impl<'a> ProcessingState<'a> {
     /// Returns the path in the processing state.
     pub fn path(&'a self) -> Path<'a> {
         Path(&self)
+    }
+
+    pub fn value_type(&self) -> Option<ValueType> {
+        self.value_type
     }
 
     /// Returns the field attributes.
@@ -297,6 +384,15 @@ impl<'a> Iterator for ProcessingStateIter<'a> {
 
 impl<'a> ExactSizeIterator for ProcessingStateIter<'a> {}
 
+impl<'a> IntoIterator for &'a ProcessingState<'a> {
+    type Item = &'a ProcessingState<'a>;
+    type IntoIter = ProcessingStateIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 impl<'a> Default for ProcessingState<'a> {
     fn default() -> Self {
         ProcessingState::root().clone()
@@ -331,56 +427,14 @@ impl<'a> Path<'a> {
     /// Returns a path iterator.
     pub fn iter(&'a self) -> impl Iterator<Item = &'a PathItem<'a>> {
         let mut items = Vec::with_capacity(self.0.depth);
+
         for state in self.0.iter() {
             if let Some(ref path) = state.path {
                 items.push(path)
             }
         }
-        items.reverse();
-        items.into_iter()
-    }
 
-    /// Checks if a path starts with a given pattern.
-    pub fn starts_with_pattern(&self, pattern: &str) -> bool {
-        let mut buf = [""; 255];
-        let pattern_len = pattern
-            .split('.')
-            .zip(buf.iter_mut())
-            .map(|(src, dst)| *dst = src)
-            .count();
-
-        if pattern_len >= buf.len() {
-            return false;
-        }
-
-        let mut ptr = Some(self.0);
-        while let Some(p) = ptr {
-            if p.depth == pattern_len {
-                break;
-            }
-            ptr = p.parent;
-        }
-
-        if ptr.is_none() {
-            return false;
-        }
-
-        let mut idx = 0;
-        while let Some(p) = ptr {
-            if let Some(ref key) = p.path().key() {
-                if key != &buf[pattern_len - idx - 1] {
-                    return false;
-                }
-            } else if let Some(index) = p.path().index() {
-                if buf[pattern_len - idx - 1].parse().ok() != Some(index) {
-                    return false;
-                }
-            }
-            idx += 1;
-            ptr = p.parent;
-        }
-
-        true
+        items.into_iter().rev()
     }
 }
 
@@ -395,20 +449,4 @@ impl<'a> fmt::Display for Path<'a> {
         }
         Ok(())
     }
-}
-
-#[test]
-fn test_path_matching() {
-    let state = ProcessingState::root();
-    let event_state = state.enter_static("event", None);
-    let user_state = event_state.enter_static("user", None);
-    let extra_state = user_state.enter_static("extra", None);
-    let foo_state = extra_state.enter_static("foo", None);
-    let zero_state = extra_state.enter_index(0, None);
-
-    assert!(foo_state.path().starts_with_pattern("event.user.extra"));
-    assert!(extra_state.path().starts_with_pattern("event.user.extra"));
-    assert!(!user_state.path().starts_with_pattern("event.user.extra"));
-    assert!(zero_state.path().starts_with_pattern("event.user.extra.0"));
-    assert!(!zero_state.path().starts_with_pattern("event.user.extra.1"));
 }

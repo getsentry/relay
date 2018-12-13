@@ -7,7 +7,7 @@ use std::str::FromStr;
 use failure::Fail;
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::processor::{process_value, ProcessValue, ProcessingState, Processor};
+use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{
     Annotated, Array, Error, ErrorKind, FromValue, Meta, Object, SkipSerialization, ToValue, Value,
     ValueAction,
@@ -97,14 +97,26 @@ impl<T: FromValue> FromValue for Values<T> {
 pub trait AsPair {
     type Value: ProcessValue;
 
+    /// Extracts a key and value pair from the object.
+    fn as_pair(&self) -> (&Annotated<String>, &Annotated<Self::Value>);
+
     /// Extracts the mutable key and value pair from the object.
-    fn as_pair(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>);
+    fn as_pair_mut(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>);
+
+    /// Returns a reference to the string representation of the key.
+    fn key_str(&self) -> Option<&str> {
+        self.as_pair().0.as_str()
+    }
 }
 
 impl<T: ProcessValue> AsPair for (Annotated<String>, Annotated<T>) {
     type Value = T;
 
-    fn as_pair(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>) {
+    fn as_pair(&self) -> (&Annotated<String>, &Annotated<Self::Value>) {
+        (&self.0, &self.1)
+    }
+
+    fn as_pair_mut(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>) {
         (&mut self.0, &mut self.1)
     }
 }
@@ -158,7 +170,15 @@ impl<T: FromValue> FromValue for PairList<T> {
     }
 }
 
-impl<T: ProcessValue + AsPair> ProcessValue for PairList<T> {
+impl<T> ProcessValue for PairList<T>
+where
+    T: ProcessValue + AsPair,
+{
+    #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        Some(ValueType::Object)
+    }
+
     #[inline]
     fn process_value<P>(
         &mut self,
@@ -176,8 +196,15 @@ impl<T: ProcessValue + AsPair> ProcessValue for PairList<T> {
     where
         P: Processor,
     {
-        for (i, pair) in self.0.iter_mut().enumerate() {
-            let state = state.enter_index(i, state.inner_attrs());
+        for pair in self.0.iter_mut() {
+            // Clone the key since we will mutate the pair afterwards. If there is no key in the
+            // pair (e.g. due to invalid data), an empty key is assumed.
+            let key = match pair.value().and_then(AsPair::key_str) {
+                Some(key) => key.to_string(),
+                None => String::new(),
+            };
+
+            let state = state.enter_borrowed(&key, state.inner_attrs(), ValueType::for_field(pair));
             process_value(pair, processor, &state);
         }
     }

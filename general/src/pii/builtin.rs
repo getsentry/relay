@@ -4,28 +4,11 @@ use std::collections::BTreeMap;
 use lazy_static::lazy_static;
 
 use crate::pii::{
-    AliasRule, AliasSelector, HashAlgorithm, HashRedaction, KindSelector, MaskRedaction,
-    MultipleRule, RedactPairRule, Redaction, ReplaceRedaction, RuleSpec, RuleType, SelectorType,
+    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, RedactPairRule,
+    Redaction, ReplaceRedaction, RuleSpec, RuleType,
 };
-use crate::processor::PiiKind;
 
 pub static BUILTIN_SELECTORS: &[&'static str] = &["text", "container"];
-
-lazy_static! {
-    #[rustfmt::skip]
-    pub(crate) static ref BUILTIN_SELECTORS_MAP: BTreeMap<&'static str, SelectorType> = {
-        let mut map = BTreeMap::new();
-        map.insert("text", SelectorType::Kind(KindSelector { kind: PiiKind::Text }));
-        map.insert("container", SelectorType::Kind(KindSelector { kind: PiiKind::Container }));
-
-        // These are legacy aliases for compatibility
-        for name in &["freeform", "ip", "id", "username", "hostname", "name", "email", "location"] {
-            map.insert(name, SelectorType::Alias(AliasSelector { selector: "text".to_string() }));
-        }
-        map.insert("databag", SelectorType::Alias(AliasSelector { selector: "container".to_string() }));
-        map
-    };
-}
 
 macro_rules! declare_builtin_rules {
     ($($rule_id:expr => $spec:expr;)*) => {
@@ -342,7 +325,7 @@ declare_builtin_rules! {
 mod tests {
     use crate::pii::config::PiiConfig;
     use crate::pii::processor::PiiProcessor;
-    use crate::processor::{process_value, ProcessingState};
+    use crate::processor::{process_value, ProcessingState, ValueType};
     use crate::types::{Annotated, Remark, RemarkType};
     use std::collections::BTreeMap;
 
@@ -358,11 +341,10 @@ mod tests {
         ) => {{
             let config = PiiConfig {
                 rules: Default::default(),
-                selectors: Default::default(),
                 vars: Default::default(),
                 applications: {
                     let mut map = BTreeMap::new();
-                    map.insert("text".to_string(), vec![$rule.to_string()]);
+                    map.insert(ValueType::String.into(), vec![$rule.to_string()]);
                     map
                 },
             };
