@@ -46,10 +46,8 @@ impl FromValue for Cookies {
                 }
                 Annotated(Some(Cookies(PairList(cookies))), meta)
             }
-            annotated @ Annotated(Some(Value::Object(_)), _) => {
-                PairList::from_value(annotated).map_value(Cookies)
-            }
-            annotated @ Annotated(Some(Value::Array(_)), _) => {
+            annotated @ Annotated(Some(Value::Object(_)), _)
+            | annotated @ Annotated(Some(Value::Array(_)), _) => {
                 PairList::from_value(annotated).map_value(Cookies)
             }
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
