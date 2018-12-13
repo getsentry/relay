@@ -50,6 +50,16 @@ impl FromValue for Cookies {
                 let Annotated(value, meta) = FromValue::from_value(annotated);
                 Annotated(value.map(Cookies), meta)
             }
+            annotated @ Annotated(Some(Value::Array(_)), _) => PairList::from_value(annotated)
+                .map_value(|pairlist| {
+                    Cookies(
+                        pairlist
+                            .0
+                            .into_iter()
+                            .filter_map(|p| p.0.and_then(|(k, v)| k.0.map(|k| (k, v))))
+                            .collect(),
+                    )
+                }),
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
@@ -566,6 +576,21 @@ fn test_cookies_parsing() {
         Annotated::new("u32t4o3tb3gg43".to_string()),
     );
     map.insert("_gat".to_string(), Annotated::new("1".to_string()));
+
+    let cookies = Annotated::new(Cookies(map));
+    assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
+}
+
+#[test]
+fn test_cookies_array() {
+    let json = r#"[["foo", "bar"], ["invalid", 42]]"#;
+
+    let mut map = Object::new();
+    map.insert("foo".to_string(), Annotated::new("bar".to_string()));
+    map.insert(
+        "invalid".to_string(),
+        Annotated::from_error(Error::expected("a string"), Some(Value::U64(42))),
+    );
 
     let cookies = Annotated::new(Cookies(map));
     assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
