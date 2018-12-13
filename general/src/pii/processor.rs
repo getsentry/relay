@@ -11,7 +11,7 @@ use smallvec::SmallVec;
 use crate::pii::config::{RuleRef, SelectorRef};
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType, SelectorType};
 use crate::processor::{
-    process_chunked_value, Chunk, PiiKind, ProcessValue, ProcessingState, Processor, ValueType
+    process_chunked_value, Chunk, PiiKind, ProcessValue, ProcessingState, Processor, ValueType,
 };
 use crate::protocol::{AsPair, PairList};
 use crate::types::{Meta, Object, Remark, RemarkType, Timestamp, ValueAction};
@@ -278,7 +278,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        let mut rules = self.iter_rules(PiiKind::Text, &state, value.value_type()).peekable();
+        let mut rules = self
+            .iter_rules(PiiKind::Text, &state, value.value_type())
+            .peekable();
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
 
@@ -300,7 +302,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
-        let mut rules = self.iter_rules(PiiKind::Container, &state, value.value_type()).peekable();
+        let mut rules = self
+            .iter_rules(PiiKind::Container, &state, value.value_type())
+            .peekable();
 
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
@@ -328,7 +332,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
-        let mut rules = self.iter_rules(PiiKind::Container, &state, value.value_type()).peekable();
+        let mut rules = self
+            .iter_rules(PiiKind::Container, &state, value.value_type())
+            .peekable();
 
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
