@@ -130,7 +130,7 @@ pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
 
 #[test]
 fn test_cookies_in_header() {
-    use crate::protocol::{Cookies, Headers};
+    use crate::protocol::{Cookies, Headers, PairList};
 
     let mut request = Request {
         url: Annotated::new("http://example.com".to_string()),
@@ -149,17 +149,23 @@ fn test_cookies_in_header() {
     assert_eq_dbg!(
         request.cookies,
         Annotated::new(Cookies({
-            let mut map = Object::new();
-            map.insert("a".to_string(), Annotated::new("b".to_string()));
-            map.insert("c".to_string(), Annotated::new("d".to_string()));
-            map
+            let mut map = Vec::new();
+            map.push(Annotated::new((
+                Annotated::new("a".to_string()),
+                Annotated::new("b".to_string()),
+            )));
+            map.push(Annotated::new((
+                Annotated::new("c".to_string()),
+                Annotated::new("d".to_string()),
+            )));
+            PairList(map)
         }))
     );
 }
 
 #[test]
 fn test_cookies_in_header_not_overridden() {
-    use crate::protocol::{Cookies, Headers};
+    use crate::protocol::{Cookies, Headers, PairList};
 
     let mut request = Request {
         url: Annotated::new("http://example.com".to_string()),
@@ -171,9 +177,12 @@ fn test_cookies_in_header_not_overridden() {
             .into(),
         )),
         cookies: Annotated::new(Cookies({
-            let mut map = Object::new();
-            map.insert("foo".to_string(), Annotated::new("bar".to_string()));
-            map
+            let mut map = Vec::new();
+            map.push(Annotated::new((
+                Annotated::new("foo".to_string()),
+                Annotated::new("bar".to_string()),
+            )));
+            PairList(map)
         })),
         ..Default::default()
     };
@@ -183,9 +192,12 @@ fn test_cookies_in_header_not_overridden() {
     assert_eq_dbg!(
         request.cookies,
         Annotated::new(Cookies({
-            let mut map = Object::new();
-            map.insert("foo".to_string(), Annotated::new("bar".to_string()));
-            map
+            let mut map = Vec::new();
+            map.push(Annotated::new((
+                Annotated::new("foo".to_string()),
+                Annotated::new("bar".to_string()),
+            )));
+            PairList(map)
         }))
     );
 }
