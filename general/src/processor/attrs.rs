@@ -266,7 +266,36 @@ impl<'a> ProcessingState<'a> {
             None
         }
     }
+
+    /// Iterates through this state and all its ancestors up the hierarchy.
+    pub fn iter(&'a self) -> ProcessingStateIter<'a> {
+        ProcessingStateIter {
+            state: Some(self),
+            size: self.depth,
+        }
+    }
 }
+
+pub struct ProcessingStateIter<'a> {
+    state: Option<&'a ProcessingState<'a>>,
+    size: usize,
+}
+
+impl<'a> Iterator for ProcessingStateIter<'a> {
+    type Item = &'a ProcessingState<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let current = self.state?;
+        self.state = current.parent;
+        Some(current)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.size, Some(self.size))
+    }
+}
+
+impl<'a> ExactSizeIterator for ProcessingStateIter<'a> {}
 
 impl<'a> Default for ProcessingState<'a> {
     fn default() -> Self {
@@ -302,12 +331,10 @@ impl<'a> Path<'a> {
     /// Returns a path iterator.
     pub fn iter(&'a self) -> impl Iterator<Item = &'a PathItem<'a>> {
         let mut items = Vec::with_capacity(self.0.depth);
-        let mut ptr = Some(self.0);
-        while let Some(p) = ptr {
-            if let Some(ref path) = p.path {
-                items.push(path);
+        for state in self.0.iter() {
+            if let Some(ref path) = state.path {
+                items.push(path)
             }
-            ptr = p.parent;
         }
         items.reverse();
         items.into_iter()
