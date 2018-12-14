@@ -260,9 +260,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         event.process_child_values(self, state);
 
         // Override the project_id, even if it was set in the payload
-        if let Some(project_id) = self.config.project_id {
-            event.project.set_value(Some(project_id));
-        }
+        event.project = self.config.project_id.into();
 
         // Override the key_id, even if it was set in the payload
         if let Some(ref key_id) = self.config.key_id {
