@@ -197,12 +197,22 @@ pub struct Event {
     pub server_name: Annotated<String>,
 
     /// Program's release identifier.
-    #[metastructure(max_chars = "symbol", match_regex = r"^[^\r\n]*\z")]
+    #[metastructure(
+        max_chars = "symbol",
+        match_regex = r"^[^\r\n]*\z",
+        required = "false",
+        nonempty = "true"
+    )]
     pub release: Annotated<String>,
 
     /// Program's distribution identifier.
     // Match whitespace here, which will later get trimmed
-    #[metastructure(max_chars = "symbol", match_regex = r"^\s*[a-zA-Z0-9_.-]+\s*$")]
+    #[metastructure(
+        max_chars = "symbol",
+        match_regex = r"^\s*[a-zA-Z0-9_.-]*\s*$",
+        required = "false",
+        nonempty = "true"
+    )]
     pub dist: Annotated<String>,
 
     /// Environment the environment was generated in ("production" or "development").

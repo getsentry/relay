@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 
-use crate::protocol::JsonLenientString;
+use crate::protocol::LenientString;
 use crate::types::{Annotated, FromValue, Object, Value};
 
 /// Device information.
@@ -139,7 +139,7 @@ pub struct AppContext {
 
     /// Internal build ID as it appears on the platform.
     #[metastructure(max_chars = "summary")]
-    pub app_build: Annotated<JsonLenientString>,
+    pub app_build: Annotated<LenientString>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
