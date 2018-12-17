@@ -85,6 +85,20 @@ impl<'a> StoreNormalizeProcessor<'a> {
         &self.config
     }
 
+    /// Ensures that the `release` and `dist` fields match up.
+    fn normalize_release_dist(&self, event: &mut Event) {
+        if event.dist.value().is_some() && event.release.value().is_none() {
+            event.dist.set_value(None);
+        }
+
+        if let Some(dist) = event.dist.value_mut() {
+            if dist.trim() != dist {
+                *dist = dist.trim().to_string();
+            }
+        }
+    }
+
+    /// Validates the timestamp range and sets a default value.
     fn normalize_timestamps(&self, event: &mut Event) {
         let current_timestamp = Utc::now();
         if event.received.value().is_none() {
@@ -114,6 +128,7 @@ impl<'a> StoreNormalizeProcessor<'a> {
         }
     }
 
+    /// Removes internal tags and adds tags for well-known attributes.
     fn normalize_event_tags(&self, event: &mut Event) {
         let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
         let environment = &mut event.environment;
@@ -131,7 +146,7 @@ impl<'a> StoreNormalizeProcessor<'a> {
 
                 // Fix case where legacy apps pass environment as a tag instead of a top level key
                 Some("environment") => {
-                    if let Some(ref value) = tag.value() {
+                    if let Some(value) = tag.value() {
                         environment.get_or_insert_with(|| value.to_string());
                     }
 
@@ -156,6 +171,7 @@ impl<'a> StoreNormalizeProcessor<'a> {
         }
     }
 
+    /// Infers the `EventType` from the event's interfaces.
     fn infer_event_type(&self, event: &Event) -> EventType {
         // port of src/sentry/eventtypes
         //
@@ -184,6 +200,7 @@ impl<'a> StoreNormalizeProcessor<'a> {
         }
     }
 
+    /// Inserts the IP address into the user interface. Creates the user if it doesn't exist.
     fn normalize_user_ip(&self, event: &mut Event) {
         let http_ip = event
             .request
@@ -209,6 +226,7 @@ impl<'a> StoreNormalizeProcessor<'a> {
         }
     }
 
+    /// Creates or updates the user's IP address.
     fn set_user_ip(&self, user: &mut Annotated<User>, ip_address: &str) {
         let user = user.value_mut().get_or_insert_with(User::default);
         if user.ip_address.value().is_none() {
@@ -272,28 +290,19 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             }
         });
 
-        if event.dist.value().is_some() && event.release.value().is_none() {
-            event.dist.set_value(None);
-        }
-
-        if let Some(dist) = event.dist.value_mut() {
-            if dist.trim() != dist {
-                *dist = dist.trim().to_string();
-            }
-        }
-
         // Default required attributes, even if they have errors
         event.errors.get_or_insert_with(Vec::new);
         event.level.get_or_insert_with(|| Level::Error);
         event.id.get_or_insert_with(|| EventId(Uuid::new_v4()));
-        event.logger.get_or_insert_with(String::new);
         event.platform.get_or_insert_with(|| "other".to_string());
+        event.logger.get_or_insert_with(String::new);
         event.extra.get_or_insert_with(Object::new);
         if event.client_sdk.value().is_none() {
             event.client_sdk.set_value(self.config.get_sdk_info());
         }
 
         // Normalize connected attributes and interfaces
+        self.normalize_release_dist(event);
         self.normalize_timestamps(event);
         self.normalize_event_tags(event);
         self.normalize_exceptions(event);
@@ -360,7 +369,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         user.process_child_values(self, state);
 
         // Fill in ip addresses marked as {{auto}}
-        if let Some(ref mut ip_address) = user.ip_address.value_mut() {
+        if let Some(ip_address) = user.ip_address.value_mut() {
             if ip_address.is_auto() {
                 if let Some(ref client_ip) = self.config.client_ip {
                     *ip_address = IpAddr(client_ip.clone());
