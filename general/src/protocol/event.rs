@@ -498,9 +498,9 @@ fn test_event_default_values_with_meta() {
 fn test_event_type() {
     assert_eq_dbg!(
         EventType::Default,
-        Annotated::<EventType>::from_json("\"default\"")
+        *Annotated::<EventType>::from_json("\"default\"")
             .unwrap()
-            .0
+            .value()
             .unwrap()
     );
 }

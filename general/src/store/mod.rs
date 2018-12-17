@@ -362,7 +362,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         state: &ProcessingState<'_>,
     ) -> ValueAction {
         if !user.other.is_empty() {
-            let data = &mut user.data.0.get_or_insert_with(Object::new);
+            let data = user.data.value_mut().get_or_insert_with(Object::new);
             data.extend(std::mem::replace(&mut user.other, Object::new()).into_iter());
         }
 
@@ -607,11 +607,10 @@ fn test_environment_tag_is_moved() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
     process_value(&mut event, &mut processor, ProcessingState::root());
 
-    let event = event.0.unwrap();
+    let event = event.value().unwrap();
 
-    assert_eq_dbg!(event.environment.0, Some("despacito".to_string()));
-
-    assert_eq_dbg!(event.tags.0, Some(Tags(vec![].into())));
+    assert_eq_dbg!(event.environment.as_str(), Some("despacito"));
+    assert_eq_dbg!(event.tags.value(), Some(&Tags(vec![].into())));
 }
 
 #[test]
@@ -625,14 +624,14 @@ fn test_top_level_keys_moved_into_tags() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
     process_value(&mut event, &mut processor, ProcessingState::root());
 
-    let event = event.0.unwrap();
+    let event = event.value().unwrap();
 
-    assert_eq_dbg!(event.site.0, None);
-    assert_eq_dbg!(event.server_name.0, None);
+    assert_eq_dbg!(event.site.value(), None);
+    assert_eq_dbg!(event.server_name.value(), None);
 
     assert_eq_dbg!(
-        event.tags.0,
-        Some(Tags(
+        event.tags.value(),
+        Some(&Tags(
             vec![
                 Annotated::new(TagEntry(
                     Annotated::new("server_name".to_string()),
@@ -665,7 +664,7 @@ fn test_user_data_moved() {
     let mut processor = StoreNormalizeProcessor::new(StoreConfig::default(), None);
     process_value(&mut user, &mut processor, ProcessingState::root());
 
-    let user = user.0.unwrap();
+    let user = user.value().unwrap();
 
     assert_eq_dbg!(user.data, {
         let mut map = Object::new();

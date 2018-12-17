@@ -222,7 +222,7 @@ impl<T> Annotated<T> {
     where
         F: FnOnce() -> T,
     {
-        self.0.get_or_insert_with(f)
+        self.value_mut().get_or_insert_with(f)
     }
 }
 
@@ -282,7 +282,7 @@ impl<T: ToValue> Annotated<T> {
         let mut map_ser = serializer.serialize_map(None)?;
         let meta_tree = ToValue::extract_meta_tree(self);
 
-        if let Some(ref value) = self.0 {
+        if let Some(value) = self.value() {
             use serde::private::ser::FlatMapSerializer;
             ToValue::serialize_payload(
                 value,
@@ -317,10 +317,8 @@ impl<T: ToValue> Annotated<T> {
     pub fn payload_to_json(&self) -> Result<String, serde_json::Error> {
         let mut ser = serde_json::Serializer::new(Vec::with_capacity(128));
 
-        match self.0 {
-            Some(ref value) => {
-                ToValue::serialize_payload(value, &mut ser, SkipSerialization::Null)?
-            }
+        match self.value() {
+            Some(value) => ToValue::serialize_payload(value, &mut ser, SkipSerialization::Null)?,
             None => ser.serialize_unit()?,
         }
 
@@ -331,10 +329,8 @@ impl<T: ToValue> Annotated<T> {
     pub fn payload_to_json_pretty(&self) -> Result<String, serde_json::Error> {
         let mut ser = serde_json::Serializer::pretty(Vec::with_capacity(128));
 
-        match self.0 {
-            Some(ref value) => {
-                ToValue::serialize_payload(value, &mut ser, SkipSerialization::Null)?
-            }
+        match self.value() {
+            Some(value) => ToValue::serialize_payload(value, &mut ser, SkipSerialization::Null)?,
             None => ser.serialize_unit()?,
         }
 
@@ -347,11 +343,11 @@ impl<T: ToValue> Annotated<T> {
             return false;
         }
 
-        if !self.1.is_empty() {
+        if !self.meta().is_empty() {
             return false;
         }
 
-        if let Some(ref value) = self.0 {
+        if let Some(value) = self.value() {
             behavior == SkipSerialization::Empty && value.skip_serialization(behavior)
         } else {
             true
@@ -382,15 +378,15 @@ impl<T: ToValue> Annotated<T> {
 
 impl Annotated<Value> {
     fn attach_meta_tree(&mut self, mut meta_tree: MetaTree) {
-        match self.0 {
-            Some(Value::Array(ref mut items)) => {
+        match self.value_mut() {
+            Some(Value::Array(items)) => {
                 for (idx, item) in items.iter_mut().enumerate() {
                     if let Some(meta_tree) = meta_tree.children.remove(&idx.to_string()) {
                         item.attach_meta_tree(meta_tree);
                     }
                 }
             }
-            Some(Value::Object(ref mut items)) => {
+            Some(Value::Object(items)) => {
                 for (key, value) in items.iter_mut() {
                     if let Some(meta_tree) = meta_tree.children.remove(key) {
                         value.attach_meta_tree(meta_tree);
@@ -399,7 +395,8 @@ impl Annotated<Value> {
             }
             _ => {}
         }
-        self.1 = meta_tree.meta;
+
+        *self.meta_mut() = meta_tree.meta;
     }
 }
 
@@ -426,7 +423,7 @@ impl<T: Serialize> Serialize for Annotated<T> {
     where
         S: Serializer,
     {
-        Serialize::serialize(&self.0, serializer)
+        Serialize::serialize(&self.value(), serializer)
     }
 }
 
@@ -469,7 +466,7 @@ fn test_annotated_deserialize_with_meta() {
     )
     .unwrap();
 
-    assert_eq!(annotated_value.0.as_ref().unwrap().id.0, None);
+    assert_eq!(annotated_value.value().unwrap().id.value(), None);
     assert_eq!(
         annotated_value
             .value()
@@ -484,8 +481,8 @@ fn test_annotated_deserialize_with_meta() {
         ],
     );
     assert_eq!(
-        annotated_value.0.as_ref().unwrap().ty.0,
-        Some("testing".into())
+        annotated_value.value().unwrap().ty.as_str(),
+        Some("testing")
     );
     assert_eq!(
         annotated_value
