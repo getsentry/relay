@@ -786,6 +786,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
 
 fn parse_max_chars(name: &str) -> TokenStream {
     match name {
+        "hash" => quote!(crate::processor::MaxChars::Hash),
         "enumlike" => quote!(crate::processor::MaxChars::EnumLike),
         "summary" => quote!(crate::processor::MaxChars::Summary),
         "message" => quote!(crate::processor::MaxChars::Message),

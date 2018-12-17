@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 /// The maximum length of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
 pub enum MaxChars {
+    Hash,
     EnumLike,
     Summary,
     Message,
@@ -25,6 +26,7 @@ impl MaxChars {
     /// The cap in number of unicode characters.
     pub fn limit(self) -> usize {
         match self {
+            MaxChars::Hash => 128,
             MaxChars::EnumLike => 128,
             MaxChars::Summary => 1024,
             MaxChars::Message => 8192,
@@ -43,6 +45,7 @@ impl MaxChars {
     /// The number of extra characters permitted.
     pub fn allowance(self) -> usize {
         match self {
+            MaxChars::Hash => 0,
             MaxChars::EnumLike => 0,
             MaxChars::Summary => 100,
             MaxChars::Message => 200,
