@@ -248,8 +248,6 @@ impl<'a> StoreNormalizeProcessor<'a> {
 }
 
 impl<'a> Processor for StoreNormalizeProcessor<'a> {
-    // TODO: Reduce cyclomatic complexity of this function
-    #[allow(clippy::cyclomatic_complexity)]
     fn process_event(
         &mut self,
         event: &mut Event,
@@ -259,37 +257,20 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         schema::SchemaProcessor.process_event(event, meta, state);
         event.process_child_values(self, state);
 
-        // Override the project_id, even if it was set in the payload
-        event.project = self.config.project_id.into();
+        // Override internal attributes, even if they were set in the payload
+        event.project = Annotated::from(self.config.project_id);
+        event.key_id = Annotated::from(self.config.key_id.clone());
+        event.ty = Annotated::from(self.infer_event_type(event));
+        event.version = Annotated::from(self.config.protocol_version.clone());
 
-        // Override the key_id, even if it was set in the payload
-        if let Some(ref key_id) = self.config.key_id {
-            event.key_id.set_value(Some(key_id.clone()));
-        }
-
-        if event.errors.value().is_none() {
-            event.errors.set_value(Some(Vec::new()));
-        }
-
-        if event.client_sdk.value().is_none() {
-            event.client_sdk.set_value(self.config.get_sdk_info());
-        }
-
-        event
-            .stacktrace
-            .apply(stacktrace::process_non_raw_stacktrace);
-
-        if event.level.value().is_none() {
-            event.level.set_value(Some(Level::Error));
-        }
-
-        if event.id.value().is_none() {
-            event.id.set_value(Some(EventId(Uuid::new_v4())));
-        }
-
-        if event.logger.value().is_none() {
-            event.logger.set_value(Some(String::new()));
-        }
+        // Validate basic attributes
+        event.platform.apply(|platform, _| {
+            if self.config.valid_platforms.contains(platform) {
+                ValueAction::Keep
+            } else {
+                ValueAction::DeleteSoft
+            }
+        });
 
         if event.dist.value().is_some() && event.release.value().is_none() {
             event.dist.set_value(None);
@@ -301,36 +282,31 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             }
         }
 
+        // Default required attributes, even if they have errors
+        event.errors.get_or_insert_with(Vec::new);
+        event.level.get_or_insert_with(|| Level::Error);
+        event.id.get_or_insert_with(|| EventId(Uuid::new_v4()));
+        event.logger.get_or_insert_with(String::new);
+        event.platform.get_or_insert_with(|| "other".to_string());
+        event.extra.get_or_insert_with(Object::new);
+        if event.client_sdk.value().is_none() {
+            event.client_sdk.set_value(self.config.get_sdk_info());
+        }
+
+        // Normalize connected attributes and interfaces
         self.normalize_timestamps(event);
-
-        event.platform.apply(|platform, _| {
-            // TODO: keep original value?
-            self.config.valid_platforms.contains(platform)
-        });
-
-        if event.platform.value().is_none() {
-            event.platform.set_value(Some("other".to_string()));
-        }
-
-        if event.extra.value().is_none() {
-            event.extra.set_value(Some(Object::new()));
-        }
-
         self.normalize_event_tags(event);
-
-        event.ty = Annotated::new(self.infer_event_type(event));
-
-        if let Some(ref version) = self.config.protocol_version {
-            event.version = Annotated::new(version.clone());
-        }
-
         self.normalize_exceptions(event);
         self.normalize_user_ip(event);
+        event
+            .stacktrace
+            .apply(stacktrace::process_non_raw_stacktrace);
 
+        // TODO: Compute hashes from fingerprints
         remove_other::RemoveOtherProcessor.process_event(event, meta, state);
 
+        // Trimming at last to ensure derived tags are the right length.
         if self.config.enable_trimming.unwrap_or(true) {
-            // Trimming should happen at end to ensure derived tags are the right length.
             self.trimming_processor.process_event(event, meta, state);
         }
 
