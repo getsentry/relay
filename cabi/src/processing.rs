@@ -6,7 +6,7 @@ use std::os::raw::c_char;
 
 use semaphore_general::processor::{process_value, split_chunks, ProcessingState};
 use semaphore_general::protocol::Event;
-use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreNormalizeProcessor};
+use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use semaphore_general::types::{Annotated, Remark};
 
 use crate::core::SemaphoreStr;
@@ -54,7 +54,7 @@ ffi_fn! {
     ) -> Result<*mut SemaphoreStoreNormalizer> {
         let config: StoreConfig = serde_json::from_str((*config).as_str())?;
         let geoip_lookup = (geoip_lookup as *const GeoIpLookup).as_ref();
-        let normalizer = StoreNormalizeProcessor::new(config, geoip_lookup);
+        let normalizer = StoreProcessor::new(config, geoip_lookup);
         Ok(Box::into_raw(Box::new(normalizer)) as *mut SemaphoreStoreNormalizer)
     }
 }
@@ -64,7 +64,7 @@ ffi_fn! {
         normalizer: *mut SemaphoreStoreNormalizer
     ) {
         if !normalizer.is_null() {
-            let normalizer = normalizer as *mut StoreNormalizeProcessor;
+            let normalizer = normalizer as *mut StoreProcessor;
             Box::from_raw(normalizer);
         }
     }
@@ -75,7 +75,7 @@ ffi_fn! {
         normalizer: *mut SemaphoreStoreNormalizer,
         event: *const SemaphoreStr,
     ) -> Result<SemaphoreStr> {
-        let processor = normalizer as *mut StoreNormalizeProcessor;
+        let processor = normalizer as *mut StoreProcessor;
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut *processor, ProcessingState::root());
         Ok(SemaphoreStr::from_string(event.to_json()?))
