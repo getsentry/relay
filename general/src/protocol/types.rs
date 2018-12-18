@@ -196,15 +196,8 @@ where
     where
         P: Processor,
     {
-        for pair in self.0.iter_mut() {
-            // Clone the key since we will mutate the pair afterwards. If there is no key in the
-            // pair (e.g. due to invalid data), an empty key is assumed.
-            let key = match pair.value().and_then(AsPair::key_str) {
-                Some(key) => key.to_string(),
-                None => String::new(),
-            };
-
-            let state = state.enter_borrowed(&key, state.inner_attrs(), ValueType::for_field(pair));
+        for (idx, pair) in self.0.iter_mut().enumerate() {
+            let state = state.enter_index(idx, state.inner_attrs(), ValueType::for_field(pair));
             process_value(pair, processor, &state);
         }
     }
