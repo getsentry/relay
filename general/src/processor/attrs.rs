@@ -64,6 +64,21 @@ impl FromStr for SelectorSpec {
     type Err = InvalidSelectorError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // these are temporary legacy selectors
+        match s {
+            "freeform" | "email" | "sensitive" | "text" => {
+                return Ok(SelectorSpec {
+                    path: vec![SelectorPathItem::Type(ValueType::String)],
+                })
+            }
+            "databag" | "container" => {
+                return Ok(SelectorSpec {
+                    path: vec![SelectorPathItem::Type(ValueType::Object)],
+                })
+            }
+            _ => {}
+        }
+
         let mut path = vec![];
         let mut have_deep_wildcard = false;
         for item in s.split('.') {
@@ -179,12 +194,12 @@ impl FromStr for ValueType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            "string" | "freeform" => ValueType::String,
+            "string" => ValueType::String,
             "number" => ValueType::Number,
             "bool" | "boolean" => ValueType::Boolean,
             "datetime" => ValueType::DateTime,
             "array" | "list" => ValueType::Array,
-            "object" | "databag" => ValueType::Object,
+            "object" => ValueType::Object,
             "event" => ValueType::Event,
             "exception" => ValueType::Exception,
             "stacktrace" => ValueType::Stacktrace,
