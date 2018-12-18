@@ -8,10 +8,10 @@ use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 use smallvec::SmallVec;
 
-use crate::pii::config::{RuleRef, SelectorSpec};
+use crate::pii::config::RuleRef;
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, Chunk, ProcessValue, ProcessingState, Processor, ValueType,
+    process_chunked_value, Chunk, ProcessValue, ProcessingState, Processor, SelectorSpec,
 };
 use crate::protocol::{AsPair, PairList};
 use crate::types::{Meta, Object, Remark, RemarkType, Timestamp, ValueAction};
@@ -201,7 +201,7 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
             }
 
             while let Some((selector, rules)) = self.application_iter.next() {
-                if selector_applies(selector, self.state) {
+                if self.state.path().matches_selector(selector) {
                     self.pending_refs = Some(rules.iter());
                     continue 'outer;
                 }
@@ -386,42 +386,6 @@ fn collect_rules<'a, 'b>(
             rules.insert(rule);
         }
     }
-}
-
-fn selector_applies(selector: &SelectorSpec, state: &ProcessingState<'_>) -> bool {
-    let states: Vec<_> = state.iter().collect();
-
-    let mut states = states
-        .into_iter()
-        .rev()
-        .skip_while(|state| state.value_type().unwrap_or(ValueType::Event) != selector.ty);
-
-    if states.next().is_none() {
-        return false;
-    }
-
-    if let Some(ref path) = selector.path {
-        for item in path.split('.') {
-            let state = match states.next() {
-                Some(state) => state,
-                None => return false,
-            };
-
-            if let Some(key) = state.path().key() {
-                if key != item {
-                    return false;
-                }
-            } else if let Some(index) = state.path().index() {
-                if Some(index) != item.parse().ok() {
-                    return false;
-                }
-            } else {
-                unreachable!()
-            }
-        }
-    }
-
-    true
 }
 
 fn apply_rule_to_value<T: ProcessValue>(
@@ -682,30 +646,10 @@ use {
 };
 
 #[test]
-fn test_selector_matching() {
-    let event = ProcessingState::root();
-    let user = event.enter_static("user", None, Some(ValueType::User));
-    let extra = user.enter_static("extra", None, Some(ValueType::Object));
-    let nested = extra.enter_static("nested", None, Some(ValueType::String));
-    let zero = extra.enter_index(0, None, Some(ValueType::String));
-
-    assert!(selector_applies(
-        &"event.user.extra".parse().unwrap(),
-        &extra
-    ));
-    assert!(selector_applies(&".user.extra".parse().unwrap(), &extra));
-    assert!(selector_applies(&"user.extra".parse().unwrap(), &extra));
-    assert!(selector_applies(&"user.extra".parse().unwrap(), &nested));
-    assert!(selector_applies(&"user.extra.0".parse().unwrap(), &zero));
-    assert!(!selector_applies(&"user.extra".parse().unwrap(), &user));
-    assert!(!selector_applies(&"user.extra.1".parse().unwrap(), &zero));
-}
-
-#[test]
 fn test_basic_stripping() {
     use crate::protocol::{TagEntry, Tags};
     let config = PiiConfig::from_json(
-        r#"
+        r##"
         {
             "rules": {
                 "remove_bad_headers": {
@@ -714,11 +658,11 @@ fn test_basic_stripping() {
                 }
             },
             "applications": {
-                "string": ["@ip"],
-                "object": ["remove_bad_headers"]
+                "#string": ["@ip"],
+                "#object": ["remove_bad_headers"]
             }
         }
-    "#,
+    "##,
     )
     .unwrap();
 
@@ -874,13 +818,13 @@ fn test_basic_stripping() {
 #[test]
 fn test_redact_containers() {
     let config = PiiConfig::from_json(
-        r#"
+        r##"
         {
             "applications": {
-                "object": ["@anything"]
+                "#object": ["@anything"]
             }
         }
-    "#,
+    "##,
     )
     .unwrap();
 

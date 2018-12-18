@@ -5,9 +5,117 @@ use std::str::FromStr;
 use failure::Fail;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use crate::processor::ProcessValue;
 use crate::types::Annotated;
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+enum SelectorPathItem {
+    Type(ValueType),
+    Index(usize),
+    Key(String),
+    Wildcard,
+    DeepWildcard,
+}
+
+impl fmt::Display for SelectorPathItem {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SelectorPathItem::Type(ty) => write!(f, "#{}", ty),
+            SelectorPathItem::Index(index) => write!(f, "{}", index),
+            SelectorPathItem::Key(ref key) => write!(f, "{}", key),
+            SelectorPathItem::Wildcard => write!(f, "*"),
+            SelectorPathItem::DeepWildcard => write!(f, "**"),
+        }
+    }
+}
+
+impl SelectorPathItem {
+    fn matches_state(&self, state: &ProcessingState<'_>) -> bool {
+        match *self {
+            SelectorPathItem::Wildcard => true,
+            SelectorPathItem::DeepWildcard => true,
+            SelectorPathItem::Type(ty) => state.value_type == Some(ty),
+            SelectorPathItem::Index(idx) => state.path().index() == Some(idx),
+            SelectorPathItem::Key(ref key) => state.path().key() == Some(key),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub struct SelectorSpec {
+    path: Vec<SelectorPathItem>,
+}
+
+impl fmt::Display for SelectorSpec {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for (idx, item) in self.path.iter().enumerate() {
+            if idx > 0 {
+                write!(f, ".")?;
+            }
+            write!(f, "{}", item)?;
+        }
+        Ok(())
+    }
+}
+
+impl FromStr for SelectorSpec {
+    type Err = InvalidSelectorError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut path = vec![];
+        let mut have_deep_wildcard = false;
+        for item in s.split('.') {
+            if item.starts_with('#') {
+                path.push(
+                    item[1..]
+                        .parse()
+                        .map_err(|_| InvalidSelectorError::UnknownType)
+                        .map(SelectorPathItem::Type)?,
+                );
+            } else if item == "*" {
+                path.push(SelectorPathItem::Wildcard);
+            } else if item == "**" {
+                if have_deep_wildcard {
+                    return Err(InvalidSelectorError::InvalidDeepWildcard);
+                }
+                have_deep_wildcard = true;
+                path.push(SelectorPathItem::DeepWildcard);
+            } else if let Ok(index) = item.parse() {
+                path.push(SelectorPathItem::Index(index));
+            } else {
+                path.push(SelectorPathItem::Key(item.to_string()));
+            }
+        }
+        if path.is_empty() {
+            Err(InvalidSelectorError::InvalidPath)
+        } else {
+            Ok(SelectorSpec { path })
+        }
+    }
+}
+
+impl_str_serde!(SelectorSpec);
+
+impl From<ValueType> for SelectorSpec {
+    fn from(value_type: ValueType) -> Self {
+        SelectorSpec {
+            path: vec![SelectorPathItem::Type(value_type)],
+        }
+    }
+}
+
+/// Error for invalid selectors
+#[derive(Debug, Fail)]
+pub enum InvalidSelectorError {
+    #[fail(display = "invalid selector: deep wildcard used more than once")]
+    InvalidDeepWildcard,
+    #[fail(display = "invalid selector: invalid path")]
+    InvalidPath,
+    #[fail(display = "invalid selector: unknown value")]
+    UnknownType,
+}
 
 /// Error for unknown value types.
 #[derive(Debug, Fail)]
@@ -239,18 +347,45 @@ impl Default for FieldAttrs {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, Ord, PartialOrd)]
 enum PathItem<'a> {
     StaticKey(&'a str),
-    DynamicKey(String),
     Index(usize),
+}
+
+impl<'a> PartialEq for PathItem<'a> {
+    fn eq(&self, other: &PathItem<'a>) -> bool {
+        match *self {
+            PathItem::StaticKey(ref s) => other.key() == Some(s),
+            PathItem::Index(value) => other.index() == Some(value),
+        }
+    }
+}
+
+impl<'a> PathItem<'a> {
+    /// Returns the key if there is one
+    #[inline]
+    pub fn key(&self) -> Option<&str> {
+        match *self {
+            PathItem::StaticKey(s) => Some(s),
+            PathItem::Index(_) => None,
+        }
+    }
+
+    /// Returns the index if there is one
+    #[inline]
+    pub fn index(&self) -> Option<usize> {
+        match *self {
+            PathItem::StaticKey(_) => None,
+            PathItem::Index(idx) => Some(idx),
+        }
+    }
 }
 
 impl<'a> fmt::Display for PathItem<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             PathItem::StaticKey(s) => f.pad(s),
-            PathItem::DynamicKey(ref s) => f.pad(s.as_str()),
             PathItem::Index(val) => write!(f, "{}", val),
         }
     }
@@ -260,7 +395,7 @@ impl<'a> fmt::Display for PathItem<'a> {
 #[derive(Debug, Clone)]
 pub struct ProcessingState<'a> {
     parent: Option<&'a ProcessingState<'a>>,
-    path: Option<PathItem<'a>>,
+    path_item: Option<PathItem<'a>>,
     attrs: Option<Cow<'a, FieldAttrs>>,
     value_type: Option<ValueType>,
     depth: usize,
@@ -268,7 +403,7 @@ pub struct ProcessingState<'a> {
 
 static ROOT_STATE: ProcessingState = ProcessingState {
     parent: None,
-    path: None,
+    path_item: None,
     attrs: None,
     value_type: None,
     depth: 0,
@@ -280,6 +415,20 @@ impl<'a> ProcessingState<'a> {
         &ROOT_STATE
     }
 
+    /// Creates a new root state.
+    pub fn new_root(
+        attrs: Option<Cow<'static, FieldAttrs>>,
+        value_type: Option<ValueType>,
+    ) -> ProcessingState<'static> {
+        ProcessingState {
+            parent: None,
+            path_item: None,
+            attrs,
+            value_type,
+            depth: 0,
+        }
+    }
+
     /// Derives a processing state by entering a static key.
     pub fn enter_static(
         &'a self,
@@ -289,7 +438,7 @@ impl<'a> ProcessingState<'a> {
     ) -> Self {
         ProcessingState {
             parent: Some(self),
-            path: Some(PathItem::StaticKey(key)),
+            path_item: Some(PathItem::StaticKey(key)),
             attrs,
             value_type,
             depth: self.depth + 1,
@@ -305,7 +454,7 @@ impl<'a> ProcessingState<'a> {
     ) -> Self {
         ProcessingState {
             parent: Some(self),
-            path: Some(PathItem::StaticKey(key)),
+            path_item: Some(PathItem::StaticKey(key)),
             attrs,
             value_type,
             depth: self.depth + 1,
@@ -321,7 +470,7 @@ impl<'a> ProcessingState<'a> {
     ) -> Self {
         ProcessingState {
             parent: Some(self),
-            path: Some(PathItem::Index(idx)),
+            path_item: Some(PathItem::Index(idx)),
             attrs,
             value_type,
             depth: self.depth + 1,
@@ -384,15 +533,6 @@ impl<'a> Iterator for ProcessingStateIter<'a> {
 
 impl<'a> ExactSizeIterator for ProcessingStateIter<'a> {}
 
-impl<'a> IntoIterator for &'a ProcessingState<'a> {
-    type Item = &'a ProcessingState<'a>;
-    type IntoIter = ProcessingStateIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 impl<'a> Default for ProcessingState<'a> {
     fn default() -> Self {
         ProcessingState::root().clone()
@@ -407,41 +547,77 @@ impl<'a> Path<'a> {
     /// Returns the current key if there is one
     #[inline]
     pub fn key(&self) -> Option<&str> {
-        self.0.path.as_ref().and_then(|value| match *value {
-            PathItem::StaticKey(s) => Some(s),
-            PathItem::DynamicKey(ref s) => Some(s.as_str()),
-            PathItem::Index(_) => None,
-        })
+        self.0.path_item.as_ref().and_then(|value| value.key())
     }
 
     /// Returns the current index if there is one
     #[inline]
     pub fn index(&self) -> Option<usize> {
-        self.0.path.as_ref().and_then(|value| match *value {
-            PathItem::StaticKey(_) => None,
-            PathItem::DynamicKey(_) => None,
-            PathItem::Index(idx) => Some(idx),
-        })
+        self.0.path_item.as_ref().and_then(|value| value.index())
     }
 
-    /// Returns a path iterator.
-    pub fn iter(&'a self) -> impl Iterator<Item = &'a PathItem<'a>> {
-        let mut items = Vec::with_capacity(self.0.depth);
+    /// Checks if a path matches given selector.
+    pub fn matches_selector(&self, selector: &SelectorSpec) -> bool {
+        // fastest path: the selector is deeper than the current structure.
+        if selector.path.len() > self.0.depth {
+            return false;
+        }
 
-        for state in self.0.iter() {
-            if let Some(ref path) = state.path {
-                items.push(path)
+        // fast path: we do not have any deep matches
+        let mut state_iter = self.0.iter();
+        let mut selector_iter = selector.path.iter().rev();
+        let mut depth_match = false;
+        for state in &mut state_iter {
+            if !match selector_iter.next() {
+                Some(SelectorPathItem::DeepWildcard) => {
+                    depth_match = true;
+                    break;
+                }
+                Some(ref path_item) => path_item.matches_state(state),
+                None => break,
+            } {
+                return false;
             }
         }
 
-        items.into_iter().rev()
+        if !depth_match {
+            return true;
+        }
+
+        // slow path: we collect the remaining states and skip up to the first
+        // match of the selector.
+        let remaining_states = state_iter.collect::<SmallVec<[&ProcessingState<'_>; 16]>>();
+        let mut selector_iter = selector_iter.rev().peekable();
+        let first_selector_path = match selector_iter.next() {
+            Some(selector_path) => selector_path,
+            None => return false,
+        };
+        let mut path_match_iterator = remaining_states
+            .iter()
+            .rev()
+            .skip_while(|state| !first_selector_path.matches_state(state));
+        if path_match_iterator.next().is_none() {
+            return false;
+        }
+
+        // then we check all remaining items and that nothing is left of the selector
+        path_match_iterator
+            .zip(&mut selector_iter)
+            .all(|(state, selector_path)| selector_path.matches_state(state))
+            && selector_iter.next().is_none()
     }
 }
 
 impl<'a> fmt::Display for Path<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let path = self.0.path();
-        for (idx, item) in path.iter().enumerate() {
+        let mut items = Vec::with_capacity(self.0.depth);
+        for state in self.0.iter() {
+            if let Some(ref path_item) = state.path_item {
+                items.push(path_item)
+            }
+        }
+
+        for (idx, item) in items.into_iter().rev().enumerate() {
             if idx > 0 {
                 write!(f, ".")?;
             }
@@ -449,4 +625,66 @@ impl<'a> fmt::Display for Path<'a> {
         }
         Ok(())
     }
+}
+
+#[test]
+fn test_path_matching() {
+    let event_state = ProcessingState::new_root(None, Some(ValueType::Event));
+    let user_state = event_state.enter_static("user", None, Some(ValueType::User));
+    let extra_state = user_state.enter_static("extra", None, Some(ValueType::Object));
+    let foo_state = extra_state.enter_static("foo", None, Some(ValueType::Array));
+    let zero_state = foo_state.enter_index(0, None, None);
+
+    // this is an exact match to the state
+    assert!(extra_state
+        .path()
+        .matches_selector(&"user.extra".parse().unwrap()));
+
+    // this is a match below a type
+    assert!(extra_state
+        .path()
+        .matches_selector(&"#user.extra".parse().unwrap()));
+
+    // this is a wildcard match into a type
+    assert!(foo_state
+        .path()
+        .matches_selector(&"#user.extra.*".parse().unwrap()));
+
+    // a wildcard match into an array
+    assert!(zero_state
+        .path()
+        .matches_selector(&"#user.extra.foo.*".parse().unwrap()));
+
+    // a direct match into an array
+    assert!(zero_state
+        .path()
+        .matches_selector(&"#user.extra.foo.0".parse().unwrap()));
+
+    // direct mismatch in an array
+    assert!(!zero_state
+        .path()
+        .matches_selector(&"#user.extra.foo.1".parse().unwrap()));
+
+    // deep matches are wild
+    assert!(!zero_state
+        .path()
+        .matches_selector(&"#user.extra.bar.**".parse().unwrap()));
+    assert!(zero_state
+        .path()
+        .matches_selector(&"#user.extra.foo.**".parse().unwrap()));
+    assert!(zero_state
+        .path()
+        .matches_selector(&"#user.extra.**".parse().unwrap()));
+    assert!(zero_state
+        .path()
+        .matches_selector(&"#user.**".parse().unwrap()));
+    assert!(zero_state
+        .path()
+        .matches_selector(&"#event.**".parse().unwrap()));
+    assert!(!zero_state
+        .path()
+        .matches_selector(&"#user.**.1".parse().unwrap()));
+    assert!(zero_state
+        .path()
+        .matches_selector(&"#user.**.0".parse().unwrap()));
 }

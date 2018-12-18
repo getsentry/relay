@@ -2,14 +2,13 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::ops::Deref;
-use std::str::FromStr;
 
 use regex::{Regex, RegexBuilder};
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::pii::builtin::BUILTIN_RULES_MAP;
 use crate::pii::Redaction;
-use crate::processor::{UnknownValueTypeError, ValueType};
+use crate::processor::SelectorSpec;
 
 /// A regex pattern for text replacement.
 #[derive(Clone)]
@@ -197,47 +196,6 @@ impl Default for RuleSpec {
         RuleSpec {
             ty: RuleType::Never,
             redaction: Redaction::Default,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub struct SelectorSpec {
-    pub ty: ValueType,
-    pub path: Option<String>,
-}
-
-impl fmt::Display for SelectorSpec {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.ty)?;
-        if let Some(ref path) = self.path {
-            write!(f, ".{}", path)?;
-        }
-        Ok(())
-    }
-}
-
-impl FromStr for SelectorSpec {
-    type Err = UnknownValueTypeError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.splitn(2, '.');
-        let ty = match parts.next().unwrap() {
-            "" => ValueType::Event,
-            s => s.parse()?,
-        };
-        let path = parts.next().map(|s| s.to_string());
-        Ok(SelectorSpec { ty, path })
-    }
-}
-
-impl_str_serde!(SelectorSpec);
-
-impl From<ValueType> for SelectorSpec {
-    fn from(value_type: ValueType) -> Self {
-        SelectorSpec {
-            ty: value_type,
-            path: None,
         }
     }
 }
