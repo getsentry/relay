@@ -71,6 +71,7 @@ impl MetaTree {
 pub type MetaMap = Map<String, MetaTree>;
 
 /// Used to indicate how to handle an annotated value in a callback.
+#[must_use = "This `ValueAction` must be handled by `Annotated::apply`"]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ValueAction {
     /// Keeps the value as is.

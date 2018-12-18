@@ -272,7 +272,11 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        schema::SchemaProcessor.process_event(event, meta, state);
+        match schema::SchemaProcessor.process_event(event, meta, state) {
+            ValueAction::Keep => (),
+            other => return other,
+        }
+
         event.process_child_values(self, state);
 
         // Override internal attributes, even if they were set in the payload
@@ -311,12 +315,18 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
             .stacktrace
             .apply(stacktrace::process_non_raw_stacktrace);
 
-        // TODO: Compute hashes from fingerprints
-        remove_other::RemoveOtherProcessor.process_event(event, meta, state);
+        // TODO: Compute hashes from fingerprints (via processor?)
+        match remove_other::RemoveOtherProcessor.process_event(event, meta, state) {
+            ValueAction::Keep => (),
+            other => return other,
+        }
 
         // Trimming at last to ensure derived tags are the right length.
         if self.config.enable_trimming.unwrap_or(true) {
-            self.trimming_processor.process_event(event, meta, state);
+            match self.trimming_processor.process_event(event, meta, state) {
+                ValueAction::Keep => (),
+                other => return other,
+            }
         }
 
         ValueAction::Keep
