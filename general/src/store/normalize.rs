@@ -526,27 +526,6 @@ fn test_geo_from_ip_address() {
 }
 
 #[test]
-fn test_schema_processor_invoked() {
-    use crate::protocol::User;
-
-    let mut event = Annotated::new(Event {
-        user: Annotated::new(User {
-            email: Annotated::new("bananabread".to_owned()),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
-    process_value(&mut event, &mut processor, ProcessingState::root());
-
-    assert_eq_dbg!(
-        event.value().unwrap().user.value().unwrap().email.value(),
-        None
-    );
-}
-
-#[test]
 fn test_environment_tag_is_moved() {
     let mut event = Annotated::new(Event {
         tags: Annotated::new(Tags(
