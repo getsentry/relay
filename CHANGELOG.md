@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Changed PII stripping rule format to permit path selectors when applying
+  rules.  This means that now `$string` refers to strings for instance and
+  `user.id` refers to the `id` field in the `user` attribute of the event.
+  Temporarily support for old rules is retained.
+
 ## 0.2.7
 
 - store: Minor fixes to be closer to Python. Ability to disable trimming of
