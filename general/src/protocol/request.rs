@@ -94,24 +94,18 @@ impl std::ops::DerefMut for Headers {
 }
 
 fn normalize_header(key: &str) -> String {
-    key.split('-')
-        .enumerate()
-        .fold(String::new(), |mut all, (i, part)| {
-            // join
-            if i > 0 {
-                all.push_str("-");
-            }
+    let mut normalized = String::with_capacity(key.len());
 
-            // capitalize the first characters
-            let mut chars = part.chars();
-            if let Some(c) = chars.next() {
-                all.extend(c.to_uppercase());
-            }
+    key.chars().fold(true, |uppercase, c| {
+        if uppercase {
+            normalized.extend(c.to_uppercase());
+        } else {
+            normalized.push(c); // does not lowercase on purpose
+        }
+        c == '-'
+    });
 
-            // copy all others
-            all.extend(chars);
-            all
-        })
+    normalized
 }
 
 impl FromValue for Headers {
@@ -272,6 +266,7 @@ fn test_header_normalization() {
     let json = r#"{
   "-other-": "header",
   "accept": "application/json",
+  "WWW-Authenticate": "basic",
   "x-sentry": "version=8"
 }"#;
 
@@ -283,6 +278,10 @@ fn test_header_normalization() {
     headers.push(Annotated::new((
         Annotated::new("Accept".to_string()),
         Annotated::new("application/json".to_string()),
+    )));
+    headers.push(Annotated::new((
+        Annotated::new("WWW-Authenticate".to_string()),
+        Annotated::new("basic".to_string()),
     )));
     headers.push(Annotated::new((
         Annotated::new("X-Sentry".to_string()),
