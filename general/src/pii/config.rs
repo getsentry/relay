@@ -6,9 +6,9 @@ use std::ops::Deref;
 use regex::{Regex, RegexBuilder};
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::pii::builtin::{BUILTIN_RULES_MAP, BUILTIN_SELECTORS_MAP};
+use crate::pii::builtin::BUILTIN_RULES_MAP;
 use crate::pii::Redaction;
-use crate::processor::PiiKind;
+use crate::processor::SelectorSpec;
 
 /// A regex pattern for text replacement.
 #[derive(Clone)]
@@ -200,45 +200,6 @@ impl Default for RuleSpec {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct KindSelector {
-    pub kind: PiiKind,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PathSelector {
-    pub path: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MultipleSelector {
-    /// A list of selector names to apply.
-    #[serde(default)]
-    pub selectors: Vec<String>,
-
-    /// When set to true, the outer rule is reported.
-    #[serde(default)]
-    pub hide: bool,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AliasSelector {
-    pub selector: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum SelectorType {
-    Kind(KindSelector),
-    Path(PathSelector),
-    Multiple(MultipleSelector),
-    Alias(AliasSelector),
-}
-
 /// Configuration for rule parameters.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -251,10 +212,6 @@ pub struct Vars {
 /// A set of named rule configurations.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct PiiConfig {
-    /// A map of custom field selectors.
-    #[serde(default)]
-    pub selectors: BTreeMap<String, SelectorType>,
-
     /// A map of custom PII rules.
     #[serde(default)]
     pub rules: BTreeMap<String, RuleSpec>,
@@ -265,7 +222,7 @@ pub struct PiiConfig {
 
     /// Mapping of selectors to rules.
     #[serde(default)]
-    pub applications: BTreeMap<String, Vec<String>>,
+    pub applications: BTreeMap<SelectorSpec, Vec<String>>,
 }
 
 impl PiiConfig {
@@ -282,16 +239,6 @@ impl PiiConfig {
     /// Serializes an annotated value into a pretty JSON string.
     pub fn to_json_pretty(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(&self)
-    }
-
-    pub(crate) fn selector<'a>(&'a self, id: &'a str) -> Option<SelectorRef<'a>> {
-        if let Some(ty) = self.selectors.get(id) {
-            Some(SelectorRef { id, ty })
-        } else if let Some(ty) = BUILTIN_SELECTORS_MAP.get(id) {
-            Some(SelectorRef { id, ty })
-        } else {
-            None
-        }
     }
 
     pub(crate) fn rule<'a>(&'a self, id: &'a str) -> Option<RuleRef<'a>> {
@@ -357,40 +304,5 @@ impl PartialOrd for RuleRef<'_> {
 impl Ord for RuleRef<'_> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.id.cmp(other.id)
-    }
-}
-
-/// Reference to a PII selector.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct SelectorRef<'a> {
-    pub id: &'a str,
-    pub ty: &'a SelectorType,
-}
-
-impl PartialEq for SelectorRef<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Eq for SelectorRef<'_> {}
-
-impl PartialOrd for SelectorRef<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.id.partial_cmp(other.id)
-    }
-}
-
-impl Ord for SelectorRef<'_> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.id.cmp(other.id)
-    }
-}
-
-impl Deref for SelectorRef<'_> {
-    type Target = SelectorType;
-
-    fn deref(&self) -> &Self::Target {
-        &self.ty
     }
 }

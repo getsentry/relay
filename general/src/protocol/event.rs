@@ -142,7 +142,7 @@ pub struct EventProcessingError {
 
 /// The sentry v7 event structure.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
-#[metastructure(process_func = "process_event")]
+#[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {
     /// Unique identifier of this event.
     #[metastructure(field = "event_id")]

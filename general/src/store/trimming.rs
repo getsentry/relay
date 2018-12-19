@@ -1,5 +1,5 @@
-use crate::processor::{estimate_size, process_chunked_value, Chunk, MaxChars};
-use crate::processor::{process_value, BagSize, ProcessValue, ProcessingState, Processor};
+use crate::processor::{estimate_size, process_chunked_value, BagSize, Chunk, MaxChars};
+use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{Array, Meta, Object, Remark, RemarkType, ValueAction};
 
 #[derive(Clone, Copy, Debug)]
@@ -92,7 +92,7 @@ impl Processor for TrimmingProcessor {
                         break;
                     }
 
-                    let item_state = state.enter_index(index, None);
+                    let item_state = state.enter_index(index, None, ValueType::for_field(item));
                     process_value(item, self, &item_state);
 
                     let item_length = estimate_size(&item) + 1;
@@ -161,7 +161,7 @@ impl Processor for TrimmingProcessor {
                         break;
                     }
 
-                    let item_state = state.enter_borrowed(key, None);
+                    let item_state = state.enter_borrowed(key, None, ValueType::for_field(item));
                     process_value(item, self, &item_state);
 
                     let item_length = estimate_size(&item) + 1;

@@ -23,7 +23,11 @@ pub struct TagEntry(
 impl AsPair for TagEntry {
     type Value = String;
 
-    fn as_pair(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>) {
+    fn as_pair(&self) -> (&Annotated<String>, &Annotated<Self::Value>) {
+        (&self.0, &self.1)
+    }
+
+    fn as_pair_mut(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>) {
         (&mut self.0, &mut self.1)
     }
 }

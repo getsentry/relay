@@ -1,5 +1,5 @@
 use std::cmp;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
@@ -8,13 +8,13 @@ use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 use smallvec::SmallVec;
 
-use crate::pii::config::{RuleRef, SelectorRef};
-use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType, SelectorType};
+use crate::pii::config::RuleRef;
+use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, Chunk, PiiKind, ProcessValue, ProcessingState, Processor,
+    process_chunked_value, Chunk, ProcessValue, ProcessingState, Processor, SelectorSpec,
 };
 use crate::protocol::{AsPair, PairList};
-use crate::types::{Meta, Object, Remark, RemarkType, ValueAction};
+use crate::types::{Meta, Object, Remark, RemarkType, Timestamp, ValueAction};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
@@ -149,15 +149,19 @@ lazy_static! {
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
     config: &'a PiiConfig,
-    applications: BTreeMap<SelectorRef<'a>, BTreeSet<RuleRef<'a>>>,
+    applications: Vec<(&'a SelectorSpec, BTreeSet<RuleRef<'a>>)>,
 }
 
 impl<'a> PiiProcessor<'a> {
     /// Creates a new processor based on a config.
     pub fn new(config: &'a PiiConfig) -> PiiProcessor<'_> {
-        let mut applications = BTreeMap::new();
-        for (id, rules) in &config.applications {
-            collect_applications(config, &mut applications, id, rules);
+        let mut applications = Vec::new();
+        for (selector, rules) in &config.applications {
+            let mut rule_set = BTreeSet::default();
+            for rule_id in rules {
+                collect_rules(config, &mut rule_set, &rule_id, None);
+            }
+            applications.push((selector, rule_set));
         }
 
         PiiProcessor {
@@ -172,13 +176,8 @@ impl<'a> PiiProcessor<'a> {
     }
 
     /// Iterate over all matching rules.
-    fn iter_rules<'b>(
-        &'a self,
-        kind: PiiKind,
-        state: &'b ProcessingState<'b>,
-    ) -> RuleIterator<'a, 'b> {
+    fn iter_rules<'b>(&'a self, state: &'b ProcessingState<'b>) -> RuleIterator<'a, 'b> {
         RuleIterator {
-            kind,
             state,
             application_iter: self.applications.iter(),
             pending_refs: None,
@@ -187,9 +186,8 @@ impl<'a> PiiProcessor<'a> {
 }
 
 struct RuleIterator<'a, 'b> {
-    kind: PiiKind,
     state: &'b ProcessingState<'b>,
-    application_iter: std::collections::btree_map::Iter<'a, SelectorRef<'a>, BTreeSet<RuleRef<'a>>>,
+    application_iter: std::slice::Iter<'a, (&'a SelectorSpec, BTreeSet<RuleRef<'a>>)>,
     pending_refs: Option<std::collections::btree_set::Iter<'a, RuleRef<'a>>>,
 }
 
@@ -203,7 +201,7 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
             }
 
             while let Some((selector, rules)) = self.application_iter.next() {
-                if selector_applies(selector, self.kind, self.state) {
+                if self.state.path().matches_selector(selector) {
                     self.pending_refs = Some(rules.iter());
                     continue 'outer;
                 }
@@ -214,66 +212,141 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
     }
 }
 
+macro_rules! value_process_method {
+    ($name: ident, $ty:ident $(::$path:ident)*) => {
+        value_process_method!($name, $ty $(::$path)* <>);
+    };
+
+    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),* > $(, $param_req_key:ident : $param_req_trait:path)*) => {
+        #[inline]
+        fn $name<$($param),*>(
+            &mut self,
+            value: &mut $ty $(::$path)* <$($param),*>,
+            meta: &mut Meta,
+            state: &ProcessingState<'_>,
+        ) -> ValueAction
+        where
+            $($param: ProcessValue),*
+            $(, $param_req_key : $param_req_trait)*
+        {
+            let mut rules = self.iter_rules(state).peekable();
+            let rv = if rules.peek().is_some() {
+                value_process(value, meta, rules)
+            } else {
+                ValueAction::Keep
+            };
+            match rv {
+                ValueAction::Keep => ValueAction::Keep,
+                other => {
+                    value.process_child_values(self, state);
+                    other
+                }
+            }
+        }
+    };
+}
+
+fn value_process<'a, T: ProcessValue, I: Iterator<Item = RuleRef<'a>>>(
+    value: &mut T,
+    meta: &mut Meta,
+    rules: I,
+) -> ValueAction {
+    for rule in rules {
+        match apply_rule_to_value(value, meta, rule, None) {
+            ValueAction::Keep => continue,
+            other => return other,
+        }
+    }
+    ValueAction::Keep
+}
+
 impl<'a> Processor for PiiProcessor<'a> {
+    value_process_method!(process_i64, i64);
+    value_process_method!(process_u64, u64);
+    value_process_method!(process_f64, f64);
+    value_process_method!(process_bool, bool);
+    value_process_method!(process_timestamp, Timestamp);
+    value_process_method!(process_value, crate::types::Value);
+    value_process_method!(process_array, crate::types::Array<T>);
+
     fn process_string(
         &mut self,
-        string: &mut String,
+        value: &mut String,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        let mut rules = self.iter_rules(PiiKind::Text, &state).peekable();
+        let mut rules = self.iter_rules(state).peekable();
         if rules.peek().is_some() {
-            process_chunked_value(string, meta, |chunks| {
-                rules.fold(chunks, apply_rule_to_chunks)
+            let rules: SmallVec<[RuleRef; 16]> = rules.collect();
+
+            process_chunked_value(value, meta, |mut chunks| {
+                for rule in &rules {
+                    chunks = apply_rule_to_chunks(chunks, *rule);
+                }
+                chunks
             });
+
+            return value_process(value, meta, rules.into_iter());
         }
         ValueAction::Keep
     }
 
     fn process_object<T: ProcessValue>(
         &mut self,
-        object: &mut Object<T>,
-        _meta: &mut Meta,
+        value: &mut Object<T>,
+        meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
-        let mut rules = self.iter_rules(PiiKind::Container, &state).peekable();
+        let mut rules = self.iter_rules(state).peekable();
+
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
-            for (key, annotated) in object.iter_mut() {
+            for (key, annotated) in value.iter_mut() {
                 for rule in &rules {
                     annotated.apply(|value, meta| {
-                        apply_rule_to_container(value, meta, *rule, Some(key.as_str()))
+                        apply_rule_to_value(value, meta, *rule, Some(key.as_str()))
                     });
                 }
             }
+
+            match value_process(value, meta, rules.into_iter()) {
+                ValueAction::Keep => {}
+                other => return other,
+            }
         }
 
-        object.process_child_values(self, state);
+        value.process_child_values(self, state);
         ValueAction::Keep
     }
 
     fn process_pairlist<T: ProcessValue + AsPair>(
         &mut self,
-        list: &mut PairList<T>,
-        _meta: &mut Meta,
+        value: &mut PairList<T>,
+        meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
-        let mut rules = self.iter_rules(PiiKind::Container, &state).peekable();
+        let mut rules = self.iter_rules(state).peekable();
+
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
-            for annotated in list.iter_mut() {
+            for annotated in value.iter_mut() {
                 for rule in &rules {
                     if let Some(ref mut pair) = annotated.value_mut() {
-                        let (ref mut key, ref mut value) = pair.as_pair();
+                        let (ref mut key, ref mut value) = pair.as_pair_mut();
                         value.apply(|value, meta| {
-                            apply_rule_to_container(value, meta, *rule, key.as_str())
+                            apply_rule_to_value(value, meta, *rule, key.as_str())
                         });
                     }
                 }
             }
+
+            match value_process(value, meta, rules.into_iter()) {
+                ValueAction::Keep => {}
+                other => return other,
+            }
         }
 
-        list.process_child_values(self, state);
+        value.process_child_values(self, state);
         ValueAction::Keep
     }
 }
@@ -315,45 +388,7 @@ fn collect_rules<'a, 'b>(
     }
 }
 
-fn collect_applications<'a, 'b>(
-    config: &'a PiiConfig,
-    applications: &'b mut BTreeMap<SelectorRef<'a>, BTreeSet<RuleRef<'a>>>,
-    selector_id: &'a str,
-    rules: &'a [String],
-) {
-    let selector = match config.selector(selector_id) {
-        Some(selector) => selector,
-        None => return,
-    };
-
-    match &selector.ty {
-        SelectorType::Alias(alias) => {
-            collect_applications(config, applications, &alias.selector, rules);
-        }
-        SelectorType::Multiple(multiple) => {
-            for selector_id in &multiple.selectors {
-                collect_applications(config, applications, &selector_id, rules);
-            }
-        }
-        _ => {
-            let mut rule_set = applications.entry(selector).or_default();
-            for rule_id in rules {
-                collect_rules(config, &mut rule_set, &rule_id, None)
-            }
-        }
-    }
-}
-
-fn selector_applies(ty: &SelectorType, kind: PiiKind, state: &ProcessingState) -> bool {
-    match ty {
-        SelectorType::Kind(selector) => selector.kind == kind,
-        SelectorType::Path(selector) => state.path().starts_with_pattern(&selector.path),
-        // These are resolved beforehand by the PiiProcessor
-        SelectorType::Multiple(_) | SelectorType::Alias(_) => false,
-    }
-}
-
-fn apply_rule_to_container<T: ProcessValue>(
+fn apply_rule_to_value<T: ProcessValue>(
     _value: &mut T,
     meta: &mut Meta,
     rule: RuleRef<'_>,
@@ -614,7 +649,7 @@ use {
 fn test_basic_stripping() {
     use crate::protocol::{TagEntry, Tags};
     let config = PiiConfig::from_json(
-        r#"
+        r##"
         {
             "rules": {
                 "remove_bad_headers": {
@@ -623,11 +658,11 @@ fn test_basic_stripping() {
                 }
             },
             "applications": {
-                "text": ["@ip"],
-                "container": ["remove_bad_headers"]
+                "$string": ["@ip"],
+                "$object": ["remove_bad_headers"]
             }
         }
-    "#,
+    "##,
     )
     .unwrap();
 
@@ -783,13 +818,13 @@ fn test_basic_stripping() {
 #[test]
 fn test_redact_containers() {
     let config = PiiConfig::from_json(
-        r#"
+        r##"
         {
             "applications": {
-                "container": ["@anything"]
+                "$object": ["@anything"]
             }
         }
-    "#,
+    "##,
     )
     .unwrap();
 
@@ -811,20 +846,16 @@ fn test_redact_containers() {
     assert_eq_str!(
         event.to_json_pretty().unwrap(),
         r#"{
-  "extra": {
-    "foo": null
-  },
+  "extra": null,
   "_meta": {
     "extra": {
-      "foo": {
-        "": {
-          "rem": [
-            [
-              "@anything",
-              "x"
-            ]
+      "": {
+        "rem": [
+          [
+            "@anything",
+            "x"
           ]
-        }
+        ]
       }
     }
   }

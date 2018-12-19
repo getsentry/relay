@@ -3,24 +3,15 @@
 
 use std::fmt::Debug;
 
-use crate::processor::{process_value, ProcessingState};
-use crate::types::{FromValue, Meta, ToValue, ValueAction};
+use crate::processor::{process_value, ProcessingState, ValueType};
+use crate::types::{FromValue, Meta, Timestamp, ToValue, ValueAction};
 
 macro_rules! process_method {
     ($name: ident, $ty:ident $(::$path:ident)*) => {
-        #[inline]
-        fn $name(
-            &mut self,
-            value: &mut $ty $(::$path)*,
-            meta: &mut Meta,
-            state: &ProcessingState<'_>,
-        ) -> ValueAction {
-            value.process_child_values(self, state);
-            Default::default()
-        }
+        process_method!($name, $ty $(::$path)* <>);
     };
 
-    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),+ > $(, $param_req_key:ident : $param_req_trait:path)*) => {
+    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),* > $(, $param_req_key:ident : $param_req_trait:path)*) => {
         #[inline]
         fn $name<$($param),*>(
             &mut self,
@@ -33,7 +24,7 @@ macro_rules! process_method {
             $(, $param_req_key : $param_req_trait)*
         {
             value.process_child_values(self, state);
-            Default::default()
+            ValueAction::Keep
         }
     };
 }
@@ -45,6 +36,7 @@ pub trait Processor: Sized {
     process_method!(process_i64, i64);
     process_method!(process_f64, f64);
     process_method!(process_bool, bool);
+    process_method!(process_timestamp, Timestamp);
 
     process_method!(process_value, crate::types::Value);
     process_method!(process_array, crate::types::Array<T>);
@@ -78,13 +70,23 @@ pub trait Processor: Sized {
         state: &ProcessingState<'_>,
     ) {
         for (key, value) in other {
-            process_value(value, self, &state.enter_borrowed(key.as_str(), None));
+            process_value(
+                value,
+                self,
+                &state.enter_borrowed(key.as_str(), None, ValueType::for_field(value)),
+            );
         }
     }
 }
 
 /// A recursively processable value.
 pub trait ProcessValue: FromValue + ToValue + Debug {
+    /// Returns the type of the value.
+    #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        None
+    }
+
     /// Executes a processor on this value.
     #[inline]
     fn process_value<P>(

@@ -72,8 +72,8 @@ class SentryLike(object):
                 "piiConfig": {
                     "rules": {},
                     "applications": {
-                        "text": ["@email", "@mac", "@creditcard", "@userpath"],
-                        "container": ["@password"],
+                        "$string": ["@email", "@mac", "@creditcard", "@userpath"],
+                        "$object": ["@password"],
                     },
                 },
             },

@@ -3,7 +3,7 @@ use crate::types::{Annotated, Object, Value};
 
 /// A process thread of an event.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
-#[metastructure(process_func = "process_thread")]
+#[metastructure(process_func = "process_thread", value_type = "Thread")]
 pub struct Thread {
     /// Identifier of this thread within the process (usually an integer).
     #[metastructure(max_chars = "symbol")]

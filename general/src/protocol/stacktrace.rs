@@ -3,7 +3,7 @@ use crate::types::{Annotated, Array, Object, Value};
 
 /// Holds information about a single stacktrace frame.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
-#[metastructure(process_func = "process_frame")]
+#[metastructure(process_func = "process_frame", value_type = "Frame")]
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
     #[metastructure(max_chars = "symbol")]
@@ -106,7 +106,7 @@ impl From<Object<Value>> for FrameVariables {
 
 /// Holds information about an entirey stacktrace.
 #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
-#[metastructure(process_func = "process_stacktrace")]
+#[metastructure(process_func = "process_stacktrace", value_type = "Stacktrace")]
 pub struct Stacktrace {
     #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
     pub frames: Annotated<Array<Frame>>,

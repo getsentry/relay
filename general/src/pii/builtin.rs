@@ -4,28 +4,11 @@ use std::collections::BTreeMap;
 use lazy_static::lazy_static;
 
 use crate::pii::{
-    AliasRule, AliasSelector, HashAlgorithm, HashRedaction, KindSelector, MaskRedaction,
-    MultipleRule, RedactPairRule, Redaction, ReplaceRedaction, RuleSpec, RuleType, SelectorType,
+    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, RedactPairRule,
+    Redaction, ReplaceRedaction, RuleSpec, RuleType,
 };
-use crate::processor::PiiKind;
 
 pub static BUILTIN_SELECTORS: &[&'static str] = &["text", "container"];
-
-lazy_static! {
-    #[rustfmt::skip]
-    pub(crate) static ref BUILTIN_SELECTORS_MAP: BTreeMap<&'static str, SelectorType> = {
-        let mut map = BTreeMap::new();
-        map.insert("text", SelectorType::Kind(KindSelector { kind: PiiKind::Text }));
-        map.insert("container", SelectorType::Kind(KindSelector { kind: PiiKind::Container }));
-
-        // These are legacy aliases for compatibility
-        for name in &["freeform", "ip", "id", "username", "hostname", "name", "email", "location"] {
-            map.insert(name, SelectorType::Alias(AliasSelector { selector: "text".to_string() }));
-        }
-        map.insert("databag", SelectorType::Alias(AliasSelector { selector: "container".to_string() }));
-        map
-    };
-}
 
 macro_rules! declare_builtin_rules {
     ($($rule_id:expr => $spec:expr;)*) => {
@@ -80,6 +63,11 @@ declare_builtin_rules! {
 
     // anything
     "@anything" => rule_alias!("@anything:replace");
+    "@anything:remove" => RuleSpec {
+        ty: RuleType::Anything,
+        redaction: Redaction::Remove,
+        ..Default::default()
+    };
     "@anything:replace" => RuleSpec {
         ty: RuleType::Anything,
         redaction: Redaction::Replace(ReplaceRedaction {
@@ -337,7 +325,7 @@ declare_builtin_rules! {
 mod tests {
     use crate::pii::config::PiiConfig;
     use crate::pii::processor::PiiProcessor;
-    use crate::processor::{process_value, ProcessingState};
+    use crate::processor::{process_value, ProcessingState, ValueType};
     use crate::types::{Annotated, Remark, RemarkType};
     use std::collections::BTreeMap;
 
@@ -353,11 +341,10 @@ mod tests {
         ) => {{
             let config = PiiConfig {
                 rules: Default::default(),
-                selectors: Default::default(),
                 vars: Default::default(),
                 applications: {
                     let mut map = BTreeMap::new();
-                    map.insert("text".to_string(), vec![$rule.to_string()]);
+                    map.insert(ValueType::String.into(), vec![$rule.to_string()]);
                     map
                 },
             };
@@ -375,34 +362,6 @@ mod tests {
                 remarks.iter().collect::<Vec<_>>()
             );
         }};
-    }
-
-    #[test]
-    fn test_anything() {
-        assert_text_rule!(
-            rule = "@anything";
-            input = "before 127.0.0.1 after";
-            output = "[redacted]";
-            remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@anything", (0, 10)),
-            ];
-        );
-        assert_text_rule!(
-            rule = "@anything:replace";
-            input = "before 127.0.0.1 after";
-            output = "[redacted]";
-            remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@anything:replace", (0, 10)),
-            ];
-        );
-        assert_text_rule!(
-            rule = "@anything:hash";
-            input = "before 127.0.0.1 after";
-            output = "3D8FF1CECA9B899D532AA6679E952801DF9E5C74";
-            remarks = vec![
-                Remark::with_range(RemarkType::Pseudonymized, "@anything:hash", (0, 40)),
-            ];
-        );
     }
 
     #[test]

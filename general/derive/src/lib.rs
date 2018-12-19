@@ -66,6 +66,20 @@ fn process_wrapper_struct_derive(
 
     let name = &s.ast().ident;
 
+    let value_type = type_attrs
+        .value_type
+        .map(|value_name| {
+            let value_name = Ident::new(&value_name, Span::call_site());
+            quote! {
+                Some(crate::processor::ValueType::#value_name)
+            }
+        })
+        .unwrap_or_else(|| {
+            quote! {
+                crate::processor::ProcessValue::value_type(&self.0)
+            }
+        });
+
     Ok(match t {
         Trait::From => s.gen_impl(quote! {
             #[automatically_derived]
@@ -113,6 +127,11 @@ fn process_wrapper_struct_derive(
         Trait::Process => s.gen_impl(quote! {
             #[automatically_derived]
             gen impl crate::processor::ProcessValue for @Self {
+                #[inline]
+                fn value_type(&self) -> Option<crate::processor::ValueType> {
+                    #value_type
+                }
+
                 #[inline]
                 fn process_value<P>(
                     &mut self,
@@ -572,14 +591,16 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 quote! {
                     __state.enter_index(
                         #index,
-                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))
+                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                        crate::processor::ValueType::for_field(#bi),
                     )
                 }
             } else {
                 quote! {
                     __state.enter_static(
                         #field_name,
-                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name))
+                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                        crate::processor::ValueType::for_field(#bi),
                     )
                 }
             };
@@ -755,9 +776,19 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 }
             });
 
+            let value_type = type_attrs.value_type.map(|value_name| {
+                let value_name = Ident::new(&value_name, Span::call_site());
+                quote! {
+                    fn value_type(&self) -> Option<crate::processor::ValueType> {
+                        Some(crate::processor::ValueType::#value_name)
+                    }
+                }
+            });
+
             s.gen_impl(quote! {
                 #[automatically_derived]
                 gen impl crate::processor::ProcessValue for @Self {
+                    #value_type
                     #process_value
 
                     #[inline]
@@ -807,6 +838,7 @@ fn parse_bag_size(name: &str) -> TokenStream {
 #[derive(Default)]
 struct TypeAttrs {
     process_func: Option<String>,
+    value_type: Option<String>,
     tag_key: Option<String>,
 }
 
@@ -834,7 +866,16 @@ fn parse_type_attributes(attrs: &[syn::Attribute]) -> TypeAttrs {
                                         rv.process_func = Some(litstr.value());
                                     }
                                     _ => {
-                                        panic!("Got non string literal for field");
+                                        panic!("Got non string literal for process_func");
+                                    }
+                                }
+                            } else if ident == "value_type" {
+                                match lit {
+                                    Lit::Str(litstr) => {
+                                        rv.value_type = Some(litstr.value());
+                                    }
+                                    _ => {
+                                        panic!("Got non string literal for value type");
                                     }
                                 }
                             } else if ident == "tag_key" {
