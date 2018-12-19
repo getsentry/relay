@@ -3,7 +3,7 @@
 
 use std::fmt::Debug;
 
-use crate::processor::{ProcessingState, ValueType};
+use crate::processor::{process_value, ProcessingState, ValueType};
 use crate::types::{FromValue, Meta, Timestamp, ToValue, ValueAction};
 
 macro_rules! process_method {
@@ -63,6 +63,20 @@ pub trait Processor: Sized {
     process_method!(process_context, crate::protocol::Context);
     process_method!(process_breadcrumb, crate::protocol::Breadcrumb);
     process_method!(process_template_info, crate::protocol::TemplateInfo);
+
+    fn process_other(
+        &mut self,
+        other: &mut crate::types::Object<crate::types::Value>,
+        state: &ProcessingState<'_>,
+    ) {
+        for (key, value) in other {
+            process_value(
+                value,
+                self,
+                &state.enter_borrowed(key.as_str(), None, ValueType::for_field(value)),
+            );
+        }
+    }
 }
 
 /// A recursively processable value.

@@ -4,7 +4,7 @@ use serde::de::IgnoredAny;
 use url::Url;
 
 use crate::protocol::{Query, Request};
-use crate::types::{Annotated, ErrorKind, Meta, Object, Value, ValueAction};
+use crate::types::{Annotated, ErrorKind, FromValue, Meta, Object, Value, ValueAction};
 
 lazy_static! {
     static ref METHOD_RE: Regex = Regex::new(r"^[A-Z\-_]{3,32}$").unwrap();
@@ -104,4 +104,100 @@ pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
 
         request.inferred_content_type.set_value(content_type);
     }
+
+    if let (None, Some(ref mut headers)) = (request.cookies.value(), request.headers.value_mut()) {
+        let cookies = &mut request.cookies;
+        headers.retain(|item| {
+            if let Some((Annotated(Some(ref k), _), Annotated(Some(ref v), _))) = item.value() {
+                if k != "Cookie" {
+                    return true;
+                }
+
+                let new_cookies = FromValue::from_value(Annotated::new(Value::String(v.clone())));
+
+                if new_cookies.meta().has_errors() {
+                    return true;
+                }
+
+                *cookies = new_cookies;
+                false
+            } else {
+                true
+            }
+        });
+    }
+}
+
+#[test]
+fn test_cookies_in_header() {
+    use crate::protocol::{Cookies, Headers, PairList};
+
+    let mut request = Request {
+        url: Annotated::new("http://example.com".to_string()),
+        headers: Annotated::new(Headers(
+            vec![Annotated::new((
+                Annotated::new("Cookie".to_string()),
+                Annotated::new("a=b;c=d".to_string()),
+            ))]
+            .into(),
+        )),
+        ..Default::default()
+    };
+
+    normalize_request(&mut request, None);
+
+    assert_eq_dbg!(
+        request.cookies,
+        Annotated::new(Cookies({
+            let mut map = Vec::new();
+            map.push(Annotated::new((
+                Annotated::new("a".to_string()),
+                Annotated::new("b".to_string()),
+            )));
+            map.push(Annotated::new((
+                Annotated::new("c".to_string()),
+                Annotated::new("d".to_string()),
+            )));
+            PairList(map)
+        }))
+    );
+}
+
+#[test]
+fn test_cookies_in_header_not_overridden() {
+    use crate::protocol::{Cookies, Headers, PairList};
+
+    let mut request = Request {
+        url: Annotated::new("http://example.com".to_string()),
+        headers: Annotated::new(Headers(
+            vec![Annotated::new((
+                Annotated::new("Cookie".to_string()),
+                Annotated::new("a=b;c=d".to_string()),
+            ))]
+            .into(),
+        )),
+        cookies: Annotated::new(Cookies({
+            let mut map = Vec::new();
+            map.push(Annotated::new((
+                Annotated::new("foo".to_string()),
+                Annotated::new("bar".to_string()),
+            )));
+            PairList(map)
+        })),
+        ..Default::default()
+    };
+
+    normalize_request(&mut request, None);
+
+    assert_eq_dbg!(
+        request.cookies,
+        Annotated::new(Cookies({
+            let mut map = Vec::new();
+            map.push(Annotated::new((
+                Annotated::new("foo".to_string()),
+                Annotated::new("bar".to_string()),
+            )));
+            PairList(map)
+        }))
+    );
 }

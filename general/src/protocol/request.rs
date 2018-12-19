@@ -2,14 +2,14 @@ use cookie::Cookie;
 use url::form_urlencoded;
 
 use crate::protocol::PairList;
-use crate::types::{Annotated, Array, Error, FromValue, Map, Object, Value};
+use crate::types::{Annotated, Array, Error, FromValue, Object, Value};
 
 /// A map holding cookies.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
-pub struct Cookies(pub Object<String>);
+pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
 
 impl std::ops::Deref for Cookies {
-    type Target = Object<String>;
+    type Target = PairList<(Annotated<String>, Annotated<String>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -26,17 +26,17 @@ impl FromValue for Cookies {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => {
-                let mut cookies = Map::new();
+                let mut cookies = Vec::new();
                 for cookie in value.split(';') {
                     if cookie.trim().is_empty() {
                         continue;
                     }
                     match Cookie::parse_encoded(cookie) {
                         Ok(cookie) => {
-                            cookies.insert(
-                                cookie.name().to_string(),
+                            cookies.push(Annotated::new((
+                                Annotated::new(cookie.name().to_string()),
                                 Annotated::new(cookie.value().to_string()),
-                            );
+                            )));
                         }
                         Err(err) => {
                             meta.add_error(Error::invalid(err));
@@ -44,11 +44,11 @@ impl FromValue for Cookies {
                         }
                     }
                 }
-                Annotated(Some(Cookies(cookies)), meta)
+                Annotated(Some(Cookies(PairList(cookies))), meta)
             }
-            annotated @ Annotated(Some(Value::Object(_)), _) => {
-                let Annotated(value, meta) = FromValue::from_value(annotated);
-                Annotated(value.map(Cookies), meta)
+            annotated @ Annotated(Some(Value::Object(_)), _)
+            | annotated @ Annotated(Some(Value::Array(_)), _) => {
+                PairList::from_value(annotated).map_value(Cookies)
             }
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
@@ -94,24 +94,18 @@ impl std::ops::DerefMut for Headers {
 }
 
 fn normalize_header(key: &str) -> String {
-    key.split('-')
-        .enumerate()
-        .fold(String::new(), |mut all, (i, part)| {
-            // join
-            if i > 0 {
-                all.push_str("-");
-            }
+    let mut normalized = String::with_capacity(key.len());
 
-            // capitalize the first characters
-            let mut chars = part.chars();
-            if let Some(c) = chars.next() {
-                all.extend(c.to_uppercase());
-            }
+    key.chars().fold(true, |uppercase, c| {
+        if uppercase {
+            normalized.extend(c.to_uppercase());
+        } else {
+            normalized.push(c); // does not lowercase on purpose
+        }
+        c == '-'
+    });
 
-            // copy all others
-            all.extend(chars);
-            all
-        })
+    normalized
 }
 
 impl FromValue for Headers {
@@ -272,6 +266,7 @@ fn test_header_normalization() {
     let json = r#"{
   "-other-": "header",
   "accept": "application/json",
+  "WWW-Authenticate": "basic",
   "x-sentry": "version=8"
 }"#;
 
@@ -283,6 +278,10 @@ fn test_header_normalization() {
     headers.push(Annotated::new((
         Annotated::new("Accept".to_string()),
         Annotated::new("application/json".to_string()),
+    )));
+    headers.push(Annotated::new((
+        Annotated::new("WWW-Authenticate".to_string()),
+        Annotated::new("basic".to_string()),
     )));
     headers.push(Annotated::new((
         Annotated::new("X-Sentry".to_string()),
@@ -434,9 +433,12 @@ fn test_request_roundtrip() {
     "q": "foo"
   },
   "fragment": "home",
-  "cookies": {
-    "GOOGLE": "1"
-  },
+  "cookies": [
+    [
+      "GOOGLE",
+      "1"
+    ]
+  ],
   "headers": [
     [
       "Referer",
@@ -465,9 +467,12 @@ fn test_request_roundtrip() {
         })),
         fragment: Annotated::new("home".to_string()),
         cookies: Annotated::new(Cookies({
-            let mut map = Map::new();
-            map.insert("GOOGLE".to_string(), Annotated::new("1".to_string()));
-            map
+            let mut map = Vec::new();
+            map.push(Annotated::new((
+                Annotated::new("GOOGLE".to_string()),
+                Annotated::new("1".to_string()),
+            )));
+            PairList(map)
         })),
         headers: Annotated::new(Headers({
             let mut headers = Vec::new();
@@ -556,18 +561,39 @@ fn test_query_invalid() {
 fn test_cookies_parsing() {
     let json = "\" PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;\"";
 
-    let mut map = Map::new();
-    map.insert(
-        "PHPSESSID".to_string(),
+    let mut map = Vec::new();
+    map.push(Annotated::new((
+        Annotated::new("PHPSESSID".to_string()),
         Annotated::new("298zf09hf012fh2".to_string()),
-    );
-    map.insert(
-        "csrftoken".to_string(),
+    )));
+    map.push(Annotated::new((
+        Annotated::new("csrftoken".to_string()),
         Annotated::new("u32t4o3tb3gg43".to_string()),
-    );
-    map.insert("_gat".to_string(), Annotated::new("1".to_string()));
+    )));
+    map.push(Annotated::new((
+        Annotated::new("_gat".to_string()),
+        Annotated::new("1".to_string()),
+    )));
 
-    let cookies = Annotated::new(Cookies(map));
+    let cookies = Annotated::new(Cookies(PairList(map)));
+    assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
+}
+
+#[test]
+fn test_cookies_array() {
+    let json = r#"[["foo", "bar"], ["invalid", 42]]"#;
+
+    let mut map = Vec::new();
+    map.push(Annotated::new((
+        Annotated::new("foo".to_string()),
+        Annotated::new("bar".to_string()),
+    )));
+    map.push(Annotated::new((
+        Annotated::new("invalid".to_string()),
+        Annotated::from_error(Error::expected("a string"), Some(Value::U64(42))),
+    )));
+
+    let cookies = Annotated::new(Cookies(PairList(map)));
     assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
 }
 
@@ -575,14 +601,17 @@ fn test_cookies_parsing() {
 fn test_cookies_object() {
     let json = r#"{"foo":"bar", "invalid": 42}"#;
 
-    let mut map = Object::new();
-    map.insert("foo".to_string(), Annotated::new("bar".to_string()));
-    map.insert(
-        "invalid".to_string(),
+    let mut map = Vec::new();
+    map.push(Annotated::new((
+        Annotated::new("foo".to_string()),
+        Annotated::new("bar".to_string()),
+    )));
+    map.push(Annotated::new((
+        Annotated::new("invalid".to_string()),
         Annotated::from_error(Error::expected("a string"), Some(Value::U64(42))),
-    );
+    )));
 
-    let cookies = Annotated::new(Cookies(map));
+    let cookies = Annotated::new(Cookies(PairList(map)));
     assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
 }
 

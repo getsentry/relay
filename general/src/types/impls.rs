@@ -233,7 +233,7 @@ impl ToValue for Value {
 
 fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
     let micros = f64::from(dt.timestamp_subsec_micros()) / 1_000_000f64;
-    dt.timestamp() as f64 + micros
+    ((dt.timestamp() as f64 + micros) * 1000f64).round() / 1000f64
 }
 
 impl FromValue for DateTime<Utc> {

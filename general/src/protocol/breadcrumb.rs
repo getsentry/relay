@@ -31,6 +31,7 @@ pub struct Breadcrumb {
 
     /// Custom user-defined data of this breadcrumb.
     #[metastructure(pii = "true", bag_size = "small")]
+    #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,
 
     /// Identifier of the event this breadcrumb belongs to.

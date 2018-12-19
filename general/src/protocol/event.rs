@@ -171,6 +171,9 @@ pub struct Event {
     #[metastructure(max_chars = "symbol")]
     pub transaction: Annotated<String>,
 
+    /// Time since the start of the transaction until the error occurred.
+    pub time_spent: Annotated<u64>,
+
     /// Custom parameterized message for this event.
     #[metastructure(legacy_alias = "sentry.interfaces.Message", legacy_alias = "message")]
     pub logentry: Annotated<LogEntry>,
@@ -197,12 +200,22 @@ pub struct Event {
     pub server_name: Annotated<String>,
 
     /// Program's release identifier.
-    #[metastructure(max_chars = "symbol", match_regex = r"^[^\r\n]*\z")]
+    #[metastructure(
+        max_chars = "symbol",
+        match_regex = r"^[^\r\n]*\z",
+        required = "false",
+        nonempty = "true"
+    )]
     pub release: Annotated<String>,
 
     /// Program's distribution identifier.
     // Match whitespace here, which will later get trimmed
-    #[metastructure(max_chars = "symbol", match_regex = r"^\s*[a-zA-Z0-9_.-]+\s*$")]
+    #[metastructure(
+        max_chars = "symbol",
+        match_regex = r"^\s*[a-zA-Z0-9_.-]*\s*$",
+        required = "false",
+        nonempty = "true"
+    )]
     pub dist: Annotated<String>,
 
     /// Environment the environment was generated in ("production" or "development").
@@ -281,9 +294,13 @@ pub struct Event {
     /// Project which sent this event.
     pub project: Annotated<u64>,
 
-    /// Project which sent this event.
-    // TODO: capsize?
+    /// Legacy checksum used for grouping before fingerprint hashes.
+    #[metastructure(max_chars = "hash")]
     pub checksum: Annotated<String>,
+
+    /// Hashes computed from fingerprints.
+    #[metastructure(skip_serialization = "empty")]
+    pub hashes: Annotated<Array<String>>,
 
     /// CSP (security) reports.
     // TODO: typing
@@ -481,9 +498,9 @@ fn test_event_default_values_with_meta() {
 fn test_event_type() {
     assert_eq_dbg!(
         EventType::Default,
-        Annotated::<EventType>::from_json("\"default\"")
+        *Annotated::<EventType>::from_json("\"default\"")
             .unwrap()
-            .0
+            .value()
             .unwrap()
     );
 }

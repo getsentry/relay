@@ -462,17 +462,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
             })
             .to_tokens(&mut to_value_body);
             (quote! {
-                let #bi = {
-                    for (__key, __value) in #bi.iter_mut() {
-                        let __inner_state = __state.enter_borrowed(
-                            __key.as_str(),
-                            None,
-                            crate::processor::ValueType::for_field(__value),
-                        );
-                        crate::processor::process_value(__value, __processor, &__inner_state);
-                    }
-                    #bi
-                };
+                __processor.process_other(#bi, __state);
             })
             .to_tokens(&mut process_child_values_body);
             (quote! {
@@ -821,6 +811,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
 
 fn parse_max_chars(name: &str) -> TokenStream {
     match name {
+        "hash" => quote!(crate::processor::MaxChars::Hash),
         "enumlike" => quote!(crate::processor::MaxChars::EnumLike),
         "summary" => quote!(crate::processor::MaxChars::Summary),
         "message" => quote!(crate::processor::MaxChars::Message),

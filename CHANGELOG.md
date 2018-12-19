@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.7
+
+- store: Minor fixes to be closer to Python. Ability to disable trimming of
+  objects, arrays and strings.
+
 ## 0.2.6
 
 - Fix bug where PII stripping would remove containers without leaving any

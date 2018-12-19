@@ -165,6 +165,16 @@ impl<T: FromValue> FromValue for PairList<T> {
                 }
                 Annotated(Some(PairList(rv)), meta)
             }
+            Annotated(Some(Value::Object(items)), meta) => {
+                let mut rv = Vec::new();
+                for (key, value) in items.into_iter() {
+                    rv.push(T::from_value(Annotated::new(Value::Array(vec![
+                        Annotated::new(Value::String(key)),
+                        value,
+                    ]))));
+                }
+                Annotated(Some(PairList(rv)), meta)
+            }
             other => FromValue::from_value(other).map_value(PairList),
         }
     }
