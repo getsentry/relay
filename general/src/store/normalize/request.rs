@@ -42,7 +42,12 @@ fn normalize_url(request: &mut Request) {
     if request.query_string.value().is_none() {
         request.query_string.set_value(Some(Query(
             url.query_pairs()
-                .map(|(k, v)| (k.into(), Annotated::new(v.into())))
+                .map(|(k, v)| {
+                    Annotated::new((
+                        Annotated::new(k.into()),
+                        Annotated::new(v.to_string().into()),
+                    ))
+                })
                 .collect(),
         )));
     }

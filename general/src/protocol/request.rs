@@ -1,7 +1,7 @@
 use cookie::Cookie;
 use url::form_urlencoded;
 
-use crate::protocol::PairList;
+use crate::protocol::{JsonLenientString, PairList};
 use crate::types::{Annotated, Array, Error, FromValue, Object, Value};
 
 /// A map holding cookies.
@@ -145,10 +145,10 @@ impl FromValue for Headers {
 
 /// A map holding query string pairs.
 #[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
-pub struct Query(pub Object<String>);
+pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
 impl std::ops::Deref for Query {
-    type Target = Object<String>;
+    type Target = PairList<(Annotated<String>, Annotated<JsonLenientString>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -165,42 +165,20 @@ impl FromValue for Query {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(v)), meta) => {
-                let mut rv = Object::new();
+                let mut rv = vec![];
                 let qs = if v.starts_with('?') { &v[1..] } else { &v[..] };
                 for (key, value) in form_urlencoded::parse(qs.as_bytes()) {
-                    rv.insert(key.to_string(), Annotated::new(value.to_string()));
+                    rv.push(Annotated::new((
+                        Annotated::new(key.to_string()),
+                        Annotated::new(value.to_string().into()),
+                    )));
                 }
-                Annotated(Some(Query(rv)), meta)
+                Annotated(Some(Query(rv.into())), meta)
             }
-            Annotated(Some(Value::Object(items)), meta) => Annotated(
-                Some(Query(
-                    items
-                        .into_iter()
-                        .map(|(k, v)| match v {
-                            v @ Annotated(Some(Value::String(_)), _)
-                            | v @ Annotated(Some(Value::Null), _) => (k, FromValue::from_value(v)),
-                            v => {
-                                let v = match v {
-                                    v @ Annotated(Some(Value::Object(_)), _)
-                                    | v @ Annotated(Some(Value::Array(_)), _) => {
-                                        let meta = v.1.clone();
-                                        let json_val: serde_json::Value = v.into();
-                                        Annotated(
-                                            Some(Value::String(
-                                                serde_json::to_string(&json_val).unwrap(),
-                                            )),
-                                            meta,
-                                        )
-                                    }
-                                    other => other,
-                                };
-                                (k, FromValue::from_value(v))
-                            }
-                        })
-                        .collect(),
-                )),
-                meta,
-            ),
+            annotated @ Annotated(Some(Value::Object(_)), _)
+            | annotated @ Annotated(Some(Value::Array(_)), _) => {
+                FromValue::from_value(annotated).map_value(Query)
+            }
             Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
@@ -429,9 +407,12 @@ fn test_request_roundtrip() {
   "data": {
     "some": 1
   },
-  "query_string": {
-    "q": "foo"
-  },
+  "query_string": [
+    [
+      "q",
+      "foo"
+    ]
+  ],
   "fragment": "home",
   "cookies": [
     [
@@ -460,11 +441,13 @@ fn test_request_roundtrip() {
             map.insert("some".to_string(), Annotated::new(Value::I64(1)));
             Annotated::new(Value::Object(map))
         },
-        query_string: Annotated::new(Query({
-            let mut map = Object::new();
-            map.insert("q".to_string(), Annotated::new("foo".to_string()));
-            map
-        })),
+        query_string: Annotated::new(Query(
+            vec![Annotated::new((
+                Annotated::new("q".to_string()),
+                Annotated::new("foo".to_string().into()),
+            ))]
+            .into(),
+        )),
         fragment: Annotated::new("home".to_string()),
         cookies: Annotated::new(Cookies({
             let mut map = Vec::new();
@@ -507,16 +490,29 @@ fn test_request_roundtrip() {
 
 #[test]
 fn test_query_string() {
-    let mut map = Object::new();
-    map.insert("foo".to_string(), Annotated::new("bar".to_string()));
-    let query = Annotated::new(Query(map));
+    let query = Annotated::new(Query(
+        vec![Annotated::new((
+            Annotated::new("foo".to_string()),
+            Annotated::new("bar".to_string().into()),
+        ))]
+        .into(),
+    ));
     assert_eq_dbg!(query, Annotated::from_json("\"foo=bar\"").unwrap());
     assert_eq_dbg!(query, Annotated::from_json("\"?foo=bar\"").unwrap());
 
-    let mut map = Object::new();
-    map.insert("foo".to_string(), Annotated::new("bar".to_string()));
-    map.insert("baz".to_string(), Annotated::new("42".to_string()));
-    let query = Annotated::new(Query(map));
+    let query = Annotated::new(Query(
+        vec![
+            Annotated::new((
+                Annotated::new("foo".to_string()),
+                Annotated::new("bar".to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("baz".to_string()),
+                Annotated::new("42".to_string().into()),
+            )),
+        ]
+        .into(),
+    ));
     assert_eq_dbg!(query, Annotated::from_json("\"foo=bar&baz=42\"").unwrap());
 }
 
@@ -525,15 +521,28 @@ fn test_query_string_legacy_nested() {
     // this test covers a case that previously was let through the ingest system but in a bad
     // way.  This was untyped and became a str repr() in Python.  New SDKs will no longer send
     // nested objects here but for legacy values we instead serialize it out as JSON.
-    let mut map = Object::new();
-    map.insert("foo".to_string(), Annotated::new("bar".to_string()));
-    let query = Annotated::new(Query(map));
+    let query = Annotated::new(Query(
+        vec![Annotated::new((
+            Annotated::new("foo".to_string()),
+            Annotated::new("bar".to_string().into()),
+        ))]
+        .into(),
+    ));
     assert_eq_dbg!(query, Annotated::from_json("\"foo=bar\"").unwrap());
 
-    let mut map = Object::new();
-    map.insert("foo".to_string(), Annotated::new("bar".to_string()));
-    map.insert("baz".to_string(), Annotated::new(r#"{"a":42}"#.to_string()));
-    let query = Annotated::new(Query(map));
+    let query = Annotated::new(Query(
+        vec![
+            Annotated::new((
+                Annotated::new("baz".to_string()),
+                Annotated::new(r#"{"a":42}"#.to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("foo".to_string()),
+                Annotated::new("bar".to_string().into()),
+            )),
+        ]
+        .into(),
+    ));
     assert_eq_dbg!(
         query,
         Annotated::from_json(
