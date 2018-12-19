@@ -630,3 +630,24 @@ fn test_cookies_invalid() {
         Annotated::<Cookies>::from_error(Error::expected("cookies"), Some(Value::I64(42)));
     assert_eq_dbg!(cookies, Annotated::from_json("42").unwrap());
 }
+
+#[test]
+fn test_querystring_without_value() {
+    let json = r#""foo=bar&baz""#;
+
+    let query = Annotated::new(Query(
+        vec![
+            Annotated::new((
+                Annotated::new("foo".to_string()),
+                Annotated::new("bar".to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("baz".to_string()),
+                Annotated::new("".to_string().into()),
+            )),
+        ]
+        .into(),
+    ));
+
+    assert_eq_dbg!(query, Annotated::from_json(json).unwrap());
+}
