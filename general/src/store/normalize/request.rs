@@ -3,7 +3,7 @@ use regex::Regex;
 use serde::de::IgnoredAny;
 use url::Url;
 
-use crate::protocol::{Query, Request};
+use crate::protocol::{PairList, Query, Request};
 use crate::types::{Annotated, ErrorKind, FromValue, Meta, Object, Value, ValueAction};
 
 lazy_static! {
@@ -23,33 +23,35 @@ fn infer_content_type(body: &Annotated<Value>) -> Option<String> {
 }
 
 fn normalize_url(request: &mut Request) {
-    let url_result = match request.url.value() {
-        Some(url_string) => Url::parse(url_string),
+    let url_string = match request.url.value_mut() {
+        Some(url_string) => url_string,
         None => return,
     };
 
-    let mut url = match url_result {
+    let url = match Url::parse(url_string) {
         Ok(url) => url,
         Err(_) => {
-            // TODO: Remove value here or not?
             request.url.meta_mut().add_error(ErrorKind::InvalidData);
             return;
         }
     };
 
-    // If either the query string or fragment is specified both as part of
-    // the URL and as separate attribute, the attribute wins.
+    // Separate the query string and fragment bits into dedicated fields. If
+    // both the URL and the fields have been set, the fields take precedence.
     if request.query_string.value().is_none() {
-        request.query_string.set_value(Some(Query(
-            url.query_pairs()
-                .map(|(k, v)| {
-                    Annotated::new((
-                        Annotated::new(k.into()),
-                        Annotated::new(v.to_string().into()),
-                    ))
-                })
-                .collect(),
-        )));
+        let pairs: Vec<_> = url
+            .query_pairs()
+            .map(|(k, v)| {
+                Annotated::new((
+                    Annotated::new(k.to_string()),
+                    Annotated::new(v.to_string().into()),
+                ))
+            })
+            .collect();
+
+        if !pairs.is_empty() {
+            request.query_string.set_value(Some(Query(PairList(pairs))));
+        }
     }
 
     if request.fragment.value().is_none() {
@@ -58,14 +60,19 @@ fn normalize_url(request: &mut Request) {
             .set_value(url.fragment().map(str::to_string));
     }
 
-    // Remove the fragment and query since they have been moved to their own
-    // parameters to avoid duplication or inconsistencies.
-    url.set_fragment(None);
-    url.set_query(None);
+    // Remove the fragment and query string from the URL to avoid duplication
+    // or inconsistencies. We do not use `url.to_string()` here to prevent
+    // urlencoding of special characters in the path segment of the URL or
+    // normalization of partial URLs. That is expected to occur after PII
+    // stripping.
+    let url_end_index = match (url_string.find('?'), url_string.find('#')) {
+        (Some(a), Some(b)) => Some(std::cmp::min(a, b)),
+        (a, b) => a.or(b),
+    };
 
-    // TODO: Check if this generates unwanted effects with `meta.remarks`
-    // when the URL was already PII stripped.
-    request.url.set_value(Some(url.into_string()));
+    if let Some(index) = url_end_index {
+        url_string.truncate(index);
+    }
 }
 
 fn normalize_method(method: &mut String, meta: &mut Meta) -> ValueAction {
@@ -134,8 +141,121 @@ pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
 }
 
 #[test]
+fn test_url_truncation() {
+    let mut request = Request {
+        url: Annotated::new("http://example.com/path?foo#bar".to_string()),
+        ..Default::default()
+    };
+
+    normalize_request(&mut request, None);
+    assert_eq_dbg!(request.url.as_str(), Some("http://example.com/path"));
+}
+
+#[test]
+fn test_url_truncation_reversed() {
+    let mut request = Request {
+        // The query string is empty and the fragment is "foo?bar" here
+        url: Annotated::new("http://example.com/path#foo?bar".to_string()),
+        ..Default::default()
+    };
+
+    normalize_request(&mut request, None);
+    assert_eq_dbg!(request.url.as_str(), Some("http://example.com/path"));
+}
+
+#[test]
+fn test_url_with_ellipsis() {
+    let mut request = Request {
+        url: Annotated::new("http://example.com/path…".to_string()),
+        ..Default::default()
+    };
+
+    normalize_request(&mut request, None);
+    assert_eq_dbg!(request.url.as_str(), Some("http://example.com/path…"));
+}
+
+#[test]
+fn test_url_with_qs_and_fragment() {
+    use crate::protocol::Query;
+
+    let mut request = Request {
+        url: Annotated::new("http://example.com/path?some=thing#else".to_string()),
+        ..Default::default()
+    };
+
+    normalize_request(&mut request, None);
+
+    assert_eq_dbg!(
+        request,
+        Request {
+            url: Annotated::new("http://example.com/path".to_string()),
+            query_string: Annotated::new(Query(PairList(vec![Annotated::new((
+                Annotated::new("some".to_string()),
+                Annotated::new("thing".to_string().into()),
+            )),]))),
+            fragment: Annotated::new("else".to_string()),
+            ..Default::default()
+        }
+    );
+}
+
+#[test]
+fn test_url_precedence() {
+    use crate::protocol::Query;
+
+    let mut request = Request {
+        url: Annotated::new("http://example.com/path?completely=different#stuff".to_string()),
+        query_string: Annotated::new(Query(PairList(vec![Annotated::new((
+            Annotated::new("some".to_string()),
+            Annotated::new("thing".to_string().into()),
+        ))]))),
+        fragment: Annotated::new("else".to_string()),
+        ..Default::default()
+    };
+
+    normalize_request(&mut request, None);
+
+    assert_eq_dbg!(
+        request,
+        Request {
+            url: Annotated::new("http://example.com/path".to_string()),
+            query_string: Annotated::new(Query(PairList(vec![Annotated::new((
+                Annotated::new("some".to_string()),
+                Annotated::new("thing".to_string().into()),
+            )),]))),
+            fragment: Annotated::new("else".to_string()),
+            ..Default::default()
+        }
+    );
+}
+
+#[test]
+fn test_query_string_empty_value() {
+    use crate::protocol::Query;
+
+    let mut request = Request {
+        url: Annotated::new("http://example.com/path?some".to_string()),
+        ..Default::default()
+    };
+
+    normalize_request(&mut request, None);
+
+    assert_eq_dbg!(
+        request,
+        Request {
+            url: Annotated::new("http://example.com/path".to_string()),
+            query_string: Annotated::new(Query(PairList(vec![Annotated::new((
+                Annotated::new("some".to_string()),
+                Annotated::new("".to_string().into()),
+            )),]))),
+            ..Default::default()
+        }
+    );
+}
+
+#[test]
 fn test_cookies_in_header() {
-    use crate::protocol::{Cookies, Headers, PairList};
+    use crate::protocol::{Cookies, Headers};
 
     let mut request = Request {
         url: Annotated::new("http://example.com".to_string()),
@@ -153,24 +273,22 @@ fn test_cookies_in_header() {
 
     assert_eq_dbg!(
         request.cookies,
-        Annotated::new(Cookies({
-            let mut map = Vec::new();
-            map.push(Annotated::new((
+        Annotated::new(Cookies(PairList(vec![
+            Annotated::new((
                 Annotated::new("a".to_string()),
                 Annotated::new("b".to_string()),
-            )));
-            map.push(Annotated::new((
+            )),
+            Annotated::new((
                 Annotated::new("c".to_string()),
                 Annotated::new("d".to_string()),
-            )));
-            PairList(map)
-        }))
+            )),
+        ])))
     );
 }
 
 #[test]
 fn test_cookies_in_header_not_overridden() {
-    use crate::protocol::{Cookies, Headers, PairList};
+    use crate::protocol::{Cookies, Headers};
 
     let mut request = Request {
         url: Annotated::new("http://example.com".to_string()),
@@ -181,14 +299,10 @@ fn test_cookies_in_header_not_overridden() {
             ))]
             .into(),
         )),
-        cookies: Annotated::new(Cookies({
-            let mut map = Vec::new();
-            map.push(Annotated::new((
-                Annotated::new("foo".to_string()),
-                Annotated::new("bar".to_string()),
-            )));
-            PairList(map)
-        })),
+        cookies: Annotated::new(Cookies(PairList(vec![Annotated::new((
+            Annotated::new("foo".to_string()),
+            Annotated::new("bar".to_string()),
+        ))]))),
         ..Default::default()
     };
 
@@ -196,13 +310,9 @@ fn test_cookies_in_header_not_overridden() {
 
     assert_eq_dbg!(
         request.cookies,
-        Annotated::new(Cookies({
-            let mut map = Vec::new();
-            map.push(Annotated::new((
-                Annotated::new("foo".to_string()),
-                Annotated::new("bar".to_string()),
-            )));
-            PairList(map)
-        }))
+        Annotated::new(Cookies(PairList(vec![Annotated::new((
+            Annotated::new("foo".to_string()),
+            Annotated::new("bar".to_string()),
+        ))])))
     );
 }
