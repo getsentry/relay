@@ -204,7 +204,8 @@ pub struct Event {
         max_chars = "symbol",
         match_regex = r"^[^\r\n]*\z",
         required = "false",
-        nonempty = "true"
+        nonempty = "true",
+        skip_serialization = "empty"
     )]
     pub release: Annotated<String>,
 
