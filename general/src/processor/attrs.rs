@@ -82,7 +82,7 @@ impl FromStr for SelectorSpec {
         let mut path = vec![];
         let mut have_deep_wildcard = false;
         for item in s.split('.') {
-            if item.starts_with('#') {
+            if item.starts_with('$') {
                 path.push(
                     item[1..]
                         .parse()
@@ -608,7 +608,7 @@ impl<'a> Path<'a> {
         let mut selector_iter = selector_iter.rev().peekable();
         let first_selector_path = match selector_iter.next() {
             Some(selector_path) => selector_path,
-            None => return false,
+            None => return !remaining_states.is_empty(),
         };
         let mut path_match_iterator = remaining_states
             .iter()
@@ -661,48 +661,56 @@ fn test_path_matching() {
     // this is a match below a type
     assert!(extra_state
         .path()
-        .matches_selector(&"#user.extra".parse().unwrap()));
+        .matches_selector(&"$user.extra".parse().unwrap()));
 
     // this is a wildcard match into a type
     assert!(foo_state
         .path()
-        .matches_selector(&"#user.extra.*".parse().unwrap()));
+        .matches_selector(&"$user.extra.*".parse().unwrap()));
 
     // a wildcard match into an array
     assert!(zero_state
         .path()
-        .matches_selector(&"#user.extra.foo.*".parse().unwrap()));
+        .matches_selector(&"$user.extra.foo.*".parse().unwrap()));
 
     // a direct match into an array
     assert!(zero_state
         .path()
-        .matches_selector(&"#user.extra.foo.0".parse().unwrap()));
+        .matches_selector(&"$user.extra.foo.0".parse().unwrap()));
 
     // direct mismatch in an array
     assert!(!zero_state
         .path()
-        .matches_selector(&"#user.extra.foo.1".parse().unwrap()));
+        .matches_selector(&"$user.extra.foo.1".parse().unwrap()));
 
     // deep matches are wild
     assert!(!zero_state
         .path()
-        .matches_selector(&"#user.extra.bar.**".parse().unwrap()));
+        .matches_selector(&"$user.extra.bar.**".parse().unwrap()));
     assert!(zero_state
         .path()
-        .matches_selector(&"#user.extra.foo.**".parse().unwrap()));
+        .matches_selector(&"$user.extra.foo.**".parse().unwrap()));
     assert!(zero_state
         .path()
-        .matches_selector(&"#user.extra.**".parse().unwrap()));
+        .matches_selector(&"$user.extra.**".parse().unwrap()));
     assert!(zero_state
         .path()
-        .matches_selector(&"#user.**".parse().unwrap()));
+        .matches_selector(&"$user.**".parse().unwrap()));
     assert!(zero_state
         .path()
-        .matches_selector(&"#event.**".parse().unwrap()));
+        .matches_selector(&"$event.**".parse().unwrap()));
     assert!(!zero_state
         .path()
-        .matches_selector(&"#user.**.1".parse().unwrap()));
+        .matches_selector(&"$user.**.1".parse().unwrap()));
     assert!(zero_state
         .path()
-        .matches_selector(&"#user.**.0".parse().unwrap()));
+        .matches_selector(&"$user.**.0".parse().unwrap()));
+
+    // types are anywhere
+    assert!(zero_state
+        .path()
+        .matches_selector(&"$user.$object.**.0".parse().unwrap()));
+    assert!(foo_state
+        .path()
+        .matches_selector(&"**.$array".parse().unwrap()));
 }

@@ -658,8 +658,8 @@ fn test_basic_stripping() {
                 }
             },
             "applications": {
-                "#string": ["@ip"],
-                "#object": ["remove_bad_headers"]
+                "$string": ["@ip"],
+                "$object": ["remove_bad_headers"]
             }
         }
     "##,
@@ -821,7 +821,7 @@ fn test_redact_containers() {
         r##"
         {
             "applications": {
-                "#object": ["@anything"]
+                "$object": ["@anything"]
             }
         }
     "##,
