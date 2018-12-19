@@ -37,3 +37,91 @@ impl Processor for RemoveOtherProcessor {
         ValueAction::Keep
     }
 }
+
+#[cfg(test)]
+use crate::processor::process_value;
+
+#[test]
+fn test_remove_legacy_attributes() {
+    let mut event = Annotated::new(Event {
+        other: {
+            let mut other = Object::new();
+            other.insert("applecrashreport".to_string(), Value::U64(42).into());
+            other.insert("device".to_string(), Value::U64(42).into());
+            other.insert("repos".to_string(), Value::U64(42).into());
+            other.insert("query".to_string(), Value::U64(42).into());
+            other
+        },
+        ..Default::default()
+    });
+
+    process_value(
+        &mut event,
+        &mut RemoveOtherProcessor,
+        ProcessingState::root(),
+    );
+
+    assert!(event.value().unwrap().other.is_empty());
+}
+
+#[test]
+fn test_remove_unknown_attributes() {
+    let mut event = Annotated::new(Event {
+        other: {
+            let mut other = Object::new();
+            other.insert("foo".to_string(), Value::U64(42).into());
+            other.insert("bar".to_string(), Value::U64(42).into());
+            other
+        },
+        ..Default::default()
+    });
+
+    process_value(
+        &mut event,
+        &mut RemoveOtherProcessor,
+        ProcessingState::root(),
+    );
+
+    let other = &event.value().unwrap().other;
+    assert_eq_dbg!(
+        *other.get("foo").unwrap(),
+        Annotated::from_error(ErrorKind::InvalidAttribute, None)
+    );
+    assert_eq_dbg!(
+        *other.get("bar").unwrap(),
+        Annotated::from_error(ErrorKind::InvalidAttribute, None)
+    );
+}
+
+#[test]
+fn test_remove_nested_other() {
+    use crate::protocol::User;
+
+    let mut event = Annotated::new(Event {
+        user: Annotated::from(User {
+            other: {
+                let mut other = Object::new();
+                other.insert("foo".to_string(), Value::U64(42).into());
+                other.insert("bar".to_string(), Value::U64(42).into());
+                other
+            },
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    process_value(
+        &mut event,
+        &mut RemoveOtherProcessor,
+        ProcessingState::root(),
+    );
+
+    assert!(event
+        .value()
+        .unwrap()
+        .user
+        .value()
+        .unwrap()
+        .other
+        .is_empty());
+}

@@ -79,10 +79,7 @@ impl<'a> Processor for StoreProcessor<'a> {
 }
 
 #[cfg(test)]
-use {
-    crate::processor::process_value,
-    crate::types::{Annotated, Value},
-};
+use {crate::processor::process_value, crate::types::Annotated};
 
 #[test]
 fn test_schema_processor_invoked() {
