@@ -62,7 +62,7 @@ pub fn enforce_frame_hard_limit(frames: &mut Array<Frame>, meta: &mut Meta, limi
 #[test]
 fn test_coerces_url_filenames() {
     let mut frame = Annotated::new(Frame {
-        line: Annotated::new(1),
+        lineno: Annotated::new(1),
         filename: Annotated::new("http://foo.com/foo.js".to_string()),
         ..Default::default()
     });
@@ -77,7 +77,7 @@ fn test_coerces_url_filenames() {
 #[test]
 fn test_does_not_overwrite_filename() {
     let mut frame = Annotated::new(Frame {
-        line: Annotated::new(1),
+        lineno: Annotated::new(1),
         filename: Annotated::new("foo.js".to_string()),
         abs_path: Annotated::new("http://foo.com/foo.js".to_string()),
         ..Default::default()
@@ -93,7 +93,7 @@ fn test_does_not_overwrite_filename() {
 #[test]
 fn test_ignores_results_with_empty_path() {
     let mut frame = Annotated::new(Frame {
-        line: Annotated::new(1),
+        lineno: Annotated::new(1),
         abs_path: Annotated::new("http://foo.com".to_string()),
         ..Default::default()
     });

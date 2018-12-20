@@ -47,27 +47,22 @@ pub struct Frame {
     pub abs_path: Annotated<String>,
 
     /// Line number within the source file.
-    #[metastructure(field = "lineno")]
-    pub line: Annotated<u64>,
+    pub lineno: Annotated<u64>,
 
     /// Column number within the source file.
-    #[metastructure(field = "colno")]
-    pub column: Annotated<u64>,
+    pub colno: Annotated<u64>,
 
     /// Source code leading up to the current line.
-    #[metastructure(field = "pre_context")]
     #[metastructure(skip_serialization = "empty")]
-    pub pre_lines: Annotated<Array<String>>,
+    pub pre_context: Annotated<Array<String>>,
 
     /// Source code of the current line.
-    #[metastructure(field = "context_line")]
     #[metastructure(skip_serialization = "empty")]
-    pub current_line: Annotated<String>,
+    pub context_line: Annotated<String>,
 
     /// Source code of the lines after the current line.
-    #[metastructure(field = "post_context")]
     #[metastructure(skip_serialization = "empty")]
-    pub post_lines: Annotated<Array<String>>,
+    pub post_context: Annotated<Array<String>>,
 
     /// Override whether this frame should be considered in-app.
     pub in_app: Annotated<bool>,
@@ -155,11 +150,11 @@ fn test_frame_roundtrip() {
         package: Annotated::new("/my/app".to_string()),
         filename: Annotated::new("myfile.rs".to_string()),
         abs_path: Annotated::new("/path/to".to_string()),
-        line: Annotated::new(2),
-        column: Annotated::new(42),
-        pre_lines: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
-        current_line: Annotated::new("unimplemented!()".to_string()),
-        post_lines: Annotated::new(vec![Annotated::new("}".to_string())]),
+        lineno: Annotated::new(2),
+        colno: Annotated::new(42),
+        pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
+        context_line: Annotated::new("unimplemented!()".to_string()),
+        post_context: Annotated::new(vec![Annotated::new("}".to_string())]),
         in_app: Annotated::new(true),
         vars: {
             let mut map = Map::new();
@@ -319,7 +314,7 @@ fn test_frame_empty_context_line_removed() {
     let output = r#"{}"#;
 
     let frame = Annotated::new(Frame {
-        current_line: Annotated::new(String::new()),
+        context_line: Annotated::new(String::new()),
         ..Default::default()
     });
 

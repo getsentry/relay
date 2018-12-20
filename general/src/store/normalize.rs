@@ -401,7 +401,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             frame.symbol.set_value(None);
         }
 
-        if let Some(lines) = frame.pre_lines.value_mut() {
+        if let Some(lines) = frame.pre_context.value_mut() {
             for line in lines {
                 if line.value().is_none() {
                     line.set_value(Some("".to_string()));
@@ -409,7 +409,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             }
         }
 
-        if let Some(lines) = frame.post_lines.value_mut() {
+        if let Some(lines) = frame.post_context.value_mut() {
             for line in lines {
                 if line.value().is_none() {
                     line.set_value(Some("".to_string()));
