@@ -2,9 +2,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use ::actix::prelude::*;
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use failure::Fail;
 use futures::prelude::*;
+use python_json_read_adapter;
 use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 use serde_json;
@@ -241,11 +242,23 @@ impl Handler<QueueEvent> for EventManager {
     type Result = Result<EventId, EventError>;
 
     fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
+        let mut data: BytesMut = message.data.into();
+
+        // python clients are well known to send crappy JSON in the Sentry world.  The reason
+        // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
+        // server could deal with this but we cannot.  To work around this issue we run a basic
+        // character substitution on the input stream but only if we detect a Python agent.
+        //
+        // this is done here so that the rest of the code can assume valid JSON.
+        if message.meta.needs_legacy_python_json_support() {
+            python_json_read_adapter::translate_slice(&mut data[..]);
+        }
+
         // Ensure that the event has a UUID. It will be returned from this message and from the
         // incoming store request. To uncouple it from the workload on the processing workers, this
         // requires to synchronously parse a minimal part of the JSON payload. If the JSON payload
         // is invalid, processing can be skipped altogether.
-        let event_id = serde_json::from_slice::<EventIdHelper>(&message.data)
+        let event_id = serde_json::from_slice::<EventIdHelper>(&data)
             .map(|event| event.id)
             .map_err(EventError::InvalidJson)?
             .unwrap_or_else(|| EventId(Uuid::new_v4()));
@@ -254,7 +267,7 @@ impl Handler<QueueEvent> for EventManager {
         // that future will be tied to the EventManager's context. This allows to keep the Project
         // actor alive even if it is cleaned up in the ProjectManager.
         context.notify(HandleEvent {
-            data: message.data,
+            data: data.into(),
             meta: message.meta,
             project: message.project,
             event_id,
