@@ -27,6 +27,7 @@ def _make_error(error_name, base=SemaphoreError, code=None):
         pass
 
     Exc.__name__ = error_name
+    Exc.__qualname__ = error_name
     if code is not None:
         Exc.code = code
     globals()[Exc.__name__] = Exc

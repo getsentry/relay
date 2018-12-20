@@ -23,5 +23,7 @@
   "[markdown]": {
     "editor.rulers": [80],
     "editor.tabSize": 2
-  }
+  },
+  "python.linting.enabled": false,
+  "python.formatting.provider": "black"
 }

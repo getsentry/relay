@@ -1,3 +1,4 @@
+import pytest
 import semaphore
 
 REMARKS = [["myrule", "s", 7, 17]]
@@ -64,3 +65,14 @@ def test_basic_store_normalization():
     assert event["platform"] == "other"
     assert "tags" not in event
     assert "received" in event
+
+
+def test_legacy_json():
+    normalizer = semaphore.StoreNormalizer(project_id=1)
+    event = normalizer.normalize_event(
+        raw_event='{"extra":{"x":NaN}}', legacy_python_json=True
+    )
+    assert event["extra"] == {"x": 0.0}
+
+    with pytest.raises(semaphore.SemaphoreError):
+        normalizer.normalize_event(raw_event='{"extra":{"x":NaN}}')

@@ -2,12 +2,14 @@
 #![allow(clippy::cast_ptr_alignment)]
 
 use std::ffi::CStr;
+use std::slice;
 use std::os::raw::c_char;
 
 use semaphore_general::processor::{process_value, split_chunks, ProcessingState};
 use semaphore_general::protocol::Event;
 use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use semaphore_general::types::{Annotated, Remark};
+use python_json_read_adapter;
 
 use crate::core::SemaphoreStr;
 
@@ -79,5 +81,15 @@ ffi_fn! {
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut *processor, ProcessingState::root());
         Ok(SemaphoreStr::from_string(event.to_json()?))
+    }
+}
+
+ffi_fn! {
+    unsafe fn semaphore_translate_legacy_python_json(
+        event: *mut SemaphoreStr,
+    ) -> Result<bool> {
+        let data = slice::from_raw_parts_mut((*event).data as *mut u8, (*event).len);
+        python_json_read_adapter::translate_slice(data);
+        Ok(true)
     }
 }

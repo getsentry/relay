@@ -72,11 +72,13 @@ def decode_str(s, free=False):
             lib.semaphore_str_free(ffi.addressof(s))
 
 
-def encode_str(s):
+def encode_str(s, mutable=False):
     """Encodes a SemaphoreStr"""
     rv = ffi.new("SemaphoreStr *")
     if isinstance(s, text_type):
         s = s.encode("utf-8")
+    if mutable:
+        s = bytearray(s)
     rv.data = ffi.from_buffer(s)
     rv.len = len(s)
     # we have to hold a weak reference here to ensure our string does not
