@@ -438,6 +438,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "python-json-read-adapter"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
 name = "quote"
 version = "0.6.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -604,6 +609,7 @@ version = "0.2.7"
 dependencies = [
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "python-json-read-adapter 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "semaphore-common 0.2.7",
  "semaphore-general 0.2.7",
  "serde 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1007,6 +1013,7 @@ dependencies = [
 "checksum parking_lot_core 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "94c8c7923936b28d546dfd14d4472eaf34c99b14e1c973a32b3e6d4eb04298c9"
 "checksum percent-encoding 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "31010dd2e1ac33d5b46a5b413495239882813e0369f8ed8a5e266f173602f831"
 "checksum proc-macro2 0.4.24 (registry+https://github.com/rust-lang/crates.io-index)" = "77619697826f31a02ae974457af0b29b723e5619e113e9397b8b82c6bd253f09"
+"checksum python-json-read-adapter 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "918bd084cc90115e21f72ed8af90238120d79e1d0338efa6c75f9249a57da9de"
 "checksum quote 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)" = "53fa22a1994bd0f9372d7a816207d8a2677ad0325b073f5c5332760f0fb62b5c"
 "checksum rand 0.3.22 (registry+https://github.com/rust-lang/crates.io-index)" = "15a732abf9d20f0ad8eeb6f909bf6868722d9a06e1e50802b6a70351f40b4eb1"
 "checksum rand 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "8356f47b32624fef5b3301c1be97e5944ecdd595409cc5da11d05f211db6cfbd"

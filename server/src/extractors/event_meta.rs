@@ -38,20 +38,35 @@ pub struct EventMeta {
 }
 
 impl EventMeta {
+    /// Returns a reference to the auth info
     pub fn auth(&self) -> &Auth {
         &self.auth
     }
 
+    /// Returns a reference to the origin URL
     pub fn origin(&self) -> Option<&Url> {
         self.origin.as_ref()
     }
 
+    /// If the request originated from HTTP this returns the remote ip
     pub fn remote_addr(&self) -> Option<IpAddr> {
         self.remote_addr
     }
 
+    /// Returns the value of the forwarded for header
     pub fn forwarded_for(&self) -> &str {
         &self.forwarded_for
+    }
+
+    /// Returns `true` if this client requires legacy python json support.
+    ///
+    /// For old Python clients we need to preprocess the JSON payload to make it
+    /// parsable.  This destroys some values (converts `NaN` to `0.0`) but makes the
+    /// request otherwise parsable.
+    pub fn needs_legacy_python_json_support(&self) -> bool {
+        self.auth().client_agent().map_or(false, |agent| {
+            agent.starts_with("raven-python/") || agent.starts_with("sentry-python/")
+        })
     }
 }
 

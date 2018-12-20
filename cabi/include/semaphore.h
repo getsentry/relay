@@ -211,6 +211,8 @@ void semaphore_str_free(SemaphoreStr *s);
  */
 SemaphoreStr semaphore_str_from_cstr(const char *s);
 
+bool semaphore_translate_legacy_python_json(SemaphoreStr *event);
+
 /*
  * Returns true if the uuid is nil
  */

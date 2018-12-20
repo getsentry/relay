@@ -37,6 +37,7 @@ serde = {version = "1.0.80", features = ["derive"]}
 serde_json = "1.0.33"
 tokio-timer = "0.2.8"
 url = "1.7.2"
+python-json-read-adapter = "0.1.0"
 
 [dependencies.semaphore-common]
 path = "../common"

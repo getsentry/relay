@@ -18,6 +18,8 @@
 
   // Python configuration
   "python.pythonPath": "${workspaceFolder}/venv/bin/python",
+  "python.linting.enabled": false,
+  "python.formatting.provider": "black",
 
   // Language-specific overrides
   "[markdown]": {
