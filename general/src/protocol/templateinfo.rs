@@ -1,7 +1,7 @@
 use crate::types::{Annotated, Array, Object, Value};
 
 /// Template debug information.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_template_info")]
 pub struct TemplateInfo {
     /// The file name (basename only).

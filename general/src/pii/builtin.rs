@@ -329,7 +329,7 @@ mod tests {
     use crate::types::{Annotated, Remark, RemarkType};
     use std::collections::BTreeMap;
 
-    #[derive(ToValue, FromValue, ProcessValue, Debug, Clone, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, Empty, FromValue, ProcessValue, ToValue)]
     struct FreeformRoot {
         #[metastructure(pii = "true")]
         value: Annotated<String>,

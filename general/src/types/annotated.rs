@@ -3,7 +3,7 @@ use std::fmt;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::types::{Error, FromValue, Map, Meta, SkipSerialization, ToValue, Value};
+use crate::types::{Empty, Error, FromValue, Map, Meta, SkipSerialization, ToValue, Value};
 
 /// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
@@ -42,28 +42,12 @@ impl MetaTree {
 
     /// Checks if the tree has any errors.
     pub fn has_errors(&self) -> bool {
-        if !self.meta.has_errors() {
-            return true;
-        }
-        for (_, value) in self.children.iter() {
-            if !value.has_errors() {
-                return true;
-            }
-        }
-        false
+        self.meta.has_errors() || self.children.values().any(|v| v.has_errors())
     }
 
     /// Checks if the tree is empty.
     pub fn is_empty(&self) -> bool {
-        if !self.meta.is_empty() {
-            return false;
-        }
-        for (_, value) in self.children.iter() {
-            if !value.is_empty() {
-                return false;
-            }
-        }
-        true
+        self.meta.is_empty() && self.children.values().all(|v| v.is_empty())
     }
 }
 
@@ -122,7 +106,7 @@ impl From<bool> for ValueAction {
 }
 
 /// Wrapper for data fields with optional meta data.
-#[derive(PartialEq, Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
 impl<T: fmt::Debug> fmt::Debug for Annotated<T> {
@@ -246,9 +230,37 @@ impl Annotated<Value> {
     }
 }
 
-impl<'de, T: FromValue> Annotated<T> {
+impl<T> Annotated<T>
+where
+    T: Empty,
+{
+    /// Returns whether this value should be skipped during serialization.
+    ///
+    /// An `Annotated<T>` is always serialized if it has meta data. Otherwise, serialization
+    /// depends on the behavior. For `SkipSerialization::Empty`, the `Empty` trait is used to
+    /// determine emptiness of the contained value and defaults to `false` for no value.
+    pub fn skip_serialization(&self, behavior: SkipSerialization) -> bool {
+        if !self.meta().is_empty() {
+            return false;
+        }
+
+        match behavior {
+            SkipSerialization::Never => false,
+            SkipSerialization::Null(_) => self.value().is_none(),
+            SkipSerialization::Empty(false) => self.value().map_or(true, Empty::is_empty),
+            SkipSerialization::Empty(true) => self.value().map_or(true, Empty::is_deep_empty),
+        }
+    }
+}
+
+impl<T> Annotated<T>
+where
+    T: FromValue,
+{
     /// Deserializes an annotated from a deserializer
-    pub fn deserialize_with_meta<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    pub fn deserialize_with_meta<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Self, D::Error> {
         Ok(FromValue::from_value(
             match Value::deserialize(deserializer)? {
                 Value::Object(mut map) => {
@@ -267,17 +279,20 @@ impl<'de, T: FromValue> Annotated<T> {
     }
 
     /// Deserializes an annotated from a JSON string.
-    pub fn from_json(s: &'de str) -> Result<Self, serde_json::Error> {
+    pub fn from_json(s: &str) -> Result<Self, serde_json::Error> {
         Self::deserialize_with_meta(&mut serde_json::Deserializer::from_str(s))
     }
 
     /// Deserializes an annotated from JSON bytes.
-    pub fn from_json_bytes(b: &'de [u8]) -> Result<Self, serde_json::Error> {
+    pub fn from_json_bytes(b: &[u8]) -> Result<Self, serde_json::Error> {
         Self::deserialize_with_meta(&mut serde_json::Deserializer::from_slice(b))
     }
 }
 
-impl<T: ToValue> Annotated<T> {
+impl<T> Annotated<T>
+where
+    T: ToValue,
+{
     /// Serializes an annotated value into a serializer.
     pub fn serialize_with_meta<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map_ser = serializer.serialize_map(None)?;
@@ -285,11 +300,7 @@ impl<T: ToValue> Annotated<T> {
 
         if let Some(value) = self.value() {
             use serde::private::ser::FlatMapSerializer;
-            ToValue::serialize_payload(
-                value,
-                FlatMapSerializer(&mut map_ser),
-                SkipSerialization::Null,
-            )?;
+            ToValue::serialize_payload(value, FlatMapSerializer(&mut map_ser), Default::default())?;
         }
 
         if !meta_tree.is_empty() {
@@ -319,7 +330,7 @@ impl<T: ToValue> Annotated<T> {
         let mut ser = serde_json::Serializer::new(Vec::with_capacity(128));
 
         match self.value() {
-            Some(value) => ToValue::serialize_payload(value, &mut ser, SkipSerialization::Null)?,
+            Some(value) => ToValue::serialize_payload(value, &mut ser, Default::default())?,
             None => ser.serialize_unit()?,
         }
 
@@ -331,28 +342,11 @@ impl<T: ToValue> Annotated<T> {
         let mut ser = serde_json::Serializer::pretty(Vec::with_capacity(128));
 
         match self.value() {
-            Some(value) => ToValue::serialize_payload(value, &mut ser, SkipSerialization::Null)?,
+            Some(value) => ToValue::serialize_payload(value, &mut ser, Default::default())?,
             None => ser.serialize_unit()?,
         }
 
         Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
-    }
-
-    /// Checks if this value can be skipped upon serialization.
-    pub fn skip_serialization(&self, behavior: SkipSerialization) -> bool {
-        if behavior == SkipSerialization::Never {
-            return false;
-        }
-
-        if !self.meta().is_empty() {
-            return false;
-        }
-
-        if let Some(value) = self.value() {
-            behavior == SkipSerialization::Empty && value.skip_serialization(behavior)
-        } else {
-            true
-        }
     }
 
     /// Modifies this value based on the action returned by `f`.
@@ -438,7 +432,7 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Annotated<T> {
 fn test_annotated_deserialize_with_meta() {
     use crate::types::ErrorKind;
 
-    #[derive(ToValue, FromValue, Debug)]
+    #[derive(Debug, Empty, FromValue, ToValue)]
     struct Foo {
         id: Annotated<u64>,
         #[metastructure(field = "type")]

@@ -5,7 +5,7 @@ use crate::protocol::{JsonLenientString, PairList};
 use crate::types::{Annotated, Array, Error, FromValue, Object, Value};
 
 /// A map holding cookies.
-#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
 
 impl std::ops::Deref for Cookies {
@@ -62,7 +62,7 @@ impl FromValue for Cookies {
 }
 
 /// A map holding headers.
-#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct Headers(pub PairList<(Annotated<String>, Annotated<String>)>);
 
 impl Headers {
@@ -144,7 +144,7 @@ impl FromValue for Headers {
 }
 
 /// A map holding query string pairs.
-#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
 impl std::ops::Deref for Query {
@@ -191,7 +191,7 @@ impl FromValue for Query {
 }
 
 /// Http request information.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_request", value_type = "Request")]
 pub struct Request {
     /// URL of the request.
@@ -218,20 +218,21 @@ pub struct Request {
 
     /// URL encoded contents of the Cookie header.
     #[metastructure(pii = "true", bag_size = "medium")]
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty_deep")]
     pub cookies: Annotated<Cookies>,
 
     /// HTTP request headers.
     #[metastructure(pii = "true", bag_size = "large")]
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty_deep")]
     pub headers: Annotated<Headers>,
 
     /// Server environment data, such as CGI/WSGI.
     #[metastructure(pii = "true", bag_size = "large")]
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty_deep")]
     pub env: Annotated<Object<Value>>,
 
     /// The inferred content type of the request payload.
+    #[metastructure(skip_serialization = "empty")]
     pub inferred_content_type: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -293,7 +294,7 @@ fn test_header_from_sequence() {
   23
 ]"#;
     let headers = Annotated::<Headers>::from_json(json).unwrap();
-    #[derive(ToValue, Debug)]
+    #[derive(Debug, Empty, ToValue)]
     pub struct Container {
         headers: Annotated<Headers>,
     }

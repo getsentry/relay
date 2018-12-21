@@ -4,8 +4,8 @@ use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::types::{
-    Annotated, Array, Error, FromValue, Map, MetaMap, MetaTree, Object, SkipSerialization, ToValue,
-    Value,
+    Annotated, Array, Empty, Error, FromValue, Map, Meta, MetaMap, MetaTree, Object,
+    SkipSerialization, ToValue, Value,
 };
 
 // This needs to be public because the derive crate emits it
@@ -13,44 +13,152 @@ use crate::types::{
 pub struct SerializePayload<'a, T>(pub &'a Annotated<T>, pub SkipSerialization);
 
 impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
-    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        match *self.0 {
-            Annotated(Some(ref value), _) => ToValue::serialize_payload(value, s, self.1),
-            Annotated(None, _) => s.serialize_unit(),
+        match self.0.value() {
+            Some(value) => value.serialize_payload(serializer, self.1),
+            None => serializer.serialize_unit(),
         }
     }
 }
 
-primitive_from_value!(String, String, "a string");
+macro_rules! derive_from_value {
+    ($type:ident, $meta_type:ident, $expectation:expr) => {
+        impl FromValue for $type {
+            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+                match value {
+                    Annotated(Some(Value::$meta_type(value)), meta) => Annotated(Some(value), meta),
+                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+                    Annotated(None, meta) => Annotated(None, meta),
+                    Annotated(Some(value), mut meta) => {
+                        meta.add_error(Error::expected($expectation));
+                        meta.set_original_value(Some(value));
+                        Annotated(None, meta)
+                    }
+                }
+            }
+        }
+    };
+}
 
-impl crate::types::ToValue for String {
-    fn to_value(self) -> Value {
-        Value::String(self)
-    }
+macro_rules! derive_to_value {
+    ($type:ident, $meta_type:ident) => {
+        impl ToValue for $type {
+            fn to_value(self) -> Value {
+                Value::$meta_type(self)
+            }
 
-    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
-    where
-        Self: Sized,
-        S: serde::Serializer,
-    {
-        serde::Serialize::serialize(self, s)
-    }
+            fn serialize_payload<S>(
+                &self,
+                s: S,
+                _behavior: SkipSerialization,
+            ) -> Result<S::Ok, S::Error>
+            where
+                Self: Sized,
+                S: Serializer,
+            {
+                self.serialize(s)
+            }
+        }
+    };
+}
 
-    fn skip_serialization(&self, _behavior: SkipSerialization) -> bool {
+macro_rules! derive_numeric_meta_structure {
+    ($type:ident, $meta_type:ident, $expectation:expr) => {
+        impl FromValue for $type {
+            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+                value.and_then(|value| {
+                    let number = match value {
+                        Value::U64(x) => num_traits::cast(x),
+                        Value::I64(x) => num_traits::cast(x),
+                        Value::F64(x) => num_traits::cast(x),
+                        _ => None,
+                    };
+
+                    match number {
+                        Some(x) => Annotated::new(x),
+                        None => {
+                            let mut meta = Meta::default();
+                            meta.add_error(Error::expected($expectation));
+                            meta.set_original_value(Some(value));
+                            Annotated(None, meta)
+                        }
+                    }
+                })
+            }
+        }
+
+        derive_to_value!($type, $meta_type);
+    };
+}
+
+impl Empty for String {
+    #[inline]
+    fn is_empty(&self) -> bool {
         self.is_empty()
     }
 }
 
-primitive_meta_structure!(bool, Bool, "a boolean");
-numeric_meta_structure!(u64, U64, "an unsigned integer");
-numeric_meta_structure!(i64, I64, "a signed integer");
-numeric_meta_structure!(f64, F64, "a floating point number");
-primitive_meta_structure_through_string!(Uuid, "a uuid");
+derive_from_value!(String, String, "a string");
+derive_to_value!(String, String);
 
-impl<T: FromValue> FromValue for Array<T> {
+impl Empty for bool {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+derive_from_value!(bool, Bool, "a boolean");
+derive_to_value!(bool, Bool);
+
+derive_numeric_meta_structure!(u64, U64, "an unsigned integer");
+derive_numeric_meta_structure!(i64, I64, "a signed integer");
+derive_numeric_meta_structure!(f64, F64, "a floating point number");
+
+impl Empty for u64 {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+impl Empty for i64 {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+impl Empty for f64 {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+derive_string_meta_structure!(Uuid, "a uuid");
+
+impl<T> Empty for Array<T>
+where
+    T: Empty,
+{
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
+    fn is_deep_empty(&self) -> bool {
+        self.iter().all(Empty::is_deep_empty)
+    }
+}
+
+impl<T> FromValue for Array<T>
+where
+    T: FromValue,
+{
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Array(items)), meta) => Annotated(
@@ -68,7 +176,10 @@ impl<T: FromValue> FromValue for Array<T> {
     }
 }
 
-impl<T: ToValue> ToValue for Array<T> {
+impl<T> ToValue for Array<T>
+where
+    T: ToValue,
+{
     fn to_value(self) -> Value {
         Value::Array(
             self.into_iter()
@@ -76,11 +187,13 @@ impl<T: ToValue> ToValue for Array<T> {
                 .collect(),
         )
     }
+
     fn serialize_payload<S>(&self, s: S, behavior: SkipSerialization) -> Result<S::Ok, S::Error>
     where
         Self: Sized,
         S: Serializer,
     {
+        let behavior = behavior.descend();
         let mut seq_ser = s.serialize_seq(Some(self.len()))?;
         for item in self {
             if !item.skip_serialization(behavior) {
@@ -89,6 +202,7 @@ impl<T: ToValue> ToValue for Array<T> {
         }
         seq_ser.end()
     }
+
     fn extract_child_meta(&self) -> MetaMap
     where
         Self: Sized,
@@ -102,18 +216,26 @@ impl<T: ToValue> ToValue for Array<T> {
         }
         children
     }
+}
 
-    fn skip_serialization(&self, behavior: SkipSerialization) -> bool {
-        for item in self.iter() {
-            if !item.skip_serialization(behavior) {
-                return false;
-            }
-        }
-        true
+impl<T> Empty for Object<T>
+where
+    T: Empty,
+{
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
+    fn is_deep_empty(&self) -> bool {
+        self.values().all(Empty::is_deep_empty)
     }
 }
 
-impl<T: FromValue> FromValue for Object<T> {
+impl<T> FromValue for Object<T>
+where
+    T: FromValue,
+{
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Object(items)), meta) => Annotated(
@@ -136,7 +258,10 @@ impl<T: FromValue> FromValue for Object<T> {
     }
 }
 
-impl<T: ToValue> ToValue for Object<T> {
+impl<T> ToValue for Object<T>
+where
+    T: ToValue,
+{
     fn to_value(self) -> Value {
         Value::Object(
             self.into_iter()
@@ -150,6 +275,7 @@ impl<T: ToValue> ToValue for Object<T> {
         Self: Sized,
         S: Serializer,
     {
+        let behavior = behavior.descend();
         let mut map_ser = s.serialize_map(Some(self.len()))?;
         for (key, value) in self {
             if !value.skip_serialization(behavior) {
@@ -173,18 +299,38 @@ impl<T: ToValue> ToValue for Object<T> {
         }
         children
     }
+}
 
-    fn skip_serialization(&self, behavior: SkipSerialization) -> bool {
-        for (_, value) in self.iter() {
-            if !value.skip_serialization(behavior) {
-                return false;
-            }
+impl Empty for Value {
+    fn is_empty(&self) -> bool {
+        match self {
+            Value::Null => true,
+            Value::Bool(_) => false,
+            Value::I64(_) => false,
+            Value::U64(_) => false,
+            Value::F64(_) => false,
+            Value::String(v) => v.is_empty(),
+            Value::Array(v) => v.is_empty(),
+            Value::Object(v) => v.is_empty(),
         }
-        true
+    }
+
+    fn is_deep_empty(&self) -> bool {
+        match self {
+            Value::Null => true,
+            Value::Bool(_) => false,
+            Value::I64(_) => false,
+            Value::U64(_) => false,
+            Value::F64(_) => false,
+            Value::String(v) => v.is_deep_empty(),
+            Value::Array(v) => v.is_deep_empty(),
+            Value::Object(v) => v.is_deep_empty(),
+        }
     }
 }
 
 impl FromValue for Value {
+    #[inline]
     fn from_value(value: Annotated<Value>) -> Annotated<Value> {
         value
     }
@@ -208,8 +354,8 @@ impl ToValue for Value {
         Self: Sized,
     {
         let mut children = MetaMap::new();
-        match *self {
-            Value::Object(ref items) => {
+        match self {
+            Value::Object(items) => {
                 for (key, value) in items.iter() {
                     let tree = ToValue::extract_meta_tree(value);
                     if !tree.is_empty() {
@@ -217,7 +363,7 @@ impl ToValue for Value {
                     }
                 }
             }
-            Value::Array(ref items) => {
+            Value::Array(items) => {
                 for (idx, item) in items.iter().enumerate() {
                     let tree = ToValue::extract_meta_tree(item);
                     if !tree.is_empty() {
@@ -289,7 +435,16 @@ impl ToValue for DateTime<Utc> {
     }
 }
 
-impl<T: FromValue> FromValue for Box<T> {
+impl Empty for DateTime<Utc> {
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+impl<T> FromValue for Box<T>
+where
+    T: FromValue,
+{
     fn from_value(value: Annotated<Value>) -> Annotated<Self>
     where
         Self: Sized,
@@ -299,7 +454,10 @@ impl<T: FromValue> FromValue for Box<T> {
     }
 }
 
-impl<T: ToValue> ToValue for Box<T> {
+impl<T> ToValue for Box<T>
+where
+    T: ToValue,
+{
     fn to_value(self) -> Value
     where
         Self: Sized,
@@ -320,6 +478,34 @@ impl<T: ToValue> ToValue for Box<T> {
         S: Serializer,
     {
         ToValue::serialize_payload(&**self, s, behavior)
+    }
+}
+
+impl<T> Empty for Box<T>
+where
+    T: Empty,
+{
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.as_ref().is_empty()
+    }
+
+    #[inline]
+    fn is_deep_empty(&self) -> bool {
+        self.as_ref().is_deep_empty()
+    }
+}
+
+impl<T> Empty for Annotated<T>
+where
+    T: Empty,
+{
+    fn is_empty(&self) -> bool {
+        self.skip_serialization(SkipSerialization::Empty(false))
+    }
+
+    fn is_deep_empty(&self) -> bool {
+        self.skip_serialization(SkipSerialization::Empty(true))
     }
 }
 
@@ -368,8 +554,9 @@ macro_rules! tuple_meta_structure {
             where
                 S: Serializer,
             {
+                let behavior = behavior.descend();
                 let mut s = s.serialize_seq(None)?;
-                let ($(ref $name,)*) = self;
+                let ($($name,)*) = self;
                 $(s.serialize_element(&SerializePayload($name, behavior))?;)*;
                 s.end()
             }
@@ -380,7 +567,7 @@ macro_rules! tuple_meta_structure {
                 Self: Sized,
             {
                 let mut children = MetaMap::new();
-                let ($(ref $name,)*) = self;
+                let ($($name,)*) = self;
                 let mut idx = 0;
                 $({
                     let tree = ToValue::extract_meta_tree($name);
@@ -390,6 +577,20 @@ macro_rules! tuple_meta_structure {
                     idx += 1;
                 })*;
                 children
+            }
+        }
+
+        impl< $( $name: Empty ),* > Empty for ( $( Annotated<$name>, )* ) {
+            #[inline]
+            fn is_empty(&self) -> bool {
+                false
+            }
+
+            #[inline]
+            #[allow(non_snake_case)]
+            fn is_deep_empty(&self) -> bool {
+                let ($($name,)*) = self;
+                true $(&& $name.is_deep_empty())*
             }
         }
     }
@@ -410,47 +611,429 @@ tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 
 #[test]
 fn test_unsigned_integers() {
-    assert_eq!(
+    assert_eq_dbg!(Annotated::new(1u64), Annotated::from_json("1").unwrap(),);
+
+    assert_eq_dbg!(
+        Annotated::from_error(Error::expected("an unsigned integer"), Some(Value::I64(-1))),
         Annotated::<u64>::from_json("-1").unwrap(),
-        Annotated::from_error(Error::expected("an unsigned integer"), Some(Value::I64(-1)))
     );
+
+    // Floats are rounded implicitly
+    assert_eq_dbg!(Annotated::new(4u64), Annotated::from_json("4.2").unwrap(),);
 }
 
 #[test]
-fn test_empty_containers_skipped() {
-    #[derive(Debug, ToValue)]
+fn test_signed_integers() {
+    assert_eq_dbg!(Annotated::new(1i64), Annotated::from_json("1").unwrap(),);
+
+    assert_eq_dbg!(Annotated::new(-1i64), Annotated::from_json("-1").unwrap(),);
+
+    // Floats are rounded implicitly
+    assert_eq_dbg!(Annotated::new(4u64), Annotated::from_json("4.2").unwrap(),);
+}
+
+#[test]
+fn test_floats() {
+    assert_eq_dbg!(Annotated::new(1f64), Annotated::from_json("1").unwrap(),);
+
+    assert_eq_dbg!(Annotated::new(-1f64), Annotated::from_json("-1").unwrap(),);
+
+    assert_eq_dbg!(Annotated::new(4.2f64), Annotated::from_json("4.2").unwrap(),);
+}
+
+#[test]
+fn test_skip_array_never() {
+    #[derive(Debug, Empty, ToValue)]
     struct Helper {
-        #[metastructure(skip_serialization = "empty")]
-        items: Annotated<Array<String>>,
-    }
-
-    let helper = Annotated::new(Helper {
-        items: Annotated::new(vec![]),
-    });
-
-    assert_eq_str!(helper.to_json().unwrap(), "{}");
-}
-
-#[test]
-fn test_empty_containers_not_skipped_if_configured() {
-    #[derive(Debug, ToValue)]
-    struct NeverSkip {
         #[metastructure(skip_serialization = "never")]
         items: Annotated<Array<String>>,
     }
 
-    let helper = Annotated::new(NeverSkip {
+    // "never" always serializes
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":null}"#);
+}
+
+#[test]
+fn test_skip_array_null() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "null")]
+        items: Annotated<Array<String>>,
+    }
+
+    // "null" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "null" does not apply to empty
+    let helper = Annotated::new(Helper {
         items: Annotated::new(vec![]),
     });
     assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[]}"#);
 }
 
 #[test]
+fn test_skip_array_null_deep() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "null_deep")]
+        items: Annotated<Array<String>>,
+    }
+
+    // "null_deep" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "null_deep" applies to nested null
+    let helper = Annotated::new(Helper {
+        items: Annotated::new(vec![Annotated::default()]),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[]}"#);
+
+    // "null_deep" does not apply to nested empty
+    let helper = Annotated::new(Helper {
+        items: Annotated::new(vec![Annotated::new(String::new())]),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[""]}"#);
+}
+
+#[test]
+fn test_skip_array_empty() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "empty")]
+        items: Annotated<Array<String>>,
+    }
+
+    // "empty" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "empty" applies to empty
+    let helper = Annotated::new(Helper {
+        items: Annotated::new(vec![]),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "empty" -> "never" nested
+    let helper = Annotated::new(Helper {
+        items: Annotated::new(vec![Annotated::default()]),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[null]}"#);
+
+    // "empty" does not apply to nested empty
+    let helper = Annotated::new(Helper {
+        items: Annotated::new(vec![Annotated::new(String::new())]),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[""]}"#);
+}
+
+#[test]
+fn test_skip_array_empty_deep() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "empty_deep")]
+        items: Annotated<Array<String>>,
+    }
+
+    // "empty_deep" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "empty_deep" applies to empty nested
+    let helper = Annotated::new(Helper {
+        items: Annotated::new(vec![Annotated::new(String::new())]),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "empty_deep" does not apply to non-empty value
+    let helper = Annotated::new(Helper {
+        items: Annotated::new(vec![Annotated::new("some".to_string())]),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":["some"]}"#);
+}
+
+#[test]
+fn test_skip_object_never() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "never")]
+        items: Annotated<Object<String>>,
+    }
+
+    // "never" always serializes
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":null}"#);
+}
+
+#[test]
+fn test_skip_object_null() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "null")]
+        items: Annotated<Object<String>>,
+    }
+
+    // "null" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "null" does not apply to empty
+    let helper = Annotated::new(Helper {
+        items: Annotated::new(Object::new()),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{}}"#);
+}
+
+#[test]
+fn test_skip_object_null_deep() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "null_deep")]
+        items: Annotated<Object<String>>,
+    }
+
+    // "null_deep" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "null_deep" applies to nested null
+    let helper = Annotated::new(Helper {
+        items: Annotated::new({
+            let mut obj = Object::<String>::new();
+            obj.insert("foo".to_string(), Annotated::default());
+            obj
+        }),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{}}"#);
+
+    // "null_deep" does not apply to nested empty
+    let helper = Annotated::new(Helper {
+        items: Annotated::new({
+            let mut obj = Object::<String>::new();
+            obj.insert("foo".to_string(), Annotated::new(String::new()));
+            obj
+        }),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{"foo":""}}"#);
+}
+
+#[test]
+fn test_skip_object_empty() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "empty")]
+        items: Annotated<Object<String>>,
+    }
+
+    // "empty" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "empty" applies to empty
+    let helper = Annotated::new(Helper {
+        items: Annotated::new(Object::new()),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "empty" -> "never" nested
+    let helper = Annotated::new(Helper {
+        items: Annotated::new({
+            let mut obj = Object::<String>::new();
+            obj.insert("foo".to_string(), Annotated::default());
+            obj
+        }),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{"foo":null}}"#);
+
+    // "empty" does not apply to nested empty
+    let helper = Annotated::new(Helper {
+        items: Annotated::new({
+            let mut obj = Object::<String>::new();
+            obj.insert("foo".to_string(), Annotated::new(String::new()));
+            obj
+        }),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{"foo":""}}"#);
+}
+
+#[test]
+fn test_skip_object_empty_deep() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "empty_deep")]
+        items: Annotated<Object<String>>,
+    }
+
+    // "empty_deep" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "empty_deep" applies to empty nested
+    let helper = Annotated::new(Helper {
+        items: Annotated::new({
+            let mut obj = Object::<String>::new();
+            obj.insert("foo".to_string(), Annotated::new(String::new()));
+            obj
+        }),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "empty_deep" does not apply to non-empty value
+    let helper = Annotated::new(Helper {
+        items: Annotated::new({
+            let mut obj = Object::<String>::new();
+            obj.insert("foo".to_string(), Annotated::new("some".to_string()));
+            obj
+        }),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{"foo":"some"}}"#);
+}
+
+#[test]
+fn test_skip_tuple_never() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "never")]
+        items: Annotated<(Annotated<String>,)>,
+    }
+
+    // "never" always serializes
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":null}"#);
+}
+
+#[test]
+fn test_skip_tuple_null() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "null")]
+        items: Annotated<(Annotated<String>,)>,
+    }
+
+    // "null" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "null" does not apply to nested
+    let helper = Annotated::new(Helper {
+        items: Annotated::new((Annotated::default(),)),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[null]}"#);
+}
+
+#[test]
+fn test_skip_tuple_null_deep() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "null_deep")]
+        items: Annotated<(Annotated<String>,)>,
+    }
+
+    // "null_deep" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "null_deep" cannot remove tuple items
+    let helper = Annotated::new(Helper {
+        items: Annotated::new((Annotated::default(),)),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[null]}"#);
+
+    // "null_deep" does not apply to nested empty
+    let helper = Annotated::new(Helper {
+        items: Annotated::new((Annotated::new(String::new()),)),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[""]}"#);
+}
+
+#[test]
+fn test_skip_tuple_empty() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "empty")]
+        items: Annotated<(Annotated<String>,)>,
+    }
+
+    // "empty" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "empty" -> "null_deep" nested, but cannot remove tuple item
+    let helper = Annotated::new(Helper {
+        items: Annotated::new((Annotated::default(),)),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[null]}"#);
+
+    // "empty" does not apply to nested empty
+    let helper = Annotated::new(Helper {
+        items: Annotated::new((Annotated::new(String::new()),)),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[""]}"#);
+}
+
+#[test]
+fn test_skip_tuple_empty_deep() {
+    #[derive(Debug, Empty, ToValue)]
+    struct Helper {
+        #[metastructure(skip_serialization = "empty_deep")]
+        items: Annotated<(Annotated<String>,)>,
+    }
+
+    // "empty_deep" applies to null
+    let helper = Annotated::new(Helper {
+        items: Annotated::default(),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "empty_deep" applies to empty nested
+    let helper = Annotated::new(Helper {
+        items: Annotated::new((Annotated::new(String::new()),)),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+
+    // "empty_deep" does not apply to non-empty value
+    let helper = Annotated::new(Helper {
+        items: Annotated::new((Annotated::new("some".to_string()),)),
+    });
+    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":["some"]}"#);
+}
+
+#[test]
 fn test_wrapper_structs_and_skip_serialization() {
-    #[derive(Debug, ToValue)]
+    #[derive(Debug, Empty, ToValue)]
     struct BasicWrapper(Array<String>);
 
-    #[derive(Debug, ToValue)]
+    #[derive(Debug, Empty, ToValue)]
     struct BasicHelper {
         #[metastructure(skip_serialization = "empty")]
         items: Annotated<BasicWrapper>,
@@ -464,12 +1047,12 @@ fn test_wrapper_structs_and_skip_serialization() {
 
 #[test]
 fn test_skip_serialization_on_regular_structs() {
-    #[derive(Debug, Default, ToValue)]
+    #[derive(Debug, Default, Empty, ToValue)]
     struct Wrapper {
         foo: Annotated<u64>,
     }
 
-    #[derive(Debug, Default, ToValue)]
+    #[derive(Debug, Default, Empty, ToValue)]
     struct Helper {
         #[metastructure(skip_serialization = "null")]
         foo: Annotated<Wrapper>,

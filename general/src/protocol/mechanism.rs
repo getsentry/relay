@@ -1,7 +1,7 @@
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// POSIX signal with optional extended data.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct CError {
     /// The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.
     #[metastructure(required = "true")]
@@ -12,7 +12,7 @@ pub struct CError {
 }
 
 /// Mach exception information.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct MachException {
     /// The mach exception type.
     #[metastructure(field = "exception", required = "true")]
@@ -31,7 +31,7 @@ pub struct MachException {
 }
 
 /// POSIX signal with optional extended data.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct PosixSignal {
     /// The POSIX signal number.
     #[metastructure(required = "true")]
@@ -48,7 +48,7 @@ pub struct PosixSignal {
 }
 
 /// Operating system or runtime meta information to an exception mechanism.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct MechanismMeta {
     /// Optional ISO C standard error code.
     pub errno: Annotated<CError>,
@@ -65,7 +65,7 @@ pub struct MechanismMeta {
 }
 
 /// The mechanism by which an exception was generated and handled.
-#[derive(Debug, Clone, PartialEq, Default, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct Mechanism {
     /// Mechanism type (required).
     #[metastructure(

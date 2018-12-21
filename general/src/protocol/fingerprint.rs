@@ -1,6 +1,8 @@
 use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
-use crate::types::{Annotated, Error, ErrorKind, FromValue, SkipSerialization, ToValue, Value};
+use crate::types::{
+    Annotated, Empty, Error, ErrorKind, FromValue, SkipSerialization, ToValue, Value,
+};
 
 /// A fingerprint value.
 #[derive(Debug, Clone, PartialEq)]
@@ -23,6 +25,16 @@ impl std::ops::DerefMut for Fingerprint {
 impl From<Vec<String>> for Fingerprint {
     fn from(vec: Vec<String>) -> Fingerprint {
         Fingerprint(vec)
+    }
+}
+
+impl Empty for Fingerprint {
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn is_deep_empty(&self) -> bool {
+        self.0.iter().all(Empty::is_deep_empty)
     }
 }
 
@@ -95,10 +107,6 @@ impl ToValue for Fingerprint {
         S: serde::Serializer,
     {
         serde::Serialize::serialize(&self.0, s)
-    }
-
-    fn skip_serialization(&self, _behavior: SkipSerialization) -> bool {
-        self.0.is_empty()
     }
 }
 

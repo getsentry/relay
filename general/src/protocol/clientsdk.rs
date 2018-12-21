@@ -1,7 +1,7 @@
 use crate::types::{Annotated, Array, Object, Value};
 
 /// An installed and loaded package as part of the Sentry SDK.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct ClientSdkPackage {
     /// Name of the package.
     pub name: Annotated<String>,
@@ -10,7 +10,7 @@ pub struct ClientSdkPackage {
 }
 
 /// Information about the Sentry SDK.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_client_sdk_info")]
 pub struct ClientSdkInfo {
     /// Unique SDK name.
@@ -22,11 +22,11 @@ pub struct ClientSdkInfo {
     pub version: Annotated<String>,
 
     /// List of integrations that are enabled in the SDK.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty_deep")]
     pub integrations: Annotated<Array<String>>,
 
     /// List of installed and loaded SDK packages.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty_deep")]
     pub packages: Annotated<Array<ClientSdkPackage>>,
 
     /// Additional arbitrary fields for forwards compatibility.

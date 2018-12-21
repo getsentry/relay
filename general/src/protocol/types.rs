@@ -5,21 +5,20 @@ use std::net;
 use std::str::FromStr;
 
 use failure::Fail;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Serialize, Serializer};
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{
-    Annotated, Array, Error, ErrorKind, FromValue, Meta, Object, SkipSerialization, ToValue, Value,
-    ValueAction,
+    Annotated, Array, Empty, Error, ErrorKind, FromValue, Meta, Object, SkipSerialization, ToValue,
+    Value, ValueAction,
 };
 
 /// A array like wrapper used in various places.
-#[derive(Clone, Debug, PartialEq, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_values")]
 pub struct Values<T> {
     /// The values of the collection.
-    #[metastructure(required = "true")]
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(required = "true", skip_serialization = "empty_deep")]
     pub values: Annotated<Array<T>>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -122,7 +121,7 @@ impl<T: ProcessValue> AsPair for (Annotated<String>, Annotated<T>) {
 }
 
 /// A mixture of a hashmap and an array.
-#[derive(Clone, Debug, PartialEq, ToValue, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue)]
 #[metastructure(process_func = "process_values")]
 pub struct PairList<T>(pub Array<T>);
 
@@ -233,6 +232,13 @@ macro_rules! hex_metrastructure {
             }
         }
 
+        impl Empty for $type {
+            #[inline]
+            fn is_empty(&self) -> bool {
+                false
+            }
+        }
+
         impl FromValue for $type {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
@@ -286,19 +292,19 @@ macro_rules! hex_metrastructure {
 pub struct InvalidRegVal;
 
 /// A register value.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RegVal(pub u64);
 
 hex_metrastructure!(RegVal, "register value");
 
 /// An address
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Addr(pub u64);
 
 hex_metrastructure!(Addr, "address");
 
 /// An ip address.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
 pub struct IpAddr(pub String);
 
 impl IpAddr {
@@ -321,6 +327,12 @@ impl IpAddr {
 impl AsRef<str> for IpAddr {
     fn as_ref(&self) -> &str {
         &self.0
+    }
+}
+
+impl Default for IpAddr {
+    fn default() -> Self {
+        IpAddr::auto()
     }
 }
 
@@ -468,8 +480,15 @@ impl ToValue for Level {
 
 impl ProcessValue for Level {}
 
+impl Empty for Level {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
 /// A "into-string" type of value. Emulates an invocation of `str(x)` in Python
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
 pub struct LenientString(pub String);
 
 impl LenientString {
@@ -540,7 +559,7 @@ impl FromValue for LenientString {
 }
 
 /// A "into-string" type of value. All non-string values are serialized as JSON.
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
 pub struct JsonLenientString(pub String);
 
 impl JsonLenientString {
@@ -591,59 +610,6 @@ impl From<String> for JsonLenientString {
     }
 }
 
-/// Represents a thread id.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
-#[serde(untagged)]
-pub enum ThreadId {
-    /// Integer representation of the thread id.
-    Int(u64),
-    /// String representation of the thread id.
-    String(String),
-}
-
-impl FromValue for ThreadId {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        match value {
-            Annotated(Some(Value::String(value)), meta) => {
-                Annotated(Some(ThreadId::String(value)), meta)
-            }
-            Annotated(Some(Value::U64(value)), meta) => Annotated(Some(ThreadId::Int(value)), meta),
-            Annotated(Some(Value::I64(value)), meta) => {
-                Annotated(Some(ThreadId::Int(value as u64)), meta)
-            }
-            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
-            Annotated(None, meta) => Annotated(None, meta),
-            Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("thread id"));
-                meta.set_original_value(Some(value));
-                Annotated(None, meta)
-            }
-        }
-    }
-}
-
-impl ToValue for ThreadId {
-    fn to_value(self) -> Value {
-        match self {
-            ThreadId::String(value) => Value::String(value),
-            ThreadId::Int(value) => Value::U64(value),
-        }
-    }
-
-    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
-    where
-        Self: Sized,
-        S: Serializer,
-    {
-        match *self {
-            ThreadId::String(ref value) => Serialize::serialize(value, s),
-            ThreadId::Int(value) => Serialize::serialize(&value, s),
-        }
-    }
-}
-
-impl ProcessValue for ThreadId {}
-
 #[test]
 fn test_values_serialization() {
     let value = Annotated::new(Values {
@@ -659,7 +625,7 @@ fn test_values_serialization() {
 
 #[test]
 fn test_values_deserialization() {
-    #[derive(Debug, Clone, FromValue, ToValue, PartialEq)]
+    #[derive(Clone, Debug, Empty, FromValue, ToValue, PartialEq)]
     struct Exception {
         #[metastructure(field = "type")]
         ty: Annotated<String>,
@@ -739,28 +705,6 @@ fn test_level() {
     assert_eq_dbg!(
         Level::Warning,
         Annotated::<Level>::from_json("30").unwrap().0.unwrap()
-    );
-}
-
-#[test]
-fn test_thread_id() {
-    assert_eq_dbg!(
-        ThreadId::String("testing".into()),
-        Annotated::<ThreadId>::from_json("\"testing\"")
-            .unwrap()
-            .0
-            .unwrap()
-    );
-    assert_eq_dbg!(
-        ThreadId::String("42".into()),
-        Annotated::<ThreadId>::from_json("\"42\"")
-            .unwrap()
-            .0
-            .unwrap()
-    );
-    assert_eq_dbg!(
-        ThreadId::Int(42),
-        Annotated::<ThreadId>::from_json("42").unwrap().0.unwrap()
     );
 }
 

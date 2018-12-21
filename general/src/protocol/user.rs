@@ -2,7 +2,7 @@ use crate::protocol::{IpAddr, JsonLenientString};
 use crate::types::{Annotated, Object, Value};
 
 /// Geographical location of the end user or device.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_geo")]
 pub struct Geo {
     /// Two-letter country code (ISO 3166-1 alpha-2).
@@ -23,7 +23,7 @@ pub struct Geo {
 }
 
 /// Information about the user who triggered an event.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_user")]
 pub struct User {
     /// Unique identifier of the user.

@@ -14,7 +14,7 @@ fn check_chars(string: String) -> Annotated<String> {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct TagEntry(
     #[metastructure(pii = "true", max_chars = "tag_key")] pub Annotated<String>,
     #[metastructure(pii = "true", max_chars = "tag_value")] pub Annotated<String>,
@@ -73,7 +73,7 @@ impl FromValue for TagEntry {
 }
 
 /// Manual key/value tag pairs.
-#[derive(Debug, Default, Clone, PartialEq, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct Tags(#[metastructure(pii = "true")] pub PairList<TagEntry>);
 
 impl std::ops::Deref for Tags {

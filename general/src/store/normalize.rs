@@ -13,7 +13,7 @@ use crate::protocol::{
     Stacktrace, TagEntry, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
-use crate::types::{Annotated, Error, ErrorKind, Meta, Object, ValueAction};
+use crate::types::{Annotated, Empty, Error, ErrorKind, Meta, Object, ValueAction};
 
 mod mechanism;
 mod request;
@@ -402,19 +402,21 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         if let Some(lines) = frame.pre_context.value_mut() {
-            for line in lines {
-                if line.value().is_none() {
-                    line.set_value(Some("".to_string()));
-                }
+            for line in lines.iter_mut() {
+                line.get_or_insert_with(String::new);
             }
         }
 
         if let Some(lines) = frame.post_context.value_mut() {
-            for line in lines {
-                if line.value().is_none() {
-                    line.set_value(Some("".to_string()));
-                }
+            for line in lines.iter_mut() {
+                line.get_or_insert_with(String::new);
             }
+        }
+
+        if frame.context_line.value().is_none() && !frame.pre_context.is_empty()
+            || !frame.post_context.is_empty()
+        {
+            frame.context_line.set_value(Some(String::new()));
         }
 
         ValueAction::Keep
@@ -610,4 +612,32 @@ fn test_user_data_moved() {
     });
 
     assert_eq_dbg!(user.other, Object::new());
+}
+
+#[test]
+fn test_frame_null_context_lines() {
+    let mut frame = Annotated::new(Frame {
+        pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
+        post_context: Annotated::new(vec![Annotated::new("".to_string()), Annotated::default()]),
+        ..Frame::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut frame, &mut processor, ProcessingState::root());
+
+    let frame = frame.value().unwrap();
+    assert_eq_dbg!(
+        *frame.pre_context.value().unwrap(),
+        vec![
+            Annotated::new("".to_string()),
+            Annotated::new("".to_string())
+        ],
+    );
+    assert_eq_dbg!(
+        *frame.post_context.value().unwrap(),
+        vec![
+            Annotated::new("".to_string()),
+            Annotated::new("".to_string())
+        ],
+    );
 }

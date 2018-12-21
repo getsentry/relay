@@ -14,13 +14,13 @@ use crate::protocol::{
     Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
 };
 use crate::types::{
-    Annotated, Array, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
+    Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EventId(pub uuid::Uuid);
-primitive_meta_structure_through_string!(EventId, "event id");
+derive_string_meta_structure!(EventId, "event id");
 
 impl ProcessValue for EventId {}
 
@@ -91,6 +91,13 @@ impl fmt::Display for EventType {
     }
 }
 
+impl Empty for EventType {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
 impl FromValue for EventType {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match <String as FromValue>::from_value(value) {
@@ -127,7 +134,7 @@ impl ToValue for EventType {
 impl ProcessValue for EventType {}
 
 /// An event processing error.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct EventProcessingError {
     #[metastructure(field = "type", required = "true")]
     /// Error type, see src/sentry/models/eventerror.py
@@ -141,7 +148,7 @@ pub struct EventProcessingError {
 }
 
 /// The sentry v7 event structure.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {
     /// Unique identifier of this event.
@@ -183,7 +190,7 @@ pub struct Event {
     pub logger: Annotated<String>,
 
     /// Name and versions of installed modules.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty_deep")]
     pub modules: Annotated<Object<String>>,
 
     /// Platform identifier of this event (defaults to "other").
@@ -285,7 +292,7 @@ pub struct Event {
 
     /// Errors encountered during processing. Intended to be phased out in favor of
     /// annotation/metadata system.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty_deep")]
     pub errors: Annotated<Array<EventProcessingError>>,
 
     /// Project key which sent this event.
@@ -300,7 +307,7 @@ pub struct Event {
     pub checksum: Annotated<String>,
 
     /// Hashes computed from fingerprints.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty_deep")]
     pub hashes: Annotated<Array<String>>,
 
     /// CSP (security) reports.

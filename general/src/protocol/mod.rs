@@ -33,9 +33,9 @@ pub use self::request::{Cookies, Headers, Query, Request};
 pub use self::stacktrace::{Frame, Stacktrace};
 pub use self::tags::{TagEntry, Tags};
 pub use self::templateinfo::TemplateInfo;
-pub use self::thread::Thread;
+pub use self::thread::{Thread, ThreadId};
 pub use self::types::{
     Addr, AsPair, InvalidRegVal, IpAddr, JsonLenientString, LenientString, Level, PairList,
-    ParseLevelError, RegVal, ThreadId, Values,
+    ParseLevelError, RegVal, Values,
 };
 pub use self::user::{Geo, User};

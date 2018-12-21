@@ -67,7 +67,6 @@ impl<'a> Processor for StoreProcessor<'a> {
             .and_then(|| schema::SchemaProcessor.process_event(event, meta, state))
             // Normalize data in all interfaces
             .and_then(|| self.normalize.process_event(event, meta, state))
-            // TODO: Compute hashes from fingerprints
             // Remove unknown attributes at every level
             .and_then(|| remove_other::RemoveOtherProcessor.process_event(event, meta, state))
             // Trim large strings and databags down

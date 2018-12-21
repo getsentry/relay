@@ -2,7 +2,7 @@ use crate::protocol::{Addr, RegVal};
 use crate::types::{Annotated, Array, Object, Value};
 
 /// Holds information about a single stacktrace frame.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_frame", value_type = "Frame")]
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
@@ -57,7 +57,6 @@ pub struct Frame {
     pub pre_context: Annotated<Array<String>>,
 
     /// Source code of the current line.
-    #[metastructure(skip_serialization = "empty")]
     pub context_line: Annotated<String>,
 
     /// Source code of the lines after the current line.
@@ -70,7 +69,7 @@ pub struct Frame {
     /// Local variables in a convenient format.
     #[metastructure(pii = "true")]
     #[metastructure(skip_serialization = "empty")]
-    pub vars: Annotated<FrameVariables>,
+    pub vars: Annotated<Object<Value>>,
 
     /// Start address of the containing code module (image).
     pub image_addr: Annotated<Addr>,
@@ -90,20 +89,11 @@ pub struct Frame {
     pub other: Object<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
-pub struct FrameVariables(#[metastructure(skip_serialization = "never")] pub Object<Value>);
-
-impl From<Object<Value>> for FrameVariables {
-    fn from(value: Object<Value>) -> FrameVariables {
-        FrameVariables(value)
-    }
-}
-
 /// Holds information about an entirey stacktrace.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_stacktrace", value_type = "Stacktrace")]
 pub struct Stacktrace {
-    #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
+    #[metastructure(required = "true", nonempty = "true")]
     pub frames: Annotated<Array<Frame>>,
 
     /// Register values of the thread (top frame).
@@ -116,7 +106,6 @@ pub struct Stacktrace {
 
 #[test]
 fn test_frame_roundtrip() {
-    use crate::types::Map;
     let json = r#"{
   "function": "main",
   "symbol": "_main",
@@ -157,24 +146,24 @@ fn test_frame_roundtrip() {
         post_context: Annotated::new(vec![Annotated::new("}".to_string())]),
         in_app: Annotated::new(true),
         vars: {
-            let mut map = Map::new();
-            map.insert(
+            let mut vars = Object::new();
+            vars.insert(
                 "variable".to_string(),
                 Annotated::new(Value::String("value".to_string())),
             );
-            Annotated::new(map.into())
+            Annotated::new(vars)
         },
         image_addr: Annotated::new(Addr(0x400)),
         instruction_addr: Annotated::new(Addr(0x404)),
         symbol_addr: Annotated::new(Addr(0x404)),
         trust: Annotated::new("69".into()),
         other: {
-            let mut map = Map::new();
-            map.insert(
+            let mut vars = Object::new();
+            vars.insert(
                 "other".to_string(),
                 Annotated::new(Value::String("value".to_string())),
             );
-            map
+            vars
         },
     });
 
@@ -193,7 +182,6 @@ fn test_frame_default_values() {
 
 #[test]
 fn test_stacktrace_roundtrip() {
-    use crate::types::Map;
     let json = r#"{
   "frames": [
     {
@@ -214,20 +202,20 @@ fn test_stacktrace_roundtrip() {
             ..Default::default()
         })]),
         registers: {
-            let mut map = Map::new();
-            map.insert("cspr".to_string(), Annotated::new(RegVal(0x2000_0000)));
-            map.insert("lr".to_string(), Annotated::new(RegVal(0x1_8a31_aadc)));
-            map.insert("pc".to_string(), Annotated::new(RegVal(0x1_8a31_0ea4)));
-            map.insert("sp".to_string(), Annotated::new(RegVal(0x1_6fd7_5060)));
-            Annotated::new(map)
+            let mut registers = Object::new();
+            registers.insert("cspr".to_string(), Annotated::new(RegVal(0x2000_0000)));
+            registers.insert("lr".to_string(), Annotated::new(RegVal(0x1_8a31_aadc)));
+            registers.insert("pc".to_string(), Annotated::new(RegVal(0x1_8a31_0ea4)));
+            registers.insert("sp".to_string(), Annotated::new(RegVal(0x1_6fd7_5060)));
+            Annotated::new(registers)
         },
         other: {
-            let mut map = Map::new();
-            map.insert(
+            let mut other = Object::new();
+            other.insert(
                 "other".to_string(),
                 Annotated::new(Value::String("value".to_string())),
             );
-            map
+            other
         },
     });
 
@@ -237,21 +225,20 @@ fn test_stacktrace_roundtrip() {
 
 #[test]
 fn test_stacktrace_default_values() {
-    use crate::types::ErrorKind;
+    // This needs an empty frame because "frames" is required
+    let json = r#"{
+  "frames": [
+    {}
+  ]
+}"#;
 
-    let json = "{}";
-    let input = Annotated::new(Stacktrace {
-        frames: Annotated::new(vec![Annotated::new(Default::default())]),
+    let stack = Annotated::new(Stacktrace {
+        frames: Annotated::new(vec![Annotated::new(Frame::default())]),
         ..Default::default()
     });
 
-    let output = Annotated::new(Stacktrace {
-        frames: Annotated::from_error(ErrorKind::MissingAttribute, None),
-        ..Default::default()
-    });
-
-    assert_eq_str!(json, input.to_json_pretty().unwrap());
-    assert_eq_dbg!(output, Annotated::from_json(json).unwrap());
+    assert_eq_dbg!(stack, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, stack.to_json_pretty().unwrap());
 }
 
 #[test]
@@ -276,9 +263,9 @@ fn test_frame_vars_null_preserved() {
 }"#;
     let frame = Annotated::new(Frame {
         vars: Annotated::new({
-            let mut obj = Object::new();
-            obj.insert("despacito".to_string(), Annotated::new(Value::Null));
-            obj.into()
+            let mut vars = Object::new();
+            vars.insert("despacito".to_string(), Annotated::new(Value::Null));
+            vars
         }),
         ..Default::default()
     });
@@ -297,10 +284,10 @@ fn test_frame_vars_empty_annotated_is_serialized() {
 }"#;
     let frame = Annotated::new(Frame {
         vars: Annotated::new({
-            let mut obj = Object::new();
-            obj.insert("despacito".to_string(), Annotated::new(Value::Null));
-            obj.insert("despacito2".to_string(), Annotated::empty());
-            obj.into()
+            let mut vars = Object::new();
+            vars.insert("despacito".to_string(), Annotated::new(Value::Null));
+            vars.insert("despacito2".to_string(), Annotated::empty());
+            vars
         }),
         ..Default::default()
     });
@@ -309,15 +296,24 @@ fn test_frame_vars_empty_annotated_is_serialized() {
 }
 
 #[test]
-fn test_frame_empty_context_line_removed() {
-    let input = r#"{"context_line": ""}"#;
-    let output = r#"{}"#;
+fn test_frame_empty_context_lines() {
+    let json = r#"{
+  "pre_context": [
+    ""
+  ],
+  "context_line": "",
+  "post_context": [
+    ""
+  ]
+}"#;
 
     let frame = Annotated::new(Frame {
-        context_line: Annotated::new(String::new()),
-        ..Default::default()
+        pre_context: Annotated::new(vec![Annotated::new("".to_string())]),
+        context_line: Annotated::new("".to_string()),
+        post_context: Annotated::new(vec![Annotated::new("".to_string())]),
+        ..Frame::default()
     });
 
-    assert_eq_dbg!(frame, Annotated::from_json(input).unwrap());
-    assert_eq_str!(output, frame.to_json_pretty().unwrap());
+    assert_eq_dbg!(frame, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, frame.to_json_pretty().unwrap());
 }

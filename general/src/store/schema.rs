@@ -1,5 +1,5 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::types::{Array, Error, Map, Meta, Object, ValueAction};
+use crate::types::{Array, Empty, Error, Meta, Object, ValueAction};
 
 pub struct SchemaProcessor;
 
@@ -41,37 +41,13 @@ impl Processor for SchemaProcessor {
     }
 }
 
-/// Utility trait to find out if an object is empty.
-trait IsEmpty {
-    /// A generic check if the object is considered empty.
-    fn is_empty(&self) -> bool;
-}
-
-impl<T> IsEmpty for Vec<T> {
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
-impl<K, V> IsEmpty for Map<K, V> {
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
-impl IsEmpty for String {
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
 fn verify_value_nonempty<T>(
     value: &mut T,
     meta: &mut Meta,
     state: &ProcessingState<'_>,
 ) -> ValueAction
 where
-    T: IsEmpty,
+    T: Empty,
 {
     if state.attrs().nonempty && value.is_empty() {
         meta.add_error(Error::expected("non-empty value"));
@@ -106,7 +82,7 @@ mod tests {
     where
         T: Default + PartialEq + crate::processor::ProcessValue,
     {
-        #[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+        #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
         struct Foo<T> {
             #[metastructure(required = "true", nonempty = "true")]
             bar: Annotated<T>,

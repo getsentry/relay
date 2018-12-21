@@ -4,7 +4,7 @@ use crate::protocol::LenientString;
 use crate::types::{Annotated, FromValue, Object, Value};
 
 /// Device information.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct DeviceContext {
     /// Name of the device.
     pub name: Annotated<String>,
@@ -63,7 +63,7 @@ pub struct DeviceContext {
 }
 
 /// Operating system information.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct OsContext {
     /// Name of the operating system.
     #[metastructure(max_chars = "summary")]
@@ -94,7 +94,7 @@ pub struct OsContext {
 }
 
 /// Runtime information.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct RuntimeContext {
     /// Runtime name.
     #[metastructure(max_chars = "summary")]
@@ -114,7 +114,7 @@ pub struct RuntimeContext {
 }
 
 /// Application information.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct AppContext {
     /// Start time of the app.
     pub app_start_time: Annotated<DateTime<Utc>>,
@@ -147,7 +147,7 @@ pub struct AppContext {
 }
 
 /// Web browser information.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct BrowserContext {
     /// Runtime name.
     #[metastructure(max_chars = "summary")]
@@ -163,7 +163,7 @@ pub struct BrowserContext {
 }
 
 /// A context describes environment info (e.g. device, os or browser).
-#[derive(Debug, Clone, PartialEq, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_context")]
 pub enum Context {
     /// Device information.
@@ -182,7 +182,7 @@ pub enum Context {
 }
 
 /// An object holding multiple contexts.
-#[derive(Debug, Clone, PartialEq, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue)]
 #[metastructure(process_func = "context")]
 pub struct Contexts(pub Object<Context>);
 

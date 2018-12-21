@@ -1,8 +1,74 @@
-use crate::protocol::{Stacktrace, ThreadId};
-use crate::types::{Annotated, Object, Value};
+use serde::{Deserialize, Serialize, Serializer};
+
+use crate::processor::ProcessValue;
+use crate::protocol::Stacktrace;
+use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value};
+
+/// Represents a thread id.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[serde(untagged)]
+pub enum ThreadId {
+    /// Integer representation of the thread id.
+    Int(u64),
+    /// String representation of the thread id.
+    String(String),
+}
+
+impl FromValue for ThreadId {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), meta) => {
+                Annotated(Some(ThreadId::String(value)), meta)
+            }
+            Annotated(Some(Value::U64(value)), meta) => Annotated(Some(ThreadId::Int(value)), meta),
+            Annotated(Some(Value::I64(value)), meta) => {
+                Annotated(Some(ThreadId::Int(value as u64)), meta)
+            }
+            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(Error::expected("thread id"));
+                meta.set_original_value(Some(value));
+                Annotated(None, meta)
+            }
+        }
+    }
+}
+
+impl ToValue for ThreadId {
+    fn to_value(self) -> Value {
+        match self {
+            ThreadId::String(value) => Value::String(value),
+            ThreadId::Int(value) => Value::U64(value),
+        }
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        match *self {
+            ThreadId::String(ref value) => Serialize::serialize(value, s),
+            ThreadId::Int(value) => Serialize::serialize(&value, s),
+        }
+    }
+}
+
+impl ProcessValue for ThreadId {}
+
+impl Empty for ThreadId {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        match self {
+            ThreadId::Int(_) => false,
+            ThreadId::String(string) => string.is_empty(),
+        }
+    }
+}
 
 /// A process thread of an event.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_thread", value_type = "Thread")]
 pub struct Thread {
     /// Identifier of this thread within the process (usually an integer).
@@ -28,6 +94,28 @@ pub struct Thread {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
+}
+
+#[test]
+fn test_thread_id() {
+    assert_eq_dbg!(
+        ThreadId::String("testing".into()),
+        Annotated::<ThreadId>::from_json("\"testing\"")
+            .unwrap()
+            .0
+            .unwrap()
+    );
+    assert_eq_dbg!(
+        ThreadId::String("42".into()),
+        Annotated::<ThreadId>::from_json("\"42\"")
+            .unwrap()
+            .0
+            .unwrap()
+    );
+    assert_eq_dbg!(
+        ThreadId::Int(42),
+        Annotated::<ThreadId>::from_json("42").unwrap().0.unwrap()
+    );
 }
 
 #[test]

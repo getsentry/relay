@@ -10,28 +10,34 @@ use synstructure::decl_derive;
 
 #[derive(Debug, Clone, Copy)]
 enum Trait {
+    Empty,
     From,
     To,
     Process,
 }
 
-decl_derive!([ToValue, attributes(metastructure)] => process_to_value);
-decl_derive!([FromValue, attributes(metastructure)] => process_from_value);
-decl_derive!([ProcessValue, attributes(metastructure)] => process_process_value);
+decl_derive!([Empty, attributes(metastructure)] => derive_empty);
+decl_derive!([ToValue, attributes(metastructure)] => derive_to_value);
+decl_derive!([FromValue, attributes(metastructure)] => derive_from_value);
+decl_derive!([ProcessValue, attributes(metastructure)] => derive_process_value);
 
-fn process_to_value(s: synstructure::Structure<'_>) -> TokenStream {
-    process_metastructure_impl(s, Trait::To)
+fn derive_empty(s: synstructure::Structure<'_>) -> TokenStream {
+    derive_metastructure(s, Trait::Empty)
 }
 
-fn process_from_value(s: synstructure::Structure<'_>) -> TokenStream {
-    process_metastructure_impl(s, Trait::From)
+fn derive_to_value(s: synstructure::Structure<'_>) -> TokenStream {
+    derive_metastructure(s, Trait::To)
 }
 
-fn process_process_value(s: synstructure::Structure<'_>) -> TokenStream {
-    process_metastructure_impl(s, Trait::Process)
+fn derive_from_value(s: synstructure::Structure<'_>) -> TokenStream {
+    derive_metastructure(s, Trait::From)
 }
 
-fn process_wrapper_struct_derive(
+fn derive_process_value(s: synstructure::Structure<'_>) -> TokenStream {
+    derive_metastructure(s, Trait::Process)
+}
+
+fn derive_newtype_metastructure(
     s: synstructure::Structure<'_>,
     t: Trait,
 ) -> Result<TokenStream, synstructure::Structure<'_>> {
@@ -81,6 +87,20 @@ fn process_wrapper_struct_derive(
         });
 
     Ok(match t {
+        Trait::Empty => s.gen_impl(quote! {
+            #[automatically_derived]
+            gen impl crate::types::Empty for @Self {
+                #[inline]
+                fn is_empty(&self) -> bool {
+                    crate::types::Empty::is_empty(&self.0)
+                }
+
+                #[inline]
+                fn is_deep_empty(&self) -> bool {
+                    crate::types::Empty::is_deep_empty(&self.0)
+                }
+            }
+        }),
         Trait::From => s.gen_impl(quote! {
             #[automatically_derived]
             gen impl crate::types::FromValue for @Self {
@@ -114,13 +134,6 @@ fn process_wrapper_struct_derive(
                     Self: Sized,
                 {
                     crate::types::ToValue::extract_child_meta(&self.0)
-                }
-
-                fn skip_serialization(&self, __behavior: crate::types::SkipSerialization) -> bool
-                where
-                    Self: Sized,
-                {
-                    crate::types::ToValue::skip_serialization(&self.0, #skip_serialization_attr)
                 }
             }
         }),
@@ -170,7 +183,7 @@ fn process_wrapper_struct_derive(
     })
 }
 
-fn process_enum_struct_derive(
+fn derive_enum_metastructure(
     s: synstructure::Structure<'_>,
     t: Trait,
 ) -> Result<TokenStream, synstructure::Structure<'_>> {
@@ -186,6 +199,9 @@ fn process_enum_struct_derive(
         &type_attrs.tag_key.unwrap_or_else(|| "type".to_string()),
         Span::call_site(),
     );
+
+    let mut is_empty_body = TokenStream::new();
+    let mut is_deep_empty_body = TokenStream::new();
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
     let mut process_value_body = TokenStream::new();
@@ -199,6 +215,20 @@ fn process_enum_struct_derive(
         let tag = variant_attrs
             .tag_override
             .unwrap_or_else(|| variant_name.to_string().to_lowercase());
+
+        (quote! {
+            #type_name::#variant_name(__value) => {
+                crate::types::Empty::is_empty(__value)
+            }
+        })
+        .to_tokens(&mut is_empty_body);
+
+        (quote! {
+            #type_name::#variant_name(__value) => {
+                crate::types::Empty::is_deep_empty(__value)
+            }
+        })
+        .to_tokens(&mut is_deep_empty_body);
 
         if !variant_attrs.fallback_variant {
             let tag = LitStr::new(&tag, Span::call_site());
@@ -282,6 +312,22 @@ fn process_enum_struct_derive(
     }
 
     Ok(match t {
+        Trait::Empty => s.gen_impl(quote! {
+            #[automatically_derived]
+            gen impl crate::types::Empty for @Self {
+                fn is_empty(&self) -> bool {
+                    match self {
+                        #is_empty_body
+                    }
+                }
+
+                fn is_deep_empty(&self) -> bool {
+                    match self {
+                        #is_deep_empty_body
+                    }
+                }
+            }
+        }),
         Trait::From => {
             s.gen_impl(quote! {
                 #[automatically_derived]
@@ -391,13 +437,13 @@ fn process_enum_struct_derive(
     })
 }
 
-fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> TokenStream {
-    let s = match process_wrapper_struct_derive(s, t) {
+fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream {
+    let s = match derive_newtype_metastructure(s, t) {
         Ok(stream) => return stream,
         Err(s) => s,
     };
 
-    let mut s = match process_enum_struct_derive(s, t) {
+    let mut s = match derive_enum_metastructure(s, t) {
         Ok(stream) => return stream,
         Err(s) => s,
     };
@@ -413,12 +459,14 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
     for binding in variant.bindings_mut() {
         binding.style = synstructure::BindStyle::MoveMut;
     }
+
+    let mut is_empty_body = TokenStream::new();
+    let mut is_deep_empty_body = TokenStream::new();
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
     let mut process_child_values_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
-    let mut skip_serialization_body = TokenStream::new();
     let mut tmp_idx = 0;
 
     let type_attrs = parse_type_attributes(&s.ast().attrs);
@@ -469,10 +517,11 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 for (__key, __value) in #bi.iter() {
                     if !__value.skip_serialization(#skip_serialization_attr) {
                         ::serde::ser::SerializeMap::serialize_key(&mut __map_serializer, __key)?;
-                        ::serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(__value, __behavior))?;
+                        ::serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(__value, #skip_serialization_attr))?;
                     }
                 }
-            }).to_tokens(&mut serialize_body);
+            })
+            .to_tokens(&mut serialize_body);
             (quote! {
                 for (__key, __value) in #bi.iter() {
                     let __inner_tree = crate::types::ToValue::extract_meta_tree(__value);
@@ -482,14 +531,10 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 }
             })
             .to_tokens(&mut extract_child_meta_body);
-            (quote! {
-                for (__key, __value) in #bi.iter() {
-                    if !__value.skip_serialization(#skip_serialization_attr) {
-                        return false;
-                    }
-                }
-            })
-            .to_tokens(&mut skip_serialization_body);
+            (quote! { && #bi.values().all(crate::types::Empty::is_empty) })
+                .to_tokens(&mut is_empty_body);
+            (quote! { && #bi.values().all(|__v| __v.skip_serialization(#skip_serialization_attr)) })
+                .to_tokens(&mut is_deep_empty_body);
         } else {
             let field_attrs_name = Ident::new(
                 &format!("__field_attrs_{}", {
@@ -564,7 +609,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 .to_tokens(&mut to_value_body);
                 (quote! {
                     if !#bi.skip_serialization(#skip_serialization_attr) {
-                        ::serde::ser::SerializeSeq::serialize_element(&mut __seq_serializer, &crate::types::SerializePayload(#bi, __behavior))?;
+                        ::serde::ser::SerializeSeq::serialize_element(&mut __seq_serializer, &crate::types::SerializePayload(#bi, #skip_serialization_attr))?;
                     }
                 }).to_tokens(&mut serialize_body);
             } else {
@@ -574,7 +619,7 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 (quote! {
                     if !#bi.skip_serialization(#skip_serialization_attr) {
                         ::serde::ser::SerializeMap::serialize_key(&mut __map_serializer, #field_name)?;
-                        ::serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(#bi, __behavior))?;
+                        ::serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &crate::types::SerializePayload(#bi, #skip_serialization_attr))?;
                     }
                 }).to_tokens(&mut serialize_body);
             }
@@ -625,12 +670,9 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                 );
             }).to_tokens(&mut process_child_values_body);
 
-            (quote! {
-                if !#bi.skip_serialization(#skip_serialization_attr) {
-                    return false;
-                }
-            })
-            .to_tokens(&mut skip_serialization_body);
+            (quote! { && crate::types::Empty::is_empty(#bi) }).to_tokens(&mut is_empty_body);
+            (quote! { && #bi.skip_serialization(#skip_serialization_attr) })
+                .to_tokens(&mut is_deep_empty_body);
         }
     }
 
@@ -653,8 +695,23 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
         binding.style = synstructure::BindStyle::Ref;
     }
     let serialize_pat = variant.pat();
+    let is_empty_pat = variant.pat();
 
     match t {
+        Trait::Empty => s.gen_impl(quote! {
+            #[automatically_derived]
+            gen impl crate::types::Empty for @Self {
+                fn is_empty(&self) -> bool {
+                    let #is_empty_pat = self;
+                    true #is_empty_body
+                }
+
+                fn is_deep_empty(&self) -> bool {
+                    let #is_empty_pat = self;
+                    true #is_deep_empty_body
+                }
+            }
+        }),
         Trait::From => {
             let valid_match_arm = if is_tuple_struct {
                 quote! {
@@ -747,13 +804,6 @@ fn process_metastructure_impl(s: synstructure::Structure<'_>, t: Trait) -> Token
                         let #serialize_pat = *self;
                         #extract_child_meta_body;
                         __child_meta
-                    }
-
-                    #[allow(unreachable_code)]
-                    fn skip_serialization(&self, __behavior: crate::types::SkipSerialization) -> bool {
-                        let #serialize_pat = self;
-                        #skip_serialization_body;
-                        true
                     }
                 }
             })
@@ -917,26 +967,24 @@ struct FieldAttrs {
 
 #[derive(Copy, Clone)]
 enum SkipSerialization {
-    Null,
-    Empty,
     Never,
-    Inherit,
+    Null(bool),
+    Empty(bool),
 }
 
 impl SkipSerialization {
     fn as_tokens(self) -> TokenStream {
         match self {
             SkipSerialization::Never => quote!(crate::types::SkipSerialization::Never),
-            SkipSerialization::Null => quote!(crate::types::SkipSerialization::Null),
-            SkipSerialization::Empty => quote!(crate::types::SkipSerialization::Empty),
-            SkipSerialization::Inherit => quote!(__behavior),
+            SkipSerialization::Null(deep) => quote!(crate::types::SkipSerialization::Null(#deep)),
+            SkipSerialization::Empty(deep) => quote!(crate::types::SkipSerialization::Empty(#deep)),
         }
     }
 }
 
 impl Default for SkipSerialization {
     fn default() -> SkipSerialization {
-        SkipSerialization::Null
+        SkipSerialization::Null(true)
     }
 }
 
@@ -945,10 +993,11 @@ impl FromStr for SkipSerialization {
 
     fn from_str(s: &str) -> Result<Self, ()> {
         Ok(match s {
-            "null" => SkipSerialization::Null,
-            "empty" => SkipSerialization::Empty,
             "never" => SkipSerialization::Never,
-            "inherit" => SkipSerialization::Inherit,
+            "null" => SkipSerialization::Null(false),
+            "null_deep" => SkipSerialization::Null(true),
+            "empty" => SkipSerialization::Empty(false),
+            "empty_deep" => SkipSerialization::Empty(true),
             _ => Err(())?,
         })
     }

@@ -2,7 +2,7 @@ use crate::protocol::{JsonLenientString, Mechanism, Stacktrace, ThreadId};
 use crate::types::{Annotated, Object, Value};
 
 /// A single exception.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_exception", value_type = "Exception")]
 pub struct Exception {
     /// Exception type. One of value or exception is required, checked in StoreNormalizeProcessor

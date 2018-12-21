@@ -11,7 +11,7 @@ macro_rules! assert_eq_str {
         }
     };
     ($left:expr, $right:expr,) => {
-        assert_eq_str($left, $right)
+        assert_eq_str!($left, $right)
     };
 }
 
@@ -28,6 +28,6 @@ macro_rules! assert_eq_dbg {
         }
     };
     ($left:expr, $right:expr,) => {
-        assert_eq_dbg($left, $right)
+        assert_eq_dbg!($left, $right)
     };
 }

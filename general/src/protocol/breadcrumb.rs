@@ -7,7 +7,7 @@ use crate::protocol::{EventId, Level};
 use crate::types::{Annotated, Object, Value};
 
 /// A breadcrumb.
-#[derive(Debug, Clone, PartialEq, Default, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_breadcrumb", value_type = "Breadcrumb")]
 pub struct Breadcrumb {
     /// The timestamp of the breadcrumb (required).
