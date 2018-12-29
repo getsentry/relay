@@ -59,7 +59,7 @@ venv/bin/python: Makefile
 	virtualenv -p $$SEMAPHORE_PYTHON_VERSION venv
 
 integration-test: venv/bin/python
-	venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist
+	venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist pytest-sentry
 	cargo build
 	@venv/bin/pytest tests -n12 --reruns 5
 .PHONY: integration-test
