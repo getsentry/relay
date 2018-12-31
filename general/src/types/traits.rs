@@ -30,7 +30,7 @@ pub trait Empty {
 ///
 /// ## Example
 ///
-/// ```rust
+/// ```ignore
 /// #[derive(Debug, Empty, ToValue)]
 /// struct Helper {
 ///     #[metastructure(skip_serialization = "never")]
