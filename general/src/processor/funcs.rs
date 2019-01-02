@@ -1,5 +1,5 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::types::{Annotated, ErrorKind};
+use crate::types::Annotated;
 
 /// Processes the value using the given processor.
 #[inline]
@@ -11,12 +11,6 @@ pub fn process_value<T, P>(
     T: ProcessValue,
     P: Processor,
 {
+    processor.before_process(annotated.0.as_mut(), &mut annotated.1, state);
     annotated.apply(|value, meta| ProcessValue::process_value(value, meta, processor, state))
-}
-
-/// Attaches a value required error if the value is missing.
-pub fn require_value<T>(annotated: &mut Annotated<T>) {
-    if annotated.value().is_none() && !annotated.meta().has_errors() {
-        annotated.meta_mut().add_error(ErrorKind::MissingAttribute);
-    }
 }

@@ -77,6 +77,14 @@ pub trait Processor: Sized {
             );
         }
     }
+
+    fn before_process<T>(
+        &mut self,
+        value: Option<&mut T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) {
+    }
 }
 
 /// A recursively processable value.

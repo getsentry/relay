@@ -585,14 +585,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 let #bi = crate::types::FromValue::from_value(#bi.unwrap_or_else(|| crate::types::Annotated(None, crate::types::Meta::default())));
             }).to_tokens(&mut from_value_body);
 
-            if field_attrs.required {
-                (quote! {
-                    let mut #bi = #bi;
-                    crate::processor::require_value(&mut #bi);
-                })
-                .to_tokens(&mut from_value_body);
-            }
-
             let match_regex_attr = if let Some(match_regex) = field_attrs.match_regex {
                 quote!(Some(
                     #[allow(clippy::trivial_regex)]

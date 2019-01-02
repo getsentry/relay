@@ -69,12 +69,12 @@ impl FromStr for SelectorSpec {
             "freeform" | "email" | "sensitive" | "text" => {
                 return Ok(SelectorSpec {
                     path: vec![SelectorPathItem::Type(ValueType::String)],
-                })
+                });
             }
             "databag" | "container" => {
                 return Ok(SelectorSpec {
                     path: vec![SelectorPathItem::Type(ValueType::Object)],
-                })
+                });
             }
             _ => {}
         }

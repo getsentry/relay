@@ -242,19 +242,6 @@ fn test_stacktrace_default_values() {
 }
 
 #[test]
-fn test_stacktrace_invalid() {
-    use crate::types::ErrorKind;
-
-    let stack = Annotated::new(Stacktrace {
-        frames: Annotated::from_error(ErrorKind::MissingAttribute, None),
-        registers: Annotated::empty(),
-        other: Default::default(),
-    });
-
-    assert_eq_dbg!(stack, Annotated::from_json("{}").unwrap());
-}
-
-#[test]
 fn test_frame_vars_null_preserved() {
     let json = r#"{
   "vars": {

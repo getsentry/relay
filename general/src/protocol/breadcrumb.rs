@@ -113,15 +113,3 @@ fn test_breadcrumb_default_values() {
     assert_eq_dbg!(breadcrumb, Annotated::from_json(input).unwrap());
     assert_eq_str!(output, breadcrumb.to_json().unwrap());
 }
-
-#[test]
-fn test_breadcrumb_invalid() {
-    use crate::types::ErrorKind;
-
-    let breadcrumb = Annotated::new(Breadcrumb {
-        timestamp: Annotated::from_error(ErrorKind::MissingAttribute, None),
-        ..Default::default()
-    });
-
-    assert_eq_dbg!(breadcrumb, Annotated::from_json("{}").unwrap());
-}
