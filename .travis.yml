@@ -59,7 +59,7 @@ matrix:
             - libssl-dev
             - libgeoip-dev
       install:
-        - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin
+        - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin --git https://github.com/untitaker/tarpaulin --branch fix/upgrade-cargo
 
     - name: "test: semaphore[macos]"
       os: osx
