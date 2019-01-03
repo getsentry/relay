@@ -5,7 +5,7 @@ use std::str;
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
-use crate::types::{Annotated, Meta};
+use crate::types::Annotated;
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
