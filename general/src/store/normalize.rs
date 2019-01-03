@@ -7,13 +7,13 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use uuid::Uuid;
 
-use crate::processor::{ProcessValue, ProcessingState, Processor};
+use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Event, EventId, EventType, Exception, Frame, IpAddr, Level, Request,
     Stacktrace, TagEntry, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
-use crate::types::{Annotated, Empty, Error, ErrorKind, Meta, Object, ValueAction};
+use crate::types::{Annotated, Empty, ErrorKind, Meta, Object, ValueAction};
 
 mod mechanism;
 mod request;
@@ -119,6 +119,18 @@ impl<'a> NormalizeProcessor<'a> {
                 _ => true,
             }
         });
+
+        for tag in tags.iter_mut() {
+            tag.apply(|tag, meta| {
+                if let Some(value) = tag.value() {
+                    if value.len() > MaxChars::TagValue.limit() {
+                        meta.add_error(Error::new(ErrorKind::ValueTooLong));
+                        return ValueAction::DeleteHard;
+                    }
+                }
+                ValueAction::Keep
+            });
+        }
 
         if event.server_name.value().is_some() {
             tags.push(Annotated::new(TagEntry(
@@ -639,5 +651,35 @@ fn test_frame_null_context_lines() {
             Annotated::new("".to_string()),
             Annotated::new("".to_string())
         ],
+    );
+}
+
+#[test]
+fn test_too_long_tags() {
+    let mut event = Annotated::new(Event {
+        tags: Annotated::new(Tags(
+            vec![Annotated::new(TagEntry(
+                Annotated::new("foobar".to_string()),
+                Annotated::new("...........................................................................................................................................................................................................".to_string()),
+            ))]
+            .into(),
+        )),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    let event = event.value().unwrap();
+
+    assert_eq_dbg!(
+        event.tags.value(),
+        Some(&Tags(
+            vec![Annotated::from_error(
+                Error::new(ErrorKind::ValueTooLong),
+                None
+            )]
+            .into()
+        ))
     );
 }
