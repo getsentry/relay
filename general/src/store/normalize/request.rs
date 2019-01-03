@@ -78,7 +78,7 @@ fn normalize_url(request: &mut Request) {
 fn normalize_method(method: &mut String, meta: &mut Meta) -> ValueAction {
     method.make_ascii_uppercase();
 
-    if !meta.has_errors() && METHOD_RE.is_match(&method) {
+    if !meta.has_errors() && !METHOD_RE.is_match(&method) {
         meta.add_error(ErrorKind::InvalidData);
         return ValueAction::DeleteSoft;
     }
@@ -315,4 +315,28 @@ fn test_cookies_in_header_not_overridden() {
             Annotated::new("bar".to_string()),
         ))])))
     );
+}
+
+#[test]
+fn test_method_invalid() {
+    let mut request = Request {
+        method: Annotated::new("!!!!".to_string()),
+        ..Default::default()
+    };
+
+    normalize_request(&mut request, None);
+
+    assert_eq_dbg!(request.method.0, None);
+}
+
+#[test]
+fn test_method_valid() {
+    let mut request = Request {
+        method: Annotated::new("POST".to_string()),
+        ..Default::default()
+    };
+
+    normalize_request(&mut request, None);
+
+    assert_eq_dbg!(request.method.0, Some("POST".to_string()));
 }
