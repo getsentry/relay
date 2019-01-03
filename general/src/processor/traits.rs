@@ -77,6 +77,9 @@ pub trait Processor: Sized {
             );
         }
     }
+
+    #[inline]
+    fn process_none(&mut self, meta: &mut Meta, state: &ProcessingState<'_>) {}
 }
 
 /// A recursively processable value.

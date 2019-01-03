@@ -101,19 +101,3 @@ fn test_client_sdk_default_values() {
     assert_eq_dbg!(sdk, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, sdk.to_json_pretty().unwrap());
 }
-
-#[test]
-fn test_client_sdk_invalid() {
-    use crate::types::ErrorKind;
-
-    let json = r#"{"name":"sentry.rust"}"#;
-    let entry = Annotated::new(ClientSdkInfo {
-        name: Annotated::new("sentry.rust".to_string()),
-        version: Annotated::from_error(ErrorKind::MissingAttribute, None),
-        integrations: Annotated::empty(),
-        packages: Annotated::empty(),
-        other: Default::default(),
-    });
-
-    assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
-}

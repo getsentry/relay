@@ -307,45 +307,6 @@ fn test_mechanism_empty() {
 }
 
 #[test]
-fn test_mechanism_invalid_meta() {
-    use crate::types::ErrorKind;
-
-    let json = r#"{
-  "type":"mytype",
-  "meta": {
-    "errno": {"name": "ENOENT"},
-    "mach_exception": {"name": "EXC_BAD_ACCESS"},
-    "signal": {"name": "SIGSEGV"}
-  }
-}"#;
-    let mechanism = Annotated::new(Mechanism {
-        ty: Annotated::new("mytype".to_string()),
-        meta: Annotated::new(MechanismMeta {
-            errno: Annotated::new(CError {
-                number: Annotated::from_error(ErrorKind::MissingAttribute, None),
-                name: Annotated::new("ENOENT".to_string()),
-            }),
-            mach_exception: Annotated::new(MachException {
-                ty: Annotated::from_error(ErrorKind::MissingAttribute, None),
-                code: Annotated::from_error(ErrorKind::MissingAttribute, None),
-                subcode: Annotated::from_error(ErrorKind::MissingAttribute, None),
-                name: Annotated::new("EXC_BAD_ACCESS".to_string()),
-            }),
-            signal: Annotated::new(PosixSignal {
-                number: Annotated::from_error(ErrorKind::MissingAttribute, None),
-                code: Annotated::empty(),
-                name: Annotated::new("SIGSEGV".to_string()),
-                code_name: Annotated::empty(),
-            }),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-
-    assert_eq_dbg!(mechanism, Annotated::from_json(json).unwrap());
-}
-
-#[test]
 fn test_mechanism_legacy_conversion() {
     use crate::types::Map;
 

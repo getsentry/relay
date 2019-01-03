@@ -1,5 +1,5 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::types::{Array, Empty, Error, Meta, Object, ValueAction};
+use crate::types::{Array, Empty, Error, ErrorKind, Meta, Object, ValueAction};
 
 pub struct SchemaProcessor;
 
@@ -38,6 +38,12 @@ impl Processor for SchemaProcessor {
     {
         value.process_child_values(self, state);
         verify_value_nonempty(value, meta, state)
+    }
+
+    fn process_none(&mut self, meta: &mut Meta, state: &ProcessingState<'_>) {
+        if state.attrs().required && !meta.has_errors() {
+            meta.add_error(ErrorKind::MissingAttribute);
+        }
     }
 }
 
@@ -163,5 +169,118 @@ mod tests {
                 ..Default::default()
             })
         );
+    }
+
+    #[test]
+    fn test_breadcrumb_missing_attribute() {
+        use crate::protocol::Breadcrumb;
+        use crate::types::ErrorKind;
+
+        let mut crumb = Annotated::new(Breadcrumb::default());
+
+        process_value(&mut crumb, &mut SchemaProcessor, ProcessingState::root());
+
+        let expected = Annotated::new(Breadcrumb {
+            timestamp: Annotated::from_error(ErrorKind::MissingAttribute, None),
+            ..Default::default()
+        });
+
+        assert_eq_dbg!(crumb, expected);
+    }
+
+    #[test]
+    fn test_client_sdk_missing_attribute() {
+        use crate::protocol::ClientSdkInfo;
+        use crate::types::ErrorKind;
+
+        let mut info = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.rust".to_string()),
+            ..Default::default()
+        });
+
+        process_value(&mut info, &mut SchemaProcessor, ProcessingState::root());
+
+        let expected = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.rust".to_string()),
+            version: Annotated::from_error(ErrorKind::MissingAttribute, None),
+            ..Default::default()
+        });
+
+        assert_eq_dbg!(info, expected);
+    }
+
+    #[test]
+    fn test_mechanism_missing_attributes() {
+        use crate::protocol::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
+        use crate::types::ErrorKind;
+
+        let mut mechanism = Annotated::new(Mechanism {
+            ty: Annotated::new("mytype".to_string()),
+            meta: Annotated::new(MechanismMeta {
+                errno: Annotated::new(CError {
+                    name: Annotated::new("ENOENT".to_string()),
+                    ..Default::default()
+                }),
+                mach_exception: Annotated::new(MachException {
+                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                    ..Default::default()
+                }),
+                signal: Annotated::new(PosixSignal {
+                    name: Annotated::new("SIGSEGV".to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        process_value(
+            &mut mechanism,
+            &mut SchemaProcessor,
+            ProcessingState::root(),
+        );
+
+        let expected = Annotated::new(Mechanism {
+            ty: Annotated::new("mytype".to_string()),
+            meta: Annotated::new(MechanismMeta {
+                errno: Annotated::new(CError {
+                    number: Annotated::from_error(ErrorKind::MissingAttribute, None),
+                    name: Annotated::new("ENOENT".to_string()),
+                }),
+                mach_exception: Annotated::new(MachException {
+                    ty: Annotated::from_error(ErrorKind::MissingAttribute, None),
+                    code: Annotated::from_error(ErrorKind::MissingAttribute, None),
+                    subcode: Annotated::from_error(ErrorKind::MissingAttribute, None),
+                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                }),
+                signal: Annotated::new(PosixSignal {
+                    number: Annotated::from_error(ErrorKind::MissingAttribute, None),
+                    code: Annotated::empty(),
+                    name: Annotated::new("SIGSEGV".to_string()),
+                    code_name: Annotated::empty(),
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        assert_eq_dbg!(mechanism, expected);
+    }
+
+    #[test]
+    fn test_stacktrace_missing_attribute() {
+        use crate::protocol::Stacktrace;
+        use crate::types::ErrorKind;
+
+        let mut stack = Annotated::new(Stacktrace::default());
+
+        process_value(&mut stack, &mut SchemaProcessor, ProcessingState::root());
+
+        let expected = Annotated::new(Stacktrace {
+            frames: Annotated::from_error(ErrorKind::MissingAttribute, None),
+            ..Default::default()
+        });
+
+        assert_eq_dbg!(stack, expected);
     }
 }
