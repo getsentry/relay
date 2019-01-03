@@ -100,7 +100,7 @@ impl Empty for EventType {
 
 impl FromValue for EventType {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        match <String as FromValue>::from_value(value) {
+        match String::from_value(value) {
             Annotated(Some(value), mut meta) => match value.parse() {
                 Ok(eventtype) => Annotated(Some(eventtype), meta),
                 Err(_) => {
@@ -515,17 +515,13 @@ fn test_event_type() {
 
 #[test]
 fn test_fingerprint_empty_string() {
-    let json = r#"{
-  "fingerprint": [
-    ""
-  ]
-}"#;
+    let json = r#"{"fingerprint":[""]}"#;
     let event = Annotated::new(Event {
         fingerprint: Annotated::new(vec!["".to_string()].into()),
         ..Default::default()
     });
 
-    assert_eq_dbg!(json, event.to_json_pretty().unwrap());
+    assert_eq_dbg!(json, event.to_json().unwrap());
     assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
 }
 
@@ -539,5 +535,5 @@ fn test_fingerprint_null_values() {
     });
 
     assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
-    assert_eq_dbg!(output, event.to_json_pretty().unwrap());
+    assert_eq_dbg!(output, event.to_json().unwrap());
 }

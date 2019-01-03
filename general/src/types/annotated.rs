@@ -262,8 +262,8 @@ where
         deserializer: D,
     ) -> Result<Self, D::Error> {
         Ok(FromValue::from_value(
-            match Value::deserialize(deserializer)? {
-                Value::Object(mut map) => {
+            match Option::<Value>::deserialize(deserializer)? {
+                Some(Value::Object(mut map)) => {
                     let meta_tree = map
                         .remove("_meta")
                         .map(MetaTree::from_value)
@@ -273,7 +273,7 @@ where
                     value.attach_meta_tree(meta_tree);
                     value
                 }
-                value => Annotated::new(value),
+                other => Annotated::from(other),
             },
         ))
     }
@@ -424,7 +424,10 @@ impl<T: Serialize> Serialize for Annotated<T> {
 
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Annotated<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Ok(Annotated::new(Deserialize::deserialize(deserializer)?))
+        Ok(Annotated(
+            Deserialize::deserialize(deserializer)?,
+            Default::default(),
+        ))
     }
 }
 

@@ -83,6 +83,7 @@ pub trait Processor: Sized {
 pub trait ProcessValue: FromValue + ToValue + Debug {
     /// Returns the type of the value.
     #[inline]
+    // TODO(ja): Make this a non-option
     fn value_type(&self) -> Option<ValueType> {
         None
     }

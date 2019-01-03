@@ -56,7 +56,6 @@ impl<T: FromValue> FromValue for Values<T> {
                 }),
                 Meta::default(),
             ),
-            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(Some(Value::Object(mut obj)), meta) => {
                 if let Some(values) = obj.remove("values") {
                     Annotated(
@@ -250,7 +249,6 @@ macro_rules! hex_metrastructure {
                             Annotated(None, meta)
                         }
                     },
-                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(Some(Value::U64(value)), meta) => Annotated(Some($type(value)), meta),
                     Annotated(Some(Value::I64(value)), meta) => {
                         Annotated(Some($type(value as u64)), meta)
@@ -347,7 +345,6 @@ impl FromValue for IpAddr {
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
-            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("an ip address"));
@@ -453,7 +450,6 @@ impl FromValue for Level {
                     }
                 }
             }
-            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("level"));
@@ -547,7 +543,7 @@ impl FromValue for LenientString {
                     Annotated(None, meta)
                 }
             }
-            Annotated(None, meta) | Annotated(Some(Value::Null), meta) => Annotated(None, meta),
+            Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("primitive value"));
                 meta.set_original_value(Some(value));

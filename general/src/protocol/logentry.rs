@@ -32,9 +32,7 @@ impl FromValue for LogEntry {
         // add the former as the 'formatted' attribute of the latter.
         // See GH-3248
         match value {
-            x @ Annotated(Some(Value::Object(_)), _)
-            | x @ Annotated(None, _)
-            | x @ Annotated(Some(Value::Null), _) => {
+            x @ Annotated(Some(Value::Object(_)), _) | x @ Annotated(None, _) => {
                 #[derive(Debug, FromValue)]
                 struct Helper {
                     message: Annotated<String>,
@@ -58,6 +56,7 @@ impl FromValue for LogEntry {
                     },
                 )
             }
+            Annotated(Some(Value::Bool(false)), _) => Annotated(None, Default::default()),
             x => Annotated::new(LogEntry {
                 formatted: LenientString::from_value(x).map_value(|x| x.into_inner()),
                 ..Default::default()
