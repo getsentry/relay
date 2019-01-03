@@ -13,7 +13,7 @@ use crate::protocol::{
     Stacktrace, TagEntry, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
-use crate::types::{Annotated, Empty, ErrorKind, Meta, Object, ValueAction};
+use crate::types::{Annotated, Empty, Error, ErrorKind, Meta, Object, ValueAction};
 
 mod mechanism;
 mod request;

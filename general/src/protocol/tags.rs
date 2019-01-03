@@ -1,5 +1,5 @@
 use crate::protocol::{AsPair, LenientString, PairList};
-use crate::types::{Annotated, Array, Error, FromValue, Value};
+use crate::types::{Annotated, Array, FromValue, Value};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct TagEntry(
