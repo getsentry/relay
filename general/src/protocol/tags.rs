@@ -1,23 +1,16 @@
 use crate::protocol::{AsPair, LenientString, PairList};
 use crate::types::{Annotated, Array, Error, FromValue, Value};
 
-fn check_chars(string: String) -> Annotated<String> {
-    if string.contains('\n') {
-        let mut annotated = Annotated::empty();
-        annotated
-            .meta_mut()
-            .add_error(Error::invalid("invalid characters in tag"));
-        annotated.meta_mut().set_original_value(Some(string));
-        annotated
-    } else {
-        Annotated::new(string)
-    }
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct TagEntry(
-    #[metastructure(pii = "true", max_chars = "tag_key")] pub Annotated<String>,
-    #[metastructure(pii = "true", max_chars = "tag_value")] pub Annotated<String>,
+    #[metastructure(
+        pii = "true",
+        max_chars = "tag_key",
+        match_regex = r"^[a-zA-Z0-9_\.:-]+\z"
+    )]
+    pub Annotated<String>,
+    #[metastructure(pii = "true", max_chars = "tag_value", match_regex = r"^[^\n]+\z")]
+    pub  Annotated<String>,
 );
 
 impl AsPair for TagEntry {
@@ -33,14 +26,6 @@ impl AsPair for TagEntry {
 }
 
 impl TagEntry {
-    fn from_entry(entry: (String, Annotated<Value>)) -> Annotated<Self> {
-        let (key, value) = entry;
-        Annotated::from(TagEntry(
-            check_chars(key).map_value(|k| k.trim().replace(" ", "-")),
-            LenientString::from_value(value).and_then(|v| check_chars(v.into_inner())),
-        ))
-    }
-
     pub fn key(&self) -> Option<&str> {
         self.0.as_str()
     }
@@ -61,19 +46,17 @@ impl TagEntry {
 impl FromValue for TagEntry {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         type TagTuple = (Annotated<LenientString>, Annotated<LenientString>);
-
         TagTuple::from_value(value).map_value(|(key, value)| {
             TagEntry(
-                key.and_then(|k| check_chars(k.into_inner()))
-                    .map_value(|k: String| k.trim().replace(" ", "-")),
-                value.and_then(|v| check_chars(v.into_inner())),
+                key.map_value(|x| x.into_inner().replace(" ", "-")),
+                value.map_value(|x| x.into_inner().replace(" ", "-")),
             )
         })
     }
 }
 
 /// Manual key/value tag pairs.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct Tags(#[metastructure(pii = "true")] pub PairList<TagEntry>);
 
 impl std::ops::Deref for Tags {
@@ -87,27 +70,6 @@ impl std::ops::Deref for Tags {
 impl std::ops::DerefMut for Tags {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
-    }
-}
-
-impl FromValue for Tags {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        match value {
-            Annotated(Some(Value::Array(items)), meta) => {
-                let entries = items.into_iter().map(TagEntry::from_value).collect();
-                Annotated(Some(Tags(entries)), meta)
-            }
-            Annotated(Some(Value::Object(items)), meta) => {
-                let entries = items.into_iter().map(TagEntry::from_entry).collect();
-                Annotated(Some(Tags(entries)), meta)
-            }
-            Annotated(Some(other), mut meta) => {
-                meta.add_error(Error::expected("tags"));
-                meta.set_original_value(Some(other));
-                Annotated(None, meta)
-            }
-            Annotated(None, meta) => Annotated(None, meta),
-        }
     }
 }
 
