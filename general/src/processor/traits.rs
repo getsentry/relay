@@ -78,6 +78,7 @@ pub trait Processor: Sized {
         }
     }
 
+    #[inline]
     fn before_process<T>(
         &mut self,
         value: Option<&mut T>,
