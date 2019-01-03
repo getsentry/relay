@@ -40,13 +40,8 @@ impl Processor for SchemaProcessor {
         verify_value_nonempty(value, meta, state)
     }
 
-    fn before_process<T>(
-        &mut self,
-        value: Option<&mut T>,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) {
-        if state.attrs().required && value.is_none() && !meta.has_errors() {
+    fn process_none(&mut self, meta: &mut Meta, state: &ProcessingState<'_>) {
+        if state.attrs().required && !meta.has_errors() {
             meta.add_error(ErrorKind::MissingAttribute);
         }
     }

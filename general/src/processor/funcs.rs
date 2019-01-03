@@ -11,6 +11,9 @@ pub fn process_value<T, P>(
     T: ProcessValue,
     P: Processor,
 {
-    processor.before_process(annotated.0.as_mut(), &mut annotated.1, state);
+    if annotated.value().is_none() {
+        processor.process_none(annotated.meta_mut(), state);
+    }
+
     annotated.apply(|value, meta| ProcessValue::process_value(value, meta, processor, state))
 }

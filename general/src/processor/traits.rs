@@ -79,13 +79,7 @@ pub trait Processor: Sized {
     }
 
     #[inline]
-    fn before_process<T>(
-        &mut self,
-        value: Option<&mut T>,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) {
-    }
+    fn process_none(&mut self, meta: &mut Meta, state: &ProcessingState<'_>) {}
 }
 
 /// A recursively processable value.
