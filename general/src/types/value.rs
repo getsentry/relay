@@ -5,7 +5,7 @@ use std::str;
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
-use crate::types::{Annotated, Meta};
+use crate::types::Annotated;
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
@@ -22,7 +22,6 @@ pub type Timestamp = chrono::DateTime<chrono::Utc>;
 /// Represents a boxed value.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
-    Null,
     Bool(bool),
     I64(i64),
     U64(u64),
@@ -38,7 +37,6 @@ pub struct ValueDescription<'a>(&'a Value);
 impl<'a> fmt::Display for ValueDescription<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self.0 {
-            Value::Null => f.pad("null"),
             Value::Bool(true) => f.pad("true"),
             Value::Bool(false) => f.pad("false"),
             Value::I64(val) => write!(f, "integer {}", val),
@@ -64,6 +62,34 @@ impl Value {
             _ => None,
         }
     }
+
+    /// Constructs a `Value` from a `serde_json::Value` object.
+    fn from_json(value: serde_json::Value) -> Option<Self> {
+        Some(match value {
+            serde_json::Value::Null => return None,
+            serde_json::Value::Bool(value) => Value::Bool(value),
+            serde_json::Value::Number(num) => {
+                if let Some(val) = num.as_i64() {
+                    Value::I64(val)
+                } else if let Some(val) = num.as_u64() {
+                    Value::U64(val)
+                } else if let Some(val) = num.as_f64() {
+                    Value::F64(val)
+                } else {
+                    /// NB: Without the "arbitrary_precision" feature, serde_json's number will
+                    /// always be one of the above.
+                    unreachable!()
+                }
+            }
+            serde_json::Value::String(val) => Value::String(val),
+            serde_json::Value::Array(items) => {
+                Value::Array(items.into_iter().map(From::from).collect())
+            }
+            serde_json::Value::Object(items) => {
+                Value::Object(items.into_iter().map(|(k, v)| (k, From::from(v))).collect())
+            }
+        })
+    }
 }
 
 impl Serialize for Value {
@@ -72,7 +98,6 @@ impl Serialize for Value {
         S: Serializer,
     {
         match *self {
-            Value::Null => serializer.serialize_unit(),
             Value::Bool(val) => serializer.serialize_bool(val),
             Value::I64(val) => serializer.serialize_i64(val),
             Value::U64(val) => serializer.serialize_u64(val),
@@ -103,47 +128,15 @@ impl Serialize for Value {
     }
 }
 
-impl From<serde_json::Value> for Value {
-    fn from(value: serde_json::Value) -> Value {
-        match value {
-            serde_json::Value::Null => Value::Null,
-            serde_json::Value::Bool(value) => Value::Bool(value),
-            serde_json::Value::Number(num) => {
-                if let Some(val) = num.as_i64() {
-                    Value::I64(val)
-                } else if let Some(val) = num.as_u64() {
-                    Value::U64(val)
-                } else if let Some(val) = num.as_f64() {
-                    Value::F64(val)
-                } else {
-                    Value::Null
-                }
-            }
-            serde_json::Value::String(val) => Value::String(val),
-            serde_json::Value::Array(items) => {
-                Value::Array(items.into_iter().map(From::from).collect())
-            }
-            serde_json::Value::Object(items) => {
-                Value::Object(items.into_iter().map(|(k, v)| (k, From::from(v))).collect())
-            }
-        }
-    }
-}
-
 impl From<serde_json::Value> for Annotated<Value> {
     fn from(value: serde_json::Value) -> Annotated<Value> {
-        let value: Value = value.into();
-        match value {
-            Value::Null => Annotated(None, Meta::default()),
-            other => Annotated(Some(other), Meta::default()),
-        }
+        Annotated::from(Value::from_json(value))
     }
 }
 
 impl From<Value> for serde_json::Value {
     fn from(value: Value) -> serde_json::Value {
         match value {
-            Value::Null => serde_json::Value::Null,
             Value::Bool(value) => serde_json::Value::Bool(value),
             Value::I64(value) => serde_json::Value::Number(value.into()),
             Value::U64(value) => serde_json::Value::Number(value.into()),
@@ -164,12 +157,6 @@ impl From<Value> for serde_json::Value {
 impl From<Annotated<Value>> for serde_json::Value {
     fn from(value: Annotated<Value>) -> serde_json::Value {
         value.0.map(From::from).unwrap_or(serde_json::Value::Null)
-    }
-}
-
-impl From<()> for Value {
-    fn from(_: ()) -> Self {
-        Value::Null
     }
 }
 
@@ -275,21 +262,11 @@ impl<'de> Deserialize<'de> for Value {
             }
 
             #[inline]
-            fn visit_none<E>(self) -> Result<Value, E> {
-                Ok(Value::Null)
-            }
-
-            #[inline]
             fn visit_some<D>(self, deserializer: D) -> Result<Value, D::Error>
             where
                 D: serde::Deserializer<'de>,
             {
                 Deserialize::deserialize(deserializer)
-            }
-
-            #[inline]
-            fn visit_unit<E>(self) -> Result<Value, E> {
-                Ok(Value::Null)
             }
 
             #[inline]
@@ -299,7 +276,7 @@ impl<'de> Deserialize<'de> for Value {
             {
                 let mut vec = Vec::new();
                 while let Some(elem) = visitor.next_element()? {
-                    vec.push(Annotated::new(elem));
+                    vec.push(Annotated(elem, Default::default()));
                 }
                 Ok(Value::Array(vec))
             }
@@ -310,7 +287,7 @@ impl<'de> Deserialize<'de> for Value {
             {
                 let mut values = Map::new();
                 while let Some((key, value)) = visitor.next_entry()? {
-                    values.insert(key, Annotated::new(value));
+                    values.insert(key, Annotated(value, Default::default()));
                 }
                 Ok(Value::Object(values))
             }

@@ -190,7 +190,6 @@ impl FromValue for Mechanism {
                     })
                 }
             }
-            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("exception mechanism"));
                 meta.set_original_value(Some(value));

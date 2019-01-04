@@ -227,7 +227,6 @@ impl ProcessValue for Value {
     #[inline]
     fn value_type(&self) -> Option<ValueType> {
         match self {
-            Value::Null => None,
             Value::Bool(_) => Some(ValueType::Boolean),
             Value::I64(_) => Some(ValueType::Number),
             Value::U64(_) => Some(ValueType::Number),
@@ -249,7 +248,6 @@ impl ProcessValue for Value {
         P: Processor,
     {
         match self {
-            Value::Null => Default::default(),
             Value::Bool(value) => ProcessValue::process_value(value, meta, processor, state),
             Value::I64(value) => ProcessValue::process_value(value, meta, processor, state),
             Value::U64(value) => ProcessValue::process_value(value, meta, processor, state),

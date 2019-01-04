@@ -30,7 +30,6 @@ macro_rules! derive_from_value {
             fn from_value(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::$meta_type(value)), meta) => Annotated(Some(value), meta),
-                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(None, meta) => Annotated(None, meta),
                     Annotated(Some(value), mut meta) => {
                         meta.add_error(Error::expected($expectation));
@@ -165,7 +164,6 @@ where
                 Some(items.into_iter().map(FromValue::from_value).collect()),
                 meta,
             ),
-            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("object"));
@@ -247,7 +245,6 @@ where
                 ),
                 meta,
             ),
-            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("object"));
@@ -304,7 +301,6 @@ where
 impl Empty for Value {
     fn is_empty(&self) -> bool {
         match self {
-            Value::Null => true,
             Value::Bool(_) => false,
             Value::I64(_) => false,
             Value::U64(_) => false,
@@ -317,7 +313,6 @@ impl Empty for Value {
 
     fn is_deep_empty(&self) -> bool {
         match self {
-            Value::Null => true,
             Value::Bool(_) => false,
             Value::I64(_) => false,
             Value::U64(_) => false,
@@ -410,7 +405,6 @@ impl FromValue for DateTime<Utc> {
                 let micros = (ts.fract() * 1_000_000f64) as u32;
                 Annotated(Some(Utc.timestamp_opt(secs, micros * 1000).unwrap()), meta)
             }
-            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("timestamp"));

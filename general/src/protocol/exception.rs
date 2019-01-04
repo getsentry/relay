@@ -104,3 +104,22 @@ fn test_coerces_object_value_to_string() {
     assert_eq_dbg!(exception, Annotated::from_json(input).unwrap());
     assert_eq_str!(output, exception.to_json().unwrap());
 }
+
+#[test]
+fn test_explicit_none() {
+    let json = r#"{
+  "value": null,
+  "type": "ZeroDivisionError"
+}"#;
+
+    let exception = Annotated::new(Exception {
+        ty: Annotated::new("ZeroDivisionError".to_string()),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(exception, Annotated::from_json(json).unwrap());
+    assert_eq_str!(
+        r#"{"type":"ZeroDivisionError"}"#,
+        exception.to_json().unwrap()
+    );
+}

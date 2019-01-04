@@ -142,3 +142,15 @@ fn test_user_roundtrip() {
     assert_eq_dbg!(user, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, user.to_json_pretty().unwrap());
 }
+
+#[test]
+fn test_explicit_none() {
+    let json = r#"{
+  "id": null
+}"#;
+
+    let user = Annotated::new(User::default());
+
+    assert_eq_dbg!(user, Annotated::from_json(json).unwrap());
+    assert_eq_str!("{}", user.to_json_pretty().unwrap());
+}

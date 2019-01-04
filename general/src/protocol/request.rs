@@ -50,7 +50,6 @@ impl FromValue for Cookies {
             | annotated @ Annotated(Some(Value::Array(_)), _) => {
                 PairList::from_value(annotated).map_value(Cookies)
             }
-            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("cookies"));
@@ -179,7 +178,6 @@ impl FromValue for Query {
             | annotated @ Annotated(Some(Value::Array(_)), _) => {
                 FromValue::from_value(annotated).map_value(Query)
             }
-            Annotated(Some(Value::Null), meta) => Annotated(None, meta),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("query-string or map"));

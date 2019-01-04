@@ -11,7 +11,6 @@ macro_rules! derive_string_meta_structure {
                             Annotated(None, meta)
                         }
                     },
-                    Annotated(Some(Value::Null), meta) => Annotated(None, meta),
                     Annotated(None, meta) => Annotated(None, meta),
                     Annotated(Some(value), mut meta) => {
                         meta.add_error(crate::types::Error::expected($expectation));

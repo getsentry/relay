@@ -251,7 +251,7 @@ fn test_frame_vars_null_preserved() {
     let frame = Annotated::new(Frame {
         vars: Annotated::new({
             let mut vars = Object::new();
-            vars.insert("despacito".to_string(), Annotated::new(Value::Null));
+            vars.insert("despacito".to_string(), Annotated::empty());
             vars
         }),
         ..Default::default()
@@ -272,7 +272,7 @@ fn test_frame_vars_empty_annotated_is_serialized() {
     let frame = Annotated::new(Frame {
         vars: Annotated::new({
             let mut vars = Object::new();
-            vars.insert("despacito".to_string(), Annotated::new(Value::Null));
+            vars.insert("despacito".to_string(), Annotated::empty());
             vars.insert("despacito2".to_string(), Annotated::empty());
             vars
         }),
