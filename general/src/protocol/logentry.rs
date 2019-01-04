@@ -1,4 +1,4 @@
-use crate::protocol::LenientString;
+use crate::protocol::JsonLenientString;
 use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// A log entry message.
@@ -32,7 +32,7 @@ impl FromValue for LogEntry {
         // add the former as the 'formatted' attribute of the latter.
         // See GH-3248
         match value {
-            x @ Annotated(Some(Value::Object(_)), _) | x @ Annotated(None, _) => {
+            x @ Annotated(Some(Value::Object(_)), _) => {
                 #[derive(Debug, FromValue)]
                 struct Helper {
                     message: Annotated<String>,
@@ -56,9 +56,13 @@ impl FromValue for LogEntry {
                     },
                 )
             }
+            Annotated(None, meta) => Annotated(None, meta),
+            // The next two cases handle the legacy top-level `message` attribute, which was sent as
+            // literal string, false (which should be ignored) or even as deep JSON object. Sentry
+            // historically JSONified this field.
             Annotated(Some(Value::Bool(false)), _) => Annotated(None, Default::default()),
             x => Annotated::new(LogEntry {
-                formatted: LenientString::from_value(x).map_value(|x| x.into_inner()),
+                formatted: JsonLenientString::from_value(x).map_value(|x| x.into_inner()),
                 ..Default::default()
             }),
         }

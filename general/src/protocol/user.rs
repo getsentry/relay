@@ -1,4 +1,4 @@
-use crate::protocol::{IpAddr, JsonLenientString};
+use crate::protocol::{IpAddr, LenientString};
 use crate::types::{Annotated, Object, Value};
 
 /// Geographical location of the end user or device.
@@ -28,7 +28,7 @@ pub struct Geo {
 pub struct User {
     /// Unique identifier of the user.
     #[metastructure(pii = "true", max_chars = "enumlike")]
-    pub id: Annotated<JsonLenientString>,
+    pub id: Annotated<LenientString>,
 
     /// Email address of the user.
     #[metastructure(pii = "true", max_chars = "email", match_regex = r"@")]
@@ -141,6 +141,34 @@ fn test_user_roundtrip() {
 
     assert_eq_dbg!(user, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, user.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_user_lenient_id() {
+    let input = r#"{"id":42}"#;
+    let output = r#"{"id":"42"}"#;
+    let user = Annotated::new(User {
+        id: Annotated::new("42".to_string().into()),
+        ..User::default()
+    });
+
+    assert_eq_dbg!(user, Annotated::from_json(input).unwrap());
+    assert_eq_str!(output, user.to_json().unwrap());
+}
+
+#[test]
+fn test_user_invalid_id() {
+    use crate::types::Error;
+    let json = r#"{"id":[]}"#;
+    let user = Annotated::new(User {
+        id: Annotated::from_error(
+            Error::expected("primitive value"),
+            Some(Value::Array(vec![])),
+        ),
+        ..User::default()
+    });
+
+    assert_eq_dbg!(user, Annotated::from_json(json).unwrap());
 }
 
 #[test]

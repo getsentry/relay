@@ -594,8 +594,10 @@ impl FromValue for JsonLenientString {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(string)), meta) => Annotated(Some(string.into()), meta),
+            Annotated(Some(other), meta) => {
+                Annotated(Some(serde_json::to_string(&other).unwrap().into()), meta)
+            }
             Annotated(None, meta) => Annotated(None, meta),
-            x => Annotated(Some(x.payload_to_json().unwrap().into()), x.1),
         }
     }
 }
