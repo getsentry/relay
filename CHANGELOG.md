@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+- No longer check required attributes in relay, only in store.
+- store: Minor fixes to be closer to Python. Ability to disable trimming of
+  objects, arrays and strings.
+
 ## 0.3.0
 
 - Changed PII stripping rule format to permit path selectors when applying
