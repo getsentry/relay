@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Fix bug in store that would throw away all context lines.
+
 ## 0.3.1
 
 - No longer check required attributes in relay, only in store.
