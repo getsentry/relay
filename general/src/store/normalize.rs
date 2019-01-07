@@ -425,8 +425,8 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             }
         }
 
-        if frame.context_line.value().is_none() && !frame.pre_context.is_empty()
-            || !frame.post_context.is_empty()
+        if frame.context_line.value().is_none()
+            && (!frame.pre_context.is_empty() || !frame.post_context.is_empty())
         {
             frame.context_line.set_value(Some(String::new()));
         }
@@ -624,6 +624,37 @@ fn test_user_data_moved() {
     });
 
     assert_eq_dbg!(user.other, Object::new());
+}
+
+#[test]
+fn test_context_line_default() {
+    let mut frame = Annotated::new(Frame {
+        pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
+        post_context: Annotated::new(vec![Annotated::new("".to_string()), Annotated::default()]),
+        ..Frame::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut frame, &mut processor, ProcessingState::root());
+
+    let frame = frame.value().unwrap();
+    assert_eq_dbg!(frame.context_line.as_str(), Some(""));
+}
+
+#[test]
+fn test_context_line_retain() {
+    let mut frame = Annotated::new(Frame {
+        pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
+        post_context: Annotated::new(vec![Annotated::new("".to_string()), Annotated::default()]),
+        context_line: Annotated::new("some line".to_string()),
+        ..Frame::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut frame, &mut processor, ProcessingState::root());
+
+    let frame = frame.value().unwrap();
+    assert_eq_dbg!(frame.context_line.as_str(), Some("some line"));
 }
 
 #[test]
