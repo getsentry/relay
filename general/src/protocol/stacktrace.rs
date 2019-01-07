@@ -52,6 +52,10 @@ pub struct Frame {
     /// Column number within the source file.
     pub colno: Annotated<u64>,
 
+    /// Which platform this frame is from.
+    #[metastructure(skip_serialization = "empty")]
+    pub platform: Annotated<String>,
+
     /// Source code leading up to the current line.
     #[metastructure(skip_serialization = "empty")]
     pub pre_context: Annotated<Array<String>>,
@@ -115,6 +119,7 @@ fn test_frame_roundtrip() {
   "abs_path": "/path/to",
   "lineno": 2,
   "colno": 42,
+  "platform": "rust",
   "pre_context": [
     "fn main() {"
   ],
@@ -141,6 +146,7 @@ fn test_frame_roundtrip() {
         abs_path: Annotated::new("/path/to".to_string()),
         lineno: Annotated::new(2),
         colno: Annotated::new(42),
+        platform: Annotated::new("rust".to_string()),
         pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
         context_line: Annotated::new("unimplemented!()".to_string()),
         post_context: Annotated::new(vec![Annotated::new("}".to_string())]),
