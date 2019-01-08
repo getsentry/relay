@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3
+
+- store: Minor fixes to be closer to Python.
+
 ## 0.3.2
 
 - Fix bug in store that would throw away all context lines.
