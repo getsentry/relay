@@ -199,6 +199,9 @@ impl Default for Metrics {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Limits {
+    /// How many events can be sent concurrently before Relay starts dropping. This is a limit
+    /// independent of and in addition to any rate limits upstream enforces.
+    max_active_events: usize,
     /// The maximum payload size for events.
     max_event_payload_size: ByteSize,
     /// The maximum payload size for general API requests.
@@ -212,6 +215,7 @@ struct Limits {
 impl Default for Limits {
     fn default() -> Self {
         Limits {
+            max_active_events: 20,
             max_event_payload_size: ByteSize::from_kilobytes(256),
             max_api_payload_size: ByteSize::from_megabytes(20),
             max_api_file_upload_size: ByteSize::from_megabytes(40),
@@ -623,6 +627,11 @@ impl Config {
     /// Returns the maximum payload size for chunks
     pub fn max_api_chunk_upload_size(&self) -> usize {
         self.values.limits.max_api_chunk_upload_size.as_bytes() as usize
+    }
+
+    /// Returns the maximum number of active events
+    pub fn max_active_events(&self) -> usize {
+        self.values.limits.max_active_events
     }
 
     /// Return the Sentry DSN if reporting to Sentry is enabled.

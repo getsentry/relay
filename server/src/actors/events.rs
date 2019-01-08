@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use ::actix::prelude::*;
+use ::actix::fut::result;
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
 use futures::prelude::*;
@@ -46,6 +47,9 @@ macro_rules! clone {
 pub enum EventError {
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] serde_json::Error),
+
+    #[fail(display = "Too many active events (max_active_events reached)")]
+    TooManyActiveEvents
 }
 
 #[derive(Debug, Fail)]
@@ -189,6 +193,7 @@ pub struct EventManager {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     processor: Addr<EventProcessor>,
+    current_active_events: usize,
     shutdown: SyncHandle,
 }
 
@@ -204,6 +209,7 @@ impl EventManager {
             config,
             upstream,
             processor,
+            current_active_events: 0,
             shutdown: SyncHandle::new(),
         }
     }
@@ -262,6 +268,12 @@ impl Handler<QueueEvent> for EventManager {
             .map(|event| event.id)
             .map_err(EventError::InvalidJson)?
             .unwrap_or_else(|| EventId(Uuid::new_v4()));
+
+        if self.config.max_active_events() <= self.current_active_events {
+            return Err(EventError::TooManyActiveEvents);
+        }
+
+        self.current_active_events += 1;
 
         // Actual event handling is performed asynchronously in a separate future. The lifetime of
         // that future will be tied to the EventManager's context. This allows to keep the Project
@@ -389,6 +401,10 @@ impl Handler<HandleEvent> for EventManager {
             .map_err(move |error, _, _| {
                 log::warn!("error processing event {}: {}", event_id, LogError(&error));
                 metric!(counter("event.rejected") += 1);
+            })
+            .then(|x, slf, _| {
+                slf.current_active_events -= 1;
+                result(x)
             });
 
         Box::new(future)

@@ -127,3 +127,12 @@ def test_static_config(mini_sentry, relay):
         raise AssertionError(
             f"Exceptions happened in mini_sentry: {mini_sentry.test_failures}"
         )
+
+
+def test_max_active_events(mini_sentry, relay):
+    relay = relay(mini_sentry, {"limits": {"max_active_events": 0}})
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[42] = relay.basic_project_config()
+
+    relay.send_event(42, {"message": "pls ignore"})
+    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=5))
