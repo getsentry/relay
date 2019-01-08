@@ -481,6 +481,11 @@ impl ProjectCache {
     /// This assumes that currently no request is running. If the upstream request fails or new
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_states(&mut self, context: &mut Context<Self>) {
+        if self.state_channels.is_empty() {
+            log::error!("project state update scheduled without projects");
+            return;
+        }
+
         let channels = mem::replace(&mut self.state_channels, HashMap::new());
         log::debug!(
             "updating project states for {} projects (attempt {})",
@@ -687,16 +692,16 @@ impl Handler<FetchProjectState> for ProjectCache {
     type Result = Response<ProjectStateResponse, ()>;
 
     fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
-        if !self.backoff.started() {
-            self.backoff.reset();
-            self.schedule_fetch(context);
-        }
-
         if let Some(state) = self.local_states.get(&message.id) {
             return Response::ok(ProjectStateResponse {
                 state: state.clone(),
                 is_local: true,
             });
+        }
+
+        if !self.backoff.started() {
+            self.backoff.reset();
+            self.schedule_fetch(context);
         }
 
         let (sender, receiver) = oneshot::channel();

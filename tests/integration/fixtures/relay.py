@@ -36,7 +36,7 @@ class Relay(SentryLike):
 
 @pytest.fixture
 def relay(tmpdir, mini_sentry, request, random_port, background_process, config_dir):
-    def inner(upstream, options=None):
+    def inner(upstream, options=None, prepare=None):
         host = "127.0.0.1"
         port = random_port()
 
@@ -49,7 +49,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                 "tls_private_key": None,
                 "tls_cert": None,
             },
-            "sentry": {"dsn": mini_sentry.internal_error_dsn},
+            "sentry": {"dsn": mini_sentry.internal_error_dsn, "enabled": True},
             "limits": {"max_api_file_upload_size": "1MiB"},
             "cache": {"batch_interval": 0},
             "logging": {"level": "trace"},
@@ -66,6 +66,9 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
         output = subprocess.check_output(
             SEMAPHORE_BIN + ["-c", str(dir), "credentials", "generate"]
         )
+
+        if prepare is not None:
+            prepare(dir)
 
         process = background_process(SEMAPHORE_BIN + ["-c", str(dir), "run"])
 
