@@ -30,7 +30,6 @@ before_install:
   - export PATH=~/.cargo/bin/:$PATH
 
 install: skip
-script: make -e $SUITE
 
 matrix:
   fast_finish: true
@@ -40,10 +39,11 @@ matrix:
     # -------------------------------------
 
     - name: "check: codestyle"
-      env: SUITE=format-check
+      script: make -e format-check
 
     - name: "check: lint"
-      env: SUITE=lint
+      script: make -e lint
+
 
     # -------------------------------------
     # RUST TESTS
@@ -51,7 +51,7 @@ matrix:
 
     - name: "test: semaphore[linux]"
       os: linux
-      env: SUITE=cargotest-cov RUST_TOOLCHAIN=nightly
+      env: RUST_TOOLCHAIN=nightly
       sudo: required
       addons:
         apt:
@@ -60,12 +60,14 @@ matrix:
             - libgeoip-dev
       install:
         - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin --git https://github.com/untitaker/tarpaulin --branch fix/upgrade-cargo
+      script:
+        - make -e cargotest-cov
 
     - name: "test: semaphore[macos]"
       os: osx
       language: generic
-      env: SUITE=cargotest
       install: cargo build --all
+      script: make -e cargotest
 
     # -------------------------------------
     # PYTHON LIBRARY TESTS
@@ -73,7 +75,7 @@ matrix:
 
     - name: "test: libsemaphore"
       os: linux
-      env: SUITE=pytest
+      script: make -e pytest
 
     # -------------------------------------
     # EXECUTALE INTEGRATION TESTS
@@ -81,7 +83,6 @@ matrix:
 
     - name: "integration-test: semaphore"
       os: linux
-      env: SUITE=integration-test
       # https://github.com/travis-ci/travis-ci/issues/9831
       sudo: true
       install:
@@ -90,6 +91,8 @@ matrix:
         - sudo add-apt-repository ppa:vbernat/haproxy-1.8 -y
         - sudo apt-get update
         - sudo apt-get install haproxy -y
+      script:
+        - make -e integration-test
 
     # -------------------------------------
     # RUST RELEASE BUILDS
@@ -101,20 +104,20 @@ matrix:
       services:
         - docker
       env:
-        - SUITE=releasebuild-docker
         - BUILD_ARCH=x86_64
-      after_success:
-        - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/octet-stream" -n semaphore-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/semaphore
+      script:
+        - make -e releasebuild-docker
+        - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zeus upload -t "application/octet-stream" -n semaphore-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/semaphore  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         # Build and push image to Dockerhub, on master branch only
-        - bash scripts/push-docker-image.sh
+        - bash scripts/push-docker-image.sh || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     # - os: linux
     #   language: generic
     #   env:
-    #     - SUITE=releasebuild-docker
     #     - BUILD_ARCH=i686
-    #   after_success:
+    #   script:
+    #     - make -e releasebuild-docker
     #     - npm install -g @zeus-ci/cli
     #     - zeus upload -t "application/octet-stream"
     #                   -n semaphore-Linux-i686
@@ -124,10 +127,10 @@ matrix:
       os: osx
       language: generic
       osx_image: xcode9.2
-      env: SUITE=releasebuild
-      after_success:
-        - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/octet-stream" -n semaphore-Darwin-x86_64 target/release/semaphore
+      script:
+        - make -e releasebuild
+        - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zeus upload -t "application/octet-stream" -n semaphore-Darwin-x86_64 target/release/semaphore || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     # -------------------------------------
     # PYTHON RELEASE BUILDS
@@ -136,38 +139,40 @@ matrix:
     - name: "release: libsemaphore[linux-x86]"
       os: linux
       sudo: required
-      env: SUITE=manylinux BUILD_ARCH=i686
+      env: BUILD_ARCH=i686
       language: generic
-      after_success:
-        - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/zip+wheel" py/dist/*
+      script:
+        - make -e manylinux
+        - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: libsemaphore[linux-x86_64]"
       sudo: required
-      env: SUITE=manylinux BUILD_ARCH=x86_64
+      env: BUILD_ARCH=x86_64
       language: generic
-      after_success:
-        - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/zip+wheel" py/dist/*
+      script:
+        - make -e manylinux
+        - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: libsemaphore[macos]"
       os: osx
       language: generic
       osx_image: xcode7.3
-      env: SUITE=wheel SEMAPHORE_PYTHON_VERSION=python
-
-      after_success:
-        - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/zip+wheel" py/dist/*
+      env: SEMAPHORE_PYTHON_VERSION=python
+      script:
+        - make -e wheel
+        - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: libsemaphore[sdist]"
       os: linux
       sudo: required
-      env: SUITE=sdist
       language: generic
-      after_success:
-        - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/zip+wheel" py/dist/*
+      script:
+        - make -e sdist
+        - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
 notifications:
   webhooks:
