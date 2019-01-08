@@ -104,6 +104,7 @@ def test_rate_limit(mini_sentry, relay):
         "formatted": "correct"
     }
 
+
 def test_static_config(mini_sentry, relay):
     from time import sleep
     project_config = mini_sentry.basic_project_config()
@@ -115,13 +116,13 @@ def test_static_config(mini_sentry, relay):
 
     relay = relay(mini_sentry, prepare=configure_static_project)
     mini_sentry.project_configs[42] = project_config
-    sleep(1) # There is no upstream auth, so just wait for relay to initialize
+    sleep(1)  # There is no upstream auth, so just wait for relay to initialize
 
     relay.send_event(42)
     event = mini_sentry.captured_events.get(timeout=1)
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
-    sleep(1) # Regression test: Relay tried to issue a request for 0 states
+    sleep(1)  # Regression test: Relay tried to issue a request for 0 states
     if mini_sentry.test_failures:
         raise AssertionError(
             f"Exceptions happened in mini_sentry: {mini_sentry.test_failures}"
