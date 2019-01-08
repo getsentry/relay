@@ -174,8 +174,8 @@ pub enum PublicKeyStatus {
 }
 
 /// These are config values that the user can modify in the UI.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct ProjectConfig {
     /// URLs that are permitted for cross original JavaScript requests.
     pub allowed_domains: Vec<String>,
@@ -183,6 +183,16 @@ pub struct ProjectConfig {
     pub trusted_relays: Vec<PublicKey>,
     /// Configuration for PII stripping.
     pub pii_config: Option<PiiConfig>,
+}
+
+impl Default for ProjectConfig {
+    fn default() -> Self {
+        ProjectConfig {
+            allowed_domains: vec!["*".to_string()],
+            trusted_relays: vec![],
+            pii_config: None,
+        }
+    }
 }
 
 /// The project state is a cached server state of a project.
