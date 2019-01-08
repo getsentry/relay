@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.4
+
+This release was primarily done because publishing 0.3.3 failed.
+
+- Upgrade sentry sdk
+
 ## 0.3.3
 
 - store: Minor fixes to be closer to Python.
