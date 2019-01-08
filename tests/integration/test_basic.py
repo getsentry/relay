@@ -84,8 +84,8 @@ def test_query_retry(failure_type, mini_sentry, relay):
     assert retry_count == 2
 
     if mini_sentry.test_failures:
-        (_, error), = mini_sentry.test_failures
-        assert isinstance(error, socket.error)
+        for (_, error) in mini_sentry.test_failures:
+            assert isinstance(error, (socket.error, AssertionError))
         mini_sentry.test_failures.clear()
 
 
