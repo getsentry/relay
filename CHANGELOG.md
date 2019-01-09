@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.5
+
+- store: Drop internal attributes during normalization (`metadata`, `hashes`)
+- store: Write more stuff into `event.errors`
+- store: Fix `frame.filename` truncation to match python limits
+
 ## 0.3.4
 
 This release was primarily done because publishing 0.3.3 failed.
