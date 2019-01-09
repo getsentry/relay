@@ -215,7 +215,7 @@ struct Limits {
 impl Default for Limits {
     fn default() -> Self {
         Limits {
-            max_concurrent_events: 20,
+            max_concurrent_events: 1000,
             max_event_payload_size: ByteSize::from_kilobytes(256),
             max_api_payload_size: ByteSize::from_megabytes(20),
             max_api_file_upload_size: ByteSize::from_megabytes(40),
