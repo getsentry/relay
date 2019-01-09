@@ -246,9 +246,11 @@ pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, Serve
     let mut server = server::new(move || make_app(state.clone()));
     server = server.shutdown_timeout(SHUTDOWN_TIMEOUT).disable_signals();
 
-    let _connector = ClientConnector::default()
+    let connector = ClientConnector::default()
         .limit(config.max_concurrent_requests())
         .start();
+
+    System::current().registry().set(connector);
 
     server = listen(server, &config)?;
     server = listen_ssl(server, &config)?;
