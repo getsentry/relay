@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use ::actix::prelude::*;
 use ::actix::fut::result;
+use ::actix::prelude::*;
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
 use futures::prelude::*;
@@ -48,8 +48,8 @@ pub enum EventError {
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] serde_json::Error),
 
-    #[fail(display = "Too many active events (max_active_events reached)")]
-    TooManyActiveEvents
+    #[fail(display = "Too many events (max_concurrent_events reached)")]
+    TooManyEvents,
 }
 
 #[derive(Debug, Fail)]
@@ -269,8 +269,8 @@ impl Handler<QueueEvent> for EventManager {
             .map_err(EventError::InvalidJson)?
             .unwrap_or_else(|| EventId(Uuid::new_v4()));
 
-        if self.config.max_active_events() <= self.current_active_events {
-            return Err(EventError::TooManyActiveEvents);
+        if self.config.max_concurrent_events() <= self.current_active_events {
+            return Err(EventError::TooManyEvents);
         }
 
         self.current_active_events += 1;
