@@ -37,7 +37,7 @@ pub struct Frame {
     pub package: Annotated<String>,
 
     /// The source file name (basename only).
-    #[metastructure(pii = "true", max_chars = "short_path")]
+    #[metastructure(pii = "true", max_chars = "path")]
     #[metastructure(skip_serialization = "empty")]
     pub filename: Annotated<String>,
 
