@@ -155,6 +155,7 @@ def test_max_concurrent_requests(mini_sentry, relay):
         assert not processing_store
 
         processing_store = True
+        # sleep long, but less than event_buffer_expiry
         sleep(0.5)
         store_count.release()
         sleep(0.5)
@@ -162,7 +163,13 @@ def test_max_concurrent_requests(mini_sentry, relay):
 
         return "ok"
 
-    relay = relay(mini_sentry, {"limits": {"max_concurrent_requests": 1}})
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"max_concurrent_requests": 1},
+            "cache": {"event_buffer_expiry": 2},
+        },
+    )
     relay.wait_relay_healthcheck()
 
     relay.send_event(42)
