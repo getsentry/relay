@@ -306,10 +306,6 @@ pub struct Event {
     #[metastructure(max_chars = "hash")]
     pub checksum: Annotated<String>,
 
-    /// Hashes computed from fingerprints.
-    #[metastructure(skip_serialization = "empty_deep")]
-    pub hashes: Annotated<Array<String>>,
-
     /// CSP (security) reports.
     // TODO: typing
     #[metastructure(legacy_alias = "sentry.interfaces.Csp")]

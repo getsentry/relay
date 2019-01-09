@@ -19,6 +19,10 @@ impl Processor for RemoveOtherProcessor {
         // Move the current map out so we don't clear it in `process_other`
         let mut other = std::mem::replace(&mut event.other, Default::default());
 
+        // Drop Sentry internal attributes
+        other.remove("metadata");
+        other.remove("hashes");
+
         // Drop known legacy attributes at top-level without errors
         other.remove("applecrashreport");
         other.remove("device");
