@@ -193,7 +193,7 @@ pub struct EventManager {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     processor: Addr<EventProcessor>,
-    current_active_events: usize,
+    current_active_events: u32,
     shutdown: SyncHandle,
 }
 
@@ -269,7 +269,7 @@ impl Handler<QueueEvent> for EventManager {
             .map_err(EventError::InvalidJson)?
             .unwrap_or_else(|| EventId(Uuid::new_v4()));
 
-        if self.config.max_concurrent_events() <= self.current_active_events {
+        if self.config.event_buffer_size() <= self.current_active_events {
             return Err(EventError::TooManyEvents);
         }
 

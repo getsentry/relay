@@ -199,9 +199,8 @@ impl Default for Metrics {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Limits {
-    /// How many events can be sent concurrently before Relay starts dropping. This is a limit
-    /// independent of and in addition to any rate limits upstream enforces.
-    max_concurrent_events: usize,
+    /// How many requests can be sent concurrently before Relay starts buffering.
+    max_concurrent_requests: usize,
     /// The maximum payload size for events.
     max_event_payload_size: ByteSize,
     /// The maximum payload size for general API requests.
@@ -215,7 +214,7 @@ struct Limits {
 impl Default for Limits {
     fn default() -> Self {
         Limits {
-            max_concurrent_events: 1000,
+            max_concurrent_requests: 100,
             max_event_payload_size: ByteSize::from_kilobytes(256),
             max_api_payload_size: ByteSize::from_megabytes(20),
             max_api_file_upload_size: ByteSize::from_megabytes(40),
@@ -256,6 +255,8 @@ struct Cache {
     relay_expiry: u32,
     /// The cache timeout for events (store) before dropping them.
     event_expiry: u32,
+    /// The maximum amount of events to queue before dropping them.
+    event_buffer_size: u32,
     /// The cache timeout for non-existing entries.
     miss_expiry: u32,
     /// The buffer timeout for batched queries before sending them upstream in ms.
@@ -270,6 +271,7 @@ impl Default for Cache {
             project_expiry: 300, // 5 minutes
             relay_expiry: 3600,  // 1 hour
             event_expiry: 600,   // 10 minutes
+            event_buffer_size: 1000,
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
             file_interval: 10,   // 10 seconds
@@ -593,6 +595,11 @@ impl Config {
         Duration::from_secs(self.values.cache.event_expiry.into())
     }
 
+    /// Returns the maximum number of buffered events
+    pub fn event_buffer_size(&self) -> u32 {
+        self.values.cache.event_buffer_size
+    }
+
     /// Returns the expiry timeout for cached misses before trying to refetch.
     pub fn cache_miss_expiry(&self) -> Duration {
         Duration::from_secs(self.values.cache.miss_expiry.into())
@@ -630,8 +637,8 @@ impl Config {
     }
 
     /// Returns the maximum number of active events
-    pub fn max_concurrent_events(&self) -> usize {
-        self.values.limits.max_concurrent_events
+    pub fn max_concurrent_requests(&self) -> usize {
+        self.values.limits.max_concurrent_requests
     }
 
     /// Return the Sentry DSN if reporting to Sentry is enabled.
