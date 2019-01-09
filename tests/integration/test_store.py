@@ -151,7 +151,6 @@ def test_max_concurrent_requests(mini_sentry, relay):
     @mini_sentry.app.endpoint("store_event")
     def store_event():
         nonlocal processing_store
-        nonlocal store_event
         assert not processing_store
 
         processing_store = True
