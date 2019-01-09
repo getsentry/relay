@@ -636,7 +636,7 @@ impl Config {
         self.values.limits.max_api_chunk_upload_size.as_bytes() as usize
     }
 
-    /// Returns the maximum number of active events
+    /// Returns the maximum number of active requests
     pub fn max_concurrent_requests(&self) -> usize {
         self.values.limits.max_concurrent_requests
     }
