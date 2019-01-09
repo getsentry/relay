@@ -36,7 +36,7 @@ enum BadStoreRequest {
     #[fail(display = "failed to fetch project information")]
     ProjectFailed(#[cause] ProjectError),
 
-    #[fail(display = "failed to process event: {}", _0)]
+    #[fail(display = "failed to process event")]
     ProcessingFailed(#[cause] EventError),
 
     #[fail(display = "failed to read request body")]
