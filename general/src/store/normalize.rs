@@ -248,8 +248,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        event.process_child_values(self, state);
-
         // Override internal attributes, even if they were set in the payload
         event.project = Annotated::from(self.config.project_id);
         event.key_id = Annotated::from(self.config.key_id.clone());
@@ -285,6 +283,8 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         event
             .stacktrace
             .apply(stacktrace::process_non_raw_stacktrace);
+
+        event.process_child_values(self, state);
 
         ValueAction::Keep
     }
@@ -712,5 +712,59 @@ fn test_too_long_tags() {
             )]
             .into()
         ))
+    );
+}
+
+#[test]
+fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
+    use crate::protocol::Values;
+    let mut event = Annotated::new(Event {
+        exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
+            ty: Annotated::new("FooDivisionError".to_string()),
+            value: Annotated::new("hi".to_string().into()),
+            ..Default::default()
+        })])),
+        stacktrace: Annotated::new(Stacktrace {
+            frames: Annotated::new(vec![Annotated::new(Frame {
+                module: Annotated::new("MyModule".to_string()),
+                filename: Annotated::new("MyFilename".to_string()),
+                function: Annotated::new("Void FooBar()".to_string()),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    let expected = Annotated::new(Stacktrace {
+        frames: Annotated::new(vec![Annotated::new(Frame {
+            module: Annotated::new("MyModule".to_string()),
+            filename: Annotated::new("MyFilename".to_string()),
+            abs_path: Annotated::new("MyFilename".to_string()),
+            function: Annotated::new("Void FooBar()".to_string()),
+            ..Default::default()
+        })]),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(
+        event
+            .value()
+            .unwrap()
+            .exceptions
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()
+            .get(0)
+            .unwrap()
+            .value()
+            .unwrap()
+            .stacktrace,
+        expected
     );
 }
