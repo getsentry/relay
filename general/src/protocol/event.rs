@@ -137,14 +137,18 @@ impl ProcessValue for EventType {}
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct EventProcessingError {
     #[metastructure(field = "type", required = "true")]
-    /// Error type, see src/sentry/models/eventerror.py
+    /// The error kind.
     pub ty: Annotated<String>,
 
-    /// Affected key
+    /// Affected key or deep path.
     pub name: Annotated<String>,
 
-    /// Faulty value
+    /// The original value causing this error.
     pub value: Annotated<Value>,
+
+    /// Additional data explaining this error.
+    #[metastructure(additional_properties, pii = "true")]
+    pub other: Object<Value>,
 }
 
 /// The sentry v7 event structure.

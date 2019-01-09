@@ -8,6 +8,7 @@ use crate::processor::{ProcessingState, Processor};
 use crate::protocol::Event;
 use crate::types::{Meta, ValueAction};
 
+mod event_error;
 mod geo;
 mod normalize;
 mod remove_other;
@@ -69,6 +70,8 @@ impl<'a> Processor for StoreProcessor<'a> {
             .and_then(|| self.normalize.process_event(event, meta, state))
             // Remove unknown attributes at every level
             .and_then(|| remove_other::RemoveOtherProcessor.process_event(event, meta, state))
+            // Add event errors for top-level keys
+            .and_then(|| event_error::EmitEventErrors::new().process_event(event, meta, state))
             // Trim large strings and databags down
             .and_then(|| match self.config.enable_trimming {
                 Some(false) => ValueAction::Keep,

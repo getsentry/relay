@@ -31,6 +31,9 @@ macro_rules! process_method {
 
 /// A trait for processing processable values.
 pub trait Processor: Sized {
+    #[inline]
+    fn process_any(&mut self, is_some: bool, meta: &mut Meta, state: &ProcessingState<'_>) {}
+
     process_method!(process_string, String);
     process_method!(process_u64, u64);
     process_method!(process_i64, i64);
@@ -77,9 +80,6 @@ pub trait Processor: Sized {
             );
         }
     }
-
-    #[inline]
-    fn process_none(&mut self, meta: &mut Meta, state: &ProcessingState<'_>) {}
 }
 
 /// A recursively processable value.

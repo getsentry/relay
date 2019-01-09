@@ -238,7 +238,7 @@ impl<'de> Deserialize<'de> for ErrorKind {
             type Value = ErrorKind;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(formatter, "a meta remark")
+                write!(formatter, "an error kind")
             }
 
             fn visit_str<E>(self, string: &str) -> Result<Self::Value, E>
@@ -318,6 +318,11 @@ impl Error {
     /// Returns the kind of this error.
     pub fn kind(&self) -> &ErrorKind {
         &self.kind
+    }
+
+    /// Returns an iterator over the data of this error.
+    pub fn data(&self) -> impl Iterator<Item = (&str, &Value)> {
+        self.data.iter().map(|(k, v)| (k.as_str(), v))
     }
 
     /// Inserts a new key into the data bag of this error.
