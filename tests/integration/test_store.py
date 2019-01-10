@@ -114,7 +114,8 @@ def test_static_config(mini_sentry, relay):
         os.makedirs(dir.join("projects"))
         dir.join("projects").join("42.json").write(json.dumps(project_config))
 
-    relay = relay(mini_sentry, prepare=configure_static_project)
+    relay_options = {'relay': {'mode': 'static'}}
+    relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
     mini_sentry.project_configs[42] = project_config
     sleep(1)  # There is no upstream auth, so just wait for relay to initialize
 

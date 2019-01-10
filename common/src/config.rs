@@ -105,7 +105,7 @@ impl ConfigObject for Credentials {
 
 /// The operation mode of a relay.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(rename = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub enum RelayMode {
     /// This relay acts as a proxy for all requests and events.
     ///
