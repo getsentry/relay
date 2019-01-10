@@ -349,8 +349,6 @@ pub struct MinimalSentry {
 pub struct MinimalConfig {
     /// The relay part of the config.
     pub relay: Relay,
-    /// Turn on crash reporting?
-    pub sentry: MinimalSentry,
 }
 
 impl MinimalConfig {

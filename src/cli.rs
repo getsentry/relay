@@ -244,13 +244,14 @@ pub fn init_config<'a, P: AsRef<Path>>(
             }
         }
 
-        mincfg.sentry.enabled = Select::with_theme(get_theme())
-            .with_prompt("Do you want to enable internal crash reporting?")
-            .default(0)
-            .item("Yes, share relay internal crash reports with sentry.io")
-            .item("No, do not share crash reports")
-            .interact()?
-            == 0;
+        // TODO: Enable this once logging to Sentry is more useful.
+        // mincfg.sentry.enabled = Select::with_theme(get_theme())
+        //     .with_prompt("Do you want to enable internal crash reporting?")
+        //     .default(0)
+        //     .item("Yes, share relay internal crash reports with sentry.io")
+        //     .item("No, do not share crash reports")
+        //     .interact()?
+        //     == 0;
 
         mincfg.save_in_folder(&config_path)?;
         done_something = true;
