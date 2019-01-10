@@ -184,7 +184,7 @@ fn test_url_with_ellipsis() {
     };
 
     normalize_request(&mut request, None);
-    assert_eq_dbg!(request.url.as_str(), Some("http://example.com/path…"));
+    assert_eq_dbg!(request.url.as_str(), Some("http://example.com/path..."));
 }
 
 #[test]
