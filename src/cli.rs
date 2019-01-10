@@ -258,20 +258,10 @@ pub fn init_config<'a, P: AsRef<Path>>(
 
     let mut config = Config::from_path(&config_path)?;
     if config.relay_mode() == RelayMode::Managed && !config.has_credentials() {
-        let should_create = Select::with_theme(get_theme())
-            .with_prompt("There are currently no credentials set up. Do you want to create them?")
-            .default(0)
-            .item("No, just use relay without setting up credentials (simple proxy mode, recommended)")
-            .item("Yes, set up relay with credentials (currently requires own Sentry installation)")
-            .interact()?
-            == 1;
-
-        if should_create {
-            config.regenerate_credentials()?;
-            println!("Generated new credentials");
-            setup::dump_credentials(&config);
-            done_something = true;
-        }
+        config.regenerate_credentials()?;
+        println!("Generated new credentials");
+        setup::dump_credentials(&config);
+        done_something = true;
     }
 
     if done_something {
