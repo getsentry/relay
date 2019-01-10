@@ -103,10 +103,37 @@ impl ConfigObject for Credentials {
     }
 }
 
+/// The operation mode of a relay.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename = "camelCase")]
+pub enum RelayMode {
+    /// This relay acts as a proxy for all requests and events.
+    ///
+    /// Events are normalized and rate limits from the upstream are enforced, but the relay will not
+    /// fetch project configurations from the upstream or perform PII stripping. All events are
+    /// accepted unless overridden on the file system.
+    Proxy,
+
+    /// This relay is configured statically in the file system.
+    ///
+    /// Events are only accepted for projects configured statically in the file system. All other
+    /// events are rejected. If configured, PII stripping is also performed on those events.
+    Static,
+
+    /// Project configurations are managed by the upstream.
+    ///
+    /// Project configurations are always fetched from the upstream, unless they are statically
+    /// overridden in the file system. This relay must be white-listed in the upstream Sentry. This
+    /// is only possible, if the upstream is Sentry directly, or another managed Relay.
+    Managed,
+}
+
 /// Relay specific configuration values.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Relay {
+    /// The operation mode of this relay.
+    pub mode: RelayMode,
     /// The upstream relay or sentry instance.
     pub upstream: UpstreamDescriptor<'static>,
     /// The host the relay should bind to (network interface).
@@ -124,6 +151,7 @@ pub struct Relay {
 impl Default for Relay {
     fn default() -> Self {
         Relay {
+            mode: RelayMode::Managed,
             upstream: "https://ingest.sentry.io/"
                 .parse::<UpstreamDescriptor<'_>>()
                 .unwrap(),
@@ -478,6 +506,11 @@ impl Config {
     /// Returns the relay ID.
     pub fn relay_id(&self) -> Option<&RelayId> {
         self.credentials.as_ref().map(|x| &x.id)
+    }
+
+    /// Returns the relay mode.
+    pub fn relay_mode(&self) -> RelayMode {
+        self.values.relay.mode
     }
 
     /// Returns the upstream target as descriptor.

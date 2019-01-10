@@ -18,7 +18,7 @@ use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use semaphore_common::{Config, ProjectId, PublicKey, RetryBackoff, Uuid};
+use semaphore_common::{Config, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
 use semaphore_general::pii::PiiConfig;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
@@ -79,11 +79,13 @@ impl Project {
             }
         }
 
-        log::debug!("project {} state requested", self.id);
-
         let channel = match self.state_channel {
-            Some(ref channel) => channel.clone(),
+            Some(ref channel) => {
+                log::debug!("project {} state request amended", self.id);
+                channel.clone()
+            }
             None => {
+                log::debug!("project {} state requested", self.id);
                 let channel = self.fetch_state(context);
                 self.state_channel = Some(channel.clone());
                 channel
@@ -237,6 +239,15 @@ impl ProjectState {
             config: Default::default(),
             rev: None,
         }
+    }
+
+    /// Project state for an unknown but allowed project.
+    ///
+    /// This state is used for forwarding in Proxy mode.
+    pub fn allowed() -> Self {
+        let mut state = ProjectState::missing();
+        state.disabled = false;
+        state
     }
 
     /// Returns the current status of a key.
@@ -684,6 +695,22 @@ struct ProjectStateResponse {
     is_local: bool,
 }
 
+impl ProjectStateResponse {
+    pub fn managed(state: ProjectState) -> Self {
+        ProjectStateResponse {
+            state: Arc::new(state),
+            is_local: false,
+        }
+    }
+
+    pub fn local(state: ProjectState) -> Self {
+        ProjectStateResponse {
+            state: Arc::new(state),
+            is_local: true,
+        }
+    }
+}
+
 impl Message for FetchProjectState {
     type Result = Result<ProjectStateResponse, ()>;
 }
@@ -699,6 +726,18 @@ impl Handler<FetchProjectState> for ProjectCache {
             });
         }
 
+        match self.config.relay_mode() {
+            RelayMode::Proxy => {
+                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()))
+            }
+            RelayMode::Static => {
+                return Response::ok(ProjectStateResponse::local(ProjectState::missing()))
+            }
+            RelayMode::Managed => {
+                // Proceed with loading the config from upstream
+            }
+        }
+
         if !self.backoff.started() {
             self.backoff.reset();
             self.schedule_fetch(context);
@@ -709,14 +748,7 @@ impl Handler<FetchProjectState> for ProjectCache {
             log::error!("project {} state fetched multiple times", message.id);
         }
 
-        Response::r#async(
-            receiver
-                .map(|state| ProjectStateResponse {
-                    state: Arc::new(state),
-                    is_local: false,
-                })
-                .map_err(|_| ()),
-        )
+        Response::r#async(receiver.map(ProjectStateResponse::managed).map_err(|_| ()))
     }
 }
 
