@@ -215,3 +215,23 @@ pub struct Shutdown {
 impl Message for Shutdown {
     type Result = Result<(), TimeoutError>;
 }
+
+/// Signals to the controller that it should initiate immediate shutdown.
+///
+/// The controller will send [`Shutdown`] messages to all subscribed actors, but then immediately
+/// stop the system.
+///
+/// [`Shutdown`]: struct.Shutdown.html
+pub struct Stop;
+
+impl Message for Stop {
+    type Result = ();
+}
+
+impl Handler<Stop> for Controller {
+    type Result = ();
+
+    fn handle(&mut self, _message: Stop, context: &mut Self::Context) -> Self::Result {
+        self.shutdown(context, None);
+    }
+}
