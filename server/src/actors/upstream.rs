@@ -14,10 +14,9 @@ use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use semaphore_common::{
-    tryf, Config, RegisterChallenge, RegisterRequest, RegisterResponse, Registration, RetryBackoff,
+    tryf, Config, LogError, RegisterChallenge, RegisterRequest, RegisterResponse, Registration,
+    RelayMode, RetryBackoff,
 };
-
-use crate::utils::LogError;
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -188,7 +187,10 @@ impl Actor for UpstreamRelay {
         log::info!("upstream relay started");
 
         self.backoff.reset();
-        context.notify(Authenticate);
+
+        if self.config.relay_mode() == RelayMode::Managed {
+            context.notify(Authenticate);
+        }
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -208,13 +210,7 @@ impl Handler<Authenticate> for UpstreamRelay {
     fn handle(&mut self, _msg: Authenticate, _ctx: &mut Self::Context) -> Self::Result {
         let credentials = match self.config.credentials() {
             Some(x) => x,
-            None => {
-                log::warn!(
-                    "no credentials configured, not authenticating. \
-                     Other relays will not be able to use this relay."
-                );
-                return Box::new(fut::err(()));
-            }
+            None => return Box::new(fut::err(())),
         };
 
         log::info!(

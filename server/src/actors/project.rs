@@ -18,13 +18,13 @@ use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use semaphore_common::{Config, ProjectId, PublicKey, RetryBackoff, Uuid};
+use semaphore_common::{Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
 use semaphore_general::pii::PiiConfig;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
-use crate::utils::{self, LogError, One, Response, SyncActorFuture, SyncHandle};
+use crate::utils::{self, One, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -79,11 +79,13 @@ impl Project {
             }
         }
 
-        log::debug!("project {} state requested", self.id);
-
         let channel = match self.state_channel {
-            Some(ref channel) => channel.clone(),
+            Some(ref channel) => {
+                log::debug!("project {} state request amended", self.id);
+                channel.clone()
+            }
             None => {
+                log::debug!("project {} state requested", self.id);
                 let channel = self.fetch_state(context);
                 self.state_channel = Some(channel.clone());
                 channel
@@ -239,6 +241,15 @@ impl ProjectState {
         }
     }
 
+    /// Project state for an unknown but allowed project.
+    ///
+    /// This state is used for forwarding in Proxy mode.
+    pub fn allowed() -> Self {
+        let mut state = ProjectState::missing();
+        state.disabled = false;
+        state
+    }
+
     /// Returns the current status of a key.
     pub fn get_public_key_status(&self, public_key: &str) -> PublicKeyStatus {
         match self.public_keys.get(public_key) {
@@ -314,11 +325,16 @@ impl ProjectState {
             }
 
             // since the config has been fetched recently, we assume unknown
-            // public keys do not exist and drop events eagerly.
+            // public keys do not exist and drop events eagerly. proxy mode is
+            // an exception, where public keys are backfilled lazily after
+            // events are sent to the upstream.
             match self.get_public_key_status(meta.auth().public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
                 PublicKeyStatus::Disabled => EventAction::Discard,
-                PublicKeyStatus::Unknown => EventAction::Discard,
+                PublicKeyStatus::Unknown => match config.relay_mode() {
+                    RelayMode::Proxy => EventAction::Accept,
+                    _ => EventAction::Discard,
+                },
             }
         }
     }
@@ -684,6 +700,22 @@ struct ProjectStateResponse {
     is_local: bool,
 }
 
+impl ProjectStateResponse {
+    pub fn managed(state: ProjectState) -> Self {
+        ProjectStateResponse {
+            state: Arc::new(state),
+            is_local: false,
+        }
+    }
+
+    pub fn local(state: ProjectState) -> Self {
+        ProjectStateResponse {
+            state: Arc::new(state),
+            is_local: true,
+        }
+    }
+}
+
 impl Message for FetchProjectState {
     type Result = Result<ProjectStateResponse, ()>;
 }
@@ -699,6 +731,18 @@ impl Handler<FetchProjectState> for ProjectCache {
             });
         }
 
+        match self.config.relay_mode() {
+            RelayMode::Proxy => {
+                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()))
+            }
+            RelayMode::Static => {
+                return Response::ok(ProjectStateResponse::local(ProjectState::missing()))
+            }
+            RelayMode::Managed => {
+                // Proceed with loading the config from upstream
+            }
+        }
+
         if !self.backoff.started() {
             self.backoff.reset();
             self.schedule_fetch(context);
@@ -709,14 +753,7 @@ impl Handler<FetchProjectState> for ProjectCache {
             log::error!("project {} state fetched multiple times", message.id);
         }
 
-        Response::r#async(
-            receiver
-                .map(|state| ProjectStateResponse {
-                    state: Arc::new(state),
-                    is_local: false,
-                })
-                .map_err(|_| ()),
-        )
+        Response::r#async(receiver.map(ProjectStateResponse::managed).map_err(|_| ()))
     }
 }
 

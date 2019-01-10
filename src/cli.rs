@@ -7,12 +7,11 @@ use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
-use semaphore_common::{Config, Credentials, MinimalConfig, Uuid};
+use semaphore_common::{Config, Credentials, LogError, MinimalConfig, RelayMode, Uuid};
 use semaphore_general::pii::{PiiConfig, PiiProcessor};
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::Event;
 use semaphore_general::types::Annotated;
-use semaphore_server;
 
 use crate::cliapp::make_app;
 use crate::setup;
@@ -20,6 +19,15 @@ use crate::utils;
 use crate::utils::get_theme;
 
 type EventV8 = Annotated<Event>;
+
+/// Logs an error to the configured logger or `stderr` if not yet configured.
+pub fn ensure_log_error<E: failure::AsFail>(error: &E) {
+    if log::log_enabled!(log::Level::Error) {
+        log::error!("{}", LogError(error));
+    } else {
+        eprintln!("error: {}", LogError(error));
+    }
+}
 
 /// Runs the command line application.
 pub fn execute() -> Result<(), Error> {
@@ -186,9 +194,9 @@ pub fn init_config<'a, P: AsRef<Path>>(
         let item = Select::with_theme(get_theme())
             .with_prompt("Do you want to create a new config?")
             .default(0)
-            .item("yes, create default config")
-            .item("yes, create custom config")
-            .item("no, abort")
+            .item("Yes, create default config")
+            .item("Yes, create custom config")
+            .item("No, abort")
             .interact()?;
 
         let with_prompts = match item {
@@ -200,6 +208,21 @@ pub fn init_config<'a, P: AsRef<Path>>(
 
         let mut mincfg: MinimalConfig = Default::default();
         if with_prompts {
+            let mode = Select::with_theme(get_theme())
+                .with_prompt("How should this relay operate?")
+                .default(0)
+                .item("Managed through upstream")
+                .item("Statically configured")
+                .item("Proxy for all events")
+                .interact()?;
+
+            mincfg.relay.mode = match mode {
+                0 => RelayMode::Managed,
+                1 => RelayMode::Static,
+                2 => RelayMode::Proxy,
+                _ => unreachable!(),
+            };
+
             utils::prompt_value("upstream", &mut mincfg.relay.upstream)?;
             utils::prompt_value("listen interface", &mut mincfg.relay.host)?;
             utils::prompt_value("listen port", &mut mincfg.relay.port)?;
@@ -221,34 +244,25 @@ pub fn init_config<'a, P: AsRef<Path>>(
             }
         }
 
-        mincfg.sentry.enabled = Select::with_theme(get_theme())
-            .with_prompt("Do you want to enable internal crash reporting?")
-            .default(0)
-            .item("yes, share relay internal crash reports with sentry.io")
-            .item("no, do not share crash reports")
-            .interact()?
-            == 0;
+        // TODO: Enable this once logging to Sentry is more useful.
+        // mincfg.sentry.enabled = Select::with_theme(get_theme())
+        //     .with_prompt("Do you want to enable internal crash reporting?")
+        //     .default(0)
+        //     .item("Yes, share relay internal crash reports with sentry.io")
+        //     .item("No, do not share crash reports")
+        //     .interact()?
+        //     == 0;
 
         mincfg.save_in_folder(&config_path)?;
         done_something = true;
     }
 
     let mut config = Config::from_path(&config_path)?;
-    if !config.has_credentials() {
-        let should_create = Select::with_theme(get_theme())
-            .with_prompt("There are currently no credentials set up. Do you want to create some?")
-            .default(0)
-            .item("no, just use relay without setting up credentials (simple proxy mode, recommended)")
-            .item("yes, set up relay with credentials (currently requires own Sentry installation)")
-            .interact()?
-            == 1;
-
-        if should_create {
-            config.regenerate_credentials()?;
-            println!("Generated new credentials");
-            setup::dump_credentials(&config);
-            done_something = true;
-        }
+    if config.relay_mode() == RelayMode::Managed && !config.has_credentials() {
+        config.regenerate_credentials()?;
+        println!("Generated new credentials");
+        setup::dump_credentials(&config);
+        done_something = true;
     }
 
     if done_something {
@@ -320,6 +334,7 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
 
 pub fn run<'a>(config: Config, _matches: &ArgMatches<'a>) -> Result<(), Error> {
     setup::dump_spawn_infos(&config);
+    setup::check_config(&config)?;
     setup::init_metrics(&config)?;
     semaphore_server::run(config)?;
     Ok(())

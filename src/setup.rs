@@ -4,11 +4,22 @@ use std::io::Write;
 use std::mem;
 
 use chrono::{DateTime, Utc};
-use failure::Error;
+use failure::{err_msg, Error};
 use log::{Level, LevelFilter};
 use serde::{Deserialize, Serialize};
 
-use semaphore_common::{metrics, Config, LogFormat};
+use semaphore_common::{metrics, Config, LogFormat, RelayMode};
+
+pub fn check_config(config: &Config) -> Result<(), Error> {
+    if config.relay_mode() == RelayMode::Managed && config.credentials().is_none() {
+        return Err(err_msg(
+            "relay has no credentials, which are required in managed mode. \
+             Generate some with \"semaphore credentials generate\" first.",
+        ));
+    }
+
+    Ok(())
+}
 
 /// Print spawn infos to the log.
 pub fn dump_spawn_infos(config: &Config) {
@@ -16,6 +27,7 @@ pub fn dump_spawn_infos(config: &Config) {
         "launching relay from config folder {}",
         config.path().display()
     );
+    log::info!("  relay mode: {}", config.relay_mode());
 
     match config.relay_id() {
         Some(id) => log::info!("  relay id: {}", id),
@@ -145,6 +157,12 @@ pub fn init_logging(config: &Config) {
 
     let log = Box::new(log_builder.build());
     let global_filter = log.filter();
+
+    println!(
+        "global filter: {} {}",
+        global_filter,
+        log::Level::Error < global_filter
+    );
 
     sentry::integrations::log::init(
         Some(log),

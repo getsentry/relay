@@ -12,11 +12,11 @@ use failure::Fail;
 use futures::{future, future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 
-use semaphore_common::{Config, PublicKey, RelayId, RetryBackoff};
+use semaphore_common::{Config, LogError, PublicKey, RelayId, RetryBackoff};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
-use crate::utils::{self, ApiErrorResponse, LogError, Response, SyncActorFuture, SyncHandle};
+use crate::utils::{self, ApiErrorResponse, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 #[fail(display = "failed to fetch keys")]

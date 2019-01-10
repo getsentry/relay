@@ -115,7 +115,8 @@ def test_static_config(mini_sentry, relay):
         os.makedirs(dir.join("projects"))
         dir.join("projects").join("42.json").write(json.dumps(project_config))
 
-    relay = relay(mini_sentry, prepare=configure_static_project)
+    relay_options = {'relay': {'mode': 'static'}}
+    relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
     mini_sentry.project_configs[42] = project_config
     sleep(1)  # There is no upstream auth, so just wait for relay to initialize
 
@@ -128,6 +129,23 @@ def test_static_config(mini_sentry, relay):
         raise AssertionError(
             f"Exceptions happened in mini_sentry: {mini_sentry.test_failures}"
         )
+
+
+def test_proxy_config(mini_sentry, relay):
+    from time import sleep
+    project_config = mini_sentry.basic_project_config()
+
+    def configure_proxy(dir):
+        os.remove(dir.join("credentials.json"))
+
+    relay_options = {'relay': {'mode': 'proxy'}}
+    relay = relay(mini_sentry, options=relay_options, prepare=configure_proxy)
+    mini_sentry.project_configs[42] = project_config
+    sleep(1)  # There is no upstream auth, so just wait for relay to initialize
+
+    relay.send_event(42)
+    event = mini_sentry.captured_events.get(timeout=1)
+    assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
 def test_event_buffer_size(mini_sentry, relay):
