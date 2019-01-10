@@ -13,8 +13,7 @@ fn is_url(filename: &str) -> bool {
 }
 
 pub fn process_non_raw_stacktrace(stacktrace: &mut Stacktrace, _meta: &mut Meta) {
-    // XXX: this processing should only be done for non raw frames (i.e. not for
-    // exception.raw_stacktrace)
+    // This processing is only done for non raw frames (i.e. not for exception.raw_stacktrace).
     if let Some(frames) = stacktrace.frames.value_mut() {
         for frame in frames.iter_mut() {
             frame.apply(process_non_raw_frame);

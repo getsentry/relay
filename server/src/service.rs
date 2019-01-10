@@ -2,6 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use ::actix::prelude::*;
+use actix_web::client::ClientConnector;
 use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
@@ -244,6 +245,12 @@ pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, Serve
     let config = state.config();
     let mut server = server::new(move || make_app(state.clone()));
     server = server.shutdown_timeout(SHUTDOWN_TIMEOUT).disable_signals();
+
+    let connector = ClientConnector::default()
+        .limit(config.max_concurrent_requests())
+        .start();
+
+    System::current().registry().set(connector);
 
     server = listen(server, &config)?;
     server = listen_ssl(server, &config)?;

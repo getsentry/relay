@@ -51,7 +51,7 @@ matrix:
 
     - name: "test: semaphore[linux]"
       os: linux
-      env: RUST_TOOLCHAIN=nightly
+      env: RUST_TOOLCHAIN=nightly-2019-01-09
       sudo: required
       addons:
         apt:

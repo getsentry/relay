@@ -107,6 +107,7 @@ def test_rate_limit(mini_sentry, relay):
 
 def test_static_config(mini_sentry, relay):
     from time import sleep
+
     project_config = mini_sentry.basic_project_config()
 
     def configure_static_project(dir):
@@ -145,3 +146,51 @@ def test_proxy_config(mini_sentry, relay):
     relay.send_event(42)
     event = mini_sentry.captured_events.get(timeout=1)
     assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
+def test_event_buffer_size(mini_sentry, relay):
+    relay = relay(mini_sentry, {"cache": {"event_buffer_size": 0}})
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[42] = relay.basic_project_config()
+
+    relay.send_event(42, {"message": "pls ignore"})
+    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=5))
+
+
+def test_max_concurrent_requests(mini_sentry, relay):
+    from time import sleep
+    from threading import Semaphore
+
+    processing_store = False
+    store_count = Semaphore()
+
+    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+
+    @mini_sentry.app.endpoint("store_event")
+    def store_event():
+        nonlocal processing_store
+        assert not processing_store
+
+        processing_store = True
+        # sleep long, but less than event_buffer_expiry
+        sleep(0.5)
+        store_count.release()
+        sleep(0.5)
+        processing_store = False
+
+        return "ok"
+
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"max_concurrent_requests": 1},
+            "cache": {"event_buffer_expiry": 2},
+        },
+    )
+    relay.wait_relay_healthcheck()
+
+    relay.send_event(42)
+    relay.send_event(42)
+
+    store_count.acquire(timeout=4)
+    store_count.acquire(timeout=4)
