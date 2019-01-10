@@ -30,15 +30,16 @@ fn normalize_url(request: &mut Request) {
         None => return,
     };
 
-    // Special case: JavaScript used to truncate with a unicode ellipsis. Since
-    // that would be encoded in the URL, we trim it first and append it again at
-    // the end.
-    let ellipsis = if url_string.ends_with(ELLIPSIS) {
+    // Special case: JavaScript SDK used to send an ellipsis character for
+    // truncated URLs. Canonical URLs do not contain UTF-8 characters in
+    // either the path, query string or fragment, so we replace it with
+    // three dots (which is the behavior of other SDKs). This effectively
+    // makes the string two characters longer, but it will be trimmed
+    // again later if it is too long in the end.
+    if url_string.ends_with(ELLIPSIS) {
         url_string.truncate(url_string.len() - ELLIPSIS.len_utf8());
-        true
-    } else {
-        false
-    };
+        url_string.push_str("...");
+    }
 
     let url = match Url::parse(url_string) {
         Ok(url) => url,
@@ -84,10 +85,6 @@ fn normalize_url(request: &mut Request) {
 
     if let Some(index) = url_end_index {
         url_string.truncate(index);
-    }
-
-    if ellipsis {
-        url_string.push(ELLIPSIS);
     }
 }
 
