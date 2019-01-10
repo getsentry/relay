@@ -7,7 +7,7 @@ use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
-use semaphore_common::{Config, Credentials, LogError, MinimalConfig, Uuid};
+use semaphore_common::{Config, Credentials, LogError, MinimalConfig, RelayMode, Uuid};
 use semaphore_general::pii::{PiiConfig, PiiProcessor};
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::Event;
@@ -194,9 +194,9 @@ pub fn init_config<'a, P: AsRef<Path>>(
         let item = Select::with_theme(get_theme())
             .with_prompt("Do you want to create a new config?")
             .default(0)
-            .item("yes, create default config")
-            .item("yes, create custom config")
-            .item("no, abort")
+            .item("Yes, create default config")
+            .item("Yes, create custom config")
+            .item("No, abort")
             .interact()?;
 
         let with_prompts = match item {
@@ -208,6 +208,21 @@ pub fn init_config<'a, P: AsRef<Path>>(
 
         let mut mincfg: MinimalConfig = Default::default();
         if with_prompts {
+            let mode = Select::with_theme(get_theme())
+                .with_prompt("How should this relay operate?")
+                .default(0)
+                .item("Managed through upstream")
+                .item("Statically configured")
+                .item("Proxy for all events")
+                .interact()?;
+
+            mincfg.relay.mode = match mode {
+                0 => RelayMode::Managed,
+                1 => RelayMode::Static,
+                2 => RelayMode::Proxy,
+                _ => unreachable!(),
+            };
+
             utils::prompt_value("upstream", &mut mincfg.relay.upstream)?;
             utils::prompt_value("listen interface", &mut mincfg.relay.host)?;
             utils::prompt_value("listen port", &mut mincfg.relay.port)?;
@@ -232,8 +247,8 @@ pub fn init_config<'a, P: AsRef<Path>>(
         mincfg.sentry.enabled = Select::with_theme(get_theme())
             .with_prompt("Do you want to enable internal crash reporting?")
             .default(0)
-            .item("yes, share relay internal crash reports with sentry.io")
-            .item("no, do not share crash reports")
+            .item("Yes, share relay internal crash reports with sentry.io")
+            .item("No, do not share crash reports")
             .interact()?
             == 0;
 
@@ -242,12 +257,12 @@ pub fn init_config<'a, P: AsRef<Path>>(
     }
 
     let mut config = Config::from_path(&config_path)?;
-    if !config.has_credentials() {
+    if config.relay_mode() == RelayMode::Managed && !config.has_credentials() {
         let should_create = Select::with_theme(get_theme())
-            .with_prompt("There are currently no credentials set up. Do you want to create some?")
+            .with_prompt("There are currently no credentials set up. Do you want to create them?")
             .default(0)
-            .item("no, just use relay without setting up credentials (simple proxy mode, recommended)")
-            .item("yes, set up relay with credentials (currently requires own Sentry installation)")
+            .item("No, just use relay without setting up credentials (simple proxy mode, recommended)")
+            .item("Yes, set up relay with credentials (currently requires own Sentry installation)")
             .interact()?
             == 1;
 
