@@ -14,6 +14,22 @@ class _NoDict(type):
         return type.__new__(cls, name, bases, d)
 
 
+def rustcall(func, *args):
+    """Calls rust method and does some error handling."""
+    lib.semaphore_err_clear()
+    rv = func(*args)
+    err = lib.semaphore_err_get_last_code()
+    if not err:
+        return rv
+    msg = lib.semaphore_err_get_last_message()
+    cls = exceptions_by_code.get(err, SemaphoreError)
+    exc = cls(decode_str(msg))
+    backtrace = decode_str(lib.semaphore_err_get_backtrace())
+    if backtrace:
+        exc.rust_info = backtrace
+    raise exc
+
+
 class RustObject(with_metaclass(_NoDict)):
     __slots__ = ["_objptr", "_shared"]
     __dealloc_func__ = None
@@ -43,22 +59,6 @@ class RustObject(with_metaclass(_NoDict)):
         if f is not None:
             _rustcall(f, self._objptr)
             self._objptr = None
-
-
-def rustcall(func, *args):
-    """Calls rust method and does some error handling."""
-    lib.semaphore_err_clear()
-    rv = func(*args)
-    err = lib.semaphore_err_get_last_code()
-    if not err:
-        return rv
-    msg = lib.semaphore_err_get_last_message()
-    cls = exceptions_by_code.get(err, SemaphoreError)
-    exc = cls(decode_str(msg))
-    backtrace = decode_str(lib.semaphore_err_get_backtrace())
-    if backtrace:
-        exc.rust_info = backtrace
-    raise exc
 
 
 def decode_str(s, free=False):
