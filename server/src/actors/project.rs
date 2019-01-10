@@ -325,11 +325,16 @@ impl ProjectState {
             }
 
             // since the config has been fetched recently, we assume unknown
-            // public keys do not exist and drop events eagerly.
+            // public keys do not exist and drop events eagerly. proxy mode is
+            // an exception, where public keys are backfilled lazily after
+            // events are sent to the upstream.
             match self.get_public_key_status(meta.auth().public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
                 PublicKeyStatus::Disabled => EventAction::Discard,
-                PublicKeyStatus::Unknown => EventAction::Discard,
+                PublicKeyStatus::Unknown => match config.relay_mode() {
+                    RelayMode::Proxy => EventAction::Accept,
+                    _ => EventAction::Discard,
+                },
             }
         }
     }
