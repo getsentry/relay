@@ -449,8 +449,12 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         stacktrace.process_child_values(self, state);
 
-        // TODO: port slim_frame_data and call it here (needs to run after process_frame because of
-        // `in_app`)
+        // needs to run after process_frame because of `in_app`
+        if let Some(limit) = self.config.max_stacktrace_frames {
+            stacktrace
+                .frames
+                .apply(|frames, _meta| stacktrace::slim_frame_data(frames, limit));
+        }
 
         ValueAction::Keep
     }

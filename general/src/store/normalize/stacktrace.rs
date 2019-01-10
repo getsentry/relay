@@ -58,6 +58,54 @@ pub fn enforce_frame_hard_limit(frames: &mut Array<Frame>, meta: &mut Meta, limi
     }
 }
 
+/// Remove excess metadata for middle frames which go beyond `frame_allowance`.
+///
+/// This is supposed to be equivalent to `slim_frame_data` in Sentry.
+pub fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
+    let frames_len = frames.len();
+
+    if frames_len <= frame_allowance {
+        return;
+    }
+
+    // Avoid ownership issues by only storing indices
+    let mut app_frame_indices = Vec::with_capacity(frames_len);
+    let mut system_frame_indices = Vec::with_capacity(frames_len);
+
+    for (i, frame) in frames.iter().enumerate() {
+        if let Some(frame) = frame.value() {
+            match frame.in_app.value() {
+                Some(true) => app_frame_indices.push(i),
+                _ => system_frame_indices.push(i),
+            }
+        }
+    }
+
+    let app_count = app_frame_indices.len();
+    let system_allowance_half = frame_allowance.saturating_sub(app_count) / 2;
+    let system_frames_to_remove = &system_frame_indices
+        [system_allowance_half..system_frame_indices.len() - system_allowance_half];
+
+    let remaining = frames_len
+        .saturating_sub(frame_allowance)
+        .saturating_sub(system_frames_to_remove.len());
+    let app_allowance_half = app_count.saturating_sub(remaining) / 2;
+    let app_frames_to_remove =
+        &app_frame_indices[app_allowance_half..app_frame_indices.len() - app_allowance_half];
+
+    // TODO: Which annotation to set?
+
+    for i in system_frames_to_remove.iter().chain(app_frames_to_remove) {
+        if let Some(frame) = frames.get_mut(*i) {
+            if let Some(ref mut frame) = frame.value_mut().as_mut() {
+                frame.vars = Annotated::empty();
+                frame.pre_context = Annotated::empty();
+                frame.post_context = Annotated::empty();
+            }
+        }
+    }
+}
+
 #[test]
 fn test_coerces_url_filenames() {
     let mut frame = Annotated::new(Frame {
@@ -151,4 +199,75 @@ fn test_is_url() {
     assert!(!is_url("webpack:///./app/index.jsx")); // webpack bundle
     assert!(!is_url("data:,"));
     assert!(!is_url("blob:\x00"));
+}
+
+#[test]
+fn test_slim_frame_data_under_max() {
+    let mut frames = vec![Annotated::new(Frame {
+        filename: Annotated::new("foo".to_string()),
+        pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+        context_line: Annotated::new("b".to_string()),
+        post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+        ..Default::default()
+    })];
+
+    let old_frames = frames.clone();
+    slim_frame_data(&mut frames, 4);
+
+    assert_eq_dbg!(frames, old_frames);
+}
+
+#[test]
+fn test_slim_frame_data_over_max() {
+    let mut frames = vec![];
+
+    for n in 0..5 {
+        frames.push(Annotated::new(Frame {
+            filename: Annotated::new(format!("foo {}", n)),
+            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+            context_line: Annotated::new("b".to_string()),
+            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+            ..Default::default()
+        }));
+    }
+
+    slim_frame_data(&mut frames, 4);
+
+    let expected = vec![
+        Annotated::new(Frame {
+            filename: Annotated::new("foo 0".to_string()),
+            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+            context_line: Annotated::new("b".to_string()),
+            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+            ..Default::default()
+        }),
+        Annotated::new(Frame {
+            filename: Annotated::new("foo 1".to_string()),
+            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+            context_line: Annotated::new("b".to_string()),
+            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+            ..Default::default()
+        }),
+        Annotated::new(Frame {
+            filename: Annotated::new("foo 2".to_string()),
+            context_line: Annotated::new("b".to_string()),
+            ..Default::default()
+        }),
+        Annotated::new(Frame {
+            filename: Annotated::new("foo 3".to_string()),
+            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+            context_line: Annotated::new("b".to_string()),
+            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+            ..Default::default()
+        }),
+        Annotated::new(Frame {
+            filename: Annotated::new("foo 4".to_string()),
+            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+            context_line: Annotated::new("b".to_string()),
+            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+            ..Default::default()
+        }),
+    ];
+
+    assert_eq_dbg!(frames, expected);
 }
