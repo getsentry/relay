@@ -248,6 +248,8 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
+        event.process_child_values(self, state);
+
         // Override internal attributes, even if they were set in the payload
         event.project = Annotated::from(self.config.project_id);
         event.key_id = Annotated::from(self.config.key_id.clone());
@@ -274,17 +276,16 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             event.client_sdk.set_value(self.get_sdk_info());
         }
 
+        event
+            .stacktrace
+            .apply(stacktrace::process_non_raw_stacktrace);
+
         // Normalize connected attributes and interfaces
         self.normalize_release_dist(event);
         self.normalize_timestamps(event);
         self.normalize_event_tags(event);
         self.normalize_exceptions(event);
         self.normalize_user_ip(event);
-        event
-            .stacktrace
-            .apply(stacktrace::process_non_raw_stacktrace);
-
-        event.process_child_values(self, state);
 
         ValueAction::Keep
     }
