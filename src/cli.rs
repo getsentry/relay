@@ -7,12 +7,11 @@ use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
-use semaphore_common::{Config, Credentials, MinimalConfig, Uuid};
+use semaphore_common::{Config, Credentials, LogError, MinimalConfig, Uuid};
 use semaphore_general::pii::{PiiConfig, PiiProcessor};
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::Event;
 use semaphore_general::types::Annotated;
-use semaphore_server;
 
 use crate::cliapp::make_app;
 use crate::setup;
@@ -20,6 +19,15 @@ use crate::utils;
 use crate::utils::get_theme;
 
 type EventV8 = Annotated<Event>;
+
+/// Logs an error to the configured logger or `stderr` if not yet configured.
+pub fn ensure_log_error<E: failure::AsFail>(error: &E) {
+    if log::log_enabled!(log::Level::Error) {
+        log::error!("{}", LogError(error));
+    } else {
+        eprintln!("error: {}", LogError(error));
+    }
+}
 
 /// Runs the command line application.
 pub fn execute() -> Result<(), Error> {
@@ -320,6 +328,7 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
 
 pub fn run<'a>(config: Config, _matches: &ArgMatches<'a>) -> Result<(), Error> {
     setup::dump_spawn_infos(&config);
+    setup::check_config(&config)?;
     setup::init_metrics(&config)?;
     semaphore_server::run(config)?;
     Ok(())

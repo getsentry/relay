@@ -10,7 +10,7 @@ use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 use serde_json;
 
-use semaphore_common::{metric, Config, ProjectId, Uuid};
+use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
@@ -23,7 +23,7 @@ use crate::actors::project::{
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
-use crate::utils::{LogError, SyncActorFuture, SyncHandle};
+use crate::utils::{SyncActorFuture, SyncHandle};
 
 macro_rules! clone {
     (@param _) => ( _ );

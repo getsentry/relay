@@ -128,6 +128,16 @@ pub enum RelayMode {
     Managed,
 }
 
+impl fmt::Display for RelayMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RelayMode::Proxy => write!(f, "proxy"),
+            RelayMode::Static => write!(f, "static"),
+            RelayMode::Managed => write!(f, "managed"),
+        }
+    }
+}
+
 /// Relay specific configuration values.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]

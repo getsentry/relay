@@ -14,12 +14,9 @@ use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use semaphore_common::{
-    tryf, Config, RegisterChallenge, RegisterRequest, RegisterResponse, Registration, RelayMode,
-    RetryBackoff,
+    tryf, Config, LogError, RegisterChallenge, RegisterRequest, RegisterResponse, Registration,
+    RelayMode, RetryBackoff,
 };
-
-use crate::actors::controller::{Controller, Stop};
-use crate::utils::LogError;
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -195,14 +192,7 @@ impl Handler<Authenticate> for UpstreamRelay {
     fn handle(&mut self, _msg: Authenticate, _ctx: &mut Self::Context) -> Self::Result {
         let credentials = match self.config.credentials() {
             Some(x) => x,
-            None => {
-                log::warn!(
-                    "relay has no stored credentials. Generate some \
-                     with \"semaphore credentials generate\" first.",
-                );
-                Controller::from_registry().do_send(Stop);
-                return Box::new(fut::err(()));
-            }
+            None => return Box::new(fut::err(())),
         };
 
         log::info!(

@@ -232,6 +232,7 @@ impl Handler<Stop> for Controller {
     type Result = ();
 
     fn handle(&mut self, _message: Stop, context: &mut Self::Context) -> Self::Result {
+        log::info!("initiating immediate shutdown");
         self.shutdown(context, None);
     }
 }

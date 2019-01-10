@@ -18,13 +18,13 @@ use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use semaphore_common::{Config, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
+use semaphore_common::{Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
 use semaphore_general::pii::PiiConfig;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
-use crate::utils::{self, LogError, One, Response, SyncActorFuture, SyncHandle};
+use crate::utils::{self, One, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {

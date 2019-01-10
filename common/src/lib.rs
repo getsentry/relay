@@ -9,6 +9,7 @@ pub mod metrics;
 
 mod auth;
 mod config;
+mod log;
 mod retry;
 mod types;
 mod upstream;
@@ -16,6 +17,7 @@ mod utils;
 
 pub use crate::auth::*;
 pub use crate::config::*;
+pub use crate::log::*;
 pub use crate::retry::*;
 pub use crate::types::*;
 pub use crate::upstream::*;
