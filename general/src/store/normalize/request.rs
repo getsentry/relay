@@ -6,6 +6,8 @@ use url::Url;
 use crate::protocol::{PairList, Query, Request};
 use crate::types::{Annotated, ErrorKind, FromValue, Meta, Object, Value, ValueAction};
 
+const ELLIPSIS: char = '\u{2026}';
+
 lazy_static! {
     static ref METHOD_RE: Regex = Regex::new(r"^[A-Z\-_]{3,32}$").unwrap();
 }
@@ -26,6 +28,16 @@ fn normalize_url(request: &mut Request) {
     let url_string = match request.url.value_mut() {
         Some(url_string) => url_string,
         None => return,
+    };
+
+    // Special case: JavaScript used to truncate with a unicode ellipsis. Since
+    // that would be encoded in the URL, we trim it first and append it again at
+    // the end.
+    let ellipsis = if url_string.ends_with(ELLIPSIS) {
+        url_string.truncate(url_string.len() - ELLIPSIS.len_utf8());
+        true
+    } else {
+        false
     };
 
     let url = match Url::parse(url_string) {
@@ -72,6 +84,10 @@ fn normalize_url(request: &mut Request) {
 
     if let Some(index) = url_end_index {
         url_string.truncate(index);
+    }
+
+    if ellipsis {
+        url_string.push(ELLIPSIS);
     }
 }
 
