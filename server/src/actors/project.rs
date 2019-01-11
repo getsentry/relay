@@ -733,10 +733,10 @@ impl Handler<FetchProjectState> for ProjectCache {
 
         match self.config.relay_mode() {
             RelayMode::Proxy => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()))
+                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()));
             }
             RelayMode::Static => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::missing()))
+                return Response::ok(ProjectStateResponse::local(ProjectState::missing()));
             }
             RelayMode::Managed => {
                 // Proceed with loading the config from upstream
