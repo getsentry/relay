@@ -33,7 +33,7 @@ ffi_fn! {
         path: *const c_char
     ) -> Result<*mut SemaphoreGeoIpLookup> {
         let path = CStr::from_ptr(path).to_string_lossy();
-        let lookup = GeoIpLookup::open(&path)?;
+        let lookup = GeoIpLookup::open(path.as_ref())?;
         Ok(Box::into_raw(Box::new(lookup)) as *mut SemaphoreGeoIpLookup)
     }
 }
