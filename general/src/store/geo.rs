@@ -1,15 +1,19 @@
 use std::fmt;
+use std::path::Path;
 
 use crate::protocol::Geo;
 use crate::types::Annotated;
 
 /// A geo ip lookup helper based on maxmind db files.
-pub struct GeoIpLookup(maxminddb::OwnedReader<'static>);
+pub struct GeoIpLookup(maxminddb::Reader<Vec<u8>>);
 
 impl GeoIpLookup {
     /// Opens a maxminddb file by path.
-    pub fn open(path: &str) -> Result<Self, maxminddb::MaxMindDBError> {
-        Ok(GeoIpLookup(maxminddb::Reader::open(path)?))
+    pub fn open<P>(path: P) -> Result<Self, maxminddb::MaxMindDBError>
+    where
+        P: AsRef<Path>,
+    {
+        Ok(GeoIpLookup(maxminddb::Reader::open_readfile(path)?))
     }
 
     /// Looks up an IP address.

@@ -15,26 +15,26 @@ default = ["with_ssl"]
 with_ssl = ["native-tls", "actix-web/tls"]
 
 [dependencies]
-actix = "0.7.8"
-actix-web = { version = "0.7.15", default-features = false, features = ["brotli", "flate2-c"] }
+actix = "0.7.9"
+actix-web = { version = "0.7.18", default-features = false, features = ["brotli", "flate2-c"] }
 base64 = "0.10.0"
 bytes = "0.4.11"
 chrono = { version = "0.4.6", features = ["serde"] }
 clap = "2.32.0"
-failure = "0.1.3"
+failure = "0.1.5"
 flate2 = "1.0.6"
 futures = "0.1.25"
 lazy_static = "1.2.0"
 listenfd = "0.3.3"
 log = "0.4.6"
 native-tls = { version = "0.2.2", optional = true }
-num_cpus = "1.8.0"
-parking_lot = "0.7.0"
+num_cpus = "1.9.0"
+parking_lot = "0.7.1"
 regex = "1.1.0"
 sentry = "0.12.1"
 sentry-actix = "0.12.1"
-serde = {version = "1.0.80", features = ["derive"]}
-serde_json = "1.0.33"
+serde = { version = "1.0.84", features = ["derive"] }
+serde_json = "1.0.34"
 tokio-timer = "0.2.8"
 url = "1.7.2"
 python-json-read-adapter = "0.1.0"
@@ -46,4 +46,4 @@ path = "../common"
 path = "../general"
 
 [target."cfg(not(windows))".dependencies]
-libc = "0.2.44"
+libc = "0.2.46"
