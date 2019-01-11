@@ -216,17 +216,17 @@ pub struct Request {
 
     /// URL encoded contents of the Cookie header.
     #[metastructure(pii = "true", bag_size = "medium")]
-    #[metastructure(skip_serialization = "empty_deep")]
+    #[metastructure(skip_serialization = "empty")]
     pub cookies: Annotated<Cookies>,
 
     /// HTTP request headers.
     #[metastructure(pii = "true", bag_size = "large")]
-    #[metastructure(skip_serialization = "empty_deep")]
+    #[metastructure(skip_serialization = "empty")]
     pub headers: Annotated<Headers>,
 
     /// Server environment data, such as CGI/WSGI.
     #[metastructure(pii = "true", bag_size = "large")]
-    #[metastructure(skip_serialization = "empty_deep")]
+    #[metastructure(skip_serialization = "empty")]
     pub env: Annotated<Object<Value>>,
 
     /// The inferred content type of the request payload.
