@@ -1,35 +1,43 @@
 # Changelog
 
-## 0.3.5
+## 0.4.0
 
-- store: Drop internal attributes during normalization (`metadata`, `hashes`)
-- store: Write more stuff into `event.errors`
-- store: Fix `frame.filename` truncation to match python limits
+Introducing new Relay modes:
 
-## 0.3.4
+- `proxy`: A proxy for all requests and events.
+- `static`: Static configuration for known projects in the file system.
+- `managed`: Fetch configurations dynamically from Sentry and update them.
 
-This release was primarily done because publishing 0.3.3 failed.
+The default Relay mode is `managed`. Users upgrading from previous versions will
+automatically activate the `managed` mode. To change this setting, add
+`relay.mode` to `config.yml` or run `semaphore config init` from the command
+line.
 
-- Upgrade sentry sdk
+**Breaking Change**: If Relay was used without credentials, the mode needs to be
+set to `proxy`. The default `managed` mode requires credentials.
 
-## 0.3.3
+For more information on Relay modes, see the [documentation
+page](https://docs.sentry.io/data-management/relay/options/).
 
-- store: Minor fixes to be closer to Python.
+### Configuration Changes
 
-## 0.3.2
+- Added `cache.event_buffer_size` to control the maximum number of events that
+  are buffered in case of network issues or high rates of incoming events.
+- Added `limits.max_concurrent_requests` to limit the number of connections that
+  this Relay will use to communicate with the upstream.
+- Internal error reporting is now disabled by default. To opt in, set
+  `sentry.enabled`.
 
-- Fix bug in store that would throw away all context lines.
+### Bugfixes
 
-## 0.3.1
-
-- No longer check required attributes in relay, only in store.
-- store: Minor fixes to be closer to Python. Ability to disable trimming of
-  objects, arrays and strings.
+- Fix a bug that caused events to get unconditionally dropped after five
+  seconds, regardless of the `cache.event_expiry` configuration.
+- Fix a memory leak in Relay's internal error reporting.
 
 ## 0.3.0
 
 - Changed PII stripping rule format to permit path selectors when applying
-  rules.  This means that now `$string` refers to strings for instance and
+  rules. This means that now `$string` refers to strings for instance and
   `user.id` refers to the `id` field in the `user` attribute of the event.
   Temporarily support for old rules is retained.
 
@@ -76,7 +84,6 @@ some Rust code in Sentry itself.
 - store: Fix segfault when trying to process contexts.
 - store: Fix trimming state "leaking" between interfaces, leading to excessive trimming.
 - store: Don't serialize empty arrays and objects (with a few exceptions).
-
 
 ## 0.2.1
 
