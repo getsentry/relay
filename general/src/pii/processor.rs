@@ -683,11 +683,11 @@ fn test_basic_stripping() {
             headers: {
                 let mut rv = Vec::new();
                 rv.push(Annotated::new((
-                    Annotated::new("Cookie".to_string()),
+                    Annotated::new("Cookie".to_string().into()),
                     Annotated::new("super secret".to_string().into()),
                 )));
                 rv.push(Annotated::new((
-                    Annotated::new("X-Forwarded-For".to_string()),
+                    Annotated::new("X-Forwarded-For".to_string().into()),
                     Annotated::new("127.0.0.1".to_string().into()),
                 )));
                 Annotated::new(Headers(PairList(rv)))
