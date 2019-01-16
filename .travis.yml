@@ -3,10 +3,9 @@ python: "3.6"
 
 cache:
   directories:
-    - cabi/target
     - py/venv
     - $HOME/.cargo
-    - $TRAVIS_BUILD_DIR/target
+    - $HOME/.cache/sccache
   timeout: 1200
 
 git:
@@ -28,6 +27,8 @@ branches:
 before_install:
   - curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain ${RUST_TOOLCHAIN:-stable}
   - export PATH=~/.cargo/bin/:$PATH
+  - sccache --version || cargo install sccache --git https://github.com/mozilla/sccache
+  - export RUSTC_WRAPPER=sccache
 
 install: skip
 

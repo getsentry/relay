@@ -6,8 +6,8 @@ branches:
     - /^release\/[\d.]+$/
 
 cache:
-  - 'target'
   - '%USERPROFILE%\.cargo'
+  - '%LOCALAPPDATA%\Mozilla\sccache'
 
 environment:
   ZEUS_HOOK_BASE:
@@ -32,6 +32,8 @@ install:
   - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
   - rustc -vV
   - cargo -vV
+  - sccache --version || cargo install sccache --git https://github.com/mozilla/sccache
+  - set RUSTC_WRAPPER=sccache
 
 build_script:
   - cargo build --all --locked
@@ -39,6 +41,7 @@ build_script:
 test_script:
   - C:\MinGW\bin\mingw32-make cargotest
   - C:\MinGW\bin\mingw32-make test-process-event CARGO_ARGS="--release"
+  - C:\MinGW\bin\mingw32-make clean-target-folder
 
 on_success:
   - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%.exe .\target\release\semaphore.exe
