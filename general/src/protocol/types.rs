@@ -65,6 +65,8 @@ impl<T: FromValue> FromValue for Values<T> {
                         }),
                         meta,
                     )
+                } else if obj.is_empty() {
+                    Annotated(None, meta)
                 } else {
                     Annotated(
                         Some(Values {
