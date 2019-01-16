@@ -1,6 +1,7 @@
 use regex::Regex;
 
 use crate::protocol::{Context, OsContext, RuntimeContext};
+use crate::types::{Object, Value};
 
 lazy_static::lazy_static! {
     /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -83,16 +84,37 @@ fn normalize_os_context(os: &mut OsContext) {
     }
 }
 
+fn normalize_other_context(other: &mut Object<Value>) {
+    if let Some(ty) = other.get_mut("type") {
+        if ty.as_str() != Some("default") {
+            ty.set_value(Some("default".to_string().into()));
+        }
+    }
+}
+
 pub fn normalize_context(context: &mut Context) {
     match context {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
+        Context::Other(other) => normalize_other_context(other),
         _ => (),
     }
 }
 
 #[cfg(test)]
-use crate::protocol::LenientString;
+use crate::{protocol::LenientString, types::Annotated};
+
+#[test]
+fn test_arbitrary_type() {
+    let mut other = Object::new();
+    other.insert(
+        "type".to_string(),
+        Annotated::from(Value::String("foo".to_string())),
+    );
+
+    normalize_other_context(&mut other);
+    assert_eq_dbg!(other.get("type").and_then(|a| a.as_str()), Some("default"));
+}
 
 #[test]
 fn test_dotnet_framework_472() {
