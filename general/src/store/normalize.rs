@@ -9,12 +9,13 @@ use uuid::Uuid;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Event, EventId, EventType, Exception, Frame, IpAddr, Level, Request,
-    Stacktrace, TagEntry, Tags, User,
+    Breadcrumb, ClientSdkInfo, Context, Event, EventId, EventType, Exception, Frame, IpAddr, Level,
+    Request, Stacktrace, TagEntry, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{Annotated, Empty, Error, ErrorKind, Meta, Object, ValueAction};
 
+mod contexts;
 mod mechanism;
 mod request;
 mod stacktrace;
@@ -456,6 +457,16 @@ impl<'a> Processor for NormalizeProcessor<'a> {
                 .apply(|frames, _meta| stacktrace::slim_frame_data(frames, limit));
         }
 
+        ValueAction::Keep
+    }
+
+    fn process_context(
+        &mut self,
+        context: &mut Context,
+        _meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ValueAction {
+        contexts::normalize_context(context);
         ValueAction::Keep
     }
 }
