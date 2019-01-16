@@ -602,6 +602,47 @@ fn test_top_level_keys_moved_into_tags() {
 }
 
 #[test]
+fn test_internal_tags_removed() {
+    let mut event = Annotated::new(Event {
+        tags: Annotated::new(Tags(
+            vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("release".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("dist".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("user".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("filename".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("function".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("something".to_string()),
+                    Annotated::new("else".to_string()),
+                )),
+            ]
+            .into(),
+        )),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    assert_eq!(event.value().unwrap().tags.value().unwrap().len(), 1);
+}
+
+#[test]
 fn test_user_data_moved() {
     let mut user = Annotated::new(User {
         other: {

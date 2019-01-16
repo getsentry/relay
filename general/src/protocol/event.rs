@@ -537,3 +537,16 @@ fn test_fingerprint_null_values() {
     assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
     assert_eq_dbg!(output, event.to_json().unwrap());
 }
+
+#[test]
+fn test_lenient_release() {
+    let input = r#"{"release":42}"#;
+    let output = r#"{"release":"42"}"#;
+    let event = Annotated::new(Event {
+        release: Annotated::new("42".to_string().into()),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
+    assert_eq_dbg!(output, event.to_json().unwrap());
+}
