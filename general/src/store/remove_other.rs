@@ -5,9 +5,12 @@ use crate::types::{Annotated, ErrorKind, Meta, Object, Value, ValueAction};
 pub struct RemoveOtherProcessor;
 
 impl Processor for RemoveOtherProcessor {
-    fn process_other(&mut self, other: &mut Object<Value>, _state: &ProcessingState<'_>) {
-        // Drop unknown attributes at all levels without error messages
-        other.clear();
+    fn process_other(&mut self, other: &mut Object<Value>, state: &ProcessingState<'_>) {
+        // Drop unknown attributes at all levels without error messages, unless `retain = "true"`
+        // was specified explicitly on the field.
+        if !state.attrs().retain {
+            other.clear();
+        }
     }
 
     fn process_event(
@@ -128,4 +131,35 @@ fn test_remove_nested_other() {
         .unwrap()
         .other
         .is_empty());
+}
+
+#[test]
+fn test_retain_context_other() {
+    use crate::protocol::{Context, Contexts, OsContext};
+
+    let mut os = OsContext::default();
+    os.other
+        .insert("foo".to_string(), Annotated::from(Value::U64(42)));
+
+    let mut contexts = Object::new();
+    contexts.insert(
+        "renamed".to_string(),
+        Annotated::from(Context::Os(Box::new(os))),
+    );
+
+    let mut event = Annotated::new(Event {
+        contexts: Annotated::from(Contexts(contexts.clone())),
+        ..Default::default()
+    });
+
+    process_value(
+        &mut event,
+        &mut RemoveOtherProcessor,
+        ProcessingState::root(),
+    );
+
+    assert_eq_dbg!(
+        &event.value().unwrap().contexts.value().unwrap().0,
+        &contexts
+    );
 }
