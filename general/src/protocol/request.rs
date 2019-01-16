@@ -174,8 +174,8 @@ impl std::ops::DerefMut for Query {
 
 impl<K, V> FromIterator<(K, V)> for Query
 where
-    K: AsRef<str>,
-    V: AsRef<str>,
+    K: Into<String>,
+    V: Into<String>,
 {
     fn from_iter<T>(iter: T) -> Self
     where
@@ -183,8 +183,8 @@ where
     {
         Query(PairList::from_iter(iter.into_iter().map(|(key, value)| {
             Annotated::new((
-                Annotated::new(key.as_ref().to_string()),
-                Annotated::new(value.as_ref().to_string().into()),
+                Annotated::new(key.into()),
+                Annotated::new(value.into().into()),
             ))
         })))
     }
