@@ -1,3 +1,5 @@
+use std::iter::{FromIterator, IntoIterator};
+
 use cookie::Cookie;
 use url::form_urlencoded;
 
@@ -189,6 +191,16 @@ impl FromValue for Headers {
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
+impl Query {
+    pub fn parse(mut string: &str) -> Self {
+        if string.starts_with('?') {
+            string = &string[1..];
+        }
+
+        form_urlencoded::parse(string.as_bytes()).collect()
+    }
+}
+
 impl std::ops::Deref for Query {
     type Target = PairList<(Annotated<String>, Annotated<JsonLenientString>)>;
 
@@ -203,23 +215,31 @@ impl std::ops::DerefMut for Query {
     }
 }
 
+impl<K, V> FromIterator<(K, V)> for Query
+where
+    K: Into<String>,
+    V: Into<String>,
+{
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = (K, V)>,
+    {
+        Query(PairList::from_iter(iter.into_iter().map(|(key, value)| {
+            Annotated::new((
+                Annotated::new(key.into()),
+                Annotated::new(value.into().into()),
+            ))
+        })))
+    }
+}
+
 impl FromValue for Query {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::String(v)), meta) => {
-                let mut rv = vec![];
-                let qs = if v.starts_with('?') { &v[1..] } else { &v[..] };
-                for (key, value) in form_urlencoded::parse(qs.as_bytes()) {
-                    rv.push(Annotated::new((
-                        Annotated::new(key.to_string()),
-                        Annotated::new(value.to_string().into()),
-                    )));
-                }
-                Annotated(Some(Query(rv.into())), meta)
-            }
+            Annotated(Some(Value::String(v)), meta) => Annotated(Some(Query::parse(&v)), meta),
             annotated @ Annotated(Some(Value::Object(_)), _)
             | annotated @ Annotated(Some(Value::Array(_)), _) => {
-                FromValue::from_value(annotated).map_value(Query)
+                PairList::from_value(annotated).map_value(Query)
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
