@@ -103,19 +103,20 @@ impl<'a> NormalizeProcessor<'a> {
                 None => return true, // ToValue will decide if we should skip serializing Annotated::empty()
             };
 
-            match tag.key() {
+            match tag.key().unwrap_or_default() {
                 // These tags are special and are used in pairing with `sentry:{}`. They should not be allowed
                 // to be set via data ingest due to ambiguity.
-                Some("release") | Some("dist") | Some("filename") | Some("function") => false,
+                "release" | "dist" | "user" | "filename" | "function" => false,
 
                 // Fix case where legacy apps pass environment as a tag instead of a top level key
-                Some("environment") => {
+                "environment" => {
                     if let Some(value) = tag.value() {
                         environment.get_or_insert_with(|| value.to_string());
                     }
 
                     false
                 }
+
                 _ => true,
             }
         });
