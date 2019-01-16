@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Event, EventId, EventType, Exception, Frame, IpAddr, Level, Request,
-    Stacktrace, TagEntry, Tags, User,
+    Stacktrace, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{Annotated, Empty, Error, ErrorKind, Meta, Object, ValueAction};
@@ -133,22 +133,14 @@ impl<'a> NormalizeProcessor<'a> {
             });
         }
 
-        let mut set_tag = |key, value| {
-            tags.retain(|tag| tag.value().and_then(|tag| tag.key()) != Some(key));
-            tags.push(Annotated::new(TagEntry(
-                Annotated::new(key.to_string()),
-                value,
-            )));
-        };
-
         let server_name = std::mem::replace(&mut event.server_name, Annotated::empty());
         if server_name.value().is_some() {
-            set_tag("server_name", server_name);
+            tags.insert("server_name".to_string(), server_name);
         }
 
         let site = std::mem::replace(&mut event.site, Annotated::empty());
         if site.value().is_some() {
-            set_tag("site", site);
+            tags.insert("site".to_string(), site);
         }
     }
 
@@ -466,7 +458,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 }
 
 #[cfg(test)]
-use {crate::processor::process_value, crate::types::Value};
+use crate::{processor::process_value, protocol::TagEntry, types::Value};
 
 #[test]
 fn test_handles_type_in_value() {
@@ -577,10 +569,16 @@ fn test_top_level_keys_moved_into_tags() {
         server_name: Annotated::new("foo".to_string()),
         site: Annotated::new("foo".to_string()),
         tags: Annotated::new(Tags(
-            vec![Annotated::new(TagEntry(
-                Annotated::new("server_name".to_string()),
-                Annotated::new("old".to_string()),
-            ))]
+            vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("site".to_string()),
+                    Annotated::new("old".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("server_name".to_string()),
+                    Annotated::new("old".to_string()),
+                )),
+            ]
             .into(),
         )),
         ..Default::default()
@@ -599,13 +597,13 @@ fn test_top_level_keys_moved_into_tags() {
         Some(&Tags(
             vec![
                 Annotated::new(TagEntry(
-                    Annotated::new("server_name".to_string()),
+                    Annotated::new("site".to_string()),
                     Annotated::new("foo".to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("site".to_string()),
+                    Annotated::new("server_name".to_string()),
                     Annotated::new("foo".to_string()),
-                ))
+                )),
             ]
             .into()
         ))
