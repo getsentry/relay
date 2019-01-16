@@ -60,9 +60,80 @@ impl FromValue for Cookies {
     }
 }
 
+/// A "into-string" type that normalizes header names.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+pub struct HeaderName(String);
+
+impl HeaderName {
+    /// Creates a normalized header name.
+    pub fn new<S: AsRef<str>>(name: S) -> Self {
+        let name = name.as_ref();
+        let mut normalized = String::with_capacity(name.len());
+
+        name.chars().fold(true, |uppercase, c| {
+            if uppercase {
+                normalized.extend(c.to_uppercase());
+            } else {
+                normalized.push(c); // does not lowercase on purpose
+            }
+            c == '-'
+        });
+
+        HeaderName(normalized)
+    }
+
+    /// Returns the string value.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Unwraps the inner raw string.
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+impl AsRef<str> for HeaderName {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for HeaderName {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for HeaderName {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<String> for HeaderName {
+    fn from(value: String) -> Self {
+        HeaderName::new(value)
+    }
+}
+
+impl From<&'_ str> for HeaderName {
+    fn from(value: &str) -> Self {
+        HeaderName::new(value)
+    }
+}
+
+impl FromValue for HeaderName {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        String::from_value(value).map_value(HeaderName::new)
+    }
+}
+
 /// A map holding headers.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-pub struct Headers(pub PairList<(Annotated<String>, Annotated<LenientString>)>);
+pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<LenientString>)>);
 
 impl Headers {
     pub fn get_header(&self, key: &str) -> Option<&str> {
@@ -79,7 +150,7 @@ impl Headers {
 }
 
 impl std::ops::Deref for Headers {
-    type Target = Array<(Annotated<String>, Annotated<LenientString>)>;
+    type Target = Array<(Annotated<HeaderName>, Annotated<LenientString>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -92,21 +163,6 @@ impl std::ops::DerefMut for Headers {
     }
 }
 
-fn normalize_header(key: &str) -> String {
-    let mut normalized = String::with_capacity(key.len());
-
-    key.chars().fold(true, |uppercase, c| {
-        if uppercase {
-            normalized.extend(c.to_uppercase());
-        } else {
-            normalized.push(c); // does not lowercase on purpose
-        }
-        c == '-'
-    });
-
-    normalized
-}
-
 impl FromValue for Headers {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         let should_sort = match value.value() {
@@ -114,28 +170,18 @@ impl FromValue for Headers {
             _ => false, // Preserve order if SDK sent headers as array
         };
 
-        PairList::<(Annotated<String>, Annotated<LenientString>)>::from_value(value).map_value(
-            |mut pair_list| {
-                for pair in pair_list.iter_mut() {
-                    pair.apply(|(key, _), _| {
-                        key.apply(|key_str, _| {
-                            *key_str = normalize_header(&key_str);
-                        });
-                    });
-                }
+        type HeaderTuple = (Annotated<HeaderName>, Annotated<LenientString>);
+        PairList::<HeaderTuple>::from_value(value).map_value(|mut pair_list| {
+            if should_sort {
+                pair_list.sort_unstable_by(|a, b| {
+                    a.value()
+                        .map(|x| x.0.value())
+                        .cmp(&b.value().map(|x| x.0.value()))
+                });
+            }
 
-                if should_sort {
-                    pair_list.sort_unstable_by(|a, b| {
-                        a.value()
-                            .as_ref()
-                            .map(|x| x.0.value())
-                            .cmp(&b.value().as_ref().map(|x| x.0.value()))
-                    });
-                }
-
-                Headers(pair_list)
-            },
-        )
+            Headers(pair_list)
+        })
     }
 }
 
@@ -246,19 +292,19 @@ fn test_header_normalization() {
 
     let mut headers = Vec::new();
     headers.push(Annotated::new((
-        Annotated::new("-Other-".to_string()),
+        Annotated::new("-Other-".to_string().into()),
         Annotated::new("header".to_string().into()),
     )));
     headers.push(Annotated::new((
-        Annotated::new("Accept".to_string()),
+        Annotated::new("Accept".to_string().into()),
         Annotated::new("application/json".to_string().into()),
     )));
     headers.push(Annotated::new((
-        Annotated::new("WWW-Authenticate".to_string()),
+        Annotated::new("WWW-Authenticate".to_string().into()),
         Annotated::new("basic".to_string().into()),
     )));
     headers.push(Annotated::new((
-        Annotated::new("X-Sentry".to_string()),
+        Annotated::new("X-Sentry".to_string().into()),
         Annotated::new("version=8".to_string().into()),
     )));
 
@@ -274,7 +320,7 @@ fn test_header_from_sequence() {
 
     let mut headers = Vec::new();
     headers.push(Annotated::new((
-        Annotated::new("Accept".to_string()),
+        Annotated::new("Accept".to_string().into()),
         Annotated::new("application/json".to_string().into()),
     )));
 
@@ -423,7 +469,7 @@ fn test_request_roundtrip() {
         headers: Annotated::new(Headers({
             let mut headers = Vec::new();
             headers.push(Annotated::new((
-                Annotated::new("Referer".to_string()),
+                Annotated::new("Referer".to_string().into()),
                 Annotated::new("https://google.com/".to_string().into()),
             )));
             PairList(headers)
@@ -640,11 +686,11 @@ fn test_headers_lenient_value() {
     let request = Annotated::new(Request {
         headers: Annotated::new(Headers(PairList(vec![
             Annotated::new((
-                Annotated::new("X-Bar".to_string()),
+                Annotated::new("X-Bar".to_string().into()),
                 Annotated::new("42".to_string().into()),
             )),
             Annotated::new((
-                Annotated::new("X-Foo".to_string()),
+                Annotated::new("X-Foo".to_string().into()),
                 Annotated::new("".to_string().into()),
             )),
         ]))),
