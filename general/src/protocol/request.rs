@@ -1,7 +1,7 @@
 use cookie::Cookie;
 use url::form_urlencoded;
 
-use crate::protocol::{JsonLenientString, PairList};
+use crate::protocol::{JsonLenientString, LenientString, PairList};
 use crate::types::{Annotated, Array, Error, FromValue, Object, Value};
 
 /// A map holding cookies.
@@ -62,7 +62,7 @@ impl FromValue for Cookies {
 
 /// A map holding headers.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-pub struct Headers(pub PairList<(Annotated<String>, Annotated<String>)>);
+pub struct Headers(pub PairList<(Annotated<String>, Annotated<LenientString>)>);
 
 impl Headers {
     pub fn get_header(&self, key: &str) -> Option<&str> {
@@ -79,7 +79,7 @@ impl Headers {
 }
 
 impl std::ops::Deref for Headers {
-    type Target = Array<(Annotated<String>, Annotated<String>)>;
+    type Target = Array<(Annotated<String>, Annotated<LenientString>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -109,36 +109,33 @@ fn normalize_header(key: &str) -> String {
 
 impl FromValue for Headers {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        type HeaderTuple = (Annotated<String>, Annotated<String>);
+        let should_sort = match value.value() {
+            Some(Value::Object(_)) => true,
+            _ => false, // Preserve order if SDK sent headers as array
+        };
 
-        match value {
-            Annotated(Some(Value::Array(items)), meta) => {
-                let mut rv = Vec::new();
-                for item in items.into_iter() {
-                    rv.push(
-                        HeaderTuple::from_value(item)
-                            .map_value(|(k, v)| (k.and_then(|k| normalize_header(&k)), v)),
-                    );
+        PairList::<(Annotated<String>, Annotated<LenientString>)>::from_value(value).map_value(
+            |mut pair_list| {
+                for pair in pair_list.iter_mut() {
+                    pair.apply(|(key, _), _| {
+                        key.apply(|key_str, _| {
+                            *key_str = normalize_header(&key_str);
+                        });
+                    });
                 }
-                Annotated(Some(Headers(PairList(rv))), meta)
-            }
-            Annotated(Some(Value::Object(items)), meta) => {
-                let mut rv = Vec::new();
-                for (key, value) in items.into_iter() {
-                    rv.push((normalize_header(&key), String::from_value(value)));
+
+                if should_sort {
+                    pair_list.sort_unstable_by(|a, b| {
+                        a.value()
+                            .as_ref()
+                            .map(|x| x.0.value())
+                            .cmp(&b.value().as_ref().map(|x| x.0.value()))
+                    });
                 }
-                rv.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-                Annotated(
-                    Some(Headers(PairList(
-                        rv.into_iter()
-                            .map(|(k, v)| Annotated::new((Annotated::new(k), v)))
-                            .collect(),
-                    ))),
-                    meta,
-                )
-            }
-            other => FromValue::from_value(other).map_value(|x| Headers(PairList(x))),
-        }
+
+                Headers(pair_list)
+            },
+        )
     }
 }
 
@@ -250,19 +247,19 @@ fn test_header_normalization() {
     let mut headers = Vec::new();
     headers.push(Annotated::new((
         Annotated::new("-Other-".to_string()),
-        Annotated::new("header".to_string()),
+        Annotated::new("header".to_string().into()),
     )));
     headers.push(Annotated::new((
         Annotated::new("Accept".to_string()),
-        Annotated::new("application/json".to_string()),
+        Annotated::new("application/json".to_string().into()),
     )));
     headers.push(Annotated::new((
         Annotated::new("WWW-Authenticate".to_string()),
-        Annotated::new("basic".to_string()),
+        Annotated::new("basic".to_string().into()),
     )));
     headers.push(Annotated::new((
         Annotated::new("X-Sentry".to_string()),
-        Annotated::new("version=8".to_string()),
+        Annotated::new("version=8".to_string().into()),
     )));
 
     let headers = Annotated::new(Headers(PairList(headers)));
@@ -278,7 +275,7 @@ fn test_header_from_sequence() {
     let mut headers = Vec::new();
     headers.push(Annotated::new((
         Annotated::new("Accept".to_string()),
-        Annotated::new("application/json".to_string()),
+        Annotated::new("application/json".to_string().into()),
     )));
 
     let headers = Annotated::new(Headers(PairList(headers)));
@@ -286,7 +283,6 @@ fn test_header_from_sequence() {
 
     let json = r#"[
   ["accept", "application/json"],
-  ["whatever", 42],
   [1, 2],
   ["a", "b", "c"],
   23
@@ -307,12 +303,8 @@ fn test_header_from_sequence() {
       "application/json"
     ],
     [
-      "Whatever",
-      null
-    ],
-    [
       null,
-      null
+      "2"
     ],
     null,
     null
@@ -320,21 +312,6 @@ fn test_header_from_sequence() {
   "_meta": {
     "headers": {
       "1": {
-        "1": {
-          "": {
-            "err": [
-              [
-                "invalid_data",
-                {
-                  "reason": "expected a string"
-                }
-              ]
-            ],
-            "val": 42
-          }
-        }
-      },
-      "2": {
         "0": {
           "": {
             "err": [
@@ -347,22 +324,9 @@ fn test_header_from_sequence() {
             ],
             "val": 1
           }
-        },
-        "1": {
-          "": {
-            "err": [
-              [
-                "invalid_data",
-                {
-                  "reason": "expected a string"
-                }
-              ]
-            ],
-            "val": 2
-          }
         }
       },
-      "3": {
+      "2": {
         "": {
           "err": [
             [
@@ -379,7 +343,7 @@ fn test_header_from_sequence() {
           ]
         }
       },
-      "4": {
+      "3": {
         "": {
           "err": [
             [
@@ -460,7 +424,7 @@ fn test_request_roundtrip() {
             let mut headers = Vec::new();
             headers.push(Annotated::new((
                 Annotated::new("Referer".to_string()),
-                Annotated::new("https://google.com/".to_string()),
+                Annotated::new("https://google.com/".to_string().into()),
             )));
             PairList(headers)
         })),
@@ -649,4 +613,44 @@ fn test_querystring_without_value() {
     ));
 
     assert_eq_dbg!(query, Annotated::from_json(json).unwrap());
+}
+
+#[test]
+fn test_headers_lenient_value() {
+    let input = r#"{
+  "headers": {
+    "X-Foo": "",
+    "X-Bar": 42
+  }
+}"#;
+
+    let output = r#"{
+  "headers": [
+    [
+      "X-Bar",
+      "42"
+    ],
+    [
+      "X-Foo",
+      ""
+    ]
+  ]
+}"#;
+
+    let request = Annotated::new(Request {
+        headers: Annotated::new(Headers(PairList(vec![
+            Annotated::new((
+                Annotated::new("X-Bar".to_string()),
+                Annotated::new("42".to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("X-Foo".to_string()),
+                Annotated::new("".to_string().into()),
+            )),
+        ]))),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(Annotated::from_json(input).unwrap(), request);
+    assert_eq_dbg!(request.to_json_pretty().unwrap(), output);
 }
