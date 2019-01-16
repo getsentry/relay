@@ -27,26 +27,32 @@ pub struct Geo {
 #[metastructure(process_func = "process_user")]
 pub struct User {
     /// Unique identifier of the user.
-    #[metastructure(pii = "true", max_chars = "enumlike")]
+    #[metastructure(pii = "true", max_chars = "enumlike", skip_serialization = "empty")]
     pub id: Annotated<LenientString>,
 
     /// Email address of the user.
-    #[metastructure(pii = "true", max_chars = "email", match_regex = r"@")]
+    #[metastructure(
+        pii = "true",
+        max_chars = "email",
+        match_regex = r"@",
+        skip_serialization = "empty"
+    )]
     pub email: Annotated<String>,
 
     /// Remote IP address of the user. Defaults to "{{auto}}".
-    #[metastructure(pii = "true")]
+    #[metastructure(pii = "true", skip_serialization = "empty")]
     pub ip_address: Annotated<IpAddr>,
 
     /// Username of the user.
-    #[metastructure(pii = "true", max_chars = "enumlike")]
+    #[metastructure(pii = "true", max_chars = "enumlike", skip_serialization = "empty")]
     pub username: Annotated<String>,
 
     /// Human readable name of the user.
-    #[metastructure(pii = "true", max_chars = "enumlike")]
+    #[metastructure(pii = "true", max_chars = "enumlike", skip_serialization = "empty")]
     pub name: Annotated<String>,
 
     /// Approximate geographical location of the end user or device.
+    #[metastructure(skip_serialization = "empty")]
     pub geo: Annotated<Geo>,
 
     /// Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).

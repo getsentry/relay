@@ -168,11 +168,12 @@ pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
         let cookies = &mut request.cookies;
         headers.retain(|item| {
             if let Some((Annotated(Some(ref k), _), Annotated(Some(ref v), _))) = item.value() {
-                if k != "Cookie" {
+                if k.as_ref() != "Cookie" {
                     return true;
                 }
 
-                let new_cookies = FromValue::from_value(Annotated::new(Value::String(v.clone())));
+                let new_cookies =
+                    FromValue::from_value(Annotated::new(Value::String(v.clone().into_inner())));
 
                 if new_cookies.meta().has_errors() {
                     return true;
@@ -307,8 +308,8 @@ fn test_cookies_in_header() {
     let mut request = Request {
         url: Annotated::new("http://example.com".to_string()),
         headers: Annotated::new(Headers(PairList(vec![Annotated::new((
-            Annotated::new("Cookie".to_string()),
-            Annotated::new("a=b;c=d".to_string()),
+            Annotated::new("Cookie".to_string().into()),
+            Annotated::new("a=b;c=d".to_string().into()),
         ))]))),
         ..Request::default()
     };
@@ -338,8 +339,8 @@ fn test_cookies_in_header_not_overridden() {
         url: Annotated::new("http://example.com".to_string()),
         headers: Annotated::new(Headers(
             vec![Annotated::new((
-                Annotated::new("Cookie".to_string()),
-                Annotated::new("a=b;c=d".to_string()),
+                Annotated::new("Cookie".to_string().into()),
+                Annotated::new("a=b;c=d".to_string().into()),
             ))]
             .into(),
         )),
@@ -413,8 +414,8 @@ fn test_broken_json_with_fallback() {
     let mut request = Request {
         data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
         headers: Annotated::from(Headers(PairList(vec![Annotated::new((
-            Annotated::new("Content-Type".to_string()),
-            Annotated::new("text/plain".to_string()),
+            Annotated::new("Content-Type".to_string().into()),
+            Annotated::new("text/plain".to_string().into()),
         ))]))),
         ..Request::default()
     };

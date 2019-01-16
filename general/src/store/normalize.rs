@@ -103,19 +103,20 @@ impl<'a> NormalizeProcessor<'a> {
                 None => return true, // ToValue will decide if we should skip serializing Annotated::empty()
             };
 
-            match tag.key() {
+            match tag.key().unwrap_or_default() {
                 // These tags are special and are used in pairing with `sentry:{}`. They should not be allowed
                 // to be set via data ingest due to ambiguity.
-                Some("release") | Some("dist") | Some("filename") | Some("function") => false,
+                "release" | "dist" | "user" | "filename" | "function" => false,
 
                 // Fix case where legacy apps pass environment as a tag instead of a top level key
-                Some("environment") => {
+                "environment" => {
                     if let Some(value) = tag.value() {
                         environment.get_or_insert_with(|| value.to_string());
                     }
 
                     false
                 }
+
                 _ => true,
             }
         });
@@ -609,6 +610,47 @@ fn test_top_level_keys_moved_into_tags() {
             .into()
         ))
     );
+}
+
+#[test]
+fn test_internal_tags_removed() {
+    let mut event = Annotated::new(Event {
+        tags: Annotated::new(Tags(
+            vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("release".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("dist".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("user".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("filename".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("function".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("something".to_string()),
+                    Annotated::new("else".to_string()),
+                )),
+            ]
+            .into(),
+        )),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    assert_eq!(event.value().unwrap().tags.value().unwrap().len(), 1);
 }
 
 #[test]

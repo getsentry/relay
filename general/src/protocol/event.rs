@@ -10,8 +10,8 @@ use chrono::TimeZone;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, Level, LogEntry,
-    Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
+    Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, LenientString, Level,
+    LogEntry, Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
@@ -218,7 +218,7 @@ pub struct Event {
         nonempty = "true",
         skip_serialization = "empty"
     )]
-    pub release: Annotated<String>,
+    pub release: Annotated<LenientString>,
 
     /// Program's distribution identifier.
     // Match whitespace here, which will later get trimmed
@@ -405,7 +405,7 @@ fn test_event_roundtrip() {
         platform: Annotated::new("myplatform".to_string()),
         timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
         server_name: Annotated::new("myhost".to_string()),
-        release: Annotated::new("myrelease".to_string()),
+        release: Annotated::new("myrelease".to_string().into()),
         dist: Annotated::new("mydist".to_string()),
         environment: Annotated::new("myenv".to_string()),
         tags: {
@@ -531,6 +531,19 @@ fn test_fingerprint_null_values() {
     let output = r#"{}"#;
     let event = Annotated::new(Event {
         fingerprint: Annotated::new(vec![].into()),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
+    assert_eq_dbg!(output, event.to_json().unwrap());
+}
+
+#[test]
+fn test_lenient_release() {
+    let input = r#"{"release":42}"#;
+    let output = r#"{"release":"42"}"#;
+    let event = Annotated::new(Event {
+        release: Annotated::new("42".to_string().into()),
         ..Default::default()
     });
 
