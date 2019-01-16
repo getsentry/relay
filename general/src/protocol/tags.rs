@@ -17,6 +17,14 @@ impl AsPair for TagEntry {
     type Key = String;
     type Value = String;
 
+    fn from_pair(pair: (Annotated<Self::Key>, Annotated<Self::Value>)) -> Self {
+        TagEntry(pair.0, pair.1)
+    }
+
+    fn into_pair(self) -> (Annotated<Self::Key>, Annotated<Self::Value>) {
+        (self.0, self.1)
+    }
+
     fn as_pair(&self) -> (&Annotated<Self::Key>, &Annotated<Self::Value>) {
         (&self.0, &self.1)
     }
