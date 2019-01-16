@@ -100,9 +100,13 @@ pub struct RuntimeContext {
     #[metastructure(max_chars = "summary")]
     pub name: Annotated<String>,
 
-    /// Runtime version.
+    /// Runtime version string.
     #[metastructure(max_chars = "summary")]
     pub version: Annotated<String>,
+
+    /// Application build string, if it is separate from the version.
+    #[metastructure(max_chars = "summary")]
+    pub build: Annotated<LenientString>,
 
     /// Unprocessed runtime info.
     #[metastructure(max_chars = "summary")]
