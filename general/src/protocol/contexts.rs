@@ -66,26 +66,21 @@ pub struct DeviceContext {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct OsContext {
     /// Name of the operating system.
-    #[metastructure(max_chars = "summary")]
     pub name: Annotated<String>,
 
     /// Version of the operating system.
-    #[metastructure(max_chars = "summary")]
     pub version: Annotated<String>,
 
     /// Internal build number of the operating system.
-    #[metastructure(max_chars = "summary")]
-    pub build: Annotated<String>,
+    pub build: Annotated<LenientString>,
 
     /// Current kernel version.
-    #[metastructure(max_chars = "summary")]
     pub kernel_version: Annotated<String>,
 
     /// Indicator if the OS is rooted (mobile mostly).
     pub rooted: Annotated<bool>,
 
     /// Unprocessed operating system info.
-    #[metastructure(max_chars = "summary")]
     pub raw_description: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -97,19 +92,15 @@ pub struct OsContext {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct RuntimeContext {
     /// Runtime name.
-    #[metastructure(max_chars = "summary")]
     pub name: Annotated<String>,
 
     /// Runtime version string.
-    #[metastructure(max_chars = "summary")]
     pub version: Annotated<String>,
 
     /// Application build string, if it is separate from the version.
-    #[metastructure(max_chars = "summary")]
     pub build: Annotated<LenientString>,
 
     /// Unprocessed runtime info.
-    #[metastructure(max_chars = "summary")]
     pub raw_description: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -124,12 +115,9 @@ pub struct AppContext {
     pub app_start_time: Annotated<DateTime<Utc>>,
 
     /// Device app hash (app specific device ID)
-    #[metastructure(pii = "true")]
-    #[metastructure(max_chars = "summary")]
     pub device_app_hash: Annotated<String>,
 
     /// Build identicator.
-    #[metastructure(max_chars = "summary")]
     pub build_type: Annotated<String>,
 
     /// App identifier (dotted bundle id).
@@ -142,7 +130,6 @@ pub struct AppContext {
     pub app_version: Annotated<String>,
 
     /// Internal build ID as it appears on the platform.
-    #[metastructure(max_chars = "summary")]
     pub app_build: Annotated<LenientString>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -154,11 +141,9 @@ pub struct AppContext {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct BrowserContext {
     /// Runtime name.
-    #[metastructure(max_chars = "summary")]
     pub name: Annotated<String>,
 
     /// Runtime version.
-    #[metastructure(max_chars = "summary")]
     pub version: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -292,7 +277,7 @@ fn test_os_context_roundtrip() {
     let context = Annotated::new(Context::Os(Box::new(OsContext {
         name: Annotated::new("iOS".to_string()),
         version: Annotated::new("11.4.2".to_string()),
-        build: Annotated::new("FEEDFACE".to_string()),
+        build: Annotated::new(LenientString("FEEDFACE".to_string())),
         kernel_version: Annotated::new("17.4.0".to_string()),
         rooted: Annotated::new(true),
         raw_description: Annotated::new("iOS 11.4.2 FEEDFACE (17.4.0)".to_string()),
@@ -315,6 +300,7 @@ fn test_runtime_context_roundtrip() {
     let json = r#"{
   "name": "rustc",
   "version": "1.27.0",
+  "build": "stable",
   "raw_description": "rustc 1.27.0 stable",
   "other": "value",
   "type": "runtime"
@@ -322,6 +308,7 @@ fn test_runtime_context_roundtrip() {
     let context = Annotated::new(Context::Runtime(Box::new(RuntimeContext {
         name: Annotated::new("rustc".to_string()),
         version: Annotated::new("1.27.0".to_string()),
+        build: Annotated::new(LenientString("stable".to_string())),
         raw_description: Annotated::new("rustc 1.27.0 stable".to_string()),
         other: {
             let mut map = Object::new();
