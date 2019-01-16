@@ -8,7 +8,7 @@ use crate::types::{Annotated, Array, FromValue, Object, Value};
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_logentry", value_type = "LogEntry")]
 pub struct LogEntry {
-    /// The log message with parameter placeholders (required).
+    /// The log message with parameter placeholders.
     #[metastructure(pii = "true", max_chars = "message")]
     pub message: Annotated<String>,
 
