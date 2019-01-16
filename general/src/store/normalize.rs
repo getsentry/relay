@@ -124,12 +124,20 @@ impl<'a> NormalizeProcessor<'a> {
 
         for tag in tags.iter_mut() {
             tag.apply(|tag, meta| {
+                if let Some(key) = tag.key() {
+                    if key.len() > MaxChars::TagKey.limit() {
+                        meta.add_error(Error::new(ErrorKind::ValueTooLong));
+                        return ValueAction::DeleteHard;
+                    }
+                }
+
                 if let Some(value) = tag.value() {
                     if value.len() > MaxChars::TagValue.limit() {
                         meta.add_error(Error::new(ErrorKind::ValueTooLong));
                         return ValueAction::DeleteHard;
                     }
                 }
+
                 ValueAction::Keep
             });
         }
@@ -469,7 +477,11 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 }
 
 #[cfg(test)]
-use crate::{processor::process_value, protocol::TagEntry, types::Value};
+use crate::{
+    processor::process_value,
+    protocol::{PairList, TagEntry},
+    types::Value,
+};
 
 #[test]
 fn test_handles_type_in_value() {
@@ -555,13 +567,10 @@ fn test_geo_from_ip_address() {
 #[test]
 fn test_environment_tag_is_moved() {
     let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(
-            vec![Annotated::new(TagEntry(
-                Annotated::new("environment".to_string()),
-                Annotated::new("despacito".to_string()),
-            ))]
-            .into(),
-        )),
+        tags: Annotated::new(Tags(PairList(vec![Annotated::new(TagEntry(
+            Annotated::new("environment".to_string()),
+            Annotated::new("despacito".to_string()),
+        ))]))),
         ..Default::default()
     });
 
@@ -579,19 +588,16 @@ fn test_top_level_keys_moved_into_tags() {
     let mut event = Annotated::new(Event {
         server_name: Annotated::new("foo".to_string()),
         site: Annotated::new("foo".to_string()),
-        tags: Annotated::new(Tags(
-            vec![
-                Annotated::new(TagEntry(
-                    Annotated::new("site".to_string()),
-                    Annotated::new("old".to_string()),
-                )),
-                Annotated::new(TagEntry(
-                    Annotated::new("server_name".to_string()),
-                    Annotated::new("old".to_string()),
-                )),
-            ]
-            .into(),
-        )),
+        tags: Annotated::new(Tags(PairList(vec![
+            Annotated::new(TagEntry(
+                Annotated::new("site".to_string()),
+                Annotated::new("old".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("server_name".to_string()),
+                Annotated::new("old".to_string()),
+            )),
+        ]))),
         ..Default::default()
     });
 
@@ -605,54 +611,48 @@ fn test_top_level_keys_moved_into_tags() {
 
     assert_eq_dbg!(
         event.tags.value(),
-        Some(&Tags(
-            vec![
-                Annotated::new(TagEntry(
-                    Annotated::new("site".to_string()),
-                    Annotated::new("foo".to_string()),
-                )),
-                Annotated::new(TagEntry(
-                    Annotated::new("server_name".to_string()),
-                    Annotated::new("foo".to_string()),
-                )),
-            ]
-            .into()
-        ))
+        Some(&Tags(PairList(vec![
+            Annotated::new(TagEntry(
+                Annotated::new("site".to_string()),
+                Annotated::new("foo".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("server_name".to_string()),
+                Annotated::new("foo".to_string()),
+            )),
+        ])))
     );
 }
 
 #[test]
 fn test_internal_tags_removed() {
     let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(
-            vec![
-                Annotated::new(TagEntry(
-                    Annotated::new("release".to_string()),
-                    Annotated::new("foo".to_string()),
-                )),
-                Annotated::new(TagEntry(
-                    Annotated::new("dist".to_string()),
-                    Annotated::new("foo".to_string()),
-                )),
-                Annotated::new(TagEntry(
-                    Annotated::new("user".to_string()),
-                    Annotated::new("foo".to_string()),
-                )),
-                Annotated::new(TagEntry(
-                    Annotated::new("filename".to_string()),
-                    Annotated::new("foo".to_string()),
-                )),
-                Annotated::new(TagEntry(
-                    Annotated::new("function".to_string()),
-                    Annotated::new("foo".to_string()),
-                )),
-                Annotated::new(TagEntry(
-                    Annotated::new("something".to_string()),
-                    Annotated::new("else".to_string()),
-                )),
-            ]
-            .into(),
-        )),
+        tags: Annotated::new(Tags(PairList(vec![
+            Annotated::new(TagEntry(
+                Annotated::new("release".to_string()),
+                Annotated::new("foo".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("dist".to_string()),
+                Annotated::new("foo".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("user".to_string()),
+                Annotated::new("foo".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("filename".to_string()),
+                Annotated::new("foo".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("function".to_string()),
+                Annotated::new("foo".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("something".to_string()),
+                Annotated::new("else".to_string()),
+            )),
+        ]))),
         ..Default::default()
     });
 
@@ -755,12 +755,14 @@ fn test_frame_null_context_lines() {
 #[test]
 fn test_too_long_tags() {
     let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(
+        tags: Annotated::new(Tags(PairList(
             vec![Annotated::new(TagEntry(
                 Annotated::new("foobar".to_string()),
                 Annotated::new("...........................................................................................................................................................................................................".to_string()),
-            ))]
-            .into(),
+            )),Annotated::new(TagEntry(
+                Annotated::new("foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo".to_string()),
+                Annotated::new("bar".to_string()),
+            ))]),
         )),
         ..Default::default()
     });
@@ -772,13 +774,10 @@ fn test_too_long_tags() {
 
     assert_eq_dbg!(
         event.tags.value(),
-        Some(&Tags(
-            vec![Annotated::from_error(
-                Error::new(ErrorKind::ValueTooLong),
-                None
-            )]
-            .into()
-        ))
+        Some(&Tags(PairList(vec![
+            Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
+            Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None)
+        ])))
     );
 }
 
