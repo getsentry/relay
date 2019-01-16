@@ -84,9 +84,12 @@ format-check: python-format
 	@cargo fmt -- --check
 .PHONY: format-check
 
-lint: python-lint
+clippy:
 	@rustup component add clippy 2> /dev/null
 	@cargo clippy --tests --all -- -D clippy::all
+.PHONY: clippy
+
+lint: clippy python-lint
 .PHONY: lint
 
 test-process-event:

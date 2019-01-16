@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Context, Event, EventId, EventType, Exception, Frame, IpAddr, Level, Request,
-    Stacktrace, Tags, User,
+    Breadcrumb, ClientSdkInfo, Context, Event, EventId, EventType, Exception, Frame, IpAddr, Level,
+    Request, Stacktrace, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{Annotated, Empty, Error, ErrorKind, Meta, Object, ValueAction};
