@@ -46,6 +46,8 @@ impl<T> Values<T> {
 impl<T: FromValue> FromValue for Values<T> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
+            // Example:
+            // {"threads": [foo, bar, baz]}
             Annotated(Some(Value::Array(items)), meta) => Annotated(
                 Some(Values {
                     values: Annotated(
@@ -57,7 +59,14 @@ impl<T: FromValue> FromValue for Values<T> {
                 Meta::default(),
             ),
             Annotated(Some(Value::Object(mut obj)), meta) => {
-                if let Some(values) = obj.remove("values") {
+                if obj.is_empty() {
+                    // Example:
+                    // {"exception": {}}
+                    // {"threads": {}}
+                    Annotated(None, meta)
+                } else if let Some(values) = obj.remove("values") {
+                    // Example:
+                    // {"exception": {"values": [foo, bar, baz]}}
                     Annotated(
                         Some(Values {
                             values: FromValue::from_value(values),
@@ -66,6 +75,8 @@ impl<T: FromValue> FromValue for Values<T> {
                         meta,
                     )
                 } else {
+                    // Example:
+                    // {"exception": {"type": "ZeroDivisonError"}
                     Annotated(
                         Some(Values {
                             values: Annotated(
@@ -93,13 +104,20 @@ impl<T: FromValue> FromValue for Values<T> {
 
 /// A trait to abstract over pairs.
 pub trait AsPair {
+    type Key: AsRef<str>;
     type Value: ProcessValue;
 
+    /// Constructs this value from a raw tuple.
+    fn from_pair(pair: (Annotated<Self::Key>, Annotated<Self::Value>)) -> Self;
+
+    /// Converts this pair into a raw tuple.
+    fn into_pair(self) -> (Annotated<Self::Key>, Annotated<Self::Value>);
+
     /// Extracts a key and value pair from the object.
-    fn as_pair(&self) -> (&Annotated<String>, &Annotated<Self::Value>);
+    fn as_pair(&self) -> (&Annotated<Self::Key>, &Annotated<Self::Value>);
 
     /// Extracts the mutable key and value pair from the object.
-    fn as_pair_mut(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>);
+    fn as_pair_mut(&mut self) -> (&mut Annotated<Self::Key>, &mut Annotated<Self::Value>);
 
     /// Returns a reference to the string representation of the key.
     fn key_str(&self) -> Option<&str> {
@@ -107,14 +125,27 @@ pub trait AsPair {
     }
 }
 
-impl<T: ProcessValue> AsPair for (Annotated<String>, Annotated<T>) {
-    type Value = T;
+impl<K, V> AsPair for (Annotated<K>, Annotated<V>)
+where
+    K: AsRef<str>,
+    V: ProcessValue,
+{
+    type Key = K;
+    type Value = V;
 
-    fn as_pair(&self) -> (&Annotated<String>, &Annotated<Self::Value>) {
+    fn from_pair(pair: (Annotated<Self::Key>, Annotated<Self::Value>)) -> Self {
+        pair
+    }
+
+    fn into_pair(self) -> (Annotated<Self::Key>, Annotated<Self::Value>) {
+        self
+    }
+
+    fn as_pair(&self) -> (&Annotated<Self::Key>, &Annotated<Self::Value>) {
         (&self.0, &self.1)
     }
 
-    fn as_pair_mut(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>) {
+    fn as_pair_mut(&mut self) -> (&mut Annotated<Self::Key>, &mut Annotated<Self::Value>) {
         (&mut self.0, &mut self.1)
     }
 }
@@ -123,6 +154,49 @@ impl<T: ProcessValue> AsPair for (Annotated<String>, Annotated<T>) {
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue)]
 #[metastructure(process_func = "process_values")]
 pub struct PairList<T>(pub Array<T>);
+
+impl<T, K, V> PairList<T>
+where
+    K: AsRef<str>,
+    V: ProcessValue,
+    T: AsPair<Key = K, Value = V>,
+{
+    /// Searches for an entry with the given key and returns its position.
+    pub fn position<Q>(&self, key: Q) -> Option<usize>
+    where
+        Q: AsRef<str>,
+    {
+        let key = key.as_ref();
+        self.0
+            .iter()
+            .filter_map(|annotated| annotated.value())
+            .position(|entry| entry.as_pair().0.as_str() == Some(key))
+    }
+
+    /// Removes an entry matching the given key and returns its value, if found.
+    pub fn remove<Q>(&mut self, key: Q) -> Option<Annotated<V>>
+    where
+        Q: AsRef<str>,
+    {
+        self.position(key)
+            .and_then(|index| self.0.remove(index).0)
+            .map(|entry| entry.into_pair().1)
+    }
+
+    /// Inserts a value into the list and returns the old value.
+    pub fn insert(&mut self, key: K, value: Annotated<V>) -> Option<Annotated<V>> {
+        match self.position(key.as_ref()) {
+            Some(index) => self
+                .get_mut(index)
+                .and_then(|annotated| annotated.value_mut().as_mut())
+                .map(|pair| std::mem::replace(pair.as_pair_mut().1, value)),
+            None => {
+                self.push(Annotated::new(T::from_pair((Annotated::new(key), value))));
+                None
+            }
+        }
+    }
+}
 
 impl<T> std::ops::Deref for PairList<T> {
     type Target = Array<T>;
@@ -520,7 +594,7 @@ impl std::ops::DerefMut for LenientString {
 }
 
 impl From<String> for LenientString {
-    fn from(value: String) -> LenientString {
+    fn from(value: String) -> Self {
         LenientString(value)
     }
 }
@@ -603,7 +677,7 @@ impl FromValue for JsonLenientString {
 }
 
 impl From<String> for JsonLenientString {
-    fn from(value: String) -> JsonLenientString {
+    fn from(value: String) -> Self {
         JsonLenientString(value)
     }
 }

@@ -130,7 +130,7 @@ mod tests {
         use crate::protocol::Event;
 
         let mut event = Annotated::new(Event {
-            release: Annotated::new("a\nb".to_string()),
+            release: Annotated::new("a\nb".to_string().into()),
             ..Default::default()
         });
 

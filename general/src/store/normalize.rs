@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Context, Event, EventId, EventType, Exception, Frame, IpAddr, Level,
-    Request, Stacktrace, TagEntry, Tags, User,
+    Breadcrumb, ClientSdkInfo, Context, Event, EventId, EventType, Exception, Frame, IpAddr, Level, Request,
+    Stacktrace, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{Annotated, Empty, Error, ErrorKind, Meta, Object, ValueAction};
@@ -104,19 +104,20 @@ impl<'a> NormalizeProcessor<'a> {
                 None => return true, // ToValue will decide if we should skip serializing Annotated::empty()
             };
 
-            match tag.key() {
+            match tag.key().unwrap_or_default() {
                 // These tags are special and are used in pairing with `sentry:{}`. They should not be allowed
                 // to be set via data ingest due to ambiguity.
-                Some("release") | Some("dist") | Some("filename") | Some("function") => false,
+                "release" | "dist" | "user" | "filename" | "function" => false,
 
                 // Fix case where legacy apps pass environment as a tag instead of a top level key
-                Some("environment") => {
+                "environment" => {
                     if let Some(value) = tag.value() {
                         environment.get_or_insert_with(|| value.to_string());
                     }
 
                     false
                 }
+
                 _ => true,
             }
         });
@@ -133,18 +134,14 @@ impl<'a> NormalizeProcessor<'a> {
             });
         }
 
-        if event.server_name.value().is_some() {
-            tags.push(Annotated::new(TagEntry(
-                Annotated::new("server_name".to_string()),
-                std::mem::replace(&mut event.server_name, Annotated::empty()),
-            )));
+        let server_name = std::mem::replace(&mut event.server_name, Annotated::empty());
+        if server_name.value().is_some() {
+            tags.insert("server_name".to_string(), server_name);
         }
 
-        if event.site.value().is_some() {
-            tags.push(Annotated::new(TagEntry(
-                Annotated::new("site".to_string()),
-                std::mem::replace(&mut event.site, Annotated::empty()),
-            )));
+        let site = std::mem::replace(&mut event.site, Annotated::empty());
+        if site.value().is_some() {
+            tags.insert("site".to_string(), site);
         }
     }
 
@@ -472,7 +469,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 }
 
 #[cfg(test)]
-use {crate::processor::process_value, crate::types::Value};
+use crate::{processor::process_value, protocol::TagEntry, types::Value};
 
 #[test]
 fn test_handles_type_in_value() {
@@ -582,6 +579,19 @@ fn test_top_level_keys_moved_into_tags() {
     let mut event = Annotated::new(Event {
         server_name: Annotated::new("foo".to_string()),
         site: Annotated::new("foo".to_string()),
+        tags: Annotated::new(Tags(
+            vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("site".to_string()),
+                    Annotated::new("old".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("server_name".to_string()),
+                    Annotated::new("old".to_string()),
+                )),
+            ]
+            .into(),
+        )),
         ..Default::default()
     });
 
@@ -598,17 +608,58 @@ fn test_top_level_keys_moved_into_tags() {
         Some(&Tags(
             vec![
                 Annotated::new(TagEntry(
-                    Annotated::new("server_name".to_string()),
+                    Annotated::new("site".to_string()),
                     Annotated::new("foo".to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("site".to_string()),
+                    Annotated::new("server_name".to_string()),
                     Annotated::new("foo".to_string()),
-                ))
+                )),
             ]
             .into()
         ))
     );
+}
+
+#[test]
+fn test_internal_tags_removed() {
+    let mut event = Annotated::new(Event {
+        tags: Annotated::new(Tags(
+            vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("release".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("dist".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("user".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("filename".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("function".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("something".to_string()),
+                    Annotated::new("else".to_string()),
+                )),
+            ]
+            .into(),
+        )),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    assert_eq!(event.value().unwrap().tags.value().unwrap().len(), 1);
 }
 
 #[test]

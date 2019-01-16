@@ -79,6 +79,7 @@ pub struct Thread {
     pub name: Annotated<String>,
 
     /// Stack trace containing frames of this exception.
+    #[metastructure(skip_serialization = "empty")]
     pub stacktrace: Annotated<Stacktrace>,
 
     /// Optional unprocessed stack trace.
