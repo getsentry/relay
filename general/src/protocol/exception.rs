@@ -18,7 +18,10 @@ pub struct Exception {
     pub module: Annotated<String>,
 
     /// Stack trace containing frames of this exception.
-    #[metastructure(legacy_alias = "sentry.interfaces.Stacktrace")]
+    #[metastructure(
+        legacy_alias = "sentry.interfaces.Stacktrace",
+        skip_serialization = "empty"
+    )]
     pub stacktrace: Annotated<Stacktrace>,
 
     /// Optional unprocessed stack trace.

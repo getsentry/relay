@@ -104,13 +104,14 @@ impl<T: FromValue> FromValue for Values<T> {
 
 /// A trait to abstract over pairs.
 pub trait AsPair {
+    type Key: AsRef<str>;
     type Value: ProcessValue;
 
     /// Extracts a key and value pair from the object.
-    fn as_pair(&self) -> (&Annotated<String>, &Annotated<Self::Value>);
+    fn as_pair(&self) -> (&Annotated<Self::Key>, &Annotated<Self::Value>);
 
     /// Extracts the mutable key and value pair from the object.
-    fn as_pair_mut(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>);
+    fn as_pair_mut(&mut self) -> (&mut Annotated<Self::Key>, &mut Annotated<Self::Value>);
 
     /// Returns a reference to the string representation of the key.
     fn key_str(&self) -> Option<&str> {
@@ -118,14 +119,19 @@ pub trait AsPair {
     }
 }
 
-impl<T: ProcessValue> AsPair for (Annotated<String>, Annotated<T>) {
-    type Value = T;
+impl<K, V> AsPair for (Annotated<K>, Annotated<V>)
+where
+    K: AsRef<str>,
+    V: ProcessValue,
+{
+    type Key = K;
+    type Value = V;
 
-    fn as_pair(&self) -> (&Annotated<String>, &Annotated<Self::Value>) {
+    fn as_pair(&self) -> (&Annotated<Self::Key>, &Annotated<Self::Value>) {
         (&self.0, &self.1)
     }
 
-    fn as_pair_mut(&mut self) -> (&mut Annotated<String>, &mut Annotated<Self::Value>) {
+    fn as_pair_mut(&mut self) -> (&mut Annotated<Self::Key>, &mut Annotated<Self::Value>) {
         (&mut self.0, &mut self.1)
     }
 }
@@ -531,7 +537,7 @@ impl std::ops::DerefMut for LenientString {
 }
 
 impl From<String> for LenientString {
-    fn from(value: String) -> LenientString {
+    fn from(value: String) -> Self {
         LenientString(value)
     }
 }
@@ -614,7 +620,7 @@ impl FromValue for JsonLenientString {
 }
 
 impl From<String> for JsonLenientString {
-    fn from(value: String) -> JsonLenientString {
+    fn from(value: String) -> Self {
         JsonLenientString(value)
     }
 }
