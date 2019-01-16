@@ -96,22 +96,41 @@ fn set_auto_remote_addr(env: &mut Object<Value>, remote_addr: &str) {
     }
 }
 
-/// Checks for the likelyhood of a parsed urlencoded body.
-fn is_valid_urlencoded(object: &Object<Value>) -> bool {
+/// Decodes an urlencoded body.
+fn urlencoded_from_str(raw: &str) -> Option<Value> {
+    // Binary strings would be decoded, but we know url-encoded bodies are ASCII.
+    if !raw.is_ascii() {
+        return None;
+    }
+
+    // Avoid false positives with XML and partial JSON.
+    if raw.starts_with("<?xml") || raw.starts_with('{') || raw.starts_with('[') {
+        return None;
+    }
+
+    // serde_urlencoded always deserializes into `Value::Object`.
+    let object = match serde_urlencoded::from_str(raw) {
+        Ok(Value::Object(value)) => value,
+        _ => return None,
+    };
+
     // `serde_urlencoded` can decode any string with valid characters into an object. However, we
     // need to account for false-positives in the following cases:
+    //  - An empty string "" is decoded as empty object
     //  - A string "foo" is decoded as {"foo": ""} (check for single empty value)
     //  - A base64 encoded string "dGU=" also decodes with a single empty value
     //  - A base64 encoded string "dA==" decodes as {"dA": "="} (check for single =)
-    //  - Any other string containing equals or ampersand will decode properly
+    let is_valid = object.len() > 1
+        || object
+            .values()
+            .next()
+            .and_then(|a| a.as_str())
+            .map_or(false, |s| s != "" && s != "=");
 
-    if object.len() > 1 {
-        return true;
-    }
-
-    match object.values().next().and_then(|a| a.as_str()) {
-        Some(s) => s != "" && s != "=",
-        None => false,
+    if is_valid {
+        Some(Value::Object(object))
+    } else {
+        None
     }
 }
 
@@ -121,16 +140,12 @@ fn parse_raw_data(request: &Request) -> Option<(&'static str, Value)> {
     // TODO: Try to decode base64 first
 
     if let Ok(value) = serde_json::from_str(raw) {
-        return Some(("application/json", value));
+        Some(("application/json", value))
+    } else if let Some(value) = urlencoded_from_str(raw) {
+        Some(("application/x-www-form-urlencoded", value))
+    } else {
+        None
     }
-
-    if let Ok(Value::Object(value)) = serde_urlencoded::from_str(raw) {
-        if is_valid_urlencoded(&value) {
-            return Some(("application/x-www-form-urlencoded", Value::Object(value)));
-        }
-    }
-
-    None
 }
 
 fn normalize_data(request: &mut Request) {
@@ -480,4 +495,28 @@ fn test_infer_url_encoded_base64() {
     normalize_request(&mut request, None);
     assert_eq_dbg!(request.inferred_content_type.value(), None);
     assert_eq_dbg!(request.data.as_str(), Some("dA=="));
+}
+
+#[test]
+fn test_infer_xml() {
+    let mut request = Request {
+        data: Annotated::from(Value::String("<?xml version=\"1.0\" ?>".to_string())),
+        ..Request::default()
+    };
+
+    normalize_request(&mut request, None);
+    assert_eq_dbg!(request.inferred_content_type.value(), None);
+    assert_eq_dbg!(request.data.as_str(), Some("<?xml version=\"1.0\" ?>"));
+}
+
+#[test]
+fn test_infer_binary() {
+    let mut request = Request {
+        data: Annotated::from(Value::String("\u{001f}1\u{0000}\u{0000}".to_string())),
+        ..Request::default()
+    };
+
+    normalize_request(&mut request, None);
+    assert_eq_dbg!(request.inferred_content_type.value(), None);
+    assert_eq_dbg!(request.data.as_str(), Some("\u{001f}1\u{0000}\u{0000}"));
 }
