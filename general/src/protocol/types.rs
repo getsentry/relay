@@ -46,6 +46,8 @@ impl<T> Values<T> {
 impl<T: FromValue> FromValue for Values<T> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
+            // Example:
+            // {"threads": [foo, bar, baz]}
             Annotated(Some(Value::Array(items)), meta) => Annotated(
                 Some(Values {
                     values: Annotated(
@@ -57,7 +59,14 @@ impl<T: FromValue> FromValue for Values<T> {
                 Meta::default(),
             ),
             Annotated(Some(Value::Object(mut obj)), meta) => {
-                if let Some(values) = obj.remove("values") {
+                if obj.is_empty() {
+                    // Example:
+                    // {"exception": {}}
+                    // {"threads": {}}
+                    Annotated(None, meta)
+                } else if let Some(values) = obj.remove("values") {
+                    // Example:
+                    // {"exception": {"values": [foo, bar, baz]}}
                     Annotated(
                         Some(Values {
                             values: FromValue::from_value(values),
@@ -65,9 +74,9 @@ impl<T: FromValue> FromValue for Values<T> {
                         }),
                         meta,
                     )
-                } else if obj.is_empty() {
-                    Annotated(None, meta)
                 } else {
+                    // Example:
+                    // {"exception": {"type": "ZeroDivisonError"}
                     Annotated(
                         Some(Values {
                             values: Annotated(
