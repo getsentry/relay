@@ -539,6 +539,17 @@ fn test_fingerprint_null_values() {
 }
 
 #[test]
+fn test_empty_threads() {
+    let input = r#"{"threads": {}}"#;
+    let output = r#"{}"#;
+
+    let event = Annotated::new(Event::default());
+
+    assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
+    assert_eq_dbg!(output, event.to_json().unwrap());
+}
+
+#[test]
 fn test_lenient_release() {
     let input = r#"{"release":42}"#;
     let output = r#"{"release":"42"}"#;
