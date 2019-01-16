@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use url::Url;
 
-use crate::protocol::{PairList, Query, Request};
+use crate::protocol::{Query, Request};
 use crate::types::{Annotated, ErrorKind, FromValue, Meta, Object, Value, ValueAction};
 
 const ELLIPSIS: char = '\u{2026}';
@@ -28,51 +28,54 @@ fn normalize_url(request: &mut Request) {
         url_string.push_str("...");
     }
 
-    let url = match Url::parse(url_string) {
-        Ok(url) => url,
+    match Url::parse(url_string) {
+        Ok(mut url) => {
+            // Separate the query string and fragment bits into dedicated fields. If
+            // both the URL and the fields have been set, the fields take precedence.
+            if request.query_string.value().is_none() {
+                let query: Query = url.query_pairs().collect();
+                if !query.is_empty() {
+                    request.query_string.set_value(Some(query));
+                }
+            }
+
+            if request.fragment.value().is_none() {
+                request
+                    .fragment
+                    .set_value(url.fragment().map(str::to_string));
+            }
+
+            url.set_query(None);
+            url.set_fragment(None);
+            if url.as_str() != url_string {
+                *url_string = url.into_string();
+            }
+        }
         Err(_) => {
+            // The URL is invalid, but we can still apply heuristics to parse the query
+            // string and put the fragment in its own field.
+            if let Some(fragment_index) = url_string.find('#') {
+                let fragment = &url_string[fragment_index + 1..];
+                if !fragment.is_empty() && request.fragment.value().is_none() {
+                    request.fragment.set_value(Some(fragment.to_string()));
+                }
+                url_string.truncate(fragment_index);
+            }
+
+            if let Some(query_index) = url_string.find('?') {
+                let query_string = &url_string[query_index + 1..];
+                if !query_string.is_empty() && request.query_string.value().is_none() {
+                    let query = Query::parse(query_string);
+                    if !query.is_empty() {
+                        request.query_string.set_value(Some(query));
+                    }
+                }
+                url_string.truncate(query_index);
+            }
+
             request.url.meta_mut().add_error(ErrorKind::InvalidData);
-            return;
         }
     };
-
-    // Separate the query string and fragment bits into dedicated fields. If
-    // both the URL and the fields have been set, the fields take precedence.
-    if request.query_string.value().is_none() {
-        let pairs: Vec<_> = url
-            .query_pairs()
-            .map(|(k, v)| {
-                Annotated::new((
-                    Annotated::new(k.to_string()),
-                    Annotated::new(v.to_string().into()),
-                ))
-            })
-            .collect();
-
-        if !pairs.is_empty() {
-            request.query_string.set_value(Some(Query(PairList(pairs))));
-        }
-    }
-
-    if request.fragment.value().is_none() {
-        request
-            .fragment
-            .set_value(url.fragment().map(str::to_string));
-    }
-
-    // Remove the fragment and query string from the URL to avoid duplication
-    // or inconsistencies. We do not use `url.to_string()` here to prevent
-    // urlencoding of special characters in the path segment of the URL or
-    // normalization of partial URLs. That is expected to occur after PII
-    // stripping.
-    let url_end_index = match (url_string.find('?'), url_string.find('#')) {
-        (Some(a), Some(b)) => Some(std::cmp::min(a, b)),
-        (a, b) => a.or(b),
-    };
-
-    if let Some(index) = url_end_index {
-        url_string.truncate(index);
-    }
 }
 
 fn normalize_method(method: &mut String, meta: &mut Meta) -> ValueAction {
@@ -187,6 +190,9 @@ pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
     }
 }
 
+#[cfg(test)]
+use crate::protocol::PairList;
+
 #[test]
 fn test_url_truncation() {
     let mut request = Request {
@@ -241,6 +247,44 @@ fn test_url_with_qs_and_fragment() {
                 Annotated::new("thing".to_string().into()),
             )),]))),
             fragment: Annotated::new("else".to_string()),
+            ..Request::default()
+        }
+    );
+}
+
+#[test]
+fn test_url_only_path() {
+    let mut request = Request {
+        url: Annotated::from("metamask/popup.html#".to_string()),
+        ..Request::default()
+    };
+
+    normalize_request(&mut request, None);
+    assert_eq_dbg!(
+        request,
+        Request {
+            url: Annotated(
+                Some("metamask/popup.html".to_string()),
+                Meta::from_error(ErrorKind::InvalidData)
+            ),
+            ..Request::default()
+        }
+    );
+}
+
+#[test]
+fn test_url_punycoded() {
+    let mut request = Request {
+        url: Annotated::new("http://göögle.com/".to_string()),
+        ..Request::default()
+    };
+
+    normalize_request(&mut request, None);
+
+    assert_eq_dbg!(
+        request,
+        Request {
+            url: Annotated::new("http://xn--ggle-5qaa.com/".to_string()),
             ..Request::default()
         }
     );
