@@ -58,7 +58,7 @@ pub struct DeviceContext {
     pub timezone: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
 }
 
@@ -84,7 +84,7 @@ pub struct OsContext {
     pub raw_description: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
 }
 
@@ -104,7 +104,7 @@ pub struct RuntimeContext {
     pub raw_description: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
 }
 
@@ -133,7 +133,7 @@ pub struct AppContext {
     pub app_build: Annotated<LenientString>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
 }
 
@@ -147,7 +147,7 @@ pub struct BrowserContext {
     pub version: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
 }
 

@@ -467,7 +467,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     let mut process_child_values_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
-    let mut tmp_idx = 0;
 
     let type_attrs = parse_type_attributes(&s.ast().attrs);
     if type_attrs.tag_key.is_some() {
@@ -491,6 +490,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 .unwrap_or_else(|| index.to_string())
         });
         let field_name = LitStr::new(&field_name, Span::call_site());
+        let field_attrs_name = Ident::new(&format!("__field_attrs_{}", index), Span::call_site());
 
         let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
 
@@ -509,10 +509,20 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 )));
             })
             .to_tokens(&mut to_value_body);
-            (quote! {
-                __processor.process_other(#bi, __state);
-            })
-            .to_tokens(&mut process_child_values_body);
+
+            let additional_state = if field_attrs.retain {
+                quote! {
+                    &__state.enter_additional(
+                        Some(::std::borrow::Cow::Borrowed(crate::processor::FieldAttrs::default_retain()))
+                    )
+                }
+            } else {
+                quote! { __state }
+            };
+
+            (quote! { __processor.process_other(#bi, #additional_state); })
+                .to_tokens(&mut process_child_values_body);
+
             (quote! {
                 for (__key, __value) in #bi.iter() {
                     if !__value.skip_serialization(#skip_serialization_attr) {
@@ -536,13 +546,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
             (quote! { && #bi.values().all(|__v| __v.skip_serialization(#skip_serialization_attr)) })
                 .to_tokens(&mut is_deep_empty_body);
         } else {
-            let field_attrs_name = Ident::new(
-                &format!("__field_attrs_{}", {
-                    tmp_idx += 1;
-                    tmp_idx
-                }),
-                Span::call_site(),
-            );
             let required_attr = LitBool {
                 value: field_attrs.required,
                 span: Span::call_site(),
@@ -652,14 +655,11 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                         max_chars: #max_chars_attr,
                         bag_size: #bag_size_attr,
                         pii: #pii_attr,
+                        retain: false,
                     };
                 }
 
-                let #bi = crate::processor::process_value(
-                    #bi,
-                    __processor,
-                    &#enter_state,
-                );
+                let #bi = crate::processor::process_value(#bi, __processor, &#enter_state);
             }).to_tokens(&mut process_child_values_body);
 
             (quote! { && crate::types::Empty::is_empty(#bi) }).to_tokens(&mut is_empty_body);
@@ -950,6 +950,7 @@ struct FieldAttrs {
     required: bool,
     nonempty: bool,
     pii: bool,
+    retain: bool,
     match_regex: Option<String>,
     max_chars: TokenStream,
     bag_size: TokenStream,
@@ -1091,6 +1092,17 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
                                     },
                                     _ => {
                                         panic!("Got non string literal for pii");
+                                    }
+                                }
+                            } else if ident == "retain" {
+                                match lit {
+                                    Lit::Str(litstr) => match litstr.value().as_str() {
+                                        "true" => rv.retain = true,
+                                        "false" => rv.retain = false,
+                                        other => panic!("Unknown value {}", other),
+                                    },
+                                    _ => {
+                                        panic!("Got non string literal for retain");
                                     }
                                 }
                             } else if ident == "legacy_alias" {

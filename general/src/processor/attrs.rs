@@ -326,6 +326,8 @@ pub struct FieldAttrs {
     pub bag_size: Option<BagSize>,
     /// The type of PII on the field.
     pub pii: bool,
+    /// Whether additional properties should be retained during normalization.
+    pub retain: bool,
 }
 
 lazy_static::lazy_static! {
@@ -337,6 +339,7 @@ lazy_static::lazy_static! {
         max_chars: None,
         bag_size: None,
         pii: false,
+        retain: false,
     };
 }
 
@@ -349,13 +352,32 @@ lazy_static::lazy_static! {
         max_chars: None,
         bag_size: None,
         pii: true,
+        retain: false,
+    };
+}
+
+lazy_static::lazy_static! {
+    static ref RETAIN_FIELD_ATTRS: FieldAttrs = FieldAttrs {
+        name: None,
+        required: false,
+        nonempty: false,
+        match_regex: None,
+        max_chars: None,
+        bag_size: None,
+        pii: false,
+        retain: true,
     };
 }
 
 impl FieldAttrs {
-    /// Like default but with pii turned on.
+    /// Like default but with `pii` set to true.
     pub fn default_pii() -> &'static FieldAttrs {
         &*PII_FIELD_ATTRS
+    }
+
+    /// Like default but with `retain` set to true.
+    pub fn default_retain() -> &'static FieldAttrs {
+        &*RETAIN_FIELD_ATTRS
     }
 }
 
@@ -493,6 +515,13 @@ impl<'a> ProcessingState<'a> {
             value_type,
             depth: self.depth + 1,
         }
+    }
+
+    /// Derives a processing state for additional properties.
+    pub fn enter_additional(&'a self, attrs: Option<Cow<'a, FieldAttrs>>) -> Self {
+        let mut state = self.clone();
+        state.attrs = attrs;
+        state
     }
 
     /// Returns the path in the processing state.
