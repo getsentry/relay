@@ -97,6 +97,9 @@ impl<'a> NormalizeProcessor<'a> {
     fn normalize_event_tags(&self, event: &mut Event) {
         let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
         let environment = &mut event.environment;
+        if environment.is_empty() {
+            *environment = Annotated::empty();
+        }
 
         tags.retain(|tag| {
             let tag = match tag.value() {
@@ -581,6 +584,40 @@ fn test_environment_tag_is_moved() {
 
     assert_eq_dbg!(event.environment.as_str(), Some("despacito"));
     assert_eq_dbg!(event.tags.value(), Some(&Tags(vec![].into())));
+}
+
+#[test]
+fn test_empty_environment_is_removed_and_overwritten_with_tag() {
+    let mut event = Annotated::new(Event {
+        tags: Annotated::new(Tags(PairList(vec![Annotated::new(TagEntry(
+            Annotated::new("environment".to_string()),
+            Annotated::new("despacito".to_string()),
+        ))]))),
+        environment: Annotated::new("".to_string()),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    let event = event.value().unwrap();
+
+    assert_eq_dbg!(event.environment.as_str(), Some("despacito"));
+    assert_eq_dbg!(event.tags.value(), Some(&Tags(vec![].into())));
+}
+
+#[test]
+fn test_empty_environment_is_removed() {
+    let mut event = Annotated::new(Event {
+        environment: Annotated::new("".to_string()),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    let event = event.value().unwrap();
+    assert_eq_dbg!(event.environment.value(), None);
 }
 
 #[test]
