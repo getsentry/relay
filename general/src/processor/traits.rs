@@ -32,7 +32,14 @@ macro_rules! process_method {
 /// A trait for processing processable values.
 pub trait Processor: Sized {
     #[inline]
-    fn process_any(&mut self, is_some: bool, meta: &mut Meta, state: &ProcessingState<'_>) {}
+    fn before_process<T: ProcessValue>(
+        &mut self,
+        value: Option<&T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ValueAction {
+        ValueAction::Keep
+    }
 
     process_method!(process_string, String);
     process_method!(process_u64, u64);

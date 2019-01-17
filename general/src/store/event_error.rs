@@ -13,9 +13,14 @@ impl EmitEventErrors {
 }
 
 impl Processor for EmitEventErrors {
-    fn process_any(&mut self, _: bool, meta: &mut Meta, state: &ProcessingState<'_>) {
+    fn before_process<T: ProcessValue>(
+        &mut self,
+        _: Option<&T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ValueAction {
         if !meta.has_errors() {
-            return;
+            return ValueAction::Keep;
         }
 
         // Only append the original value to the first error if there are multiple.
@@ -32,6 +37,8 @@ impl Processor for EmitEventErrors {
                     .collect(),
             });
         }
+
+        ValueAction::Keep
     }
 
     fn process_event(
