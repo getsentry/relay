@@ -56,12 +56,17 @@ impl FromValue for Cookies {
             Annotated(Some(Value::String(value)), mut meta) => {
                 let mut cookies = Vec::new();
                 for result in Cookies::iter_cookies(&value) {
+                    let mut had_error = false;
                     match result {
                         Ok(cookie) => cookies.push(cookie),
                         Err(error) => {
+                            had_error = true;
                             meta.add_error(error);
-                            meta.set_original_value(Some(value.to_string()));
                         }
+                    }
+
+                    if had_error {
+                        meta.set_original_value(Some(value.to_string()));
                     }
                 }
                 Annotated(Some(Cookies(PairList(cookies))), meta)
