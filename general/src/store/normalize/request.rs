@@ -166,7 +166,7 @@ fn normalize_data(request: &mut Request) {
             .headers
             .value()
             .and_then(|headers| headers.get_header("Content-Type"))
-            .map(|value| value.to_string())
+            .map(|value| value.split(';').next().unwrap_or(&value).to_string())
             .into();
     }
 }
@@ -474,7 +474,7 @@ fn test_broken_json_with_fallback() {
         data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
         headers: Annotated::from(Headers(PairList(vec![Annotated::new((
             Annotated::new("Content-Type".to_string().into()),
-            Annotated::new("text/plain".to_string().into()),
+            Annotated::new("text/plain; encoding=utf-8".to_string().into()),
         ))]))),
         ..Request::default()
     };
