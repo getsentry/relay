@@ -2,24 +2,16 @@ use crate::processor::{estimate_size, process_chunked_value, BagSize, Chunk, Max
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{Array, Meta, Object, Remark, RemarkType, ValueAction};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct BagSizeState {
+    bag_size: BagSize,
+    encountered_at_depth: usize,
     size_remaining: usize,
-    depth_remaining: usize,
-}
-
-impl From<BagSize> for BagSizeState {
-    fn from(bag_size: BagSize) -> Self {
-        BagSizeState {
-            size_remaining: bag_size.max_size(),
-            depth_remaining: bag_size.max_depth() + 1,
-        }
-    }
 }
 
 #[derive(Default)]
 pub struct TrimmingProcessor {
-    bag_size_state: Option<BagSizeState>,
+    bag_size_state: Vec<BagSizeState>,
 }
 
 impl TrimmingProcessor {
@@ -29,20 +21,71 @@ impl TrimmingProcessor {
 }
 
 impl Processor for TrimmingProcessor {
+    fn before_process<T: ProcessValue>(
+        &mut self,
+        _: Option<&T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ValueAction {
+        // If we encounter a bag size attribute it resets the depth and size
+        // that is permitted below it.
+        if let Some(bag_size) = state.attrs().bag_size {
+            self.bag_size_state.push(BagSizeState {
+                size_remaining: bag_size.max_size(),
+                encountered_at_depth: state.depth(),
+                bag_size,
+            });
+        }
+
+        if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
+            if (state.depth() - bag_size_state.encountered_at_depth)
+                > bag_size_state.bag_size.max_depth() - 1
+            {
+                meta.add_remark(Remark {
+                    ty: RemarkType::Removed,
+                    rule_id: "!limit".to_string(),
+                    range: None,
+                });
+                return ValueAction::DeleteHard;
+            } else if state.depth() == bag_size_state.encountered_at_depth + 1 {
+                if bag_size_state.size_remaining == 0 {
+                    return ValueAction::DeleteHard;
+                }
+            }
+        }
+
+        ValueAction::Keep
+    }
+
+    fn after_process<T: ProcessValue>(
+        &mut self,
+        value: Option<&T>,
+        _: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) {
+        if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
+            if state.depth() == bag_size_state.encountered_at_depth {
+                self.bag_size_state.pop().unwrap();
+            } else if state.depth() == bag_size_state.encountered_at_depth + 1 {
+                let item_length = estimate_size(value) + 1;
+                bag_size_state.size_remaining =
+                    bag_size_state.size_remaining.saturating_sub(item_length);
+            }
+        }
+    }
+
     fn process_string(
         &mut self,
         value: &mut String,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        if let Some(ref mut bag_size_state) = self.bag_size_state {
-            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
-
-            bag_size_state.size_remaining = bag_size_state
-                .size_remaining
-                .saturating_sub(value.chars().count());
-        } else if let Some(max_chars) = state.attrs().max_chars {
+        if let Some(max_chars) = state.attrs().max_chars {
             trim_string(value, meta, max_chars);
+        }
+
+        if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
+            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
         }
 
         ValueAction::Keep
@@ -57,64 +100,38 @@ impl Processor for TrimmingProcessor {
     where
         T: ProcessValue,
     {
-        let old_bag_size_state = self.bag_size_state;
-        let mut result = ValueAction::Keep;
-
-        // If we encounter a bag size attribute it resets the depth and size
-        // that is permitted below it.
-        if let Some(bag_size) = state.attrs().bag_size {
-            self.bag_size_state = Some(BagSizeState {
-                size_remaining: bag_size.max_size(),
-                depth_remaining: bag_size.max_depth() + 1,
-            });
-        }
-
         // If we need to check the bag size, then we go down a different path
-        if let Some(mut bag_size_state) = self.bag_size_state {
-            bag_size_state.depth_remaining = bag_size_state.depth_remaining.saturating_sub(1);
-            bag_size_state.size_remaining = bag_size_state.size_remaining.saturating_sub(2);
-            self.bag_size_state = Some(bag_size_state);
+        if !self.bag_size_state.is_empty() {
+            {
+                let size_remaining = &mut self.bag_size_state.last_mut().unwrap().size_remaining;
+                *size_remaining = size_remaining.saturating_sub(2);
+            }
 
-            if bag_size_state.depth_remaining == 0 {
-                meta.add_remark(Remark {
-                    ty: RemarkType::Removed,
-                    rule_id: "!limit".to_string(),
-                    range: None,
-                });
-                result = ValueAction::DeleteHard;
-            } else {
-                let original_length = value.len();
+            let original_length = value.len();
 
-                let mut split_index = None;
-                for (index, item) in value.iter_mut().enumerate() {
-                    if bag_size_state.size_remaining == 0 {
-                        split_index = Some(index);
-                        break;
-                    }
-
-                    let item_state = state.enter_index(index, None, ValueType::for_field(item));
-                    process_value(item, self, &item_state);
-
-                    let item_length = estimate_size(item.value()) + 1;
-                    bag_size_state.size_remaining =
-                        bag_size_state.size_remaining.saturating_sub(item_length);
-                    self.bag_size_state = Some(bag_size_state);
+            let mut split_index = None;
+            for (index, item) in value.iter_mut().enumerate() {
+                if self.bag_size_state.last().unwrap().size_remaining == 0 {
+                    split_index = Some(index);
+                    break;
                 }
 
-                if let Some(split_index) = split_index {
-                    value.split_off(split_index);
-                }
+                let item_state = state.enter_index(index, None, ValueType::for_field(item));
+                process_value(item, self, &item_state);
+            }
 
-                if value.len() != original_length {
-                    meta.set_original_length(Some(original_length));
-                }
+            if let Some(split_index) = split_index {
+                value.split_off(split_index);
+            }
+
+            if value.len() != original_length {
+                meta.set_original_length(Some(original_length));
             }
         } else {
             value.process_child_values(self, state);
         }
 
-        self.bag_size_state = old_bag_size_state;
-        result
+        ValueAction::Keep
     }
 
     fn process_object<T>(
@@ -126,64 +143,38 @@ impl Processor for TrimmingProcessor {
     where
         T: ProcessValue,
     {
-        let old_bag_size_state = self.bag_size_state;
-        let mut result = ValueAction::Keep;
-
-        // If we encounter a bag size attribute it resets the depth and size
-        // that is permitted below it.
-        if let Some(bag_size) = state.attrs().bag_size {
-            self.bag_size_state = Some(BagSizeState {
-                size_remaining: bag_size.max_size(),
-                depth_remaining: bag_size.max_depth() + 1,
-            });
-        }
-
         // If we need to check the bag size, then we go down a different path
-        if let Some(mut bag_size_state) = self.bag_size_state {
-            bag_size_state.depth_remaining = bag_size_state.depth_remaining.saturating_sub(1);
-            bag_size_state.size_remaining = bag_size_state.size_remaining.saturating_sub(2);
-            self.bag_size_state = Some(bag_size_state);
+        if !self.bag_size_state.is_empty() {
+            {
+                let size_remaining = &mut self.bag_size_state.last_mut().unwrap().size_remaining;
+                *size_remaining = size_remaining.saturating_sub(2);
+            }
 
-            if bag_size_state.depth_remaining == 0 {
-                meta.add_remark(Remark {
-                    ty: RemarkType::Removed,
-                    rule_id: "!limit".to_string(),
-                    range: None,
-                });
-                result = ValueAction::DeleteHard;
-            } else {
-                let original_length = value.len();
+            let original_length = value.len();
 
-                let mut split_key = None;
-                for (key, item) in value.iter_mut() {
-                    if bag_size_state.size_remaining == 0 {
-                        split_key = Some(key.to_owned());
-                        break;
-                    }
-
-                    let item_state = state.enter_borrowed(key, None, ValueType::for_field(item));
-                    process_value(item, self, &item_state);
-
-                    let item_length = estimate_size(item.value()) + 1;
-                    bag_size_state.size_remaining =
-                        bag_size_state.size_remaining.saturating_sub(item_length);
-                    self.bag_size_state = Some(bag_size_state);
+            let mut split_key = None;
+            for (key, item) in value.iter_mut() {
+                if self.bag_size_state.last().unwrap().size_remaining == 0 {
+                    split_key = Some(key.to_owned());
+                    break;
                 }
 
-                if let Some(split_key) = split_key {
-                    value.split_off(&split_key);
-                }
+                let item_state = state.enter_borrowed(key, None, ValueType::for_field(item));
+                process_value(item, self, &item_state);
+            }
 
-                if value.len() != original_length {
-                    meta.set_original_length(Some(original_length));
-                }
+            if let Some(split_key) = split_key {
+                value.split_off(&split_key);
+            }
+
+            if value.len() != original_length {
+                meta.set_original_length(Some(original_length));
             }
         } else {
             value.process_child_values(self, state);
         }
 
-        self.bag_size_state = old_bag_size_state;
-        result
+        ValueAction::Keep
     }
 }
 

@@ -557,6 +557,11 @@ impl<'a> ProcessingState<'a> {
             size: self.depth,
         }
     }
+
+    /// Return the depth (~ indentation level) of the currently processed value.
+    pub fn depth(&'a self) -> usize {
+        self.depth
+    }
 }
 
 pub struct ProcessingStateIter<'a> {
