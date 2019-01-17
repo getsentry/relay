@@ -106,3 +106,8 @@ devserver:
 
 GeoLite2-City.mmdb:
 	@curl http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.mmdb.gz | gzip -cd > $@
+
+clean-target-dir:
+	if [ "$$(du -s target/ | cut -f 1)" -gt 4000000 ]; then \
+		rm -rf target/; \
+	fi
