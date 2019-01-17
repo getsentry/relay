@@ -171,38 +171,37 @@ fn normalize_data(request: &mut Request) {
     }
 }
 
+fn normalize_cookies(request: &mut Request) {
+    if request.cookies.value().is_some() {
+        return;
+    }
+
+    let headers = match request.headers.value_mut() {
+        Some(headers) => headers,
+        None => return,
+    };
+
+    let cookie_header = match headers.get_header("Cookie") {
+        Some(header) => header,
+        None => return,
+    };
+
+    if let Ok(new_cookies) = crate::protocol::Cookies::parse(cookie_header) {
+        request.cookies = Annotated::from(new_cookies);
+        headers.remove("Cookie");
+    }
+}
+
 pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
     request.method.apply(normalize_method);
     normalize_url(request);
     normalize_data(request);
+    normalize_cookies(request);
 
     if let Some(ref client_ip) = client_ip {
         request
             .env
             .apply(|env, _meta| set_auto_remote_addr(env, client_ip));
-    }
-
-    if let (None, Some(ref mut headers)) = (request.cookies.value(), request.headers.value_mut()) {
-        let cookies = &mut request.cookies;
-        headers.retain(|item| {
-            if let Some((Annotated(Some(ref k), _), Annotated(Some(ref v), _))) = item.value() {
-                if k.as_ref() != "Cookie" {
-                    return true;
-                }
-
-                let new_cookies =
-                    FromValue::from_value(Annotated::new(Value::String(v.clone().into_inner())));
-
-                if new_cookies.meta().has_errors() {
-                    return true;
-                }
-
-                *cookies = new_cookies;
-                false
-            } else {
-                true
-            }
-        });
     }
 }
 

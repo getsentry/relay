@@ -4,11 +4,37 @@ use cookie::Cookie;
 use url::form_urlencoded;
 
 use crate::protocol::{JsonLenientString, LenientString, PairList};
-use crate::types::{Annotated, Array, Error, FromValue, Object, Value};
+use crate::types::{Annotated, Error, FromValue, Object, Value};
+
+type CookieEntry = Annotated<(Annotated<String>, Annotated<String>)>;
 
 /// A map holding cookies.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
+
+impl Cookies {
+    pub fn parse(string: &str) -> Result<Self, Error> {
+        let pairs: Result<_, _> = Self::iter_cookies(string).collect();
+        pairs.map(Cookies)
+    }
+
+    fn iter_cookies<'a>(string: &'a str) -> impl Iterator<Item = Result<CookieEntry, Error>> + 'a {
+        string
+            .split(';')
+            .filter(|cookie| !cookie.trim().is_empty())
+            .map(Cookies::parse_cookie)
+    }
+
+    fn parse_cookie(string: &str) -> Result<CookieEntry, Error> {
+        match Cookie::parse_encoded(string) {
+            Ok(cookie) => Ok(Annotated::from((
+                cookie.name().to_string().into(),
+                cookie.value().to_string().into(),
+            ))),
+            Err(error) => Err(Error::invalid(error)),
+        }
+    }
+}
 
 impl std::ops::Deref for Cookies {
     type Target = PairList<(Annotated<String>, Annotated<String>)>;
@@ -29,20 +55,12 @@ impl FromValue for Cookies {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => {
                 let mut cookies = Vec::new();
-                for cookie in value.split(';') {
-                    if cookie.trim().is_empty() {
-                        continue;
-                    }
-                    match Cookie::parse_encoded(cookie) {
-                        Ok(cookie) => {
-                            cookies.push(Annotated::new((
-                                Annotated::new(cookie.name().to_string()),
-                                Annotated::new(cookie.value().to_string()),
-                            )));
-                        }
-                        Err(err) => {
-                            meta.add_error(Error::invalid(err));
-                            meta.set_original_value(Some(cookie.to_string()));
+                for result in Cookies::iter_cookies(&value) {
+                    match result {
+                        Ok(cookie) => cookies.push(cookie),
+                        Err(error) => {
+                            meta.add_error(error);
+                            meta.set_original_value(Some(value.to_string()));
                         }
                     }
                 }
@@ -152,7 +170,7 @@ impl Headers {
 }
 
 impl std::ops::Deref for Headers {
-    type Target = Array<(Annotated<HeaderName>, Annotated<LenientString>)>;
+    type Target = PairList<(Annotated<HeaderName>, Annotated<LenientString>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
