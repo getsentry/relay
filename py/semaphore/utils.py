@@ -52,12 +52,17 @@ class RustObject(with_metaclass(_NoDict)):
             raise RuntimeError("Object is closed")
         return self._objptr
 
-    def __del__(self, _rustcall=rustcall):
+    def __del__(self):
+        if rustcall is None:
+            # Interpreter is shutting down and our memory management utils are
+            # gone. Just give up, the process is going away anyway.
+            return
+
         if self._objptr is None or self._shared:
             return
         f = self.__class__.__dealloc_func__
         if f is not None:
-            _rustcall(f, self._objptr)
+            rustcall(f, self._objptr)
             self._objptr = None
 
 
