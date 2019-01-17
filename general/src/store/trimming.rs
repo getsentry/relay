@@ -95,7 +95,7 @@ impl Processor for TrimmingProcessor {
                     let item_state = state.enter_index(index, None, ValueType::for_field(item));
                     process_value(item, self, &item_state);
 
-                    let item_length = estimate_size(&item) + 1;
+                    let item_length = estimate_size(item.value()) + 1;
                     bag_size_state.size_remaining =
                         bag_size_state.size_remaining.saturating_sub(item_length);
                     self.bag_size_state = Some(bag_size_state);
@@ -164,7 +164,7 @@ impl Processor for TrimmingProcessor {
                     let item_state = state.enter_borrowed(key, None, ValueType::for_field(item));
                     process_value(item, self, &item_state);
 
-                    let item_length = estimate_size(&item) + 1;
+                    let item_length = estimate_size(item.value()) + 1;
                     bag_size_state.size_remaining =
                         bag_size_state.size_remaining.saturating_sub(item_length);
                     self.bag_size_state = Some(bag_size_state);
