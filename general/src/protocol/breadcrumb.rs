@@ -10,8 +10,7 @@ use crate::types::{Annotated, Object, Value};
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_breadcrumb", value_type = "Breadcrumb")]
 pub struct Breadcrumb {
-    /// The timestamp of the breadcrumb (required).
-    #[metastructure(required = "true")]
+    /// The timestamp of the breadcrumb.
     pub timestamp: Annotated<DateTime<Utc>>,
 
     /// The type of the breadcrumb.
@@ -22,7 +21,7 @@ pub struct Breadcrumb {
     #[metastructure(max_chars = "enumlike")]
     pub category: Annotated<String>,
 
-    /// Severity level of the breadcrumb (required).
+    /// Severity level of the breadcrumb.
     pub level: Annotated<Level>,
 
     /// Human readable message for the breadcrumb.

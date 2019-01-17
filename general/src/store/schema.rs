@@ -172,23 +172,6 @@ mod tests {
     }
 
     #[test]
-    fn test_breadcrumb_missing_attribute() {
-        use crate::protocol::Breadcrumb;
-        use crate::types::ErrorKind;
-
-        let mut crumb = Annotated::new(Breadcrumb::default());
-
-        process_value(&mut crumb, &mut SchemaProcessor, ProcessingState::root());
-
-        let expected = Annotated::new(Breadcrumb {
-            timestamp: Annotated::from_error(ErrorKind::MissingAttribute, None),
-            ..Default::default()
-        });
-
-        assert_eq_dbg!(crumb, expected);
-    }
-
-    #[test]
     fn test_client_sdk_missing_attribute() {
         use crate::protocol::ClientSdkInfo;
         use crate::types::ErrorKind;
