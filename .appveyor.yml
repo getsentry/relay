@@ -32,7 +32,7 @@ install:
   - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
   - rustc -vV
   - cargo -vV
-  - sccache --version || cargo install sccache --git https://github.com/mozilla/sccache
+  - sccache --version || cargo install sccache --no-default-features --git https://github.com/mozilla/sccache
   - set RUSTC_WRAPPER=sccache
 
 build_script:
