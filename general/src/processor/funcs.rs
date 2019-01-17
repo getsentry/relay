@@ -15,4 +15,5 @@ pub fn process_value<T, P>(
     annotated.apply(|_, _| action);
 
     annotated.apply(|value, meta| ProcessValue::process_value(value, meta, processor, state));
+    processor.after_process(annotated.0.as_ref(), &mut annotated.1, state);
 }

@@ -41,6 +41,15 @@ pub trait Processor: Sized {
         ValueAction::Keep
     }
 
+    #[inline]
+    fn after_process<T: ProcessValue>(
+        &mut self,
+        value: Option<&T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) {
+    }
+
     process_method!(process_string, String);
     process_method!(process_u64, u64);
     process_method!(process_i64, i64);
