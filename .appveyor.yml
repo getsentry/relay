@@ -43,6 +43,8 @@ test_script:
 on_success:
   - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%.exe .\target\release\semaphore.exe
   - zeus job update --status=passed
+  - C:\MinGW\bin\mingw32-make clean-target-dir
 
 on_failure:
   - zeus job update --status=failed
+  - C:\MinGW\bin\mingw32-make clean-target-dir
