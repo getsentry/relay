@@ -152,7 +152,6 @@ where
 
 /// A mixture of a hashmap and an array.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue)]
-#[metastructure(process_func = "process_values")]
 pub struct PairList<T>(pub Array<T>);
 
 impl<T, K, V> PairList<T>

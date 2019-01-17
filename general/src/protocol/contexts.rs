@@ -172,7 +172,6 @@ pub enum Context {
 
 /// An object holding multiple contexts.
 #[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue)]
-#[metastructure(process_func = "context")]
 pub struct Contexts(pub Object<Context>);
 
 impl std::ops::Deref for Contexts {

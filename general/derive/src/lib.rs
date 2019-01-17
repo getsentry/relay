@@ -66,6 +66,9 @@ fn derive_newtype_metastructure(
     if type_attrs.tag_key.is_some() {
         panic!("tag_key not supported on structs");
     }
+    if type_attrs.process_func.is_some() {
+        panic!("process_func not supported on newtype structs");
+    }
 
     let field_attrs = parse_field_attributes(&s.variants()[0].bindings()[0].ast().attrs);
     let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
