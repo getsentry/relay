@@ -70,7 +70,7 @@ fn derive_newtype_metastructure(
         panic!("process_func not supported on newtype structs");
     }
 
-    let field_attrs = parse_field_attributes(&s.variants()[0].bindings()[0].ast().attrs);
+    let field_attrs = parse_field_attributes(0, &s.variants()[0].bindings()[0].ast(), &mut true);
     let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
 
     let name = &s.ast().ident;
@@ -478,22 +478,9 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 
     let mut is_tuple_struct = false;
     for (index, bi) in variant.bindings().iter().enumerate() {
-        if bi.ast().ident.is_none() {
-            is_tuple_struct = true;
-        } else if is_tuple_struct {
-            panic!("invalid tuple struct");
-        }
-
-        let field_attrs = parse_field_attributes(&bi.ast().attrs);
-        let field_name = field_attrs.field_name_override.unwrap_or_else(|| {
-            bi.ast()
-                .ident
-                .as_ref()
-                .map(|ident| ident.to_string())
-                .unwrap_or_else(|| index.to_string())
-        });
-        let field_name = LitStr::new(&field_name, Span::call_site());
+        let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
         let field_attrs_name = Ident::new(&format!("__field_attrs_{}", index), Span::call_site());
+        let field_name = field_attrs.field_name;
 
         let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
 
@@ -515,7 +502,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 
             let additional_state = if field_attrs.retain {
                 quote! {
-                    &__state.enter_additional(
+                    &__state.enter_nothing(
                         Some(::std::borrow::Cow::Borrowed(crate::processor::FieldAttrs::default_retain()))
                     )
                 }
@@ -949,7 +936,7 @@ fn parse_type_attributes(attrs: &[syn::Attribute]) -> TypeAttrs {
 #[derive(Default)]
 struct FieldAttrs {
     additional_properties: bool,
-    field_name_override: Option<String>,
+    field_name: String,
     required: bool,
     nonempty: bool,
     pii: bool,
@@ -999,14 +986,26 @@ impl FromStr for SkipSerialization {
     }
 }
 
-fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
+fn parse_field_attributes(index: usize, bi_ast: &syn::Field, is_tuple_struct: &mut bool) -> FieldAttrs {
+    if bi_ast.ident.is_none() {
+        *is_tuple_struct = true;
+    } else if *is_tuple_struct {
+        panic!("invalid tuple struct");
+    }
+
     let mut rv = FieldAttrs::default();
+    rv.field_name = bi_ast
+        .ident
+        .as_ref()
+        .map(|ident| ident.to_string())
+        .unwrap_or_else(|| index.to_string());
+
     rv.max_chars = quote!(None);
     rv.bag_size = quote!(None);
 
     let mut required = None;
 
-    for attr in attrs {
+    for attr in &bi_ast.attrs {
         let meta = match attr.interpret_meta() {
             Some(meta) => meta,
             None => continue,
@@ -1031,7 +1030,7 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
                             if ident == "field" {
                                 match lit {
                                     Lit::Str(litstr) => {
-                                        rv.field_name_override = Some(litstr.value());
+                                        rv.field_name = litstr.value();
                                     }
                                     _ => {
                                         panic!("Got non string literal for field");
