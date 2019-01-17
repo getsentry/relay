@@ -3,7 +3,7 @@ use regex::Regex;
 use url::Url;
 
 use crate::protocol::{Query, Request};
-use crate::types::{Annotated, ErrorKind, FromValue, Meta, Object, Value, ValueAction};
+use crate::types::{Annotated, ErrorKind, Meta, Object, Value, ValueAction};
 
 const ELLIPSIS: char = '\u{2026}';
 
@@ -387,10 +387,12 @@ fn test_cookies_in_header() {
             )),
         ])))
     );
+
+    assert_eq_dbg!(request.headers.value().unwrap().get_header("Cookie"), None);
 }
 
 #[test]
-fn test_cookies_in_header_not_overridden() {
+fn test_cookies_in_header_dont_override_cookies() {
     use crate::protocol::{Cookies, Headers};
 
     let mut request = Request {
@@ -417,6 +419,11 @@ fn test_cookies_in_header_not_overridden() {
             Annotated::new("foo".to_string()),
             Annotated::new("bar".to_string()),
         ))])))
+    );
+
+    assert_eq_dbg!(
+        request.headers.value().unwrap().get_header("Cookie"),
+        Some("a=b;c=d")
     );
 }
 
