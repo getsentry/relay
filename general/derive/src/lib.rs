@@ -203,11 +203,10 @@ fn derive_newtype_metastructure(
                 where
                     P: crate::processor::Processor,
                 {
-                    crate::processor::ProcessValue::process_child_values(
-                        &mut self.0,
-                        __processor,
-                        __state,
-                    )
+                    // Since `process_value` just delegates to `self.0`, processors
+                    // should always call `self.0.process_child_values` and not this
+                    // (`self.process_child_values`)
+                    unreachable!();
                 }
             }
         }),
@@ -235,7 +234,6 @@ fn derive_enum_metastructure(
     let mut is_deep_empty_body = TokenStream::new();
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
-    let mut process_value_body = TokenStream::new();
     let mut process_child_values_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
@@ -320,18 +318,6 @@ fn derive_enum_metastructure(
 
         (quote! {
             #type_name::#variant_name(__value) => {
-                crate::processor::ProcessValue::process_value(
-                    __value,
-                    __meta,
-                    __processor,
-                    __state,
-                )
-            }
-        })
-        .to_tokens(&mut process_value_body);
-
-        (quote! {
-            #type_name::#variant_name(__value) => {
                 crate::processor::ProcessValue::process_child_values(
                     __value,
                     __processor,
@@ -413,23 +399,6 @@ fn derive_enum_metastructure(
             let process_value = type_attrs.process_func.map(|func_name| {
                 let func_name = Ident::new(&func_name, Span::call_site());
                 quote! {
-                    if __result == crate::types::ValueAction::Keep {
-                        return __processor.#func_name(self, __meta, __state);
-                    }
-                }
-            }).unwrap_or_else(|| {
-                quote! {
-                    crate::processor::ProcessValue::process_child_values(
-                        self,
-                        __processor,
-                        __state,
-                    );
-                }
-            });
-
-            s.gen_impl(quote! {
-                #[automatically_derived]
-                gen impl crate::processor::ProcessValue for @Self {
                     #[inline]
                     fn process_value<P>(
                         &mut self,
@@ -440,14 +409,15 @@ fn derive_enum_metastructure(
                     where
                         P: crate::processor::Processor,
                     {
-                        let __result = match self {
-                            #process_value_body
-                        };
-
-                        #process_value
-
-                        __result
+                        __processor.#func_name(self, __meta, __state)
                     }
+                }
+            });
+
+            s.gen_impl(quote! {
+                #[automatically_derived]
+                gen impl crate::processor::ProcessValue for @Self {
+                    #process_value
 
                     #[inline]
                     fn process_child_values<P>(
