@@ -538,3 +538,69 @@ fn test_databag_state_leak() {
         stripped_event.to_json_pretty().unwrap()
     );
 }
+
+#[test]
+fn test_custom_context_trimming() {
+    use std::iter::repeat;
+
+    use crate::protocol::{Context, ContextInner, Contexts};
+    use crate::types::{Annotated, Object, Value};
+
+    let mut contexts = Object::new();
+    for i in 1..2 {
+        contexts.insert(format!("despacito{}", i), {
+            let mut context = Object::new();
+            context.insert(
+                "foo".to_string(),
+                Annotated::new(Value::String(repeat('a').take(4000).collect())),
+            );
+            context.insert(
+                "bar".to_string(),
+                Annotated::new(Value::String(repeat('a').take(5000).collect())),
+            );
+            Annotated::new(ContextInner(Context::Other(context)))
+        });
+    }
+
+    let mut contexts = Annotated::new(Contexts(contexts));
+    let mut processor = TrimmingProcessor::new();
+    process_value(&mut contexts, &mut processor, ProcessingState::root());
+
+    for i in 1..2 {
+        let other = match contexts
+            .value()
+            .unwrap()
+            .get(&format!("despacito{}", i))
+            .unwrap()
+            .value()
+            .unwrap()
+            .0
+        {
+            Context::Other(ref x) => x,
+            _ => panic!("Context has changed type!"),
+        };
+
+        assert_eq!(
+            other
+                .get("bar")
+                .unwrap()
+                .value()
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .len(),
+            5000
+        );
+        assert_eq!(
+            other
+                .get("foo")
+                .unwrap()
+                .value()
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .len(),
+            3189
+        );
+    }
+}

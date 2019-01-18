@@ -1,4 +1,4 @@
-use crate::protocol::{Context, Event, Mechanism};
+use crate::protocol::{Context, ContextInner, Event, Mechanism};
 use crate::types::Annotated;
 
 #[cfg(test)]
@@ -582,7 +582,7 @@ impl OsHint {
 
         if let Some(contexts) = event.contexts.value() {
             if let Some(context) = contexts.get("os") {
-                if let Some(&Context::Os(ref os_context)) = context.value() {
+                if let Some(&ContextInner(Context::Os(ref os_context))) = context.value() {
                     if let Some(name) = os_context.name.as_str() {
                         return Self::from_name(name);
                     }

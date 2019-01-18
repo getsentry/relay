@@ -170,12 +170,29 @@ pub enum Context {
     Other(Object<Value>),
 }
 
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+pub struct ContextInner(#[metastructure(bag_size = "large")] pub Context);
+
+impl std::ops::Deref for ContextInner {
+    type Target = Context;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for ContextInner {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 /// An object holding multiple contexts.
 #[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue)]
-pub struct Contexts(pub Object<Context>);
+pub struct Contexts(pub Object<ContextInner>);
 
 impl std::ops::Deref for Contexts {
-    type Target = Object<Context>;
+    type Target = Object<ContextInner>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -409,10 +426,10 @@ fn test_other_context_roundtrip() {
 fn test_untagged_context_deserialize() {
     let json = r#"{"os": {"name": "Linux"}}"#;
 
-    let os_context = Annotated::new(Context::Os(Box::new(OsContext {
+    let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
         name: Annotated::new("Linux".to_string()),
         ..Default::default()
-    })));
+    }))));
     let mut map = Object::new();
     map.insert("os".to_string(), os_context);
     let contexts = Annotated::new(Contexts(map));
@@ -431,11 +448,11 @@ fn test_context_processing() {
             let mut contexts = Object::new();
             contexts.insert(
                 "runtime".to_owned(),
-                Annotated::new(Context::Runtime(Box::new(RuntimeContext {
+                Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
                     name: Annotated::new("php".to_owned()),
                     version: Annotated::new("7.1.20-1+ubuntu16.04.1+deb.sury.org+1".to_owned()),
                     ..Default::default()
-                }))),
+                })))),
             );
             contexts
         })),
