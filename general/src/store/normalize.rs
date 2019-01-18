@@ -10,12 +10,13 @@ use uuid::Uuid;
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Context, Event, EventId, EventType, Exception, Frame, IpAddr, Level,
-    Request, Stacktrace, Tags, User,
+    LogEntry, Request, Stacktrace, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{Annotated, Empty, Error, ErrorKind, Meta, Object, ValueAction};
 
 mod contexts;
+mod logentry;
 mod mechanism;
 mod request;
 mod stacktrace;
@@ -366,6 +367,15 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         ValueAction::Keep
+    }
+
+    fn process_logentry(
+        &mut self,
+        logentry: &mut LogEntry,
+        meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ValueAction {
+        logentry::normalize_logentry(logentry, meta)
     }
 
     fn process_exception(

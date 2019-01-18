@@ -187,6 +187,7 @@ pub struct Event {
 
     /// Custom parameterized message for this event.
     #[metastructure(legacy_alias = "sentry.interfaces.Message", legacy_alias = "message")]
+    #[metastructure(skip_serialization = "empty")]
     pub logentry: Annotated<LogEntry>,
 
     /// Logger that created the event.
