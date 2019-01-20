@@ -24,9 +24,11 @@ serde_urlencoded = "0.5.4"
 smallvec = { version = "0.6.7", features = ["serde"] }
 url = "1.7.2"
 uuid = { version = "0.7.1", features = ["v4", "serde"] }
+insta = { version = "0.3.0", features = ["serialization"] }
 
 [dev-dependencies]
 difference = "2.0.0"
 
 [features]
 bench = []
+

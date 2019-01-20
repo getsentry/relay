@@ -12,7 +12,7 @@ macro_rules! benchmark {
             use semaphore_general::types::Annotated;
 
             fn load_json() -> String {
-                let path = concat!("fixtures/payloads/", stringify!($sdk), ".json");
+                let path = concat!("..tests/fixtures/payloads/", stringify!($sdk), ".json");
                 std::fs::read_to_string(path).expect("failed to load json")
             }
 

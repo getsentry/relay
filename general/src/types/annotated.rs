@@ -413,21 +413,12 @@ impl<T> Default for Annotated<T> {
     }
 }
 
-impl<T: Serialize> Serialize for Annotated<T> {
+impl<T: ToValue> Serialize for Annotated<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        Serialize::serialize(&self.value(), serializer)
-    }
-}
-
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for Annotated<T> {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Ok(Annotated(
-            Deserialize::deserialize(deserializer)?,
-            Default::default(),
-        ))
+        self.serialize_with_meta(serializer)
     }
 }
 

@@ -1,0 +1,43 @@
+Created: 2019-01-18T15:16:13.567336+00:00
+Creator: insta@0.2.2
+Source: general/tests/test_fixtures.rs
+
+---
+event_id: b308014887f5418c8f797159bfb6fc42
+level: error
+logentry:
+  formatted: "ZeroDivisionError: division by zero"
+modules:
+  python: 3.7.0
+platform: python
+timestamp: 1532526567.0
+server_name: apfeltasche.local
+exception:
+  values:
+    - type: ZeroDivisionError
+      value: division by zero
+      module: builtins
+      stacktrace:
+        frames:
+          - function: "<module>"
+            module: __main__
+            filename: "<stdin>"
+            abs_path: "<stdin>"
+            lineno: 1
+            vars:
+              Client: "<class 'raven.base.Client'>"
+              __annotations__: {}
+              __builtins__: "<module 'builtins' (built-in)>"
+              __doc__: ~
+              __loader__: "<class '_frozen_importlib.BuiltinImporter'>"
+              __name__: "'__main__'"
+              __package__: ~
+              __spec__: ~
+              client: "<raven.base.Client object at 0x1025e9400>"
+extra:
+  sys.argv:
+    - "''"
+sdk:
+  name: raven-python
+  version: 6.9.0
+repos: {}
