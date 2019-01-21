@@ -4,15 +4,16 @@
 macro_rules! benchmark {
     ($sdk:ident) => {
         mod $sdk {
+            extern crate test;
             use std::collections::BTreeSet;
 
             use semaphore_general::processor::process_value;
             use semaphore_general::protocol::Event;
-            use semaphore_general::store::{StoreConfig, StoreNormalizeProcessor};
+            use semaphore_general::store::{StoreConfig, StoreProcessor};
             use semaphore_general::types::Annotated;
 
             fn load_json() -> String {
-                let path = concat!("..tests/fixtures/payloads/", stringify!($sdk), ".json");
+                let path = concat!("tests/fixtures/payloads/", stringify!($sdk), ".json");
                 std::fs::read_to_string(path).expect("failed to load json")
             }
 
@@ -50,15 +51,17 @@ macro_rules! benchmark {
                     valid_platforms: platforms,
                     max_secs_in_future: Some(3600),
                     max_secs_in_past: Some(2_592_000),
+                    enable_trimming: Some(true),
+                    max_stacktrace_frames: Some(50),
                 };
 
                 let json = load_json();
-                let mut processor = StoreNormalizeProcessor::new(config, None);
+                let mut processor = StoreProcessor::new(config, None);
                 let event = Annotated::<Event>::from_json(&json).expect("failed to deserialize");
 
                 b.iter(|| {
                     let mut event = test::black_box(event.clone());
-                    process_value(&mut event, &mut processor, Default::default());
+                    process_value(&mut event, &mut processor, &Default::default());
                     event
                 });
             }
