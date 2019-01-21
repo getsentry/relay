@@ -40,6 +40,16 @@ DOCKER_RUN_OPTS="
 docker run $DOCKER_RUN_OPTS \
   cargo build --release --locked --target=${TARGET}
 
+# Strip debug information from the main file
+docker run $DOCKER_RUN_OPTS \
+  objcopy --only-keep-debug target/${TARGET}/release/semaphore{,.debug}
+
+docker run $DOCKER_RUN_OPTS \
+  objcopy --strip-debug --strip-unneeded target/${TARGET}/release/semaphore
+
+docker run $DOCKER_RUN_OPTS \
+  objcopy --add-gnu-debuglink target/${TARGET}/release/semaphore{.debug,}
+
 # Smoke test
 docker run $DOCKER_RUN_OPTS \
   make test-process-event CARGO_ARGS="--release --target=${TARGET}"

@@ -47,7 +47,6 @@ matrix:
     - name: "check: lint"
       script: make -e lint
 
-
     # -------------------------------------
     # RUST TESTS
     # -------------------------------------
@@ -112,6 +111,7 @@ matrix:
         - make -e releasebuild-docker
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zeus upload -t "application/octet-stream" -n semaphore-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/semaphore  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zeus upload -t "application/octet-stream" -n semaphore-Linux-x86_64.debug target/x86_64-unknown-linux-gnu/release/semaphore.debug  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         # Build and push image to Dockerhub, on master branch only
         - bash scripts/push-docker-image.sh || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
