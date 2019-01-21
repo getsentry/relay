@@ -64,9 +64,9 @@ impl<'a> NormalizeProcessor<'a> {
     fn get_sdk_info(&self) -> Option<ClientSdkInfo> {
         self.config.client.as_ref().and_then(|client| {
             client
-                .splitn(1, '/')
+                .splitn(2, '/')
                 .collect_tuple()
-                .or_else(|| client.splitn(1, ' ').collect_tuple())
+                .or_else(|| client.splitn(2, ' ').collect_tuple())
                 .map(|(name, version)| ClientSdkInfo {
                     name: Annotated::new(name.to_owned()),
                     version: Annotated::new(version.to_owned()),
@@ -945,5 +945,27 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
             .unwrap()
             .stacktrace,
         expected
+    );
+}
+
+#[test]
+fn test_parses_sdk_info_from_header() {
+    let mut event = Annotated::new(Event::default());
+    let mut processor = NormalizeProcessor::new(
+        Arc::new(StoreConfig {
+            client: Some("_fooBar/0.0.0".to_string()),
+            ..Default::default()
+        }),
+        None,
+    );
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    assert_eq_dbg!(
+        event.value().unwrap().client_sdk,
+        Annotated::new(ClientSdkInfo {
+            name: Annotated::new("_fooBar".to_string()),
+            version: Annotated::new("0.0.0".to_string()),
+            ..Default::default()
+        })
     );
 }
