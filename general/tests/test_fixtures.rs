@@ -1,10 +1,10 @@
 use std::fs;
 
-use semaphore_general::types::Annotated;
-use semaphore_general::protocol::Event;
-use semaphore_general::store::{StoreProcessor, StoreConfig};
-use semaphore_general::processor::{ProcessingState, process_value};
 use insta::assert_serialized_snapshot_matches;
+use semaphore_general::processor::{process_value, ProcessingState};
+use semaphore_general::protocol::Event;
+use semaphore_general::store::{StoreConfig, StoreProcessor};
+use semaphore_general::types::Annotated;
 
 macro_rules! event_snapshot {
     ($id:expr) => {
