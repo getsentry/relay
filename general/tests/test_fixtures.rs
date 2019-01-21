@@ -4,17 +4,17 @@ use insta::assert_serialized_snapshot_matches;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::Event;
 use semaphore_general::store::{StoreConfig, StoreProcessor};
-use semaphore_general::types::Annotated;
+use semaphore_general::types::{Annotated, SerializableAnnotated};
 
 macro_rules! event_snapshot {
     ($id:expr) => {
         let id: &str = &$id;
         let data = fs::read_to_string(format!("tests/fixtures/payloads/{}.json", id)).unwrap();
         let mut event = Annotated::<Event>::from_json(&data).unwrap();
-        assert_serialized_snapshot_matches!($id, event);
+        assert_serialized_snapshot_matches!($id, SerializableAnnotated(&event));
         let mut processor = StoreProcessor::new(StoreConfig::default(), None);
         process_value(&mut event, &mut processor, ProcessingState::root());
-        assert_serialized_snapshot_matches!(format!("{}_normalized", $id), event, {
+        assert_serialized_snapshot_matches!(format!("{}_normalized", $id), SerializableAnnotated(&event), {
             ".received" => "[received]",
             ".timestamp" => "[timestamp]"
         });

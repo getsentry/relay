@@ -109,6 +109,9 @@ impl From<bool> for ValueAction {
 #[derive(Clone, PartialEq)]
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
+/// An utility to serialize annotated objects with payload.
+pub struct SerializableAnnotated<'a, T>(pub &'a Annotated<T>);
+
 impl<T: fmt::Debug> fmt::Debug for Annotated<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
@@ -418,12 +421,12 @@ impl<T> Default for Annotated<T> {
     }
 }
 
-impl<T: ToValue> Serialize for Annotated<T> {
+impl<'a, T: ToValue> Serialize for SerializableAnnotated<'a, T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        self.serialize_with_meta(serializer)
+        self.0.serialize_with_meta(serializer)
     }
 }
 
