@@ -500,7 +500,7 @@ impl Meta {
 
     /// Iterates all remarks on this field.
     pub fn iter_remarks(&self) -> impl Iterator<Item = &Remark> {
-        self.remarks().into_iter()
+        self.remarks().iter()
     }
 
     /// Indicates whether this field has remarks.
@@ -529,7 +529,7 @@ impl Meta {
 
     /// Iterates errors on this field.
     pub fn iter_errors(&self) -> impl Iterator<Item = &Error> {
-        self.errors().into_iter()
+        self.errors().iter()
     }
 
     /// Mutable reference to errors of this field.
