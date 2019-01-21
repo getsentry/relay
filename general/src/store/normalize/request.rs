@@ -172,14 +172,15 @@ fn normalize_data(request: &mut Request) {
 }
 
 fn normalize_cookies(request: &mut Request) {
-    if request.cookies.value().is_some() {
-        return;
-    }
-
     let headers = match request.headers.value_mut() {
         Some(headers) => headers,
         None => return,
     };
+
+    if request.cookies.value().is_some() {
+        headers.remove("Cookie");
+        return;
+    }
 
     let cookie_header = match headers.get_header("Cookie") {
         Some(header) => header,
@@ -421,10 +422,8 @@ fn test_cookies_in_header_dont_override_cookies() {
         ))])))
     );
 
-    assert_eq_dbg!(
-        request.headers.value().unwrap().get_header("Cookie"),
-        Some("a=b;c=d")
-    );
+    // Cookie header is removed when explicit cookies are given
+    assert_eq_dbg!(request.headers.value().unwrap().get_header("Cookie"), None);
 }
 
 #[test]
