@@ -3,7 +3,7 @@ use regex::Regex;
 use url::Url;
 
 use crate::protocol::{Query, Request};
-use crate::types::{Annotated, ErrorKind, FromValue, Meta, Object, Value, ValueAction};
+use crate::types::{Annotated, ErrorKind, Meta, Object, Value, ValueAction};
 
 const ELLIPSIS: char = '\u{2026}';
 
@@ -171,38 +171,38 @@ fn normalize_data(request: &mut Request) {
     }
 }
 
+fn normalize_cookies(request: &mut Request) {
+    let headers = match request.headers.value_mut() {
+        Some(headers) => headers,
+        None => return,
+    };
+
+    if request.cookies.value().is_some() {
+        headers.remove("Cookie");
+        return;
+    }
+
+    let cookie_header = match headers.get_header("Cookie") {
+        Some(header) => header,
+        None => return,
+    };
+
+    if let Ok(new_cookies) = crate::protocol::Cookies::parse(cookie_header) {
+        request.cookies = Annotated::from(new_cookies);
+        headers.remove("Cookie");
+    }
+}
+
 pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
     request.method.apply(normalize_method);
     normalize_url(request);
     normalize_data(request);
+    normalize_cookies(request);
 
     if let Some(ref client_ip) = client_ip {
         request
             .env
             .apply(|env, _meta| set_auto_remote_addr(env, client_ip));
-    }
-
-    if let (None, Some(ref mut headers)) = (request.cookies.value(), request.headers.value_mut()) {
-        let cookies = &mut request.cookies;
-        headers.retain(|item| {
-            if let Some((Annotated(Some(ref k), _), Annotated(Some(ref v), _))) = item.value() {
-                if k.as_ref() != "Cookie" {
-                    return true;
-                }
-
-                let new_cookies =
-                    FromValue::from_value(Annotated::new(Value::String(v.clone().into_inner())));
-
-                if new_cookies.meta().has_errors() {
-                    return true;
-                }
-
-                *cookies = new_cookies;
-                false
-            } else {
-                true
-            }
-        });
     }
 }
 
@@ -388,10 +388,12 @@ fn test_cookies_in_header() {
             )),
         ])))
     );
+
+    assert_eq_dbg!(request.headers.value().unwrap().get_header("Cookie"), None);
 }
 
 #[test]
-fn test_cookies_in_header_not_overridden() {
+fn test_cookies_in_header_dont_override_cookies() {
     use crate::protocol::{Cookies, Headers};
 
     let mut request = Request {
@@ -419,6 +421,9 @@ fn test_cookies_in_header_not_overridden() {
             Annotated::new("bar".to_string()),
         ))])))
     );
+
+    // Cookie header is removed when explicit cookies are given
+    assert_eq_dbg!(request.headers.value().unwrap().get_header("Cookie"), None);
 }
 
 #[test]

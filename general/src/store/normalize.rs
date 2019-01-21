@@ -1,3 +1,5 @@
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::mem;
 use std::sync::Arc;
 
@@ -5,20 +7,43 @@ use chrono::{Duration, Utc};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
+use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Context, Event, EventId, EventType, Exception, Frame, IpAddr, Level,
-    Request, Stacktrace, Tags, User,
+    AsPair, Breadcrumb, ClientSdkInfo, Context, Event, EventId, EventType, Exception, Frame,
+    IpAddr, Level, LogEntry, Request, Stacktrace, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{Annotated, Empty, Error, ErrorKind, Meta, Object, ValueAction};
 
 mod contexts;
+mod logentry;
 mod mechanism;
 mod request;
 mod stacktrace;
+
+struct DedupCache(SmallVec<[u64; 16]>);
+
+impl DedupCache {
+    pub fn new() -> Self {
+        DedupCache(Default::default())
+    }
+
+    pub fn probe<H: Hash>(&mut self, element: H) -> bool {
+        let mut hasher = DefaultHasher::new();
+        element.hash(&mut hasher);
+        let hash = hasher.finish();
+
+        if self.0.contains(&hash) {
+            false
+        } else {
+            self.0.push(hash);
+            true
+        }
+    }
+}
 
 /// The processor that normalizes events for store.
 pub struct NormalizeProcessor<'a> {
@@ -39,9 +64,9 @@ impl<'a> NormalizeProcessor<'a> {
     fn get_sdk_info(&self) -> Option<ClientSdkInfo> {
         self.config.client.as_ref().and_then(|client| {
             client
-                .splitn(1, '/')
+                .splitn(2, '/')
                 .collect_tuple()
-                .or_else(|| client.splitn(1, ' ').collect_tuple())
+                .or_else(|| client.splitn(2, ' ').collect_tuple())
                 .map(|(name, version)| ClientSdkInfo {
                     name: Annotated::new(name.to_owned()),
                     version: Annotated::new(version.to_owned()),
@@ -101,27 +126,22 @@ impl<'a> NormalizeProcessor<'a> {
             *environment = Annotated::empty();
         }
 
-        tags.retain(|tag| {
-            let tag = match tag.value() {
-                Some(x) => x,
-                None => return true, // ToValue will decide if we should skip serializing Annotated::empty()
-            };
+        // Fix case where legacy apps pass environment as a tag instead of a top level key
+        if let Some(tag) = tags.remove("environment").and_then(|tag| tag.into_value()) {
+            environment.get_or_insert_with(|| tag);
+        }
 
-            match tag.key().unwrap_or_default() {
-                // These tags are special and are used in pairing with `sentry:{}`. They should not be allowed
-                // to be set via data ingest due to ambiguity.
-                "release" | "dist" | "user" | "filename" | "function" => false,
-
-                // Fix case where legacy apps pass environment as a tag instead of a top level key
-                "environment" => {
-                    if let Some(value) = tag.value() {
-                        environment.get_or_insert_with(|| value.to_string());
-                    }
-
-                    false
-                }
-
-                _ => true,
+        // Remove internal tags, that are generated with a `sentry:` prefix when saving the event.
+        // They are not allowed to be set by the client due to ambiguity. Also, deduplicate tags.
+        let mut tag_cache = DedupCache::new();
+        tags.retain(|entry| {
+            match entry.value() {
+                Some(tag) => match tag.key().unwrap_or_default() {
+                    "" | "release" | "dist" | "user" | "filename" | "function" => false,
+                    name => tag_cache.probe(name),
+                },
+                // ToValue will decide if we should skip serializing Annotated::empty()
+                None => true,
             }
         });
 
@@ -366,6 +386,15 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         ValueAction::Keep
+    }
+
+    fn process_logentry(
+        &mut self,
+        logentry: &mut LogEntry,
+        meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ValueAction {
+        logentry::normalize_logentry(logentry, meta)
     }
 
     fn process_exception(
@@ -700,6 +729,53 @@ fn test_internal_tags_removed() {
 }
 
 #[test]
+fn test_tags_deduplicated() {
+    let mut event = Annotated::new(Event {
+        tags: Annotated::new(Tags(PairList(vec![
+            Annotated::new(TagEntry(
+                Annotated::new("foo".to_string()),
+                Annotated::new("1".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("bar".to_string()),
+                Annotated::new("1".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("foo".to_string()),
+                Annotated::new("2".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("bar".to_string()),
+                Annotated::new("2".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("foo".to_string()),
+                Annotated::new("3".to_string()),
+            )),
+        ]))),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    // should keep the first occurrence of every tag
+    assert_eq_dbg!(
+        event.value().unwrap().tags.value().unwrap(),
+        &Tags(PairList(vec![
+            Annotated::new(TagEntry(
+                Annotated::new("foo".to_string()),
+                Annotated::new("1".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("bar".to_string()),
+                Annotated::new("1".to_string()),
+            )),
+        ]))
+    );
+}
+
+#[test]
 fn test_user_data_moved() {
     let mut user = Annotated::new(User {
         other: {
@@ -869,5 +945,27 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
             .unwrap()
             .stacktrace,
         expected
+    );
+}
+
+#[test]
+fn test_parses_sdk_info_from_header() {
+    let mut event = Annotated::new(Event::default());
+    let mut processor = NormalizeProcessor::new(
+        Arc::new(StoreConfig {
+            client: Some("_fooBar/0.0.0".to_string()),
+            ..Default::default()
+        }),
+        None,
+    );
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    assert_eq_dbg!(
+        event.value().unwrap().client_sdk,
+        Annotated::new(ClientSdkInfo {
+            name: Annotated::new("_fooBar".to_string()),
+            version: Annotated::new("0.0.0".to_string()),
+            ..Default::default()
+        })
     );
 }

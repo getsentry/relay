@@ -22,11 +22,11 @@ pub fn process_non_raw_stacktrace(stacktrace: &mut Stacktrace, _meta: &mut Meta)
 }
 
 pub fn process_non_raw_frame(frame: &mut Frame, _meta: &mut Meta) {
-    if frame.abs_path.value().is_none() {
+    if frame.abs_path.value().map_or(true, |p| p.is_empty()) {
         frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
     }
 
-    if frame.filename.value().is_none() {
+    if frame.filename.value().map_or(true, |p| p.is_empty()) {
         if let Some(abs_path) = frame.abs_path.value_mut() {
             frame.filename = Annotated::new(abs_path.clone());
 
@@ -150,6 +150,37 @@ fn test_ignores_results_with_empty_path() {
 
     assert_eq!(frame.filename.as_str(), Some("http://foo.com"));
     assert_eq!(frame.abs_path.as_str(), frame.filename.as_str());
+}
+
+#[test]
+fn test_ignores_results_with_slash_path() {
+    let mut frame = Annotated::new(Frame {
+        lineno: Annotated::new(1),
+        abs_path: Annotated::new("http://foo.com/".to_string()),
+        ..Default::default()
+    });
+
+    frame.apply(process_non_raw_frame);
+    let frame = frame.value().unwrap();
+
+    assert_eq!(frame.filename.as_str(), Some("http://foo.com/"));
+    assert_eq!(frame.abs_path.as_str(), frame.filename.as_str());
+}
+
+#[test]
+fn test_coerce_empty_filename() {
+    let mut frame = Annotated::new(Frame {
+        lineno: Annotated::new(1),
+        filename: Annotated::new("".to_string()),
+        abs_path: Annotated::new("http://foo.com/foo.js".to_string()),
+        ..Default::default()
+    });
+
+    frame.apply(process_non_raw_frame);
+    let frame = frame.value().unwrap();
+
+    assert_eq!(frame.filename.as_str(), Some("/foo.js"));
+    assert_eq!(frame.abs_path.as_str(), Some("http://foo.com/foo.js"));
 }
 
 #[test]

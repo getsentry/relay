@@ -120,8 +120,13 @@ pub trait AsPair {
     fn as_pair_mut(&mut self) -> (&mut Annotated<Self::Key>, &mut Annotated<Self::Value>);
 
     /// Returns a reference to the string representation of the key.
-    fn key_str(&self) -> Option<&str> {
+    fn key(&self) -> Option<&str> {
         self.as_pair().0.as_str()
+    }
+
+    /// Returns a reference to the value.
+    fn value(&self) -> Option<&Self::Value> {
+        self.as_pair().1.value()
     }
 }
 

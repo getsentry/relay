@@ -180,6 +180,11 @@ impl<T> Annotated<T> {
         &mut self.1
     }
 
+    #[inline]
+    pub fn into_value(self) -> Option<T> {
+        self.0
+    }
+
     pub fn and_then<F, U, R>(self, f: F) -> Annotated<U>
     where
         F: FnOnce(T) -> R,

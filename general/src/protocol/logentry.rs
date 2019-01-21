@@ -1,5 +1,5 @@
 use crate::protocol::JsonLenientString;
-use crate::types::{Annotated, Array, FromValue, Object, Value};
+use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// A log entry message.
 ///
@@ -18,7 +18,7 @@ pub struct LogEntry {
 
     /// Positional parameters to be interpolated into the log message.
     #[metastructure(pii = "true")]
-    pub params: Annotated<Array<Value>>,
+    pub params: Annotated<Value>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
@@ -37,24 +37,29 @@ impl FromValue for LogEntry {
                 struct Helper {
                     message: Annotated<String>,
                     formatted: Annotated<String>,
-                    params: Annotated<Array<Value>>,
+                    params: Annotated<Value>,
                     #[metastructure(additional_properties)]
                     other: Object<Value>,
                 }
 
-                Helper::from_value(x).map_value(
-                    |Helper {
-                         message,
-                         formatted,
-                         params,
-                         other,
-                     }| LogEntry {
-                        message,
-                        formatted,
+                Helper::from_value(x).map_value(|helper| {
+                    let params = match helper.params {
+                        a @ Annotated(Some(Value::Object(_)), _) => a,
+                        a @ Annotated(Some(Value::Array(_)), _) => a,
+                        a @ Annotated(None, _) => a,
+                        Annotated(Some(value), _) => Annotated::from_error(
+                            Error::expected("message parameters"),
+                            Some(value),
+                        ),
+                    };
+
+                    LogEntry {
+                        message: helper.message,
+                        formatted: helper.formatted,
                         params,
-                        other,
-                    },
-                )
+                        other: helper.other,
+                    }
+                })
             }
             Annotated(None, meta) => Annotated(None, meta),
             // The next two cases handle the legacy top-level `message` attribute, which was sent as
@@ -83,10 +88,10 @@ fn test_logentry_roundtrip() {
     let entry = Annotated::new(LogEntry {
         message: Annotated::new("Hello, %s %s!".to_string()),
         formatted: Annotated::empty(),
-        params: Annotated::new(vec![
+        params: Annotated::new(Value::Array(vec![
             Annotated::new(Value::String("World".to_string())),
             Annotated::new(Value::I64(1)),
-        ]),
+        ])),
         other: {
             let mut map = Object::new();
             map.insert(
@@ -118,13 +123,55 @@ fn test_logentry_from_message() {
 }
 
 #[test]
-fn test_logenty_empty_params() {
+fn test_logentry_empty_params() {
     let input = r#"{"params":[]}"#;
     let entry = Annotated::new(LogEntry {
-        params: Annotated::new(vec![]),
+        params: Annotated::new(Value::Array(vec![])),
         ..Default::default()
     });
 
     assert_eq_dbg!(entry, Annotated::from_json(input).unwrap());
     assert_eq_str!(input, entry.to_json().unwrap());
+}
+
+#[test]
+fn test_logentry_named_params() {
+    let json = r#"{
+  "message": "Hello, %s!",
+  "params": {
+    "name": "World"
+  }
+}"#;
+
+    let entry = Annotated::new(LogEntry {
+        message: Annotated::new("Hello, %s!".to_string()),
+        params: Annotated::new(Value::Object({
+            let mut object = Object::new();
+            object.insert(
+                "name".to_string(),
+                Annotated::new(Value::String("World".to_string())),
+            );
+            object
+        })),
+        ..LogEntry::default()
+    });
+
+    assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, entry.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_logentry_invalid_params() {
+    let json = r#"{
+  "message": "Hello, %s!",
+  "params": 42
+}"#;
+
+    let entry = Annotated::new(LogEntry {
+        message: Annotated::new("Hello, %s!".to_string()),
+        params: Annotated::from_error(Error::expected("message parameters"), Some(Value::U64(42))),
+        ..LogEntry::default()
+    });
+
+    assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
 }
