@@ -1,9 +1,8 @@
-Created: 2019-01-20T22:20:33.666304+00:00
-Creator: insta@0.2.2
-Expression: event
-Line: 46
-Source: general/tests/test_fixtures.rs
-
+---
+created: "2019-01-21T22:41:01.909103+00:00"
+creator: insta@0.4.0
+expression: event
+source: general/tests/test_fixtures.rs
 ---
 event_id: c99bf5ef2eb447d59183ced79601b547
 level: error

@@ -1,7 +1,9 @@
-Created: 2019-01-18T15:16:13.567431+00:00
-Creator: insta@0.2.2
-Source: general/tests/test_fixtures.rs
-
+---
+created: "2019-01-21T22:41:01.900285+00:00"
+creator: insta@0.4.0
+expression: event
+source: general/tests/test_fixtures.rs
+---
 ---
 event_id: 498b1ef84dd242d4b265fcc39c42f744
 level: fatal
@@ -15,7 +17,7 @@ user:
   email: hello@sentry.io
 contexts:
   app:
-    app_start_time: 1532442986.0
+    app_start_time: "2018-07-24T14:36:26Z"
     device_app_hash: a4f467651d38bc28f815a2cfd5f73748a6cb8853
     build_type: simulator
     app_identifier: io.sentry.sentry-ios-cocoapods
@@ -33,7 +35,7 @@ contexts:
     free_memory: 170725376
     usable_memory: 14726877184
     storage_size: 250030215168
-    boot_time: 1531145651.0
+    boot_time: "2018-07-09T14:14:11Z"
     type: device
   os:
     name: iOS
