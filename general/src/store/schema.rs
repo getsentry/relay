@@ -46,7 +46,7 @@ impl Processor for SchemaProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        if !value.is_some() && state.attrs().required && !meta.has_errors() {
+        if value.is_none() && state.attrs().required && !meta.has_errors() {
             meta.add_error(ErrorKind::MissingAttribute);
         }
 

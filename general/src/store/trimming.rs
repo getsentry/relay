@@ -47,10 +47,10 @@ impl Processor for TrimmingProcessor {
                     range: None,
                 });
                 return ValueAction::DeleteHard;
-            } else if state.depth() == bag_size_state.encountered_at_depth + 1 {
-                if bag_size_state.size_remaining == 0 {
-                    return ValueAction::DeleteHard;
-                }
+            } else if state.depth() == bag_size_state.encountered_at_depth + 1
+                && bag_size_state.size_remaining == 0
+            {
+                return ValueAction::DeleteHard;
             }
         }
 
