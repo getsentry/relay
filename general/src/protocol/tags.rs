@@ -34,24 +34,6 @@ impl AsPair for TagEntry {
     }
 }
 
-impl TagEntry {
-    pub fn key(&self) -> Option<&str> {
-        self.0.as_str()
-    }
-
-    pub fn key_mut(&mut self) -> &mut Option<String> {
-        self.0.value_mut()
-    }
-
-    pub fn value(&self) -> Option<&str> {
-        self.1.as_str()
-    }
-
-    pub fn value_mut(&mut self) -> &mut Option<String> {
-        self.1.value_mut()
-    }
-}
-
 impl FromValue for TagEntry {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         type TagTuple = (Annotated<LenientString>, Annotated<LenientString>);
