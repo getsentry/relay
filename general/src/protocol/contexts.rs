@@ -1,5 +1,3 @@
-use chrono::{DateTime, Utc};
-
 use crate::protocol::LenientString;
 use crate::types::{Annotated, FromValue, Object, Value};
 
@@ -52,7 +50,7 @@ pub struct DeviceContext {
     pub external_free_storage: Annotated<u64>,
 
     /// Indicator when the device was booted.
-    pub boot_time: Annotated<DateTime<Utc>>,
+    pub boot_time: Annotated<String>,
 
     /// Timezone of the device.
     pub timezone: Annotated<String>,
@@ -112,7 +110,7 @@ pub struct RuntimeContext {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct AppContext {
     /// Start time of the app.
-    pub app_start_time: Annotated<DateTime<Utc>>,
+    pub app_start_time: Annotated<String>,
 
     /// Device app hash (app specific device ID)
     pub device_app_hash: Annotated<String>,
@@ -224,7 +222,7 @@ fn test_device_context_roundtrip() {
   "free_storage": 31994734592,
   "external_storage_size": 2097152,
   "external_free_storage": 2097152,
-  "boot_time": 1518094332.0,
+  "boot_time": "2018-02-08T12:52:12Z",
   "timezone": "Europe/Vienna",
   "other": "value",
   "type": "device"
@@ -245,7 +243,7 @@ fn test_device_context_roundtrip() {
         free_storage: Annotated::new(31_994_734_592),
         external_storage_size: Annotated::new(2_097_152),
         external_free_storage: Annotated::new(2_097_152),
-        boot_time: Annotated::new("2018-02-08T12:52:12Z".parse().unwrap()),
+        boot_time: Annotated::new("2018-02-08T12:52:12Z".to_string()),
         timezone: Annotated::new("Europe/Vienna".to_string()),
         other: {
             let mut map = Object::new();
@@ -326,7 +324,7 @@ fn test_runtime_context_roundtrip() {
 #[test]
 fn test_app_context_roundtrip() {
     let json = r#"{
-  "app_start_time": 1518128517.0,
+  "app_start_time": "2018-02-08T22:21:57Z",
   "device_app_hash": "4c793e3776474877ae30618378e9662a",
   "build_type": "testflight",
   "app_identifier": "foo.bar.baz",
@@ -337,7 +335,7 @@ fn test_app_context_roundtrip() {
   "type": "app"
 }"#;
     let context = Annotated::new(Context::App(Box::new(AppContext {
-        app_start_time: Annotated::new("2018-02-08T22:21:57Z".parse().unwrap()),
+        app_start_time: Annotated::new("2018-02-08T22:21:57Z".to_string()),
         device_app_hash: Annotated::new("4c793e3776474877ae30618378e9662a".to_string()),
         build_type: Annotated::new("testflight".to_string()),
         app_identifier: Annotated::new("foo.bar.baz".to_string()),
