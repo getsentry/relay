@@ -76,6 +76,7 @@ pub trait Processor: Sized {
     process_method!(process_user, crate::protocol::User);
     process_method!(process_client_sdk_info, crate::protocol::ClientSdkInfo);
     process_method!(process_debug_meta, crate::protocol::DebugMeta);
+    process_method!(process_debug_image, crate::protocol::DebugImage);
     process_method!(process_geo, crate::protocol::Geo);
     process_method!(process_logentry, crate::protocol::LogEntry);
     process_method!(process_thread, crate::protocol::Thread);

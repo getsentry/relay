@@ -153,6 +153,7 @@ pub struct ProguardDebugImage {
 
 /// A debug information file (debug image).
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_debug_image")]
 pub enum DebugImage {
     /// Apple debug images (machos).  This is currently also used for non apple platforms with
     /// similar debug setups.
@@ -184,38 +185,39 @@ pub struct DebugMeta {
     pub other: Object<Value>,
 }
 
-#[cfg(tests)]
-mod tests {
-    #[test]
-    fn test_debug_image_proguard_roundtrip() {
-        let json = r#"{
+#[cfg(test)]
+use crate::types::Map;
+
+#[test]
+fn test_debug_image_proguard_roundtrip() {
+    let json = r#"{
   "uuid": "395835f4-03e0-4436-80d3-136f0749a893",
   "other": "value",
   "type": "proguard"
 }"#;
-        let image = Annotated::new(DebugImage::Proguard(Box::new(ProguardDebugImage {
-            uuid: Annotated::new(
-                "395835f4-03e0-4436-80d3-136f0749a893"
-                    .parse::<Uuid>()
-                    .unwrap(),
-            ),
-            other: {
-                let mut map = Object::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
-                );
-                map
-            },
-        })));
+    let image = Annotated::new(DebugImage::Proguard(Box::new(ProguardDebugImage {
+        uuid: Annotated::new(
+            "395835f4-03e0-4436-80d3-136f0749a893"
+                .parse::<Uuid>()
+                .unwrap(),
+        ),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
 
-        assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, image.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json_pretty().unwrap());
+}
 
-    #[test]
-    fn test_debug_image_apple_roundtrip() {
-        let json = r#"{
+#[test]
+fn test_debug_image_apple_roundtrip() {
+    let json = r#"{
   "name": "CoreFoundation",
   "arch": "arm64",
   "cpu_type": 1233,
@@ -228,36 +230,36 @@ mod tests {
   "type": "apple"
 }"#;
 
-        let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
-            name: Annotated::new("CoreFoundation".to_string()),
-            arch: Annotated::new("arm64".to_string()),
-            cpu_type: Annotated::new(1233),
-            cpu_subtype: Annotated::new(3),
-            image_addr: Annotated::new(Addr(0)),
-            image_size: Annotated::new(4096),
-            image_vmaddr: Annotated::new(Addr(32768)),
-            uuid: Annotated::new(
-                "494f3aea-88fa-4296-9644-fa8ef5d139b6"
-                    .parse::<Uuid>()
-                    .unwrap(),
-            ),
-            other: {
-                let mut map = Object::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
-                );
-                map
-            },
-        })));
+    let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
+        name: Annotated::new("CoreFoundation".to_string()),
+        arch: Annotated::new("arm64".to_string()),
+        cpu_type: Annotated::new(1233),
+        cpu_subtype: Annotated::new(3),
+        image_addr: Annotated::new(Addr(0)),
+        image_size: Annotated::new(4096),
+        image_vmaddr: Annotated::new(Addr(32768)),
+        uuid: Annotated::new(
+            "494f3aea-88fa-4296-9644-fa8ef5d139b6"
+                .parse::<Uuid>()
+                .unwrap(),
+        ),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
 
-        assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, image.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json_pretty().unwrap());
+}
 
-    #[test]
-    fn test_debug_image_apple_default_values() {
-        let json = r#"{
+#[test]
+fn test_debug_image_apple_default_values() {
+    let json = r#"{
   "name": "CoreFoundation",
   "image_addr": "0x0",
   "image_size": 4096,
@@ -265,25 +267,25 @@ mod tests {
   "type": "apple"
 }"#;
 
-        let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
-            name: Annotated::new("CoreFoundation".to_string()),
-            image_addr: Annotated::new(Addr(0)),
-            image_size: Annotated::new(4096),
-            uuid: Annotated::new(
-                "494f3aea-88fa-4296-9644-fa8ef5d139b6"
-                    .parse::<Uuid>()
-                    .unwrap(),
-            ),
-            ..Default::default()
-        })));
+    let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
+        name: Annotated::new("CoreFoundation".to_string()),
+        image_addr: Annotated::new(Addr(0)),
+        image_size: Annotated::new(4096),
+        uuid: Annotated::new(
+            "494f3aea-88fa-4296-9644-fa8ef5d139b6"
+                .parse::<Uuid>()
+                .unwrap(),
+        ),
+        ..Default::default()
+    })));
 
-        assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, image.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json_pretty().unwrap());
+}
 
-    #[test]
-    fn test_debug_image_symbolic_roundtrip() {
-        let json = r#"{
+#[test]
+fn test_debug_image_symbolic_roundtrip() {
+    let json = r#"{
   "name": "CoreFoundation",
   "arch": "arm64",
   "image_addr": "0x0",
@@ -294,34 +296,34 @@ mod tests {
   "type": "symbolic"
 }"#;
 
-        let image = Annotated::new(DebugImage::Symbolic(Box::new(SymbolicDebugImage {
-            name: Annotated::new("CoreFoundation".to_string()),
-            arch: Annotated::new("arm64".to_string()),
-            image_addr: Annotated::new(Addr(0)),
-            image_size: Annotated::new(4096),
-            image_vmaddr: Annotated::new(Addr(32768)),
-            id: Annotated::new(
-                "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234"
-                    .parse::<DebugId>()
-                    .unwrap(),
-            ),
-            other: {
-                let mut map = Object::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
-                );
-                map
-            },
-        })));
+    let image = Annotated::new(DebugImage::Symbolic(Box::new(SymbolicDebugImage {
+        name: Annotated::new("CoreFoundation".to_string()),
+        arch: Annotated::new("arm64".to_string()),
+        image_addr: Annotated::new(Addr(0)),
+        image_size: Annotated::new(4096),
+        image_vmaddr: Annotated::new(Addr(32768)),
+        id: Annotated::new(
+            "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234"
+                .parse::<DebugId>()
+                .unwrap(),
+        ),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
 
-        assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, image.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json_pretty().unwrap());
+}
 
-    #[test]
-    fn test_debug_image_symbolic_default_values() {
-        let json = r#"{
+#[test]
+fn test_debug_image_symbolic_default_values() {
+    let json = r#"{
   "name": "CoreFoundation",
   "image_addr": "0x0",
   "image_size": 4096,
@@ -329,59 +331,56 @@ mod tests {
   "type": "symbolic"
 }"#;
 
-        let image = Annotated::new(DebugImage::Symbolic(Box::new(SymbolicDebugImage {
-            name: Annotated::new("CoreFoundation".to_string()),
-            image_addr: Annotated::new(Addr(0)),
-            image_size: Annotated::new(4096),
-            id: Annotated::new(
-                "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234"
-                    .parse::<DebugId>()
-                    .unwrap(),
-            ),
-            ..Default::default()
-        })));
+    let image = Annotated::new(DebugImage::Symbolic(Box::new(SymbolicDebugImage {
+        name: Annotated::new("CoreFoundation".to_string()),
+        image_addr: Annotated::new(Addr(0)),
+        image_size: Annotated::new(4096),
+        id: Annotated::new(
+            "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234"
+                .parse::<DebugId>()
+                .unwrap(),
+        ),
+        ..Default::default()
+    })));
 
-        assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, image.to_json_pretty().unwrap());
-    }
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json_pretty().unwrap());
+}
 
-    #[test]
-    fn test_debug_image_other_roundtrip() {
-        use crate::types::Map;
-        let json = r#"{"other":"value","type":"mytype"}"#;
-        let image = Annotated::new(DebugImage::Other({
-            let mut map = Map::new();
-            map.insert(
-                "type".to_string(),
-                Annotated::new(Value::String("mytype".to_string())),
-            );
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        }));
+#[test]
+fn test_debug_image_other_roundtrip() {
+    let json = r#"{"other":"value","type":"mytype"}"#;
+    let image = Annotated::new(DebugImage::Other({
+        let mut map = Map::new();
+        map.insert(
+            "type".to_string(),
+            Annotated::new(Value::String("mytype".to_string())),
+        );
+        map.insert(
+            "other".to_string(),
+            Annotated::new(Value::String("value".to_string())),
+        );
+        map
+    }));
 
-        assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, image.to_json().unwrap());
-    }
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json().unwrap());
+}
 
-    #[test]
-    fn test_debug_image_untagged_roundtrip() {
-        use crate::types::Map;
-        let json = r#"{"other":"value"}"#;
-        let image = Annotated::new(DebugImage::Other({
-            let mut map = Map::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        }));
+#[test]
+fn test_debug_image_untagged_roundtrip() {
+    let json = r#"{"other":"value"}"#;
+    let image = Annotated::new(DebugImage::Other({
+        let mut map = Map::new();
+        map.insert(
+            "other".to_string(),
+            Annotated::new(Value::String("value".to_string())),
+        );
+        map
+    }));
 
-        assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, image.to_json().unwrap());
-    }
+    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, image.to_json().unwrap());
 }
 
 #[test]
