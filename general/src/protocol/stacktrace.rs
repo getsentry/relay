@@ -1,5 +1,5 @@
 use crate::protocol::{Addr, RegVal};
-use crate::types::{Annotated, Array, Object, Value};
+use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// Holds information about a single stacktrace frame.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
@@ -72,8 +72,7 @@ pub struct Frame {
 
     /// Local variables in a convenient format.
     #[metastructure(pii = "true")]
-    #[metastructure(skip_serialization = "empty")]
-    pub vars: Annotated<Object<Value>>,
+    pub vars: Annotated<FrameVars>,
 
     /// Start address of the containing code module (image).
     pub image_addr: Annotated<Addr>,
@@ -91,6 +90,29 @@ pub struct Frame {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, From, Into)]
+pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<Value>);
+
+impl FromValue for FrameVars {
+    fn from_value(mut value: Annotated<Value>) -> Annotated<FrameVars> {
+        value = value.map_value(|value| {
+            if let Value::Array(value) = value {
+                Value::Object(
+                    value
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, v)| (i.to_string(), v))
+                        .collect(),
+                )
+            } else {
+                value
+            }
+        });
+
+        FromValue::from_value(value).map_value(FrameVars)
+    }
 }
 
 /// Holds information about an entirey stacktrace.
@@ -157,7 +179,7 @@ fn test_frame_roundtrip() {
                 "variable".to_string(),
                 Annotated::new(Value::String("value".to_string())),
             );
-            Annotated::new(vars)
+            Annotated::new(vars.into())
         },
         image_addr: Annotated::new(Addr(0x400)),
         instruction_addr: Annotated::new(Addr(0x404)),
@@ -258,7 +280,7 @@ fn test_frame_vars_null_preserved() {
         vars: Annotated::new({
             let mut vars = Object::new();
             vars.insert("despacito".to_string(), Annotated::empty());
-            vars
+            vars.into()
         }),
         ..Default::default()
     });
@@ -280,7 +302,7 @@ fn test_frame_vars_empty_annotated_is_serialized() {
             let mut vars = Object::new();
             vars.insert("despacito".to_string(), Annotated::empty());
             vars.insert("despacito2".to_string(), Annotated::empty());
-            vars
+            vars.into()
         }),
         ..Default::default()
     });
@@ -309,4 +331,39 @@ fn test_frame_empty_context_lines() {
 
     assert_eq_dbg!(frame, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, frame.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_php_frame_vars() {
+    // Buggy PHP SDKs send us this stuff
+    //
+    // Port of https://github.com/getsentry/sentry/commit/73d9a061dcac3ab8c318a09735601a12e81085dd
+
+    let input = r#"{
+  "vars": ["foo", "bar", "baz", null]
+}"#;
+
+    let output = r#"{
+  "vars": {
+    "0": "foo",
+    "1": "bar",
+    "2": "baz",
+    "3": null
+  }
+}"#;
+
+    let frame = Annotated::new(Frame {
+        vars: Annotated::new({
+            let mut vars = Object::new();
+            vars.insert("0".to_string(), Annotated::new("foo".to_string().into()));
+            vars.insert("1".to_string(), Annotated::new("bar".to_string().into()));
+            vars.insert("2".to_string(), Annotated::new("baz".to_string().into()));
+            vars.insert("3".to_string(), Annotated::empty());
+            vars.into()
+        }),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(frame, Annotated::from_json(input).unwrap());
+    assert_eq_str!(output, frame.to_json_pretty().unwrap());
 }
