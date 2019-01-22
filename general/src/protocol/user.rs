@@ -168,7 +168,7 @@ fn test_user_invalid_id() {
     let json = r#"{"id":[]}"#;
     let user = Annotated::new(User {
         id: Annotated::from_error(
-            Error::expected("primitive value"),
+            Error::expected("a primitive value"),
             Some(Value::Array(vec![])),
         ),
         ..User::default()

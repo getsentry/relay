@@ -1,5 +1,5 @@
 ---
-created: "2019-01-22T17:08:57.342718+00:00"
+created: "2019-01-22T17:29:13.498043+00:00"
 creator: insta@0.4.1
 expression: SerializableAnnotated(&event)
 source: general/tests/test_fixtures.rs
@@ -2568,7 +2568,7 @@ sdk:
 errors:
   - type: invalid_data
     name: threads.values.9.stacktrace.frames
-    reason: expected non-empty value
+    reason: expected a non-empty value
 _meta:
   threads:
     values:
@@ -2578,4 +2578,4 @@ _meta:
             "":
               err:
                 - - invalid_data
-                  - reason: expected non-empty value
+                  - reason: expected a non-empty value

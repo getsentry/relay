@@ -79,7 +79,7 @@ impl FromValue for Fingerprint {
                 )
             }
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("array"));
+                meta.add_error(Error::expected("an array"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }

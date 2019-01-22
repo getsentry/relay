@@ -63,7 +63,7 @@ where
     T: Empty,
 {
     if state.attrs().nonempty && value.is_empty() {
-        meta.add_error(Error::expected("non-empty value"));
+        meta.add_error(Error::expected("a non-empty value"));
         ValueAction::DeleteHard
     } else {
         ValueAction::Keep
@@ -111,7 +111,7 @@ mod tests {
         assert_eq_dbg!(
             wrapper,
             Annotated::new(Foo {
-                bar: Annotated::from_error(Error::expected("non-empty value"), None),
+                bar: Annotated::from_error(Error::expected("a non-empty value"), None),
                 bar2: Annotated::new(T::default())
             })
         );
