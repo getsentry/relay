@@ -1,7 +1,7 @@
 ---
-created: "2019-01-21T22:41:01.905145+00:00"
-creator: insta@0.4.0
-expression: event
+created: "2019-01-22T17:08:57.275762+00:00"
+creator: insta@0.4.1
+expression: SerializableAnnotated(&event)
 source: general/tests/test_fixtures.rs
 ---
 event_id: b308014887f5418c8f797159bfb6fc42
@@ -12,7 +12,7 @@ logentry:
 logger: ""
 modules:
   python: 3.7.0
-platform: other
+platform: python
 timestamp: "[timestamp]"
 received: "[received]"
 exception:
