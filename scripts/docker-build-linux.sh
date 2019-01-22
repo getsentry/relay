@@ -25,7 +25,7 @@ docker build --build-arg DOCKER_ARCH=${DOCKER_ARCH} \
              -t "${BUILD_IMAGE}" -f Dockerfile.build .
 
 # Push build image if possible
-if [ -n "${DOCKER_PASS}" ]; then
+if [ -n "${DOCKER_PASS:-}" ]; then
   echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin || true
   docker push "${BUILD_IMAGE}" || true
 fi
