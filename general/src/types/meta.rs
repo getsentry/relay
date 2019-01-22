@@ -426,7 +426,10 @@ pub struct MetaInner {
 
 impl MetaInner {
     pub fn is_empty(&self) -> bool {
-        self.original_length.is_none() && self.remarks.is_empty() && self.errors.is_empty()
+        self.original_length.is_none()
+            && self.remarks.is_empty()
+            && self.errors.is_empty()
+            && self.original_value.is_none()
     }
 }
 
@@ -599,6 +602,7 @@ impl PartialEq for MetaInner {
         self.remarks == other.remarks
             && self.errors == other.errors
             && self.original_length == other.original_length
+            && self.original_value == other.original_value
     }
 }
 

@@ -610,7 +610,7 @@ fn test_query_string_legacy_nested() {
 fn test_query_invalid() {
     let query = Annotated::<Query>::from_error(
         Error::expected("query-string or map"),
-        Some(Value::U64(64)),
+        Some(Value::I64(42)),
     );
     assert_eq_dbg!(query, Annotated::from_json("42").unwrap());
 }
@@ -648,7 +648,7 @@ fn test_cookies_array() {
     )));
     map.push(Annotated::new((
         Annotated::new("invalid".to_string()),
-        Annotated::from_error(Error::expected("a string"), Some(Value::U64(42))),
+        Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
     )));
 
     let cookies = Annotated::new(Cookies(PairList(map)));
@@ -666,7 +666,7 @@ fn test_cookies_object() {
     )));
     map.push(Annotated::new((
         Annotated::new("invalid".to_string()),
-        Annotated::from_error(Error::expected("a string"), Some(Value::U64(42))),
+        Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
     )));
 
     let cookies = Annotated::new(Cookies(PairList(map)));
