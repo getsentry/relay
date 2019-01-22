@@ -839,7 +839,7 @@ fn test_unknown_debug_image() {
     let expected = Annotated::new(DebugMeta {
         images: Annotated::new(vec![Annotated::from_error(
             Error::invalid("unsupported debug image type"),
-            None,
+            Some(Value::Object(Default::default())),
         )]),
         ..DebugMeta::default()
     });
