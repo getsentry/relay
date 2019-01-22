@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cmp;
 use std::collections::BTreeSet;
 
@@ -428,7 +429,7 @@ fn apply_rule_to_value<T: ProcessValue>(
     }
 }
 
-fn apply_rule_to_chunks(mut chunks: Vec<Chunk>, rule: RuleRef<'_>) -> Vec<Chunk> {
+fn apply_rule_to_chunks<'a>(mut chunks: Vec<Chunk<'a>>, rule: RuleRef<'_>) -> Vec<Chunk<'a>> {
     macro_rules! apply_regex {
         ($regex:expr, $replace_groups:expr) => {
             chunks = apply_regex_to_chunks(chunks, rule, $regex, $replace_groups);
@@ -438,9 +439,7 @@ fn apply_rule_to_chunks(mut chunks: Vec<Chunk>, rule: RuleRef<'_>) -> Vec<Chunk>
     match rule.ty {
         RuleType::Never => {}
         RuleType::Anything => apply_regex!(&ANYTHING_REGEX, None),
-        RuleType::Pattern(pattern) => {
-            apply_regex!(&pattern.pattern.0, pattern.replace_groups.as_ref())
-        }
+        RuleType::Pattern(r) => apply_regex!(&r.pattern.0, r.replace_groups.as_ref()),
         RuleType::Imei => apply_regex!(&IMEI_REGEX, None),
         RuleType::Mac => apply_regex!(&MAC_REGEX, None),
         RuleType::Uuid => apply_regex!(&UUID_REGEX, None),
@@ -463,45 +462,65 @@ fn apply_rule_to_chunks(mut chunks: Vec<Chunk>, rule: RuleRef<'_>) -> Vec<Chunk>
     chunks
 }
 
-fn apply_regex_to_chunks(
-    chunks: Vec<Chunk>,
+fn apply_regex_to_chunks<'a>(
+    chunks: Vec<Chunk<'a>>,
     rule: RuleRef<'_>,
     regex: &Regex,
     replace_groups: Option<&BTreeSet<u8>>,
-) -> Vec<Chunk> {
+) -> Vec<Chunk<'a>> {
+    // NB: This function allocates the entire string and all chunks a second time. This means it
+    // cannot reuse chunks and reallocates them. Ideally, we would be able to run the regex directly
+    // on the chunks, but the `regex` crate does not support that.
+
     let mut search_string = String::new();
+    for chunk in &chunks {
+        match chunk {
+            Chunk::Text { text } => search_string.push_str(&text.replace("\x00", "")),
+            Chunk::Redaction { .. } => search_string.push('\x00'),
+        }
+    }
+
+    // Early exit if this regex does not match and return the original chunks.
+    let mut captures_iter = regex.captures_iter(&search_string).peekable();
+    if captures_iter.peek().is_none() {
+        return chunks;
+    }
+
     let mut replacement_chunks = vec![];
     for chunk in chunks {
-        match chunk {
-            Chunk::Text { ref text } => search_string.push_str(&text.replace("\x00", "")),
-            chunk @ Chunk::Redaction { .. } => {
-                replacement_chunks.push(chunk);
-                search_string.push('\x00');
-            }
+        if let Chunk::Redaction { .. } = chunk {
+            replacement_chunks.push(chunk);
         }
     }
     replacement_chunks.reverse();
-    let mut rv: Vec<Chunk> = vec![];
 
-    fn process_text(text: &str, rv: &mut Vec<Chunk>, replacement_chunks: &mut Vec<Chunk>) {
+    fn process_text<'a>(
+        text: &str,
+        rv: &mut Vec<Chunk<'a>>,
+        replacement_chunks: &mut Vec<Chunk<'a>>,
+    ) {
         if text.is_empty() {
             return;
         }
+
         let mut pos = 0;
         for piece in NULL_SPLIT_RE.find_iter(text) {
             rv.push(Chunk::Text {
-                text: text[pos..piece.start()].to_string(),
+                text: Cow::Owned(text[pos..piece.start()].to_string()),
             });
             rv.push(replacement_chunks.pop().unwrap());
             pos = piece.end();
         }
+
         rv.push(Chunk::Text {
-            text: text[pos..].to_string(),
+            text: Cow::Owned(text[pos..].to_string()),
         });
     }
 
     let mut pos = 0;
-    for m in regex.captures_iter(&search_string) {
+    let mut rv = Vec::with_capacity(replacement_chunks.len());
+
+    for m in captures_iter {
         let g0 = m.get(0).unwrap();
 
         match replace_groups {
@@ -534,16 +553,10 @@ fn apply_regex_to_chunks(
                 pos = g0.end();
             }
         }
-
-        process_text(
-            &search_string[pos..g0.end()],
-            &mut rv,
-            &mut replacement_chunks,
-        );
-        pos = g0.end();
     }
 
     process_text(&search_string[pos..], &mut rv, &mut replacement_chunks);
+    debug_assert!(replacement_chunks.is_empty());
 
     rv
 }
@@ -562,13 +575,13 @@ fn in_range(range: (Option<i32>, Option<i32>), pos: usize, len: usize) -> bool {
     pos >= start && pos < end
 }
 
-fn insert_replacement_chunks(rule: RuleRef<'_>, text: &str, output: &mut Vec<Chunk>) {
+fn insert_replacement_chunks(rule: RuleRef<'_>, text: &str, output: &mut Vec<Chunk<'_>>) {
     match rule.redaction {
         Redaction::Default | Redaction::Remove => {
             output.push(Chunk::Redaction {
-                rule_id: rule.origin.to_string(),
+                text: Cow::Borrowed(""),
+                rule_id: Cow::Owned(rule.origin.to_string()),
                 ty: RemarkType::Removed,
-                text: "".to_string(),
             });
         }
         Redaction::Mask(mask) => {
@@ -584,27 +597,27 @@ fn insert_replacement_chunks(rule: RuleRef<'_>, text: &str, output: &mut Vec<Chu
             }
             output.push(Chunk::Redaction {
                 ty: RemarkType::Masked,
-                rule_id: rule.origin.to_string(),
+                rule_id: Cow::Owned(rule.origin.to_string()),
                 text: buf.into_iter().collect(),
             })
         }
         Redaction::Hash(hash) => {
             output.push(Chunk::Redaction {
                 ty: RemarkType::Pseudonymized,
-                rule_id: rule.origin.to_string(),
-                text: hash_value(
+                rule_id: Cow::Owned(rule.origin.to_string()),
+                text: Cow::Owned(hash_value(
                     hash.algorithm,
                     text,
                     hash.key.as_ref().map(|x| x.as_str()),
                     rule.config,
-                ),
+                )),
             });
         }
         Redaction::Replace(replace) => {
             output.push(Chunk::Redaction {
                 ty: RemarkType::Substituted,
-                rule_id: rule.origin.to_string(),
-                text: replace.text.clone(),
+                rule_id: Cow::Owned(rule.origin.to_string()),
+                text: Cow::Owned(replace.text.clone()),
             });
         }
     }
