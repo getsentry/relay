@@ -1,0 +1,3 @@
+ignore:
+  - "cabi/**/*.rs"
+  - "general/derive/**/*.rs"
