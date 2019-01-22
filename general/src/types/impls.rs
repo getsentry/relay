@@ -166,7 +166,7 @@ where
             ),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("object"));
+                meta.add_error(Error::expected("array"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
@@ -504,7 +504,7 @@ where
 }
 
 macro_rules! tuple_meta_structure {
-    ($($name: ident),+) => {
+    ($count: literal, $($name: ident),+) => {
         impl< $( $name: FromValue ),* > FromValue for ( $( Annotated<$name>, )* ) {
             #[allow(non_snake_case, unused_variables)]
             fn from_value(annotated: Annotated<Value>) -> Annotated<Self> {
@@ -513,7 +513,7 @@ macro_rules! tuple_meta_structure {
                 match annotated {
                     Annotated(Some(Value::Array(items)), mut meta) => {
                         if items.len() != n {
-                            meta.add_error(Error::expected("a tuple"));
+                            meta.add_error(Error::expected(concat!("a ", $count, "-tuple")));
                             meta.set_original_value(Some(items));
                             return Annotated(None, meta);
                         }
@@ -527,7 +527,7 @@ macro_rules! tuple_meta_structure {
                         )), meta)
                     }
                     Annotated(Some(value), mut meta) => {
-                        meta.add_error(Error::expected("a tuple"));
+                        meta.add_error(Error::expected(concat!("a ", $count, "-tuple")));
                         meta.set_original_value(Some(value));
                         Annotated(None, meta)
                     }
@@ -590,18 +590,18 @@ macro_rules! tuple_meta_structure {
     }
 }
 
-tuple_meta_structure!(T1);
-tuple_meta_structure!(T1, T2);
-tuple_meta_structure!(T1, T2, T3);
-tuple_meta_structure!(T1, T2, T3, T4);
-tuple_meta_structure!(T1, T2, T3, T4, T5);
-tuple_meta_structure!(T1, T2, T3, T4, T5, T6);
-tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7);
-tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8);
-tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
-tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
-tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
-tuple_meta_structure!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
+tuple_meta_structure!(1, T1);
+tuple_meta_structure!(2, T1, T2);
+tuple_meta_structure!(3, T1, T2, T3);
+tuple_meta_structure!(4, T1, T2, T3, T4);
+tuple_meta_structure!(5, T1, T2, T3, T4, T5);
+tuple_meta_structure!(6, T1, T2, T3, T4, T5, T6);
+tuple_meta_structure!(7, T1, T2, T3, T4, T5, T6, T7);
+tuple_meta_structure!(8, T1, T2, T3, T4, T5, T6, T7, T8);
+tuple_meta_structure!(9, T1, T2, T3, T4, T5, T6, T7, T8, T9);
+tuple_meta_structure!(10, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+tuple_meta_structure!(11, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+tuple_meta_structure!(12, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 
 #[test]
 fn test_unsigned_integers() {
