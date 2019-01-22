@@ -1,6 +1,6 @@
 [package]
 name = "semaphore-general"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["Armin Ronacher <armin.ronacher@active-4.com>"]
 edition = "2018"
 
@@ -25,9 +25,11 @@ serde_urlencoded = "0.5.4"
 smallvec = { version = "0.6.8", features = ["serde"] }
 url = "1.7.2"
 uuid = { version = "0.7.1", features = ["v4", "serde"] }
+insta = "0.4.1"
 
 [dev-dependencies]
 difference = "2.0.0"
 
 [features]
 bench = []
+
