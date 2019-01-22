@@ -6,7 +6,7 @@ branches:
     - /^release\/[\d.]+$/
 
 cache:
-  - 'target'
+  - "target"
   - '%USERPROFILE%\.cargo'
 
 environment:
@@ -14,8 +14,8 @@ environment:
     secure: dcqtt6sxxBV0tDkXmPZOyz96KWmjtSz6ZqRd9mw9GXC/C4Zcwqofxt2Kh4EP7hPEFIewRRl6xkhW53HgItdt7iVmFSHuufpGoSpzse8cgg3zfE08f/u0a2EOvuRjdtoi4E/9Znrj2HY+CC+G4j2UKWzp6EcSc++qbgSMl1h6zMs=
   CARGO_HTTP_CHECK_REVOKE: false
   matrix:
-#    - channel: stable
-#      arch: i686
+    #    - channel: stable
+    #      arch: i686
     - channel: stable
       arch: x86_64
 
@@ -42,6 +42,8 @@ test_script:
 
 on_success:
   - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%.exe .\target\release\semaphore.exe
+  - 7z a .\semaphore-pdb.zip .\target\release\semaphore.pdb
+  - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%-pdb.zip .\semaphore-pdb.zip
   - zeus job update --status=passed
   - C:\MinGW\bin\mingw32-make clean-target-dir
 
