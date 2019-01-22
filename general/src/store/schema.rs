@@ -164,18 +164,10 @@ mod tests {
             ..Default::default()
         });
 
+        let expected = user.clone();
         process_value(&mut user, &mut SchemaProcessor, ProcessingState::root());
 
-        assert_eq_dbg!(
-            user,
-            Annotated::new(User {
-                email: Annotated::from_error(
-                    Error::invalid("invalid characters in string"),
-                    Some(Value::String("bananabread".to_string()))
-                ),
-                ..Default::default()
-            })
-        );
+        assert_eq_dbg!(user, expected);
     }
 
     #[test]
