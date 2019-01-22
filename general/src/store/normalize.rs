@@ -12,8 +12,8 @@ use uuid::Uuid;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    AsPair, Breadcrumb, ClientSdkInfo, Context, Event, EventId, EventType, Exception, Frame,
-    IpAddr, Level, LogEntry, Request, Stacktrace, Tags, User,
+    AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
+    Frame, IpAddr, Level, LogEntry, Request, Stacktrace, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{Annotated, Empty, Error, ErrorKind, Meta, Object, ValueAction};
@@ -386,6 +386,21 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         ValueAction::Keep
+    }
+
+    fn process_debug_image(
+        &mut self,
+        image: &mut DebugImage,
+        meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ValueAction {
+        match image {
+            DebugImage::Other(_) => {
+                meta.add_error(Error::invalid("unsupported debug image type"));
+                ValueAction::DeleteSoft
+            }
+            _ => ValueAction::Keep,
+        }
     }
 
     fn process_logentry(
@@ -804,6 +819,32 @@ fn test_user_data_moved() {
     });
 
     assert_eq_dbg!(user.other, Object::new());
+}
+
+#[test]
+fn test_unknown_debug_image() {
+    use crate::protocol::DebugMeta;
+
+    let mut event = Annotated::new(Event {
+        debug_meta: Annotated::new(DebugMeta {
+            images: Annotated::new(vec![Annotated::new(DebugImage::Other(Default::default()))]),
+            ..DebugMeta::default()
+        }),
+        ..Event::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    let expected = Annotated::new(DebugMeta {
+        images: Annotated::new(vec![Annotated::from_error(
+            Error::invalid("unsupported debug image type"),
+            None,
+        )]),
+        ..DebugMeta::default()
+    });
+
+    assert_eq_dbg!(expected, event.value().unwrap().debug_meta);
 }
 
 #[test]
