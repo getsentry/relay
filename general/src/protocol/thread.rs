@@ -26,7 +26,7 @@ impl FromValue for ThreadId {
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("thread id"));
+                meta.add_error(Error::expected("a thread id"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }

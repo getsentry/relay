@@ -263,7 +263,7 @@ impl FromValue for Query {
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("query-string or map"));
+                meta.add_error(Error::expected("a query string or map"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
@@ -609,7 +609,7 @@ fn test_query_string_legacy_nested() {
 #[test]
 fn test_query_invalid() {
     let query = Annotated::<Query>::from_error(
-        Error::expected("query-string or map"),
+        Error::expected("a query string or map"),
         Some(Value::I64(42)),
     );
     assert_eq_dbg!(query, Annotated::from_json("42").unwrap());

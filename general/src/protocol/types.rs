@@ -94,7 +94,7 @@ impl<T: FromValue> FromValue for Values<T> {
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("array or values"));
+                meta.add_error(Error::expected("a list or values object"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
@@ -530,7 +530,7 @@ impl FromValue for Level {
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("level"));
+                meta.add_error(Error::expected("a level"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
@@ -616,14 +616,14 @@ impl FromValue for LenientString {
                 if num.abs() < (1i64 << 53) as f64 {
                     Annotated(Some(num.trunc().to_string()), meta)
                 } else {
-                    meta.add_error(Error::expected("number with JSON precision"));
+                    meta.add_error(Error::expected("a number with JSON precision"));
                     meta.set_original_value(Some(num));
                     Annotated(None, meta)
                 }
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("primitive value"));
+                meta.add_error(Error::expected("a primitive value"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }

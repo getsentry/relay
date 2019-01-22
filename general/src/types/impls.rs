@@ -166,7 +166,7 @@ where
             ),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("array"));
+                meta.add_error(Error::expected("an array"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
@@ -247,7 +247,7 @@ where
             ),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("object"));
+                meta.add_error(Error::expected("an object"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
@@ -407,7 +407,7 @@ impl FromValue for DateTime<Utc> {
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("timestamp"));
+                meta.add_error(Error::expected("a timestamp"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
@@ -508,12 +508,18 @@ macro_rules! tuple_meta_structure {
         impl< $( $name: FromValue ),* > FromValue for ( $( Annotated<$name>, )* ) {
             #[allow(non_snake_case, unused_variables)]
             fn from_value(annotated: Annotated<Value>) -> Annotated<Self> {
+                let expectation = match $count {
+                    1 => "a single element",
+                    2 => "a tuple",
+                    _ => concat!("a ", $count, "-tuple"),
+                };
+
                 let mut n = 0;
                 $(let $name = (); n += 1;)*
                 match annotated {
                     Annotated(Some(Value::Array(items)), mut meta) => {
                         if items.len() != n {
-                            meta.add_error(Error::expected(concat!("a ", $count, "-tuple")));
+                            meta.add_error(Error::expected(expectation));
                             meta.set_original_value(Some(items));
                             return Annotated(None, meta);
                         }
@@ -527,7 +533,7 @@ macro_rules! tuple_meta_structure {
                         )), meta)
                     }
                     Annotated(Some(value), mut meta) => {
-                        meta.add_error(Error::expected(concat!("a ", $count, "-tuple")));
+                        meta.add_error(Error::expected(expectation));
                         meta.set_original_value(Some(value));
                         Annotated(None, meta)
                     }

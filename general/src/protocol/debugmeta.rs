@@ -85,7 +85,7 @@ impl FromValue for DebugId {
                 }
             },
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("debug id"));
+                meta.add_error(Error::expected("a debug identifier"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
