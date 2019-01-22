@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::processor::{estimate_size, process_chunked_value, BagSize, Chunk, MaxChars};
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{Array, Meta, Object, Remark, RemarkType, ValueAction};
@@ -230,13 +232,16 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
                         }
                         length += 1;
                     }
-                    new_chunks.push(Chunk::Text { text: remaining });
+
+                    new_chunks.push(Chunk::Text {
+                        text: Cow::Owned(remaining),
+                    });
                 }
             }
 
             new_chunks.push(Chunk::Redaction {
-                text: "...".to_string(),
-                rule_id: "!limit".to_string(),
+                text: Cow::Borrowed("..."),
+                rule_id: Cow::Borrowed("!limit"),
                 ty: RemarkType::Substituted,
             });
             break;

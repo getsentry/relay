@@ -22,6 +22,7 @@
 //! assert_eq!(join_remarks, remarks);
 //! ```
 
+use std::borrow::Cow;
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
@@ -31,30 +32,30 @@ use crate::types::{Meta, Remark, RemarkType};
 /// A type for dealing with chunks of annotated text.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
-pub enum Chunk {
+pub enum Chunk<'a> {
     /// Unmodified text chunk.
     Text {
         /// The text value of the chunk
-        text: String,
+        text: Cow<'a, str>,
     },
     /// Redacted text chunk with a note.
     Redaction {
         /// The redacted text value
-        text: String,
+        text: Cow<'a, str>,
         /// The rule that crated this redaction
-        rule_id: String,
+        rule_id: Cow<'a, str>,
         /// Type type of remark for this redaction
         #[serde(rename = "remark")]
         ty: RemarkType,
     },
 }
 
-impl Chunk {
+impl<'a> Chunk<'a> {
     /// The text of this chunk.
     pub fn as_str(&self) -> &str {
-        match *self {
-            Chunk::Text { ref text } => &text,
-            Chunk::Redaction { ref text, .. } => &text,
+        match self {
+            Chunk::Text { text } => &text,
+            Chunk::Redaction { text, .. } => &text,
         }
     }
 
@@ -74,20 +75,17 @@ impl Chunk {
     }
 }
 
-impl fmt::Display for Chunk {
+impl fmt::Display for Chunk<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
 
 /// Chunks the given text based on remarks.
-pub fn split_chunks<'a, S, I>(text: S, remarks: I) -> Vec<Chunk>
+pub fn split_chunks<'a, I>(text: &'a str, remarks: I) -> Vec<Chunk<'a>>
 where
-    S: AsRef<str>,
     I: IntoIterator<Item = &'a Remark>,
 {
-    let text = text.as_ref();
-
     let mut rv = vec![];
     let mut pos = 0;
 
@@ -100,7 +98,7 @@ where
         if from > pos {
             if let Some(piece) = text.get(pos..from) {
                 rv.push(Chunk::Text {
-                    text: piece.to_string(),
+                    text: Cow::Borrowed(piece),
                 });
             } else {
                 break;
@@ -108,7 +106,7 @@ where
         }
         if let Some(piece) = text.get(from..to) {
             rv.push(Chunk::Redaction {
-                text: piece.to_string(),
+                text: Cow::Borrowed(piece),
                 rule_id: remark.rule_id().into(),
                 ty: remark.ty(),
             });
@@ -121,7 +119,7 @@ where
     if pos < text.len() {
         if let Some(piece) = text.get(pos..) {
             rv.push(Chunk::Text {
-                text: piece.to_string(),
+                text: Cow::Borrowed(piece),
             });
         }
     }
@@ -130,9 +128,9 @@ where
 }
 
 /// Concatenates chunks into a string and emits remarks for redacted sections.
-pub fn join_chunks<I>(chunks: I) -> (String, Vec<Remark>)
+pub fn join_chunks<'a, I>(chunks: I) -> (String, Vec<Remark>)
 where
-    I: IntoIterator<Item = Chunk>,
+    I: IntoIterator<Item = Chunk<'a>>,
 {
     let mut rv = String::new();
     let mut remarks = vec![];
