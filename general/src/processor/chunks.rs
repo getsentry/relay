@@ -64,9 +64,9 @@ impl<'a> Chunk<'a> {
         self.as_str().len()
     }
 
-    /// The number of chars in this chunk.
-    pub fn chars(&self) -> usize {
-        self.as_str().chars().count()
+    /// The number of UTF-8 encoded Unicode codepoints in this chunk.
+    pub fn count(&self) -> usize {
+        bytecount::num_chars(self.as_str().as_bytes())
     }
 
     /// Determines whether this chunk is empty.
@@ -169,7 +169,7 @@ where
         for remark in remarks.into_iter() {
             meta.add_remark(remark);
         }
-        meta.set_original_length(Some(value.chars().count()));
+        meta.set_original_length(Some(bytecount::num_chars(value.as_bytes())));
         *value = new_value;
     }
 }

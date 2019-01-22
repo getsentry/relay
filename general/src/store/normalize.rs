@@ -148,14 +148,14 @@ impl<'a> NormalizeProcessor<'a> {
         for tag in tags.iter_mut() {
             tag.apply(|tag, meta| {
                 if let Some(key) = tag.key() {
-                    if key.len() > MaxChars::TagKey.limit() {
+                    if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
                         meta.add_error(Error::new(ErrorKind::ValueTooLong));
                         return ValueAction::DeleteHard;
                     }
                 }
 
                 if let Some(value) = tag.value() {
-                    if value.len() > MaxChars::TagValue.limit() {
+                    if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
                         meta.add_error(Error::new(ErrorKind::ValueTooLong));
                         return ValueAction::DeleteHard;
                     }

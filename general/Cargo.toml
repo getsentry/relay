@@ -5,12 +5,14 @@ authors = ["Armin Ronacher <armin.ronacher@active-4.com>"]
 edition = "2018"
 
 [dependencies]
+bytecount = "0.5.0"
 chrono = "0.4.6"
 cookie = { version = "0.11.0", features = ["percent-encode"] }
 debugid = { version = "0.3.1", features = ["with_serde"] }
 dynfmt = { version = "0.1.1", features = ["python", "curly"] }
 failure = "0.1.5"
 hmac = "0.7.0"
+insta = "0.4.1"
 itertools = "0.8.0"
 lazy_static = "1.2.0"
 maxminddb = "0.12.0"
@@ -25,11 +27,9 @@ serde_urlencoded = "0.5.4"
 smallvec = { version = "0.6.8", features = ["serde"] }
 url = "1.7.2"
 uuid = { version = "0.7.1", features = ["v4", "serde"] }
-insta = "0.4.1"
 
 [dev-dependencies]
 difference = "2.0.0"
 
 [features]
 bench = []
-
