@@ -1,5 +1,5 @@
 ---
-created: "2019-01-22T13:21:53.613414+00:00"
+created: "2019-01-22T17:08:57.342718+00:00"
 creator: insta@0.4.1
 expression: SerializableAnnotated(&event)
 source: general/tests/test_fixtures.rs
@@ -9,7 +9,7 @@ level: fatal
 type: error
 transaction: sentry_ios_cocoapods.ViewController
 logger: ""
-platform: other
+platform: cocoa
 timestamp: "[timestamp]"
 received: "[received]"
 release: io.sentry.sentry-ios-cocoapods-1.0

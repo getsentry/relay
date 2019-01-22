@@ -1,7 +1,7 @@
 ---
-created: "2019-01-21T22:41:01.926577+00:00"
-creator: insta@0.4.0
-expression: event
+created: "2019-01-22T17:08:57.295360+00:00"
+creator: insta@0.4.1
+expression: SerializableAnnotated(&event)
 source: general/tests/test_fixtures.rs
 ---
 event_id: 04e03764d7024caab8736daeefbb9bee
@@ -174,7 +174,7 @@ modules:
   fwwefxr0.3z0: 0.0.0.0
   nbxk3h5b.orp: 0.0.0.0
   netstandard: 2.0.0.0
-platform: other
+platform: csharp
 timestamp: "[timestamp]"
 received: "[received]"
 release: e386dfd

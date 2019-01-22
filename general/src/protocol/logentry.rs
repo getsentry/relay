@@ -169,7 +169,7 @@ fn test_logentry_invalid_params() {
 
     let entry = Annotated::new(LogEntry {
         message: Annotated::new("Hello, %s!".to_string()),
-        params: Annotated::from_error(Error::expected("message parameters"), Some(Value::U64(42))),
+        params: Annotated::from_error(Error::expected("message parameters"), Some(Value::I64(42))),
         ..LogEntry::default()
     });
 
