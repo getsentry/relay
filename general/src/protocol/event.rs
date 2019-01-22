@@ -251,7 +251,6 @@ pub struct Event {
 
     /// Contexts describing the environment (e.g. device, os or browser).
     #[metastructure(legacy_alias = "sentry.interfaces.Contexts")]
-    #[metastructure(skip_serialization = "empty")]
     pub contexts: Annotated<Contexts>,
 
     /// List of breadcrumbs recorded before this event.

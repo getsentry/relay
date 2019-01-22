@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
-use syn::{Data, Ident, Lit, LitBool, LitStr, Meta, MetaNameValue, NestedMeta};
+use syn::{Data, Ident, Lit, LitStr, Meta, MetaNameValue, NestedMeta};
 use synstructure::decl_derive;
 
 #[derive(Debug, Clone, Copy)]
@@ -70,8 +70,9 @@ fn derive_newtype_metastructure(
         panic!("process_func not supported on newtype structs");
     }
 
-    let field_attrs = parse_field_attributes(&s.variants()[0].bindings()[0].ast().attrs);
+    let field_attrs = parse_field_attributes(0, &s.variants()[0].bindings()[0].ast(), &mut true);
     let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
+    let field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
 
     let name = &s.ast().ident;
 
@@ -151,19 +152,46 @@ fn derive_newtype_metastructure(
                 #[inline]
                 fn process_value<P>(
                     &mut self,
-                    __meta: &mut crate::types::Meta,
-                    __processor: &mut P,
-                    __state: &crate::processor::ProcessingState<'_>,
+                    meta: &mut crate::types::Meta,
+                    processor: &mut P,
+                    state: &crate::processor::ProcessingState<'_>,
                 ) -> crate::types::ValueAction
                 where
                     P: crate::processor::Processor,
                 {
-                    crate::processor::ProcessValue::process_value(
-                        &mut self.0,
-                        __meta,
-                        __processor,
-                        __state,
-                    )
+                    let parent_attrs = state.attrs();
+                    let attrs = #field_attrs_tokens;
+                    let state = state.enter_nothing(
+                        Some(::std::borrow::Cow::Owned(attrs))
+                    );
+
+                    let mut action = processor.before_process(
+                        Some(&self.0),
+                        meta,
+                        &state
+                    );
+
+                    if action == crate::types::ValueAction::Keep {
+                        action = crate::processor::ProcessValue::process_value(
+                            &mut self.0,
+                            meta,
+                            processor,
+                            &state
+                        )
+                    }
+
+                    let new_value = match action {
+                        crate::types::ValueAction::Keep => Some(&self.0),
+                        _=> None
+                    };
+
+                    processor.after_process(
+                        new_value,
+                        meta,
+                        &state
+                    );
+
+                    action
                 }
 
                 #[inline]
@@ -175,11 +203,10 @@ fn derive_newtype_metastructure(
                 where
                     P: crate::processor::Processor,
                 {
-                    crate::processor::ProcessValue::process_child_values(
-                        &mut self.0,
-                        __processor,
-                        __state,
-                    )
+                    // Since `process_value` just delegates to `self.0`, processors
+                    // should always call `self.0.process_child_values` and not this
+                    // (`self.process_child_values`)
+                    unreachable!();
                 }
             }
         }),
@@ -207,7 +234,6 @@ fn derive_enum_metastructure(
     let mut is_deep_empty_body = TokenStream::new();
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
-    let mut process_value_body = TokenStream::new();
     let mut process_child_values_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
@@ -292,18 +318,6 @@ fn derive_enum_metastructure(
 
         (quote! {
             #type_name::#variant_name(__value) => {
-                crate::processor::ProcessValue::process_value(
-                    __value,
-                    __meta,
-                    __processor,
-                    __state,
-                )
-            }
-        })
-        .to_tokens(&mut process_value_body);
-
-        (quote! {
-            #type_name::#variant_name(__value) => {
                 crate::processor::ProcessValue::process_child_values(
                     __value,
                     __processor,
@@ -385,23 +399,6 @@ fn derive_enum_metastructure(
             let process_value = type_attrs.process_func.map(|func_name| {
                 let func_name = Ident::new(&func_name, Span::call_site());
                 quote! {
-                    if __result == crate::types::ValueAction::Keep {
-                        return __processor.#func_name(self, __meta, __state);
-                    }
-                }
-            }).unwrap_or_else(|| {
-                quote! {
-                    crate::processor::ProcessValue::process_child_values(
-                        self,
-                        __processor,
-                        __state,
-                    );
-                }
-            });
-
-            s.gen_impl(quote! {
-                #[automatically_derived]
-                gen impl crate::processor::ProcessValue for @Self {
                     #[inline]
                     fn process_value<P>(
                         &mut self,
@@ -412,14 +409,15 @@ fn derive_enum_metastructure(
                     where
                         P: crate::processor::Processor,
                     {
-                        let __result = match self {
-                            #process_value_body
-                        };
-
-                        #process_value
-
-                        __result
+                        __processor.#func_name(self, __meta, __state)
                     }
+                }
+            });
+
+            s.gen_impl(quote! {
+                #[automatically_derived]
+                gen impl crate::processor::ProcessValue for @Self {
+                    #process_value
 
                     #[inline]
                     fn process_child_values<P>(
@@ -478,22 +476,9 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 
     let mut is_tuple_struct = false;
     for (index, bi) in variant.bindings().iter().enumerate() {
-        if bi.ast().ident.is_none() {
-            is_tuple_struct = true;
-        } else if is_tuple_struct {
-            panic!("invalid tuple struct");
-        }
-
-        let field_attrs = parse_field_attributes(&bi.ast().attrs);
-        let field_name = field_attrs.field_name_override.unwrap_or_else(|| {
-            bi.ast()
-                .ident
-                .as_ref()
-                .map(|ident| ident.to_string())
-                .unwrap_or_else(|| index.to_string())
-        });
-        let field_name = LitStr::new(&field_name, Span::call_site());
+        let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
         let field_attrs_name = Ident::new(&format!("__field_attrs_{}", index), Span::call_site());
+        let field_name = field_attrs.field_name.clone();
 
         let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
 
@@ -515,7 +500,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 
             let additional_state = if field_attrs.retain {
                 quote! {
-                    &__state.enter_additional(
+                    &__state.enter_nothing(
                         Some(::std::borrow::Cow::Borrowed(crate::processor::FieldAttrs::default_retain()))
                     )
                 }
@@ -549,24 +534,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
             (quote! { && #bi.values().all(|__v| __v.skip_serialization(#skip_serialization_attr)) })
                 .to_tokens(&mut is_deep_empty_body);
         } else {
-            let required_attr = LitBool {
-                value: field_attrs.required,
-                span: Span::call_site(),
-            };
-
-            let nonempty_attr = LitBool {
-                value: field_attrs.nonempty,
-                span: Span::call_site(),
-            };
-
-            let pii_attr = LitBool {
-                value: field_attrs.pii,
-                span: Span::call_site(),
-            };
-
-            let max_chars_attr = field_attrs.max_chars;
-            let bag_size_attr = field_attrs.bag_size;
-
             if is_tuple_struct {
                 (quote! {
                     let #bi = __arr.next();
@@ -578,7 +545,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 })
                 .to_tokens(&mut from_value_body);
 
-                for legacy_alias in field_attrs.legacy_aliases {
+                for legacy_alias in &field_attrs.legacy_aliases {
                     let legacy_field_name = LitStr::new(&legacy_alias, Span::call_site());
                     (quote! {
                         let #bi = #bi.or(__obj.remove(#legacy_field_name));
@@ -590,15 +557,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
             (quote! {
                 let #bi = crate::types::FromValue::from_value(#bi.unwrap_or_else(|| crate::types::Annotated(None, crate::types::Meta::default())));
             }).to_tokens(&mut from_value_body);
-
-            let match_regex_attr = if let Some(match_regex) = field_attrs.match_regex {
-                quote!(Some(
-                    #[allow(clippy::trivial_regex)]
-                    ::regex::Regex::new(#match_regex).unwrap()
-                ))
-            } else {
-                quote!(None)
-            };
 
             if is_tuple_struct {
                 (quote! {
@@ -648,22 +606,17 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 }
             };
 
+            let field_attrs_tokens = field_attrs.as_tokens(None);
+
             (quote! {
                 ::lazy_static::lazy_static! {
-                    static ref #field_attrs_name: crate::processor::FieldAttrs = crate::processor::FieldAttrs {
-                        name: Some(#field_name),
-                        required: #required_attr,
-                        nonempty: #nonempty_attr,
-                        match_regex: #match_regex_attr,
-                        max_chars: #max_chars_attr,
-                        bag_size: #bag_size_attr,
-                        pii: #pii_attr,
-                        retain: false,
-                    };
+                    static ref #field_attrs_name: crate::processor::FieldAttrs =
+                        #field_attrs_tokens;
                 }
 
                 let #bi = crate::processor::process_value(#bi, __processor, &#enter_state);
-            }).to_tokens(&mut process_child_values_body);
+            })
+            .to_tokens(&mut process_child_values_body);
 
             (quote! { && crate::types::Empty::is_empty(#bi) }).to_tokens(&mut is_empty_body);
             (quote! { && #bi.skip_serialization(#skip_serialization_attr) })
@@ -949,16 +902,93 @@ fn parse_type_attributes(attrs: &[syn::Attribute]) -> TypeAttrs {
 #[derive(Default)]
 struct FieldAttrs {
     additional_properties: bool,
-    field_name_override: Option<String>,
-    required: bool,
-    nonempty: bool,
-    pii: bool,
+    field_name: String,
+    required: Option<bool>,
+    nonempty: Option<bool>,
+    pii: Option<bool>,
     retain: bool,
     match_regex: Option<String>,
-    max_chars: TokenStream,
-    bag_size: TokenStream,
+    max_chars: Option<TokenStream>,
+    bag_size: Option<TokenStream>,
     legacy_aliases: Vec<String>,
     skip_serialization: SkipSerialization,
+}
+
+impl FieldAttrs {
+    fn as_tokens(&self, inherit_from_field_attrs: Option<TokenStream>) -> TokenStream {
+        let field_name = &self.field_name;
+
+        if self.required.is_none() && self.nonempty.is_some() {
+            panic!(
+                "`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used."
+            );
+        }
+        let required = if let Some(required) = self.required {
+            quote!(#required)
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.required)
+        } else {
+            quote!(false)
+        };
+
+        let nonempty = if let Some(nonempty) = self.nonempty {
+            quote!(#nonempty)
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.nonempty)
+        } else {
+            quote!(false)
+        };
+
+        let pii = if let Some(pii) = self.pii {
+            quote!(#pii)
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.pii)
+        } else {
+            quote!(false)
+        };
+
+        let retain = self.retain;
+
+        let max_chars = if let Some(ref max_chars) = self.max_chars {
+            quote!(Some(#max_chars))
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.max_chars)
+        } else {
+            quote!(None)
+        };
+
+        let bag_size = if let Some(ref bag_size) = self.bag_size {
+            quote!(Some(#bag_size))
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.bag_size)
+        } else {
+            quote!(None)
+        };
+
+        let match_regex = if let Some(ref match_regex) = self.match_regex {
+            quote!(Some(
+                #[allow(clippy::trivial_regex)]
+                ::regex::Regex::new(#match_regex).unwrap()
+            ))
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.match_regex.clone())
+        } else {
+            quote!(None)
+        };
+
+        quote!({
+            crate::processor::FieldAttrs {
+                name: Some(#field_name),
+                required: #required,
+                nonempty: #nonempty,
+                match_regex: #match_regex,
+                max_chars: #max_chars,
+                bag_size: #bag_size,
+                pii: #pii,
+                retain: #retain,
+            }
+        })
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -999,14 +1029,25 @@ impl FromStr for SkipSerialization {
     }
 }
 
-fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
+fn parse_field_attributes(
+    index: usize,
+    bi_ast: &syn::Field,
+    is_tuple_struct: &mut bool,
+) -> FieldAttrs {
+    if bi_ast.ident.is_none() {
+        *is_tuple_struct = true;
+    } else if *is_tuple_struct {
+        panic!("invalid tuple struct");
+    }
+
     let mut rv = FieldAttrs::default();
-    rv.max_chars = quote!(None);
-    rv.bag_size = quote!(None);
+    rv.field_name = bi_ast
+        .ident
+        .as_ref()
+        .map(|ident| ident.to_string())
+        .unwrap_or_else(|| index.to_string());
 
-    let mut required = None;
-
-    for attr in attrs {
+    for attr in &bi_ast.attrs {
         let meta = match attr.interpret_meta() {
             Some(meta) => meta,
             None => continue,
@@ -1031,7 +1072,7 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
                             if ident == "field" {
                                 match lit {
                                     Lit::Str(litstr) => {
-                                        rv.field_name_override = Some(litstr.value());
+                                        rv.field_name = litstr.value();
                                     }
                                     _ => {
                                         panic!("Got non string literal for field");
@@ -1040,8 +1081,8 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
                             } else if ident == "required" {
                                 match lit {
                                     Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => required = Some(true),
-                                        "false" => required = Some(false),
+                                        "true" => rv.required = Some(true),
+                                        "false" => rv.required = Some(false),
                                         other => panic!("Unknown value {}", other),
                                     },
                                     _ => {
@@ -1051,8 +1092,8 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
                             } else if ident == "nonempty" {
                                 match lit {
                                     Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.nonempty = true,
-                                        "false" => rv.nonempty = false,
+                                        "true" => rv.nonempty = Some(true),
+                                        "false" => rv.nonempty = Some(false),
                                         other => panic!("Unknown value {}", other),
                                     },
                                     _ => {
@@ -1070,7 +1111,7 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
                                 match lit {
                                     Lit::Str(litstr) => {
                                         let attr = parse_max_chars(litstr.value().as_str());
-                                        rv.max_chars = quote!(Some(#attr));
+                                        rv.max_chars = Some(quote!(#attr));
                                     }
                                     _ => {
                                         panic!("Got non string literal for max_chars");
@@ -1080,7 +1121,7 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
                                 match lit {
                                     Lit::Str(litstr) => {
                                         let attr = parse_bag_size(litstr.value().as_str());
-                                        rv.bag_size = quote!(Some(#attr));
+                                        rv.bag_size = Some(quote!(#attr));
                                     }
                                     _ => {
                                         panic!("Got non string literal for bag_size");
@@ -1089,8 +1130,8 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
                             } else if ident == "pii" {
                                 match lit {
                                     Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.pii = true,
-                                        "false" => rv.pii = false,
+                                        "true" => rv.pii = Some(true),
+                                        "false" => rv.pii = Some(false),
                                         other => panic!("Unknown value {}", other),
                                     },
                                     _ => {
@@ -1137,13 +1178,6 @@ fn parse_field_attributes(attrs: &[syn::Attribute]) -> FieldAttrs {
             }
         }
     }
-    if required.is_none() && rv.nonempty {
-        panic!(
-            "`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used."
-        );
-    }
-
-    rv.required = required.unwrap_or(false);
     rv
 }
 

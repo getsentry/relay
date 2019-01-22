@@ -517,8 +517,8 @@ impl<'a> ProcessingState<'a> {
         }
     }
 
-    /// Derives a processing state for additional properties.
-    pub fn enter_additional(&'a self, attrs: Option<Cow<'a, FieldAttrs>>) -> Self {
+    /// Derives a processing state without adding a path segment. Useful in newtype structs.
+    pub fn enter_nothing(&'a self, attrs: Option<Cow<'a, FieldAttrs>>) -> Self {
         let mut state = self.clone();
         state.attrs = attrs;
         state
@@ -556,6 +556,11 @@ impl<'a> ProcessingState<'a> {
             state: Some(self),
             size: self.depth,
         }
+    }
+
+    /// Return the depth (~ indentation level) of the currently processed value.
+    pub fn depth(&'a self) -> usize {
+        self.depth
     }
 }
 
