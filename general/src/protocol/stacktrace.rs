@@ -92,8 +92,14 @@ pub struct Frame {
     pub other: Object<Value>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, From, Into)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<Value>);
+
+impl From<Object<Value>> for FrameVars {
+    fn from(value: Object<Value>) -> Self {
+        FrameVars(value)
+    }
+}
 
 impl FromValue for FrameVars {
     fn from_value(mut value: Annotated<Value>) -> Annotated<FrameVars> {

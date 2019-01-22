@@ -4,9 +4,6 @@
 extern crate semaphore_general_derive;
 
 #[macro_use]
-extern crate derive_more;
-
-#[macro_use]
 mod macros;
 
 #[cfg(test)]
