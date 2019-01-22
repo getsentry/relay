@@ -436,6 +436,30 @@ fn test_untagged_context_deserialize() {
 }
 
 #[test]
+fn test_multiple_contexts_roundtrip() {
+    let json = r#"{"os":{"name":"Linux","type":"os"},"runtime":{"name":"rustc","type":"runtime"}}"#;
+
+    let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+        name: Annotated::new("Linux".to_string()),
+        ..Default::default()
+    }))));
+
+    let runtime_context =
+        Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
+            name: Annotated::new("rustc".to_string()),
+            ..Default::default()
+        }))));
+
+    let mut map = Object::new();
+    map.insert("os".to_string(), os_context);
+    map.insert("runtime".to_string(), runtime_context);
+    let contexts = Annotated::new(Contexts(map));
+
+    assert_eq_dbg!(contexts, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, contexts.to_json().unwrap());
+}
+
+#[test]
 fn test_context_processing() {
     use crate::processor::{ProcessingState, Processor};
     use crate::protocol::Event;
