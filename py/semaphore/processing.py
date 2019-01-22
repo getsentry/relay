@@ -33,7 +33,9 @@ def meta_with_chunks(data, meta):
         elif isinstance(data, dict):
             result[key] = meta_with_chunks(data.get(key), item)
         elif isinstance(data, list):
-            result[key] = meta_with_chunks(data[int(key)], item)
+            int_key = int(key)
+            val = data[int_key] if int_key < len(data) else None
+            result[key] = meta_with_chunks(val, item)
         else:
             result[key] = item
 
