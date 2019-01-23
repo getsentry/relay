@@ -475,6 +475,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     }
 
     let mut is_tuple_struct = false;
+
     for (index, bi) in variant.bindings().iter().enumerate() {
         let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
         let field_attrs_name = Ident::new(&format!("__field_attrs_{}", index), Span::call_site());
@@ -626,7 +627,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 
     let ast = s.ast();
     let expectation = LitStr::new(
-        &format!("expected {}", ast.ident.to_string().to_lowercase()),
+        &ast.ident.to_string().to_lowercase(),
         Span::call_site(),
     );
     let mut variant = variant.clone();
@@ -661,12 +662,19 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
             }
         }),
         Trait::From => {
+            let bindings_count = variant.bindings().len();
             let valid_match_arm = if is_tuple_struct {
                 quote! {
-                    crate::types::Annotated(Some(crate::types::Value::Array(mut __arr)), __meta) => {
-                        let __arr = __arr.into_iter();
-                        #from_value_body;
-                        crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
+                    crate::types::Annotated(Some(crate::types::Value::Array(mut __arr)), mut __meta) => {
+                        if __arr.len() != #bindings_count {
+                            __meta.add_error(Error::expected(&format!("a {}-tuple", #bindings_count)));
+                            __meta.set_original_value(Some(__arr));
+                            Annotated(None, __meta)
+                        } else {
+                            let mut __arr = __arr.into_iter();
+                            #from_value_body;
+                            crate::types::Annotated(Some(#to_structure_assemble_pat), __meta)
+                        }
                     }
                 }
             } else {
