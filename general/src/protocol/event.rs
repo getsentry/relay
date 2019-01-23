@@ -174,7 +174,7 @@ pub struct Event {
     pub fingerprint: Annotated<Fingerprint>,
 
     /// Custom culprit of the event.
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = "culprit")]
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.

@@ -815,7 +815,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 fn parse_max_chars(name: &str) -> TokenStream {
     match name {
         "logger" => quote!(crate::processor::MaxChars::Logger),
-        "log_message" => quote!(crate::processor::MaxChars::LogMessage),
         "hash" => quote!(crate::processor::MaxChars::Hash),
         "enumlike" => quote!(crate::processor::MaxChars::EnumLike),
         "summary" => quote!(crate::processor::MaxChars::Summary),
