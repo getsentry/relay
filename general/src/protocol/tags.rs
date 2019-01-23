@@ -6,17 +6,11 @@ pub struct TagEntry(
     #[metastructure(
         pii = "true",
         max_chars = "tag_key",
-        match_regex = r"^[a-zA-Z0-9_\.:-]+\z",
-        skip_serialization = "never"
+        match_regex = r"^[a-zA-Z0-9_\.:-]+\z"
     )]
     pub Annotated<String>,
-    #[metastructure(
-        pii = "true",
-        max_chars = "tag_value",
-        match_regex = r"^[^\n]+\z",
-        skip_serialization = "never"
-    )]
-    pub Annotated<String>,
+    #[metastructure(pii = "true", max_chars = "tag_value", match_regex = r"^[^\n]+\z")]
+    pub  Annotated<String>,
 );
 
 impl AsPair for TagEntry {

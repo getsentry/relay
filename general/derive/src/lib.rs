@@ -1018,7 +1018,7 @@ impl SkipSerialization {
 
 impl Default for SkipSerialization {
     fn default() -> SkipSerialization {
-        SkipSerialization::Null(true)
+        SkipSerialization::Never
     }
 }
 
@@ -1049,6 +1049,9 @@ fn parse_field_attributes(
     }
 
     let mut rv = FieldAttrs::default();
+    if !*is_tuple_struct {
+        rv.skip_serialization = SkipSerialization::Null(false);
+    }
     rv.field_name = bi_ast
         .ident
         .as_ref()

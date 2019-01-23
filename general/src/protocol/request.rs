@@ -6,11 +6,11 @@ use url::form_urlencoded;
 use crate::protocol::{JsonLenientString, LenientString, PairList};
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
-type CookieEntry = (Annotated<String>, Annotated<String>);
+type CookieEntry = Annotated<(Annotated<String>, Annotated<String>)>;
 
 /// A map holding cookies.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-pub struct Cookies(#[metastructure(skip_serialization = "never")] pub PairList<CookieEntry>);
+pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
 
 impl Cookies {
     pub fn parse(string: &str) -> Result<Self, Error> {
@@ -18,16 +18,14 @@ impl Cookies {
         pairs.map(Cookies)
     }
 
-    fn iter_cookies<'a>(
-        string: &'a str,
-    ) -> impl Iterator<Item = Result<Annotated<CookieEntry>, Error>> + 'a {
+    fn iter_cookies<'a>(string: &'a str) -> impl Iterator<Item = Result<CookieEntry, Error>> + 'a {
         string
             .split(';')
             .filter(|cookie| !cookie.trim().is_empty())
             .map(Cookies::parse_cookie)
     }
 
-    fn parse_cookie(string: &str) -> Result<Annotated<CookieEntry>, Error> {
+    fn parse_cookie(string: &str) -> Result<CookieEntry, Error> {
         match Cookie::parse_encoded(string) {
             Ok(cookie) => Ok(Annotated::from((
                 cookie.name().to_string().into(),
@@ -39,7 +37,7 @@ impl Cookies {
 }
 
 impl std::ops::Deref for Cookies {
-    type Target = PairList<CookieEntry>;
+    type Target = PairList<(Annotated<String>, Annotated<String>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -157,9 +155,7 @@ impl FromValue for HeaderName {
 
 /// A map holding headers.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-pub struct Headers(#[metastructure(skip_serialization = "never")] pub PairList<Header>);
-
-type Header = (Annotated<HeaderName>, Annotated<LenientString>);
+pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<LenientString>)>);
 
 impl Headers {
     pub fn get_header(&self, key: &str) -> Option<&str> {
@@ -176,7 +172,7 @@ impl Headers {
 }
 
 impl std::ops::Deref for Headers {
-    type Target = PairList<Header>;
+    type Target = PairList<(Annotated<HeaderName>, Annotated<LenientString>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -196,7 +192,8 @@ impl FromValue for Headers {
             _ => false, // Preserve order if SDK sent headers as array
         };
 
-        PairList::<Header>::from_value(value).map_value(|mut pair_list| {
+        type HeaderTuple = (Annotated<HeaderName>, Annotated<LenientString>);
+        PairList::<HeaderTuple>::from_value(value).map_value(|mut pair_list| {
             if should_sort {
                 pair_list.sort_unstable_by(|a, b| {
                     a.value()
@@ -212,9 +209,7 @@ impl FromValue for Headers {
 
 /// A map holding query string pairs.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-pub struct Query(#[metastructure(skip_serialization = "never")] pub PairList<QueryEntry>);
-
-type QueryEntry = (Annotated<String>, Annotated<JsonLenientString>);
+pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
 impl Query {
     pub fn parse(mut string: &str) -> Self {
@@ -227,7 +222,7 @@ impl Query {
 }
 
 impl std::ops::Deref for Query {
-    type Target = PairList<QueryEntry>;
+    type Target = PairList<(Annotated<String>, Annotated<JsonLenientString>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
