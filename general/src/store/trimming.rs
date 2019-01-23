@@ -185,7 +185,7 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
     let soft_limit = max_chars.limit();
     let hard_limit = soft_limit + max_chars.allowance();
 
-    if value.chars().count() <= hard_limit {
+    if bytecount::num_chars(value.as_bytes()) <= hard_limit {
         return;
     }
 
@@ -194,7 +194,7 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
         let mut new_chunks = vec![];
 
         for chunk in chunks {
-            let chunk_chars = chunk.chars();
+            let chunk_chars = chunk.count();
 
             // if the entire chunk fits, just put it in
             if length + chunk_chars < soft_limit {

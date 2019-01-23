@@ -148,14 +148,19 @@ impl<'a> NormalizeProcessor<'a> {
         for tag in tags.iter_mut() {
             tag.apply(|tag, meta| {
                 if let Some(key) = tag.key() {
-                    if key.len() > MaxChars::TagKey.limit() {
+                    if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
                         meta.add_error(Error::new(ErrorKind::ValueTooLong));
                         return ValueAction::DeleteHard;
                     }
                 }
 
                 if let Some(value) = tag.value() {
-                    if value.len() > MaxChars::TagValue.limit() {
+                    if value.is_empty() {
+                        meta.add_error(Error::nonempty());
+                        return ValueAction::DeleteHard;
+                    }
+
+                    if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
                         meta.add_error(Error::new(ErrorKind::ValueTooLong));
                         return ValueAction::DeleteHard;
                     }
@@ -741,6 +746,38 @@ fn test_internal_tags_removed() {
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     assert_eq!(event.value().unwrap().tags.value().unwrap().len(), 1);
+}
+
+#[test]
+fn test_empty_tags_removed() {
+    let mut event = Annotated::new(Event {
+        tags: Annotated::new(Tags(PairList(vec![
+            Annotated::new(TagEntry(
+                Annotated::new("".to_string()),
+                Annotated::new("foo".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("foo".to_string()),
+                Annotated::new("".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("something".to_string()),
+                Annotated::new("else".to_string()),
+            )),
+        ]))),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    let tags = event.value().unwrap().tags.value().unwrap();
+    assert_eq!(tags.len(), 2);
+
+    assert_eq!(
+        tags.get(0).unwrap(),
+        &Annotated::from_error(Error::nonempty(), None)
+    )
 }
 
 #[test]
