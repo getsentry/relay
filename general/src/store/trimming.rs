@@ -286,7 +286,7 @@ fn test_basic_trimming() {
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let mut expected = Annotated::new(repeat("x").take(300).collect::<String>());
-    expected.apply(|v, m| trim_string(v, m, MaxChars::Symbol));
+    expected.apply(|v, m| trim_string(v, m, MaxChars::Culprit));
     assert_eq_dbg!(event.value().unwrap().culprit, expected);
 }
 
