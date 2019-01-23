@@ -639,7 +639,8 @@ fn test_cookies_parsing() {
 
 #[test]
 fn test_cookies_array() {
-    let json = r#"[["foo", "bar"], ["invalid", 42]]"#;
+    let input = r#"{"cookies":[["foo","bar"],["invalid", 42],["none",null]]}"#;
+    let output = r#"{"cookies":[["foo","bar"],["invalid",null],["none",null]],"_meta":{"cookies":{"1":{"1":{"":{"err":[["invalid_data",{"reason":"expected a string"}]],"val":42}}}}}}"#;
 
     let mut map = Vec::new();
     map.push(Annotated::new((
@@ -650,9 +651,18 @@ fn test_cookies_array() {
         Annotated::new("invalid".to_string()),
         Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
     )));
+    map.push(Annotated::new((
+        Annotated::new("none".to_string()),
+        Annotated::empty(),
+    )));
 
     let cookies = Annotated::new(Cookies(PairList(map)));
-    assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
+    let request = Annotated::new(Request {
+        cookies,
+        ..Default::default()
+    });
+    assert_eq_dbg!(request, Annotated::from_json(input).unwrap());
+    assert_eq_dbg!(request.to_json().unwrap(), output);
 }
 
 #[test]

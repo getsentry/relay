@@ -70,10 +70,15 @@ fn test_tags_from_object() {
   "blah": "blub",
   "bool": true,
   "foo bar": "baz",
-  "non string": 42
+  "non string": 42,
+  "bam": null
 }"#;
 
     let mut arr = Array::new();
+    arr.push(Annotated::new(TagEntry(
+        Annotated::new("bam".to_string()),
+        Annotated::empty(),
+    )));
     arr.push(Annotated::new(TagEntry(
         Annotated::new("blah".to_string()),
         Annotated::new("blub".to_string()),
@@ -97,12 +102,57 @@ fn test_tags_from_object() {
 
 #[test]
 fn test_tags_from_array() {
-    let json = r#"[
-  ["bool", true],
-  ["foo bar", "baz"],
-  [23, 42],
-  ["blah", "blub"]
-]"#;
+    use crate::protocol::Event;
+
+    let input = r#"{
+  "tags": [
+    [
+      "bool",
+      true
+    ],
+    [
+      "foo bar",
+      "baz"
+    ],
+    [
+      23,
+      42
+    ],
+    [
+      "blah",
+      "blub"
+    ],
+    [
+      "bam",
+      null
+    ]
+  ]
+}"#;
+
+    let output = r#"{
+  "tags": [
+    [
+      "bool",
+      "True"
+    ],
+    [
+      "foo-bar",
+      "baz"
+    ],
+    [
+      "23",
+      "42"
+    ],
+    [
+      "blah",
+      "blub"
+    ],
+    [
+      "bam",
+      null
+    ]
+  ]
+}"#;
 
     let mut arr = Array::new();
     arr.push(Annotated::new(TagEntry(
@@ -121,7 +171,17 @@ fn test_tags_from_array() {
         Annotated::new("blah".to_string()),
         Annotated::new("blub".to_string()),
     )));
+    arr.push(Annotated::new(TagEntry(
+        Annotated::new("bam".to_string()),
+        Annotated::empty(),
+    )));
 
     let tags = Annotated::new(Tags(arr.into()));
-    assert_eq_dbg!(tags, Annotated::from_json(json).unwrap());
+    let event = Annotated::new(Event {
+        tags,
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
+    assert_eq_str!(event.to_json_pretty().unwrap(), output);
 }
