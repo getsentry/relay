@@ -1,7 +1,8 @@
-Created: 2019-01-18T15:16:13.567438+00:00
-Creator: insta@0.2.2
-Source: general/tests/test_fixtures.rs
-
+---
+created: "2019-01-23T01:13:33.082084+00:00"
+creator: insta@0.5.1
+expression: SerializableAnnotated(&event)
+source: general/tests/test_fixtures.rs
 ---
 event_id: 04e03764d7024caab8736daeefbb9bee
 level: error
