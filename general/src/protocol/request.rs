@@ -6,11 +6,11 @@ use url::form_urlencoded;
 use crate::protocol::{JsonLenientString, LenientString, PairList};
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
-type CookieEntry = Annotated<(Annotated<String>, Annotated<String>)>;
+type CookieEntry = (Annotated<String>, Annotated<String>);
 
 /// A map holding cookies.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
+pub struct Cookies(#[metastructure(skip_serialization = "never")] pub PairList<CookieEntry>);
 
 impl Cookies {
     pub fn parse(string: &str) -> Result<Self, Error> {
@@ -18,14 +18,16 @@ impl Cookies {
         pairs.map(Cookies)
     }
 
-    fn iter_cookies<'a>(string: &'a str) -> impl Iterator<Item = Result<CookieEntry, Error>> + 'a {
+    fn iter_cookies<'a>(
+        string: &'a str,
+    ) -> impl Iterator<Item = Result<Annotated<CookieEntry>, Error>> + 'a {
         string
             .split(';')
             .filter(|cookie| !cookie.trim().is_empty())
             .map(Cookies::parse_cookie)
     }
 
-    fn parse_cookie(string: &str) -> Result<CookieEntry, Error> {
+    fn parse_cookie(string: &str) -> Result<Annotated<CookieEntry>, Error> {
         match Cookie::parse_encoded(string) {
             Ok(cookie) => Ok(Annotated::from((
                 cookie.name().to_string().into(),
@@ -37,7 +39,7 @@ impl Cookies {
 }
 
 impl std::ops::Deref for Cookies {
-    type Target = PairList<(Annotated<String>, Annotated<String>)>;
+    type Target = PairList<CookieEntry>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -155,7 +157,9 @@ impl FromValue for HeaderName {
 
 /// A map holding headers.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<LenientString>)>);
+pub struct Headers(#[metastructure(skip_serialization = "never")] pub PairList<Header>);
+
+type Header = (Annotated<HeaderName>, Annotated<LenientString>);
 
 impl Headers {
     pub fn get_header(&self, key: &str) -> Option<&str> {
@@ -172,7 +176,7 @@ impl Headers {
 }
 
 impl std::ops::Deref for Headers {
-    type Target = PairList<(Annotated<HeaderName>, Annotated<LenientString>)>;
+    type Target = PairList<Header>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -192,8 +196,7 @@ impl FromValue for Headers {
             _ => false, // Preserve order if SDK sent headers as array
         };
 
-        type HeaderTuple = (Annotated<HeaderName>, Annotated<LenientString>);
-        PairList::<HeaderTuple>::from_value(value).map_value(|mut pair_list| {
+        PairList::<Header>::from_value(value).map_value(|mut pair_list| {
             if should_sort {
                 pair_list.sort_unstable_by(|a, b| {
                     a.value()
@@ -209,7 +212,9 @@ impl FromValue for Headers {
 
 /// A map holding query string pairs.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
+pub struct Query(#[metastructure(skip_serialization = "never")] pub PairList<QueryEntry>);
+
+type QueryEntry = (Annotated<String>, Annotated<JsonLenientString>);
 
 impl Query {
     pub fn parse(mut string: &str) -> Self {
@@ -222,7 +227,7 @@ impl Query {
 }
 
 impl std::ops::Deref for Query {
-    type Target = PairList<(Annotated<String>, Annotated<JsonLenientString>)>;
+    type Target = PairList<QueryEntry>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -639,7 +644,8 @@ fn test_cookies_parsing() {
 
 #[test]
 fn test_cookies_array() {
-    let json = r#"[["foo", "bar"], ["invalid", 42]]"#;
+    let input = r#"{"cookies":[["foo","bar"],["invalid", 42],["none",null]]}"#;
+    let output = r#"{"cookies":[["foo","bar"],["invalid",null],["none",null]],"_meta":{"cookies":{"1":{"1":{"":{"err":[["invalid_data",{"reason":"expected a string"}]],"val":42}}}}}}"#;
 
     let mut map = Vec::new();
     map.push(Annotated::new((
@@ -650,9 +656,18 @@ fn test_cookies_array() {
         Annotated::new("invalid".to_string()),
         Annotated::from_error(Error::expected("a string"), Some(Value::U64(42))),
     )));
+    map.push(Annotated::new((
+        Annotated::new("none".to_string()),
+        Annotated::empty(),
+    )));
 
     let cookies = Annotated::new(Cookies(PairList(map)));
-    assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
+    let request = Annotated::new(Request {
+        cookies,
+        ..Default::default()
+    });
+    assert_eq_dbg!(request, Annotated::from_json(input).unwrap());
+    assert_eq_dbg!(request.to_json().unwrap(), output);
 }
 
 #[test]
