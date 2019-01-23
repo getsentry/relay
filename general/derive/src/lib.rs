@@ -626,10 +626,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     }
 
     let ast = s.ast();
-    let expectation = LitStr::new(
-        &ast.ident.to_string().to_lowercase(),
-        Span::call_site(),
-    );
+    let expectation = LitStr::new(&ast.ident.to_string().to_lowercase(), Span::call_site());
     let mut variant = variant.clone();
     for binding in variant.bindings_mut() {
         binding.style = synstructure::BindStyle::Move;
