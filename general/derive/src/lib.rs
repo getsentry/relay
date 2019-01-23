@@ -667,7 +667,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 quote! {
                     crate::types::Annotated(Some(crate::types::Value::Array(mut __arr)), mut __meta) => {
                         if __arr.len() != #bindings_count {
-                            __meta.add_error(Error::expected(&format!("a {}-tuple", #bindings_count)));
+                            __meta.add_error(Error::expected(concat!("a ", stringify!(#bindings_count), "-tuple")));
                             __meta.set_original_value(Some(__arr));
                             Annotated(None, __meta)
                         } else {
