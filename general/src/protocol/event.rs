@@ -191,7 +191,10 @@ pub struct Event {
     pub logentry: Annotated<LogEntry>,
 
     /// Logger that created the event.
-    #[metastructure(max_chars = "symbol", match_regex = r"^[^\r\n]+\z")]
+    #[metastructure(
+        max_chars = "logger", // DB-imposed limit
+        match_regex = r"^[^\r\n]+\z"
+    )]
     pub logger: Annotated<String>,
 
     /// Name and versions of installed modules.

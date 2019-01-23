@@ -9,7 +9,10 @@ use crate::types::{Annotated, Error, FromValue, Object, Value};
 #[metastructure(process_func = "process_logentry", value_type = "LogEntry")]
 pub struct LogEntry {
     /// The log message with parameter placeholders.
-    #[metastructure(pii = "true", max_chars = "message")]
+    #[metastructure(
+        pii = "true",
+        max_chars = "log_message"  // limit imposed by DB
+    )]
     pub message: Annotated<String>,
 
     /// The formatted message
