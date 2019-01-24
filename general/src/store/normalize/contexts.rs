@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::protocol::{Context, OsContext, RuntimeContext, LenientString};
+use crate::protocol::{Context, LenientString, OsContext, RuntimeContext};
 use crate::types::{Object, Value};
 
 lazy_static::lazy_static! {
