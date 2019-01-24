@@ -1,11 +1,14 @@
 use regex::Regex;
 
-use crate::protocol::{Context, OsContext, RuntimeContext};
+use crate::protocol::{Context, LenientString, OsContext, RuntimeContext};
 use crate::types::{Object, Value};
 
 lazy_static::lazy_static! {
     /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
     static ref OS_WINDOWS_REGEX: Regex = Regex::new(r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.\d+).*$"#).unwrap();
+
+    /// Format sent by Unreal Engine on macOS
+    static ref OS_MACOS_REGEX: Regex = Regex::new(r#"^Mac OS X (?P<version>\d+\.\d+\.\d+)( \((?P<build>[a-fA-F0-9]+)\))?$"#).unwrap();
 
     /// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on
     /// macOS, iOS, Linux, etc.
@@ -74,6 +77,16 @@ fn normalize_os_context(os: &mut OsContext) {
                 .name("version")
                 .map(|m| m.as_str().to_string())
                 .into();
+        } else if let Some(captures) = OS_MACOS_REGEX.captures(raw_description) {
+            os.name = "macOS".to_string().into();
+            os.version = captures
+                .name("version")
+                .map(|m| m.as_str().to_string())
+                .into();
+            os.build = captures
+                .name("build")
+                .map(|m| LenientString(m.as_str().to_string()))
+                .into();
         } else if let Some(captures) = OS_UNAME_REGEX.captures(raw_description) {
             os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
             os.kernel_version = captures
@@ -102,7 +115,7 @@ pub fn normalize_context(context: &mut Context) {
 }
 
 #[cfg(test)]
-use crate::{protocol::LenientString, types::Annotated};
+use crate::types::Annotated;
 
 #[test]
 fn test_arbitrary_type() {
@@ -280,6 +293,32 @@ fn test_wsl_ubuntu() {
     normalize_os_context(&mut os);
     assert_eq_dbg!(Some("Linux"), os.name.as_str());
     assert_eq_dbg!(Some("4.4.0"), os.kernel_version.as_str());
+}
+
+#[test]
+fn test_macos_with_build() {
+    let mut os = OsContext {
+        raw_description: "Mac OS X 10.14.2 (18C54)".to_string().into(),
+        ..OsContext::default()
+    };
+
+    normalize_os_context(&mut os);
+    assert_eq_dbg!(Some("macOS"), os.name.as_str());
+    assert_eq_dbg!(Some("10.14.2"), os.version.as_str());
+    assert_eq_dbg!(Some("18C54"), os.build.as_str());
+}
+
+#[test]
+fn test_macos_without_build() {
+    let mut os = OsContext {
+        raw_description: "Mac OS X 10.14.2".to_string().into(),
+        ..OsContext::default()
+    };
+
+    normalize_os_context(&mut os);
+    assert_eq_dbg!(Some("macOS"), os.name.as_str());
+    assert_eq_dbg!(Some("10.14.2"), os.version.as_str());
+    assert_eq_dbg!(None, os.build.value());
 }
 
 #[test]
