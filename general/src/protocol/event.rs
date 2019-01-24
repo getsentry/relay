@@ -235,7 +235,7 @@ pub struct Event {
     pub dist: Annotated<String>,
 
     /// Environment the environment was generated in ("production" or "development").
-    #[metastructure(max_chars = "enumlike", match_regex = r"^[^\r\n\x0C/]+$")]
+    #[metastructure(max_chars = "environment", match_regex = r"^[^\r\n\x0C/]+$")]
     pub environment: Annotated<String>,
 
     /// Deprecated in favor of tags.

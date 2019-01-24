@@ -250,6 +250,7 @@ impl MaxChars {
             MaxChars::Culprit => 200,
             MaxChars::TagKey => 32,
             MaxChars::TagValue => 200,
+            MaxChars::Environment => 64,
             MaxChars::Soft(len) | MaxChars::Hard(len) => len,
         }
     }
@@ -269,6 +270,7 @@ impl MaxChars {
             MaxChars::Culprit => 0,
             MaxChars::TagKey => 0,
             MaxChars::TagValue => 0,
+            MaxChars::Environment => 0,
             MaxChars::Soft(_) => 10,
             MaxChars::Hard(_) => 0,
         }
