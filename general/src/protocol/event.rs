@@ -215,7 +215,7 @@ pub struct Event {
 
     /// Program's release identifier.
     #[metastructure(
-        max_chars = "symbol",
+        max_chars = "tag_value",  // release ends in tag
         match_regex = r"^[^\r\n]*\z",
         required = "false",
         nonempty = "true",
@@ -226,7 +226,7 @@ pub struct Event {
     /// Program's distribution identifier.
     // Match whitespace here, which will later get trimmed
     #[metastructure(
-        max_chars = "symbol",
+        max_chars = "tag_value",  // dist ends in tag
         match_regex = r"^\s*[a-zA-Z0-9_.-]*\s*$",
         required = "false",
         nonempty = "true"
