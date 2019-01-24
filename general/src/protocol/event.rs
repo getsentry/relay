@@ -178,8 +178,7 @@ pub struct Event {
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
-    // TODO: Is this the right cap? Is often dotted path or URL path, but could be anything
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = "culprit")]
     pub transaction: Annotated<String>,
 
     /// Time since the start of the transaction until the error occurred.
