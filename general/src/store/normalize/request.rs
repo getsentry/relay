@@ -72,8 +72,6 @@ fn normalize_url(request: &mut Request) {
                 }
                 url_string.truncate(query_index);
             }
-
-            request.url.meta_mut().add_error(ErrorKind::InvalidData);
         }
     };
 }
@@ -279,10 +277,7 @@ fn test_url_only_path() {
     assert_eq_dbg!(
         request,
         Request {
-            url: Annotated(
-                Some("metamask/popup.html".to_string()),
-                Meta::from_error(ErrorKind::InvalidData)
-            ),
+            url: Annotated::new("metamask/popup.html".to_string()),
             ..Request::default()
         }
     );

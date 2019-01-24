@@ -1,6 +1,6 @@
 ---
-created: "2019-01-22T17:08:57.295360+00:00"
-creator: insta@0.4.1
+created: "2019-01-24T12:40:32.321631+00:00"
+creator: insta@0.5.1
 expression: SerializableAnnotated(&event)
 source: general/tests/test_fixtures.rs
 ---
@@ -606,12 +606,3 @@ extra:
 sdk:
   name: Sentry.AspNetCore
   version: 0.0.1-preview3
-errors:
-  - type: invalid_data
-    name: request.url
-_meta:
-  request:
-    url:
-      "":
-        err:
-          - invalid_data
