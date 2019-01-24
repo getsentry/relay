@@ -224,6 +224,7 @@ pub enum MaxChars {
     Symbol,
     Path,
     ShortPath,
+    Logger,
     Email,
     Culprit,
     TagKey,
@@ -243,7 +244,8 @@ impl MaxChars {
             MaxChars::Symbol => 256,
             MaxChars::Path => 256,
             MaxChars::ShortPath => 128,
-            // these are from constants.py
+            // these are from constants.py or limits imposed by the database
+            MaxChars::Logger => 64,
             MaxChars::Email => 75,
             MaxChars::Culprit => 200,
             MaxChars::TagKey => 32,
@@ -262,6 +264,7 @@ impl MaxChars {
             MaxChars::Symbol => 20,
             MaxChars::Path => 40,
             MaxChars::ShortPath => 20,
+            MaxChars::Logger => 0,
             MaxChars::Email => 0,
             MaxChars::Culprit => 0,
             MaxChars::TagKey => 0,
