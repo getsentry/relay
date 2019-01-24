@@ -229,6 +229,7 @@ pub enum MaxChars {
     Culprit,
     TagKey,
     TagValue,
+    Environment,
     Hard(usize),
     Soft(usize),
 }
