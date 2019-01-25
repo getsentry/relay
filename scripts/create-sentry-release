@@ -4,8 +4,11 @@ set -eu
 #   SENTRY_AUTH_TOKEN: Sentry auth token (https://sentry.io/settings/account/api/auth-tokens/)
 
 VERSION="${1:-}"
-SENTRY_PROJECT="relay"
 GITHUB_PROJECT="getsentry/semaphore"
+DOCKER_IMAGE="getsentry/semaphore:${VERSION}"
+BIN_DIR="$PWD/.bin"
+export SENTRY_ORG="sentry"
+export SENTRY_PROJECT="relay"
 
 if [ -z "${VERSION}" ]; then
   echo 'No version specified' && exit 1
@@ -16,21 +19,20 @@ if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
   echo 'No Sentry auth token found' && exit 1
 fi
 
-echo 'Creating a new release...'
-curl \
-  "https://sentry.io/api/0/organizations/sentry/releases/" \
-	-X POST \
-  -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
-	-H "Content-Type: application/json" \
-	--data "
-    {
-      \"version\":\"${VERSION}\",
-      \"refs\": [{
-        \"repository\": \"${GITHUB_PROJECT}\",
-        \"commit\": \"${VERSION}\"
-      }],
-      \"projects\": [\"${SENTRY_PROJECT}\"]
-    }"
+echo 'Installing sentry-cli...'
+mkdir $BIN_DIR
+curl -sS https://sentry.io/get-cli/ | INSTALL_DIR=$BIN_DIR bash
+export PATH=$PATH:$BIN_DIR
+sentry-cli --version
 
-echo
-echo 'Release created.'
+echo 'Pulling debug information from semaphore image...'
+docker pull "${DOCKER_IMAGE}"
+docker run --rm --entrypoint cat "${DOCKER_IMAGE}" /opt/semaphore-debug.zip > semaphore-debug.zip
+
+echo 'Uploading debug information...'
+sentry-cli upload-dsym ./semaphore-debug.zip
+
+echo 'Creating a new deploy in Sentry...'
+sentry-cli releases new "${VERSION}"
+sentry-cli releases deploys "${VERSION}" new -e release
+echo 'Deploy created.'
