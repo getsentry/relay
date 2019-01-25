@@ -1,4 +1,3 @@
-import pytest
 import semaphore
 
 REMARKS = [["myrule", "s", 7, 17]]
