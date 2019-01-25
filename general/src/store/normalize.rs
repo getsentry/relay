@@ -77,7 +77,7 @@ impl<'a> NormalizeProcessor<'a> {
 
     /// Ensures that the `release` and `dist` fields match up.
     fn normalize_release_dist(&self, event: &mut Event) {
-        if event.dist.value().is_some() && event.release.value().is_none() {
+        if event.dist.value().is_some() && event.release.value().is_empty() {
             event.dist.set_value(None);
         }
 
@@ -332,7 +332,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     ) -> ValueAction {
         breadcrumb.process_child_values(self, state);
 
-        if breadcrumb.ty.value().is_none() {
+        if breadcrumb.ty.value().is_empty() {
             breadcrumb.ty.set_value(Some("default".to_string()));
         }
 
@@ -433,7 +433,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             static ref TYPE_VALUE_RE: Regex = Regex::new(r"^(\w+):(.*)$").unwrap();
         }
 
-        if exception.ty.value().is_none() {
+        if exception.ty.value().is_empty() {
             if let Some(value_str) = exception.value.value_mut() {
                 let new_values = TYPE_VALUE_RE
                     .captures(value_str)
@@ -446,7 +446,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             }
         }
 
-        if exception.ty.value().is_none() && exception.value.value().is_none() {
+        if exception.ty.value().is_empty() && exception.value.value().is_empty() {
             meta.add_error(Error::with(ErrorKind::MissingAttribute, |error| {
                 error.insert("attribute", "type or value");
             }));
@@ -558,6 +558,21 @@ fn test_handles_type_in_value() {
     let exception = exception.value().unwrap();
     assert_eq_dbg!(exception.value.as_str(), Some("unauthorized"));
     assert_eq_dbg!(exception.ty.as_str(), Some("ValueError"));
+}
+
+#[test]
+fn test_rejects_empty_exception_fields() {
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+
+    let mut exception = Annotated::new(Exception {
+        value: Annotated::new("".to_string().into()),
+        ty: Annotated::new("".to_string()),
+        ..Default::default()
+    });
+
+    process_value(&mut exception, &mut processor, ProcessingState::root());
+    assert!(exception.value().is_none());
+    assert!(exception.meta().has_errors());
 }
 
 #[test]

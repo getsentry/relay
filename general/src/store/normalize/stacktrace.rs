@@ -3,7 +3,7 @@ use std::mem;
 use url::Url;
 
 use crate::protocol::{Frame, Stacktrace};
-use crate::types::{Annotated, Array, Meta};
+use crate::types::{Annotated, Array, Empty, Meta};
 
 fn is_url(filename: &str) -> bool {
     filename.starts_with("file:")
@@ -22,11 +22,11 @@ pub fn process_non_raw_stacktrace(stacktrace: &mut Stacktrace, _meta: &mut Meta)
 }
 
 pub fn process_non_raw_frame(frame: &mut Frame, _meta: &mut Meta) {
-    if frame.abs_path.value().map_or(true, |p| p.is_empty()) {
+    if frame.abs_path.value().is_empty() {
         frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
     }
 
-    if frame.filename.value().map_or(true, |p| p.is_empty()) {
+    if frame.filename.value().is_empty() {
         if let Some(abs_path) = frame.abs_path.value_mut() {
             frame.filename = Annotated::new(abs_path.clone());
 
