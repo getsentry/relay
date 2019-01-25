@@ -76,7 +76,7 @@ class StoreNormalizer(RustObject):
     def normalize_event(self, event=None, raw_event=None):
         if raw_event is None:
             raw_event = json.dumps(event)
-        event = encode_str(raw_event, mutable=legacy_python_json)
+        event = encode_str(raw_event, mutable=True)
         rustcall(lib.semaphore_translate_legacy_python_json, event)
         rv = self._methodcall(lib.semaphore_store_normalizer_normalize_event, event)
         return json.loads(decode_str(rv))
