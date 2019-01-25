@@ -114,7 +114,7 @@ matrix:
         - zip semaphore-debug.zip target/x86_64-unknown-linux-gnu/release/semaphore.debug
         - zeus upload -t "application/octet-stream" -n semaphore-Linux-x86_64-debug.zip semaphore-debug.zip  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         # Build and push image to Dockerhub, on master branch only
-        - bash scripts/push-docker-image.sh || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - bash scripts/push-docker-image.sh
 
     # - os: linux
     #   language: generic
