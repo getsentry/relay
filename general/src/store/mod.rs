@@ -5,7 +5,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::processor::{ProcessingState, Processor};
-use crate::protocol::Event;
+use crate::protocol::{Event, IpAddr};
 use crate::types::{Meta, ValueAction};
 
 mod event_error;
@@ -22,9 +22,8 @@ pub use crate::store::geo::GeoIpLookup;
 #[serde(default)]
 pub struct StoreConfig {
     pub project_id: Option<u64>,
-    pub client_ip: Option<String>,
+    pub client_ip: Option<IpAddr>,
     pub client: Option<String>,
-    pub is_public_auth: bool,
     pub key_id: Option<String>,
     pub protocol_version: Option<String>,
 

@@ -212,35 +212,28 @@ impl<'a> NormalizeProcessor<'a> {
 
     /// Inserts the IP address into the user interface. Creates the user if it doesn't exist.
     fn normalize_user_ip(&self, event: &mut Event) {
-        let http_ip = event
+        let remote_addr = event
             .request
             .value()
             .and_then(|request| request.env.value())
             .and_then(|env| env.get("REMOTE_ADDR"))
-            .and_then(|addr| addr.as_str());
+            .and_then(|value| value.as_str())
+            .and_then(|ip| IpAddr::parse(ip).ok());
 
         // If there is no User ip_address, update it either from the Http interface
         // or the client_ip of the request.
-        if let Some(http_ip) = http_ip {
-            self.set_user_ip(&mut event.user, http_ip);
-        } else if let Some(ref client_ip) = self.config.client_ip {
-            let should_use_client_ip = self.config.is_public_auth
-                || match event.platform.as_str() {
-                    Some("javascript") | Some("cocoa") | Some("objc") => true,
-                    _ => false,
-                };
-
-            if should_use_client_ip {
-                self.set_user_ip(&mut event.user, client_ip.as_str());
-            }
+        if let Some(ip_address) = remote_addr {
+            self.set_user_ip(&mut event.user, ip_address);
+        } else if let Some(ref ip_address) = self.config.client_ip {
+            self.set_user_ip(&mut event.user, ip_address.clone());
         }
     }
 
     /// Creates or updates the user's IP address.
-    fn set_user_ip(&self, user: &mut Annotated<User>, ip_address: &str) {
+    fn set_user_ip(&self, user: &mut Annotated<User>, ip_address: IpAddr) {
         let user = user.value_mut().get_or_insert_with(User::default);
         if user.ip_address.value().is_none() {
-            user.ip_address = Annotated::new(IpAddr(ip_address.to_string()));
+            user.ip_address = Annotated::new(ip_address);
         }
     }
 
@@ -351,7 +344,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     ) -> ValueAction {
         request.process_child_values(self, state);
 
-        let client_ip = self.config.client_ip.as_ref().map(String::as_str);
+        let client_ip = self.config.client_ip.as_ref();
         request::normalize_request(request, client_ip);
 
         ValueAction::Keep
@@ -374,7 +367,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         if let Some(ip_address) = user.ip_address.value_mut() {
             if ip_address.is_auto() {
                 if let Some(ref client_ip) = self.config.client_ip {
-                    *ip_address = IpAddr(client_ip.clone());
+                    *ip_address = client_ip.clone();
                 }
             }
         }
@@ -535,13 +528,20 @@ use crate::{
     types::Value,
 };
 
+#[cfg(test)]
+impl Default for NormalizeProcessor<'_> {
+    fn default() -> Self {
+        NormalizeProcessor::new(Arc::new(StoreConfig::default()), None)
+    }
+}
+
 #[test]
 fn test_handles_type_in_value() {
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
 
     let mut exception = Annotated::new(Exception {
         value: Annotated::new("ValueError: unauthorized".to_string().into()),
-        ..Default::default()
+        ..Exception::default()
     });
 
     process_value(&mut exception, &mut processor, ProcessingState::root());
@@ -551,7 +551,7 @@ fn test_handles_type_in_value() {
 
     let mut exception = Annotated::new(Exception {
         value: Annotated::new("ValueError:unauthorized".to_string().into()),
-        ..Default::default()
+        ..Exception::default()
     });
 
     process_value(&mut exception, &mut processor, ProcessingState::root());
@@ -577,11 +577,11 @@ fn test_rejects_empty_exception_fields() {
 
 #[test]
 fn test_json_value() {
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
 
     let mut exception = Annotated::new(Exception {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
-        ..Default::default()
+        ..Exception::default()
     });
     process_value(&mut exception, &mut processor, ProcessingState::root());
     let exception = exception.value().unwrap();
@@ -593,7 +593,7 @@ fn test_json_value() {
 
 #[test]
 fn test_exception_invalid() {
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
 
     let mut exception = Annotated::new(Exception::default());
     process_value(&mut exception, &mut processor, ProcessingState::root());
@@ -617,7 +617,7 @@ fn test_geo_from_ip_address() {
 
     let mut user = Annotated::new(User {
         ip_address: Annotated::new(IpAddr("213.47.147.207".to_string())),
-        ..Default::default()
+        ..User::default()
     });
 
     process_value(&mut user, &mut processor, ProcessingState::root());
@@ -626,9 +626,86 @@ fn test_geo_from_ip_address() {
         country_code: Annotated::new("AT".to_string()),
         city: Annotated::new("Vienna".to_string()),
         region: Annotated::new("Austria".to_string()),
-        ..Default::default()
+        ..Geo::default()
     });
     assert_eq_dbg!(user.value().unwrap().geo, expected)
+}
+
+#[test]
+fn test_user_ip_from_remote_addr() {
+    let mut event = Annotated::new(Event {
+        request: Annotated::from(Request {
+            env: Annotated::new({
+                let mut map = Object::new();
+                map.insert(
+                    "REMOTE_ADDR".to_string(),
+                    Annotated::new(Value::String("213.47.147.207".to_string())),
+                );
+                map
+            }),
+            ..Request::default()
+        }),
+        ..Event::default()
+    });
+
+    let mut processor = NormalizeProcessor::default();
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    let user = event
+        .value()
+        .unwrap()
+        .user
+        .value()
+        .expect("user was not created");
+
+    let ip_addr = user.ip_address.value().expect("ip address was not created");
+
+    assert_eq_dbg!(ip_addr, &IpAddr("213.47.147.207".to_string()));
+}
+
+#[test]
+fn test_user_ip_from_invalid_remote_addr() {
+    let mut event = Annotated::new(Event {
+        request: Annotated::from(Request {
+            env: Annotated::new({
+                let mut map = Object::new();
+                map.insert(
+                    "REMOTE_ADDR".to_string(),
+                    Annotated::new(Value::String("whoops".to_string())),
+                );
+                map
+            }),
+            ..Request::default()
+        }),
+        ..Event::default()
+    });
+
+    let mut processor = NormalizeProcessor::default();
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    assert_eq_dbg!(Annotated::empty(), event.value().unwrap().user);
+}
+
+#[test]
+fn test_user_ip_from_client_ip() {
+    let mut event = Annotated::new(Event::default());
+
+    let mut config = StoreConfig::default();
+    config.client_ip = Some(IpAddr::parse("213.47.147.207").unwrap());
+
+    let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    let user = event
+        .value()
+        .unwrap()
+        .user
+        .value()
+        .expect("user was not created");
+
+    let ip_addr = user.ip_address.value().expect("ip address was not created");
+
+    assert_eq_dbg!(ip_addr, &IpAddr("213.47.147.207".to_string()));
 }
 
 #[test]
@@ -638,10 +715,10 @@ fn test_environment_tag_is_moved() {
             Annotated::new("environment".to_string()),
             Annotated::new("despacito".to_string()),
         ))]))),
-        ..Default::default()
+        ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let event = event.value().unwrap();
@@ -658,10 +735,10 @@ fn test_empty_environment_is_removed_and_overwritten_with_tag() {
             Annotated::new("despacito".to_string()),
         ))]))),
         environment: Annotated::new("".to_string()),
-        ..Default::default()
+        ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let event = event.value().unwrap();
@@ -674,10 +751,10 @@ fn test_empty_environment_is_removed_and_overwritten_with_tag() {
 fn test_empty_environment_is_removed() {
     let mut event = Annotated::new(Event {
         environment: Annotated::new("".to_string()),
-        ..Default::default()
+        ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let event = event.value().unwrap();
@@ -699,10 +776,10 @@ fn test_top_level_keys_moved_into_tags() {
                 Annotated::new("old".to_string()),
             )),
         ]))),
-        ..Default::default()
+        ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let event = event.value().unwrap();
@@ -754,10 +831,10 @@ fn test_internal_tags_removed() {
                 Annotated::new("else".to_string()),
             )),
         ]))),
-        ..Default::default()
+        ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     assert_eq!(event.value().unwrap().tags.value().unwrap().len(), 1);
@@ -780,10 +857,10 @@ fn test_empty_tags_removed() {
                 Annotated::new("else".to_string()),
             )),
         ]))),
-        ..Default::default()
+        ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let tags = event.value().unwrap().tags.value().unwrap();
@@ -820,10 +897,10 @@ fn test_tags_deduplicated() {
                 Annotated::new("3".to_string()),
             )),
         ]))),
-        ..Default::default()
+        ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     // should keep the first occurrence of every tag
@@ -853,10 +930,10 @@ fn test_user_data_moved() {
             );
             map
         },
-        ..Default::default()
+        ..User::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut user, &mut processor, ProcessingState::root());
 
     let user = user.value().unwrap();
@@ -885,7 +962,7 @@ fn test_unknown_debug_image() {
         ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let expected = Annotated::new(DebugMeta {
@@ -907,7 +984,7 @@ fn test_context_line_default() {
         ..Frame::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut frame, &mut processor, ProcessingState::root());
 
     let frame = frame.value().unwrap();
@@ -923,7 +1000,7 @@ fn test_context_line_retain() {
         ..Frame::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut frame, &mut processor, ProcessingState::root());
 
     let frame = frame.value().unwrap();
@@ -938,7 +1015,7 @@ fn test_frame_null_context_lines() {
         ..Frame::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut frame, &mut processor, ProcessingState::root());
 
     let frame = frame.value().unwrap();
@@ -970,10 +1047,10 @@ fn test_too_long_tags() {
                 Annotated::new("bar".to_string()),
             ))]),
         )),
-        ..Default::default()
+        ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let event = event.value().unwrap();
@@ -994,21 +1071,21 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
         exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
             ty: Annotated::new("FooDivisionError".to_string()),
             value: Annotated::new("hi".to_string().into()),
-            ..Default::default()
+            ..Exception::default()
         })])),
         stacktrace: Annotated::new(Stacktrace {
             frames: Annotated::new(vec![Annotated::new(Frame {
                 module: Annotated::new("MyModule".to_string()),
                 filename: Annotated::new("MyFilename".to_string()),
                 function: Annotated::new("Void FooBar()".to_string()),
-                ..Default::default()
+                ..Frame::default()
             })]),
-            ..Default::default()
+            ..Stacktrace::default()
         }),
-        ..Default::default()
+        ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+    let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let expected = Annotated::new(Stacktrace {
@@ -1017,9 +1094,9 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
             filename: Annotated::new("MyFilename".to_string()),
             abs_path: Annotated::new("MyFilename".to_string()),
             function: Annotated::new("Void FooBar()".to_string()),
-            ..Default::default()
+            ..Frame::default()
         })]),
-        ..Default::default()
+        ..Stacktrace::default()
     });
 
     assert_eq_dbg!(
@@ -1047,7 +1124,7 @@ fn test_parses_sdk_info_from_header() {
     let mut processor = NormalizeProcessor::new(
         Arc::new(StoreConfig {
             client: Some("_fooBar/0.0.0".to_string()),
-            ..Default::default()
+            ..StoreConfig::default()
         }),
         None,
     );
@@ -1058,7 +1135,7 @@ fn test_parses_sdk_info_from_header() {
         Annotated::new(ClientSdkInfo {
             name: Annotated::new("_fooBar".to_string()),
             version: Annotated::new("0.0.0".to_string()),
-            ..Default::default()
+            ..ClientSdkInfo::default()
         })
     );
 }
