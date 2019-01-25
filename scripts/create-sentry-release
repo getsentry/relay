@@ -36,4 +36,5 @@ echo 'Creating a new deploy in Sentry...'
 sentry-cli releases new "${VERSION}"
 sentry-cli releases set-commits "${VERSION}" --commit "${GITHUB_PROJECT}@${VERSION}"
 sentry-cli releases deploys "${VERSION}" new -e release
+sentry-cli releases finalize "${VERSION}"
 echo 'Deploy created.'
