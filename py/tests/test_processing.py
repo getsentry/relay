@@ -69,10 +69,5 @@ def test_basic_store_normalization():
 
 def test_legacy_json():
     normalizer = semaphore.StoreNormalizer(project_id=1)
-    event = normalizer.normalize_event(
-        raw_event='{"extra":{"x":NaN}}', legacy_python_json=True
-    )
+    event = normalizer.normalize_event(raw_event='{"extra":{"x":NaN}}')
     assert event["extra"] == {"x": 0.0}
-
-    with pytest.raises(semaphore.SemaphoreError):
-        normalizer.normalize_event(raw_event='{"extra":{"x":NaN}}')
