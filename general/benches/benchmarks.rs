@@ -44,7 +44,6 @@ macro_rules! benchmark {
                     project_id: Some(4711),
                     client_ip: Some("127.0.0.1".to_string()),
                     client: Some("sentry.tester".to_string()),
-                    is_public_auth: true,
                     key_id: Some("feedface".to_string()),
                     protocol_version: Some("8".to_string()),
                     stacktrace_frames_hard_limit: Some(50),

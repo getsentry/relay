@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use url::Url;
 
-use crate::protocol::{Query, Request};
+use crate::protocol::{IpAddr, Query, Request};
 use crate::types::{Annotated, ErrorKind, Meta, Object, Value, ValueAction};
 
 const ELLIPSIS: char = '\u{2026}';
@@ -87,7 +87,7 @@ fn normalize_method(method: &mut String, meta: &mut Meta) -> ValueAction {
     ValueAction::Keep
 }
 
-fn set_auto_remote_addr(env: &mut Object<Value>, remote_addr: &str) {
+fn set_auto_remote_addr(env: &mut Object<Value>, remote_addr: &IpAddr) {
     if let Some(entry) = env.get_mut("REMOTE_ADDR") {
         if let Some(value) = entry.value_mut() {
             if value.as_str() == Some("{{auto}}") {
@@ -191,7 +191,7 @@ fn normalize_cookies(request: &mut Request) {
     }
 }
 
-pub fn normalize_request(request: &mut Request, client_ip: Option<&str>) {
+pub fn normalize_request(request: &mut Request, client_ip: Option<&IpAddr>) {
     request.method.apply(normalize_method);
     normalize_url(request);
     normalize_data(request);

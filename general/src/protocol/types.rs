@@ -1,11 +1,12 @@
 //! Common types of the protocol.
+use std::borrow::Cow;
 use std::fmt;
 use std::iter::{FromIterator, IntoIterator};
 use std::net;
 use std::str::FromStr;
 
 use failure::Fail;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{
@@ -380,13 +381,30 @@ pub struct Addr(pub u64);
 hex_metrastructure!(Addr, "address");
 
 /// An ip address.
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue, Serialize,
+)]
 pub struct IpAddr(pub String);
 
 impl IpAddr {
     /// Returns the auto marker ip address.
     pub fn auto() -> IpAddr {
         IpAddr("{{auto}}".into())
+    }
+
+    /// Parses an `IpAddr` from a string
+    pub fn parse<S>(value: S) -> Result<Self, S>
+    where
+        S: AsRef<str> + Into<String>,
+    {
+        if value.as_ref() == "{{auto}}" {
+            return Ok(IpAddr(value.into()));
+        }
+
+        match net::IpAddr::from_str(value.as_ref()) {
+            Ok(_) => Ok(IpAddr(value.into())),
+            Err(_) => Err(value),
+        }
     }
 
     /// Checks if the ip address is set to the auto marker.
@@ -412,17 +430,33 @@ impl Default for IpAddr {
     }
 }
 
+impl fmt::Display for IpAddr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<'de> Deserialize<'de> for IpAddr {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let string = Cow::<'_, str>::deserialize(deserializer)?;
+        IpAddr::parse(string).map_err(|_| serde::de::Error::custom("expected an ip address"))
+    }
+}
+
 impl FromValue for IpAddr {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::String(value)), mut meta) => {
-                if value == "{{auto}}" || net::IpAddr::from_str(&value).is_ok() {
-                    return Annotated(Some(IpAddr(value)), meta);
+            Annotated(Some(Value::String(value)), mut meta) => match IpAddr::parse(value) {
+                Ok(addr) => Annotated(Some(addr), meta),
+                Err(value) => {
+                    meta.add_error(Error::expected("an ip address"));
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
                 }
-                meta.add_error(Error::expected("an ip address"));
-                meta.set_original_value(Some(value));
-                Annotated(None, meta)
-            }
+            },
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("an ip address"));
