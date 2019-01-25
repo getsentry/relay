@@ -73,11 +73,10 @@ class StoreNormalizer(RustObject):
             attached_refs[rv] = geoip_lookup
         return rv
 
-    def normalize_event(self, event=None, raw_event=None, legacy_python_json=False):
+    def normalize_event(self, event=None, raw_event=None):
         if raw_event is None:
             raw_event = json.dumps(event)
         event = encode_str(raw_event, mutable=legacy_python_json)
-        if legacy_python_json:
-            rustcall(lib.semaphore_translate_legacy_python_json, event)
+        rustcall(lib.semaphore_translate_legacy_python_json, event)
         rv = self._methodcall(lib.semaphore_store_normalizer_normalize_event, event)
         return json.loads(decode_str(rv))
