@@ -140,6 +140,36 @@ impl Empty for f64 {
 
 derive_string_meta_structure!(Uuid, "a uuid");
 
+impl<T> Empty for &'_ T
+where
+    T: Empty,
+{
+    #[inline]
+    fn is_empty(&self) -> bool {
+        (*self).is_empty()
+    }
+
+    #[inline]
+    fn is_deep_empty(&self) -> bool {
+        (*self).is_deep_empty()
+    }
+}
+
+impl<T> Empty for Option<T>
+where
+    T: Empty,
+{
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.as_ref().map_or(true, Empty::is_empty)
+    }
+
+    #[inline]
+    fn is_deep_empty(&self) -> bool {
+        self.as_ref().map_or(true, Empty::is_deep_empty)
+    }
+}
+
 impl<T> Empty for Array<T>
 where
     T: Empty,
@@ -490,14 +520,24 @@ where
     }
 }
 
+/// Checks whether annotated data contains either a value or meta data.
 impl<T> Empty for Annotated<T>
 where
     T: Empty,
 {
+    /// Returns if this object contains data to be serialized.
+    ///
+    /// **Caution:** This has different behavior than `annotated.value().is_empty()`! Annotated is
+    /// **not** empty if there is meta data that needs to be serialized. This is in line with the
+    /// derived implementation of `Empty` on structs, which calls `Annotated::is_empty` on every
+    /// child.
+    ///
+    /// To check if a value is missing or empty, use `Option::is_empty` on the value instead.
     fn is_empty(&self) -> bool {
         self.skip_serialization(SkipSerialization::Empty(false))
     }
 
+    /// Returns if this object contains nested data to be serialized.
     fn is_deep_empty(&self) -> bool {
         self.skip_serialization(SkipSerialization::Empty(true))
     }

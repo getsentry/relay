@@ -1,7 +1,7 @@
 use regex::Regex;
 
-use crate::protocol::{Context, LenientString, OsContext, RuntimeContext};
-use crate::types::{Object, Value};
+use crate::protocol::{Context, OsContext, RuntimeContext};
+use crate::types::{Empty, Object, Value};
 
 lazy_static::lazy_static! {
     /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -19,7 +19,7 @@ lazy_static::lazy_static! {
 }
 
 fn normalize_runtime_context(runtime: &mut RuntimeContext) {
-    if runtime.name.value().is_none() && runtime.version.value().is_none() {
+    if runtime.name.value().is_empty() && runtime.version.value().is_empty() {
         if let Some(raw_description) = runtime.raw_description.as_str() {
             if let Some(captures) = RUNTIME_DOTNET_REGEX.captures(raw_description) {
                 runtime.name = captures.name("name").map(|m| m.as_str().to_string()).into();
@@ -85,7 +85,7 @@ fn normalize_os_context(os: &mut OsContext) {
                 .into();
             os.build = captures
                 .name("build")
-                .map(|m| LenientString(m.as_str().to_string()))
+                .map(|m| m.as_str().to_string().into())
                 .into();
         } else if let Some(captures) = OS_UNAME_REGEX.captures(raw_description) {
             os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
@@ -115,7 +115,7 @@ pub fn normalize_context(context: &mut Context) {
 }
 
 #[cfg(test)]
-use crate::types::Annotated;
+use crate::{protocol::LenientString, types::Annotated};
 
 #[test]
 fn test_arbitrary_type() {

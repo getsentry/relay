@@ -84,14 +84,16 @@ fn test_exception_default_values() {
 }
 
 #[test]
-fn test_exception_without_type() {
-    assert_eq!(
-        false,
-        Annotated::<Exception>::from_json("{}")
-            .unwrap()
-            .1
-            .has_errors()
-    );
+fn test_exception_empty_fields() {
+    let json = r#"{"type":"","value":""}"#;
+    let exception = Annotated::new(Exception {
+        ty: Annotated::new("".to_string()),
+        value: Annotated::new("".to_string().into()),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(exception, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, exception.to_json().unwrap());
 }
 
 #[test]
