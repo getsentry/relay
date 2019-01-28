@@ -70,3 +70,12 @@ def test_legacy_json():
     normalizer = semaphore.StoreNormalizer(project_id=1)
     event = normalizer.normalize_event(raw_event='{"extra":{"x":NaN}}')
     assert event["extra"] == {"x": 0.0}
+
+
+def test_broken_json():
+    normalizer = semaphore.StoreNormalizer(project_id=1)
+    bad_str = u"Hello\ud83dWorld🇦🇹!"
+    event = normalizer.normalize_event({"message": bad_str})
+    assert "Hello" in event["logentry"]["formatted"]
+    assert "World" in event["logentry"]["formatted"]
+    assert event["logentry"]["formatted"] != bad_str
