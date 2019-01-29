@@ -327,7 +327,10 @@ fn test_databag_stripping() {
     let stripped_extra = &event.value().unwrap().extra;
     let json = stripped_extra.to_json().unwrap();
 
-    assert_eq_str!(json, r#"{"key_1":"value 1","key_2":{"key5":{"key4":{"key3":{"key2":null}}}}}"#);
+    assert_eq_str!(
+        json,
+        r#"{"key_1":"value 1","key_2":{"key5":{"key4":{"key3":{"key2":null}}}}}"#
+    );
 }
 
 #[test]
@@ -651,4 +654,45 @@ fn test_extra_trimming_long_arrays() {
     };
 
     assert_eq!(arr.len(), 4096);
+}
+
+#[test]
+fn test_newtypes_do_not_add_to_depth() {
+    #[derive(Debug, Clone, FromValue, ToValue, ProcessValue, Empty)]
+    struct WrappedString(String);
+
+    #[derive(Debug, Clone, FromValue, ToValue, ProcessValue, Empty)]
+    struct StructChild2 {
+        inner: Annotated<WrappedString>,
+    }
+
+    #[derive(Debug, Clone, FromValue, ToValue, ProcessValue, Empty)]
+    struct StructChild {
+        inner: Annotated<StructChild2>,
+    }
+
+    #[derive(Debug, Clone, FromValue, ToValue, ProcessValue, Empty)]
+    struct Struct {
+        #[metastructure(bag_size = "small")]
+        inner: Annotated<StructChild>,
+    }
+
+    let mut value = Annotated::new(Struct {
+        inner: Annotated::new(StructChild {
+            inner: Annotated::new(StructChild2 {
+                inner: Annotated::new(WrappedString("hi".to_string())),
+            }),
+        }),
+    });
+
+    let mut processor = TrimmingProcessor::new();
+    process_value(&mut value, &mut processor, ProcessingState::root());
+
+    // Ensure stack does not leak with newtypes
+    assert!(processor.bag_size_state.is_empty());
+
+    assert_eq_str!(
+        value.to_json().unwrap(),
+        r#"{"inner":{"inner":{"inner":"hi"}}}"#
+    );
 }
