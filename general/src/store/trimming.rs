@@ -44,15 +44,10 @@ impl Processor for TrimmingProcessor {
             // bag_size attribute is the depth where we are at in the databag.
             let databag_depth = state.depth() - bag_size_state.encountered_at_depth;
 
-            if databag_depth > bag_size_state.bag_size.max_depth() - 1 {
-                // We've reached the maximum depth of our databag. Hard-delete the value.
-                //
-                // TODO: Create remarks (ensure they do not bloat event)
-                return ValueAction::DeleteHard;
-            } else if bag_size_state.size_remaining == 0 {
-                // If we're already over capacity for our current databag, just hard-delete the
-                // value as it no longer fits in.
-                //
+            let max_depth_reached = databag_depth > bag_size_state.bag_size.max_depth() - 1;
+            let max_bag_size_reached = bag_size_state.size_remaining == 0;
+
+            if max_depth_reached || max_bag_size_reached {
                 // TODO: Create remarks (ensure they do not bloat event)
                 return ValueAction::DeleteHard;
             }
