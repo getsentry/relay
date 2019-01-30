@@ -115,7 +115,7 @@ def test_static_config(mini_sentry, relay):
         os.makedirs(dir.join("projects"))
         dir.join("projects").join("42.json").write(json.dumps(project_config))
 
-    relay_options = {'relay': {'mode': 'static'}}
+    relay_options = {"relay": {"mode": "static"}}
     relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
     mini_sentry.project_configs[42] = project_config
     sleep(1)  # There is no upstream auth, so just wait for relay to initialize
@@ -133,12 +133,13 @@ def test_static_config(mini_sentry, relay):
 
 def test_proxy_config(mini_sentry, relay):
     from time import sleep
+
     project_config = mini_sentry.basic_project_config()
 
     def configure_proxy(dir):
         os.remove(dir.join("credentials.json"))
 
-    relay_options = {'relay': {'mode': 'proxy'}}
+    relay_options = {"relay": {"mode": "proxy"}}
     relay = relay(mini_sentry, options=relay_options, prepare=configure_proxy)
     mini_sentry.project_configs[42] = project_config
     sleep(1)  # There is no upstream auth, so just wait for relay to initialize
@@ -182,10 +183,7 @@ def test_max_concurrent_requests(mini_sentry, relay):
 
     relay = relay(
         mini_sentry,
-        {
-            "limits": {"max_concurrent_requests": 1},
-            "cache": {"event_buffer_expiry": 2},
-        },
+        {"limits": {"max_concurrent_requests": 1}, "cache": {"event_buffer_expiry": 2}},
     )
     relay.wait_relay_healthcheck()
 
