@@ -69,6 +69,11 @@ python-format: venv/bin/python
 	venv/bin/black .
 .PHONY: python-format
 
+python-format-check: venv/bin/python
+	venv/bin/pip install -U black
+	venv/bin/black --check .
+.PHONY: python-format
+
 python-lint: venv/bin/python
 	venv/bin/pip install -U flake8
 	venv/bin/flake8
@@ -79,7 +84,7 @@ format: python-format
 	@cargo fmt
 .PHONY: format
 
-format-check: python-format
+format-check: python-format-check
 	@rustup component add rustfmt 2> /dev/null
 	@cargo fmt -- --check
 .PHONY: format-check
