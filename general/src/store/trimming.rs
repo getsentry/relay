@@ -621,7 +621,7 @@ fn test_extra_trimming_long_arrays() {
     let mut extra = Object::new();
     extra.insert("foo".to_string(), {
         Annotated::new(Value::Array(
-            repeat(Annotated::new(Value::U64(1))).take(200000).collect(),
+            repeat(Annotated::new(Value::U64(1))).take(200_000).collect(),
         ))
     });
 
