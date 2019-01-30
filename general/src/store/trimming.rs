@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use crate::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk, MaxChars};
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
-use crate::types::{Array, Meta, Object, RemarkType, ValueAction};
+use crate::types::{Array, Empty, Meta, Object, RemarkType, ValueAction};
 
 #[derive(Clone, Debug)]
 struct BagSizeState {
@@ -19,6 +19,23 @@ pub struct TrimmingProcessor {
 impl TrimmingProcessor {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    fn should_remove_container<T: Empty>(&self, value: &T, state: &ProcessingState<'_>) -> bool {
+        // Heuristic to avoid trimming a value like `[1, 1, 1, 1, ...]` into `[null, null, null,
+        // null, ...]`, making it take up more space.
+        let bag_size_state = match self.bag_size_state.last() {
+            Some(x) => x,
+            None => return false,
+        };
+
+        let max_depth = bag_size_state.bag_size.max_depth();
+        let databag_depth = state.depth() - bag_size_state.encountered_at_depth;
+
+        // The next level will reach max depth
+        let reaching_max_depth = databag_depth + 2 > max_depth;
+
+        reaching_max_depth && !value.is_empty()
     }
 }
 
@@ -44,7 +61,7 @@ impl Processor for TrimmingProcessor {
             // bag_size attribute is the depth where we are at in the databag.
             let databag_depth = state.depth() - bag_size_state.encountered_at_depth;
 
-            let max_depth_reached = databag_depth > bag_size_state.bag_size.max_depth() - 1;
+            let max_depth_reached = databag_depth + 1 > bag_size_state.bag_size.max_depth();
             let max_bag_size_reached = bag_size_state.size_remaining == 0;
 
             if max_depth_reached || max_bag_size_reached {
@@ -114,6 +131,10 @@ impl Processor for TrimmingProcessor {
         if !self.bag_size_state.is_empty() {
             let original_length = value.len();
 
+            if self.should_remove_container(value, state) {
+                return ValueAction::DeleteHard;
+            }
+
             let mut split_index = None;
             for (index, item) in value.iter_mut().enumerate() {
                 if self.bag_size_state.last().unwrap().size_remaining == 0 {
@@ -151,6 +172,10 @@ impl Processor for TrimmingProcessor {
         // If we need to check the bag size, then we go down a different path
         if !self.bag_size_state.is_empty() {
             let original_length = value.len();
+
+            if self.should_remove_container(value, state) {
+                return ValueAction::DeleteHard;
+            }
 
             let mut split_key = None;
             for (key, item) in value.iter_mut() {
@@ -324,7 +349,7 @@ fn test_databag_stripping() {
 
     assert_eq_str!(
         json,
-        r#"{"key_1":"value 1","key_2":{"key5":{"key4":{"key3":{"key2":null}}}}}"#
+        r#"{"key_1":"value 1","key_2":{"key5":{"key4":{"key3":null}}}}"#
     );
 }
 
