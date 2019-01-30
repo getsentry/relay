@@ -53,5 +53,5 @@ def config_dir(tmpdir):
         lambda s, r, g, h: r(g(r(h(s)))),
     ]
 )
-def relay_chain(request, mini_sentry, relay, gobetween, haproxy):
+def relay_chain(request, mini_sentry, relay, gobetween, haproxy):  # noqa
     return lambda: request.param(mini_sentry, relay, gobetween, haproxy)
