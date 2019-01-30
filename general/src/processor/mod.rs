@@ -13,5 +13,5 @@ pub use self::attrs::{
 };
 pub use self::chunks::{join_chunks, process_chunked_value, split_chunks, Chunk};
 pub use self::funcs::process_value;
-pub use self::size::estimate_size;
+pub use self::size::{estimate_size, estimate_size_flat};
 pub use self::traits::{ProcessValue, Processor};

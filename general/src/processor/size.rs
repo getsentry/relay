@@ -13,6 +13,16 @@ pub fn estimate_size<T: ToValue>(value: Option<&T>) -> usize {
     ser.size()
 }
 
+/// Estimates the size in bytes this would be in JSON, but does not recurse into objects or arrays.
+pub fn estimate_size_flat<T: ToValue>(value: Option<&T>) -> usize {
+    let mut ser = SizeEstimatingSerializer::new();
+    ser.flat = true;
+    if let Some(value) = value {
+        ToValue::serialize_payload(value, &mut ser, Default::default()).unwrap();
+    }
+    ser.size()
+}
+
 /// Helper serializer that efficiently determines how much space something might take.
 ///
 /// This counts in estimated bytes.
@@ -20,6 +30,7 @@ pub fn estimate_size<T: ToValue>(value: Option<&T>) -> usize {
 struct SizeEstimatingSerializer {
     size: usize,
     item_stack: SmallVec<[bool; 16]>,
+    flat: bool,
 }
 
 impl SizeEstimatingSerializer {
@@ -31,6 +42,15 @@ impl SizeEstimatingSerializer {
     /// Returns the calculated size
     pub fn size(&self) -> usize {
         self.size
+    }
+
+    #[inline]
+    fn count_size(&mut self, incr: usize) {
+        if self.flat && !self.item_stack.is_empty() {
+            return;
+        }
+
+        self.size += incr;
     }
 
     fn push(&mut self) {
@@ -46,7 +66,7 @@ impl SizeEstimatingSerializer {
             if !*state {
                 *state = true;
             } else {
-                self.size += 1;
+                self.count_size(1);
             }
         }
     }
@@ -66,7 +86,7 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
 
     #[inline]
     fn serialize_bool(self, v: bool) -> Result<(), Error> {
-        self.size += if v { 4 } else { 5 };
+        self.count_size(if v { 4 } else { 5 });
         Ok(())
     }
 
@@ -108,7 +128,7 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
 
     #[inline]
     fn serialize_u64(self, v: u64) -> Result<(), Error> {
-        self.size += &v.to_string().len();
+        self.count_size(v.to_string().len());
         Ok(())
     }
 
@@ -119,19 +139,19 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
 
     #[inline]
     fn serialize_f64(self, v: f64) -> Result<(), Error> {
-        self.size += &v.to_string().len();
+        self.count_size(v.to_string().len());
         Ok(())
     }
 
     #[inline(always)]
     fn serialize_char(self, _v: char) -> Result<(), Error> {
-        self.size += 1;
+        self.count_size(1);
         Ok(())
     }
 
     #[inline(always)]
     fn serialize_str(self, v: &str) -> Result<(), Error> {
-        self.size += v.len() + 2;
+        self.count_size(v.len() + 2);
         Ok(())
     }
 
@@ -159,7 +179,7 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
 
     #[inline(always)]
     fn serialize_unit(self) -> Result<(), Error> {
-        self.size += 4;
+        self.count_size(4);
         Ok(())
     }
 
@@ -197,15 +217,15 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
         T: ?Sized + Serialize,
     {
         // { x : y }
-        self.size += 3;
+        self.count_size(3);
         variant.serialize(&mut *self)?;
         value.serialize(&mut *self)?;
         Ok(())
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Error> {
+        self.count_size(1);
         self.push();
-        self.size += 1;
         Ok(self)
     }
 
@@ -231,15 +251,15 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant, Error> {
         // { x: [
-        self.size += 3;
+        self.count_size(3);
         variant.serialize(&mut *self)?;
         Ok(self)
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Error> {
         // {
+        self.count_size(1);
         self.push();
-        self.size += 1;
         Ok(self)
     }
 
@@ -260,7 +280,7 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Error> {
         // { x: {
-        self.size += 3;
+        self.count_size(3);
         variant.serialize(&mut *self)?;
         Ok(self)
     }
@@ -280,7 +300,7 @@ impl<'a> ser::SerializeSeq for &'a mut SizeEstimatingSerializer {
 
     fn end(self) -> Result<(), Error> {
         self.pop();
-        self.size += 1;
+        self.count_size(1);
         Ok(())
     }
 }
@@ -300,7 +320,7 @@ impl<'a> ser::SerializeTuple for &'a mut SizeEstimatingSerializer {
 
     #[inline(always)]
     fn end(self) -> Result<(), Error> {
-        self.size += 1;
+        self.count_size(1);
         Ok(())
     }
 }
@@ -320,7 +340,7 @@ impl<'a> ser::SerializeTupleStruct for &'a mut SizeEstimatingSerializer {
 
     #[inline(always)]
     fn end(self) -> Result<(), Error> {
-        self.size += 1;
+        self.count_size(1);
         Ok(())
     }
 }
@@ -339,7 +359,7 @@ impl<'a> ser::SerializeTupleVariant for &'a mut SizeEstimatingSerializer {
 
     #[inline(always)]
     fn end(self) -> Result<(), Error> {
-        self.size += 2;
+        self.count_size(2);
         Ok(())
     }
 }
@@ -360,14 +380,14 @@ impl<'a> ser::SerializeMap for &'a mut SizeEstimatingSerializer {
     where
         T: ?Sized + Serialize,
     {
-        self.size += 1;
+        self.count_size(1);
         value.serialize(&mut **self)
     }
 
     #[inline(always)]
     fn end(self) -> Result<(), Error> {
         self.pop();
-        self.size += 1;
+        self.count_size(1);
         Ok(())
     }
 }
@@ -381,14 +401,14 @@ impl<'a> ser::SerializeStruct for &'a mut SizeEstimatingSerializer {
         T: ?Sized + Serialize,
     {
         self.count_comma_sep();
-        self.size += 2;
+        self.count_size(2);
         key.serialize(&mut **self)?;
         value.serialize(&mut **self)
     }
 
     #[inline(always)]
     fn end(self) -> Result<(), Error> {
-        self.size += 1;
+        self.count_size(1);
         Ok(())
     }
 }
@@ -409,7 +429,7 @@ impl<'a> ser::SerializeStructVariant for &'a mut SizeEstimatingSerializer {
 
     #[inline(always)]
     fn end(self) -> Result<(), Error> {
-        self.size += 2;
+        self.count_size(2);
         Ok(())
     }
 }

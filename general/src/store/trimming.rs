@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
-use crate::processor::{estimate_size, process_chunked_value, BagSize, Chunk, MaxChars};
+use crate::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk, MaxChars};
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
-use crate::types::{Array, Meta, Object, Remark, RemarkType, ValueAction};
+use crate::types::{Array, Meta, Object, RemarkType, ValueAction};
 
 #[derive(Clone, Debug)]
 struct BagSizeState {
@@ -26,7 +26,7 @@ impl Processor for TrimmingProcessor {
     fn before_process<T: ProcessValue>(
         &mut self,
         _: Option<&T>,
-        meta: &mut Meta,
+        _: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
         // If we encounter a bag size attribute it resets the depth and size
@@ -40,18 +40,15 @@ impl Processor for TrimmingProcessor {
         }
 
         if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
-            if (state.depth() - bag_size_state.encountered_at_depth)
-                > bag_size_state.bag_size.max_depth() - 1
-            {
-                meta.add_remark(Remark {
-                    ty: RemarkType::Removed,
-                    rule_id: "!limit".to_string(),
-                    range: None,
-                });
-                return ValueAction::DeleteHard;
-            } else if state.depth() == bag_size_state.encountered_at_depth + 1
-                && bag_size_state.size_remaining == 0
-            {
+            // The current depth in the entire event payload minus the depth at which we found the
+            // bag_size attribute is the depth where we are at in the databag.
+            let databag_depth = state.depth() - bag_size_state.encountered_at_depth;
+
+            let max_depth_reached = databag_depth > bag_size_state.bag_size.max_depth() - 1;
+            let max_bag_size_reached = bag_size_state.size_remaining == 0;
+
+            if max_depth_reached || max_bag_size_reached {
+                // TODO: Create remarks (ensure they do not bloat event)
                 return ValueAction::DeleteHard;
             }
         }
@@ -66,13 +63,24 @@ impl Processor for TrimmingProcessor {
         state: &ProcessingState<'_>,
     ) {
         if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
+            // If our current depth is the one where we found a bag_size attribute, this means we
+            // are done processing a databag. Pop the bag size state.
             if state.depth() == bag_size_state.encountered_at_depth {
                 self.bag_size_state.pop().unwrap();
-            } else if state.depth() == bag_size_state.encountered_at_depth + 1 {
-                let item_length = estimate_size(value) + 1;
-                bag_size_state.size_remaining =
-                    bag_size_state.size_remaining.saturating_sub(item_length);
             }
+        }
+
+        if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
+            // After processing a value, update the remaining bag size. We have a separate if-let
+            // here in case somebody defines nested databags (a struct with bag_size that contains
+            // another struct with a different bag_size), in case we just exited a databag we want
+            // to update the bag_size_state of the outer databag with the remaining size.
+            //
+            // This also has to happen after string trimming, which is why it's running in
+            // after_process.
+            let item_length = estimate_size_flat(value) + 1;
+            bag_size_state.size_remaining =
+                bag_size_state.size_remaining.saturating_sub(item_length);
         }
     }
 
@@ -104,11 +112,6 @@ impl Processor for TrimmingProcessor {
     {
         // If we need to check the bag size, then we go down a different path
         if !self.bag_size_state.is_empty() {
-            {
-                let size_remaining = &mut self.bag_size_state.last_mut().unwrap().size_remaining;
-                *size_remaining = size_remaining.saturating_sub(2);
-            }
-
             let original_length = value.len();
 
             let mut split_index = None;
@@ -147,11 +150,6 @@ impl Processor for TrimmingProcessor {
     {
         // If we need to check the bag size, then we go down a different path
         if !self.bag_size_state.is_empty() {
-            {
-                let size_remaining = &mut self.bag_size_state.last_mut().unwrap().size_remaining;
-                *size_remaining = size_remaining.saturating_sub(2);
-            }
-
             let original_length = value.len();
 
             let mut split_key = None;
@@ -324,7 +322,10 @@ fn test_databag_stripping() {
     let stripped_extra = &event.value().unwrap().extra;
     let json = stripped_extra.to_json().unwrap();
 
-    assert_eq_str!(json, r#"{"key_1":"value 1","key_2":{"key5":{"key4":{"key3":{"key2":null}}}},"_meta":{"key_2":{"key5":{"key4":{"key3":{"key2":{"":{"rem":[["!limit","x"]]}}}}}}}}"#);
+    assert_eq_str!(
+        json,
+        r#"{"key_1":"value 1","key_2":{"key5":{"key4":{"key3":{"key2":null}}}}}"#
+    );
 }
 
 #[test]
@@ -434,7 +435,7 @@ fn test_databag_array_stripping() {
   "key_78": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   "key_79": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   "key_8": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "key_80": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
+  "key_80": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
   "_meta": {
     "": {
       "len": 100
@@ -445,8 +446,8 @@ fn test_databag_array_stripping() {
           [
             "!limit",
             "s",
-            50,
-            53
+            52,
+            55
           ]
         ],
         "len": 100
@@ -608,4 +609,85 @@ fn test_custom_context_trimming() {
             3189
         );
     }
+}
+
+#[test]
+fn test_extra_trimming_long_arrays() {
+    use std::iter::repeat;
+
+    use crate::protocol::Event;
+    use crate::types::{Annotated, Object, Value};
+
+    let mut extra = Object::new();
+    extra.insert("foo".to_string(), {
+        Annotated::new(Value::Array(
+            repeat(Annotated::new(Value::U64(1))).take(200_000).collect(),
+        ))
+    });
+
+    let mut event = Annotated::new(Event {
+        extra: Annotated::new(extra),
+        ..Default::default()
+    });
+
+    let mut processor = TrimmingProcessor::new();
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    let arr = match event
+        .value()
+        .unwrap()
+        .extra
+        .value()
+        .unwrap()
+        .get("foo")
+        .unwrap()
+        .value()
+        .unwrap()
+    {
+        Value::Array(x) => x,
+        x => panic!("Wrong type: {:?}", x),
+    };
+
+    assert_eq!(arr.len(), 4096);
+}
+
+#[test]
+fn test_newtypes_do_not_add_to_depth() {
+    #[derive(Debug, Clone, FromValue, ToValue, ProcessValue, Empty)]
+    struct WrappedString(String);
+
+    #[derive(Debug, Clone, FromValue, ToValue, ProcessValue, Empty)]
+    struct StructChild2 {
+        inner: Annotated<WrappedString>,
+    }
+
+    #[derive(Debug, Clone, FromValue, ToValue, ProcessValue, Empty)]
+    struct StructChild {
+        inner: Annotated<StructChild2>,
+    }
+
+    #[derive(Debug, Clone, FromValue, ToValue, ProcessValue, Empty)]
+    struct Struct {
+        #[metastructure(bag_size = "small")]
+        inner: Annotated<StructChild>,
+    }
+
+    let mut value = Annotated::new(Struct {
+        inner: Annotated::new(StructChild {
+            inner: Annotated::new(StructChild2 {
+                inner: Annotated::new(WrappedString("hi".to_string())),
+            }),
+        }),
+    });
+
+    let mut processor = TrimmingProcessor::new();
+    process_value(&mut value, &mut processor, ProcessingState::root());
+
+    // Ensure stack does not leak with newtypes
+    assert!(processor.bag_size_state.is_empty());
+
+    assert_eq_str!(
+        value.to_json().unwrap(),
+        r#"{"inner":{"inner":{"inner":"hi"}}}"#
+    );
 }
