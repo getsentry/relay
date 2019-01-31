@@ -1142,7 +1142,7 @@ fn test_parses_sdk_info_from_header() {
 fn test_discards_received() {
     use crate::types::FromValue;
     let mut event = Annotated::new(Event {
-        received: FromValue::from_value(Annotated::new(Value::U64(696969696969))),
+        received: FromValue::from_value(Annotated::new(Value::U64(696_969_696_969))),
         ..Default::default()
     });
 
