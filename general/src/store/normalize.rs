@@ -91,9 +91,7 @@ impl<'a> NormalizeProcessor<'a> {
     /// Validates the timestamp range and sets a default value.
     fn normalize_timestamps(&self, event: &mut Event) {
         let current_timestamp = Utc::now();
-        if event.received.value().is_none() {
-            event.received.set_value(Some(current_timestamp));
-        }
+        event.received = Annotated::new(current_timestamp);
 
         event.timestamp.apply(|timestamp, meta| {
             if let Some(secs) = self.config.max_secs_in_future {
@@ -1137,5 +1135,24 @@ fn test_parses_sdk_info_from_header() {
             version: Annotated::new("0.0.0".to_string()),
             ..ClientSdkInfo::default()
         })
+    );
+}
+
+#[test]
+fn test_discards_received() {
+    use crate::types::FromValue;
+    let mut event = Annotated::new(Event {
+        received: FromValue::from_value(Annotated::new(Value::U64(696969696969))),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::default();
+
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    assert!(event.value().unwrap().timestamp.value().is_some());
+    assert_eq_dbg!(
+        event.value().unwrap().received,
+        event.value().unwrap().timestamp,
     );
 }
