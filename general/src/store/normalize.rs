@@ -24,6 +24,15 @@ mod mechanism;
 mod request;
 mod stacktrace;
 
+/// Validate fields that go into a `sentry.models.BoundedIntegerField`.
+fn validate_bounded_integer_field(value: u64) -> ValueAction {
+    if value < 2147483647 {
+        ValueAction::Keep
+    } else {
+        ValueAction::DeleteHard
+    }
+}
+
 struct DedupCache(SmallVec<[u64; 16]>);
 
 impl DedupCache {
@@ -114,6 +123,10 @@ impl<'a> NormalizeProcessor<'a> {
         if event.timestamp.value().is_none() {
             event.timestamp.set_value(Some(current_timestamp));
         }
+
+        event
+            .time_spent
+            .apply(|time_spent, _| validate_bounded_integer_field(*time_spent));
     }
 
     /// Removes internal tags and adds tags for well-known attributes.
