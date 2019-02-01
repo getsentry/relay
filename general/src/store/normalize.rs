@@ -26,7 +26,7 @@ mod stacktrace;
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
 fn validate_bounded_integer_field(value: u64) -> ValueAction {
-    if value < 2147483647 {
+    if value < 2_147_483_647 {
         ValueAction::Keep
     } else {
         ValueAction::DeleteHard
