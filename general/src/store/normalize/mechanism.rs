@@ -563,7 +563,7 @@ pub enum OsHint {
 
 impl OsHint {
     fn from_name(name: &str) -> Option<OsHint> {
-        match name {
+        match name.to_lowercase().as_ref() {
             "ios" | "watchos" | "tvos" | "macos" => Some(OsHint::Darwin),
             "linux" | "android" => Some(OsHint::Linux),
             "windows" => Some(OsHint::Windows),
