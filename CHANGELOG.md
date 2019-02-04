@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.11
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
 ## 0.4.10
 
 For users of relay, nothing changed at all. This is a release to test embedding
