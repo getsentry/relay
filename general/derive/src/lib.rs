@@ -1,6 +1,8 @@
 #![recursion_limit = "256"]
 #![allow(clippy::cyclomatic_complexity)]
 
+mod empty;
+
 use std::str::FromStr;
 
 use proc_macro2::{Span, TokenStream};
@@ -10,20 +12,15 @@ use synstructure::decl_derive;
 
 #[derive(Debug, Clone, Copy)]
 enum Trait {
-    Empty,
     From,
     To,
     Process,
 }
 
-decl_derive!([Empty, attributes(metastructure)] => derive_empty);
+decl_derive!([Empty, attributes(metastructure)] => empty::derive_empty);
 decl_derive!([ToValue, attributes(metastructure)] => derive_to_value);
 decl_derive!([FromValue, attributes(metastructure)] => derive_from_value);
 decl_derive!([ProcessValue, attributes(metastructure)] => derive_process_value);
-
-fn derive_empty(s: synstructure::Structure<'_>) -> TokenStream {
-    derive_metastructure(s, Trait::Empty)
-}
 
 fn derive_to_value(s: synstructure::Structure<'_>) -> TokenStream {
     derive_metastructure(s, Trait::To)
@@ -90,20 +87,6 @@ fn derive_newtype_metastructure(
         });
 
     Ok(match t {
-        Trait::Empty => s.gen_impl(quote! {
-            #[automatically_derived]
-            gen impl crate::types::Empty for @Self {
-                #[inline]
-                fn is_empty(&self) -> bool {
-                    crate::types::Empty::is_empty(&self.0)
-                }
-
-                #[inline]
-                fn is_deep_empty(&self) -> bool {
-                    crate::types::Empty::is_deep_empty(&self.0)
-                }
-            }
-        }),
         Trait::From => s.gen_impl(quote! {
             #[automatically_derived]
             gen impl crate::types::FromValue for @Self {
@@ -228,8 +211,6 @@ fn derive_enum_metastructure(
         Span::call_site(),
     );
 
-    let mut is_empty_body = TokenStream::new();
-    let mut is_deep_empty_body = TokenStream::new();
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
     let mut process_value_body = TokenStream::new();
@@ -242,20 +223,6 @@ fn derive_enum_metastructure(
         let tag = variant_attrs
             .tag_override
             .unwrap_or_else(|| variant_name.to_string().to_lowercase());
-
-        (quote! {
-            #type_name::#variant_name(__value) => {
-                crate::types::Empty::is_empty(__value)
-            }
-        })
-        .to_tokens(&mut is_empty_body);
-
-        (quote! {
-            #type_name::#variant_name(__value) => {
-                crate::types::Empty::is_deep_empty(__value)
-            }
-        })
-        .to_tokens(&mut is_deep_empty_body);
 
         if !variant_attrs.fallback_variant {
             let tag = LitStr::new(&tag, Span::call_site());
@@ -328,22 +295,6 @@ fn derive_enum_metastructure(
     }
 
     Ok(match t {
-        Trait::Empty => s.gen_impl(quote! {
-            #[automatically_derived]
-            gen impl crate::types::Empty for @Self {
-                fn is_empty(&self) -> bool {
-                    match self {
-                        #is_empty_body
-                    }
-                }
-
-                fn is_deep_empty(&self) -> bool {
-                    match self {
-                        #is_deep_empty_body
-                    }
-                }
-            }
-        }),
         Trait::From => {
             s.gen_impl(quote! {
                 #[automatically_derived]
@@ -460,8 +411,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
         binding.style = synstructure::BindStyle::MoveMut;
     }
 
-    let mut is_empty_body = TokenStream::new();
-    let mut is_deep_empty_body = TokenStream::new();
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
     let mut process_child_values_body = TokenStream::new();
@@ -529,10 +478,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 }
             })
             .to_tokens(&mut extract_child_meta_body);
-            (quote! { && #bi.values().all(crate::types::Empty::is_empty) })
-                .to_tokens(&mut is_empty_body);
-            (quote! { && #bi.values().all(|__v| __v.skip_serialization(#skip_serialization_attr)) })
-                .to_tokens(&mut is_deep_empty_body);
         } else {
             if is_tuple_struct {
                 (quote! {
@@ -617,10 +562,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 let #bi = crate::processor::process_value(#bi, __processor, &#enter_state);
             })
             .to_tokens(&mut process_child_values_body);
-
-            (quote! { && crate::types::Empty::is_empty(#bi) }).to_tokens(&mut is_empty_body);
-            (quote! { && #bi.skip_serialization(#skip_serialization_attr) })
-                .to_tokens(&mut is_deep_empty_body);
         }
     }
 
@@ -640,23 +581,8 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
         binding.style = synstructure::BindStyle::Ref;
     }
     let serialize_pat = variant.pat();
-    let is_empty_pat = variant.pat();
 
     match t {
-        Trait::Empty => s.gen_impl(quote! {
-            #[automatically_derived]
-            gen impl crate::types::Empty for @Self {
-                fn is_empty(&self) -> bool {
-                    let #is_empty_pat = self;
-                    true #is_empty_body
-                }
-
-                fn is_deep_empty(&self) -> bool {
-                    let #is_empty_pat = self;
-                    true #is_deep_empty_body
-                }
-            }
-        }),
         Trait::From => {
             let bindings_count = variant.bindings().len();
             let valid_match_arm = if is_tuple_struct {
