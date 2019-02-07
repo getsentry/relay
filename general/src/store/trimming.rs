@@ -4,7 +4,7 @@ use serde_json;
 
 use crate::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk, MaxChars};
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
-use crate::types::{Array, Meta, Object, RemarkType, Value, ValueAction};
+use crate::types::{Array, Empty, Meta, Object, RemarkType, Value, ValueAction};
 
 #[derive(Clone, Debug)]
 struct BagSizeState {
@@ -21,6 +21,12 @@ pub struct TrimmingProcessor {
 impl TrimmingProcessor {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    fn should_remove_container<T: Empty>(&self, value: &T, state: &ProcessingState<'_>) -> bool {
+        // Heuristic to avoid trimming a value like `[1, 1, 1, 1, ...]` into `[null, null, null,
+        // null, ...]`, making it take up more space.
+        self.remaining_bag_depth(state) == Some(1) && !value.is_empty()
     }
 
     #[inline]
@@ -134,6 +140,10 @@ impl Processor for TrimmingProcessor {
         if !self.bag_size_state.is_empty() {
             let original_length = value.len();
 
+            if self.should_remove_container(value, state) {
+                return ValueAction::DeleteHard;
+            }
+
             let mut split_index = None;
             for (index, item) in value.iter_mut().enumerate() {
                 if self.remaining_bag_size().unwrap() == 0 {
@@ -171,6 +181,10 @@ impl Processor for TrimmingProcessor {
         // If we need to check the bag size, then we go down a different path
         if !self.bag_size_state.is_empty() {
             let original_length = value.len();
+
+            if self.should_remove_container(value, state) {
+                return ValueAction::DeleteHard;
+            }
 
             let mut split_key = None;
             for (key, item) in value.iter_mut() {
