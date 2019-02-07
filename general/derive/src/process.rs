@@ -15,8 +15,10 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
         if is_newtype(variant) {
             // Process variant twice s.t. both processor functions are called.
             //
-            // E.g. for `Value::String`, call `process_string` as well as
-            // `process_value`.
+            // E.g.:
+            // - For `Value::String`, call `process_string` as well as `process_value`.
+            // - For `LenientString`, call `process_lenient_string` (not a thing.. yet) as well as
+            // `process_string`.
 
             let bi = &variant.bindings()[0];
             let ident = &bi.binding;
