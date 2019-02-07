@@ -8,12 +8,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
     s.bind_with(|_bi| synstructure::BindStyle::RefMut);
     s.add_bounds(synstructure::AddBounds::Generics);
 
-    let type_attrs = parse_type_attributes(&s.ast().attrs);
-    if type_attrs.tag_key.is_some() && s.variants().len() == 1 {
-        // TODO: move into parse_type_attributes
-        panic!("tag_key not supported on structs");
-    }
-
+    let type_attrs = parse_type_attributes(&s);
     let process_func_call_tokens = type_attrs.process_func_call_tokens();
 
     let process_value_arms = s.each_variant(|variant| {

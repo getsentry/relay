@@ -55,7 +55,7 @@ fn derive_newtype_metastructure(
         return Err(s);
     }
 
-    let type_attrs = parse_type_attributes(&s.ast().attrs);
+    let type_attrs = parse_type_attributes(&s);
     if type_attrs.tag_key.is_some() {
         panic!("tag_key not supported on structs");
     }
@@ -117,7 +117,7 @@ fn derive_enum_metastructure(
         return Err(s);
     }
 
-    let type_attrs = parse_type_attributes(&s.ast().attrs);
+    let type_attrs = parse_type_attributes(&s);
     let _process_func_call_tokens = type_attrs.process_func_call_tokens();
 
     let type_name = &s.ast().ident;
@@ -280,7 +280,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
 
-    let type_attrs = parse_type_attributes(&s.ast().attrs);
+    let type_attrs = parse_type_attributes(&s);
     if type_attrs.tag_key.is_some() {
         panic!("tag_key not supported on structs");
     }
@@ -605,10 +605,10 @@ impl TypeAttrs {
     }
 }
 
-fn parse_type_attributes(attrs: &[syn::Attribute]) -> TypeAttrs {
+fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
     let mut rv = TypeAttrs::default();
 
-    for attr in attrs {
+    for attr in &s.ast().attrs {
         let meta = match attr.interpret_meta() {
             Some(meta) => meta,
             None => continue,
@@ -659,6 +659,11 @@ fn parse_type_attributes(attrs: &[syn::Attribute]) -> TypeAttrs {
                 }
             }
         }
+    }
+
+    if rv.tag_key.is_some() && s.variants().len() == 1 {
+        // TODO: move into parse_type_attributes
+        panic!("tag_key not supported on structs");
     }
 
     rv
