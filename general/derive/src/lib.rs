@@ -262,7 +262,7 @@ fn derive_enum_metastructure(
             (quote! {
                 Some(#tag) => {
                     crate::types::FromValue::from_value(crate::types::Annotated(Some(crate::types::Value::Object(__object)), __meta))
-                        .map_value(|__value| #type_name::#variant_name(__value))
+                        .map_value(#type_name::#variant_name)
                 }
             }).to_tokens(&mut from_value_body);
             (quote! {
