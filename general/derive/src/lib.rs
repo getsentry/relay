@@ -2,6 +2,7 @@
 #![allow(clippy::cyclomatic_complexity)]
 
 mod empty;
+mod process;
 
 use std::str::FromStr;
 
@@ -14,13 +15,12 @@ use synstructure::decl_derive;
 enum Trait {
     From,
     To,
-    Process,
 }
 
 decl_derive!([Empty, attributes(metastructure)] => empty::derive_empty);
 decl_derive!([ToValue, attributes(metastructure)] => derive_to_value);
 decl_derive!([FromValue, attributes(metastructure)] => derive_from_value);
-decl_derive!([ProcessValue, attributes(metastructure)] => derive_process_value);
+decl_derive!([ProcessValue, attributes(metastructure)] => process::derive_process_value);
 
 fn derive_to_value(s: synstructure::Structure<'_>) -> TokenStream {
     derive_metastructure(s, Trait::To)
@@ -28,10 +28,6 @@ fn derive_to_value(s: synstructure::Structure<'_>) -> TokenStream {
 
 fn derive_from_value(s: synstructure::Structure<'_>) -> TokenStream {
     derive_metastructure(s, Trait::From)
-}
-
-fn derive_process_value(s: synstructure::Structure<'_>) -> TokenStream {
-    derive_metastructure(s, Trait::Process)
 }
 
 fn derive_newtype_metastructure(
@@ -64,27 +60,13 @@ fn derive_newtype_metastructure(
         panic!("tag_key not supported on structs");
     }
 
-    let process_func_call_tokens = type_attrs.process_func_call_tokens();
+    let _process_func_call_tokens = type_attrs.process_func_call_tokens();
 
     let field_attrs = parse_field_attributes(0, &s.variants()[0].bindings()[0].ast(), &mut true);
     let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
-    let field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
+    let _field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
 
     let name = &s.ast().ident;
-
-    let value_type = type_attrs
-        .value_type
-        .map(|value_name| {
-            let value_name = Ident::new(&value_name, Span::call_site());
-            quote! {
-                Some(crate::processor::ValueType::#value_name)
-            }
-        })
-        .unwrap_or_else(|| {
-            quote! {
-                crate::processor::ProcessValue::value_type(&self.0)
-            }
-        });
 
     Ok(match t {
         Trait::From => s.gen_impl(quote! {
@@ -123,73 +105,6 @@ fn derive_newtype_metastructure(
                 }
             }
         }),
-        Trait::Process => s.gen_impl(quote! {
-            #[automatically_derived]
-            gen impl crate::processor::ProcessValue for @Self {
-                #[inline]
-                fn value_type(&self) -> Option<crate::processor::ValueType> {
-                    #value_type
-                }
-
-                #[inline]
-                fn process_value<P>(
-                    &mut self,
-                    __meta: &mut crate::types::Meta,
-                    __processor: &mut P,
-                    __state: &crate::processor::ProcessingState<'_>,
-                ) -> crate::types::ValueAction
-                where
-                    P: crate::processor::Processor,
-                {
-                    let parent_attrs = __state.attrs();
-                    let attrs = #field_attrs_tokens;
-                    let __state = &__state.enter_nothing(
-                        Some(::std::borrow::Cow::Owned(attrs))
-                    );
-
-                    let action = __processor.before_process(
-                        Some(&self.0),
-                        __meta,
-                        &__state
-                    ).and_then(|| {
-                        #process_func_call_tokens
-                    }).and_then(|| {
-                        crate::processor::ProcessValue::process_value(
-                            &mut self.0,
-                            __meta,
-                            __processor,
-                            &__state
-                        )
-                    });
-
-                    let new_value = match action {
-                        crate::types::ValueAction::Keep => Some(&self.0),
-                        _=> None
-                    };
-
-                    __processor.after_process(
-                        new_value,
-                        __meta,
-                        &__state
-                    );
-
-                    action
-                }
-
-                #[inline]
-                fn process_child_values<P>(
-                    &mut self,
-                    __processor: &mut P,
-                    __state: &crate::processor::ProcessingState<'_>,
-                )
-                where
-                    P: crate::processor::Processor,
-                {
-                    // This has to be a noop because otherwise we recurse into the subtree
-                    // twice due to the weird `process_value` impl
-                }
-            }
-        }),
     })
 }
 
@@ -203,7 +118,7 @@ fn derive_enum_metastructure(
     }
 
     let type_attrs = parse_type_attributes(&s.ast().attrs);
-    let process_func_call_tokens = type_attrs.process_func_call_tokens();
+    let _process_func_call_tokens = type_attrs.process_func_call_tokens();
 
     let type_name = &s.ast().ident;
     let tag_key_str = LitStr::new(
@@ -213,7 +128,7 @@ fn derive_enum_metastructure(
 
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
-    let mut process_value_body = TokenStream::new();
+    let _process_value_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
 
@@ -280,18 +195,6 @@ fn derive_enum_metastructure(
             }
         })
         .to_tokens(&mut extract_child_meta_body);
-
-        (quote! {
-            #type_name::#variant_name(__value) => {
-                crate::processor::ProcessValue::process_value(
-                    __value,
-                    __meta,
-                    __processor,
-                    &__state,
-                )
-            }
-        })
-        .to_tokens(&mut process_value_body);
     }
 
     Ok(match t {
@@ -341,46 +244,6 @@ fn derive_enum_metastructure(
                         match *self {
                             #extract_child_meta_body
                         }
-                    }
-                }
-            })
-        }
-        Trait::Process => {
-            s.gen_impl(quote! {
-                #[automatically_derived]
-                gen impl crate::processor::ProcessValue for @Self {
-                    #[inline]
-                    fn process_value<P>(
-                        &mut self,
-                        __meta: &mut crate::types::Meta,
-                        __processor: &mut P,
-                        __state: &crate::processor::ProcessingState<'_>,
-                    ) -> crate::types::ValueAction
-                    where
-                        P: crate::processor::Processor,
-                    {
-                        #process_func_call_tokens.and_then(|| {
-                            // Process variant twice s.t. both processor functions are called.
-                            //
-                            // E.g. for `Value::String`, call `process_string` as well as
-                            // `process_value`.
-                            match self {
-                                #process_value_body
-                            }
-                        })
-                    }
-
-                    #[inline]
-                    fn process_child_values<P>(
-                        &mut self,
-                        __processor: &mut P,
-                        __state: &crate::processor::ProcessingState<'_>,
-                    )
-                    where
-                        P: crate::processor::Processor,
-                    {
-                        // This has to be a noop because otherwise we recurse into the subtree
-                        // twice due to the weird `process_value` impl
                     }
                 }
             })
@@ -576,7 +439,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     for binding in variant.bindings_mut() {
         binding.style = synstructure::BindStyle::RefMut;
     }
-    let process_value_pat = variant.pat();
+    let _process_value_pat = variant.pat();
     for binding in variant.bindings_mut() {
         binding.style = synstructure::BindStyle::Ref;
     }
@@ -682,52 +545,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                         let #serialize_pat = *self;
                         #extract_child_meta_body;
                         __child_meta
-                    }
-                }
-            })
-        }
-        Trait::Process => {
-            let process_func_call_tokens = type_attrs.process_func_call_tokens();
-            let process_value = quote! {
-                fn process_value<P>(
-                    &mut self,
-                    __meta: &mut crate::types::Meta,
-                    __processor: &mut P,
-                    __state: &crate::processor::ProcessingState<'_>,
-                ) -> crate::types::ValueAction
-                where
-                    P: crate::processor::Processor,
-                {
-                    #process_func_call_tokens
-                }
-            };
-
-            let value_type = type_attrs.value_type.map(|value_name| {
-                let value_name = Ident::new(&value_name, Span::call_site());
-                quote! {
-                    fn value_type(&self) -> Option<crate::processor::ValueType> {
-                        Some(crate::processor::ValueType::#value_name)
-                    }
-                }
-            });
-
-            s.gen_impl(quote! {
-                #[automatically_derived]
-                gen impl crate::processor::ProcessValue for @Self {
-                    #value_type
-                    #process_value
-
-                    #[inline]
-                    fn process_child_values<P>(
-                        &mut self,
-                        __processor: &mut P,
-                        __state: &crate::processor::ProcessingState<'_>
-                    )
-                    where
-                        P: crate::processor::Processor,
-                    {
-                        let #process_value_pat = self;
-                        #process_child_values_body
                     }
                 }
             })
@@ -1185,4 +1002,8 @@ fn parse_variant_attributes(attrs: &[syn::Attribute]) -> VariantAttrs {
         }
     }
     rv
+}
+
+fn is_newtype(variant: &synstructure::VariantInfo) -> bool {
+    variant.bindings().len() == 1 && variant.bindings()[0].ast().ident.is_none()
 }

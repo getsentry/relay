@@ -1,14 +1,14 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::parse_field_attributes;
+use crate::{is_newtype,parse_field_attributes};
 
 pub fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
     s.add_bounds(synstructure::AddBounds::Generics);
 
-    let mut is_tuple_struct = false;
 
     let is_empty_arms = s.each_variant(|variant| {
+        let mut is_tuple_struct = false;
         let mut cond = quote!(true);
         for (index, bi) in variant.bindings().iter().enumerate() {
             let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
@@ -28,7 +28,7 @@ pub fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
     });
 
     let is_deep_empty_arms = s.each_variant(|variant| {
-        if variant.bindings().len() == 1 {
+        if is_newtype(variant) {
             let ident = &variant.bindings()[0].binding;
             return quote! {
                 crate::types::Empty::is_deep_empty(#ident)
@@ -36,6 +36,7 @@ pub fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
         }
 
         let mut cond = quote!(true);
+        let mut is_tuple_struct = false;
         for (index, bi) in variant.bindings().iter().enumerate() {
             let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
             let ident = &bi.binding;

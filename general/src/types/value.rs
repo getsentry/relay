@@ -21,7 +21,7 @@ pub type Timestamp = chrono::DateTime<chrono::Utc>;
 
 /// Represents a boxed value.
 #[derive(Debug, Clone, PartialEq, ProcessValue)]
-#[metastructure(process_func = "process_value", value_type = "Value")]
+#[metastructure(process_func = "process_value")]
 pub enum Value {
     Bool(bool),
     I64(i64),

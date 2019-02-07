@@ -525,9 +525,11 @@ impl<'a> ProcessingState<'a> {
 
     /// Derives a processing state without adding a path segment. Useful in newtype structs.
     pub fn enter_nothing(&'a self, attrs: Option<Cow<'a, FieldAttrs>>) -> Self {
-        let mut state = self.clone();
-        state.attrs = attrs;
-        state
+        ProcessingState {
+            attrs,
+            parent: Some(self),
+            ..self.clone()
+        }
     }
 
     /// Returns the path in the processing state.
@@ -567,6 +569,17 @@ impl<'a> ProcessingState<'a> {
     /// Return the depth (~ indentation level) of the currently processed value.
     pub fn depth(&'a self) -> usize {
         self.depth
+    }
+
+    /// Return whether the depth changed between parent and self.
+    ///
+    /// This is `false` when we entered a newtype struct.
+    pub fn entered_anything(&'a self) -> bool {
+        if let Some(ref parent) = self.parent {
+            parent.depth() != self.depth()
+        } else {
+            true
+        }
     }
 }
 
