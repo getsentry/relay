@@ -1,8 +1,10 @@
 use std::borrow::Cow;
 
+use serde_json;
+
 use crate::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk, MaxChars};
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
-use crate::types::{Array, Empty, Meta, Object, RemarkType, ValueAction};
+use crate::types::{Array, Meta, Object, RemarkType, Value, ValueAction};
 
 #[derive(Clone, Debug)]
 struct BagSizeState {
@@ -21,21 +23,26 @@ impl TrimmingProcessor {
         Self::default()
     }
 
-    fn should_remove_container<T: Empty>(&self, value: &T, state: &ProcessingState<'_>) -> bool {
-        // Heuristic to avoid trimming a value like `[1, 1, 1, 1, ...]` into `[null, null, null,
-        // null, ...]`, making it take up more space.
-        let bag_size_state = match self.bag_size_state.last() {
-            Some(x) => x,
-            None => return false,
-        };
+    #[inline]
+    fn remaining_bag_depth(&self, state: &ProcessingState<'_>) -> Option<usize> {
+        let bag_size_state = self.bag_size_state.last()?;
 
-        let max_depth = bag_size_state.bag_size.max_depth();
+        // The current depth in the entire event payload minus the depth at which we found the
+        // bag_size attribute is the depth where we are at in the databag.
         let databag_depth = state.depth() - bag_size_state.encountered_at_depth;
 
-        // The next level will reach max depth
-        let reaching_max_depth = databag_depth + 2 > max_depth;
+        Some(
+            bag_size_state
+                .bag_size
+                .max_depth()
+                .saturating_sub(databag_depth),
+        )
+    }
 
-        reaching_max_depth && !value.is_empty()
+    #[inline]
+    fn remaining_bag_size(&self) -> Option<usize> {
+        let bag_size_state = self.bag_size_state.last()?;
+        Some(bag_size_state.size_remaining)
     }
 }
 
@@ -56,18 +63,14 @@ impl Processor for TrimmingProcessor {
             });
         }
 
-        if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
-            // The current depth in the entire event payload minus the depth at which we found the
-            // bag_size attribute is the depth where we are at in the databag.
-            let databag_depth = state.depth() - bag_size_state.encountered_at_depth;
+        if self.remaining_bag_size() == Some(0) {
+            // TODO: Create remarks (ensure they do not bloat event)
+            return ValueAction::DeleteHard;
+        }
 
-            let max_depth_reached = databag_depth + 1 > bag_size_state.bag_size.max_depth();
-            let max_bag_size_reached = bag_size_state.size_remaining == 0;
-
-            if max_depth_reached || max_bag_size_reached {
-                // TODO: Create remarks (ensure they do not bloat event)
-                return ValueAction::DeleteHard;
-            }
+        if self.remaining_bag_depth(state) == Some(0) {
+            // TODO: Create remarks (ensure they do not bloat event)
+            return ValueAction::DeleteHard;
         }
 
         ValueAction::Keep
@@ -131,13 +134,9 @@ impl Processor for TrimmingProcessor {
         if !self.bag_size_state.is_empty() {
             let original_length = value.len();
 
-            if self.should_remove_container(value, state) {
-                return ValueAction::DeleteHard;
-            }
-
             let mut split_index = None;
             for (index, item) in value.iter_mut().enumerate() {
-                if self.bag_size_state.last().unwrap().size_remaining == 0 {
+                if self.remaining_bag_size().unwrap() == 0 {
                     split_index = Some(index);
                     break;
                 }
@@ -173,13 +172,9 @@ impl Processor for TrimmingProcessor {
         if !self.bag_size_state.is_empty() {
             let original_length = value.len();
 
-            if self.should_remove_container(value, state) {
-                return ValueAction::DeleteHard;
-            }
-
             let mut split_key = None;
             for (key, item) in value.iter_mut() {
-                if self.bag_size_state.last().unwrap().size_remaining == 0 {
+                if self.remaining_bag_size().unwrap() == 0 {
                     split_key = Some(key.to_owned());
                     break;
                 }
@@ -199,6 +194,23 @@ impl Processor for TrimmingProcessor {
             value.process_child_values(self, state);
         }
 
+        ValueAction::Keep
+    }
+
+    fn process_value(
+        &mut self,
+        value: &mut Value,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ValueAction {
+        if self.remaining_bag_depth(state) == Some(1) {
+            if let Ok(x) = serde_json::to_string(&value) {
+                // Error case should not be possible
+                *value = Value::String(x);
+            }
+        }
+
+        value.process_child_values(self, state);
         ValueAction::Keep
     }
 }
@@ -335,7 +347,7 @@ fn test_databag_stripping() {
             "key_1".to_string(),
             Annotated::new(Value::String("value 1".to_string())),
         );
-        map.insert("key_2".to_string(), make_nested_object(5));
+        map.insert("key_2".to_string(), make_nested_object(8));
         map
     });
     let mut event = Annotated::new(Event {
@@ -349,7 +361,7 @@ fn test_databag_stripping() {
 
     assert_eq_str!(
         json,
-        r#"{"key_1":"value 1","key_2":{"key5":{"key4":{"key3":null}}}}"#
+        r#"{"key_1":"value 1","key_2":{"key8":{"key7":{"key6":{"key5":{"key4":"{\"key3\":{\"key2\":{\"key1\":\"max depth\"}}}"}}}}}}"#
     );
 }
 

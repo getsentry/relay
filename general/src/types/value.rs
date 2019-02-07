@@ -20,7 +20,8 @@ pub type Object<T> = Map<String, Annotated<T>>;
 pub type Timestamp = chrono::DateTime<chrono::Utc>;
 
 /// Represents a boxed value.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, ProcessValue)]
+#[metastructure(process_func = "process_value", value_type = "Value")]
 pub enum Value {
     Bool(bool),
     I64(i64),
