@@ -84,7 +84,8 @@ impl FromValue for Cookies {
 
 /// A "into-string" type that normalizes header names.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
-pub struct HeaderName(String);
+#[metastructure(process_func = "process_header_name")]
+pub struct HeaderName(pub String);
 
 impl HeaderName {
     /// Creates a normalized header name.
