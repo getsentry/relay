@@ -1,8 +1,8 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
-use syn::{Ident};
+use syn::Ident;
 
-use crate::{is_newtype,parse_field_attributes,parse_type_attributes};
+use crate::{is_newtype, parse_field_attributes, parse_type_attributes};
 
 pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
     s.bind_with(|_bi| synstructure::BindStyle::RefMut);
