@@ -9,7 +9,7 @@ use semaphore_general::processor::{process_value, split_chunks, ProcessingState}
 use semaphore_general::protocol::Event;
 use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use semaphore_general::types::{Annotated, Remark};
-use python_json_read_adapter;
+use json_forensics;
 
 use crate::core::SemaphoreStr;
 
@@ -89,7 +89,7 @@ ffi_fn! {
         event: *mut SemaphoreStr,
     ) -> Result<bool> {
         let data = slice::from_raw_parts_mut((*event).data as *mut u8, (*event).len);
-        python_json_read_adapter::translate_slice(data);
+        json_forensics::translate_slice(data);
         Ok(true)
     }
 }

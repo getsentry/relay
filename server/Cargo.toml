@@ -37,7 +37,7 @@ serde = { version = "1.0.85", features = ["derive"] }
 serde_json = "1.0.36"
 tokio-timer = "0.2.8"
 url = "1.7.2"
-python-json-read-adapter = { version = "*", git = "https://github.com/untitaker/python-json-read-adapter", branch = "fix/backtrack" }
+json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
 
 [dependencies.semaphore-common]
 path = "../common"

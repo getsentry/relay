@@ -24,7 +24,7 @@ failure = "0.1.5"
 serde = {version = "1.0.85", features = ["derive"]}
 serde_json = "1.0.36"
 uuid = "0.7.1"
-python-json-read-adapter = { version = "*", git = "https://github.com/untitaker/python-json-read-adapter", branch = "fix/backtrack" }
+json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
 
 [dependencies.semaphore-common]
 path = "../common"

@@ -6,7 +6,7 @@ use ::actix::prelude::*;
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
 use futures::prelude::*;
-use python_json_read_adapter;
+use json_forensics;
 use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 use serde_json;
@@ -257,7 +257,7 @@ impl Handler<QueueEvent> for EventManager {
         //
         // this is done here so that the rest of the code can assume valid JSON.
         if message.meta.needs_legacy_python_json_support() {
-            python_json_read_adapter::translate_slice(&mut data[..]);
+            json_forensics::translate_slice(&mut data[..]);
         }
 
         // Ensure that the event has a UUID. It will be returned from this message and from the
