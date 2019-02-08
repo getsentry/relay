@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
-use crate::types::{Annotated, Array, Meta, Object, Value, ValueAction};
+use crate::types::{Annotated, Array, Meta, Object, ValueAction};
 
 impl ProcessValue for String {
     #[inline]
@@ -220,42 +220,6 @@ where
         P: Processor,
     {
         ProcessValue::process_value(self.as_mut(), meta, processor, state)
-    }
-}
-
-impl ProcessValue for Value {
-    #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        match self {
-            Value::Bool(_) => Some(ValueType::Boolean),
-            Value::I64(_) => Some(ValueType::Number),
-            Value::U64(_) => Some(ValueType::Number),
-            Value::F64(_) => Some(ValueType::Number),
-            Value::String(_) => Some(ValueType::String),
-            Value::Array(_) => Some(ValueType::Array),
-            Value::Object(_) => Some(ValueType::Object),
-        }
-    }
-
-    #[inline]
-    fn process_value<P>(
-        &mut self,
-        meta: &mut Meta,
-        processor: &mut P,
-        state: &ProcessingState<'_>,
-    ) -> ValueAction
-    where
-        P: Processor,
-    {
-        match self {
-            Value::Bool(value) => ProcessValue::process_value(value, meta, processor, state),
-            Value::I64(value) => ProcessValue::process_value(value, meta, processor, state),
-            Value::U64(value) => ProcessValue::process_value(value, meta, processor, state),
-            Value::F64(value) => ProcessValue::process_value(value, meta, processor, state),
-            Value::String(value) => ProcessValue::process_value(value, meta, processor, state),
-            Value::Array(value) => ProcessValue::process_value(value, meta, processor, state),
-            Value::Object(value) => ProcessValue::process_value(value, meta, processor, state),
-        }
     }
 }
 

@@ -291,8 +291,8 @@ impl BagSize {
     pub fn max_depth(self) -> usize {
         match self {
             BagSize::Small => 3,
-            BagSize::Medium => 3,
-            BagSize::Large => 5,
+            BagSize::Medium => 5,
+            BagSize::Large => 7,
         }
     }
 
