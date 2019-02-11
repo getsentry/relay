@@ -153,9 +153,78 @@ impl FromValue for HeaderName {
     }
 }
 
+/// A "into-string" type that normalizes header values.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+pub struct HeaderValue(String);
+
+impl HeaderValue {
+    pub fn new<S: AsRef<str>>(value: S) -> Self {
+        HeaderValue(value.as_ref().to_owned())
+    }
+}
+
+impl AsRef<str> for HeaderValue {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for HeaderValue {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for HeaderValue {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<String> for HeaderValue {
+    fn from(value: String) -> Self {
+        HeaderValue::new(value)
+    }
+}
+
+impl From<&'_ str> for HeaderValue {
+    fn from(value: &str) -> Self {
+        HeaderValue::new(value)
+    }
+}
+
+impl FromValue for HeaderValue {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::Array(array)), mut meta) => {
+                let mut header_value = String::new();
+                for array_value in array {
+                    let array_value = LenientString::from_value(array_value);
+                    for error in array_value.meta().iter_errors() {
+                        meta.add_error(error.clone());
+                    }
+
+                    if let Some(string) = array_value.value() {
+                        if !header_value.is_empty() {
+                            header_value.push(',');
+                        }
+
+                        header_value.push_str(&string);
+                    }
+                }
+
+                Annotated(Some(HeaderValue::new(header_value)), meta)
+            }
+            annotated => LenientString::from_value(annotated).map_value(HeaderValue::new),
+        }
+    }
+}
+
 /// A map holding headers.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<LenientString>)>);
+pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<HeaderValue>)>);
 
 impl Headers {
     pub fn get_header(&self, key: &str) -> Option<&str> {
@@ -172,7 +241,7 @@ impl Headers {
 }
 
 impl std::ops::Deref for Headers {
-    type Target = PairList<(Annotated<HeaderName>, Annotated<LenientString>)>;
+    type Target = PairList<(Annotated<HeaderName>, Annotated<HeaderValue>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -192,7 +261,7 @@ impl FromValue for Headers {
             _ => false, // Preserve order if SDK sent headers as array
         };
 
-        type HeaderTuple = (Annotated<HeaderName>, Annotated<LenientString>);
+        type HeaderTuple = (Annotated<HeaderName>, Annotated<HeaderValue>);
         PairList::<HeaderTuple>::from_value(value).map_value(|mut pair_list| {
             if should_sort {
                 pair_list.sort_unstable_by(|a, b| {
@@ -738,6 +807,50 @@ fn test_headers_lenient_value() {
             Annotated::new((
                 Annotated::new("X-Bar".to_string().into()),
                 Annotated::new("42".to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("X-Foo".to_string().into()),
+                Annotated::new("".to_string().into()),
+            )),
+        ]))),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(Annotated::from_json(input).unwrap(), request);
+    assert_eq_dbg!(request.to_json_pretty().unwrap(), output);
+}
+
+#[test]
+fn test_headers_multiple_values() {
+    let input = r#"{
+  "headers": {
+    "X-Foo": [""],
+    "X-Bar": [
+      42,
+      "bar",
+      "baz"
+    ]
+  }
+}"#;
+
+    let output = r#"{
+  "headers": [
+    [
+      "X-Bar",
+      "42,bar,baz"
+    ],
+    [
+      "X-Foo",
+      ""
+    ]
+  ]
+}"#;
+
+    let request = Annotated::new(Request {
+        headers: Annotated::new(Headers(PairList(vec![
+            Annotated::new((
+                Annotated::new("X-Bar".to_string().into()),
+                Annotated::new("42,bar,baz".to_string().into()),
             )),
             Annotated::new((
                 Annotated::new("X-Foo".to_string().into()),
