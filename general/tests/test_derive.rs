@@ -17,7 +17,7 @@ impl Processor for RecordingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        self.0.push("process_value".to_string());
+        self.0.push(format!("process_value({})", state.path()));
         self.0.push("before_process_child_values".to_string());
         value.process_child_values(self, state);
         self.0.push("after_process_child_values".to_string());
@@ -28,9 +28,9 @@ impl Processor for RecordingProcessor {
         &mut self,
         _value: &mut String,
         _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ValueAction {
-        self.0.push("process_string".to_string());
+        self.0.push(format!("process_string({})", state.path()));
         ValueAction::Keep
     }
 
@@ -40,7 +40,8 @@ impl Processor for RecordingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        self.0.push("process_header_name".to_string());
+        self.0
+            .push(format!("process_header_name({})", state.path()));
         self.0.push("before_process_child_values".to_string());
         value.process_child_values(self, state);
         self.0.push("after_process_child_values".to_string());
@@ -53,17 +54,21 @@ fn test_enums_processor_calls() {
     let mut processor = RecordingProcessor(vec![]);
 
     let mut value = Annotated::new(Value::String("hi".to_string()));
-    process_value(&mut value, &mut processor, &ProcessingState::root());
+    process_value(
+        &mut value,
+        &mut processor,
+        &ProcessingState::root().enter_static("foo", None, None),
+    );
 
     // Assert that calling `process_child_values` does not recurse. This is surprising and slightly
     // undesirable for processors, but not a big deal and easy to implement.
     assert_eq!(
         processor.0,
         &[
-            "process_value",
+            "process_value(foo)",
             "before_process_child_values",
             "after_process_child_values",
-            "process_string"
+            "process_string(foo)"
         ]
     );
 }
@@ -73,17 +78,21 @@ fn test_simple_newtype() {
     let mut processor = RecordingProcessor(vec![]);
 
     let mut value = Annotated::new(HeaderName("hi".to_string()));
-    process_value(&mut value, &mut processor, &ProcessingState::root());
+    process_value(
+        &mut value,
+        &mut processor,
+        &ProcessingState::root().enter_static("foo", None, None),
+    );
 
     // Assert that calling `process_child_values` does not recurse. This is surprising and slightly
     // undesirable for processors, but not a big deal and easy to implement.
     assert_eq!(
         processor.0,
         &[
-            "process_header_name",
+            "process_header_name(foo)",
             "before_process_child_values",
             "after_process_child_values",
-            "process_string"
+            "process_string(foo)"
         ]
     );
 }

@@ -527,6 +527,7 @@ impl<'a> ProcessingState<'a> {
     pub fn enter_nothing(&'a self, attrs: Option<Cow<'a, FieldAttrs>>) -> Self {
         ProcessingState {
             attrs,
+            path_item: None,
             parent: Some(self),
             ..self.clone()
         }
