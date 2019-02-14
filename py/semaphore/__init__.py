@@ -21,3 +21,7 @@ def _import_all():
 
 _import_all()
 del _import_all
+
+
+# just in case someone expects an actual semaphore here
+from threading import Semaphore
