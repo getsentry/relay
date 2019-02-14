@@ -71,9 +71,9 @@ pub enum ValueAction {
 impl ValueAction {
     /// Returns the result of `f` if the current action is `ValueAction::Keep`.
     #[inline]
-    pub fn and_then<F>(self, mut f: F) -> Self
+    pub fn and_then<F>(self, f: F) -> Self
     where
-        F: FnMut() -> Self,
+        F: FnOnce() -> Self,
     {
         match self {
             ValueAction::Keep => f(),

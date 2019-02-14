@@ -30,7 +30,7 @@ pub use self::exception::Exception;
 pub use self::fingerprint::Fingerprint;
 pub use self::logentry::LogEntry;
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
-pub use self::request::{Cookies, Headers, Query, Request};
+pub use self::request::{Cookies, HeaderName, Headers, Query, Request};
 pub use self::stacktrace::{Frame, Stacktrace};
 pub use self::tags::{TagEntry, Tags};
 pub use self::templateinfo::TemplateInfo;

@@ -104,9 +104,13 @@ impl Processor for TrimmingProcessor {
             //
             // This also has to happen after string trimming, which is why it's running in
             // after_process.
-            let item_length = estimate_size_flat(value) + 1;
-            bag_size_state.size_remaining =
-                bag_size_state.size_remaining.saturating_sub(item_length);
+
+            if state.entered_anything() {
+                // Do not subtract if state is from newtype struct.
+                let item_length = estimate_size_flat(value) + 1;
+                bag_size_state.size_remaining =
+                    bag_size_state.size_remaining.saturating_sub(item_length);
+            }
         }
     }
 
