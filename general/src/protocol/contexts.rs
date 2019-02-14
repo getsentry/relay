@@ -163,6 +163,10 @@ pub enum Context {
     App(Box<AppContext>),
     /// Web browser information.
     Browser(Box<BrowserContext>),
+    /// Information about device's GPU.
+    Gpu(Object<Value>),
+    /// Information related to Monitors feature.
+    Monitor(Object<Value>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(Object<Value>),
