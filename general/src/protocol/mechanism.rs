@@ -76,6 +76,12 @@ pub struct Mechanism {
     )]
     pub ty: Annotated<String>,
 
+    /// If this is set then the exception is not a real exception but some
+    /// form of primitive error for instance a signal handler, a hard
+    /// segfault or similar where type and value are not useful for grouping
+    /// or display purposes.
+    pub is_primitive: Annotated<bool>,
+
     /// Human readable detail description.
     #[metastructure(pii = "true", max_chars = "message")]
     pub description: Annotated<String>,
@@ -108,6 +114,7 @@ impl FromValue for Mechanism {
         struct NewMechanism {
             #[metastructure(field = "type", required = "true")]
             pub ty: Annotated<String>,
+            pub is_primitive: Annotated<bool>,
             pub description: Annotated<String>,
             pub help_link: Annotated<String>,
             pub handled: Annotated<bool>,
@@ -153,6 +160,7 @@ impl FromValue for Mechanism {
                     let annotated = Annotated(Some(Value::Object(object)), meta);
                     NewMechanism::from_value(annotated).map_value(|mechanism| Mechanism {
                         ty: mechanism.ty,
+                        is_primitive: mechanism.is_primitive,
                         description: mechanism.description,
                         help_link: mechanism.help_link,
                         handled: mechanism.handled,
@@ -164,6 +172,7 @@ impl FromValue for Mechanism {
                     let annotated = Annotated(Some(Value::Object(object)), meta);
                     LegacyMechanism::from_value(annotated).map_value(|legacy| Mechanism {
                         ty: Annotated::new("generic".to_string()),
+                        is_primitive: Annotated::empty(),
                         description: Annotated::empty(),
                         help_link: Annotated::empty(),
                         handled: Annotated::empty(),
@@ -234,6 +243,7 @@ fn test_mechanism_roundtrip() {
 }"#;
     let mechanism = Annotated::new(Mechanism {
         ty: Annotated::new("mytype".to_string()),
+        is_primitive: Annotated::empty(),
         description: Annotated::new("mydescription".to_string()),
         help_link: Annotated::new(
             "https://developer.apple.com/library/content/qa/qa1367/_index.html".to_string(),
@@ -347,6 +357,7 @@ fn test_mechanism_legacy_conversion() {
 }"#;
     let mechanism = Annotated::new(Mechanism {
         ty: Annotated::new("generic".to_string()),
+        is_primitive: Annotated::empty(),
         description: Annotated::empty(),
         help_link: Annotated::empty(),
         handled: Annotated::empty(),
