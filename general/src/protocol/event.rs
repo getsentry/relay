@@ -272,7 +272,7 @@ pub struct Event {
 
     /// Simplified template error location information.
     #[metastructure(legacy_alias = "sentry.interfaces.Template")]
-    pub template_info: Annotated<TemplateInfo>,
+    pub template: Annotated<TemplateInfo>,
 
     /// Threads that were active when the event occurred.
     #[metastructure(skip_serialization = "empty")]
