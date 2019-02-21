@@ -1,9 +1,84 @@
 # Changelog
 
-## 0.4.16	
+## 0.4.16
 
-For users of relay, nothing changed at all. This is a release to test embedding	
-some Rust code in Sentry itself.	
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.15
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.14
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.13
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.12
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.11
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.10
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.9
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.8
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.7
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.6
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.5
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.4
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.3
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.2
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
+
+## 0.4.1
+
+For users of relay, nothing changed at all. This is a release to test embedding
+some Rust code in Sentry itself.
 
 ## 0.4.0
 
