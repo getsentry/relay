@@ -337,7 +337,7 @@ pub struct Event {
 
     /// Spans for tracing.
     // TODO: typing
-    pub spans: Annotated<Vec<Value>>,
+    pub spans: Annotated<Array<Value>>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
