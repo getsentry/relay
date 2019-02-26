@@ -6,7 +6,7 @@ homepage = "https://github.com/getsentry/semaphore"
 license = "MIT"
 name = "semaphore-server"
 repository = "https://github.com/getsentry/semaphore"
-version = "0.4.16"
+version = "0.4.17"
 edition = "2018"
 build = "build.rs"
 
