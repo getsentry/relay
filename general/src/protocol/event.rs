@@ -49,6 +49,7 @@ pub enum EventType {
     Hpkp,
     ExpectCT,
     ExpectStaple,
+    None,
 }
 
 /// An error used when parsing `EventType`.
@@ -73,6 +74,7 @@ impl FromStr for EventType {
             "hpkp" => EventType::Hpkp,
             "expectct" => EventType::ExpectCT,
             "expectstaple" => EventType::ExpectStaple,
+            "none" => EventType::None,
             _ => return Err(ParseEventTypeError),
         })
     }
@@ -87,6 +89,7 @@ impl fmt::Display for EventType {
             EventType::Hpkp => write!(f, "hpkp"),
             EventType::ExpectCT => write!(f, "expectct"),
             EventType::ExpectStaple => write!(f, "expectstaple"),
+            EventType::None => write!(f, "none"),
         }
     }
 }
@@ -331,6 +334,10 @@ pub struct Event {
     // TODO: typing
     #[metastructure(legacy_alias = "sentry.interfaces.ExpectStaple")]
     pub expectstaple: Annotated<Value>,
+
+    /// Spans for tracing.
+    // TODO: typing
+    pub spans: Annotated<Array<Value>>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
