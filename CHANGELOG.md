@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.17
+
+* Added support for protocol changes related to upcoming sentry SDK features.
+  In particular the `none` event type was added.
+
 ## 0.4.16
 
 For users of relay, nothing changed at all. This is a release to test embedding
