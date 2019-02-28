@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.18
+
+* Allow much larger payloads in the extra attribute.
+
 ## 0.4.17
 
 * Added support for protocol changes related to upcoming sentry SDK features.
