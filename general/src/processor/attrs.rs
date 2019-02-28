@@ -284,6 +284,8 @@ pub enum BagSize {
     Small,
     Medium,
     Large,
+    Larger,
+    Massive,
 }
 
 impl BagSize {
@@ -293,6 +295,8 @@ impl BagSize {
             BagSize::Small => 3,
             BagSize::Medium => 5,
             BagSize::Large => 7,
+            BagSize::Larger => 7,
+            BagSize::Massive => 7,
         }
     }
 
@@ -302,6 +306,8 @@ impl BagSize {
             BagSize::Small => 1024,
             BagSize::Medium => 2048,
             BagSize::Large => 8192,
+            BagSize::Larger => 16384,
+            BagSize::Massive => 262_144,
         }
     }
 }

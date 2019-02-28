@@ -576,6 +576,8 @@ fn parse_bag_size(name: &str) -> TokenStream {
         "small" => quote!(crate::processor::BagSize::Small),
         "medium" => quote!(crate::processor::BagSize::Medium),
         "large" => quote!(crate::processor::BagSize::Large),
+        "larger" => quote!(crate::processor::BagSize::Larger),
+        "massive" => quote!(crate::processor::BagSize::Massive),
         _ => panic!("invalid bag_size variant '{}'", name),
     }
 }
