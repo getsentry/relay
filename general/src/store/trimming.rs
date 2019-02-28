@@ -388,9 +388,9 @@ fn test_databag_stripping() {
 #[test]
 fn test_databag_array_stripping() {
     use crate::protocol::{Event, ExtraValue};
-    use crate::types::{Annotated, Value, SerializableAnnotated};
-    use std::iter::repeat;
+    use crate::types::{Annotated, SerializableAnnotated, Value};
     use insta::assert_ron_snapshot_matches;
+    use std::iter::repeat;
 
     let mut processor = TrimmingProcessor::new();
 
