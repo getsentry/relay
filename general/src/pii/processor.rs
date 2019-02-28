@@ -654,7 +654,7 @@ fn hash_value(
 #[cfg(test)]
 use {
     crate::processor::process_value,
-    crate::protocol::{Event, Headers, LogEntry, Request},
+    crate::protocol::{Event, ExtraValue, Headers, LogEntry, Request},
     crate::types::{Annotated, Value},
 };
 
@@ -846,7 +846,7 @@ fn test_redact_containers() {
             let mut map = Object::new();
             map.insert(
                 "foo".to_string(),
-                Annotated::new(Value::String("bar".to_string())),
+                Annotated::new(ExtraValue(Value::String("bar".to_string()))),
             );
             Annotated::new(map)
         },

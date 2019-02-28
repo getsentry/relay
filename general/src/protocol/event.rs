@@ -136,6 +136,15 @@ impl ToValue for EventType {
 
 impl ProcessValue for EventType {}
 
+#[derive(Debug, FromValue, ToValue, ProcessValue, Empty, Clone, PartialEq)]
+pub struct ExtraValue(#[metastructure(bag_size = "larger")] pub Value);
+
+impl<T: Into<Value>> From<T> for ExtraValue {
+    fn from(value: T) -> ExtraValue {
+        ExtraValue(value.into())
+    }
+}
+
 /// An event processing error.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct EventProcessingError {
@@ -286,9 +295,9 @@ pub struct Event {
     pub tags: Annotated<Tags>,
 
     /// Arbitrary extra information set by the user.
-    #[metastructure(bag_size = "large")]
+    #[metastructure(bag_size = "massive")]
     #[metastructure(skip_serialization = "empty")]
-    pub extra: Annotated<Object<Value>>,
+    pub extra: Annotated<Object<ExtraValue>>,
 
     /// Meta data for event processing and debugging.
     #[metastructure(skip_serialization = "empty")]
@@ -429,7 +438,7 @@ fn test_event_roundtrip() {
             let mut map = Map::new();
             map.insert(
                 "extra".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                Annotated::new(ExtraValue(Value::String("value".to_string()))),
             );
             Annotated::new(map)
         },

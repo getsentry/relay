@@ -25,7 +25,9 @@ pub use self::contexts::{
 pub use self::debugmeta::{
     AppleDebugImage, DebugImage, DebugMeta, SymbolicDebugImage, SystemSdkInfo,
 };
-pub use self::event::{Event, EventId, EventProcessingError, EventType, ParseEventTypeError};
+pub use self::event::{
+    Event, EventId, EventProcessingError, EventType, ExtraValue, ParseEventTypeError,
+};
 pub use self::exception::Exception;
 pub use self::fingerprint::Fingerprint;
 pub use self::logentry::LogEntry;
