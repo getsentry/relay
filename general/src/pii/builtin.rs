@@ -356,7 +356,7 @@ mod tests {
             process_value(&mut root, &mut processor, ProcessingState::root());
             let root = root.0.unwrap();
             assert_eq_str!(root.value.value().unwrap(), $output);
-            let remarks = $remarks;
+            let remarks: Vec<Remark> = $remarks;
             assert_eq_dbg!(
                 root.value.meta().iter_remarks().collect::<Vec<_>>(),
                 remarks.iter().collect::<Vec<_>>()
