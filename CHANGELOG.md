@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.19
+
+* Slight changes to allow replacing more normalization code in Sentry with Rust.
+
 ## 0.4.18
 
 * Allow much larger payloads in the extra attribute.
