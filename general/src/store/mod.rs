@@ -39,6 +39,10 @@ pub struct StoreConfig {
     pub max_secs_in_future: Option<i64>,
     pub max_secs_in_past: Option<i64>,
     pub enable_trimming: Option<bool>,
+
+    /// When `true`, it is assumed the input already ran through normalization with
+    /// is_renormalize=false. `None` equals false.
+    pub is_renormalize: Option<bool>,
 }
 
 /// The processor that normalizes events for store.
@@ -70,6 +74,10 @@ impl<'a> Processor for StoreProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
+        if self.config.is_renormalize.unwrap_or(false) {
+            return ValueAction::Keep;
+        }
+
         ValueAction::Keep
             // Check for required and non-empty values
             .and_then(|| schema::SchemaProcessor.process_event(event, meta, state))
