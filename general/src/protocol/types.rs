@@ -515,7 +515,7 @@ impl FromStr for Level {
             "info" | "log" => Level::Info,
             "warning" => Level::Warning,
             "error" => Level::Error,
-            "fatal" => Level::Fatal,
+            "fatal" | "critical" => Level::Fatal,
             _ => return Err(ParseLevelError),
         })
     }
@@ -815,6 +815,13 @@ fn test_level() {
     assert_eq_dbg!(
         Level::Warning,
         Annotated::<Level>::from_json("30").unwrap().0.unwrap()
+    );
+    assert_eq_dbg!(
+        Level::Fatal,
+        Annotated::<Level>::from_json("\"critical\"")
+            .unwrap()
+            .0
+            .unwrap()
     );
 }
 
