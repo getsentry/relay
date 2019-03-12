@@ -26,7 +26,7 @@ doc:
 	@cargo doc
 .PHONY: doc
 
-test: cargotest pytest integration-test
+test: cargotest pytest
 .PHONY: test
 
 cargotest: GeoLite2-City.mmdb
@@ -54,29 +54,29 @@ pytest:
 	@$(MAKE) -C py test
 .PHONY: pytest
 
-venv/bin/python: Makefile
-	rm -rf venv
-	virtualenv -p $$SEMAPHORE_PYTHON_VERSION venv
+.venv/bin/python: Makefile
+	rm -rf .venv
+	virtualenv -p $$SEMAPHORE_PYTHON_VERSION .venv
 
-integration-test: venv/bin/python
-	venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist "git+https://github.com/untitaker/pytest-sentry#egg=pytest-sentry"
+integration-test: .venv/bin/python
+	.venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist "git+https://github.com/untitaker/pytest-sentry#egg=pytest-sentry"
 	cargo build
-	@venv/bin/pytest tests -n12 --reruns 5
+	@.venv/bin/pytest tests -n12 --reruns 5
 .PHONY: integration-test
 
-python-format: venv/bin/python
-	venv/bin/pip install -U black
-	venv/bin/black .
+python-format: .venv/bin/python
+	.venv/bin/pip install -U black
+	.venv/bin/black .
 .PHONY: python-format
 
-python-format-check: venv/bin/python
-	venv/bin/pip install -U black
-	venv/bin/black --check .
+python-format-check: .venv/bin/python
+	.venv/bin/pip install -U black
+	.venv/bin/black --check .
 .PHONY: python-format
 
-python-lint: venv/bin/python
-	venv/bin/pip install -U flake8
-	venv/bin/flake8
+python-lint: .venv/bin/python
+	.venv/bin/pip install -U flake8
+	.venv/bin/flake8
 .PHONY: python-format
 
 format: python-format
@@ -96,6 +96,9 @@ clippy:
 
 lint: clippy python-lint
 .PHONY: lint
+
+check: format test
+.PHONY: check
 
 test-process-event:
 	# Process a basic event and assert its output
