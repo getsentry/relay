@@ -818,7 +818,10 @@ fn test_level() {
     );
     assert_eq_dbg!(
         Level::Fatal,
-        Annotated::<Level>::from_json("\"critical\"").unwrap().0.unwrap()
+        Annotated::<Level>::from_json("\"critical\"")
+            .unwrap()
+            .0
+            .unwrap()
     );
 }
 
