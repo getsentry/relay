@@ -25,6 +25,30 @@ pub struct DeviceContext {
     /// Current screen orientation.
     pub orientation: Annotated<String>,
 
+    /// Manufacturer of the device
+    pub manufacturer: Annotated<String>,
+
+    /// Brand of the device.
+    pub brand: Annotated<String>,
+
+    /// Device screen resolution.
+    pub screen_resolution: Annotated<String>,
+
+    /// Device screen density.
+    pub screen_density: Annotated<f64>,
+
+    /// Screen density as dots-per-inch.
+    pub screen_dpi: Annotated<u64>,
+
+    /// Whether the device was online or not.
+    pub online: Annotated<bool>,
+
+    /// Whether the device was charging or not.
+    pub charging: Annotated<bool>,
+
+    /// Whether the device was low on memory.
+    pub low_memory: Annotated<bool>,
+
     /// Simulator/prod indicator.
     pub simulator: Annotated<bool>,
 
@@ -235,6 +259,14 @@ fn test_device_context_roundtrip() {
   "arch": "arm64",
   "battery_level": 58.5,
   "orientation": "landscape",
+  "manufacturer": "Apple",
+  "brand": "iphone",
+  "screen_resolution": "800x600",
+  "screen_density": 1.1,
+  "screen_dpi": 1,
+  "online": true,
+  "charging": false,
+  "low_memory": false,
   "simulator": true,
   "memory_size": 3137978368,
   "free_memory": 322781184,
@@ -257,6 +289,14 @@ fn test_device_context_roundtrip() {
         battery_level: Annotated::new(58.5),
         orientation: Annotated::new("landscape".to_string()),
         simulator: Annotated::new(true),
+        manufacturer: Annotated::new("Apple".to_string()),
+        brand: Annotated::new("iphone".to_string()),
+        screen_resolution: Annotated::new("800x600".to_string()),
+        screen_density: Annotated::new(1.1),
+        screen_dpi: Annotated::new(1),
+        online: Annotated::new(true),
+        charging: Annotated::new(false),
+        low_memory: Annotated::new(false),
         memory_size: Annotated::new(3_137_978_368),
         free_memory: Annotated::new(322_781_184),
         usable_memory: Annotated::new(2_843_525_120),
