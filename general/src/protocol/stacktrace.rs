@@ -87,6 +87,10 @@ pub struct Frame {
     #[metastructure(max_chars = "enumlike")]
     pub trust: Annotated<String>,
 
+    /// The language of the frame if it overrides the stacktrace language.
+    #[metastructure(max_chars = "enumlike")]
+    pub lang: Annotated<String>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
@@ -131,6 +135,10 @@ pub struct Stacktrace {
     /// Register values of the thread (top frame).
     pub registers: Annotated<Object<RegVal>>,
 
+    /// The language of the stacktrace.
+    #[metastructure(max_chars = "enumlike")]
+    pub lang: Annotated<String>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
@@ -163,6 +171,7 @@ fn test_frame_roundtrip() {
   "instruction_addr": "0x404",
   "symbol_addr": "0x404",
   "trust": "69",
+  "lang": "rust",
   "other": "value"
 }"#;
     let frame = Annotated::new(Frame {
@@ -191,6 +200,7 @@ fn test_frame_roundtrip() {
         instruction_addr: Annotated::new(Addr(0x404)),
         symbol_addr: Annotated::new(Addr(0x404)),
         trust: Annotated::new("69".into()),
+        lang: Annotated::new("rust".into()),
         other: {
             let mut vars = Object::new();
             vars.insert(
@@ -228,6 +238,7 @@ fn test_stacktrace_roundtrip() {
     "pc": "0x18a310ea4",
     "sp": "0x16fd75060"
   },
+  "lang": "rust",
   "other": "value"
 }"#;
     let stack = Annotated::new(Stacktrace {
@@ -243,6 +254,7 @@ fn test_stacktrace_roundtrip() {
             registers.insert("sp".to_string(), Annotated::new(RegVal(0x1_6fd7_5060)));
             Annotated::new(registers)
         },
+        lang: Annotated::new("rust".into()),
         other: {
             let mut other = Object::new();
             other.insert(
