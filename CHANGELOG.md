@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.20
+
+* Added support for `lang` frame and stacktrace attribute.
+
 ## 0.4.19
 
 * Slight changes to allow replacing more normalization code in Sentry with Rust.
