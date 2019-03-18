@@ -10,7 +10,8 @@ impl Processor for SchemaProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        verify_value_nonempty(value, meta, &state)
+        value_trim_whitespace(value, meta, &state)
+            .and_then(|| verify_value_nonempty(value, meta, &state))
             .and_then(|| verify_value_pattern(value, meta, &state))
     }
 
@@ -52,6 +53,20 @@ impl Processor for SchemaProcessor {
 
         ValueAction::Keep
     }
+}
+
+fn value_trim_whitespace(
+    value: &mut String,
+    _meta: &mut Meta,
+    state: &ProcessingState<'_>,
+) -> ValueAction {
+    if state.attrs().trim_whitespace {
+        let new_value = value.trim().to_owned();
+        value.clear();
+        value.push_str(&new_value);
+    }
+
+    ValueAction::Keep
 }
 
 fn verify_value_nonempty<T>(
@@ -133,7 +148,7 @@ mod tests {
     }
 
     #[test]
-    fn test_release_newlines() {
+    fn test_release_invalid_newlines() {
         use crate::protocol::Event;
 
         let mut event = Annotated::new(Event {
@@ -264,5 +279,23 @@ mod tests {
         });
 
         assert_eq_dbg!(stack, expected);
+    }
+
+    #[test]
+    fn test_newlines_release() {
+        use crate::protocol::Event;
+        let mut event = Annotated::new(Event {
+            release: Annotated::new("42\n".to_string().into()),
+            ..Default::default()
+        });
+
+        process_value(&mut event, &mut SchemaProcessor, ProcessingState::root());
+
+        let expected = Annotated::new(Event {
+            release: Annotated::new("42".to_string().into()),
+            ..Default::default()
+        });
+
+        assert_eq_dbg!(expected, event);
     }
 }

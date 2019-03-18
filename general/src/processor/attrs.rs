@@ -330,6 +330,8 @@ pub struct FieldAttrs {
     pub required: bool,
     /// If the field should be non-empty.
     pub nonempty: bool,
+    /// Whether to trim whitespace from this string.
+    pub trim_whitespace: bool,
     /// A regex to validate the (string) value against.
     pub match_regex: Option<Regex>,
     /// The maximum char length of this field.
@@ -347,6 +349,7 @@ lazy_static::lazy_static! {
         name: None,
         required: false,
         nonempty: false,
+        trim_whitespace: false,
         match_regex: None,
         max_chars: None,
         bag_size: None,
@@ -360,6 +363,7 @@ lazy_static::lazy_static! {
         name: None,
         required: false,
         nonempty: false,
+        trim_whitespace: false,
         match_regex: None,
         max_chars: None,
         bag_size: None,
@@ -373,6 +377,7 @@ lazy_static::lazy_static! {
         name: None,
         required: false,
         nonempty: false,
+        trim_whitespace: false,
         match_regex: None,
         max_chars: None,
         bag_size: None,

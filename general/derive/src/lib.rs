@@ -677,6 +677,7 @@ struct FieldAttrs {
     field_name: String,
     required: Option<bool>,
     nonempty: Option<bool>,
+    trim_whitespace: Option<bool>,
     pii: Option<bool>,
     retain: bool,
     match_regex: Option<String>,
@@ -707,6 +708,14 @@ impl FieldAttrs {
             quote!(#nonempty)
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.nonempty)
+        } else {
+            quote!(false)
+        };
+
+        let trim_whitespace = if let Some(trim_whitespace) = self.trim_whitespace {
+            quote!(#trim_whitespace)
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.trim_whitespace)
         } else {
             quote!(false)
         };
@@ -753,6 +762,7 @@ impl FieldAttrs {
                 name: Some(#field_name),
                 required: #required,
                 nonempty: #nonempty,
+                trim_whitespace: #trim_whitespace,
                 match_regex: #match_regex,
                 max_chars: #max_chars,
                 bag_size: #bag_size,
@@ -872,7 +882,18 @@ fn parse_field_attributes(
                                         other => panic!("Unknown value {}", other),
                                     },
                                     _ => {
-                                        panic!("Got non string literal for required");
+                                        panic!("Got non string literal for nonempty");
+                                    }
+                                }
+                            } else if ident == "trim_whitespace" {
+                                match lit {
+                                    Lit::Str(litstr) => match litstr.value().as_str() {
+                                        "true" => rv.trim_whitespace = Some(true),
+                                        "false" => rv.trim_whitespace = Some(false),
+                                        other => panic!("Unknown value {}", other),
+                                    },
+                                    _ => {
+                                        panic!("Got non string literal for trim_whitespace");
                                     }
                                 }
                             } else if ident == "match_regex" {
@@ -943,6 +964,8 @@ fn parse_field_attributes(
                                         panic!("Got non string literal for legacy_alias");
                                     }
                                 }
+                            } else {
+                                panic!("Unknown argument to metastructure: {}", ident);
                             }
                         }
                         other => {

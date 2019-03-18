@@ -241,6 +241,7 @@ pub struct Event {
         max_chars = "tag_value",  // release ends in tag
         match_regex = r"^[^\r\n]*\z",
         required = "false",
+        trim_whitespace = "true",
         nonempty = "true",
         skip_serialization = "empty"
     )]
@@ -257,7 +258,11 @@ pub struct Event {
     pub dist: Annotated<String>,
 
     /// Environment the environment was generated in ("production" or "development").
-    #[metastructure(max_chars = "environment", match_regex = r"^[^\r\n\x0C/]+$")]
+    #[metastructure(
+        max_chars = "environment",
+        match_regex = r"^[^\r\n\x0C/]+$",
+        trim_whitespace = "true"
+    )]
     pub environment: Annotated<String>,
 
     /// Deprecated in favor of tags.
