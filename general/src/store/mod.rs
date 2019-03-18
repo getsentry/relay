@@ -5,8 +5,8 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::processor::{ProcessingState, Processor};
-use crate::protocol::{Event, IpAddr};
-use crate::types::{Meta, ValueAction};
+use crate::protocol::{Event, GroupingConfig, IpAddr};
+use crate::types::{Annotated, Meta, ValueAction};
 
 mod event_error;
 mod geo;
@@ -17,6 +17,23 @@ mod trimming;
 
 pub use crate::store::geo::GeoIpLookup;
 
+/// The config for the grouping config in store
+#[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
+pub struct StoreGroupingConfig {
+    /// The id of the grouping algorithm that should be used.
+    pub id: String,
+}
+
+impl StoreGroupingConfig {
+    /// Converts this config into one the event structure supports.
+    pub fn as_grouping_config(&self) -> GroupingConfig {
+        GroupingConfig {
+            id: Annotated::from(self.id.clone()),
+        }
+    }
+}
+
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
@@ -26,6 +43,7 @@ pub struct StoreConfig {
     pub client: Option<String>,
     pub key_id: Option<String>,
     pub protocol_version: Option<String>,
+    pub grouping_config: Option<StoreGroupingConfig>,
 
     /// Hard limit for stacktrace frames
     /// Corresponds to SENTRY_STACKTRACE_FRAMES_HARD_LIMIT

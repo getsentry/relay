@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 
-use insta::assert_serialized_snapshot_matches;
+use insta::assert_yaml_snapshot_matches;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::Event;
 use semaphore_general::store::{StoreConfig, StoreProcessor};
@@ -38,12 +38,12 @@ macro_rules! event_snapshot {
         let id: &str = &$id;
         let data = fs::read_to_string(format!("tests/fixtures/payloads/{}.json", id)).unwrap();
         let mut event = Annotated::<Event>::from_json(&data).unwrap();
-        assert_serialized_snapshot_matches!($id, SerializableAnnotated(&event));
+        assert_yaml_snapshot_matches!($id, SerializableAnnotated(&event));
         let mut config = StoreConfig::default();
         config.valid_platforms = VALID_PLATOFORMS.clone();
         let mut processor = StoreProcessor::new(config, None);
         process_value(&mut event, &mut processor, ProcessingState::root());
-        assert_serialized_snapshot_matches!(format!("{}_normalized", $id), SerializableAnnotated(&event), {
+        assert_yaml_snapshot_matches!(format!("{}_normalized", $id), SerializableAnnotated(&event), {
             ".received" => "[received]",
             ".timestamp" => "[timestamp]"
         });
