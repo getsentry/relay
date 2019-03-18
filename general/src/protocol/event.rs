@@ -163,6 +163,17 @@ pub struct EventProcessingError {
     pub other: Object<Value>,
 }
 
+/// The grouping config that should be used for grouping this event.
+/// 
+/// This is currently only supplied as part of normalization and the payload
+/// only permits the ID of the algorithm to be set and no parameters yet.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+pub struct GroupingConfig {
+    /// The id of the grouping config.
+    #[metastructure(max_chars = "enumlike")]
+    pub id: Annotated<String>,
+}
+
 /// The sentry v7 event structure.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_event", value_type = "Event")]
@@ -319,6 +330,9 @@ pub struct Event {
 
     /// Project which sent this event.
     pub project: Annotated<u64>,
+
+    /// The grouping configuration for this event.
+    pub grouping_config: Annotated<GroupingConfig>,
 
     /// Legacy checksum used for grouping before fingerprint hashes.
     #[metastructure(max_chars = "hash")]

@@ -27,6 +27,7 @@ pub use self::debugmeta::{
 };
 pub use self::event::{
     Event, EventId, EventProcessingError, EventType, ExtraValue, ParseEventTypeError,
+    GroupingConfig,
 };
 pub use self::exception::Exception;
 pub use self::fingerprint::Fingerprint;

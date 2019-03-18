@@ -293,6 +293,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         event.key_id = Annotated::from(self.config.key_id.clone());
         event.ty = Annotated::from(self.infer_event_type(event));
         event.version = Annotated::from(self.config.protocol_version.clone());
+        event.grouping_config = Annotated::from(self.config.grouping_config.as_ref().map(|x| x.as_grouping_config()));
 
         // Validate basic attributes
         event.platform.apply(|platform, _| {
@@ -1168,4 +1169,49 @@ fn test_discards_received() {
         event.value().unwrap().received,
         event.value().unwrap().timestamp,
     );
+}
+
+#[test]
+fn test_grouping_config() {
+    use crate::protocol::LogEntry;
+    use crate::store::StoreGroupingConfig;
+    use crate::types::SerializableAnnotated;
+    use insta::assert_ron_snapshot_matches;
+
+    let mut event = Annotated::new(Event {
+        logentry: Annotated::from(LogEntry {
+            message: Annotated::new("Hello World!".into()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig {
+        grouping_config: Some(StoreGroupingConfig {
+            id: "legacy:1234-12-12".into()
+        }),
+        ..Default::default()
+    }), None);
+
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    assert_ron_snapshot_matches!(SerializableAnnotated(&event), {
+        ".event_id" => "[event-id]",
+        ".received" => "[received]",
+        ".timestamp" => "[timestamp]"
+    }, @r###"{
+  "event_id": "[event-id]",
+  "level": "error",
+  "type": "default",
+  "logentry": {
+    "formatted": "Hello World!",
+  },
+  "logger": "",
+  "platform": "other",
+  "timestamp": "[timestamp]",
+  "received": "[received]",
+  "grouping_config": {
+    "id": "legacy:1234-12-12",
+  },
+}"###);
 }

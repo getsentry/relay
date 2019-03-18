@@ -43,3 +43,6 @@ openssl-probe = "0.1.2"
 
 [build-dependencies]
 clap = { version = "2.32.0", default-features = false }
+
+[patch.crates-io]
+insta = { path = "/Users/mitsuhiko/Development/insta" }
