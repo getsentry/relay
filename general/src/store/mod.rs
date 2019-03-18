@@ -5,8 +5,8 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::processor::{ProcessingState, Processor};
-use crate::protocol::{Event, IpAddr, GroupingConfig};
-use crate::types::{Meta, ValueAction, Annotated};
+use crate::protocol::{Event, GroupingConfig, IpAddr};
+use crate::types::{Annotated, Meta, ValueAction};
 
 mod event_error;
 mod geo;

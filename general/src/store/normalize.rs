@@ -293,7 +293,12 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         event.key_id = Annotated::from(self.config.key_id.clone());
         event.ty = Annotated::from(self.infer_event_type(event));
         event.version = Annotated::from(self.config.protocol_version.clone());
-        event.grouping_config = Annotated::from(self.config.grouping_config.as_ref().map(|x| x.as_grouping_config()));
+        event.grouping_config = Annotated::from(
+            self.config
+                .grouping_config
+                .as_ref()
+                .map(|x| x.as_grouping_config()),
+        );
 
         // Validate basic attributes
         event.platform.apply(|platform, _| {
@@ -1186,12 +1191,15 @@ fn test_grouping_config() {
         ..Default::default()
     });
 
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig {
-        grouping_config: Some(StoreGroupingConfig {
-            id: "legacy:1234-12-12".into()
+    let mut processor = NormalizeProcessor::new(
+        Arc::new(StoreConfig {
+            grouping_config: Some(StoreGroupingConfig {
+                id: "legacy:1234-12-12".into(),
+            }),
+            ..Default::default()
         }),
-        ..Default::default()
-    }), None);
+        None,
+    );
 
     process_value(&mut event, &mut processor, ProcessingState::root());
 

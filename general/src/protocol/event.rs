@@ -164,7 +164,7 @@ pub struct EventProcessingError {
 }
 
 /// The grouping config that should be used for grouping this event.
-/// 
+///
 /// This is currently only supplied as part of normalization and the payload
 /// only permits the ID of the algorithm to be set and no parameters yet.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
