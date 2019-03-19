@@ -10,6 +10,7 @@ use crate::types::{Annotated, Meta, ValueAction};
 
 mod event_error;
 mod geo;
+mod legacy;
 mod normalize;
 mod remove_other;
 mod schema;
@@ -92,11 +93,15 @@ impl<'a> Processor for StoreProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
+        let action = ValueAction::Keep
+            // Convert legacy data structures to current format
+            .and_then(|| legacy::LegacyProcessor.process_event(event, meta, state));
+
         if self.config.is_renormalize.unwrap_or(false) {
-            return ValueAction::Keep;
+            return action;
         }
 
-        ValueAction::Keep
+        action
             // Check for required and non-empty values
             .and_then(|| schema::SchemaProcessor.process_event(event, meta, state))
             // Normalize data in all interfaces
