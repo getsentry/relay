@@ -137,7 +137,6 @@ pub struct NativeDebugImage {
     pub debug_id: Annotated<DebugId>,
 
     /// Path and name of the debug companion file (required).
-    #[metastructure(required = "true", legacy_alias = "name")]
     pub debug_file: Annotated<String>,
 
     /// CPU architecture target.
