@@ -1,20 +1,24 @@
 # Changelog
 
+## 0.4.21
+
+- Updated debug image interface with more attributes.
+
 ## 0.4.20
 
-* Added support for `lang` frame and stacktrace attribute.
+- Added support for `lang` frame and stacktrace attribute.
 
 ## 0.4.19
 
-* Slight changes to allow replacing more normalization code in Sentry with Rust.
+- Slight changes to allow replacing more normalization code in Sentry with Rust.
 
 ## 0.4.18
 
-* Allow much larger payloads in the extra attribute.
+- Allow much larger payloads in the extra attribute.
 
 ## 0.4.17
 
-* Added support for protocol changes related to upcoming sentry SDK features.
+- Added support for protocol changes related to upcoming sentry SDK features.
   In particular the `none` event type was added.
 
 ## 0.4.16
