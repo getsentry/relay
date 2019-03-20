@@ -23,7 +23,7 @@ pub use self::contexts::{
     RuntimeContext,
 };
 pub use self::debugmeta::{
-    AppleDebugImage, DebugImage, DebugMeta, SymbolicDebugImage, SystemSdkInfo,
+    AppleDebugImage, DebugImage, DebugMeta, NativeDebugImage, SystemSdkInfo,
 };
 pub use self::event::{
     Event, EventId, EventProcessingError, EventType, ExtraValue, GroupingConfig,

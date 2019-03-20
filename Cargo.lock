@@ -552,6 +552,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "debugid"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "lazy_static 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.85 (registry+https://github.com/rust-lang/crates.io-index)",
+ "uuid 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "dialoguer"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1899,7 +1910,7 @@ dependencies = [
  "bytecount 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "cookie 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "debugid 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "debugid 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "difference 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "dynfmt 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2815,7 +2826,7 @@ name = "yaml-rust"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "linked-hash-map 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "linked-hash-map 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [metadata]
@@ -2874,6 +2885,7 @@ dependencies = [
 "checksum crypto-mac 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4434400df11d95d556bac068ddfedd482915eb18fe8bea89bc80b6e4b1c179e5"
 "checksum curve25519-dalek 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "8461b0d2aa8e8a6e374074e82f95b053f4f9f87206441ee6c4bb00ae94c47e78"
 "checksum debugid 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "eeb088ba9178f59386641547f9c22fd1d658e2d130f02359bb562759f8f992fc"
+"checksum debugid 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "35af17337af672f692e44b446a28b5ca1edafd6cc71da909c490b3d15f1f4861"
 "checksum dialoguer 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1ad1c29a0368928e78c551354dbff79f103a962ad820519724ef0d74f1c62fa9"
 "checksum difference 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "524cbf6897b527295dff137cec09ecf3a05f4fddffd7dfcd1585403449e74198"
 "checksum digest 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)" = "03b072242a8cbaf9c145665af9d250c59af3b958f83ed6824e13533cf76d5b90"
