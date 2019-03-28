@@ -16,7 +16,9 @@ use crate::protocol::{
     Frame, IpAddr, Level, LogEntry, Request, Stacktrace, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
-use crate::types::{Annotated, Empty, Error, ErrorKind, Meta, Object, ValueAction};
+use crate::types::{
+    Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Value, ValueAction,
+};
 
 mod contexts;
 mod logentry;
@@ -293,12 +295,13 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         event.key_id = Annotated::from(self.config.key_id.clone());
         event.ty = Annotated::from(self.infer_event_type(event));
         event.version = Annotated::from(self.config.protocol_version.clone());
-        event.grouping_config = Annotated::from(
-            self.config
-                .grouping_config
-                .as_ref()
-                .map(|x| x.as_grouping_config()),
-        );
+        event.grouping_config = self
+            .config
+            .grouping_config
+            .clone()
+            .map_or(Annotated::empty(), |x| {
+                FromValue::from_value(Annotated::<Value>::from(x))
+            });
 
         // Validate basic attributes
         event.platform.apply(|platform, _| {
@@ -542,7 +545,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 use crate::{
     processor::process_value,
     protocol::{PairList, TagEntry},
-    types::Value,
 };
 
 #[cfg(test)]
@@ -1179,9 +1181,9 @@ fn test_discards_received() {
 #[test]
 fn test_grouping_config() {
     use crate::protocol::LogEntry;
-    use crate::store::StoreGroupingConfig;
     use crate::types::SerializableAnnotated;
     use insta::assert_ron_snapshot_matches;
+    use serde_json::json;
 
     let mut event = Annotated::new(Event {
         logentry: Annotated::from(LogEntry {
@@ -1193,9 +1195,9 @@ fn test_grouping_config() {
 
     let mut processor = NormalizeProcessor::new(
         Arc::new(StoreConfig {
-            grouping_config: Some(StoreGroupingConfig {
-                id: "legacy:1234-12-12".into(),
-            }),
+            grouping_config: Some(json!({
+                "id": "legacy:1234-12-12".to_string(),
+            })),
             ..Default::default()
         }),
         None,
