@@ -172,6 +172,8 @@ pub struct GroupingConfig {
     /// The id of the grouping config.
     #[metastructure(max_chars = "enumlike")]
     pub id: Annotated<String>,
+    /// The enhancements configuration.
+    pub enhancements: Annotated<String>,
 }
 
 /// The sentry v7 event structure.
@@ -337,7 +339,7 @@ pub struct Event {
     pub project: Annotated<u64>,
 
     /// The grouping configuration for this event.
-    pub grouping_config: Annotated<GroupingConfig>,
+    pub grouping_config: Annotated<Object<Value>>,
 
     /// Legacy checksum used for grouping before fingerprint hashes.
     #[metastructure(max_chars = "hash")]
