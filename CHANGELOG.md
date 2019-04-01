@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.22
+
+- Added grouping enhancements to protocol.
+
 ## 0.4.21
 
 - Updated debug image interface with more attributes.
