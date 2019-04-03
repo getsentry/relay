@@ -4,6 +4,7 @@ use std::str::FromStr;
 use serde::{de, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 
+use crate::processor::estimate_size;
 use crate::types::{Map, ToValue, Value};
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
@@ -544,7 +545,12 @@ impl Meta {
 
     /// Mutable reference to errors of this field.
     pub fn add_error<E: Into<Error>>(&mut self, err: E) {
-        self.upsert().errors.push(err.into());
+        let errors = &mut self.upsert().errors;
+        let err = err.into();
+        if errors.contains(&err) {
+            return;
+        }
+        errors.push(err);
     }
 
     /// Returns a reference to the original value, if any.
@@ -557,7 +563,11 @@ impl Meta {
     where
         T: ToValue,
     {
-        self.upsert().original_value = original_value.map(ToValue::to_value);
+        // XXX: Since metadata is currently not subject to trimming, only allow really small values
+        // in original_value for now.
+        if estimate_size(original_value.as_ref()) < 500 {
+            self.upsert().original_value = original_value.map(ToValue::to_value);
+        }
     }
 
     /// Take out the original value.
