@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.23
+
+- Add basic truncation to event meta to prevent payload size from spiralling out of control.
+
 ## 0.4.22
 
 - Added grouping enhancements to protocol.
