@@ -269,10 +269,12 @@ impl<'a> NormalizeProcessor<'a> {
                 // the operating system version the event was generated on. Some
                 // normalization still works without sdk_info, such as mach_exception
                 // names (they can only occur on macOS).
+                //
+                // We also want to validate some other aspects of it.
                 for exception in exceptions {
                     if let Some(exception) = exception.value_mut() {
                         if let Some(mechanism) = exception.mechanism.value_mut() {
-                            mechanism::normalize_mechanism_meta(mechanism, os_hint);
+                            mechanism::normalize_mechanism(mechanism, os_hint);
                         }
                     }
                 }
