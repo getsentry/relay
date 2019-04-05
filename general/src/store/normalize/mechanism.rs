@@ -1,5 +1,5 @@
 use crate::protocol::{Context, ContextInner, Event, Mechanism};
-use crate::types::{Annotated, ValueAction, Error};
+use crate::types::{Annotated, Error, ValueAction};
 
 #[cfg(test)]
 use crate::protocol::{CError, MachException, MechanismMeta, PosixSignal};
