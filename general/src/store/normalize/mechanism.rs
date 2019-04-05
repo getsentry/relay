@@ -1,5 +1,5 @@
 use crate::protocol::{Context, ContextInner, Event, Mechanism};
-use crate::types::Annotated;
+use crate::types::{Annotated, ValueAction, Error};
 
 #[cfg(test)]
 use crate::protocol::{CError, MachException, MechanismMeta, PosixSignal};
@@ -595,7 +595,16 @@ impl OsHint {
 }
 
 /// Normalizes the exception mechanism in place.
-pub fn normalize_mechanism_meta(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
+pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
+    mechanism.help_link.apply(|value, meta| {
+        if value.starts_with("http://") || value.starts_with("https://") {
+            ValueAction::Keep
+        } else {
+            meta.add_error(Error::expected("http URL"));
+            ValueAction::DeleteSoft
+        }
+    });
+
     let meta = match mechanism.meta.value_mut() {
         Some(meta) => meta,
         None => return,
@@ -651,7 +660,7 @@ fn test_normalize_missing() {
 
     let old_mechanism = mechanism.clone();
 
-    normalize_mechanism_meta(&mut mechanism, None);
+    normalize_mechanism(&mut mechanism, None);
 
     assert_eq!(mechanism, old_mechanism);
 }
@@ -670,7 +679,7 @@ fn test_normalize_errno() {
         ..Default::default()
     };
 
-    normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
+    normalize_mechanism(&mut mechanism, Some(OsHint::Linux));
 
     let errno = mechanism.meta.value().unwrap().errno.value().unwrap();
     assert_eq!(
@@ -696,7 +705,7 @@ fn test_normalize_errno_override() {
         ..Default::default()
     };
 
-    normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
+    normalize_mechanism(&mut mechanism, Some(OsHint::Linux));
 
     let errno = mechanism.meta.value().unwrap().errno.value().unwrap();
     assert_eq!(
@@ -722,7 +731,7 @@ fn test_normalize_errno_fail() {
         ..Default::default()
     };
 
-    normalize_mechanism_meta(&mut mechanism, None);
+    normalize_mechanism(&mut mechanism, None);
 
     let errno = mechanism.meta.value().unwrap().errno.value().unwrap();
     assert_eq!(
@@ -749,7 +758,7 @@ fn test_normalize_signal() {
         ..Default::default()
     };
 
-    normalize_mechanism_meta(&mut mechanism, Some(OsHint::Darwin));
+    normalize_mechanism(&mut mechanism, Some(OsHint::Darwin));
 
     let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
     assert_eq!(
@@ -777,7 +786,7 @@ fn test_normalize_partial_signal() {
         ..Default::default()
     };
 
-    normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
+    normalize_mechanism(&mut mechanism, Some(OsHint::Linux));
 
     let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
@@ -807,7 +816,7 @@ fn test_normalize_signal_override() {
         ..Default::default()
     };
 
-    normalize_mechanism_meta(&mut mechanism, Some(OsHint::Linux));
+    normalize_mechanism(&mut mechanism, Some(OsHint::Linux));
 
     let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
@@ -837,7 +846,7 @@ fn test_normalize_signal_fail() {
         ..Default::default()
     };
 
-    normalize_mechanism_meta(&mut mechanism, None);
+    normalize_mechanism(&mut mechanism, None);
 
     let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
@@ -870,7 +879,7 @@ fn test_normalize_mach() {
     // We do not need SDK information here because mach exceptions only
     // occur on Darwin
 
-    normalize_mechanism_meta(&mut mechanism, None);
+    normalize_mechanism(&mut mechanism, None);
 
     let mach_exception = mechanism
         .meta
@@ -910,7 +919,7 @@ fn test_normalize_mach_override() {
     // We do not need SDK information here because mach exceptions only
     // occur on Darwin
 
-    normalize_mechanism_meta(&mut mechanism, None);
+    normalize_mechanism(&mut mechanism, None);
 
     let mach_exception = mechanism
         .meta
@@ -949,7 +958,7 @@ fn test_normalize_mach_fail() {
     // We do not need SDK information here because mach exceptions only
     // occur on Darwin
 
-    normalize_mechanism_meta(&mut mechanism, None);
+    normalize_mechanism(&mut mechanism, None);
 
     let mach_exception = mechanism
         .meta
@@ -967,4 +976,49 @@ fn test_normalize_mach_fail() {
             ..Default::default()
         }
     );
+}
+
+#[test]
+fn test_normalize_http_url() {
+    use crate::types::SerializableAnnotated;
+    use insta::assert_ron_snapshot_matches;
+
+    let mut good_mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        help_link: Annotated::new("https://example.com/".to_string()),
+        ..Default::default()
+    };
+
+    normalize_mechanism(&mut good_mechanism, None);
+    assert_ron_snapshot_matches!(SerializableAnnotated(&Annotated::new(good_mechanism)), @r###"{
+  "type": "generic",
+  "help_link": "https://example.com/",
+}"###);
+
+    let mut bad_mechanism = Mechanism {
+        ty: Annotated::new("generic".to_string()),
+        help_link: Annotated::new("javascript:alert(document.cookie)".to_string()),
+        ..Default::default()
+    };
+
+    normalize_mechanism(&mut bad_mechanism, None);
+    assert_ron_snapshot_matches!(SerializableAnnotated(&Annotated::new(bad_mechanism)), @r###"{
+  "type": "generic",
+  "help_link": (),
+  "_meta": {
+    "help_link": {
+      "": Meta(Some(MetaInner(
+        err: [
+          [
+            "invalid_data",
+            {
+              "reason": "expected http URL",
+            },
+          ],
+        ],
+        val: Some("javascript:alert(document.cookie)"),
+      ))),
+    },
+  },
+}"###);
 }
