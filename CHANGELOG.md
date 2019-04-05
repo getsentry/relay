@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.24
+
+- Reject non-http/https `help_urls` in exception mechanisms.
+
 ## 0.4.23
 
 - Add basic truncation to event meta to prevent payload size from spiralling out of control.
