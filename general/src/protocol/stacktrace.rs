@@ -71,7 +71,7 @@ pub struct Frame {
     pub in_app: Annotated<bool>,
 
     /// Local variables in a convenient format.
-    #[metastructure(pii = "true")]
+    #[metastructure(pii = "true", bag_size = "large")]
     pub vars: Annotated<FrameVars>,
 
     /// Start address of the containing code module (image).

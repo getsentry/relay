@@ -25,6 +25,7 @@ pub struct Exception {
     pub stacktrace: Annotated<Stacktrace>,
 
     /// Optional unprocessed stack trace.
+    #[metastructure(skip_serialization = "empty")]
     pub raw_stacktrace: Annotated<Stacktrace>,
 
     /// Identifier of the thread this exception occurred in.

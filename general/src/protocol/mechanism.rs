@@ -94,9 +94,8 @@ pub struct Mechanism {
     pub handled: Annotated<bool>,
 
     /// Additional attributes depending on the mechanism type.
-    #[metastructure(pii = "true")]
+    #[metastructure(pii = "true", bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
-    // TODO: Cap?
     pub data: Annotated<Object<Value>>,
 
     /// Operating system or runtime meta information.
