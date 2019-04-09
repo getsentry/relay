@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.25
+
+- Add missing trimming to frame vars.
+
 ## 0.4.24
 
 - Reject non-http/https `help_urls` in exception mechanisms.
