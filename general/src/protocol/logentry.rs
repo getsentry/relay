@@ -17,7 +17,7 @@ pub struct LogEntry {
     pub formatted: Annotated<String>,
 
     /// Positional parameters to be interpolated into the log message.
-    #[metastructure(pii = "true")]
+    #[metastructure(pii = "true", bag_size = "medium")]
     pub params: Annotated<Value>,
 
     /// Additional arbitrary fields for forwards compatibility.

@@ -222,7 +222,7 @@ pub struct Event {
     pub logger: Annotated<String>,
 
     /// Name and versions of installed modules.
-    #[metastructure(skip_serialization = "empty_deep")]
+    #[metastructure(skip_serialization = "empty_deep", bag_size = "large")]
     pub modules: Annotated<Object<String>>,
 
     /// Platform identifier of this event (defaults to "other").

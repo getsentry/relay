@@ -83,6 +83,7 @@ pub struct Thread {
     pub stacktrace: Annotated<Stacktrace>,
 
     /// Optional unprocessed stack trace.
+    #[metastructure(skip_serialization = "empty")]
     pub raw_stacktrace: Annotated<Stacktrace>,
 
     /// Indicates that this thread requested the event (usually by crashing).
