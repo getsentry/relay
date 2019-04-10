@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.26
+
+- Reduce frame vars size.
+
 ## 0.4.25
 
 - Add missing trimming to frame vars.
