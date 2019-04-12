@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.27
+
+- Increase frame vars size again! Byte size was fine, but max depth
+  was way too small.
+
 ## 0.4.26
 
 - Reduce frame vars size.
