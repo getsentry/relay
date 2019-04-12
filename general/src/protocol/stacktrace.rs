@@ -72,7 +72,7 @@ pub struct Frame {
 
     /// Local variables in a convenient format.
     // XXX: Probably want to trim per-var => new bag size?
-    #[metastructure(pii = "true", bag_size = "small")]
+    #[metastructure(pii = "true", bag_size = "medium")]
     pub vars: Annotated<FrameVars>,
 
     /// Start address of the containing code module (image).
