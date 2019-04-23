@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.28
+
+- Add missing context type for sessionstack.
+
 ## 0.4.27
 
 - Increase frame vars size again! Byte size was fine, but max depth
