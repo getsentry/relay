@@ -24,7 +24,7 @@ use crate::actors::project::{
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
-use crate::utils::{SyncActorFuture, SyncHandle};
+use crate::utils::{One, SyncActorFuture, SyncHandle};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -335,7 +335,7 @@ impl Handler<HandleEvent> for EventManager {
 
         let future = project
             .send(GetProjectId)
-            .map(|one| one.into_inner())
+            .map(One::into_inner)
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(move |project_id| {
                 project

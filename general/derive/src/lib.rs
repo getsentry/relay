@@ -829,7 +829,7 @@ fn parse_field_attributes(
     rv.field_name = bi_ast
         .ident
         .as_ref()
-        .map(|ident| ident.to_string())
+        .map(ToString::to_string)
         .unwrap_or_else(|| index.to_string());
 
     for attr in &bi_ast.attrs {

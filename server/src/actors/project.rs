@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::cmp;
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::mem;
@@ -587,7 +588,7 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectId, Arc<
 
         let id = match path
             .file_stem()
-            .and_then(|stem| stem.to_str())
+            .and_then(OsStr::to_str)
             .and_then(|stem| stem.parse().ok())
         {
             Some(id) => id,
