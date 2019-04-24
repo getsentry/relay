@@ -155,7 +155,7 @@ where
 
                 Ok(BytesMut::from(bytes))
             })
-            .map(|body| body.freeze());
+            .map(BytesMut::freeze);
 
         self.fut = Some(Box::new(future));
 

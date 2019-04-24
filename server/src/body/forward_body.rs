@@ -127,7 +127,7 @@ where
                     Ok(body)
                 }
             })
-            .map(|x| x.freeze());
+            .map(BytesMut::freeze);
 
         self.fut = Some(Box::new(future));
 

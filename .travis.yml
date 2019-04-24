@@ -130,7 +130,6 @@ matrix:
     - name: "release: semaphore[macos]"
       os: osx
       language: generic
-      osx_image: xcode9.2
       script:
         - make -e releasebuild
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]

@@ -534,7 +534,7 @@ impl Config {
 
     /// Returns the custom HTTP "Host" header.
     pub fn http_host_header(&self) -> Option<&str> {
-        self.values.http.host_header.as_ref().map(|x| x.as_str())
+        self.values.http.host_header.as_ref().map(String::as_str)
     }
 
     /// Returns the listen address.
@@ -558,7 +558,7 @@ impl Config {
             .relay
             .tls_identity_path
             .as_ref()
-            .map(|x| x.as_path())
+            .map(PathBuf::as_path)
     }
 
     /// Returns the password for the identity bundle
@@ -567,7 +567,7 @@ impl Config {
             .relay
             .tls_identity_password
             .as_ref()
-            .map(|x| x.as_str())
+            .map(String::as_str)
     }
 
     /// Returns the log level.

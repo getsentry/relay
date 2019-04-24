@@ -72,7 +72,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
     let path_and_query = request
         .uri()
         .path_and_query()
-        .map(|pq| pq.as_str())
+        .map(actix_web::http::uri::PathAndQuery::as_str)
         .unwrap_or("");
 
     let mut forwarded_request_builder = ClientRequest::build();

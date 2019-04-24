@@ -1,3 +1,7 @@
+// Clippy throws errors in situations where a closure is clearly the better way. An example is
+// `Annotated::as_str`, which can't be used directly because it's part of two impl blocks.
+#![allow(clippy::redundant_closure)]
+
 // we use macro_use here because we really consider this to be an internal
 // macro which currently cannot be imported.
 #[macro_use]
