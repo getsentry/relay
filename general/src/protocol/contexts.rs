@@ -1,7 +1,7 @@
 use regex::Regex;
 
 use crate::protocol::LenientString;
-use crate::types::{Annotated, FromValue, Object, Value, Error};
+use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// Device information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
