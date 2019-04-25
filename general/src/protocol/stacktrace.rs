@@ -18,7 +18,7 @@ pub struct Frame {
     /// it exceed the maximum limit we provide for the field.  In those cases
     /// then we cannot reliably trim down the function any more at a later point
     /// because the more valuable information has been removed.
-    /// 
+    ///
     /// Because of this we have a second field which is supposed to contain just
     /// the function name for such situations.
     #[metastructure(max_chars = "symbol")]
