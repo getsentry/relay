@@ -1,5 +1,7 @@
+use regex::Regex;
+
 use crate::protocol::LenientString;
-use crate::types::{Annotated, FromValue, Object, Value};
+use crate::types::{Annotated, FromValue, Object, Value, Error};
 
 /// Device information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
@@ -173,6 +175,75 @@ pub struct BrowserContext {
     pub other: Object<Value>,
 }
 
+lazy_static::lazy_static! {
+    static ref TRACE_ID: Regex = Regex::new("^[a-fA-F0-9]{32}$").unwrap();
+    static ref SPAN_ID: Regex = Regex::new("^[a-fA-F0-9]{16}$").unwrap();
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+pub struct TraceId(pub String);
+
+impl FromValue for TraceId {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), mut meta) => {
+                if !TRACE_ID.is_match(&value) || value.bytes().all(|x| x == b'0') {
+                    meta.add_error(Error::invalid("not a valid trace id"));
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                } else {
+                    Annotated(Some(TraceId(value.to_ascii_lowercase())), meta)
+                }
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(Error::expected("trace id"));
+                meta.set_original_value(Some(value));
+                Annotated(None, meta)
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+pub struct SpanId(pub String);
+
+impl FromValue for SpanId {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), mut meta) => {
+                if !SPAN_ID.is_match(&value) || value.bytes().all(|x| x == b'0') {
+                    meta.add_error(Error::invalid("not a valid span id"));
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                } else {
+                    Annotated(Some(SpanId(value.to_ascii_lowercase())), meta)
+                }
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(Error::expected("span id"));
+                meta.set_original_value(Some(value));
+                Annotated(None, meta)
+            }
+        }
+    }
+}
+
+/// Trace context
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+pub struct TraceContext {
+    /// The trace ID.
+    pub trace_id: Annotated<TraceId>,
+
+    /// The ID of the span.
+    pub span_id: Annotated<SpanId>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties, retain = "true")]
+    pub other: Object<Value>,
+}
+
 /// A context describes environment info (e.g. device, os or browser).
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_context")]
@@ -189,6 +260,8 @@ pub enum Context {
     Browser(Box<BrowserContext>),
     /// Information about device's GPU.
     Gpu(Object<Value>),
+    /// Information related to Monitors feature.
+    Trace(Box<TraceContext>),
     /// Information related to Monitors feature.
     Monitor(Object<Value>),
     /// Information related to sessionstack plugin.
@@ -442,6 +515,47 @@ fn test_browser_context_roundtrip() {
 
     assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, context.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_trace_context_roundtrip() {
+    let json = r#"{
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+  "span_id": "fa90fdead5f74052",
+  "other": "value",
+  "type": "trace"
+}"#;
+    let context = Annotated::new(Context::Trace(Box::new(TraceContext {
+        trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+        span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        },
+    })));
+
+    assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, context.to_json_pretty().unwrap());
+}
+
+#[test]
+fn test_trace_context_normalization() {
+    let json = r#"{
+  "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+  "span_id": "FA90FDEAD5F74052",
+  "type": "trace"
+}"#;
+    let context = Annotated::new(Context::Trace(Box::new(TraceContext {
+        trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+        span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+        ..Default::default()
+    })));
+
+    assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
 }
 
 #[test]
