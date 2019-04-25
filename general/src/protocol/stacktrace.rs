@@ -10,6 +10,21 @@ pub struct Frame {
     #[metastructure(skip_serialization = "empty")]
     pub function: Annotated<String>,
 
+    /// An intelligently trimmed function name if applicable.
+    ///
+    /// If this has the same value as `function` it's best to be omitted.  This
+    /// exists because on many platforms the function itself contains additional
+    /// information like overload specifies or a lot of generics which can make
+    /// it exceed the maximum limit we provide for the field.  In those cases
+    /// then we cannot reliably trim down the function any more at a later point
+    /// because the more valuable information has been removed.
+    /// 
+    /// Because of this we have a second field which is supposed to contain just
+    /// the function name for such situations.
+    #[metastructure(max_chars = "symbol")]
+    #[metastructure(skip_serialization = "empty")]
+    pub function_name: Annotated<String>,
+
     /// Potentially mangled name of the symbol as it appears in an executable.
     ///
     /// This is different from a function name by generally being the mangled
@@ -148,8 +163,9 @@ pub struct Stacktrace {
 #[test]
 fn test_frame_roundtrip() {
     let json = r#"{
-  "function": "main",
-  "symbol": "_main",
+  "function": "main@8",
+  "function_name": "main",
+  "symbol": "_main@8",
   "module": "app",
   "package": "/my/app",
   "filename": "myfile.rs",
@@ -176,8 +192,9 @@ fn test_frame_roundtrip() {
   "other": "value"
 }"#;
     let frame = Annotated::new(Frame {
-        function: Annotated::new("main".to_string()),
-        symbol: Annotated::new("_main".to_string()),
+        function: Annotated::new("main@8".to_string()),
+        function_name: Annotated::new("main".to_string()),
+        symbol: Annotated::new("_main@8".to_string()),
         module: Annotated::new("app".to_string()),
         package: Annotated::new("/my/app".to_string()),
         filename: Annotated::new("myfile.rs".to_string()),
