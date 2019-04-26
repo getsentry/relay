@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.29
+
+- Added `function_name` field to frame.
+
 ## 0.4.28
 
 - Add missing context type for sessionstack.
