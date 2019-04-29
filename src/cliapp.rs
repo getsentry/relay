@@ -177,6 +177,11 @@ pub fn make_app() -> App<'static, 'static> {
                         .long("pii-config")
                         .value_name("PATH")
                         .help("The path to a PII processing config"),
+                )
+                .arg(
+                    Arg::with_name("store")
+                        .long("store")
+                        .help("Run through store normalization"),
                 ),
         )
         .subcommand(

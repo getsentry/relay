@@ -11,6 +11,7 @@ use semaphore_common::{Config, Credentials, LogError, MinimalConfig, RelayMode, 
 use semaphore_general::pii::{PiiConfig, PiiProcessor};
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::Event;
+use semaphore_general::store::StoreProcessor;
 use semaphore_general::types::Annotated;
 
 use crate::cliapp::make_app;
@@ -320,6 +321,11 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
         let mut processor = PiiProcessor::new(pii_config);
         process_value(&mut event, &mut processor, ProcessingState::root());
     };
+
+    if matches.is_present("store") {
+        let mut processor = StoreProcessor::new(Default::default(), None);
+        process_value(&mut event, &mut processor, ProcessingState::root());
+    }
 
     if matches.is_present("debug") {
         println!("{:#?}", event);
