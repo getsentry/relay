@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.30
+
+- Make exception messages/values larger to allow for foreign stacktrace data to be attached.
+
 ## 0.4.29
 
 - Added `function_name` field to frame.
