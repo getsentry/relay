@@ -10,7 +10,7 @@ pub struct Exception {
     pub ty: Annotated<String>,
 
     /// Human readable display value.
-    #[metastructure(max_chars = "summary")]
+    #[metastructure(max_chars = "message")]
     pub value: Annotated<JsonLenientString>,
 
     /// Module name of this exception.
