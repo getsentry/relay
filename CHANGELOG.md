@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.32
+
+- Removed `function_name` field from frame and added `raw_function`.
+
 ## 0.4.31
 
 - Add trace context type.
