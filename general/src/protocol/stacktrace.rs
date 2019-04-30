@@ -10,7 +10,7 @@ pub struct Frame {
     #[metastructure(skip_serialization = "empty")]
     pub function: Annotated<String>,
 
-    /// An intelligently trimmed function name if applicable.
+    /// A raw (but potentially truncated) function value.
     ///
     /// If this has the same value as `function` it's best to be omitted.  This
     /// exists because on many platforms the function itself contains additional
@@ -19,11 +19,14 @@ pub struct Frame {
     /// then we cannot reliably trim down the function any more at a later point
     /// because the more valuable information has been removed.
     ///
-    /// Because of this we have a second field which is supposed to contain just
-    /// the function name for such situations.
+    /// The logic to be applied is that an intelligently trimmed function name
+    /// should be stored in `function` and the value before trimming is stored
+    /// in this field instead.  However also this field will be capped at 256
+    /// characters at the moment which often means that not the entire original
+    /// value can be stored.
     #[metastructure(max_chars = "symbol")]
     #[metastructure(skip_serialization = "empty")]
-    pub function_name: Annotated<String>,
+    pub raw_function: Annotated<String>,
 
     /// Potentially mangled name of the symbol as it appears in an executable.
     ///
@@ -164,7 +167,7 @@ pub struct Stacktrace {
 fn test_frame_roundtrip() {
     let json = r#"{
   "function": "main@8",
-  "function_name": "main",
+  "raw_function": "main",
   "symbol": "_main@8",
   "module": "app",
   "package": "/my/app",
@@ -193,7 +196,7 @@ fn test_frame_roundtrip() {
 }"#;
     let frame = Annotated::new(Frame {
         function: Annotated::new("main@8".to_string()),
-        function_name: Annotated::new("main".to_string()),
+        raw_function: Annotated::new("main".to_string()),
         symbol: Annotated::new("_main@8".to_string()),
         module: Annotated::new("app".to_string()),
         package: Annotated::new("/my/app".to_string()),
