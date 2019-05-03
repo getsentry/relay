@@ -77,27 +77,26 @@ impl<'a> Processor for StoreProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        let action = ValueAction::Keep
+        let mut action = ValueAction::Keep
             // Convert legacy data structures to current format
             .and_then(|| legacy::LegacyProcessor.process_event(event, meta, state));
 
-        if self.config.is_renormalize.unwrap_or(false) {
-            return action;
+        if !self.config.is_renormalize.unwrap_or(false) {
+            action = action
+                // Check for required and non-empty values
+                .and_then(|| schema::SchemaProcessor.process_event(event, meta, state))
+                // Normalize data in all interfaces
+                .and_then(|| self.normalize.process_event(event, meta, state))
+                // Remove unknown attributes at every level
+                .and_then(|| remove_other::RemoveOtherProcessor.process_event(event, meta, state))
+                // Add event errors for top-level keys
+                .and_then(|| event_error::EmitEventErrors::new().process_event(event, meta, state));
         }
 
-        action
-            // Check for required and non-empty values
-            .and_then(|| schema::SchemaProcessor.process_event(event, meta, state))
-            // Normalize data in all interfaces
-            .and_then(|| self.normalize.process_event(event, meta, state))
-            // Remove unknown attributes at every level
-            .and_then(|| remove_other::RemoveOtherProcessor.process_event(event, meta, state))
-            // Add event errors for top-level keys
-            .and_then(|| event_error::EmitEventErrors::new().process_event(event, meta, state))
-            // Trim large strings and databags down
-            .and_then(|| match self.config.enable_trimming {
-                Some(false) => ValueAction::Keep,
-                _ => trimming::TrimmingProcessor::new().process_event(event, meta, state),
-            })
+        // Trim large strings and databags down
+        action.and_then(|| match self.config.enable_trimming {
+            Some(false) => ValueAction::Keep,
+            _ => trimming::TrimmingProcessor::new().process_event(event, meta, state),
+        })
     }
 }
