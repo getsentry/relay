@@ -264,8 +264,6 @@ pub enum Context {
     Trace(Box<TraceContext>),
     /// Information related to Monitors feature.
     Monitor(Object<Value>),
-    /// Information related to sessionstack plugin.
-    Sessionstack(Object<Value>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(Object<Value>),
