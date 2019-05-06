@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.33
+
+- Smaller protocol adjustments related to rolling out re-normalization in Rust.
+- Plugin-provided context types should now work properly again.
+
 ## 0.4.32
 
 - Removed `function_name` field from frame and added `raw_function`.
