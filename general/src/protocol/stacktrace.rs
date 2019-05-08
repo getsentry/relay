@@ -93,6 +93,10 @@ pub struct Frame {
     #[metastructure(pii = "true", bag_size = "medium")]
     pub vars: Annotated<FrameVars>,
 
+    /// Holds auxiliary per frame information.
+    #[metastructure(bag_size = "medium")]
+    pub data: Annotated<Object<Value>>,
+
     /// Start address of the containing code module (image).
     pub image_addr: Annotated<Addr>,
 
@@ -187,6 +191,9 @@ fn test_frame_roundtrip() {
   "vars": {
     "variable": "value"
   },
+  "data": {
+    "sourcemap": "https://example.com/index.js.map"
+  },
   "image_addr": "0x400",
   "instruction_addr": "0x404",
   "symbol_addr": "0x404",
@@ -216,6 +223,14 @@ fn test_frame_roundtrip() {
                 Annotated::new(Value::String("value".to_string())),
             );
             Annotated::new(vars.into())
+        },
+        data: {
+            let mut data = Object::new();
+            data.insert(
+                "sourcemap".to_string(),
+                Annotated::new(Value::String("https://example.com/index.js.map".to_string())),
+            );
+            Annotated::new(data.into())
         },
         image_addr: Annotated::new(Addr(0x400)),
         instruction_addr: Annotated::new(Addr(0x404)),
