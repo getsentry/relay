@@ -46,6 +46,9 @@ pub struct StoreConfig {
     /// When `true`, it is assumed the input already ran through normalization with
     /// is_renormalize=false. `None` equals false.
     pub is_renormalize: Option<bool>,
+
+    /// Overrides the default flag for other removal.
+    pub remove_other: Option<bool>,
 }
 
 /// The processor that normalizes events for store.
@@ -81,14 +84,25 @@ impl<'a> Processor for StoreProcessor<'a> {
             // Convert legacy data structures to current format
             .and_then(|| legacy::LegacyProcessor.process_event(event, meta, state));
 
-        if !self.config.is_renormalize.unwrap_or(false) {
+        let is_renormalize = self.config.is_renormalize.unwrap_or(false);
+        let remove_other = self.config.remove_other.unwrap_or(!is_renormalize);
+
+        if !is_renormalize {
             action = action
                 // Check for required and non-empty values
                 .and_then(|| schema::SchemaProcessor.process_event(event, meta, state))
                 // Normalize data in all interfaces
-                .and_then(|| self.normalize.process_event(event, meta, state))
+                .and_then(|| self.normalize.process_event(event, meta, state));
+        }
+
+        if remove_other {
+            action = action
                 // Remove unknown attributes at every level
-                .and_then(|| remove_other::RemoveOtherProcessor.process_event(event, meta, state))
+                .and_then(|| remove_other::RemoveOtherProcessor.process_event(event, meta, state));
+        }
+
+        if !is_renormalize {
+            action = action
                 // Add event errors for top-level keys
                 .and_then(|| event_error::EmitEventErrors::new().process_event(event, meta, state));
         }
