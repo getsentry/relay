@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.34
+
+- Added `data` attribute to frames.
+- Added a way to override other trimming behavior in Python normalizer binding.
+
 ## 0.4.33
 
 - Smaller protocol adjustments related to rolling out re-normalization in Rust.
