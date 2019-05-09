@@ -93,6 +93,9 @@ pub struct Frame {
     #[metastructure(pii = "true", bag_size = "medium")]
     pub vars: Annotated<FrameVars>,
 
+    /// Auxiliary information about the frame that is platform specific.
+    pub data: Annotated<FrameData>,
+
     /// Start address of the containing code module (image).
     pub image_addr: Annotated<Addr>,
 
@@ -115,8 +118,30 @@ pub struct Frame {
     pub other: Object<Value>,
 }
 
+/// Frame local variables.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<Value>);
+
+/// Additional frame data information.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+pub struct FrameData {
+    /// A reference to the sourcemap used.
+    #[metastructure(max_chars = "path")]
+    sourcemap: Annotated<String>,
+    /// The original function name before it was resolved.
+    #[metastructure(max_chars = "symbol")]
+    orig_function: Annotated<String>,
+    /// The original minified filename.
+    #[metastructure(max_chars = "path")]
+    orig_filename: Annotated<String>,
+    /// The original line number.
+    orig_lineno: Annotated<u64>,
+    /// The original column number.
+    orig_colno: Annotated<u64>,
+    /// Additional keys not handled by this protocol.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
 
 impl From<Object<Value>> for FrameVars {
     fn from(value: Object<Value>) -> Self {
@@ -187,6 +212,9 @@ fn test_frame_roundtrip() {
   "vars": {
     "variable": "value"
   },
+  "data": {
+    "sourcemap": "http://example.com/invalid.map"
+  },
   "image_addr": "0x400",
   "instruction_addr": "0x404",
   "symbol_addr": "0x404",
@@ -217,6 +245,10 @@ fn test_frame_roundtrip() {
             );
             Annotated::new(vars.into())
         },
+        data: Annotated::new(FrameData {
+            sourcemap: Annotated::new("http://example.com/invalid.map".to_string()),
+            ..Default::default()
+        }),
         image_addr: Annotated::new(Addr(0x400)),
         instruction_addr: Annotated::new(Addr(0x404)),
         symbol_addr: Annotated::new(Addr(0x404)),
