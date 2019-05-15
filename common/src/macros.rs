@@ -49,6 +49,9 @@ macro_rules! impl_str_serialization {
     };
 }
 
+/// Same as `try` but to be used in functions that return `Box<Future>` instead of `Result`.
+///
+/// Useful when calling synchronous (but cheap enough) functions in async code.
 #[macro_export]
 macro_rules! tryf {
     ($e:expr) => {

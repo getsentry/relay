@@ -12,7 +12,7 @@ impl FormatArgs for Value {
         match self {
             Value::Array(array) => Ok(array
                 .get(index)
-                .and_then(|a| a.value())
+                .and_then(Annotated::value)
                 .map(|v| v as Argument<'_>)),
             _ => Err(()),
         }
@@ -22,7 +22,7 @@ impl FormatArgs for Value {
         match self {
             Value::Object(object) => Ok(object
                 .get(key)
-                .and_then(|a| a.value())
+                .and_then(Annotated::value)
                 .map(|v| v as Argument<'_>)),
             _ => Err(()),
         }

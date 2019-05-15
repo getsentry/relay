@@ -197,7 +197,7 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
 
     fn next(&mut self) -> Option<RuleRef<'a>> {
         'outer: loop {
-            if let Some(&rv) = self.pending_refs.as_mut().and_then(|x| x.next()) {
+            if let Some(&rv) = self.pending_refs.as_mut().and_then(Iterator::next) {
                 return Some(rv);
             }
 
@@ -608,7 +608,7 @@ fn insert_replacement_chunks(rule: RuleRef<'_>, text: &str, output: &mut Vec<Chu
                 text: Cow::Owned(hash_value(
                     hash.algorithm,
                     text,
-                    hash.key.as_ref().map(|x| x.as_str()),
+                    hash.key.as_ref().map(String::as_str),
                     rule.config,
                 )),
             });
@@ -634,7 +634,7 @@ fn hash_value(
             .vars
             .hash_key
             .as_ref()
-            .map(|x| x.as_str())
+            .map(String::as_str)
             .unwrap_or("")
     });
     macro_rules! hmac {

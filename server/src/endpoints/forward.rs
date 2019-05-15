@@ -5,7 +5,7 @@
 
 use ::actix::prelude::*;
 use actix_web::client::ClientRequest;
-use actix_web::http::{header, header::HeaderName, ContentEncoding};
+use actix_web::http::{header, header::HeaderName, uri::PathAndQuery, ContentEncoding};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use futures::prelude::*;
 use lazy_static::lazy_static;
@@ -72,7 +72,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
     let path_and_query = request
         .uri()
         .path_and_query()
-        .map(actix_web::http::uri::PathAndQuery::as_str)
+        .map(PathAndQuery::as_str)
         .unwrap_or("");
 
     let mut forwarded_request_builder = ClientRequest::build();

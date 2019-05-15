@@ -67,7 +67,8 @@ impl FromValue for LogEntry {
             // historically JSONified this field.
             Annotated(Some(Value::Bool(false)), _) => Annotated(None, Default::default()),
             x => Annotated::new(LogEntry {
-                formatted: JsonLenientString::from_value(x).map_value(|x| x.into_inner()),
+                formatted: JsonLenientString::from_value(x)
+                    .map_value(JsonLenientString::into_inner),
                 ..Default::default()
             }),
         }

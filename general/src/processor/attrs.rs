@@ -630,13 +630,13 @@ impl<'a> Path<'a> {
     /// Returns the current key if there is one
     #[inline]
     pub fn key(&self) -> Option<&str> {
-        self.0.path_item.as_ref().and_then(|value| value.key())
+        self.0.path_item.as_ref().and_then(PathItem::key)
     }
 
     /// Returns the current index if there is one
     #[inline]
     pub fn index(&self) -> Option<usize> {
-        self.0.path_item.as_ref().and_then(|value| value.index())
+        self.0.path_item.as_ref().and_then(PathItem::index)
     }
 
     /// Checks if a path matches given selector.

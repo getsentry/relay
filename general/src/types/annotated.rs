@@ -42,12 +42,12 @@ impl MetaTree {
 
     /// Checks if the tree has any errors.
     pub fn has_errors(&self) -> bool {
-        self.meta.has_errors() || self.children.values().any(|v| v.has_errors())
+        self.meta.has_errors() || self.children.values().any(MetaTree::has_errors)
     }
 
     /// Checks if the tree is empty.
     pub fn is_empty(&self) -> bool {
-        self.meta.is_empty() && self.children.values().all(|v| v.is_empty())
+        self.meta.is_empty() && self.children.values().all(MetaTree::is_empty)
     }
 }
 

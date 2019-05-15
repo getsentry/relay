@@ -140,7 +140,7 @@ impl<'a> NormalizeProcessor<'a> {
         }
 
         // Fix case where legacy apps pass environment as a tag instead of a top level key
-        if let Some(tag) = tags.remove("environment").and_then(|tag| tag.into_value()) {
+        if let Some(tag) = tags.remove("environment").and_then(Annotated::into_value) {
             environment.get_or_insert_with(|| tag);
         }
 
@@ -230,7 +230,7 @@ impl<'a> NormalizeProcessor<'a> {
             .value()
             .and_then(|request| request.env.value())
             .and_then(|env| env.get("REMOTE_ADDR"))
-            .and_then(|value| value.as_str())
+            .and_then(Annotated::<Value>::as_str)
             .and_then(|ip| IpAddr::parse(ip).ok());
 
         // If there is no User ip_address, update it either from the Http interface

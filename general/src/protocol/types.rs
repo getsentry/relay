@@ -174,7 +174,7 @@ where
         let key = key.as_ref();
         self.0
             .iter()
-            .filter_map(|annotated| annotated.value())
+            .filter_map(Annotated::value)
             .position(|entry| entry.as_pair().0.as_str() == Some(key))
     }
 

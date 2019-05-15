@@ -208,7 +208,7 @@ fn derive_enum_metastructure(
                         match crate::types::Object::<crate::types::Value>::from_value(__value) {
                             crate::types::Annotated(Some(mut __object), __meta) => {
                                 let __type = __object.remove(#tag_key_str);
-                                match __type.as_ref().and_then(|__type| __type.0.as_ref()).and_then(|__type| __type.as_str()) {
+                                match __type.as_ref().and_then(|__type| __type.0.as_ref()).and_then(Value::as_str) {
                                     #from_value_body
                                 }
                             }
