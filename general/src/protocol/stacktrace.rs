@@ -173,7 +173,7 @@ impl FromValue for FrameVars {
 
 /// Holds information about an entirey stacktrace.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-#[metastructure(process_func = "process_raw_stacktrace", value_type = "RawStacktrace")]
+#[metastructure(process_func = "process_raw_stacktrace", value_type = "Stacktrace")]
 pub struct RawStacktrace {
     #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
     pub frames: Annotated<Array<Frame>>,
