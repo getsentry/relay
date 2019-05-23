@@ -456,7 +456,7 @@ fn test_tags_stripping() {
 fn test_databag_state_leak() {
     use std::iter::repeat;
 
-    use crate::protocol::{Breadcrumb, Event, Exception, Frame, Stacktrace, Values};
+    use crate::protocol::{Breadcrumb, Event, Exception, Frame, RawStacktrace, Values};
     use crate::types::{Map, Value};
 
     let event = Annotated::new(Event {
@@ -479,7 +479,7 @@ fn test_databag_state_leak() {
             ty: Annotated::new("TypeError".to_string()),
             value: Annotated::new("important error message".to_string().into()),
             stacktrace: Annotated::new(
-                Stacktrace {
+                RawStacktrace {
                     frames: Annotated::new(
                         repeat(Annotated::new(Frame {
                             function: Annotated::new("importantFunctionName".to_string()),

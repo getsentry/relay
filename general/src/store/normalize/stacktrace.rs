@@ -2,7 +2,7 @@ use std::mem;
 
 use url::Url;
 
-use crate::protocol::{Frame, Stacktrace};
+use crate::protocol::{Frame, RawStacktrace};
 use crate::types::{Annotated, Array, Empty, Meta};
 
 fn is_url(filename: &str) -> bool {
@@ -12,7 +12,7 @@ fn is_url(filename: &str) -> bool {
         || filename.starts_with("applewebdata:")
 }
 
-pub fn process_non_raw_stacktrace(stacktrace: &mut Stacktrace, _meta: &mut Meta) {
+pub fn process_stacktrace(stacktrace: &mut RawStacktrace, _meta: &mut Meta) {
     // This processing is only done for non raw frames (i.e. not for exception.raw_stacktrace).
     if let Some(frames) = stacktrace.frames.value_mut() {
         for frame in frames.iter_mut() {

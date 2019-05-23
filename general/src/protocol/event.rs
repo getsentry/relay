@@ -11,7 +11,7 @@ use chrono::TimeZone;
 use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, LenientString, Level,
-    LogEntry, NonRawStacktrace, Request, Tags, TemplateInfo, Thread, User, Values,
+    LogEntry, Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
@@ -298,7 +298,7 @@ pub struct Event {
 
     /// Deprecated event stacktrace.
     #[metastructure(skip_serialization = "empty")]
-    pub stacktrace: Annotated<NonRawStacktrace>,
+    pub stacktrace: Annotated<Stacktrace>,
 
     /// Simplified template error location information.
     #[metastructure(legacy_alias = "sentry.interfaces.Template")]

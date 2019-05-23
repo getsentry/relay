@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, LogEntry, NonRawStacktrace, Request, Stacktrace, Tags, User,
+    Frame, IpAddr, Level, LogEntry, RawStacktrace, Request, Stacktrace, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -500,9 +500,9 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         ValueAction::Keep
     }
 
-    fn process_stacktrace(
+    fn process_raw_stacktrace(
         &mut self,
-        stacktrace: &mut Stacktrace,
+        stacktrace: &mut RawStacktrace,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
@@ -524,13 +524,13 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         ValueAction::Keep
     }
 
-    fn process_non_raw_stacktrace(
+    fn process_stacktrace(
         &mut self,
-        stacktrace: &mut NonRawStacktrace,
+        stacktrace: &mut Stacktrace,
         meta: &mut Meta,
         _state: &ProcessingState<'_>,
     ) -> ValueAction {
-        stacktrace::process_non_raw_stacktrace(&mut stacktrace.0, meta);
+        stacktrace::process_stacktrace(&mut stacktrace.0, meta);
         ValueAction::Keep
     }
 
@@ -1097,14 +1097,14 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
             ..Exception::default()
         })])),
         stacktrace: Annotated::new(
-            Stacktrace {
+            RawStacktrace {
                 frames: Annotated::new(vec![Annotated::new(Frame {
                     module: Annotated::new("MyModule".to_string()),
                     filename: Annotated::new("MyFilename".to_string()),
                     function: Annotated::new("Void FooBar()".to_string()),
                     ..Frame::default()
                 })]),
-                ..Stacktrace::default()
+                ..RawStacktrace::default()
             }
             .into(),
         ),
@@ -1115,7 +1115,7 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let expected = Annotated::new(
-        Stacktrace {
+        RawStacktrace {
             frames: Annotated::new(vec![Annotated::new(Frame {
                 module: Annotated::new("MyModule".to_string()),
                 filename: Annotated::new("MyFilename".to_string()),
@@ -1123,7 +1123,7 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
                 function: Annotated::new("Void FooBar()".to_string()),
                 ..Frame::default()
             })]),
-            ..Stacktrace::default()
+            ..RawStacktrace::default()
         }
         .into(),
     );
