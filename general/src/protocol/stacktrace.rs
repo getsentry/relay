@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use crate::protocol::{Addr, RegVal};
 use crate::types::{Annotated, Array, FromValue, Object, Value};
 
@@ -186,6 +188,37 @@ pub struct Stacktrace {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
+}
+
+/// Newtype to distinguish `raw_stacktrace` attributes from the rest.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_non_raw_stacktrace")]
+pub struct NonRawStacktrace(pub Stacktrace);
+
+impl Deref for NonRawStacktrace {
+    type Target = Stacktrace;
+
+    fn deref(&self) -> &Stacktrace {
+        &self.0
+    }
+}
+
+impl DerefMut for NonRawStacktrace {
+    fn deref_mut(&mut self) -> &mut Stacktrace {
+        &mut self.0
+    }
+}
+
+impl From<Stacktrace> for NonRawStacktrace {
+    fn from(stacktrace: Stacktrace) -> NonRawStacktrace {
+        NonRawStacktrace(stacktrace)
+    }
+}
+
+impl From<NonRawStacktrace> for Stacktrace {
+    fn from(stacktrace: NonRawStacktrace) -> Stacktrace {
+        stacktrace.0
+    }
 }
 
 #[test]

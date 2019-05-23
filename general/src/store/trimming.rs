@@ -478,18 +478,21 @@ fn test_databag_state_leak() {
         exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
             ty: Annotated::new("TypeError".to_string()),
             value: Annotated::new("important error message".to_string().into()),
-            stacktrace: Annotated::new(Stacktrace {
-                frames: Annotated::new(
-                    repeat(Annotated::new(Frame {
-                        function: Annotated::new("importantFunctionName".to_string()),
-                        symbol: Annotated::new("important_symbol".to_string()),
-                        ..Default::default()
-                    }))
-                    .take(200)
-                    .collect(),
-                ),
-                ..Default::default()
-            }),
+            stacktrace: Annotated::new(
+                Stacktrace {
+                    frames: Annotated::new(
+                        repeat(Annotated::new(Frame {
+                            function: Annotated::new("importantFunctionName".to_string()),
+                            symbol: Annotated::new("important_symbol".to_string()),
+                            ..Default::default()
+                        }))
+                        .take(200)
+                        .collect(),
+                    ),
+                    ..Default::default()
+                }
+                .into(),
+            ),
             ..Default::default()
         })])),
         ..Default::default()

@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, LogEntry, Request, Stacktrace, Tags, User,
+    Frame, IpAddr, Level, LogEntry, NonRawStacktrace, Request, Stacktrace, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -325,10 +325,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             event.client_sdk.set_value(self.get_sdk_info());
         }
 
-        event
-            .stacktrace
-            .apply(stacktrace::process_non_raw_stacktrace);
-
         // Normalize connected attributes and interfaces
         self.normalize_release_dist(event);
         self.normalize_timestamps(event);
@@ -440,10 +436,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     ) -> ValueAction {
         exception.process_child_values(self, state);
 
-        exception
-            .stacktrace
-            .apply(stacktrace::process_non_raw_stacktrace);
-
         lazy_static! {
             static ref TYPE_VALUE_RE: Regex = Regex::new(r"^(\w+):(.*)$").unwrap();
         }
@@ -529,6 +521,16 @@ impl<'a> Processor for NormalizeProcessor<'a> {
                 .apply(|frames, _meta| stacktrace::slim_frame_data(frames, limit));
         }
 
+        ValueAction::Keep
+    }
+
+    fn process_non_raw_stacktrace(
+        &mut self,
+        stacktrace: &mut NonRawStacktrace,
+        meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ValueAction {
+        stacktrace::process_non_raw_stacktrace(&mut stacktrace.0, meta);
         ValueAction::Keep
     }
 
@@ -1094,31 +1096,37 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
             value: Annotated::new("hi".to_string().into()),
             ..Exception::default()
         })])),
-        stacktrace: Annotated::new(Stacktrace {
-            frames: Annotated::new(vec![Annotated::new(Frame {
-                module: Annotated::new("MyModule".to_string()),
-                filename: Annotated::new("MyFilename".to_string()),
-                function: Annotated::new("Void FooBar()".to_string()),
-                ..Frame::default()
-            })]),
-            ..Stacktrace::default()
-        }),
+        stacktrace: Annotated::new(
+            Stacktrace {
+                frames: Annotated::new(vec![Annotated::new(Frame {
+                    module: Annotated::new("MyModule".to_string()),
+                    filename: Annotated::new("MyFilename".to_string()),
+                    function: Annotated::new("Void FooBar()".to_string()),
+                    ..Frame::default()
+                })]),
+                ..Stacktrace::default()
+            }
+            .into(),
+        ),
         ..Event::default()
     });
 
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root());
 
-    let expected = Annotated::new(Stacktrace {
-        frames: Annotated::new(vec![Annotated::new(Frame {
-            module: Annotated::new("MyModule".to_string()),
-            filename: Annotated::new("MyFilename".to_string()),
-            abs_path: Annotated::new("MyFilename".to_string()),
-            function: Annotated::new("Void FooBar()".to_string()),
-            ..Frame::default()
-        })]),
-        ..Stacktrace::default()
-    });
+    let expected = Annotated::new(
+        Stacktrace {
+            frames: Annotated::new(vec![Annotated::new(Frame {
+                module: Annotated::new("MyModule".to_string()),
+                filename: Annotated::new("MyFilename".to_string()),
+                abs_path: Annotated::new("MyFilename".to_string()),
+                function: Annotated::new("Void FooBar()".to_string()),
+                ..Frame::default()
+            })]),
+            ..Stacktrace::default()
+        }
+        .into(),
+    );
 
     assert_eq_dbg!(
         event

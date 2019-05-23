@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::processor::ProcessValue;
+use crate::protocol::NonRawStacktrace;
 use crate::protocol::Stacktrace;
 use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value};
 
@@ -80,7 +81,7 @@ pub struct Thread {
 
     /// Stack trace containing frames of this exception.
     #[metastructure(skip_serialization = "empty")]
-    pub stacktrace: Annotated<Stacktrace>,
+    pub stacktrace: Annotated<NonRawStacktrace>,
 
     /// Optional unprocessed stack trace.
     #[metastructure(skip_serialization = "empty")]
