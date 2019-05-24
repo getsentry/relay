@@ -77,8 +77,8 @@ impl Value {
                 } else if let Some(val) = num.as_f64() {
                     Value::F64(val)
                 } else {
-                    /// NB: Without the "arbitrary_precision" feature, serde_json's number will
-                    /// always be one of the above.
+                    // NB: Without the "arbitrary_precision" feature, serde_json's number will
+                    // always be one of the above.
                     unreachable!()
                 }
             }
