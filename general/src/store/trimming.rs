@@ -220,13 +220,16 @@ impl Processor for TrimmingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        if let Value::Array(_) | Value::Object(_) = value {
-            if self.remaining_bag_depth(state) == Some(1) {
-                if let Ok(x) = serde_json::to_string(&value) {
-                    // Error case should not be possible
-                    *value = Value::String(x);
+        match value {
+            Value::Array(_) | Value::Object(_) => {
+                if self.remaining_bag_depth(state) == Some(1) {
+                    if let Ok(x) = serde_json::to_string(&value) {
+                        // Error case should not be possible
+                        *value = Value::String(x);
+                    }
                 }
             }
+            _ => (),
         }
 
         value.process_child_values(self, state);
