@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.35
+
+- Fix bug where thread's stacktraces were not normalized.
+
 ## 0.4.34
 
 - Added `data` attribute to frames.
