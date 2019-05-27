@@ -220,11 +220,16 @@ impl Processor for TrimmingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        if self.remaining_bag_depth(state) == Some(1) {
-            if let Ok(x) = serde_json::to_string(&value) {
-                // Error case should not be possible
-                *value = Value::String(x);
+        match value {
+            Value::Array(_) | Value::Object(_) => {
+                if self.remaining_bag_depth(state) == Some(1) {
+                    if let Ok(x) = serde_json::to_string(&value) {
+                        // Error case should not be possible
+                        *value = Value::String(x);
+                    }
+                }
             }
+            _ => (),
         }
 
         value.process_child_values(self, state);
@@ -368,6 +373,11 @@ fn test_databag_stripping() {
             "key_2".to_string(),
             make_nested_object(8).map_value(ExtraValue),
         );
+        map.insert(
+            "key_3".to_string(),
+            // innermost key (string) is entering json stringify codepath
+            make_nested_object(5).map_value(ExtraValue),
+        );
         map
     });
     let mut event = Annotated::new(Event {
@@ -377,11 +387,35 @@ fn test_databag_stripping() {
 
     process_value(&mut event, &mut processor, ProcessingState::root());
     let stripped_extra = &event.value().unwrap().extra;
-    let json = stripped_extra.to_json().unwrap();
+    let json = stripped_extra.to_json_pretty().unwrap();
 
     assert_eq_str!(
         json,
-        r#"{"key_1":"value 1","key_2":{"key8":{"key7":{"key6":{"key5":{"key4":"{\"key3\":{\"key2\":{\"key1\":\"max depth\"}}}"}}}}}}"#
+        r#"{
+  "key_1": "value 1",
+  "key_2": {
+    "key8": {
+      "key7": {
+        "key6": {
+          "key5": {
+            "key4": "{\"key3\":{\"key2\":{\"key1\":\"max depth\"}}}"
+          }
+        }
+      }
+    }
+  },
+  "key_3": {
+    "key5": {
+      "key4": {
+        "key3": {
+          "key2": {
+            "key1": "max depth"
+          }
+        }
+      }
+    }
+  }
+}"#
     );
 }
 

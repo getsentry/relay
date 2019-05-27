@@ -1,5 +1,5 @@
 #![recursion_limit = "256"]
-#![allow(clippy::cyclomatic_complexity)]
+#![allow(clippy::cognitive_complexity)]
 
 mod empty;
 mod process;
