@@ -1,4 +1,4 @@
-use crate::protocol::{JsonLenientString, Mechanism, Stacktrace, ThreadId};
+use crate::protocol::{JsonLenientString, Mechanism, RawStacktrace, Stacktrace, ThreadId};
 use crate::types::{Annotated, Object, Value};
 
 /// A single exception.
@@ -26,7 +26,7 @@ pub struct Exception {
 
     /// Optional unprocessed stack trace.
     #[metastructure(skip_serialization = "empty")]
-    pub raw_stacktrace: Annotated<Stacktrace>,
+    pub raw_stacktrace: Annotated<RawStacktrace>,
 
     /// Identifier of the thread this exception occurred in.
     #[metastructure(max_chars = "enumlike")]

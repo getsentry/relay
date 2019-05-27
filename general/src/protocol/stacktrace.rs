@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use crate::protocol::{Addr, RegVal};
 use crate::types::{Annotated, Array, FromValue, Object, Value};
 
@@ -171,8 +173,8 @@ impl FromValue for FrameVars {
 
 /// Holds information about an entirey stacktrace.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-#[metastructure(process_func = "process_stacktrace", value_type = "Stacktrace")]
-pub struct Stacktrace {
+#[metastructure(process_func = "process_raw_stacktrace", value_type = "Stacktrace")]
+pub struct RawStacktrace {
     #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
     pub frames: Annotated<Array<Frame>>,
 
@@ -186,6 +188,37 @@ pub struct Stacktrace {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
+}
+
+/// Newtype to distinguish `raw_stacktrace` attributes from the rest.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_stacktrace")]
+pub struct Stacktrace(pub RawStacktrace);
+
+impl Deref for Stacktrace {
+    type Target = RawStacktrace;
+
+    fn deref(&self) -> &RawStacktrace {
+        &self.0
+    }
+}
+
+impl DerefMut for Stacktrace {
+    fn deref_mut(&mut self) -> &mut RawStacktrace {
+        &mut self.0
+    }
+}
+
+impl From<RawStacktrace> for Stacktrace {
+    fn from(stacktrace: RawStacktrace) -> Stacktrace {
+        Stacktrace(stacktrace)
+    }
+}
+
+impl From<Stacktrace> for RawStacktrace {
+    fn from(stacktrace: Stacktrace) -> RawStacktrace {
+        stacktrace.0
+    }
 }
 
 #[test]
@@ -294,7 +327,7 @@ fn test_stacktrace_roundtrip() {
   "lang": "rust",
   "other": "value"
 }"#;
-    let stack = Annotated::new(Stacktrace {
+    let stack = Annotated::new(RawStacktrace {
         frames: Annotated::new(vec![Annotated::new(Frame {
             function: Annotated::new("foobar".to_string()),
             ..Default::default()
@@ -331,7 +364,7 @@ fn test_stacktrace_default_values() {
   ]
 }"#;
 
-    let stack = Annotated::new(Stacktrace {
+    let stack = Annotated::new(RawStacktrace {
         frames: Annotated::new(vec![Annotated::new(Frame::default())]),
         ..Default::default()
     });

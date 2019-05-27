@@ -34,7 +34,7 @@ pub use self::fingerprint::Fingerprint;
 pub use self::logentry::LogEntry;
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
 pub use self::request::{Cookies, HeaderName, Headers, Query, Request};
-pub use self::stacktrace::{Frame, FrameData, FrameVars, Stacktrace};
+pub use self::stacktrace::{Frame, FrameData, FrameVars, RawStacktrace, Stacktrace};
 pub use self::tags::{TagEntry, Tags};
 pub use self::templateinfo::TemplateInfo;
 pub use self::thread::{Thread, ThreadId};

@@ -266,14 +266,14 @@ mod tests {
 
     #[test]
     fn test_stacktrace_missing_attribute() {
-        use crate::protocol::Stacktrace;
+        use crate::protocol::RawStacktrace;
         use crate::types::ErrorKind;
 
-        let mut stack = Annotated::new(Stacktrace::default());
+        let mut stack = Annotated::new(RawStacktrace::default());
 
         process_value(&mut stack, &mut SchemaProcessor, ProcessingState::root());
 
-        let expected = Annotated::new(Stacktrace {
+        let expected = Annotated::new(RawStacktrace {
             frames: Annotated::from_error(ErrorKind::MissingAttribute, None),
             ..Default::default()
         });
