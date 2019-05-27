@@ -3,6 +3,7 @@
 ## 0.4.35
 
 - Fix bug where thread's stacktraces were not normalized.
+- Fix bug where a string at max depth of a databag was stringified again.
 
 ## 0.4.34
 
