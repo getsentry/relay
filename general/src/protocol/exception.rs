@@ -19,7 +19,7 @@ pub struct Exception {
 
     /// Stack trace containing frames of this exception.
     #[metastructure(
-        legacy_alias = "sentry.interfaces.RawStacktrace",
+        legacy_alias = "sentry.interfaces.Stacktrace",
         skip_serialization = "empty"
     )]
     pub stacktrace: Annotated<Stacktrace>,
