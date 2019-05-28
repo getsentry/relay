@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.36
+
+- Add new .NET versions for context normalization.
+
 ## 0.4.35
 
 - Fix bug where thread's stacktraces were not normalized.
