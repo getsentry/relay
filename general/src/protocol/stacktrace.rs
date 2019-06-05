@@ -140,6 +140,15 @@ pub struct FrameData {
     orig_lineno: Annotated<u64>,
     /// The original column number.
     orig_colno: Annotated<u64>,
+    /// The original value of the in_app flag before grouping enhancers ran.
+    /// 
+    /// Because we need to handle more cases the following values are used:
+    /// 
+    /// - missing / `null`: information not available
+    /// - `-1`: in_app was set to `null`
+    /// - `0`: in_app was set to `false`
+    /// - `1`: in_app was set to `true`
+    orig_in_app: Annotated<i64>,
     /// Additional keys not handled by this protocol.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
