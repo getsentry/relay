@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.37
+
+- Added `orig_in_app` to frame data.
+
 ## 0.4.36
 
 - Add new .NET versions for context normalization.
