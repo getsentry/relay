@@ -141,9 +141,9 @@ pub struct FrameData {
     /// The original column number.
     orig_colno: Annotated<u64>,
     /// The original value of the in_app flag before grouping enhancers ran.
-    /// 
+    ///
     /// Because we need to handle more cases the following values are used:
-    /// 
+    ///
     /// - missing / `null`: information not available
     /// - `-1`: in_app was set to `null`
     /// - `0`: in_app was set to `false`
