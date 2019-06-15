@@ -231,6 +231,9 @@ pub struct Event {
     /// Timestamp when the event was created.
     pub timestamp: Annotated<DateTime<Utc>>,
 
+    /// Timestamp when the event has started (relevant for event type = "transaction")
+    pub start_timestamp: Annotated<DateTime<Utc>>,
+
     /// Timestamp when the event has been received by Sentry.
     pub received: Annotated<DateTime<Utc>>,
 
