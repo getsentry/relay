@@ -196,6 +196,10 @@ impl<'a> NormalizeProcessor<'a> {
 
     /// Infers the `EventType` from the event's interfaces.
     fn infer_event_type(&self, event: &Event) -> EventType {
+        if let Some(ty) = event.ty.value() {
+            return ty;
+        }
+
         // port of src/sentry/eventtypes
         //
         // the SDKs currently do not describe event types, and we must infer
@@ -218,9 +222,6 @@ impl<'a> NormalizeProcessor<'a> {
             EventType::ExpectCT
         } else if event.expectstaple.value().is_some() {
             EventType::ExpectStaple
-        } else if event.ty.value() == Some(&EventType::Transaction) {
-            // This is the only event type that we want to allow SDKs to set.
-            EventType::Transaction
         } else {
             EventType::Default
         }
