@@ -218,6 +218,9 @@ impl<'a> NormalizeProcessor<'a> {
             EventType::ExpectCT
         } else if event.expectstaple.value().is_some() {
             EventType::ExpectStaple
+        } else if event.ty.value() == Some(&EventType::Transaction) {
+            // This is the only event type that we want to allow SDKs to set.
+            EventType::Transaction
         } else {
             EventType::Default
         }

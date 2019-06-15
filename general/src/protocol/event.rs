@@ -49,7 +49,7 @@ pub enum EventType {
     Hpkp,
     ExpectCT,
     ExpectStaple,
-    None,
+    Transaction,
 }
 
 /// An error used when parsing `EventType`.
@@ -74,7 +74,7 @@ impl FromStr for EventType {
             "hpkp" => EventType::Hpkp,
             "expectct" => EventType::ExpectCT,
             "expectstaple" => EventType::ExpectStaple,
-            "none" => EventType::None,
+            "transaction" => EventType::Transaction,
             _ => return Err(ParseEventTypeError),
         })
     }
@@ -89,7 +89,7 @@ impl fmt::Display for EventType {
             EventType::Hpkp => write!(f, "hpkp"),
             EventType::ExpectCT => write!(f, "expectct"),
             EventType::ExpectStaple => write!(f, "expectstaple"),
-            EventType::None => write!(f, "none"),
+            EventType::Transaction=> write!(f, "transaction"),
         }
     }
 }
