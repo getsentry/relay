@@ -89,7 +89,7 @@ impl fmt::Display for EventType {
             EventType::Hpkp => write!(f, "hpkp"),
             EventType::ExpectCT => write!(f, "expectct"),
             EventType::ExpectStaple => write!(f, "expectstaple"),
-            EventType::Transaction=> write!(f, "transaction"),
+            EventType::Transaction => write!(f, "transaction"),
         }
     }
 }
