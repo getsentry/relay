@@ -197,7 +197,7 @@ impl<'a> NormalizeProcessor<'a> {
     /// Infers the `EventType` from the event's interfaces.
     fn infer_event_type(&self, event: &Event) -> EventType {
         if let Some(ty) = event.ty.value() {
-            return ty;
+            return *ty;
         }
 
         // port of src/sentry/eventtypes
