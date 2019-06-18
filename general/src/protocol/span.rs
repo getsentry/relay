@@ -3,29 +3,36 @@ use chrono::{DateTime, Utc};
 use crate::protocol::{SpanId, TraceId};
 use crate::types::{Annotated, Object, Value};
 
-// TODO typing ( union of predefined types and custom 'string' types)
+/// TODO typing ( union of predefined types and custom 'string' types)
 type OperationType = String;
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct Span {
     /// Timestamp when the span was ended.
+    #[metastructure(required = "true")]
     pub timestamp: Annotated<DateTime<Utc>>,
 
     /// Timestamp when the span started
+    #[metastructure(required = "true")]
     pub start_timestamp: Annotated<DateTime<Utc>>,
 
     /// Human readable description of a span (e.g. method URL)
+    #[metastructure(max_chars = "summary")]
     pub description: Annotated<String>,
 
     /// span type
+    #[metastructure(max_chars = "enumlike")]
     pub op: Annotated<OperationType>,
 
     /// the span id
+    #[metastructure(required = "true")]
     pub span_id: Annotated<SpanId>,
 
     /// the trace id
+    #[metastructure(required = "true")]
     pub trace_id: Annotated<TraceId>,
 
+    // TODO remove retain when the api stabilizes 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
