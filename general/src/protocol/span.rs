@@ -35,7 +35,7 @@ pub struct Span {
     #[metastructure(required = "true")]
     pub trace_id: Annotated<TraceId>,
 
-    // TODO remove retain when the api stabilizes 
+    // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
