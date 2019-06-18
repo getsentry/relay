@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.38
+
+- Added typed spans to Event.
+
 ## 0.4.37
 
 - Added `orig_in_app` to frame data.
