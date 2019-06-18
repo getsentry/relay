@@ -3,8 +3,11 @@ use chrono::{DateTime, Utc};
 use crate::protocol::{SpanId, TraceId};
 use crate::types::{Annotated, Object, Value};
 
+/// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
+/// Tries to follow OpenCensus/OpenTracing's span types.
+///
 /// TODO typing ( union of predefined types and custom 'string' types)
-type OperationType = String;
+pub type OperationType = String;
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct Span {
@@ -12,23 +15,23 @@ pub struct Span {
     #[metastructure(required = "true")]
     pub timestamp: Annotated<DateTime<Utc>>,
 
-    /// Timestamp when the span started
+    /// Timestamp when the span started.
     #[metastructure(required = "true")]
     pub start_timestamp: Annotated<DateTime<Utc>>,
 
-    /// Human readable description of a span (e.g. method URL)
+    /// Human readable description of a span (e.g. method URL).
     #[metastructure(max_chars = "summary")]
     pub description: Annotated<String>,
 
-    /// span type
+    /// Span type (see `OperationType` docs).
     #[metastructure(max_chars = "enumlike")]
     pub op: Annotated<OperationType>,
 
-    /// the span id
+    /// The Span id.
     #[metastructure(required = "true")]
     pub span_id: Annotated<SpanId>,
 
-    /// the trace id
+    /// The ID of the trace the span belongs to.
     #[metastructure(required = "true")]
     pub trace_id: Annotated<TraceId>,
 
