@@ -11,7 +11,7 @@ use chrono::TimeZone;
 use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, LenientString, Level,
-    LogEntry, Request, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
+    LogEntry, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
@@ -369,8 +369,7 @@ pub struct Event {
     pub expectstaple: Annotated<Value>,
 
     /// Spans for tracing.
-    // TODO: typing
-    pub spans: Annotated<Array<Value>>,
+    pub spans: Annotated<Array<Span>>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
