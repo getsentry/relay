@@ -369,7 +369,6 @@ pub struct Event {
     pub expectstaple: Annotated<Value>,
 
     /// Spans for tracing.
-    // TODO: typing
     pub spans: Annotated<Array<Span>>,
 
     /// Additional arbitrary fields for forwards compatibility.
