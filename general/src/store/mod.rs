@@ -30,14 +30,6 @@ pub struct StoreConfig {
     pub protocol_version: Option<String>,
     pub grouping_config: Option<Value>,
 
-    /// Hard limit for stacktrace frames
-    /// Corresponds to SENTRY_STACKTRACE_FRAMES_HARD_LIMIT
-    pub stacktrace_frames_hard_limit: Option<usize>,
-
-    /// Soft limit for stacktrace frames
-    /// Corresponds to SENTRY_MAX_STACKTRACE_FRAMES
-    pub max_stacktrace_frames: Option<usize>,
-
     pub valid_platforms: BTreeSet<String>,
     pub max_secs_in_future: Option<i64>,
     pub max_secs_in_past: Option<i64>,
