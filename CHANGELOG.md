@@ -2,6 +2,8 @@
 
 ## 0.4.39
 
+- Fix a bug where stacktrace trimming was not applied during renormalization.
+
 ## 0.4.38
 
 - Added typed spans to Event.
