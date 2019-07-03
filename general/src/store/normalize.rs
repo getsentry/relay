@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, LogEntry, RawStacktrace, Request, Stacktrace, Tags, User,
+    Frame, IpAddr, Level, LogEntry, Request, Stacktrace, Tags, User,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -499,30 +499,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             && (!frame.pre_context.is_empty() || !frame.post_context.is_empty())
         {
             frame.context_line.set_value(Some(String::new()));
-        }
-
-        ValueAction::Keep
-    }
-
-    fn process_raw_stacktrace(
-        &mut self,
-        stacktrace: &mut RawStacktrace,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ValueAction {
-        if let Some(limit) = self.config.stacktrace_frames_hard_limit {
-            stacktrace
-                .frames
-                .apply(|frames, meta| stacktrace::enforce_frame_hard_limit(frames, meta, limit));
-        }
-
-        stacktrace.process_child_values(self, state);
-
-        // needs to run after process_frame because of `in_app`
-        if let Some(limit) = self.config.max_stacktrace_frames {
-            stacktrace
-                .frames
-                .apply(|frames, _meta| stacktrace::slim_frame_data(frames, limit));
         }
 
         ValueAction::Keep
@@ -1094,6 +1070,8 @@ fn test_too_long_tags() {
 #[test]
 fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
     use crate::protocol::Values;
+    use crate::protocol::{Frame, RawStacktrace};
+
     let mut event = Annotated::new(Event {
         exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
             ty: Annotated::new("FooDivisionError".to_string()),
