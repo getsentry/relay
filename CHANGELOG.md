@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.4.39
+
 ## 0.4.38
 
 - Added typed spans to Event.
