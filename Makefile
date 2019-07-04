@@ -27,11 +27,11 @@ docker:
 	@scripts/docker-build-linux.sh
 .PHONY: build-docker
 
-sdist:
+sdist: .venv/bin/python
 	cd py && ../.venv/bin/python setup.py sdist --format=zip
 .PHONY: sdist
 
-wheel:
+wheel: .venv/bin/python
 	cd py && ../.venv/bin/python setup.py bdist_wheel
 .PHONY: wheel
 
@@ -56,6 +56,7 @@ test-python: GeoLite2-City.mmdb .venv/bin/python
 
 test-integration: build .venv/bin/python
 	.venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist "git+https://github.com/untitaker/pytest-sentry#egg=pytest-sentry"
+	SEMAPHORE_DEBUG=1 .venv/bin/pip install -v --editable py
 	.venv/bin/pytest py -n12 --reruns 5
 .PHONY: test-integration
 
