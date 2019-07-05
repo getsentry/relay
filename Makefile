@@ -1,104 +1,69 @@
 SHELL=/bin/bash
-
 export SEMAPHORE_PYTHON_VERSION := python3
 
-all: test
+all: check test
 .PHONY: all
 
-setup-git:
-	cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.py pre-commit
-.PHONY: setup-git
+check: style lint
+.PHONY: check
 
-build:
+clean:
+	cargo clean
+	cargo clean --manifest-path cabi/Cargo.toml
+	rm -rf .venv
+.PHONY: clean
+
+# Builds
+
+build: GeoLite2-City.mmdb
+	@cargo +stable build --all --all-features
 .PHONY: build
 
-releasebuild:
-	cargo build --release --locked
-	# Smoke test
-	@$(MAKE) test-process-event CARGO_ARGS="--release"
-.PHONY: releasebuild
+release: GeoLite2-City.mmdb
+	@cargo +stable build --all --all-features --release
+.PHONY: build-release
 
-releasebuild-docker:
+docker:
 	@scripts/docker-build-linux.sh
-.PHONY: releasebuild-docker
+.PHONY: build-docker
 
-doc:
-	@cargo doc
-.PHONY: doc
+sdist: .venv/bin/python
+	cd py && ../.venv/bin/python setup.py sdist --format=zip
+.PHONY: sdist
 
-test: cargotest pytest
-.PHONY: test
+wheel: .venv/bin/python
+	cd py && ../.venv/bin/python setup.py bdist_wheel
+.PHONY: wheel
 
-cargotest: GeoLite2-City.mmdb
-	@cargo test --all
-.PHONY: cargotest
-
-cargotest-cov: GeoLite2-City.mmdb
-	@cargo tarpaulin -v --skip-clean --all --out Xml
-	@bash <(curl -s https://codecov.io/bash)
-.PHONY: cargotest-cov
-
-manylinux:
+wheel-manylinux:
 	@scripts/docker-manylinux.sh
 .PHONY: manylinux
 
-wheel:
-	@$(MAKE) -C py wheel
-.PHONY: wheel
+# Tests
 
-sdist:
-	@$(MAKE) -C py sdist
-.PHONY: sdist
+test: test-rust test-python test-integration
+.PHONY: test
 
-pytest:
-	@$(MAKE) -C py test
-.PHONY: pytest
+test-rust: GeoLite2-City.mmdb
+	cargo test --all --all-features
+.PHONY: test-rust
 
-.venv/bin/python: Makefile
-	rm -rf .venv
-	virtualenv -p $$SEMAPHORE_PYTHON_VERSION .venv
+test-python: GeoLite2-City.mmdb .venv/bin/python
+	.venv/bin/pip install -U pytest
+	SEMAPHORE_DEBUG=1 .venv/bin/pip install -v --editable py
+	.venv/bin/pytest -v py
+.PHONY: test-python
 
-integration-test: .venv/bin/python
+test-integration: build .venv/bin/python
 	.venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist "git+https://github.com/untitaker/pytest-sentry#egg=pytest-sentry"
-	cargo build
-	@.venv/bin/pytest tests -n12 --reruns 5
-.PHONY: integration-test
+	SEMAPHORE_DEBUG=1 .venv/bin/pip install -v --editable py
+	.venv/bin/pytest py -n12 --reruns 5
+.PHONY: test-integration
 
-python-format: .venv/bin/python
-	.venv/bin/pip install -U black
-	.venv/bin/black .
-.PHONY: python-format
-
-python-format-check: .venv/bin/python
-	.venv/bin/pip install -U black
-	.venv/bin/black --check .
-.PHONY: python-format
-
-python-lint: .venv/bin/python
-	.venv/bin/pip install -U flake8
-	.venv/bin/flake8
-.PHONY: python-format
-
-format: python-format
-	@rustup component add rustfmt 2> /dev/null
-	@cargo fmt
-.PHONY: format
-
-format-check: python-format-check
-	@rustup component add rustfmt 2> /dev/null
-	@cargo fmt -- --check
-.PHONY: format-check
-
-clippy:
-	@rustup component add clippy 2> /dev/null
-	@cargo clippy --tests --all -- -D clippy::all
-.PHONY: clippy
-
-lint: clippy python-lint
-.PHONY: lint
-
-check: format test
-.PHONY: check
+test-coverage: GeoLite2-City.mmdb
+	@cargo tarpaulin -v --skip-clean --all --out Xml
+	@bash <(curl -s https://codecov.io/bash)
+.PHONY: test-coverage
 
 test-process-event:
 	# Process a basic event and assert its output
@@ -108,14 +73,81 @@ test-process-event:
 	@echo 'OK'
 .PHONY: test-process-event
 
+# Documentation
+
+doc:
+	@cargo doc
+.PHONY: doc
+
+# Style checking
+
+style: style-rust style-python
+.PHONY: style
+
+style-rust:
+	@rustup component add rustfmt --toolchain stable 2> /dev/null
+	cargo +stable fmt -- --check
+.PHONY: style-rust
+
+style-python: .venv/bin/python
+	.venv/bin/pip install -U black
+	.venv/bin/black --check py --exclude '\.eggs|semaphore/_lowlevel.*'
+.PHONY: style-python
+
+# Linting
+
+lint: lint-rust lint-python
+.PHONY: lint
+
+lint-rust:
+	@rustup component add clippy --toolchain stable 2> /dev/null
+	cargo +stable clippy --all-features --all --tests --examples -- -D clippy::all
+.PHONY: lint-rust
+
+lint-python: .venv/bin/python
+	.venv/bin/pip install -U flake8
+	.venv/bin/flake8 py
+.PHONY: lint-python
+
+# Formatting
+
+format: format-rust format-python
+.PHONY: format
+
+format-rust:
+	@rustup component add rustfmt --toolchain stable 2> /dev/null
+	cargo +stable fmt
+.PHONY: format-rust
+
+format-python: .venv/bin/python
+	.venv/bin/pip install -U black
+	.venv/bin/black py --exclude '\.eggs|semaphore/_lowlevel.*'
+.PHONY: format-python
+
+# Development
+
+setup: GeoLite2-City.mmdb .git/hooks/pre-commit
+.PHONY: setup
+
 devserver:
 	@systemfd --no-pid -s http::3000 -- cargo watch -x "run -- run"
 .PHONY: devserver
-
-GeoLite2-City.mmdb:
-	@curl http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.mmdb.gz | gzip -cd > $@
 
 clean-target-dir:
 	if [ "$$(du -s target/ | cut -f 1)" -gt 4000000 ]; then \
 		rm -rf target/; \
 	fi
+.PHONY: clean-target-dir
+
+# Dependencies
+
+.venv/bin/python: Makefile
+	@rm -rf .venv
+	@which virtualenv || sudo easy_install virtualenv
+	virtualenv -p $$SEMAPHORE_PYTHON_VERSION .venv
+
+GeoLite2-City.mmdb:
+	@curl http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.mmdb.gz | gzip -cd > $@
+
+.git/hooks/pre-commit:
+	cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.py pre-commit

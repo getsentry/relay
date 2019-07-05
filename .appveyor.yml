@@ -37,7 +37,7 @@ build_script:
   - cargo build --all --locked
 
 test_script:
-  - C:\MinGW\bin\mingw32-make cargotest
+  - C:\MinGW\bin\mingw32-make test-rust
   - C:\MinGW\bin\mingw32-make test-process-event CARGO_ARGS="--release"
 
 on_success:
