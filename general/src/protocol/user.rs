@@ -24,7 +24,7 @@ pub struct Geo {
 
 /// Information about the user who triggered an event.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-#[metastructure(process_func = "process_user")]
+#[metastructure(process_func = "process_user", value_type = "User")]
 pub struct User {
     /// Unique identifier of the user.
     #[metastructure(pii = "true", max_chars = "enumlike", skip_serialization = "empty")]
