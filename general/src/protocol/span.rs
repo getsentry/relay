@@ -10,6 +10,7 @@ use crate::types::{Annotated, Object, Value};
 pub type OperationType = String;
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[metastructure(process_func = "process_span", value_type = "Span")]
 pub struct Span {
     /// Timestamp when the span was ended.
     #[metastructure(required = "true")]

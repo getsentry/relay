@@ -36,7 +36,7 @@ impl SelectorPathItem {
         match *self {
             SelectorPathItem::Wildcard => true,
             SelectorPathItem::DeepWildcard => true,
-            SelectorPathItem::Type(ty) => state.value_type == Some(ty),
+            SelectorPathItem::Type(ty) => state.value_type() == Some(ty),
             SelectorPathItem::Index(idx) => state.path().index() == Some(idx),
             SelectorPathItem::Key(ref key) => state.path().key() == Some(key),
         }
@@ -155,6 +155,7 @@ pub enum ValueType {
     LogEntry,
     Thread,
     Breadcrumb,
+    Span,
 }
 
 impl ValueType {
@@ -179,6 +180,7 @@ impl ValueType {
             ValueType::LogEntry => "logentry",
             ValueType::Thread => "thread",
             ValueType::Breadcrumb => "breadcrumb",
+            ValueType::Span => "span",
         }
     }
 }
