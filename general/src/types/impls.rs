@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use chrono::{Datelike, DateTime, NaiveDateTime, TimeZone, Utc};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
@@ -409,7 +409,7 @@ fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
 
 impl FromValue for DateTime<Utc> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        match value {
+        let rv = match value {
             Annotated(Some(Value::String(value)), mut meta) => {
                 let parsed = match value.parse::<NaiveDateTime>() {
                     Ok(dt) => Ok(DateTime::from_utc(dt, Utc)),
@@ -441,6 +441,22 @@ impl FromValue for DateTime<Utc> {
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
+        };
+
+        match rv {
+            Annotated(Some(value), mut meta) => {
+                if value.year() > 9999 {
+                    // We need to enforce this because Python has a max value for year and
+                    // otherwise crashes. Also this is probably nicer UX than silently showing the
+                    // wrong value.
+                    meta.add_error(Error::invalid("Year out of range. Maybe you accidentally sent milliseconds instead of seconds?"));
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                } else {
+                    Annotated(Some(value), meta)
+                }
+            }
+            x => x
         }
     }
 }
@@ -1103,4 +1119,32 @@ fn test_skip_serialization_on_regular_structs() {
     });
 
     assert_eq_str!(helper.to_json().unwrap(), r#"{"foo":{}}"#);
+}
+
+#[test]
+fn test_timestamp_year_out_of_range() {
+    #[derive(Debug, FromValue, Default, Empty, ToValue)]
+    struct Helper {
+        foo: Annotated<DateTime<Utc>>
+    }
+
+    let x: Annotated<Helper> = Annotated::from_json(r#"{"foo": 1562770897893}"#).unwrap();
+    assert_eq_str!(x.to_json_pretty().unwrap(), r#"{
+  "foo": null,
+  "_meta": {
+    "foo": {
+      "": {
+        "err": [
+          [
+            "invalid_data",
+            {
+              "reason": "Year out of range. Maybe you accidentally sent milliseconds instead of seconds?"
+            }
+          ]
+        ],
+        "val": 1562770897893.0
+      }
+    }
+  }
+}"#);
 }
