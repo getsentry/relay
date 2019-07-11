@@ -1,4 +1,4 @@
-use chrono::{Datelike, DateTime, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, NaiveDateTime, TimeZone, Utc};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
@@ -456,7 +456,7 @@ impl FromValue for DateTime<Utc> {
                     Annotated(Some(value), meta)
                 }
             }
-            x => x
+            x => x,
         }
     }
 }
@@ -1125,7 +1125,7 @@ fn test_skip_serialization_on_regular_structs() {
 fn test_timestamp_year_out_of_range() {
     #[derive(Debug, FromValue, Default, Empty, ToValue)]
     struct Helper {
-        foo: Annotated<DateTime<Utc>>
+        foo: Annotated<DateTime<Utc>>,
     }
 
     let x: Annotated<Helper> = Annotated::from_json(r#"{"foo": 1562770897893}"#).unwrap();
