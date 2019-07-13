@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.40
+
+- Restrict ranges of timestamps to prevent overflows in Python code and UI.
+
 ## 0.4.39
 
 - Fix a bug where stacktrace trimming was not applied during renormalization.
