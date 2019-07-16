@@ -256,10 +256,6 @@ pub struct ProjectConfig {
     pub scrub_defaults: bool,
     /// TODO description
     pub scrub_data: bool,
-    /// Maximum Kafka event size (in bytes ?). // TODO(ja): Check if we need this
-    pub kafka_max_event_size: Option<usize>,
-    /// Maximum Kafka event size (in bytes ?). // TODO(ja): Check if we need this
-    pub kafka_raw_event_sample_rate: Option<f32>,
     /// Configuration for filter rules.
     pub filter_settings: FiltersConfig,
 }
@@ -276,8 +272,6 @@ impl Default for ProjectConfig {
             sensitive_fields: vec![],
             scrub_defaults: false,
             scrub_data: false,
-            kafka_max_event_size: None,
-            kafka_raw_event_sample_rate: None,
             filter_settings: FiltersConfig::default(),
         }
     }
