@@ -19,7 +19,6 @@ use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
 use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics};
-use crate::service::ServerErrorKind::GeoIpError;
 
 /// Common error type for the relay server.
 #[derive(Debug)]

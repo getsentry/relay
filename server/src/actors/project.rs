@@ -17,6 +17,7 @@ use chrono::{DateTime, Utc};
 use failure::Fail;
 use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use url::Url;
 
 use semaphore_common::{Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
@@ -26,7 +27,6 @@ use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
 use crate::utils::{self, One, Response, SyncActorFuture, SyncHandle};
-use semaphore_general::protocol::GroupingConfig;
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -203,14 +203,17 @@ enum LegacyBrowser {
     // Unknown(String), // TODO(ja): Check if we should implement this better
 }
 
+/// TODO: doc
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct LegacyBrowsersFilterConfig {
     /// TODO: doc
     is_enabled: bool,
     /// TODO: doc
+    #[serde(rename = "options")]
     browsers: BTreeSet<LegacyBrowser>,
 }
 
+/// TODO: doc
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FiltersConfig {
@@ -241,11 +244,10 @@ pub struct ProjectConfig {
     pub trusted_relays: Vec<PublicKey>,
     /// Configuration for PII stripping.
     pub pii_config: Option<PiiConfig>,
-
     /// List with the fields to be excluded.
     pub exclude_fields: Vec<String>,
     /// The grouping configuration.
-    /// pub grouping_config: Option<GroupingConfig>,
+    pub grouping_config: Option<Value>,
     /// Should ip addresses be scrubbed from messages ?
     pub scrub_ip_addresses: bool,
     /// List of sensitive fields to be scrubbed from the messages.
@@ -258,6 +260,7 @@ pub struct ProjectConfig {
     pub kafka_max_event_size: Option<usize>,
     /// Maximum Kafka event size (in bytes ?). // TODO(ja): Check if we need this
     pub kafka_raw_event_sample_rate: Option<f32>,
+    /// Configuration for filter rules.
     pub filter_settings: FiltersConfig,
 }
 
@@ -268,11 +271,11 @@ impl Default for ProjectConfig {
             trusted_relays: vec![],
             pii_config: None,
             exclude_fields: vec![],
-            // grouping_config: None,
-            scrub_ip_addresses: true, //TODO 12.07.2019 RaduW check what should the default be
+            grouping_config: None,
+            scrub_ip_addresses: false,
             sensitive_fields: vec![],
-            scrub_defaults: true, // TODO 12.07.2019 RaduW check what should the default be
-            scrub_data: true,     // TODO 12.07.2019 RaduW check what should the default be
+            scrub_defaults: false,
+            scrub_data: false,
             kafka_max_event_size: None,
             kafka_raw_event_sample_rate: None,
             filter_settings: FiltersConfig::default(),

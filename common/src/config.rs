@@ -336,14 +336,29 @@ impl Default for Sentry {
     }
 }
 
-/// Processing info.
-#[derive(Serialize, Deserialize, Debug, Default)]
+/// Controls Sentry-internal event processing.
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Processing {
-    /// True if the Relay should do processing.
+    /// True if the Relay should do processing. Defaults to `false`.
     enabled: bool,
-    /// Geoip db file location.
-    geoip_db_path: Option<PathBuf>,
+    /// GeoIp DB file location.
+    geoip_path: Option<PathBuf>,
+    /// Maximum future timestamp of ingested events.
+    max_secs_in_future: u32,
+    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
+    max_secs_in_past: u32,
+}
+
+impl Default for Processing {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            geoip_path: None,
+            max_secs_in_future: 60,           // 1 minute
+            max_secs_in_past: 30 * 24 * 3600, // 30 days
+        }
+    }
 }
 
 /// Controls interal reporting to Sentry.
@@ -708,14 +723,28 @@ impl Config {
         self.path.join("projects")
     }
 
-    /// The path for the GeoIp database.
-    pub fn geoip_path(&self) -> Option<&Path> {
-        self.values.processing.geoip_db_path.as_ref().map(PathBuf::as_path)
-    }
-
     /// True if the Relay should do processing.
     pub fn processing_enabled(&self) -> bool {
         self.values.processing.enabled
+    }
+
+    /// The path to the GeoIp database required for event processing.
+    pub fn geoip_path(&self) -> Option<&Path> {
+        self.values
+            .processing
+            .geoip_path
+            .as_ref()
+            .map(PathBuf::as_path)
+    }
+
+    /// TODO: Doc
+    pub fn max_secs_in_future(&self) -> i64 {
+        self.values.processing.max_secs_in_future.into()
+    }
+
+    /// TODO: Doc
+    pub fn max_secs_in_past(&self) -> i64 {
+        self.values.processing.max_secs_in_past.into()
     }
 }
 
