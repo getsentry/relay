@@ -15,7 +15,7 @@ pub struct Server {
 
 impl Server {
     pub fn start(config: Config) -> Result<Addr<Self>, ServerError> {
-        let http_server = service::start(ServiceState::start(config))?;
+        let http_server = service::start(ServiceState::start(config)?)?;
         Ok(Server { http_server }.start())
     }
 }

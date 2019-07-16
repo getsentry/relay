@@ -47,3 +47,6 @@ path = "../general"
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.46"
+
+[dev-dependencies]
+insta = "0.8.1"

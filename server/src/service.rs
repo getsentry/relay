@@ -10,6 +10,7 @@ use listenfd::ListenFd;
 use sentry_actix::SentryMiddleware;
 
 use semaphore_common::Config;
+use semaphore_general::store::GeoIpLookup;
 
 use crate::actors::events::EventManager;
 use crate::actors::keys::KeyCache;
@@ -18,6 +19,7 @@ use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
 use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics};
+use crate::service::ServerErrorKind::GeoIpError;
 
 /// Common error type for the relay server.
 #[derive(Debug)]
@@ -36,13 +38,17 @@ pub enum ServerErrorKind {
     #[fail(display = "listening failed")]
     ListenFailed,
 
-    /// A TLS error ocurred
+    /// A TLS error ocurred.
     #[fail(display = "could not initialize the TLS server")]
     TlsInitFailed,
 
-    /// TLS support was not compiled in
+    /// TLS support was not compiled in.
     #[fail(display = "compile with the `with_ssl` feature to enable SSL support")]
     TlsNotSupported,
+
+    /// GeoIp construction failed.
+    #[fail(display = "could not load the Geoip Db")]
+    GeoIpError,
 }
 
 impl Fail for ServerError {
@@ -94,17 +100,22 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Config) -> Self {
+    pub fn start(config: Config) -> Result<Self, ServerError> {
         let config = Arc::new(config);
         let upstream_relay = UpstreamRelay::new(config.clone()).start();
+        let geoip_lookup = match config.geoip_path() {
+            Some(p) => Some(GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?),
+            None => None,
+        };
 
-        ServiceState {
+        Ok(ServiceState {
             config: config.clone(),
             upstream_relay: upstream_relay.clone(),
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
-            event_manager: EventManager::new(config.clone(), upstream_relay.clone()).start(),
-        }
+            event_manager: EventManager::new(config.clone(), upstream_relay.clone(), geoip_lookup)
+                .start(),
+        })
     }
 
     /// Returns an atomically counted reference to the config.

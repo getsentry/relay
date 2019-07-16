@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -26,6 +26,7 @@ use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
 use crate::utils::{self, One, Response, SyncActorFuture, SyncHandle};
+use semaphore_general::protocol::GroupingConfig;
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -176,6 +177,60 @@ pub enum PublicKeyStatus {
     Enabled,
 }
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FilterConfig {
+    /// TODO: doc
+    is_enabled: bool,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
+enum LegacyBrowser {
+    #[serde(rename = "ie_pre_9")]
+    IePre9,
+    #[serde(rename = "ie9")]
+    Ie9,
+    #[serde(rename = "ie10")]
+    Ie10,
+    #[serde(rename = "opera_pre_15")]
+    OperaPre15,
+    #[serde(rename = "opera_mini_pre_8")]
+    OperaMiniPre8,
+    #[serde(rename = "android_pre_4")]
+    AndroidPre4,
+    #[serde(rename = "safari_pre_6")]
+    SafariPre6,
+    // Unknown(String), // TODO(ja): Check if we should implement this better
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct LegacyBrowsersFilterConfig {
+    /// TODO: doc
+    is_enabled: bool,
+    /// TODO: doc
+    browsers: BTreeSet<LegacyBrowser>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiltersConfig {
+    /// TODO: doc
+    #[serde(default)]
+    pub browser_extensions: FilterConfig,
+
+    /// TODO: doc
+    #[serde(default)]
+    pub web_crawlers: FilterConfig,
+
+    /// TODO: doc
+    #[serde(default)]
+    pub legacy_browsers: LegacyBrowsersFilterConfig,
+
+    /// TODO: doc
+    #[serde(default)]
+    pub localhost: FilterConfig,
+}
+
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -186,6 +241,24 @@ pub struct ProjectConfig {
     pub trusted_relays: Vec<PublicKey>,
     /// Configuration for PII stripping.
     pub pii_config: Option<PiiConfig>,
+
+    /// List with the fields to be excluded.
+    pub exclude_fields: Vec<String>,
+    /// The grouping configuration.
+    /// pub grouping_config: Option<GroupingConfig>,
+    /// Should ip addresses be scrubbed from messages ?
+    pub scrub_ip_addresses: bool,
+    /// List of sensitive fields to be scrubbed from the messages.
+    pub sensitive_fields: Vec<String>,
+    /// TODO description
+    pub scrub_defaults: bool,
+    /// TODO description
+    pub scrub_data: bool,
+    /// Maximum Kafka event size (in bytes ?). // TODO(ja): Check if we need this
+    pub kafka_max_event_size: Option<usize>,
+    /// Maximum Kafka event size (in bytes ?). // TODO(ja): Check if we need this
+    pub kafka_raw_event_sample_rate: Option<f32>,
+    pub filter_settings: FiltersConfig,
 }
 
 impl Default for ProjectConfig {
@@ -194,6 +267,15 @@ impl Default for ProjectConfig {
             allowed_domains: vec!["*".to_string()],
             trusted_relays: vec![],
             pii_config: None,
+            exclude_fields: vec![],
+            // grouping_config: None,
+            scrub_ip_addresses: true, //TODO 12.07.2019 RaduW check what should the default be
+            sensitive_fields: vec![],
+            scrub_defaults: true, // TODO 12.07.2019 RaduW check what should the default be
+            scrub_data: true,     // TODO 12.07.2019 RaduW check what should the default be
+            kafka_max_event_size: None,
+            kafka_raw_event_sample_rate: None,
+            filter_settings: FiltersConfig::default(),
         }
     }
 }
@@ -220,12 +302,15 @@ pub struct ProjectState {
     /// The project's slug if available.
     #[serde(default)]
     pub slug: Option<String>,
-    /// The project's current config
+    /// The project's current config.
     #[serde(default)]
     pub config: ProjectConfig,
     /// The project state's revision id.
     #[serde(default)]
     pub rev: Option<Uuid>,
+    /// The organization id.
+    #[serde(default)]
+    pub organization_id: Option<String>,
 }
 
 impl ProjectState {
@@ -239,6 +324,7 @@ impl ProjectState {
             slug: None,
             config: Default::default(),
             rev: None,
+            organization_id: None,
         }
     }
 
@@ -766,5 +852,45 @@ impl Handler<Shutdown> for ProjectCache {
             Some(timeout) => self.shutdown.timeout(timeout),
             None => self.shutdown.now(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_should_serialize() {
+        let foo = FiltersConfig {
+            browser_extensions: FilterConfig { is_enabled: true },
+            web_crawlers: FilterConfig { is_enabled: false },
+            legacy_browsers: LegacyBrowsersFilterConfig {
+                is_enabled: false,
+                browsers: [LegacyBrowser::Ie9].into_iter().cloned().collect(),
+            },
+            localhost: FilterConfig { is_enabled: true },
+        };
+
+        serde_json::to_string(&foo).unwrap();
+
+        insta::assert_json_snapshot_matches!(foo, @r###"
+       ⋮{
+       ⋮  "browserExtensions": {
+       ⋮    "isEnabled": true
+       ⋮  },
+       ⋮  "webCrawlers": {
+       ⋮    "isEnabled": false
+       ⋮  },
+       ⋮  "legacyBrowsers": {
+       ⋮    "is_enabled": false,
+       ⋮    "browsers": [
+       ⋮      "ie9"
+       ⋮    ]
+       ⋮  },
+       ⋮  "localhost": {
+       ⋮    "isEnabled": true
+       ⋮  }
+       ⋮}
+        "###);
     }
 }

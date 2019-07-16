@@ -336,6 +336,16 @@ impl Default for Sentry {
     }
 }
 
+/// Processing info.
+#[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
+struct Processing {
+    /// True if the Relay should do processing.
+    enabled: bool,
+    /// Geoip db file location.
+    geoip_db_path: Option<PathBuf>,
+}
+
 /// Controls interal reporting to Sentry.
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
@@ -391,6 +401,8 @@ struct ConfigValues {
     metrics: Metrics,
     #[serde(default)]
     sentry: Sentry,
+    #[serde(default)]
+    processing: Processing,
 }
 
 impl ConfigObject for ConfigValues {
@@ -691,9 +703,19 @@ impl Config {
         }
     }
 
-    /// Get filename for static project config
+    /// Get filename for static project config.
     pub fn project_configs_path(&self) -> PathBuf {
         self.path.join("projects")
+    }
+
+    /// The path for the GeoIp database.
+    pub fn geoip_path(&self) -> Option<&Path> {
+        self.values.processing.geoip_db_path.as_ref().map(PathBuf::as_path)
+    }
+
+    /// True if the Relay should do processing.
+    pub fn processing_enabled(&self) -> bool {
+        self.values.processing.enabled
     }
 }
 

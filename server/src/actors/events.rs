@@ -25,6 +25,7 @@ use crate::actors::project::{
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
 use crate::utils::{One, SyncActorFuture, SyncHandle};
+use semaphore_general::store::{GeoIpLookup, StoreProcessor};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -85,11 +86,51 @@ enum ProcessingError {
     Shutdown,
 }
 
-struct EventProcessor;
+struct EventProcessor {
+    config: Arc<Config>,
+    geoip_lookup: Option<Arc<GeoIpLookup>>,
+}
 
 impl EventProcessor {
-    pub fn new() -> Self {
-        EventProcessor
+    pub fn new(config: Arc<Config>, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
+        EventProcessor { config, geoip_lookup }
+    }
+
+    fn process(&self, process_event: &ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
+        log::trace!("processing event {}", process_event.event_id);
+        let mut event = Annotated::<Event>::from_json_bytes(&process_event.data).map_err(|error| {
+            if process_event.log_failed_payloads {
+                let mut event = event_from_fail(&error);
+                process_event.add_to_sentry_event(&mut event);
+                sentry::capture_event(event);
+            }
+
+            ProcessingError::InvalidJson(error)
+        })?;
+
+        if let Some(event) = event.value_mut() {
+            event.id = Annotated::new(process_event.event_id);
+        }
+
+        //TODO
+        if self.config.processing_enabled() {
+            let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
+            //let store_config =
+            let mut store_processor = StoreProcessor::new(unimplemented!(), geoip_lookup);
+            process_value(&mut event, &mut store_processor, ProcessingState::root());
+        }
+
+        if let Some(ref pii_config) = process_event.project_state.config.pii_config {
+            let mut processor = PiiProcessor::new(pii_config);
+            process_value(&mut event, &mut processor, ProcessingState::root());
+        };
+
+        let data = event
+            .to_json()
+            .map_err(ProcessingError::SerializeFailed)?
+            .into();
+
+        Ok(ProcessEventResponse { data })
     }
 }
 
@@ -141,35 +182,6 @@ impl ProcessEvent {
                 .insert("remote_addr".to_string(), remote_addr.to_string().into());
         }
     }
-
-    fn process(&self) -> Result<ProcessEventResponse, ProcessingError> {
-        log::trace!("processing event {}", self.event_id);
-        let mut event = Annotated::<Event>::from_json_bytes(&self.data).map_err(|error| {
-            if self.log_failed_payloads {
-                let mut event = event_from_fail(&error);
-                self.add_to_sentry_event(&mut event);
-                sentry::capture_event(event);
-            }
-
-            ProcessingError::InvalidJson(error)
-        })?;
-
-        if let Some(event) = event.value_mut() {
-            event.id = Annotated::new(self.event_id);
-        }
-
-        if let Some(ref pii_config) = self.project_state.config.pii_config {
-            let mut processor = PiiProcessor::new(&pii_config);
-            process_value(&mut event, &mut processor, ProcessingState::root());
-        };
-
-        let data = event
-            .to_json()
-            .map_err(ProcessingError::SerializeFailed)?
-            .into();
-
-        Ok(ProcessEventResponse { data })
-    }
 }
 
 struct ProcessEventResponse {
@@ -185,7 +197,7 @@ impl Handler<ProcessEvent> for EventProcessor {
 
     fn handle(&mut self, message: ProcessEvent, _context: &mut Self::Context) -> Self::Result {
         metric!(timer("event.wait_time") = message.start_time.elapsed());
-        metric!(timer("event.processing_time"), { message.process() })
+        metric!(timer("event.processing_time"), { self.process(&message) })
     }
 }
 
@@ -198,12 +210,20 @@ pub struct EventManager {
 }
 
 impl EventManager {
-    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        upstream: Addr<UpstreamRelay>,
+        geoip_lookup: Option<GeoIpLookup>,
+    ) -> Self {
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
+        let geoip_lookup = geoip_lookup.map(Arc::new);
 
         log::info!("starting {} event processing workers", thread_count);
-        let processor = SyncArbiter::start(thread_count, EventProcessor::new);
+
+        let processor = SyncArbiter::start(thread_count, clone!(config, || {
+            EventProcessor::new(config.clone(), geoip_lookup.clone())
+        }));
 
         EventManager {
             config,
