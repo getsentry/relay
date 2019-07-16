@@ -517,8 +517,11 @@ impl Handler<RetryAfter> for Project {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
     pub projects: Vec<ProjectId>,
+    #[serde(default)]
+    pub full_config: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -595,6 +598,7 @@ impl ProjectCache {
 
         let request = GetProjectStates {
             projects: channels.keys().cloned().collect(),
+            full_config: self.config.processing_enabled(),
         };
 
         self.upstream
