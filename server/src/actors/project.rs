@@ -307,7 +307,7 @@ pub struct ProjectState {
     pub rev: Option<Uuid>,
     /// The organization id.
     #[serde(default)]
-    pub organization_id: Option<String>,
+    pub organization_id: Option<u64>,
 }
 
 impl ProjectState {
