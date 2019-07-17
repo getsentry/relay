@@ -56,8 +56,7 @@ test-python: GeoLite2-City.mmdb .venv/bin/python
 
 test-integration: build .venv/bin/python
 	.venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist "git+https://github.com/untitaker/pytest-sentry#egg=pytest-sentry"
-	SEMAPHORE_DEBUG=1 .venv/bin/pip install -v --editable py
-	.venv/bin/pytest py -n12 --reruns 5
+	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
 
 test-coverage: GeoLite2-City.mmdb
