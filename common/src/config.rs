@@ -737,12 +737,12 @@ impl Config {
             .map(PathBuf::as_path)
     }
 
-    /// TODO: Doc
+    /// Maximum future timestamp of ingested events.
     pub fn max_secs_in_future(&self) -> i64 {
         self.values.processing.max_secs_in_future.into()
     }
 
-    /// TODO: Doc
+    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
     pub fn max_secs_in_past(&self) -> i64 {
         self.values.processing.max_secs_in_past.into()
     }

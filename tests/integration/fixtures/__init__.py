@@ -84,7 +84,6 @@ class SentryLike(object):
         basic = self.basic_project_config()
         full = {
             "organizationId": 1,
-            "projectId": 5,
             "config": {
                 "excludeFields": [],
                 "filterSettings": {
@@ -113,8 +112,6 @@ class SentryLike(object):
                 "blacklistedIps": [
                     "127.43.33.22"
                 ],
-                "kafkaMaxEventSize": 100000,
-                "kafkaRawEventSampleRate": 0,
                 "trustedRelays": []
             },
         }
