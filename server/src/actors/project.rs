@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-use ::actix::fut;
-use ::actix::prelude::*;
+use actix::fut;
+use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
 use chrono::{DateTime, Utc};
 use failure::Fail;
@@ -180,12 +180,12 @@ pub enum PublicKeyStatus {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FilterConfig {
-    /// TODO: doc
-    is_enabled: bool,
+    /// true if the filter is enabled
+    pub is_enabled: bool,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
-enum LegacyBrowser {
+pub enum LegacyBrowser {
     #[serde(rename = "ie_pre_9")]
     IePre9,
     #[serde(rename = "ie9")]
@@ -203,33 +203,33 @@ enum LegacyBrowser {
     // Unknown(String), // TODO(ja): Check if we should implement this better
 }
 
-/// TODO: doc
+/// Configuration for the Legacy Browsers filter
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct LegacyBrowsersFilterConfig {
-    /// TODO: doc
-    is_enabled: bool,
-    /// TODO: doc
+    /// tue if the filter is enabled.
+    pub is_enabled: bool,
+    /// set with all the browsers that should be filtered.
     #[serde(rename = "options")]
-    browsers: BTreeSet<LegacyBrowser>,
+    pub browsers: BTreeSet<LegacyBrowser>,
 }
 
-/// TODO: doc
+/// Event filters configuration
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FiltersConfig {
-    /// TODO: doc
+    /// Configuration for the Browser Extensions filter.
     #[serde(default)]
     pub browser_extensions: FilterConfig,
 
-    /// TODO: doc
+    /// Configuration for the Web Crawlers filter
     #[serde(default)]
     pub web_crawlers: FilterConfig,
 
-    /// TODO: doc
+    /// Configuration for the Legacy Browsers filter.
     #[serde(default)]
     pub legacy_browsers: LegacyBrowsersFilterConfig,
 
-    /// TODO: doc
+    /// Configuration for the Localhost filter.
     #[serde(default)]
     pub localhost: FilterConfig,
 }
