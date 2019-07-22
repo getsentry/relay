@@ -20,7 +20,6 @@ use semaphore_general::types::Annotated;
 use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
-use crate::actors::events::ProcessEventResponse::Filtered;
 use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
     ProjectState, RetryAfter,
@@ -419,7 +418,7 @@ impl Handler<HandleEvent> for EventManager {
                         })
                         .map_err(ProcessingError::ScheduleFailed)
                         .flatten()))
-                    .and_then(move |processed| match (processed) {
+                    .and_then(move |processed| match processed {
                         ProcessEventResponse::Valid { data } => Either::A({
                             log::trace!("sending event {}", event_id);
                             let request = SendRequest::post(format!("/api/{}/store/", project_id))
@@ -452,7 +451,7 @@ impl Handler<HandleEvent> for EventManager {
                                 })
                         }),
                         //TODO RaduW handle it properly ( what do we want to do with filtered messages?)
-                        ProcessEventResponse::Filtered { reason } => {
+                        ProcessEventResponse::Filtered { reason: _ } => {
                             Either::B({ Err(ProcessingError::EventRejected).into_future() })
                         }
                     })

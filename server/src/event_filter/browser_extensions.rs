@@ -1,8 +1,6 @@
-use crate::actors::project::{FilterConfig, FiltersConfig};
+use crate::actors::project::FilterConfig;
 use regex::{Regex, RegexBuilder};
-use semaphore_general::protocol::{
-    Event, Exception, Frame, IpAddr, JsonLenientString, Stacktrace, User, Values,
-};
+use semaphore_general::protocol::{Event, Exception, Frame, JsonLenientString, Values};
 
 use lazy_static::lazy_static;
 use semaphore_general::types::{Annotated, Array};
@@ -51,7 +49,7 @@ fn get_exception_source(event: &Event) -> Option<&str> {
         .map(|abs_path: &String| abs_path.as_str());
 }
 
-lazy_static::lazy_static! {
+lazy_static! {
     static ref EXTENSION_EXC_VALUES_STR: String = [
         // Random plugins/extensions
         r"top\.GLOBALS",

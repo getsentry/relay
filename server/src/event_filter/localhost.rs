@@ -1,5 +1,5 @@
-use crate::actors::project::{FilterConfig, FiltersConfig};
-use semaphore_general::protocol::{Event, IpAddr, User};
+use crate::actors::project::FilterConfig;
+use semaphore_general::protocol::Event;
 
 const LOCAL_IPS: &'static [&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &'static [&str] = &["127.0.0.1", "localhost"];
