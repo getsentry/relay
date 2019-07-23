@@ -179,7 +179,7 @@ mod tests {
             assert_eq!(
                 filter_result,
                 Ok(()),
-                "Event filter although filter should have been disabled"
+                "Event filtered although filter should have been disabled"
             )
         }
     }

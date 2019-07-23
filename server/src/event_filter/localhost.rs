@@ -46,7 +46,7 @@ fn get_domain(event: &Event) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semaphore_general::protocol::Request;
+    use semaphore_general::protocol::{IpAddr, Request, User};
     use semaphore_general::types::{Annotated, Meta};
 
     fn get_event_with_ip_addr(val: &str) -> Event {
