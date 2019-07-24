@@ -177,10 +177,11 @@ pub enum PublicKeyStatus {
     Enabled,
 }
 
+/// Common configuration for event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FilterConfig {
-    /// TODO: doc
+    /// Specifies whether this filter is enabled.
     is_enabled: bool,
 }
 
@@ -241,30 +242,23 @@ impl Serialize for LegacyBrowser {
 /// Configuration for the legacy browsers filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct LegacyBrowsersFilterConfig {
-    /// TODO: doc
+    /// Specifies whether this filter is enabled.
     is_enabled: bool,
-    /// TODO: doc
+    /// The browsers to filter.
     #[serde(rename = "options")]
     browsers: BTreeSet<LegacyBrowser>,
 }
 
-/// TODO: doc
+/// Configuration for all event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FiltersConfig {
-    /// TODO: doc
     #[serde(default)]
     pub browser_extensions: FilterConfig,
-
-    /// TODO: doc
     #[serde(default)]
     pub web_crawlers: FilterConfig,
-
-    /// TODO: doc
     #[serde(default)]
     pub legacy_browsers: LegacyBrowsersFilterConfig,
-
-    /// TODO: doc
     #[serde(default)]
     pub localhost: FilterConfig,
 }
@@ -283,14 +277,14 @@ pub struct ProjectConfig {
     pub exclude_fields: Vec<String>,
     /// The grouping configuration.
     pub grouping_config: Option<Value>,
-    /// Should ip addresses be scrubbed from messages ?
+    /// Toggles all data scrubbing on or off.
+    pub scrub_data: bool,
+    /// Should ip addresses be scrubbed from messages?
     pub scrub_ip_addresses: bool,
     /// List of sensitive fields to be scrubbed from the messages.
     pub sensitive_fields: Vec<String>,
-    /// TODO description
+    /// Controls whether default fields will be scrubbed.
     pub scrub_defaults: bool,
-    /// TODO description
-    pub scrub_data: bool,
     /// Configuration for filter rules.
     pub filter_settings: FiltersConfig,
 }
