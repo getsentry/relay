@@ -184,28 +184,61 @@ pub struct FilterConfig {
     is_enabled: bool,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd, Hash)]
+/// A browser class to be filtered by the legacy browser filter.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum LegacyBrowser {
-    #[serde(rename = "ie_pre_9")]
-    IePre9,
-    #[serde(rename = "ie9")]
-    Ie9,
-    #[serde(rename = "ie10")]
-    Ie10,
-    #[serde(rename = "opera_pre_15")]
-    OperaPre15,
-    #[serde(rename = "opera_mini_pre_8")]
-    OperaMiniPre8,
-    #[serde(rename = "android_pre_4")]
-    AndroidPre4,
-    #[serde(rename = "safari_pre_6")]
-    SafariPre6,
-    #[serde(rename = "default")]
     Default,
-    // Unknown(String), // TODO(ja): Check if we should implement this better
+    IePre9,
+    Ie9,
+    Ie10,
+    OperaPre15,
+    OperaMiniPre8,
+    AndroidPre4,
+    SafariPre6,
+    Unknown(String),
 }
 
-/// TODO: doc
+impl<'de> Deserialize<'de> for LegacyBrowser {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let string = Cow::<str>::deserialize(deserializer)?;
+
+        Ok(match string.as_ref() {
+            "default" => LegacyBrowser::Default,
+            "ie_pre_9" => LegacyBrowser::IePre9,
+            "ie9" => LegacyBrowser::Ie9,
+            "ie10" => LegacyBrowser::Ie10,
+            "opera_pre_15" => LegacyBrowser::OperaPre15,
+            "opera_mini_pre_8" => LegacyBrowser::OperaMiniPre8,
+            "android_pre_4" => LegacyBrowser::AndroidPre4,
+            "safari_pre_6" => LegacyBrowser::SafariPre6,
+            _ => LegacyBrowser::Unknown(string.into_owned()),
+        })
+    }
+}
+
+impl Serialize for LegacyBrowser {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        serializer.serialize_str(match self {
+            LegacyBrowser::Default => "default",
+            LegacyBrowser::IePre9 => "ie_pre_9",
+            LegacyBrowser::Ie9 => "ie9",
+            LegacyBrowser::Ie10 => "ie10",
+            LegacyBrowser::OperaPre15 => "opera_pre_15",
+            LegacyBrowser::OperaMiniPre8 => "opera_mini_pre_8",
+            LegacyBrowser::AndroidPre4 => "android_pre_4",
+            LegacyBrowser::SafariPre6 => "safari_pre_6",
+            LegacyBrowser::Unknown(string) => &string,
+        })
+    }
+}
+
+/// Configuration for the legacy browsers filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct LegacyBrowsersFilterConfig {
     /// TODO: doc
