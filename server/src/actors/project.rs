@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-use ::actix::fut;
-use ::actix::prelude::*;
+use actix::fut;
+use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
 use chrono::{DateTime, Utc};
 use failure::Fail;
@@ -862,19 +862,19 @@ mod tests {
 
     #[test]
     fn test_should_serialize() {
-        let foo = FiltersConfig {
+        let filters_config = FiltersConfig {
             browser_extensions: FilterConfig { is_enabled: true },
             web_crawlers: FilterConfig { is_enabled: false },
             legacy_browsers: LegacyBrowsersFilterConfig {
                 is_enabled: false,
-                browsers: [LegacyBrowser::Ie9].into_iter().cloned().collect(),
+                browsers: [LegacyBrowser::Ie9].iter().cloned().collect(),
             },
             localhost: FilterConfig { is_enabled: true },
         };
 
-        serde_json::to_string(&foo).unwrap();
+        serde_json::to_string(&filters_config).unwrap();
 
-        insta::assert_json_snapshot_matches!(foo, @r###"
+        insta::assert_json_snapshot_matches!(filters_config, @r###"
        ⋮{
        ⋮  "browserExtensions": {
        ⋮    "isEnabled": true
@@ -884,7 +884,7 @@ mod tests {
        ⋮  },
        ⋮  "legacyBrowsers": {
        ⋮    "is_enabled": false,
-       ⋮    "browsers": [
+       ⋮    "options": [
        ⋮      "ie9"
        ⋮    ]
        ⋮  },
