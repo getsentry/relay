@@ -31,7 +31,7 @@ def run_format_check(files):
     if not rust_files:
         return 0
     rv = subprocess.Popen(
-        ["cargo", "fmt", "--", "--write-mode=diff", "--skip-children", "--color=always"]
+        ["cargo", "fmt", "--", "--check", "--color=always"]
         + rust_files
     ).wait()
     if rv != 0:
