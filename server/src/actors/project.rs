@@ -184,7 +184,7 @@ pub struct FilterConfig {
     pub is_enabled: bool,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum LegacyBrowser {
     #[serde(rename = "ie_pre_9")]
     IePre9,
@@ -200,6 +200,8 @@ pub enum LegacyBrowser {
     AndroidPre4,
     #[serde(rename = "safari_pre_6")]
     SafariPre6,
+    #[serde(rename = "default")]
+    Default,
     // Unknown(String), // TODO(ja): Check if we should implement this better
 }
 
