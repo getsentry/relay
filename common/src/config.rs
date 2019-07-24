@@ -336,6 +336,31 @@ impl Default for Sentry {
     }
 }
 
+/// Controls Sentry-internal event processing.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct Processing {
+    /// True if the Relay should do processing. Defaults to `false`.
+    enabled: bool,
+    /// GeoIp DB file location.
+    geoip_path: Option<PathBuf>,
+    /// Maximum future timestamp of ingested events.
+    max_secs_in_future: u32,
+    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
+    max_secs_in_past: u32,
+}
+
+impl Default for Processing {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            geoip_path: None,
+            max_secs_in_future: 60,           // 1 minute
+            max_secs_in_past: 30 * 24 * 3600, // 30 days
+        }
+    }
+}
+
 /// Controls interal reporting to Sentry.
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
@@ -391,6 +416,8 @@ struct ConfigValues {
     metrics: Metrics,
     #[serde(default)]
     sentry: Sentry,
+    #[serde(default)]
+    processing: Processing,
 }
 
 impl ConfigObject for ConfigValues {
@@ -691,9 +718,33 @@ impl Config {
         }
     }
 
-    /// Get filename for static project config
+    /// Get filename for static project config.
     pub fn project_configs_path(&self) -> PathBuf {
         self.path.join("projects")
+    }
+
+    /// True if the Relay should do processing.
+    pub fn processing_enabled(&self) -> bool {
+        self.values.processing.enabled
+    }
+
+    /// The path to the GeoIp database required for event processing.
+    pub fn geoip_path(&self) -> Option<&Path> {
+        self.values
+            .processing
+            .geoip_path
+            .as_ref()
+            .map(PathBuf::as_path)
+    }
+
+    /// Maximum future timestamp of ingested events.
+    pub fn max_secs_in_future(&self) -> i64 {
+        self.values.processing.max_secs_in_future.into()
+    }
+
+    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
+    pub fn max_secs_in_past(&self) -> i64 {
+        self.values.processing.max_secs_in_past.into()
     }
 }
 

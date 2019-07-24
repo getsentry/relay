@@ -192,3 +192,33 @@ def test_max_concurrent_requests(mini_sentry, relay):
 
     store_count.acquire(timeout=4)
     store_count.acquire(timeout=4)
+
+
+def test_when_processing_is_enabled_relay_normalizes_events(mini_sentry, relay):
+    """
+    Test that relay normalizes messages when processing is enabled
+    """
+    relay = relay(mini_sentry, {"processing": {"enabled":True}})
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    relay.send_event(42, {"message": "some_message"})
+    event = mini_sentry.captured_events.get(timeout=1)
+
+    assert event.get('key_id') is not None
+    assert event.get('project') is not None
+    assert event.get('version') is not None
+
+
+def test_when_processing_is_not_enabled_relay_does_not_normalize_events(mini_sentry, relay):
+    """
+    Tests that relay does not normalize when processing is disabled
+    """
+    relay = relay(mini_sentry, {"processing": {"enabled":False}})
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    relay.send_event(42, {"message": "some_message"})
+    event = mini_sentry.captured_events.get(timeout=1)
+    assert event.get('key_id') is None
+    assert event.get('project') is None
+    assert event.get('version') is None
+

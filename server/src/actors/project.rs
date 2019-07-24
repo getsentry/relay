@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -10,13 +10,14 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-use ::actix::fut;
-use ::actix::prelude::*;
+use actix::fut;
+use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
 use chrono::{DateTime, Utc};
 use failure::Fail;
 use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use url::Url;
 
 use semaphore_common::{Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
@@ -176,6 +177,92 @@ pub enum PublicKeyStatus {
     Enabled,
 }
 
+/// Common configuration for event filters.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FilterConfig {
+    /// Specifies whether this filter is enabled.
+    is_enabled: bool,
+}
+
+/// A browser class to be filtered by the legacy browser filter.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum LegacyBrowser {
+    Default,
+    IePre9,
+    Ie9,
+    Ie10,
+    OperaPre15,
+    OperaMiniPre8,
+    AndroidPre4,
+    SafariPre6,
+    Unknown(String),
+}
+
+impl<'de> Deserialize<'de> for LegacyBrowser {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let string = Cow::<str>::deserialize(deserializer)?;
+
+        Ok(match string.as_ref() {
+            "default" => LegacyBrowser::Default,
+            "ie_pre_9" => LegacyBrowser::IePre9,
+            "ie9" => LegacyBrowser::Ie9,
+            "ie10" => LegacyBrowser::Ie10,
+            "opera_pre_15" => LegacyBrowser::OperaPre15,
+            "opera_mini_pre_8" => LegacyBrowser::OperaMiniPre8,
+            "android_pre_4" => LegacyBrowser::AndroidPre4,
+            "safari_pre_6" => LegacyBrowser::SafariPre6,
+            _ => LegacyBrowser::Unknown(string.into_owned()),
+        })
+    }
+}
+
+impl Serialize for LegacyBrowser {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        serializer.serialize_str(match self {
+            LegacyBrowser::Default => "default",
+            LegacyBrowser::IePre9 => "ie_pre_9",
+            LegacyBrowser::Ie9 => "ie9",
+            LegacyBrowser::Ie10 => "ie10",
+            LegacyBrowser::OperaPre15 => "opera_pre_15",
+            LegacyBrowser::OperaMiniPre8 => "opera_mini_pre_8",
+            LegacyBrowser::AndroidPre4 => "android_pre_4",
+            LegacyBrowser::SafariPre6 => "safari_pre_6",
+            LegacyBrowser::Unknown(string) => &string,
+        })
+    }
+}
+
+/// Configuration for the legacy browsers filter.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct LegacyBrowsersFilterConfig {
+    /// Specifies whether this filter is enabled.
+    is_enabled: bool,
+    /// The browsers to filter.
+    #[serde(rename = "options")]
+    browsers: BTreeSet<LegacyBrowser>,
+}
+
+/// Configuration for all event filters.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiltersConfig {
+    #[serde(default)]
+    pub browser_extensions: FilterConfig,
+    #[serde(default)]
+    pub web_crawlers: FilterConfig,
+    #[serde(default)]
+    pub legacy_browsers: LegacyBrowsersFilterConfig,
+    #[serde(default)]
+    pub localhost: FilterConfig,
+}
+
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -186,6 +273,20 @@ pub struct ProjectConfig {
     pub trusted_relays: Vec<PublicKey>,
     /// Configuration for PII stripping.
     pub pii_config: Option<PiiConfig>,
+    /// List with the fields to be excluded.
+    pub exclude_fields: Vec<String>,
+    /// The grouping configuration.
+    pub grouping_config: Option<Value>,
+    /// Toggles all data scrubbing on or off.
+    pub scrub_data: bool,
+    /// Should ip addresses be scrubbed from messages?
+    pub scrub_ip_addresses: bool,
+    /// List of sensitive fields to be scrubbed from the messages.
+    pub sensitive_fields: Vec<String>,
+    /// Controls whether default fields will be scrubbed.
+    pub scrub_defaults: bool,
+    /// Configuration for filter rules.
+    pub filter_settings: FiltersConfig,
 }
 
 impl Default for ProjectConfig {
@@ -194,6 +295,13 @@ impl Default for ProjectConfig {
             allowed_domains: vec!["*".to_string()],
             trusted_relays: vec![],
             pii_config: None,
+            exclude_fields: vec![],
+            grouping_config: None,
+            scrub_ip_addresses: false,
+            sensitive_fields: vec![],
+            scrub_defaults: false,
+            scrub_data: false,
+            filter_settings: FiltersConfig::default(),
         }
     }
 }
@@ -220,12 +328,15 @@ pub struct ProjectState {
     /// The project's slug if available.
     #[serde(default)]
     pub slug: Option<String>,
-    /// The project's current config
+    /// The project's current config.
     #[serde(default)]
     pub config: ProjectConfig,
     /// The project state's revision id.
     #[serde(default)]
     pub rev: Option<Uuid>,
+    /// The organization id.
+    #[serde(default)]
+    pub organization_id: Option<u64>,
 }
 
 impl ProjectState {
@@ -239,6 +350,7 @@ impl ProjectState {
             slug: None,
             config: Default::default(),
             rev: None,
+            organization_id: None,
         }
     }
 
@@ -434,8 +546,11 @@ impl Handler<RetryAfter> for Project {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
     pub projects: Vec<ProjectId>,
+    #[serde(default)]
+    pub full_config: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -512,6 +627,7 @@ impl ProjectCache {
 
         let request = GetProjectStates {
             projects: channels.keys().cloned().collect(),
+            full_config: self.config.processing_enabled(),
         };
 
         self.upstream
@@ -766,5 +882,45 @@ impl Handler<Shutdown> for ProjectCache {
             Some(timeout) => self.shutdown.timeout(timeout),
             None => self.shutdown.now(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_should_serialize() {
+        let filters_config = FiltersConfig {
+            browser_extensions: FilterConfig { is_enabled: true },
+            web_crawlers: FilterConfig { is_enabled: false },
+            legacy_browsers: LegacyBrowsersFilterConfig {
+                is_enabled: false,
+                browsers: [LegacyBrowser::Ie9].iter().cloned().collect(),
+            },
+            localhost: FilterConfig { is_enabled: true },
+        };
+
+        serde_json::to_string(&filters_config).unwrap();
+
+        insta::assert_json_snapshot_matches!(filters_config, @r###"
+       ⋮{
+       ⋮  "browserExtensions": {
+       ⋮    "isEnabled": true
+       ⋮  },
+       ⋮  "webCrawlers": {
+       ⋮    "isEnabled": false
+       ⋮  },
+       ⋮  "legacyBrowsers": {
+       ⋮    "is_enabled": false,
+       ⋮    "options": [
+       ⋮      "ie9"
+       ⋮    ]
+       ⋮  },
+       ⋮  "localhost": {
+       ⋮    "isEnabled": true
+       ⋮  }
+       ⋮}
+        "###);
     }
 }

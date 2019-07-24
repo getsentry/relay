@@ -87,7 +87,7 @@ impl Controller {
 
         // Ensure that the controller starts if no actor has started it yet. It will register with
         // `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the
-        // controller will not be instanciated and our system will not listen for signals.
+        // controller will not be instantiated and our system will not listen for signals.
         Controller::from_registry();
 
         // All actors have started successfully. Run the system, which blocks the current thread

@@ -30,7 +30,7 @@ pub struct StoreConfig {
     pub protocol_version: Option<String>,
     pub grouping_config: Option<Value>,
 
-    pub valid_platforms: BTreeSet<String>,
+    pub valid_platforms: BTreeSet<String>, // TODO(ja): Pending removal
     pub max_secs_in_future: Option<i64>,
     pub max_secs_in_past: Option<i64>,
     pub enable_trimming: Option<bool>,
