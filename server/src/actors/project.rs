@@ -185,6 +185,12 @@ pub struct FilterConfig {
     is_enabled: bool,
 }
 
+impl FilterConfig {
+    fn is_empty(&self) -> bool {
+        !self.is_enabled
+    }
+}
+
 /// A browser class to be filtered by the legacy browser filter.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum LegacyBrowser {
@@ -249,6 +255,12 @@ pub struct LegacyBrowsersFilterConfig {
     browsers: BTreeSet<LegacyBrowser>,
 }
 
+impl LegacyBrowsersFilterConfig {
+    fn is_empty(&self) -> bool {
+        !self.is_enabled && self.browsers.is_empty()
+    }
+}
+
 /// Configuration for all event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -263,6 +275,21 @@ pub struct FiltersConfig {
     pub localhost: FilterConfig,
 }
 
+impl FiltersConfig {
+    fn is_empty(&self) -> bool {
+        self.browser_extensions.is_empty()
+            && self.web_crawlers.is_empty()
+            && self.legacy_browsers.is_empty()
+            && self.localhost.is_empty()
+    }
+}
+
+/// Helper method to check whether a flag is false.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_flag_default(flag: &bool) -> bool {
+    !flag
+}
+
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -274,18 +301,25 @@ pub struct ProjectConfig {
     /// Configuration for PII stripping.
     pub pii_config: Option<PiiConfig>,
     /// List with the fields to be excluded.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub exclude_fields: Vec<String>,
     /// The grouping configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub grouping_config: Option<Value>,
     /// Toggles all data scrubbing on or off.
+    #[serde(skip_serializing_if = "is_flag_default")]
     pub scrub_data: bool,
     /// Should ip addresses be scrubbed from messages?
+    #[serde(skip_serializing_if = "is_flag_default")]
     pub scrub_ip_addresses: bool,
     /// List of sensitive fields to be scrubbed from the messages.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub sensitive_fields: Vec<String>,
     /// Controls whether default fields will be scrubbed.
+    #[serde(skip_serializing_if = "is_flag_default")]
     pub scrub_defaults: bool,
     /// Configuration for filter rules.
+    #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
     pub filter_settings: FiltersConfig,
 }
 
