@@ -72,6 +72,9 @@ enum ProcessingError {
     #[fail(display = "event submission rejected")]
     EventRejected,
 
+    #[fail(display = "event filtered with reason: {}", _0)]
+    EventFiltered(String),
+
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
 
@@ -149,12 +152,14 @@ impl EventProcessor {
 
             let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
             process_value(&mut event, &mut store_processor, ProcessingState::root());
-        }
 
-        let filter_settings = &message.project_state.config.filter_settings;
-        if let Err(reason) = event_filter::should_filter(event.value(), filter_settings) {
-            // event should be filter no more processing needed
-            return Ok(ProcessEventResponse::Filtered { reason });
+            let filter_settings = &message.project_state.config.filter_settings;
+            if let Some(event) = event.value() {
+                if let Err(reason) = event_filter::should_filter(event, filter_settings) {
+                    // event should be filter no more processing needed
+                    return Ok(ProcessEventResponse::Filtered { reason });
+                }
+            }
         }
 
         let data = event
@@ -418,42 +423,42 @@ impl Handler<HandleEvent> for EventManager {
                         })
                         .map_err(ProcessingError::ScheduleFailed)
                         .flatten()))
-                    .and_then(move |processed| match processed {
-                        ProcessEventResponse::Valid { data } => Either::A({
-                            log::trace!("sending event {}", event_id);
-                            let request = SendRequest::post(format!("/api/{}/store/", project_id))
-                                .build(move |builder| {
-                                    if let Some(origin) = meta.origin() {
-                                        builder.header("Origin", origin.to_string());
-                                    }
-
-                                    builder
-                                        .header("X-Sentry-Auth", meta.auth().to_string())
-                                        .header("X-Forwarded-For", meta.forwarded_for())
-                                        .header("Content-Type", "application/json")
-                                        .body(data)
-                                });
-
-                            upstream
-                                .send(request)
-                                .map_err(ProcessingError::ScheduleFailed)
-                                .and_then(move |result| {
-                                    result.map_err(move |error| match error {
-                                        UpstreamRequestError::RateLimited(secs) => {
-                                            project.do_send(RetryAfter { secs });
-                                            ProcessingError::RateLimited(secs)
-                                        }
-                                        other => ProcessingError::SendFailed(other),
-                                    })
-                                })
-                                .inspect(move |_| {
-                                    metric!(timer("event.total_time") = start_time.elapsed())
-                                })
-                        }),
-                        //TODO RaduW handle it properly ( what do we want to do with filtered messages?)
-                        ProcessEventResponse::Filtered { reason: _ } => {
-                            Either::B({ Err(ProcessingError::EventRejected).into_future() })
+                    .and_then(|response| match response {
+                        ProcessEventResponse::Valid { data } => Ok(data),
+                        ProcessEventResponse::Filtered { reason } => {
+                            Err(ProcessingError::EventFiltered(reason))
                         }
+                    })
+                    .and_then(move |processed| {
+                        log::trace!("sending event {}", event_id);
+                        let request = SendRequest::post(format!("/api/{}/store/", project_id))
+                            .build(move |builder| {
+                                if let Some(origin) = meta.origin() {
+                                    builder.header("Origin", origin.to_string());
+                                }
+
+                                builder
+                                    .header("X-Sentry-Auth", meta.auth().to_string())
+                                    .header("X-Forwarded-For", meta.forwarded_for())
+                                    .header("Content-Type", "application/json")
+                                    .body(processed)
+                            });
+
+                        upstream
+                            .send(request)
+                            .map_err(ProcessingError::ScheduleFailed)
+                            .and_then(move |result| {
+                                result.map_err(move |error| match error {
+                                    UpstreamRequestError::RateLimited(secs) => {
+                                        project.do_send(RetryAfter { secs });
+                                        ProcessingError::RateLimited(secs)
+                                    }
+                                    other => ProcessingError::SendFailed(other),
+                                })
+                            })
+                            .inspect(move |_| {
+                                metric!(timer("event.total_time") = start_time.elapsed())
+                            })
                     })
             })
             .into_actor(self)

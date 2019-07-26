@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 export SEMAPHORE_PYTHON_VERSION := python3
 
-all: check test
+all: submodules check test
 .PHONY: all
 
 check: style lint
@@ -125,7 +125,7 @@ format-python: .venv/bin/python
 
 # Development
 
-setup: GeoLite2-City.mmdb .git/hooks/pre-commit
+setup: GeoLite2-City.mmdb .git/hooks/pre-commit submodules
 .PHONY: setup
 
 devserver:
@@ -150,3 +150,7 @@ GeoLite2-City.mmdb:
 
 .git/hooks/pre-commit:
 	cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.py pre-commit
+
+submodules:
+	git submodule update --init
+.PHONY: submodules

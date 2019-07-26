@@ -1,10 +1,13 @@
+//! Implements filtering for events originating from the localhost
+
 use crate::actors::project::FilterConfig;
 use semaphore_general::protocol::Event;
 
 const LOCAL_IPS: &'static [&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &'static [&str] = &["127.0.0.1", "localhost"];
 
-pub fn localhost_filter(event: &Event, config: &FilterConfig) -> Result<(), String> {
+/// Filters events originating from the local host
+pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String> {
     if !config.is_enabled {
         return Ok(());
     }
@@ -46,6 +49,7 @@ fn get_domain(event: &Event) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event_filter::util::test_utils::*;
     use semaphore_general::protocol::{IpAddr, Request, User};
     use semaphore_general::types::{Annotated, Meta};
 
@@ -69,10 +73,6 @@ mod tests {
         }
     }
 
-    fn get_f_config(is_enabled: bool) -> FilterConfig {
-        FilterConfig { is_enabled }
-    }
-
     #[test]
     fn it_should_not_filter_events_if_filter_is_disabled() {
         for event in [
@@ -81,7 +81,7 @@ mod tests {
         ]
         .iter()
         {
-            let filter_result = localhost_filter(&event, &get_f_config(false));
+            let filter_result = should_filter(&event, &get_f_config(false));
             assert_eq!(
                 filter_result,
                 Ok(()),
@@ -94,7 +94,7 @@ mod tests {
     fn it_should_filter_events_with_local_ip() {
         for ip_addr in ["127.0.0.1", "::1"].iter() {
             let event = get_event_with_ip_addr(ip_addr);
-            let filter_result = localhost_filter(&event, &get_f_config(true));
+            let filter_result = should_filter(&event, &get_f_config(true));
             assert_ne!(
                 filter_result,
                 Ok(()),
@@ -108,7 +108,7 @@ mod tests {
     fn it_should_not_filter_events_with_non_local_ip() {
         for ip_addr in ["133.12.12.1", "2001:db8:0:0:0:ff00:42:8329"].iter() {
             let event = get_event_with_ip_addr(ip_addr);
-            let filter_result = localhost_filter(&event, &get_f_config(true));
+            let filter_result = should_filter(&event, &get_f_config(true));
             assert_eq!(
                 filter_result,
                 Ok(()),
@@ -123,7 +123,7 @@ mod tests {
         let event = Event {
             ..Default::default()
         };
-        let filter_result = localhost_filter(&event, &get_f_config(true));
+        let filter_result = should_filter(&event, &get_f_config(true));
         assert_eq!(
             filter_result,
             Ok(()),
@@ -135,7 +135,7 @@ mod tests {
     fn it_should_filter_events_with_local_domains() {
         for domain in ["127.0.0.1", "localhost"].iter() {
             let event = get_event_with_domain(domain);
-            let filter_result = localhost_filter(&event, &get_f_config(true));
+            let filter_result = should_filter(&event, &get_f_config(true));
             assert_ne!(
                 filter_result,
                 Ok(()),
@@ -149,7 +149,7 @@ mod tests {
     fn it_should_not_filter_events_with_non_local_domains() {
         for domain in ["my.dom.com", "123.123.123.44"].iter() {
             let event = get_event_with_domain(domain);
-            let filter_result = localhost_filter(&event, &get_f_config(true));
+            let filter_result = should_filter(&event, &get_f_config(true));
             assert_eq!(
                 filter_result,
                 Ok(()),

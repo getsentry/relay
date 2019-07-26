@@ -38,6 +38,7 @@ serde_json = "1.0.36"
 tokio-timer = "0.2.8"
 url = "1.7.2"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
+uaparser = "0.3.1"   # User agent parser library
 
 [dependencies.semaphore-common]
 path = "../common"

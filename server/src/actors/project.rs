@@ -886,7 +886,7 @@ mod tests {
        ⋮  },
        ⋮  "legacyBrowsers": {
        ⋮    "is_enabled": false,
-       ⋮    "browsers": [
+       ⋮    "options": [
        ⋮      "ie9"
        ⋮    ]
        ⋮  },

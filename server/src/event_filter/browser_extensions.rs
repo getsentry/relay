@@ -1,3 +1,5 @@
+//! Implements filtering for events caused by problematic browsers extensions
+//!
 use crate::actors::project::FilterConfig;
 use regex::{Regex, RegexBuilder};
 use semaphore_general::protocol::{Event, Exception, Frame, JsonLenientString, Values};
@@ -5,7 +7,8 @@ use semaphore_general::protocol::{Event, Exception, Frame, JsonLenientString, Va
 use lazy_static::lazy_static;
 use semaphore_general::types::{Annotated, Array};
 
-pub fn browser_extensions_filter(event: &Event, config: &FilterConfig) -> Result<(), String> {
+/// Filters events originating from known problematic browser extensions.
+pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String> {
     if !config.is_enabled {
         return Ok(());
     }
@@ -50,78 +53,51 @@ fn get_exception_source(event: &Event) -> Option<&str> {
 }
 
 lazy_static! {
-    static ref EXTENSION_EXC_VALUES_STR: String = [
-        // Random plugins/extensions
-        r"top\.GLOBALS",
-        // See: http://blog.errorception.com/2012/03/tale-of-unfindable-js-error.html
-        r"originalCreateNotification",
-        r"canvas.contentDocument",
-        r"MyApp_RemoveAllHighlights",
-        r"http://tt\.epicplay\.com",
-        r"Can't find variable: ZiteReader",
-        r"jigsaw is not defined",
-        r"ComboSearch is not defined",
-        r"http://loading\.retry\.widdit\.com/",
-        r"atomicFindClose",
-        // Facebook borked
-        r"fb_xd_fragment",
-        // ISP "optimizing" proxy - `Cache-Control: no-transform` seems to
-        // reduce this. (thanks @acdha)
-        // See http://stackoverflow.com/questions/4113268
-        r"bmi_SafeAddOnload",
-        r"EBCallBackMessageReceived",
-        // See https://groups.google.com/a/chromium.org/forum/#!topic/chromium-discuss/7VU0_VvC7mE
-        r"_gCrWeb",
-        // See http://toolbar.conduit.com/Debveloper/HtmlAndGadget/Methods/JSInjection.aspx
-        r"conduitPage",
-        // Google Search app (iOS)
-        // See: https://github.com/getsentry/raven-js/issues/756
-        r"null is not an object \(evaluating 'elt.parentNode'\)",
-        // Dragon Web Extension from Nuance Communications
-        // See: https://forum.sentry.io/t/error-in-raven-js-plugin-setsuspendstate/481/
-        r"plugin\.setSuspendState is not a function"
-        ].join("|");
 
-    static ref EXTENSION_EXC_VALUES: Regex =
-    RegexBuilder::new(EXTENSION_EXC_VALUES_STR.as_str())
-        .case_insensitive(true)
-        .build()
-        .expect("Invalid browser extensions filter (Exec Vals) Regex");
+    static ref EXTENSION_EXC_VALUES: Regex = Regex::new(r#"(?ix)
+        top\.GLOBALS|                           # Random plugins/extensions
+        # See: http://blog.errorception.com/2012/03/tale-of-unfindable-js-error.html
+        originalCreateNotification|
+        canvas.contentDocument|
+        MyApp_RemoveAllHighlights|
+        http://tt\.epicplay\.com|
+        Can't\sfind\svariable:\sZiteReader|
+        jigsaw\sis\snot\sdefined|
+        ComboSearch\sis\snot\sdefined|
+        http://loading\.retry\.widdit\.com/|
+        atomicFindClose|
+        fb_xd_fragment|                         # Facebook borked
+        # ISP "optimizing" proxy - `Cache-Control: no-transform` seems to
+        # reduce this. (thanks @acdha)
+        bmi_SafeAddOnload|                      # See http://stackoverflow.com/questions/4113268
+        EBCallBackMessageReceived|
+         _gCrWeb|                               # See https://groups.google.com/a/chromium.org/forum/#!topic/chromium-discuss/7VU0_VvC7mE
+        conduitPage|                            # See http://toolbar.conduit.com/Debveloper/HtmlAndGadget/Methods/JSInjection.aspx
+        # Google Search app (iOS)
+        null\sis\snot\san\sobject\s\(evaluating\s'elt.parentNode'\)|  # See: https://github.com/getsentry/raven-js/issues/756
+        # Dragon Web Extension from Nuance Communications
+        plugin\.setSuspendState\sis\snot\sa\sfunction               # See: https://forum.sentry.io/t/error-in-raven-js-plugin-setsuspendstate/481/
+    "#).expect("Invalid browser extensions filter (Exec Vals) Regex");
 
-    static ref EXTENSION_EXC_SOURCES_STR: String = [
-        // Facebook flakiness
-        r"graph\.facebook\.com",
-        // Facebook blocked
-        r"connect\.facebook\.net",
-        // Woopra flakiness
-        r"eatdifferent\.com\.woopra-ns\.com",
-        r"static\.woopra\.com/js/woopra\.js",
-        // Chrome extensions
-        r"^chrome(-extension)?://",
-        // Cacaoweb
-        r"127\.0\.0\.1:4001/isrunning",
-        // Other
-        r"webappstoolbarba\.texthelp\.com/",
-        r"metrics\.itunes\.apple\.com\.edgesuite\.net/",
-        // Kaspersky Protection browser extension
-        r"kaspersky-labs\.com",
-    ].join("|");
+    static ref EXTENSION_EXC_SOURCES: Regex = Regex::new(r#"(?ix)
+        graph\.facebook\.com|                           # Facebook flakiness
+        connect\.facebook\.net|                         # Facebook blocked
+        eatdifferent\.com\.woopra-ns\.com|              # Woopra flakiness
+        static\.woopra\.com/js/woopra\.js|
+        ^chrome(-extension)?://|                        # Chrome extensions
+        127\.0\.0\.1:4001/isrunning|                    # Cacaoweb
+        webappstoolbarba\.texthelp\.com/|               # Other
+        metrics\.itunes\.apple\.com\.edgesuite\.net/|
+        kaspersky-labs\.com                             # Kaspersky Protection browser extension
+    "#).expect("Invalid browser extensions filter (Exec Sources) Regex");
 
-    static ref EXTENSION_EXC_SOURCES: Regex =
-    RegexBuilder::new(EXTENSION_EXC_SOURCES_STR.as_str())
-        .case_insensitive(true)
-        .build()
-        .expect("Invalid browser extensions filter (Exec Sources) Regex");
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event_filter::util::test_utils::*;
     use semaphore_general::protocol::{RawStacktrace, Stacktrace};
-
-    fn get_f_config(is_enabled: bool) -> FilterConfig {
-        FilterConfig { is_enabled }
-    }
 
     /// Returns an event with the specified exception on the last position in the stack
     fn get_event_with_exception(e: Exception) -> Event {
@@ -175,7 +151,7 @@ mod tests {
         ]
         .iter()
         {
-            let filter_result = browser_extensions_filter(event_ref, &get_f_config(false));
+            let filter_result = should_filter(event_ref, &get_f_config(false));
             assert_eq!(
                 filter_result,
                 Ok(()),
@@ -201,7 +177,7 @@ mod tests {
         .iter()
         {
             let event = get_event_with_exception_source(source_name);
-            let filter_result = browser_extensions_filter(&event, &get_f_config(true));
+            let filter_result = should_filter(&event, &get_f_config(true));
 
             assert_ne!(
                 filter_result,
@@ -239,7 +215,7 @@ mod tests {
         .iter()
         {
             let event = get_event_with_exception_value(exc_value);
-            let filter_result = browser_extensions_filter(&event, &get_f_config(true));
+            let filter_result = should_filter(&event, &get_f_config(true));
             assert_ne!(
                 filter_result,
                 Ok(()),
@@ -257,7 +233,7 @@ mod tests {
         ]
         .iter()
         {
-            let filter_result = browser_extensions_filter(event_ref, &get_f_config(true));
+            let filter_result = should_filter(event_ref, &get_f_config(true));
             assert_eq!(
                 filter_result,
                 Ok(()),

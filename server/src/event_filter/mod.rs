@@ -1,15 +1,30 @@
-mod browser_extensions;
-mod localhost;
-mod web_crawlers;
+//! Implements event filtering
+//!
+//! Events may be filtered base on the following configurable criteria.
+//!
+//! * localhost ( filter events originating from the local machine)
+//! * browser extensions ( filter events caused by known problematic browser extensions)
+//! * web crawlers ( filter events sent by user agents known to be web crawlers)
+//! * legacy browsers ( filter events originating from legacy browsers, can be configured)
+//!
 
-use crate::actors::project::FiltersConfig;
 use semaphore_general::protocol::Event;
 
-pub fn should_filter(event: Option<&Event>, config: &FiltersConfig) -> Result<(), String> {
-    if let Some(ref event) = event {
-        localhost::localhost_filter(event, &config.localhost)?;
-        browser_extensions::browser_extensions_filter(event, &config.browser_extensions)?;
-        web_crawlers::web_crawlers_filter(event, &config.web_crawlers)?;
-    }
+use crate::actors::project::FiltersConfig;
+
+mod browser_extensions;
+mod legacy_browsers;
+mod localhost;
+mod util;
+mod web_crawlers;
+
+/// Checks whether an event should be filtered (for a particular configuration)
+/// If the event should be filter the Err returned contains a filter reason.
+/// The reason is the message returned by the first filter that didn't pass.
+pub fn should_filter(event: &Event, config: &FiltersConfig) -> Result<(), String> {
+    localhost::should_filter(event, &config.localhost)?;
+    browser_extensions::should_filter(event, &config.browser_extensions)?;
+    web_crawlers::should_filter(event, &config.web_crawlers)?;
+    legacy_browsers::should_filter(event, &config.legacy_browsers)?;
     return Ok(());
 }
