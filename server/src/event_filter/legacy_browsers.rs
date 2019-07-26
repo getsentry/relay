@@ -5,8 +5,8 @@ use std::collections::{BTreeSet, HashMap};
 
 use lazy_static::lazy_static;
 
-use semaphore_common::UA_PARSER;
 use semaphore_general::protocol::{Event, Headers, Request};
+use semaphore_general::store::UA_PARSER;
 use semaphore_general::types::Annotated;
 
 use crate::actors::project::{LegacyBrowser, LegacyBrowsersFilterConfig};

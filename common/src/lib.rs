@@ -13,7 +13,6 @@ mod log;
 mod retry;
 mod types;
 mod upstream;
-mod user_agent;
 mod utils;
 
 pub use crate::auth::*;
@@ -22,7 +21,6 @@ pub use crate::log::*;
 pub use crate::retry::*;
 pub use crate::types::*;
 pub use crate::upstream::*;
-pub use crate::user_agent::*;
 pub use crate::utils::*;
 
 pub use sentry_types::{Auth, AuthParseError, Dsn, DsnParseError, Scheme, Uuid};

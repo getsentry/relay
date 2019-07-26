@@ -27,6 +27,7 @@ serde_urlencoded = "0.5.4"
 smallvec = { version = "0.6.8", features = ["serde"] }
 url = "1.7.2"
 uuid = { version = "0.7.1", features = ["v4", "serde"] }
+uaparser = "0.3.1"   # User agent parser library
 
 [dev-dependencies]
 difference = "2.0.0"
