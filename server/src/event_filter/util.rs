@@ -33,8 +33,6 @@ pub mod test_utils {
     use crate::actors::project::FilterConfig;
     use semaphore_general::types::Annotated;
 
-    use crate::event_filter::util;
-
     /// Create a FilterConfig with the specified enabled state.
     pub fn get_f_config(is_enabled: bool) -> FilterConfig {
         FilterConfig { is_enabled }

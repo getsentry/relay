@@ -177,45 +177,91 @@ pub enum PublicKeyStatus {
     Enabled,
 }
 
+/// Common configuration for event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FilterConfig {
-    /// true if the filter is enabled
+    /// Specifies whether this filter is enabled.
     pub is_enabled: bool,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum LegacyBrowser {
-    #[serde(rename = "ie_pre_9")]
-    IePre9,
-    #[serde(rename = "ie9")]
-    Ie9,
-    #[serde(rename = "ie10")]
-    Ie10,
-    #[serde(rename = "opera_pre_15")]
-    OperaPre15,
-    #[serde(rename = "opera_mini_pre_8")]
-    OperaMiniPre8,
-    #[serde(rename = "android_pre_4")]
-    AndroidPre4,
-    #[serde(rename = "safari_pre_6")]
-    SafariPre6,
-    #[serde(rename = "default")]
-    Default,
-    // Unknown(String), // TODO(ja): Check if we should implement this better
+impl FilterConfig {
+    fn is_empty(&self) -> bool {
+        !self.is_enabled
+    }
 }
 
-/// Configuration for the Legacy Browsers filter
+/// A browser class to be filtered by the legacy browser filter.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum LegacyBrowser {
+    Default,
+    IePre9,
+    Ie9,
+    Ie10,
+    OperaPre15,
+    OperaMiniPre8,
+    AndroidPre4,
+    SafariPre6,
+    Unknown(String),
+}
+
+impl<'de> Deserialize<'de> for LegacyBrowser {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let string = Cow::<str>::deserialize(deserializer)?;
+
+        Ok(match string.as_ref() {
+            "default" => LegacyBrowser::Default,
+            "ie_pre_9" => LegacyBrowser::IePre9,
+            "ie9" => LegacyBrowser::Ie9,
+            "ie10" => LegacyBrowser::Ie10,
+            "opera_pre_15" => LegacyBrowser::OperaPre15,
+            "opera_mini_pre_8" => LegacyBrowser::OperaMiniPre8,
+            "android_pre_4" => LegacyBrowser::AndroidPre4,
+            "safari_pre_6" => LegacyBrowser::SafariPre6,
+            _ => LegacyBrowser::Unknown(string.into_owned()),
+        })
+    }
+}
+
+impl Serialize for LegacyBrowser {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        serializer.serialize_str(match self {
+            LegacyBrowser::Default => "default",
+            LegacyBrowser::IePre9 => "ie_pre_9",
+            LegacyBrowser::Ie9 => "ie9",
+            LegacyBrowser::Ie10 => "ie10",
+            LegacyBrowser::OperaPre15 => "opera_pre_15",
+            LegacyBrowser::OperaMiniPre8 => "opera_mini_pre_8",
+            LegacyBrowser::AndroidPre4 => "android_pre_4",
+            LegacyBrowser::SafariPre6 => "safari_pre_6",
+            LegacyBrowser::Unknown(string) => &string,
+        })
+    }
+}
+
+/// Configuration for the legacy browsers filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct LegacyBrowsersFilterConfig {
-    /// tue if the filter is enabled.
+    /// Specifies whether this filter is enabled.
     pub is_enabled: bool,
-    /// set with all the browsers that should be filtered.
+    /// The browsers to filter.
     #[serde(rename = "options")]
     pub browsers: BTreeSet<LegacyBrowser>,
 }
 
-/// Event filters configuration
+impl LegacyBrowsersFilterConfig {
+    fn is_empty(&self) -> bool {
+        !self.is_enabled && self.browsers.is_empty()
+    }
+}
+
+/// Configuration for all event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FiltersConfig {
@@ -236,6 +282,21 @@ pub struct FiltersConfig {
     pub localhost: FilterConfig,
 }
 
+impl FiltersConfig {
+    fn is_empty(&self) -> bool {
+        self.browser_extensions.is_empty()
+            && self.web_crawlers.is_empty()
+            && self.legacy_browsers.is_empty()
+            && self.localhost.is_empty()
+    }
+}
+
+/// Helper method to check whether a flag is false.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_flag_default(flag: &bool) -> bool {
+    !*flag
+}
+
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -247,18 +308,25 @@ pub struct ProjectConfig {
     /// Configuration for PII stripping.
     pub pii_config: Option<PiiConfig>,
     /// List with the fields to be excluded.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub exclude_fields: Vec<String>,
     /// The grouping configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub grouping_config: Option<Value>,
-    /// Should ip addresses be scrubbed from messages ?
+    /// Toggles all data scrubbing on or off.
+    #[serde(skip_serializing_if = "is_flag_default")]
+    pub scrub_data: bool,
+    /// Should ip addresses be scrubbed from messages?
+    #[serde(skip_serializing_if = "is_flag_default")]
     pub scrub_ip_addresses: bool,
     /// List of sensitive fields to be scrubbed from the messages.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub sensitive_fields: Vec<String>,
-    /// TODO description
+    /// Controls whether default fields will be scrubbed.
+    #[serde(skip_serializing_if = "is_flag_default")]
     pub scrub_defaults: bool,
-    /// TODO description
-    pub scrub_data: bool,
     /// Configuration for filter rules.
+    #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
     pub filter_settings: FiltersConfig,
 }
 
@@ -864,19 +932,19 @@ mod tests {
 
     #[test]
     fn test_should_serialize() {
-        let foo = FiltersConfig {
+        let filters_config = FiltersConfig {
             browser_extensions: FilterConfig { is_enabled: true },
             web_crawlers: FilterConfig { is_enabled: false },
             legacy_browsers: LegacyBrowsersFilterConfig {
                 is_enabled: false,
-                browsers: [LegacyBrowser::Ie9].into_iter().cloned().collect(),
+                browsers: [LegacyBrowser::Ie9].iter().cloned().collect(),
             },
             localhost: FilterConfig { is_enabled: true },
         };
 
-        serde_json::to_string(&foo).unwrap();
+        serde_json::to_string(&filters_config).unwrap();
 
-        insta::assert_json_snapshot_matches!(foo, @r###"
+        insta::assert_json_snapshot_matches!(filters_config, @r###"
        ⋮{
        ⋮  "browserExtensions": {
        ⋮    "isEnabled": true

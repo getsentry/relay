@@ -1,11 +1,10 @@
 //! Filters events coming from user agents known to be web crawlers.
 
 use crate::actors::project::FilterConfig;
-use regex::{Regex, RegexBuilder};
-use semaphore_general::protocol::{Event, Headers, Request};
+use regex::Regex;
+use semaphore_general::protocol::Event;
 
 use lazy_static::lazy_static;
-use semaphore_general::types::Annotated;
 
 use crate::event_filter::util;
 
@@ -52,7 +51,6 @@ lazy_static! {
 mod tests {
     use super::*;
     use crate::event_filter::util::test_utils::*;
-    use semaphore_general::protocol::PairList;
 
     #[test]
     fn it_should_not_filter_events_when_disabled() {

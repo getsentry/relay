@@ -1,16 +1,13 @@
 //! Implements filtering for events originating from legacy browsers.
 
-use regex::{Regex, RegexBuilder};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 use lazy_static::lazy_static;
 
-use semaphore_general::protocol::{Event, Headers, Request};
+use semaphore_general::protocol::Event;
 use semaphore_general::store::UA_PARSER;
-use semaphore_general::types::Annotated;
 
 use crate::actors::project::{LegacyBrowser, LegacyBrowsersFilterConfig};
-use crate::event_filter::util;
 use crate::event_filter::util::get_user_agent;
 use uaparser::{Parser, UserAgent};
 
@@ -58,6 +55,9 @@ pub fn should_filter(event: &Event, config: &LegacyBrowsersFilterConfig) -> Resu
                 }
                 LegacyBrowser::SafariPre6 => {
                     filter_browser(family.as_str(), &user_agent, "Safari", |x| x < 6)?
+                }
+                LegacyBrowser::Unknown(_) => {
+                    // unknown browsers should not be filtered
                 }
                 LegacyBrowser::Default => {
                     panic!("Browser type All should have already been handled. (programming error)")
@@ -152,6 +152,7 @@ mod tests {
 
     use super::*;
     use crate::event_filter::util::test_utils::*;
+    use std::collections::BTreeSet;
 
     fn get_legacy_browsers_filter_config(
         is_enabled: bool,
@@ -162,7 +163,7 @@ mod tests {
             browsers: {
                 let mut x = BTreeSet::<LegacyBrowser>::new();
                 for elm in legacy_browsers {
-                    x.insert(*elm);
+                    x.insert(elm.clone());
                 }
                 x
             },
@@ -284,10 +285,9 @@ mod tests {
             )
         }
     }
-
     #[test]
     fn it_should_not_filter_the_events_from_browsers_that_are_not_configured() {
-        for (ref user_agent, ref active_filter) in &[
+        for (user_agent, active_filter) in &[
             (IE11_UA, LegacyBrowser::Ie10),
             (IE10_UA, LegacyBrowser::Ie9),
             (IE9_UA, LegacyBrowser::IePre9),
@@ -299,7 +299,7 @@ mod tests {
             let evt = get_event_with_user_agent(user_agent);
             let filter_result = should_filter(
                 &evt,
-                &get_legacy_browsers_filter_config(true, &[*active_filter]),
+                &get_legacy_browsers_filter_config(true, &[active_filter.clone()]),
             );
             assert_eq!(
                 filter_result,
@@ -360,6 +360,8 @@ mod tests {
                 (ANDROID2_S_UA, LegacyBrowser::Default),
                 (IE9_S_UA, LegacyBrowser::Default),
                 (IE_MOBILE9_S_UA, LegacyBrowser::Default),
+                (IE5_S_UA, LegacyBrowser::Default),
+                (OPERA11_S_UA, LegacyBrowser::Default),
                 (OPERA_12_S_UA, LegacyBrowser::Default),
                 (OPERA_MINI7_S_UA, LegacyBrowser::Default),
                 (OPERA_12_S_UA, LegacyBrowser::OperaPre15),
@@ -379,7 +381,7 @@ mod tests {
                 let evt = get_event_with_user_agent(user_agent);
                 let filter_result = should_filter(
                     &evt,
-                    &get_legacy_browsers_filter_config(true, &[*active_filter]),
+                    &get_legacy_browsers_filter_config(true, &[active_filter.clone()]),
                 );
                 assert_ne!(
                     filter_result,
@@ -400,6 +402,7 @@ mod tests {
                 (CHROME_S_UA, LegacyBrowser::Default),
                 (EDGE_S_UA, LegacyBrowser::Default),
                 (OPERA_15_S_UA, LegacyBrowser::Default),
+                (OPERA_MINI8_S_UA, LegacyBrowser::Default),
                 (IE10_S_UA, LegacyBrowser::Default),
                 (IE_MOBILE10_S_UA, LegacyBrowser::Default),
                 (SAFARI7_S_UA, LegacyBrowser::Default),
@@ -407,7 +410,7 @@ mod tests {
                 let evt = get_event_with_user_agent(user_agent);
                 let filter_result = should_filter(
                     &evt,
-                    &get_legacy_browsers_filter_config(true, &[*active_filter]),
+                    &get_legacy_browsers_filter_config(true, &[active_filter.clone()]),
                 );
                 assert_eq!(
                     filter_result,

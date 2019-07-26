@@ -1,7 +1,7 @@
 //! Implements filtering for events caused by problematic browsers extensions
 //!
 use crate::actors::project::FilterConfig;
-use regex::{Regex, RegexBuilder};
+use regex::Regex;
 use semaphore_general::protocol::{Event, Exception, Frame, JsonLenientString, Values};
 
 use lazy_static::lazy_static;

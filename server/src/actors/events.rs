@@ -5,7 +5,6 @@ use actix::fut::result;
 use actix::prelude::*;
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
-use futures::future::Either;
 use futures::prelude::*;
 use json_forensics;
 use sentry::integrations::failure::event_from_fail;
@@ -119,12 +118,6 @@ impl EventProcessor {
         if let Some(event) = event.value_mut() {
             event.id = Annotated::new(message.event_id);
         }
-
-        //        if self.config.processing_enabled() {
-        //            if should_rate_limit(event) {
-        //                return false;
-        //            }
-        //        }
 
         if let Some(ref pii_config) = message.project_state.config.pii_config {
             let mut processor = PiiProcessor::new(pii_config);

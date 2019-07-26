@@ -51,7 +51,7 @@ mod tests {
     use super::*;
     use crate::event_filter::util::test_utils::*;
     use semaphore_general::protocol::{IpAddr, Request, User};
-    use semaphore_general::types::{Annotated, Meta};
+    use semaphore_general::types::Annotated;
 
     fn get_event_with_ip_addr(val: &str) -> Event {
         Event {
