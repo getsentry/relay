@@ -1,4 +1,4 @@
-//! Implements event filtering
+//! Implements event filtering.
 //!
 //! Events may be filtered base on the following configurable criteria.
 //!
@@ -21,13 +21,18 @@ mod web_crawlers;
 #[cfg(test)]
 mod test_utils;
 
-/// Checks whether an event should be filtered (for a particular configuration)
-/// If the event should be filter the Err returned contains a filter reason.
+/// Checks whether an event should be filtered for a particular configuration.
+///
+/// If the event should be filter, the `Err` returned contains a filter reason.
 /// The reason is the message returned by the first filter that didn't pass.
 pub fn should_filter(event: &Event, config: &FiltersConfig) -> Result<(), String> {
+    // NB: The order of applying filters should not matter as they are additive. Still, be careful
+    // when making changes to this order.
+
     localhost::should_filter(event, &config.localhost)?;
     browser_extensions::should_filter(event, &config.browser_extensions)?;
-    web_crawlers::should_filter(event, &config.web_crawlers)?;
     legacy_browsers::should_filter(event, &config.legacy_browsers)?;
+    web_crawlers::should_filter(event, &config.web_crawlers)?;
+
     Ok(())
 }
