@@ -1,14 +1,14 @@
 //! Filters events coming from user agents known to be web crawlers.
 
-use crate::actors::project::FilterConfig;
+use lazy_static::lazy_static;
 use regex::Regex;
+
 use semaphore_general::protocol::Event;
 
-use lazy_static::lazy_static;
-
+use crate::actors::project::FilterConfig;
 use crate::event_filter::util;
 
-/// Filters events originating from a known web crawler
+/// Filters events originating from a known web crawler.
 pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String> {
     if !config.is_enabled {
         return Ok(());
@@ -19,7 +19,8 @@ pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String>
             return Err("User agent is web crawler".to_string());
         }
     }
-    return Ok(());
+
+    Ok(())
 }
 
 lazy_static! {
@@ -50,12 +51,12 @@ lazy_static! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event_filter::util::test_utils::*;
+    use crate::event_filter::test_utils;
 
     #[test]
     fn it_should_not_filter_events_when_disabled() {
-        let evt = get_event_with_user_agent("Googlebot");
-        let filter_result = should_filter(&evt, &get_f_config(false));
+        let evt = test_utils::get_event_with_user_agent("Googlebot");
+        let filter_result = should_filter(&evt, &test_utils::get_f_config(false));
         assert_eq!(
             filter_result,
             Ok(()),
@@ -65,7 +66,7 @@ mod tests {
 
     #[test]
     fn it_should_filter_events_from_banned_user_agents() {
-        for banned_user_agent in &[
+        let user_agents = [
             "Mediapartners-Google",
             "AdsBot-Google",
             "Googlebot",
@@ -87,9 +88,11 @@ mod tests {
             "Calypso AppCrawler",
             "pingdom",
             "lyticsbot",
-        ] {
-            let event = get_event_with_user_agent(banned_user_agent);
-            let filter_result = should_filter(&event, &get_f_config(true));
+        ];
+
+        for banned_user_agent in &user_agents {
+            let event = test_utils::get_event_with_user_agent(banned_user_agent);
+            let filter_result = should_filter(&event, &test_utils::get_f_config(true));
             assert_ne!(
                 filter_result,
                 Ok(()),
@@ -102,8 +105,8 @@ mod tests {
     #[test]
     fn it_should_not_filter_events_from_normal_user_agents() {
         for user_agent in &["some user agent", "IE", "ie", "opera", "safari"] {
-            let event = get_event_with_user_agent(user_agent);
-            let filter_result = should_filter(&event, &get_f_config(true));
+            let event = test_utils::get_event_with_user_agent(user_agent);
+            let filter_result = should_filter(&event, &test_utils::get_f_config(true));
             assert_eq!(
                 filter_result,
                 Ok(()),

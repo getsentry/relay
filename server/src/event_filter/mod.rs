@@ -18,6 +18,9 @@ mod localhost;
 mod util;
 mod web_crawlers;
 
+#[cfg(test)]
+mod test_utils;
+
 /// Checks whether an event should be filtered (for a particular configuration)
 /// If the event should be filter the Err returned contains a filter reason.
 /// The reason is the message returned by the first filter that didn't pass.
@@ -26,5 +29,5 @@ pub fn should_filter(event: &Event, config: &FiltersConfig) -> Result<(), String
     browser_extensions::should_filter(event, &config.browser_extensions)?;
     web_crawlers::should_filter(event, &config.web_crawlers)?;
     legacy_browsers::should_filter(event, &config.legacy_browsers)?;
-    return Ok(());
+    Ok(())
 }

@@ -3,17 +3,17 @@
 use std::collections::HashMap;
 
 use lazy_static::lazy_static;
+use uaparser::{Parser, UserAgent};
 
 use semaphore_general::protocol::Event;
 use semaphore_general::store::UA_PARSER;
 
 use crate::actors::project::{LegacyBrowser, LegacyBrowsersFilterConfig};
 use crate::event_filter::util::get_user_agent;
-use uaparser::{Parser, UserAgent};
 
 /// Filters events originating from legacy browsers
 pub fn should_filter(event: &Event, config: &LegacyBrowsersFilterConfig) -> Result<(), String> {
-    if !config.is_enabled || config.browsers.len() == 0 {
+    if !config.is_enabled || config.browsers.is_empty() {
         return Ok(()); // globally disabled or no individual browser enabled
     }
 
@@ -65,7 +65,7 @@ pub fn should_filter(event: &Event, config: &LegacyBrowsersFilterConfig) -> Resu
             }
         }
     }
-    return Ok(());
+    Ok(())
 }
 
 lazy_static! {
@@ -89,7 +89,8 @@ fn get_browser_major_version(user_agent: &UserAgent) -> Option<i32> {
             return Some(browser_major_version);
         }
     }
-    return None;
+
+    None
 }
 
 fn default_filter(mapped_family: &str, user_agent: &UserAgent) -> Result<(), String> {
@@ -103,7 +104,7 @@ fn default_filter(mapped_family: &str, user_agent: &UserAgent) -> Result<(), Str
         }
     }
 
-    return Ok(());
+    Ok(())
 }
 
 fn filter_browser<F>(
@@ -122,7 +123,8 @@ where
             }
         }
     }
-    return Ok(());
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -151,28 +153,30 @@ mod tests {
         "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5";
 
     use super::*;
-    use crate::event_filter::util::test_utils::*;
+
     use std::collections::BTreeSet;
+
+    use crate::event_filter::test_utils;
 
     fn get_legacy_browsers_filter_config(
         is_enabled: bool,
         legacy_browsers: &[LegacyBrowser],
     ) -> LegacyBrowsersFilterConfig {
-        return LegacyBrowsersFilterConfig {
+        LegacyBrowsersFilterConfig {
             is_enabled,
             browsers: {
-                let mut x = BTreeSet::<LegacyBrowser>::new();
+                let mut browsers = BTreeSet::<LegacyBrowser>::new();
                 for elm in legacy_browsers {
-                    x.insert(elm.clone());
+                    browsers.insert(elm.clone());
                 }
-                x
+                browsers
             },
-        };
+        }
     }
 
     #[test]
     fn it_should_not_filter_events_if_filter_is_disabled() {
-        let evt = get_event_with_user_agent(IE8_UA);
+        let evt = test_utils::get_event_with_user_agent(IE8_UA);
         let filter_result = should_filter(
             &evt,
             &get_legacy_browsers_filter_config(false, &[LegacyBrowser::Default]),
@@ -194,7 +198,7 @@ mod tests {
             ANDROID_PRE4_UA,
             OPERA_MINI_PRE8_UA,
         ] {
-            let evt = get_event_with_user_agent(old_user_agent);
+            let evt = test_utils::get_event_with_user_agent(old_user_agent);
             let filter_result = should_filter(
                 &evt,
                 &get_legacy_browsers_filter_config(true, &[LegacyBrowser::Default]),
@@ -217,7 +221,7 @@ mod tests {
             ANDROID_4_UA,
             OPERA_MINI_8_UA,
         ] {
-            let evt = get_event_with_user_agent(old_user_agent);
+            let evt = test_utils::get_event_with_user_agent(old_user_agent);
             let filter_result = should_filter(
                 &evt,
                 &get_legacy_browsers_filter_config(true, &[LegacyBrowser::Default]),
@@ -233,7 +237,7 @@ mod tests {
 
     #[test]
     fn it_should_filter_the_events_from_browsers_that_are_configured() {
-        for (ref user_agent, ref active_filters) in &[
+        let test_configs = [
             (
                 IE10_UA,
                 &[LegacyBrowser::AndroidPre4, LegacyBrowser::Ie10][..],
@@ -270,8 +274,10 @@ mod tests {
                 SAFARI_PRE6_UA,
                 &[LegacyBrowser::OperaPre15, LegacyBrowser::SafariPre6][..],
             ),
-        ] {
-            let evt = get_event_with_user_agent(user_agent);
+        ];
+
+        for (ref user_agent, ref active_filters) in &test_configs {
+            let evt = test_utils::get_event_with_user_agent(user_agent);
             let filter_result = should_filter(
                 &evt,
                 &get_legacy_browsers_filter_config(true, active_filters),
@@ -285,9 +291,10 @@ mod tests {
             )
         }
     }
+
     #[test]
     fn it_should_not_filter_the_events_from_browsers_that_are_not_configured() {
-        for (user_agent, active_filter) in &[
+        let test_configs = [
             (IE11_UA, LegacyBrowser::Ie10),
             (IE10_UA, LegacyBrowser::Ie9),
             (IE9_UA, LegacyBrowser::IePre9),
@@ -295,8 +302,10 @@ mod tests {
             (OPERA_MINI_8_UA, LegacyBrowser::OperaMiniPre8),
             (ANDROID_4_UA, LegacyBrowser::AndroidPre4),
             (SAFARI_6_UA, LegacyBrowser::SafariPre6),
-        ] {
-            let evt = get_event_with_user_agent(user_agent);
+        ];
+
+        for (user_agent, active_filter) in &test_configs {
+            let evt = test_utils::get_event_with_user_agent(user_agent);
             let filter_result = should_filter(
                 &evt,
                 &get_legacy_browsers_filter_config(true, &[active_filter.clone()]),
@@ -314,11 +323,7 @@ mod tests {
     /// Test to ensure Sentry filter compatibility
     /// To be remove if/when Sentry backward compatibility is no longer required
     mod sentry_compatibility {
-        use crate::actors::project::LegacyBrowser;
-        use crate::event_filter::legacy_browsers::tests::{
-            get_event_with_user_agent, get_legacy_browsers_filter_config,
-        };
-        use crate::event_filter::legacy_browsers::*;
+        use super::*;
 
         // User agents used by Sentry tests
         const ANDROID2_S_UA: &str =
@@ -356,7 +361,7 @@ mod tests {
 
         #[test]
         fn it_should_filter_user_agents_in_the_same_way_as_sentry() {
-            for (ref user_agent, ref active_filter) in &[
+            let test_configs = [
                 (ANDROID2_S_UA, LegacyBrowser::Default),
                 (IE9_S_UA, LegacyBrowser::Default),
                 (IE_MOBILE9_S_UA, LegacyBrowser::Default),
@@ -377,8 +382,10 @@ mod tests {
                 (SAFARI5_S_UA, LegacyBrowser::SafariPre6),
                 (SAFARI5_S_UA, LegacyBrowser::Default),
                 (ANDROID2_S_UA, LegacyBrowser::AndroidPre4),
-            ] {
-                let evt = get_event_with_user_agent(user_agent);
+            ];
+
+            for (ref user_agent, ref active_filter) in &test_configs {
+                let evt = test_utils::get_event_with_user_agent(user_agent);
                 let filter_result = should_filter(
                     &evt,
                     &get_legacy_browsers_filter_config(true, &[active_filter.clone()]),
@@ -395,7 +402,7 @@ mod tests {
 
         #[test]
         fn it_should_not_filter_user_agents_in_the_same_way_as_sentry() {
-            for (ref user_agent, ref active_filter) in &[
+            let test_configs = [
                 (ANDROID4_S_UA, LegacyBrowser::Default),
                 (IE10_S_UA, LegacyBrowser::Default),
                 (IE_MOBILE10_S_UA, LegacyBrowser::Default),
@@ -406,8 +413,10 @@ mod tests {
                 (IE10_S_UA, LegacyBrowser::Default),
                 (IE_MOBILE10_S_UA, LegacyBrowser::Default),
                 (SAFARI7_S_UA, LegacyBrowser::Default),
-            ] {
-                let evt = get_event_with_user_agent(user_agent);
+            ];
+
+            for (ref user_agent, ref active_filter) in &test_configs {
+                let evt = test_utils::get_event_with_user_agent(user_agent);
                 let filter_result = should_filter(
                     &evt,
                     &get_legacy_browsers_filter_config(true, &[active_filter.clone()]),
