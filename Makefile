@@ -45,7 +45,7 @@ wheel-manylinux: setup
 test: test-rust test-python test-integration
 .PHONY: test
 
-test-rust: setup
+test-rust: setup-geoip setup-git
 	cargo test --all --all-features
 .PHONY: test-rust
 
