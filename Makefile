@@ -55,7 +55,7 @@ test-python: setup
 	.venv/bin/pytest -v py
 .PHONY: test-python
 
-test-integration: build
+test-integration: build setup-venv
 	.venv/bin/pip install -U pytest pytest-localserver requests flask "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist "git+https://github.com/untitaker/pytest-sentry#egg=pytest-sentry"
 	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
@@ -126,7 +126,7 @@ format-python: setup-venv
 
 # Development
 
-setup: setup-geoip setup-git
+setup: setup-geoip setup-git setup-venv
 .PHONY: setup
 
 setup-git: .git/hooks/pre-commit
