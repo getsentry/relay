@@ -11,7 +11,7 @@ use semaphore_general::store::UA_PARSER;
 use crate::actors::project::{LegacyBrowser, LegacyBrowsersFilterConfig};
 use crate::event_filter::util::get_user_agent;
 
-/// Filters events originating from legacy browsers
+/// Filters events originating from legacy browsers.
 pub fn should_filter(event: &Event, config: &LegacyBrowsersFilterConfig) -> Result<(), String> {
     if !config.is_enabled || config.browsers.is_empty() {
         return Ok(()); // globally disabled or no individual browser enabled
@@ -94,8 +94,6 @@ fn get_browser_major_version(user_agent: &UserAgent) -> Option<i32> {
 }
 
 fn default_filter(mapped_family: &str, user_agent: &UserAgent) -> Result<(), String> {
-    //let family = &user_agent.family;
-
     if let Some(browser_major_version) = get_browser_major_version(user_agent) {
         if let Some(&min_version) = MIN_VERSIONS.get(mapped_family) {
             if min_version > browser_major_version {
@@ -320,8 +318,9 @@ mod tests {
         }
     }
 
-    /// Test to ensure Sentry filter compatibility
-    /// To be remove if/when Sentry backward compatibility is no longer required
+    /// Test to ensure Sentry filter compatibility.
+    ///
+    /// To be remove if/when Sentry backward compatibility is no longer required.
     mod sentry_compatibility {
         use super::*;
 

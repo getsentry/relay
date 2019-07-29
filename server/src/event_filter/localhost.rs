@@ -7,7 +7,7 @@ use crate::actors::project::FilterConfig;
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
 
-/// Filters events originating from the local host
+/// Filters events originating from the local host.
 pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String> {
     if !config.is_enabled {
         return Ok(());

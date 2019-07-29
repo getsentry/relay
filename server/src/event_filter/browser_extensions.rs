@@ -107,7 +107,7 @@ mod tests {
 
     use super::*;
 
-    /// Returns an event with the specified exception on the last position in the stack
+    /// Returns an event with the specified exception on the last position in the stack.
     fn get_event_with_exception(e: Exception) -> Event {
         Event {
             exceptions: Annotated::from(Values::<Exception> {
