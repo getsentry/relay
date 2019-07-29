@@ -8,18 +8,19 @@
 //! * legacy browsers ( filter events originating from legacy browsers, can be configured)
 //!
 
-use semaphore_general::protocol::Event;
-
-use crate::actors::project::FiltersConfig;
+use crate::protocol::Event;
 
 mod browser_extensions;
+mod config;
 mod legacy_browsers;
 mod localhost;
-mod util;
+mod utils;
 mod web_crawlers;
 
 #[cfg(test)]
 mod test_utils;
+
+pub use config::*;
 
 /// Checks whether an event should be filtered for a particular configuration.
 ///

@@ -3,10 +3,8 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use semaphore_general::protocol::Event;
-
-use crate::actors::project::FilterConfig;
-use crate::event_filter::util;
+use crate::filter::{config::FilterConfig, utils};
+use crate::protocol::Event;
 
 /// Filters events originating from a known web crawler.
 pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String> {
@@ -14,7 +12,7 @@ pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String>
         return Ok(());
     }
 
-    if let Some(user_agent) = util::get_user_agent(event) {
+    if let Some(user_agent) = utils::get_user_agent(event) {
         if WEB_CRAWLERS.is_match(user_agent) {
             return Err("User agent is web crawler".to_string());
         }
@@ -51,7 +49,8 @@ lazy_static! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event_filter::test_utils;
+
+    use crate::filter::test_utils;
 
     #[test]
     fn it_should_not_filter_events_when_disabled() {

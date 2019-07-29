@@ -13,7 +13,6 @@ mod actors;
 mod body;
 mod constants;
 mod endpoints;
-mod event_filter;
 mod extractors;
 mod middlewares;
 mod service;

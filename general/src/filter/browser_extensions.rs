@@ -3,9 +3,8 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use semaphore_general::protocol::{Event, Exception};
-
-use crate::actors::project::FilterConfig;
+use crate::filter::config::FilterConfig;
+use crate::protocol::{Event, Exception};
 
 /// Filters events originating from known problematic browser extensions.
 pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String> {
@@ -98,14 +97,11 @@ lazy_static! {
 
 #[cfg(test)]
 mod tests {
-    use semaphore_general::protocol::{
-        Frame, JsonLenientString, RawStacktrace, Stacktrace, Values,
-    };
-    use semaphore_general::types::Annotated;
-
-    use crate::event_filter::test_utils;
-
     use super::*;
+
+    use crate::filter::test_utils;
+    use crate::protocol::{Frame, JsonLenientString, RawStacktrace, Stacktrace, Values};
+    use crate::types::Annotated;
 
     /// Returns an event with the specified exception on the last position in the stack.
     fn get_event_with_exception(e: Exception) -> Event {

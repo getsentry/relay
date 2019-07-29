@@ -5,11 +5,10 @@ use std::collections::HashMap;
 use lazy_static::lazy_static;
 use uaparser::{Parser, UserAgent};
 
-use semaphore_general::protocol::Event;
-use semaphore_general::store::UA_PARSER;
-
-use crate::actors::project::{LegacyBrowser, LegacyBrowsersFilterConfig};
-use crate::event_filter::util::get_user_agent;
+use crate::filter::config::{LegacyBrowser, LegacyBrowsersFilterConfig};
+use crate::filter::utils;
+use crate::protocol::Event;
+use crate::store::UA_PARSER;
 
 /// Filters events originating from legacy browsers.
 pub fn should_filter(event: &Event, config: &LegacyBrowsersFilterConfig) -> Result<(), String> {
@@ -17,7 +16,7 @@ pub fn should_filter(event: &Event, config: &LegacyBrowsersFilterConfig) -> Resu
         return Ok(()); // globally disabled or no individual browser enabled
     }
 
-    if let Some(user_agent_string) = get_user_agent(event) {
+    if let Some(user_agent_string) = utils::get_user_agent(event) {
         let user_agent = UA_PARSER.parse_user_agent(user_agent_string);
 
         // remap IE Mobile to IE (sentry python, filter compatibility)
@@ -154,9 +153,9 @@ mod tests {
 
     use std::collections::BTreeSet;
 
-    use crate::event_filter::test_utils;
+    use crate::filter::test_utils;
 
-    fn get_legacy_browsers_filter_config(
+    fn get_legacy_browsers_config(
         is_enabled: bool,
         legacy_browsers: &[LegacyBrowser],
     ) -> LegacyBrowsersFilterConfig {
@@ -177,7 +176,7 @@ mod tests {
         let evt = test_utils::get_event_with_user_agent(IE8_UA);
         let filter_result = should_filter(
             &evt,
-            &get_legacy_browsers_filter_config(false, &[LegacyBrowser::Default]),
+            &get_legacy_browsers_config(false, &[LegacyBrowser::Default]),
         );
         assert_eq!(
             filter_result,
@@ -199,7 +198,7 @@ mod tests {
             let evt = test_utils::get_event_with_user_agent(old_user_agent);
             let filter_result = should_filter(
                 &evt,
-                &get_legacy_browsers_filter_config(true, &[LegacyBrowser::Default]),
+                &get_legacy_browsers_config(true, &[LegacyBrowser::Default]),
             );
             assert_ne!(
                 filter_result,
@@ -222,7 +221,7 @@ mod tests {
             let evt = test_utils::get_event_with_user_agent(old_user_agent);
             let filter_result = should_filter(
                 &evt,
-                &get_legacy_browsers_filter_config(true, &[LegacyBrowser::Default]),
+                &get_legacy_browsers_config(true, &[LegacyBrowser::Default]),
             );
             assert_eq!(
                 filter_result,
@@ -276,10 +275,8 @@ mod tests {
 
         for (ref user_agent, ref active_filters) in &test_configs {
             let evt = test_utils::get_event_with_user_agent(user_agent);
-            let filter_result = should_filter(
-                &evt,
-                &get_legacy_browsers_filter_config(true, active_filters),
-            );
+            let filter_result =
+                should_filter(&evt, &get_legacy_browsers_config(true, active_filters));
             assert_ne!(
                 filter_result,
                 Ok(()),
@@ -306,7 +303,7 @@ mod tests {
             let evt = test_utils::get_event_with_user_agent(user_agent);
             let filter_result = should_filter(
                 &evt,
-                &get_legacy_browsers_filter_config(true, &[active_filter.clone()]),
+                &get_legacy_browsers_config(true, &[active_filter.clone()]),
             );
             assert_eq!(
                 filter_result,
@@ -387,7 +384,7 @@ mod tests {
                 let evt = test_utils::get_event_with_user_agent(user_agent);
                 let filter_result = should_filter(
                     &evt,
-                    &get_legacy_browsers_filter_config(true, &[active_filter.clone()]),
+                    &get_legacy_browsers_config(true, &[active_filter.clone()]),
                 );
                 assert_ne!(
                     filter_result,
@@ -418,7 +415,7 @@ mod tests {
                 let evt = test_utils::get_event_with_user_agent(user_agent);
                 let filter_result = should_filter(
                     &evt,
-                    &get_legacy_browsers_filter_config(true, &[active_filter.clone()]),
+                    &get_legacy_browsers_config(true, &[active_filter.clone()]),
                 );
                 assert_eq!(
                     filter_result,

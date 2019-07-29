@@ -11,6 +11,7 @@ use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 
 use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
+use semaphore_general::filter::should_filter;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
@@ -24,7 +25,6 @@ use crate::actors::project::{
     ProjectState, RetryAfter,
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
-use crate::event_filter;
 use crate::extractors::EventMeta;
 use crate::utils::{One, SyncActorFuture, SyncHandle};
 
@@ -148,7 +148,7 @@ impl EventProcessor {
 
             let filter_settings = &message.project_state.config.filter_settings;
             if let Some(event) = event.value() {
-                if let Err(reason) = event_filter::should_filter(event, filter_settings) {
+                if let Err(reason) = should_filter(event, filter_settings) {
                     // event should be filter no more processing needed
                     return Ok(ProcessEventResponse::Filtered { reason });
                 }

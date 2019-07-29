@@ -1,8 +1,7 @@
 //! Implements filtering for events originating from the localhost
 
-use semaphore_general::protocol::Event;
-
-use crate::actors::project::FilterConfig;
+use crate::filter::config::FilterConfig;
+use crate::protocol::Event;
 
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
@@ -46,10 +45,9 @@ fn get_domain(event: &Event) -> Option<&str> {
 mod tests {
     use super::*;
 
-    use semaphore_general::protocol::{IpAddr, Request, User};
-    use semaphore_general::types::Annotated;
-
-    use crate::event_filter::test_utils;
+    use crate::filter::test_utils;
+    use crate::protocol::{IpAddr, Request, User};
+    use crate::types::Annotated;
 
     fn get_event_with_ip_addr(val: &str) -> Event {
         Event {

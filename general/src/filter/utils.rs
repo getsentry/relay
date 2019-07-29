@@ -1,6 +1,6 @@
 //! Utilities for event filtering.
 
-use semaphore_general::protocol::{Event, Headers};
+use crate::protocol::{Event, Headers};
 
 fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
     for item in headers.iter() {

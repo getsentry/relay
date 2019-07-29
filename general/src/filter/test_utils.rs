@@ -1,9 +1,8 @@
 //! Utilities used by the event filter tests.
 
-use semaphore_general::protocol::{Event, Headers, PairList, Request};
-use semaphore_general::types::Annotated;
-
-use crate::actors::project::FilterConfig;
+use crate::filter::config::FilterConfig;
+use crate::protocol::{Event, Headers, PairList, Request};
+use crate::types::Annotated;
 
 /// Create a FilterConfig with the specified enabled state.
 pub(super) fn get_f_config(is_enabled: bool) -> FilterConfig {
