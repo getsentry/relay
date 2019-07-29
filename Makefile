@@ -61,7 +61,7 @@ test-integration: build
 .PHONY: test-integration
 
 test-coverage: setup
-	@cargo tarpaulin -v --skip-clean --all --out Xml
+	@cargo tarpaulin -v --all --out Xml
 	@bash <(curl -s https://codecov.io/bash)
 .PHONY: test-coverage
 
