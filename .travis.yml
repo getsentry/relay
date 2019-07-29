@@ -53,7 +53,6 @@ matrix:
 
     - name: "test: semaphore[linux]"
       os: linux
-      env: RUST_TOOLCHAIN=nightly-2019-01-09
       sudo: required
       addons:
         apt:
@@ -61,7 +60,7 @@ matrix:
             - libssl-dev
             - libgeoip-dev
       install:
-        - cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --force cargo-tarpaulin --git https://github.com/untitaker/tarpaulin --branch fix/upgrade-cargo
+        - cargo tarpaulin --version || cargo install --force cargo-tarpaulin
       script:
         - make -e test-coverage
 
