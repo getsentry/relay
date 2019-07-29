@@ -151,7 +151,7 @@ pub fn init_logging(config: &Config) {
     };
 
     match env::var("RUST_LOG") {
-        Ok(rust_log) => log_builder.parse(&rust_log),
+        Ok(rust_log) => log_builder.parse_filters(&rust_log),
         Err(_) => log_builder.filter_level(config.log_level_filter()),
     };
 

@@ -13,7 +13,6 @@ pub fn process_value<T, P>(
 {
     let action = processor.before_process(annotated.0.as_ref(), &mut annotated.1, state);
     annotated.apply(|_, _| action);
-    // annotated.apply(|value, meta| processor.before_process(value, meta, state));
 
     annotated.apply(|value, meta| ProcessValue::process_value(value, meta, processor, state));
     processor.after_process(annotated.0.as_ref(), &mut annotated.1, state);

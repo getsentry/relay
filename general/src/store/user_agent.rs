@@ -7,7 +7,6 @@ lazy_static! {
     /// already configured with a user agent database.
     ///
     /// For usage see [`Parser`]: https://docs.rs/uap-rs/0.2.2/uap_rs/trait.Parser.html
-    ///
     pub static ref UA_PARSER: UserAgentParser = {
         let ua_regexes = include_bytes!("../../uap-core/regexes.yaml");
         UserAgentParser::from_bytes(ua_regexes).expect(

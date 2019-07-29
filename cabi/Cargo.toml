@@ -19,11 +19,11 @@ debug = true
 lto = true
 
 [dependencies]
-chrono = "0.4.6"
+chrono = "0.4.7"
 failure = "0.1.5"
-serde = {version = "1.0.85", features = ["derive"]}
-serde_json = "1.0.36"
-uuid = "0.7.1"
+serde = {version = "1.0.98", features = ["derive"]}
+serde_json = "1.0.40"
+uuid = "0.7.4"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
 
 [dependencies.semaphore-common]
