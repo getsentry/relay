@@ -1,22 +1,23 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use ::actix::fut::result;
-use ::actix::prelude::*;
+use actix::fut::result;
+use actix::prelude::*;
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
 use futures::prelude::*;
 use json_forensics;
 use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
-use serde_json;
 
 use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
+use semaphore_general::filter::should_filter;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
 use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use semaphore_general::types::Annotated;
+use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::project::{
@@ -69,6 +70,9 @@ enum ProcessingError {
 
     #[fail(display = "event submission rejected")]
     EventRejected,
+
+    #[fail(display = "event filtered with reason: {}", _0)]
+    EventFiltered(String),
 
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
@@ -141,6 +145,14 @@ impl EventProcessor {
 
             let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
             process_value(&mut event, &mut store_processor, ProcessingState::root());
+
+            let filter_settings = &message.project_state.config.filter_settings;
+            if let Some(event) = event.value() {
+                if let Err(reason) = should_filter(event, filter_settings) {
+                    // event should be filter no more processing needed
+                    return Ok(ProcessEventResponse::Filtered { reason });
+                }
+            }
         }
 
         let data = event
@@ -148,7 +160,7 @@ impl EventProcessor {
             .map_err(ProcessingError::SerializeFailed)?
             .into();
 
-        Ok(ProcessEventResponse { data })
+        Ok(ProcessEventResponse::Valid { data })
     }
 }
 
@@ -202,8 +214,9 @@ impl ProcessEvent {
     }
 }
 
-struct ProcessEventResponse {
-    pub data: Bytes,
+enum ProcessEventResponse {
+    Valid { data: Bytes },
+    Filtered { reason: String },
 }
 
 impl Message for ProcessEvent {
@@ -403,6 +416,12 @@ impl Handler<HandleEvent> for EventManager {
                         })
                         .map_err(ProcessingError::ScheduleFailed)
                         .flatten()))
+                    .and_then(|response| match response {
+                        ProcessEventResponse::Valid { data } => Ok(data),
+                        ProcessEventResponse::Filtered { reason } => {
+                            Err(ProcessingError::EventFiltered(reason))
+                        }
+                    })
                     .and_then(move |processed| {
                         log::trace!("sending event {}", event_id);
                         let request = SendRequest::post(format!("/api/{}/store/", project_id))
@@ -415,7 +434,7 @@ impl Handler<HandleEvent> for EventManager {
                                     .header("X-Sentry-Auth", meta.auth().to_string())
                                     .header("X-Forwarded-For", meta.forwarded_for())
                                     .header("Content-Type", "application/json")
-                                    .body(processed.data)
+                                    .body(processed)
                             });
 
                         upstream

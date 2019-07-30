@@ -32,6 +32,8 @@ install:
   - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
   - rustc -vV
   - cargo -vV
+  # Check out submodules
+  - git submodule update --init --recursive
 
 build_script:
   - cargo build --all --locked

@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::cmp;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -21,7 +21,7 @@ use serde_json::Value;
 use url::Url;
 
 use semaphore_common::{Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
-use semaphore_general::pii::PiiConfig;
+use semaphore_general::{filter::FiltersConfig, pii::PiiConfig};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
@@ -177,117 +177,10 @@ pub enum PublicKeyStatus {
     Enabled,
 }
 
-/// Common configuration for event filters.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FilterConfig {
-    /// Specifies whether this filter is enabled.
-    is_enabled: bool,
-}
-
-impl FilterConfig {
-    fn is_empty(&self) -> bool {
-        !self.is_enabled
-    }
-}
-
-/// A browser class to be filtered by the legacy browser filter.
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum LegacyBrowser {
-    Default,
-    IePre9,
-    Ie9,
-    Ie10,
-    OperaPre15,
-    OperaMiniPre8,
-    AndroidPre4,
-    SafariPre6,
-    Unknown(String),
-}
-
-impl<'de> Deserialize<'de> for LegacyBrowser {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        let string = Cow::<str>::deserialize(deserializer)?;
-
-        Ok(match string.as_ref() {
-            "default" => LegacyBrowser::Default,
-            "ie_pre_9" => LegacyBrowser::IePre9,
-            "ie9" => LegacyBrowser::Ie9,
-            "ie10" => LegacyBrowser::Ie10,
-            "opera_pre_15" => LegacyBrowser::OperaPre15,
-            "opera_mini_pre_8" => LegacyBrowser::OperaMiniPre8,
-            "android_pre_4" => LegacyBrowser::AndroidPre4,
-            "safari_pre_6" => LegacyBrowser::SafariPre6,
-            _ => LegacyBrowser::Unknown(string.into_owned()),
-        })
-    }
-}
-
-impl Serialize for LegacyBrowser {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        serializer.serialize_str(match self {
-            LegacyBrowser::Default => "default",
-            LegacyBrowser::IePre9 => "ie_pre_9",
-            LegacyBrowser::Ie9 => "ie9",
-            LegacyBrowser::Ie10 => "ie10",
-            LegacyBrowser::OperaPre15 => "opera_pre_15",
-            LegacyBrowser::OperaMiniPre8 => "opera_mini_pre_8",
-            LegacyBrowser::AndroidPre4 => "android_pre_4",
-            LegacyBrowser::SafariPre6 => "safari_pre_6",
-            LegacyBrowser::Unknown(string) => &string,
-        })
-    }
-}
-
-/// Configuration for the legacy browsers filter.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct LegacyBrowsersFilterConfig {
-    /// Specifies whether this filter is enabled.
-    is_enabled: bool,
-    /// The browsers to filter.
-    #[serde(rename = "options")]
-    browsers: BTreeSet<LegacyBrowser>,
-}
-
-impl LegacyBrowsersFilterConfig {
-    fn is_empty(&self) -> bool {
-        !self.is_enabled && self.browsers.is_empty()
-    }
-}
-
-/// Configuration for all event filters.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FiltersConfig {
-    #[serde(default)]
-    pub browser_extensions: FilterConfig,
-    #[serde(default)]
-    pub web_crawlers: FilterConfig,
-    #[serde(default)]
-    pub legacy_browsers: LegacyBrowsersFilterConfig,
-    #[serde(default)]
-    pub localhost: FilterConfig,
-}
-
-impl FiltersConfig {
-    fn is_empty(&self) -> bool {
-        self.browser_extensions.is_empty()
-            && self.web_crawlers.is_empty()
-            && self.legacy_browsers.is_empty()
-            && self.localhost.is_empty()
-    }
-}
-
 /// Helper method to check whether a flag is false.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn is_flag_default(flag: &bool) -> bool {
-    !flag
+    !*flag
 }
 
 /// These are config values that the user can modify in the UI.
@@ -916,45 +809,5 @@ impl Handler<Shutdown> for ProjectCache {
             Some(timeout) => self.shutdown.timeout(timeout),
             None => self.shutdown.now(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_should_serialize() {
-        let filters_config = FiltersConfig {
-            browser_extensions: FilterConfig { is_enabled: true },
-            web_crawlers: FilterConfig { is_enabled: false },
-            legacy_browsers: LegacyBrowsersFilterConfig {
-                is_enabled: false,
-                browsers: [LegacyBrowser::Ie9].iter().cloned().collect(),
-            },
-            localhost: FilterConfig { is_enabled: true },
-        };
-
-        serde_json::to_string(&filters_config).unwrap();
-
-        insta::assert_json_snapshot_matches!(filters_config, @r###"
-       ⋮{
-       ⋮  "browserExtensions": {
-       ⋮    "isEnabled": true
-       ⋮  },
-       ⋮  "webCrawlers": {
-       ⋮    "isEnabled": false
-       ⋮  },
-       ⋮  "legacyBrowsers": {
-       ⋮    "is_enabled": false,
-       ⋮    "options": [
-       ⋮      "ie9"
-       ⋮    ]
-       ⋮  },
-       ⋮  "localhost": {
-       ⋮    "isEnabled": true
-       ⋮  }
-       ⋮}
-        "###);
     }
 }
