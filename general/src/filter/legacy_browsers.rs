@@ -3,12 +3,11 @@
 use std::collections::HashMap;
 
 use lazy_static::lazy_static;
-use uaparser::{Parser, UserAgent};
+use uaparser::UserAgent;
 
 use crate::filter::config::{LegacyBrowser, LegacyBrowsersFilterConfig};
-use crate::filter::utils;
 use crate::protocol::Event;
-use crate::store::UA_PARSER;
+use crate::user_agent;
 
 /// Filters events originating from legacy browsers.
 pub fn should_filter(event: &Event, config: &LegacyBrowsersFilterConfig) -> Result<(), String> {
@@ -16,8 +15,8 @@ pub fn should_filter(event: &Event, config: &LegacyBrowsersFilterConfig) -> Resu
         return Ok(()); // globally disabled or no individual browser enabled
     }
 
-    if let Some(user_agent_string) = utils::get_user_agent(event) {
-        let user_agent = UA_PARSER.parse_user_agent(user_agent_string);
+    if let Some(user_agent_string) = user_agent::get_user_agent(event) {
+        let user_agent = user_agent::parse_user_agent(user_agent_string);
 
         // remap IE Mobile to IE (sentry python, filter compatibility)
         let family = if user_agent.family == "IE Mobile" {
@@ -153,7 +152,7 @@ mod tests {
 
     use std::collections::BTreeSet;
 
-    use crate::filter::test_utils;
+    use crate::testutils;
 
     fn get_legacy_browsers_config(
         is_enabled: bool,
@@ -173,7 +172,7 @@ mod tests {
 
     #[test]
     fn it_should_not_filter_events_if_filter_is_disabled() {
-        let evt = test_utils::get_event_with_user_agent(IE8_UA);
+        let evt = testutils::get_event_with_user_agent(IE8_UA);
         let filter_result = should_filter(
             &evt,
             &get_legacy_browsers_config(false, &[LegacyBrowser::Default]),
@@ -195,7 +194,7 @@ mod tests {
             ANDROID_PRE4_UA,
             OPERA_MINI_PRE8_UA,
         ] {
-            let evt = test_utils::get_event_with_user_agent(old_user_agent);
+            let evt = testutils::get_event_with_user_agent(old_user_agent);
             let filter_result = should_filter(
                 &evt,
                 &get_legacy_browsers_config(true, &[LegacyBrowser::Default]),
@@ -218,7 +217,7 @@ mod tests {
             ANDROID_4_UA,
             OPERA_MINI_8_UA,
         ] {
-            let evt = test_utils::get_event_with_user_agent(old_user_agent);
+            let evt = testutils::get_event_with_user_agent(old_user_agent);
             let filter_result = should_filter(
                 &evt,
                 &get_legacy_browsers_config(true, &[LegacyBrowser::Default]),
@@ -274,7 +273,7 @@ mod tests {
         ];
 
         for (ref user_agent, ref active_filters) in &test_configs {
-            let evt = test_utils::get_event_with_user_agent(user_agent);
+            let evt = testutils::get_event_with_user_agent(user_agent);
             let filter_result =
                 should_filter(&evt, &get_legacy_browsers_config(true, active_filters));
             assert_ne!(
@@ -300,7 +299,7 @@ mod tests {
         ];
 
         for (user_agent, active_filter) in &test_configs {
-            let evt = test_utils::get_event_with_user_agent(user_agent);
+            let evt = testutils::get_event_with_user_agent(user_agent);
             let filter_result = should_filter(
                 &evt,
                 &get_legacy_browsers_config(true, &[active_filter.clone()]),
@@ -381,7 +380,7 @@ mod tests {
             ];
 
             for (ref user_agent, ref active_filter) in &test_configs {
-                let evt = test_utils::get_event_with_user_agent(user_agent);
+                let evt = testutils::get_event_with_user_agent(user_agent);
                 let filter_result = should_filter(
                     &evt,
                     &get_legacy_browsers_config(true, &[active_filter.clone()]),
@@ -412,7 +411,7 @@ mod tests {
             ];
 
             for (ref user_agent, ref active_filter) in &test_configs {
-                let evt = test_utils::get_event_with_user_agent(user_agent);
+                let evt = testutils::get_event_with_user_agent(user_agent);
                 let filter_result = should_filter(
                     &evt,
                     &get_legacy_browsers_config(true, &[active_filter.clone()]),

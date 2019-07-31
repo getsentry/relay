@@ -20,3 +20,5 @@ pub mod processor;
 pub mod protocol;
 pub mod store;
 pub mod types;
+
+mod user_agent;

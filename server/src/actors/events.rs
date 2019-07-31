@@ -141,6 +141,7 @@ impl EventProcessor {
                 enable_trimming: Some(true),
                 is_renormalize: Some(false),
                 remove_other: Some(true),
+                normalize_user_agent: Some(true),
             };
 
             let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
