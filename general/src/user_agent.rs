@@ -1,6 +1,5 @@
 //! Utility functions for working with the event user-agent.
 use lazy_static::lazy_static;
-use uaparser;
 use uaparser::{Device, Parser, UserAgent, UserAgentParser, OS};
 
 lazy_static! {
