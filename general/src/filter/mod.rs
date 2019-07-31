@@ -14,7 +14,6 @@ mod browser_extensions;
 mod config;
 mod legacy_browsers;
 mod localhost;
-mod utils;
 mod web_crawlers;
 
 #[cfg(test)]

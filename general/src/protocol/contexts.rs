@@ -86,6 +86,13 @@ pub struct DeviceContext {
     pub other: Object<Value>,
 }
 
+impl DeviceContext {
+    /// The key under which a device context is generally stored (in `Contexts`)
+    pub fn key() -> &'static str {
+        "device"
+    }
+}
+
 /// Operating system information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct OsContext {
@@ -112,6 +119,13 @@ pub struct OsContext {
     pub other: Object<Value>,
 }
 
+impl OsContext {
+    /// The key under which an os context is generally stored (in `Contexts`)
+    pub fn key() -> &'static str {
+        "os"
+    }
+}
+
 /// Runtime information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct RuntimeContext {
@@ -130,6 +144,13 @@ pub struct RuntimeContext {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
+}
+
+impl RuntimeContext {
+    /// The key under which a runtime context is generally stored (in `Contexts`)
+    pub fn key() -> &'static str {
+        "runtime"
+    }
 }
 
 /// Application information.
@@ -161,6 +182,13 @@ pub struct AppContext {
     pub other: Object<Value>,
 }
 
+impl AppContext {
+    /// The key under which an app context is generally stored (in `Contexts`)
+    pub fn key() -> &'static str {
+        "app"
+    }
+}
+
 /// Web browser information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct BrowserContext {
@@ -173,6 +201,13 @@ pub struct BrowserContext {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
+}
+
+impl BrowserContext {
+    /// The key under which a browser context is generally stored (in `Contexts`)
+    pub fn key() -> &'static str {
+        "browser"
+    }
 }
 
 lazy_static::lazy_static! {
@@ -244,6 +279,13 @@ pub struct TraceContext {
     pub other: Object<Value>,
 }
 
+impl TraceContext {
+    /// The key under which a trace context is generally stored (in `Contexts`)
+    pub fn key() -> &'static str {
+        "trace"
+    }
+}
+
 /// A context describes environment info (e.g. device, os or browser).
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_context")]
@@ -269,6 +311,25 @@ pub enum Context {
     Other(Object<Value>),
 }
 
+impl Context {
+    /// Represents the key under which a particular context type will be inserted in a Contexts object
+    ///
+    /// See [Contexts.add](struct.Contexts.html)
+    pub fn default_key(&self) -> Option<&'static str> {
+        match &self {
+            Context::Device(_) => Some(DeviceContext::key()),
+            Context::Os(_) => Some(OsContext::key()),
+            Context::Runtime(_) => Some(RuntimeContext::key()),
+            Context::App(_) => Some(AppContext::key()),
+            Context::Browser(_) => Some(BrowserContext::key()),
+            Context::Gpu(_) => Some("gpu"),
+            Context::Trace(_) => Some(TraceContext::key()),
+            Context::Monitor(_) => Some("monitor"),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct ContextInner(#[metastructure(bag_size = "large")] pub Context);
 
@@ -287,8 +348,21 @@ impl std::ops::DerefMut for ContextInner {
 }
 
 /// An object holding multiple contexts.
-#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, Default)]
 pub struct Contexts(pub Object<ContextInner>);
+
+impl Contexts {
+    pub fn new() -> Contexts {
+        Contexts(Object::<ContextInner>::new())
+    }
+
+    /// Adds a context to self under the default key for the Context
+    pub fn add(&mut self, context: Context) {
+        if let Some(key) = context.default_key() {
+            self.insert(key.to_owned(), Annotated::new(ContextInner(context)));
+        }
+    }
+}
 
 impl std::ops::Deref for Contexts {
     type Target = Object<ContextInner>;

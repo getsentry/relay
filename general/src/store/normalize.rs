@@ -25,6 +25,7 @@ mod logentry;
 mod mechanism;
 mod request;
 mod stacktrace;
+mod user_agent;
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
 fn validate_bounded_integer_field(value: u64) -> ValueAction {
@@ -285,6 +286,14 @@ impl<'a> NormalizeProcessor<'a> {
             }
         }
     }
+
+    fn normalize_user_agent(&self, event: &mut Event) {
+        if let Some(should_normalize) = self.config.normalize_user_agent {
+            if should_normalize {
+                user_agent::normalize_user_agent(event);
+            }
+        }
+    }
 }
 
 impl<'a> Processor for NormalizeProcessor<'a> {
@@ -335,6 +344,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         self.normalize_event_tags(event);
         self.normalize_exceptions(event);
         self.normalize_user_ip(event);
+        self.normalize_user_agent(event);
 
         ValueAction::Keep
     }

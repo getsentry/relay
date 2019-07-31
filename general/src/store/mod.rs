@@ -16,10 +16,8 @@ mod normalize;
 mod remove_other;
 mod schema;
 mod trimming;
-mod user_agent;
 
 pub use crate::store::geo::GeoIpLookup;
-pub use crate::store::user_agent::UA_PARSER;
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -43,6 +41,9 @@ pub struct StoreConfig {
 
     /// Overrides the default flag for other removal.
     pub remove_other: Option<bool>,
+
+    /// When `true` it adds context information extracted from the user agent
+    pub normalize_user_agent: Option<bool>,
 }
 
 /// The processor that normalizes events for store.
