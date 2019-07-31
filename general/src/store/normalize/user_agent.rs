@@ -29,7 +29,7 @@ pub fn normalize_user_agent(event: &mut Event) {
 
     let contexts = event.contexts.get_or_insert_with(|| Contexts::new());
 
-    if is_known(ua.family.as_str()) && !contexts.contains_key(BrowserContext::key()) {
+    if is_known(ua.family.as_str()) && !contexts.contains_key(BrowserContext::default_key()) {
         let version = get_browser_version(&ua);
         contexts.add(Context::Browser(Box::new(BrowserContext {
             name: Annotated::from(ua.family),
@@ -38,7 +38,7 @@ pub fn normalize_user_agent(event: &mut Event) {
         })));
     }
 
-    if is_known(device.family.as_str()) && !contexts.contains_key(DeviceContext::key()) {
+    if is_known(device.family.as_str()) && !contexts.contains_key(DeviceContext::default_key()) {
         contexts.add(Context::Device(Box::new(DeviceContext {
             family: Annotated::from(device.family),
             model: Annotated::from(device.model),
@@ -47,7 +47,7 @@ pub fn normalize_user_agent(event: &mut Event) {
         })));
     }
 
-    if is_known(os.family.as_str()) && !contexts.contains_key(OsContext::key()) {
+    if is_known(os.family.as_str()) && !contexts.contains_key(OsContext::default_key()) {
         let version = get_os_version(&os);
         contexts.add(Context::Os(Box::new(OsContext {
             name: Annotated::from(os.family),
@@ -58,17 +58,20 @@ pub fn normalize_user_agent(event: &mut Event) {
 }
 
 fn is_known(family: &str) -> bool {
-    return family != "Other";
+    family != "Other"
 }
+
 fn _v(value: &Option<String>) -> &str {
     match value {
         None => "",
         Some(val) => val.as_str(),
     }
 }
+
 fn get_os_version(os: &OS) -> String {
     format!("{}.{}.{}", _v(&os.major), _v(&os.minor), _v(&os.patch))
 }
+
 fn get_browser_version(ua: &UserAgent) -> String {
     format!("{}.{}.{}", _v(&ua.major), _v(&ua.minor), _v(&ua.patch))
 }
@@ -109,7 +112,7 @@ mod tests {
 
         normalize_user_agent(&mut event);
 
-        let browser_context = get_context(&event, BrowserContext::key());
+        let browser_context = get_context(&event, BrowserContext::default_key());
         assert_ne!(browser_context, None);
         if let Some(Context::Browser(bc)) = browser_context {
             assert_eq!(bc.name.value(), Some(&"Chrome Mobile".to_string()));
@@ -117,9 +120,9 @@ mod tests {
         } else {
             panic!("Could not find the browser context");
         }
-        let device_context = get_context(&event, DeviceContext::key());
+        let device_context = get_context(&event, DeviceContext::default_key());
         assert_eq!(device_context, None);
-        let os_context = get_context(&event, OsContext::key());
+        let os_context = get_context(&event, OsContext::default_key());
         assert_eq!(os_context, None);
     }
 
@@ -131,11 +134,11 @@ mod tests {
 
         normalize_user_agent(&mut event);
 
-        let browser_context = get_context(&event, BrowserContext::key());
+        let browser_context = get_context(&event, BrowserContext::default_key());
         assert_eq!(browser_context, None);
-        let device_context = get_context(&event, DeviceContext::key());
+        let device_context = get_context(&event, DeviceContext::default_key());
         assert_eq!(device_context, None);
-        let os_context = get_context(&event, OsContext::key());
+        let os_context = get_context(&event, OsContext::default_key());
         assert_ne!(os_context, None);
         if let Some(Context::Os(os)) = os_context {
             assert_eq!(os.name.value(), Some(&"Windows 7".to_string()));
@@ -153,9 +156,9 @@ mod tests {
 
         normalize_user_agent(&mut event);
 
-        let browser_context = get_context(&event, BrowserContext::key());
+        let browser_context = get_context(&event, BrowserContext::default_key());
         assert_eq!(browser_context, None);
-        let device_context = get_context(&event, DeviceContext::key());
+        let device_context = get_context(&event, DeviceContext::default_key());
         assert_ne!(device_context, None);
         if let Some(Context::Device(dc)) = device_context {
             assert_eq!(dc.family.value(), Some(&"Samsung Galaxy Nexus".to_string()));
@@ -164,7 +167,7 @@ mod tests {
         } else {
             panic!("Could not find the device context");
         }
-        let os_context = get_context(&event, OsContext::key());
+        let os_context = get_context(&event, OsContext::default_key());
         assert_eq!(os_context, None);
     }
 
@@ -174,7 +177,7 @@ mod tests {
 
         normalize_user_agent(&mut event);
 
-        let browser_context = get_context(&event, BrowserContext::key());
+        let browser_context = get_context(&event, BrowserContext::default_key());
         assert_ne!(browser_context, None);
         if let Some(Context::Browser(bc)) = browser_context {
             assert_eq!(bc.name.value(), Some(&"Chrome Mobile".to_string()));
@@ -182,7 +185,7 @@ mod tests {
         } else {
             panic!("Could not find the browser context");
         }
-        let device_context = get_context(&event, DeviceContext::key());
+        let device_context = get_context(&event, DeviceContext::default_key());
         assert_ne!(device_context, None);
         if let Some(Context::Device(dc)) = device_context {
             assert_eq!(dc.family.value(), Some(&"Samsung Galaxy Nexus".to_string()));
@@ -191,7 +194,7 @@ mod tests {
         } else {
             panic!("Could not find the device context");
         }
-        let os_context = get_context(&event, OsContext::key());
+        let os_context = get_context(&event, OsContext::default_key());
         assert_ne!(os_context, None);
         if let Some(Context::Os(os)) = os_context {
             assert_eq!(os.name.value(), Some(&"Android".to_string()));
@@ -226,7 +229,7 @@ mod tests {
 
         normalize_user_agent(&mut event);
 
-        let browser_context = get_context(&event, BrowserContext::key());
+        let browser_context = get_context(&event, BrowserContext::default_key());
         assert_ne!(browser_context, None);
         if let Some(Context::Browser(bc)) = browser_context {
             assert_eq!(bc.name.value(), Some(&"BR_FAMILY".to_string()));
@@ -234,7 +237,7 @@ mod tests {
         } else {
             panic!("Could not find the browser context");
         }
-        let device_context = get_context(&event, DeviceContext::key());
+        let device_context = get_context(&event, DeviceContext::default_key());
         assert_ne!(device_context, None);
         if let Some(Context::Device(dc)) = device_context {
             assert_eq!(dc.family.value(), Some(&"DEV_FAMILY".to_string()));
@@ -243,7 +246,7 @@ mod tests {
         } else {
             panic!("Could not find the device context");
         }
-        let os_context = get_context(&event, OsContext::key());
+        let os_context = get_context(&event, OsContext::default_key());
         assert_ne!(os_context, None);
         if let Some(Context::Os(os)) = os_context {
             assert_eq!(os.name.value(), Some(&"OS_FAMILY".to_string()));

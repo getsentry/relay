@@ -288,10 +288,8 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     fn normalize_user_agent(&self, event: &mut Event) {
-        if let Some(should_normalize) = self.config.normalize_user_agent {
-            if should_normalize {
-                user_agent::normalize_user_agent(event);
-            }
+        if self.config.normalize_user_agent.unwrap_or(false) {
+            user_agent::normalize_user_agent(event);
         }
     }
 }
@@ -1055,7 +1053,7 @@ fn test_too_long_tags() {
             vec![Annotated::new(TagEntry(
                 Annotated::new("foobar".to_string()),
                 Annotated::new("...........................................................................................................................................................................................................".to_string()),
-            )),Annotated::new(TagEntry(
+            )), Annotated::new(TagEntry(
                 Annotated::new("foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo".to_string()),
                 Annotated::new("bar".to_string()),
             ))]),

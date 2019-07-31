@@ -1,6 +1,7 @@
 //! Utility functions for working with the event user-agent.
 use lazy_static::lazy_static;
-use uaparser::{Device, Parser, UserAgent, UserAgentParser, OS};
+pub use uaparser::{Device, UserAgent, OS};
+use uaparser::{Parser, UserAgentParser};
 
 lazy_static! {
     /// The global [`UserAgentParser`]: https://docs.rs/uap-rs/0.2.2/uap_rs/struct.UserAgentParser.html

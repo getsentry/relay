@@ -88,7 +88,7 @@ pub struct DeviceContext {
 
 impl DeviceContext {
     /// The key under which a device context is generally stored (in `Contexts`)
-    pub fn key() -> &'static str {
+    pub fn default_key() -> &'static str {
         "device"
     }
 }
@@ -121,7 +121,7 @@ pub struct OsContext {
 
 impl OsContext {
     /// The key under which an os context is generally stored (in `Contexts`)
-    pub fn key() -> &'static str {
+    pub fn default_key() -> &'static str {
         "os"
     }
 }
@@ -148,7 +148,7 @@ pub struct RuntimeContext {
 
 impl RuntimeContext {
     /// The key under which a runtime context is generally stored (in `Contexts`)
-    pub fn key() -> &'static str {
+    pub fn default_key() -> &'static str {
         "runtime"
     }
 }
@@ -184,7 +184,7 @@ pub struct AppContext {
 
 impl AppContext {
     /// The key under which an app context is generally stored (in `Contexts`)
-    pub fn key() -> &'static str {
+    pub fn default_key() -> &'static str {
         "app"
     }
 }
@@ -205,7 +205,7 @@ pub struct BrowserContext {
 
 impl BrowserContext {
     /// The key under which a browser context is generally stored (in `Contexts`)
-    pub fn key() -> &'static str {
+    pub fn default_key() -> &'static str {
         "browser"
     }
 }
@@ -213,6 +213,68 @@ impl BrowserContext {
 lazy_static::lazy_static! {
     static ref TRACE_ID: Regex = Regex::new("^[a-fA-F0-9]{32}$").unwrap();
     static ref SPAN_ID: Regex = Regex::new("^[a-fA-F0-9]{16}$").unwrap();
+}
+
+/// GPU information.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+pub struct GpuContext(pub Object<Value>);
+
+impl From<Object<Value>> for GpuContext {
+    fn from(object: Object<Value>) -> Self {
+        Self(object)
+    }
+}
+
+impl std::ops::Deref for GpuContext {
+    type Target = Object<Value>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for GpuContext {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl GpuContext {
+    /// The key under which a runtime context is generally stored (in `Contexts`)
+    pub fn default_key() -> &'static str {
+        "gpu"
+    }
+}
+
+/// Monitor information.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+pub struct MonitorContext(pub Object<Value>);
+
+impl From<Object<Value>> for MonitorContext {
+    fn from(object: Object<Value>) -> Self {
+        Self(object)
+    }
+}
+
+impl std::ops::Deref for MonitorContext {
+    type Target = Object<Value>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for MonitorContext {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl MonitorContext {
+    /// The key under which a runtime context is generally stored (in `Contexts`)
+    pub fn default_key() -> &'static str {
+        "monitor"
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
@@ -281,7 +343,7 @@ pub struct TraceContext {
 
 impl TraceContext {
     /// The key under which a trace context is generally stored (in `Contexts`)
-    pub fn key() -> &'static str {
+    pub fn default_key() -> &'static str {
         "trace"
     }
 }
@@ -301,11 +363,11 @@ pub enum Context {
     /// Web browser information.
     Browser(Box<BrowserContext>),
     /// Information about device's GPU.
-    Gpu(Object<Value>),
+    Gpu(Box<GpuContext>),
     /// Information related to Monitors feature.
     Trace(Box<TraceContext>),
     /// Information related to Monitors feature.
-    Monitor(Object<Value>),
+    Monitor(Box<MonitorContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(Object<Value>),
@@ -317,14 +379,14 @@ impl Context {
     /// See [Contexts.add](struct.Contexts.html)
     pub fn default_key(&self) -> Option<&'static str> {
         match &self {
-            Context::Device(_) => Some(DeviceContext::key()),
-            Context::Os(_) => Some(OsContext::key()),
-            Context::Runtime(_) => Some(RuntimeContext::key()),
-            Context::App(_) => Some(AppContext::key()),
-            Context::Browser(_) => Some(BrowserContext::key()),
-            Context::Gpu(_) => Some("gpu"),
-            Context::Trace(_) => Some(TraceContext::key()),
-            Context::Monitor(_) => Some("monitor"),
+            Context::Device(_) => Some(DeviceContext::default_key()),
+            Context::Os(_) => Some(OsContext::default_key()),
+            Context::Runtime(_) => Some(RuntimeContext::default_key()),
+            Context::App(_) => Some(AppContext::default_key()),
+            Context::Browser(_) => Some(BrowserContext::default_key()),
+            Context::Gpu(_) => Some(GpuContext::default_key()),
+            Context::Trace(_) => Some(TraceContext::default_key()),
+            Context::Monitor(_) => Some(MonitorContext::default_key()),
             _ => None,
         }
     }
