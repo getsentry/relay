@@ -55,7 +55,7 @@ mod tests {
     use crate::testutils;
 
     #[test]
-    fn it_should_not_filter_events_when_disabled() {
+    fn test_filter_when_disabled() {
         let evt = testutils::get_event_with_user_agent("Googlebot");
         let filter_result = should_filter(&evt, &test_utils::get_f_config(false));
         assert_eq!(
@@ -66,7 +66,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_filter_events_from_banned_user_agents() {
+    fn test_filter_banned_user_agents() {
         let user_agents = [
             "Mediapartners-Google",
             "AdsBot-Google",
@@ -104,7 +104,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_not_filter_events_from_normal_user_agents() {
+    fn test_dont_filter_normal_user_agents() {
         for user_agent in &["some user agent", "IE", "ie", "opera", "safari"] {
             let event = testutils::get_event_with_user_agent(user_agent);
             let filter_result = should_filter(&event, &test_utils::get_f_config(true));

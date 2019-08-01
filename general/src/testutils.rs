@@ -35,6 +35,44 @@ macro_rules! assert_eq_dbg {
     };
 }
 
+macro_rules! assert_annotated_matches {
+    ($value:expr, @$snapshot:literal) => {
+        ::insta::assert_snapshot_matches!(
+            $value.to_json_pretty().unwrap(),
+            stringify!($value),
+            @$snapshot
+        )
+    };
+    ($value:expr, $debug_expr:expr, @$snapshot:literal) => {
+        ::insta::assert_snapshot_matches!(
+            $value.to_json_pretty().unwrap(),
+            $debug_expr,
+            @$snapshot
+        )
+    };
+    ($name:expr, $value:expr) => {
+        ::insta::assert_snapshot_matches!(
+            $name,
+            $value.to_json_pretty().unwrap(),
+            stringify!($value)
+        )
+    };
+    ($name:expr, $value:expr, $debug_expr:expr) => {
+        ::insta::assert_snapshot_matches!(
+            $name,
+            $value.to_json_pretty().unwrap(),
+            $debug_expr
+        )
+    };
+    ($value:expr) => {
+        ::insta::assert_snapshot_matches!(
+            None::<String>,
+            $value.to_json_pretty().unwrap(),
+            stringify!($value)
+        )
+    };
+}
+
 /// Creates an Event with the specified user agent.
 pub(super) fn get_event_with_user_agent(user_agent: &str) -> Event {
     let mut headers = Vec::new();
