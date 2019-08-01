@@ -70,7 +70,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_not_filter_events_if_filter_is_disabled() {
+    fn test_dont_filter_when_disabled() {
         for event in &[
             get_event_with_ip_addr("127.0.0.1"),
             get_event_with_domain("localhost"),
@@ -85,7 +85,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_filter_events_with_local_ip() {
+    fn test_filter_local_ip() {
         for ip_addr in &["127.0.0.1", "::1"] {
             let event = get_event_with_ip_addr(ip_addr);
             let filter_result = should_filter(&event, &test_utils::get_f_config(true));
@@ -99,7 +99,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_not_filter_events_with_non_local_ip() {
+    fn test_dont_filter_non_local_ip() {
         for ip_addr in &["133.12.12.1", "2001:db8:0:0:0:ff00:42:8329"] {
             let event = get_event_with_ip_addr(ip_addr);
             let filter_result = should_filter(&event, &test_utils::get_f_config(true));
@@ -113,7 +113,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_not_filter_events_with_missing_ip_or_domains() {
+    fn test_dont_filter_missing_ip_or_domains() {
         let event = Event::default();
         let filter_result = should_filter(&event, &test_utils::get_f_config(true));
         assert_eq!(
@@ -124,7 +124,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_filter_events_with_local_domains() {
+    fn test_filter_local_domains() {
         for domain in &["127.0.0.1", "localhost"] {
             let event = get_event_with_domain(domain);
             let filter_result = should_filter(&event, &test_utils::get_f_config(true));
@@ -138,7 +138,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_not_filter_events_with_non_local_domains() {
+    fn test_dont_filter_non_local_domains() {
         for domain in &["my.dom.com", "123.123.123.44"] {
             let event = get_event_with_domain(domain);
             let filter_result = should_filter(&event, &test_utils::get_f_config(true));

@@ -144,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_not_filter_events_when_disabled() {
+    fn test_dont_filter_when_disabled() {
         let events = [
             get_event_with_exception_source("https://fscr.kaspersky-labs.com/B-9B72-7B7/main.js"),
             get_event_with_exception_value("fb_xd_fragment"),
@@ -161,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_filter_events_with_known_browser_extension_source() {
+    fn test_filter_known_browser_extension_source() {
         let sources = [
             "https://graph.facebook.com/",
             "https://connect.facebook.net/en_US/sdk.js",
@@ -189,7 +189,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_filter_events_with_known_browser_extension_values() {
+    fn test_filter_known_browser_extension_values() {
         let exceptions = [
             "what does conduitPage even do",
             "null is not an object (evaluating 'elt.parentNode')",
@@ -226,7 +226,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_not_filter_events_with_unkown_browser_extenstion_source_or_value() {
+    fn test_dont_filter_unkown_browser_extension() {
         let events = [
             get_event_with_exception_source("https://some/resonable/source.js"),
             get_event_with_exception_value("some perfectly reasonable value"),

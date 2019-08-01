@@ -171,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_not_filter_events_if_filter_is_disabled() {
+    fn test_dont_filter_when_disabled() {
         let evt = testutils::get_event_with_user_agent(IE8_UA);
         let filter_result = should_filter(
             &evt,
@@ -185,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_filter_default_browsers_when_default_option_is_specified() {
+    fn test_filter_default_browsers() {
         for old_user_agent in &[
             IE9_UA,
             IE_MOBILE9_UA,
@@ -209,7 +209,7 @@ mod tests {
     }
 
     #[test]
-    fn default_filter_should_not_filter_browsers_above_the_minimum_required_versions() {
+    fn test_dont_filter_default_above_minimum_versions() {
         for old_user_agent in &[
             IE10_UA,
             SAFARI_6_UA,
@@ -232,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_filter_the_events_from_browsers_that_are_configured() {
+    fn test_filter_configured_browsers() {
         let test_configs = [
             (
                 IE10_UA,
@@ -287,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_not_filter_the_events_from_browsers_that_are_not_configured() {
+    fn test_dont_filter_unconfigured_browsers() {
         let test_configs = [
             (IE11_UA, LegacyBrowser::Ie10),
             (IE10_UA, LegacyBrowser::Ie9),
@@ -355,7 +355,7 @@ mod tests {
             "Opera/9.80 (J2ME/MIDP; Opera Mini/7.0.32796/59.323; U; fr) Presto/2.12.423 Version/12.16";
 
         #[test]
-        fn it_should_filter_user_agents_in_the_same_way_as_sentry() {
+        fn test_filter_sentry_user_agents() {
             let test_configs = [
                 (ANDROID2_S_UA, LegacyBrowser::Default),
                 (IE9_S_UA, LegacyBrowser::Default),
@@ -396,7 +396,7 @@ mod tests {
         }
 
         #[test]
-        fn it_should_not_filter_user_agents_in_the_same_way_as_sentry() {
+        fn test_dont_filter_sentry_allowed_user_agents() {
             let test_configs = [
                 (ANDROID4_S_UA, LegacyBrowser::Default),
                 (IE10_S_UA, LegacyBrowser::Default),

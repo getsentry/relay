@@ -124,21 +124,21 @@ mod tests {
     }
 
     #[test]
-    fn test_events_without_user_agents_should_not_add_contexts() {
+    fn test_skip_no_user_agent() {
         let mut event = Event::default();
         normalize_user_agent(&mut event);
         assert_eq!(event.contexts.value(), None);
     }
 
     #[test]
-    fn test_events_with_unrecognizable_user_agents_should_not_add_contexts() {
+    fn test_skip_unrecognizable_user_agent() {
         let mut event = testutils::get_event_with_user_agent("a dont no");
         normalize_user_agent(&mut event);
         assert_eq!(event.contexts.value(), None);
     }
 
     #[test]
-    fn test_a_user_agent_with_browser_information_fills_the_browser_context_in() {
+    fn test_browser_context() {
         let ua = "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19";
 
         let mut event = testutils::get_event_with_user_agent(ua);
@@ -155,7 +155,7 @@ mod tests {
     }
 
     #[test]
-    fn test_a_user_agent_with_os_information_fills_the_os_context_in() {
+    fn test_os_context() {
         let ua = "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) - -";
 
         let mut event = testutils::get_event_with_user_agent(ua);
@@ -171,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn test_a_user_agent_with_short_os_version() {
+    fn test_os_context_short_version() {
         let ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) - (-)";
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
@@ -197,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn test_a_user_agent_with_full_os_version() {
+    fn test_os_context_full_version() {
         let ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) - (-)";
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
@@ -213,7 +213,7 @@ mod tests {
     }
 
     #[test]
-    fn test_a_user_agent_with_device_information_fills_the_device_context_in() {
+    fn test_device_context() {
         let ua = "- (-; -; Galaxy Nexus Build/IMM76B) - (-) ";
 
         let mut event = testutils::get_event_with_user_agent(ua);
@@ -231,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn test_a_user_agent_with_all_info_fills_everything_in() {
+    fn test_all_contexts() {
         let mut event = testutils::get_event_with_user_agent(GOOD_UA);
         normalize_user_agent(&mut event);
         assert_annotated_matches!(event.contexts, @r###"
@@ -257,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn test_user_agent_does_not_override_already_pre_filled_event_info() {
+    fn test_user_agent_does_not_override_prefilled() {
         let mut event = testutils::get_event_with_user_agent(GOOD_UA);
         let mut contexts = Contexts::new();
         contexts.add(Context::Browser(Box::new(BrowserContext {
