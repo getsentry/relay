@@ -4,7 +4,7 @@
 //! the browser, os and device information in the event.
 //!
 
-use uaparser::{UserAgent, OS};
+use std::fmt::Write;
 
 use crate::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
 use crate::types::Annotated;
@@ -30,7 +30,7 @@ pub fn normalize_user_agent(event: &mut Event) {
     let contexts = event.contexts.get_or_insert_with(|| Contexts::new());
 
     if is_known(ua.family.as_str()) && !contexts.contains_key(BrowserContext::default_key()) {
-        let version = get_browser_version(&ua);
+        let version = get_version(&ua.major, &ua.minor, &ua.patch);
         contexts.add(Context::Browser(Box::new(BrowserContext {
             name: Annotated::from(ua.family),
             version: Annotated::from(version),
@@ -48,7 +48,7 @@ pub fn normalize_user_agent(event: &mut Event) {
     }
 
     if is_known(os.family.as_str()) && !contexts.contains_key(OsContext::default_key()) {
-        let version = get_os_version(&os);
+        let version = get_version(&os.major, &os.minor, &os.patch);
         contexts.add(Context::Os(Box::new(OsContext {
             name: Annotated::from(os.family),
             version: Annotated::from(version),
@@ -61,19 +61,21 @@ fn is_known(family: &str) -> bool {
     family != "Other"
 }
 
-fn _v(value: &Option<String>) -> &str {
-    match value {
-        None => "",
-        Some(val) => val.as_str(),
+fn get_version(
+    major: &Option<String>,
+    minor: &Option<String>,
+    patch: &Option<String>,
+) -> Option<String> {
+    let mut version = major.clone()?;
+
+    if let Some(minor) = minor {
+        write!(version, ".{}", minor).ok();
+        if let Some(patch) = patch {
+            write!(version, ".{}", patch).ok();
+        }
     }
-}
 
-fn get_os_version(os: &OS) -> String {
-    format!("{}.{}.{}", _v(&os.major), _v(&os.minor), _v(&os.patch))
-}
-
-fn get_browser_version(ua: &UserAgent) -> String {
-    format!("{}.{}.{}", _v(&ua.major), _v(&ua.minor), _v(&ua.patch))
+    Some(version)
 }
 
 #[cfg(test)]
@@ -84,15 +86,47 @@ mod tests {
     const GOOD_UA: &str =
             "Mozilla/5.0 (Linux; Android 4.0.4; Galaxy Nexus Build/IMM76B) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.133 Mobile Safari/535.19";
 
-    fn get_context<'a>(event: &'a Event, idx: &str) -> Option<&'a Context> {
-        Some(&event.contexts.value()?.get(idx)?.value()?.0)
+    #[test]
+    fn test_version_none() {
+        assert_eq!(get_version(&None, &None, &None), None);
+    }
+
+    #[test]
+    fn test_version_major() {
+        assert_eq!(
+            get_version(&Some("X".into()), &None, &None),
+            Some("X".into())
+        )
+    }
+
+    #[test]
+    fn test_version_major_minor() {
+        assert_eq!(
+            get_version(&Some("X".into()), &Some("Y".into()), &None),
+            Some("X.Y".into())
+        )
+    }
+
+    #[test]
+    fn test_version_major_minor_patch() {
+        assert_eq!(
+            get_version(&Some("X".into()), &Some("Y".into()), &Some("Z".into())),
+            Some("X.Y.Z".into())
+        )
+    }
+
+    #[test]
+    fn test_verison_missing_minor() {
+        assert_eq!(
+            get_version(&Some("X".into()), &None, &Some("Z".into())),
+            Some("X".into())
+        )
     }
 
     #[test]
     fn test_events_without_user_agents_should_not_add_contexts() {
         let mut event = Event::default();
         normalize_user_agent(&mut event);
-
         assert_eq!(event.contexts.value(), None);
     }
 
@@ -100,7 +134,6 @@ mod tests {
     fn test_events_with_unrecognizable_user_agents_should_not_add_contexts() {
         let mut event = testutils::get_event_with_user_agent("a dont no");
         normalize_user_agent(&mut event);
-
         assert_eq!(event.contexts.value(), None);
     }
 
@@ -109,21 +142,16 @@ mod tests {
         let ua = "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19";
 
         let mut event = testutils::get_event_with_user_agent(ua);
-
         normalize_user_agent(&mut event);
-
-        let browser_context = get_context(&event, BrowserContext::default_key());
-        assert_ne!(browser_context, None);
-        if let Some(Context::Browser(bc)) = browser_context {
-            assert_eq!(bc.name.value(), Some(&"Chrome Mobile".to_string()));
-            assert_eq!(bc.version.value(), Some(&"18.0.1025".to_string()));
-        } else {
-            panic!("Could not find the browser context");
-        }
-        let device_context = get_context(&event, DeviceContext::default_key());
-        assert_eq!(device_context, None);
-        let os_context = get_context(&event, OsContext::default_key());
-        assert_eq!(os_context, None);
+        assert_annotated_matches!(event.contexts, @r###"
+       ⋮{
+       ⋮  "browser": {
+       ⋮    "name": "Chrome Mobile",
+       ⋮    "version": "18.0.1025",
+       ⋮    "type": "browser"
+       ⋮  }
+       ⋮}
+        "###);
     }
 
     #[test]
@@ -131,21 +159,57 @@ mod tests {
         let ua = "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) - -";
 
         let mut event = testutils::get_event_with_user_agent(ua);
-
         normalize_user_agent(&mut event);
+        assert_annotated_matches!(event.contexts, @r###"
+       ⋮{
+       ⋮  "os": {
+       ⋮    "name": "Windows 7",
+       ⋮    "type": "os"
+       ⋮  }
+       ⋮}
+        "###);
+    }
 
-        let browser_context = get_context(&event, BrowserContext::default_key());
-        assert_eq!(browser_context, None);
-        let device_context = get_context(&event, DeviceContext::default_key());
-        assert_eq!(device_context, None);
-        let os_context = get_context(&event, OsContext::default_key());
-        assert_ne!(os_context, None);
-        if let Some(Context::Os(os)) = os_context {
-            assert_eq!(os.name.value(), Some(&"Windows 7".to_string()));
-            assert_eq!(os.version.value(), Some(&"..".to_string()));
-        } else {
-            panic!("Could not find the os context");
-        }
+    #[test]
+    fn test_a_user_agent_with_short_os_version() {
+        let ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) - (-)";
+        let mut event = testutils::get_event_with_user_agent(ua);
+        normalize_user_agent(&mut event);
+        assert_annotated_matches!(event.contexts, @r###"
+       ⋮{
+       ⋮  "browser": {
+       ⋮    "name": "Mobile Safari UI/WKWebView",
+       ⋮    "type": "browser"
+       ⋮  },
+       ⋮  "device": {
+       ⋮    "family": "iPhone",
+       ⋮    "model": "iPhone",
+       ⋮    "brand": "Apple",
+       ⋮    "type": "device"
+       ⋮  },
+       ⋮  "os": {
+       ⋮    "name": "iOS",
+       ⋮    "version": "12.1",
+       ⋮    "type": "os"
+       ⋮  }
+       ⋮}
+        "###);
+    }
+
+    #[test]
+    fn test_a_user_agent_with_full_os_version() {
+        let ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) - (-)";
+        let mut event = testutils::get_event_with_user_agent(ua);
+        normalize_user_agent(&mut event);
+        assert_annotated_matches!(event.contexts, @r###"
+       ⋮{
+       ⋮  "os": {
+       ⋮    "name": "Mac OS X",
+       ⋮    "version": "10.13.4",
+       ⋮    "type": "os"
+       ⋮  }
+       ⋮}
+        "###);
     }
 
     #[test]
@@ -153,55 +217,43 @@ mod tests {
         let ua = "- (-; -; Galaxy Nexus Build/IMM76B) - (-) ";
 
         let mut event = testutils::get_event_with_user_agent(ua);
-
         normalize_user_agent(&mut event);
-
-        let browser_context = get_context(&event, BrowserContext::default_key());
-        assert_eq!(browser_context, None);
-        let device_context = get_context(&event, DeviceContext::default_key());
-        assert_ne!(device_context, None);
-        if let Some(Context::Device(dc)) = device_context {
-            assert_eq!(dc.family.value(), Some(&"Samsung Galaxy Nexus".to_string()));
-            assert_eq!(dc.model.value(), Some(&"Galaxy Nexus".to_string()));
-            assert_eq!(dc.brand.value(), Some(&"Samsung".to_string()));
-        } else {
-            panic!("Could not find the device context");
-        }
-        let os_context = get_context(&event, OsContext::default_key());
-        assert_eq!(os_context, None);
+        assert_annotated_matches!(event.contexts, @r###"
+       ⋮{
+       ⋮  "device": {
+       ⋮    "family": "Samsung Galaxy Nexus",
+       ⋮    "model": "Galaxy Nexus",
+       ⋮    "brand": "Samsung",
+       ⋮    "type": "device"
+       ⋮  }
+       ⋮}
+        "###);
     }
 
     #[test]
     fn test_a_user_agent_with_all_info_fills_everything_in() {
         let mut event = testutils::get_event_with_user_agent(GOOD_UA);
-
         normalize_user_agent(&mut event);
-
-        let browser_context = get_context(&event, BrowserContext::default_key());
-        assert_ne!(browser_context, None);
-        if let Some(Context::Browser(bc)) = browser_context {
-            assert_eq!(bc.name.value(), Some(&"Chrome Mobile".to_string()));
-            assert_eq!(bc.version.value(), Some(&"18.0.1025".to_string()));
-        } else {
-            panic!("Could not find the browser context");
-        }
-        let device_context = get_context(&event, DeviceContext::default_key());
-        assert_ne!(device_context, None);
-        if let Some(Context::Device(dc)) = device_context {
-            assert_eq!(dc.family.value(), Some(&"Samsung Galaxy Nexus".to_string()));
-            assert_eq!(dc.model.value(), Some(&"Galaxy Nexus".to_string()));
-            assert_eq!(dc.brand.value(), Some(&"Samsung".to_string()));
-        } else {
-            panic!("Could not find the device context");
-        }
-        let os_context = get_context(&event, OsContext::default_key());
-        assert_ne!(os_context, None);
-        if let Some(Context::Os(os)) = os_context {
-            assert_eq!(os.name.value(), Some(&"Android".to_string()));
-            assert_eq!(os.version.value(), Some(&"4.0.4".to_string()));
-        } else {
-            panic!("Could not find the os context");
-        }
+        assert_annotated_matches!(event.contexts, @r###"
+       ⋮{
+       ⋮  "browser": {
+       ⋮    "name": "Chrome Mobile",
+       ⋮    "version": "18.0.1025",
+       ⋮    "type": "browser"
+       ⋮  },
+       ⋮  "device": {
+       ⋮    "family": "Samsung Galaxy Nexus",
+       ⋮    "model": "Galaxy Nexus",
+       ⋮    "brand": "Samsung",
+       ⋮    "type": "device"
+       ⋮  },
+       ⋮  "os": {
+       ⋮    "name": "Android",
+       ⋮    "version": "4.0.4",
+       ⋮    "type": "os"
+       ⋮  }
+       ⋮}
+        "###);
     }
 
     #[test]
@@ -228,31 +280,25 @@ mod tests {
         event.contexts = Annotated::new(contexts);
 
         normalize_user_agent(&mut event);
-
-        let browser_context = get_context(&event, BrowserContext::default_key());
-        assert_ne!(browser_context, None);
-        if let Some(Context::Browser(bc)) = browser_context {
-            assert_eq!(bc.name.value(), Some(&"BR_FAMILY".to_string()));
-            assert_eq!(bc.version.value(), Some(&"BR_VERSION".to_string()));
-        } else {
-            panic!("Could not find the browser context");
-        }
-        let device_context = get_context(&event, DeviceContext::default_key());
-        assert_ne!(device_context, None);
-        if let Some(Context::Device(dc)) = device_context {
-            assert_eq!(dc.family.value(), Some(&"DEV_FAMILY".to_string()));
-            assert_eq!(dc.model.value(), Some(&"DEV_MODEL".to_string()));
-            assert_eq!(dc.brand.value(), Some(&"DEV_BRAND".to_string()));
-        } else {
-            panic!("Could not find the device context");
-        }
-        let os_context = get_context(&event, OsContext::default_key());
-        assert_ne!(os_context, None);
-        if let Some(Context::Os(os)) = os_context {
-            assert_eq!(os.name.value(), Some(&"OS_FAMILY".to_string()));
-            assert_eq!(os.version.value(), Some(&"OS_VERSION".to_string()));
-        } else {
-            panic!("Could not find the os context");
-        }
+        assert_annotated_matches!(event.contexts, @r###"
+       ⋮{
+       ⋮  "browser": {
+       ⋮    "name": "BR_FAMILY",
+       ⋮    "version": "BR_VERSION",
+       ⋮    "type": "browser"
+       ⋮  },
+       ⋮  "device": {
+       ⋮    "family": "DEV_FAMILY",
+       ⋮    "model": "DEV_MODEL",
+       ⋮    "brand": "DEV_BRAND",
+       ⋮    "type": "device"
+       ⋮  },
+       ⋮  "os": {
+       ⋮    "name": "OS_FAMILY",
+       ⋮    "version": "OS_VERSION",
+       ⋮    "type": "os"
+       ⋮  }
+       ⋮}
+        "###);
     }
 }
