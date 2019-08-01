@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.42
+
+- Fix normalization of version strings from user agents.
+
 ## 0.4.41
 
 **Normalization**:
