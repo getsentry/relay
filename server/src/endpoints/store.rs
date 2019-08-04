@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use ::actix::prelude::*;
+use actix::prelude::*;
 use actix_web::http::{Method, StatusCode};
 use actix_web::middleware::cors::Cors;
 use actix_web::{HttpRequest, HttpResponse, Json, ResponseError};
@@ -170,6 +170,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
             "content-type",
             "authentication",
         ])
+        .expose_headers(vec!["X-Sentry-Error", "Retry-After"])
         .max_age(3600)
         .resource(r"/api/{project:\d+}/store/", |r| {
             r.method(Method::POST).with(store_event);
