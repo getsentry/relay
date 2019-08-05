@@ -11,7 +11,7 @@ use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 
 use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
-use semaphore_general::filter::should_filter;
+use semaphore_general::filter::{should_filter, GlobalFilterConfig};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
@@ -147,9 +147,18 @@ impl EventProcessor {
             let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
             process_value(&mut event, &mut store_processor, ProcessingState::root());
 
-            let filter_settings = &message.project_state.config.filter_settings;
+            let project_config = &message.project_state.config;
             if let Some(event) = event.value() {
-                if let Err(reason) = should_filter(event, filter_settings) {
+                if let Err(reason) = should_filter(
+                    event,
+                    GlobalFilterConfig {
+                        filters: &project_config.filter_settings,
+                        csp_disallowed_sources: &project_config.csp_disallowed_sources,
+                        black_listed_ips: &project_config.blacklisted_ips,
+                        filtered_releases: &project_config.filtered_releases,
+                        filtered_error_messages: &project_config.filtered_error_messages,
+                    },
+                ) {
                     // event should be filter no more processing needed
                     return Ok(ProcessEventResponse::Filtered { reason });
                 }

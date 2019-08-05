@@ -214,6 +214,18 @@ pub struct ProjectConfig {
     /// Configuration for filter rules.
     #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
     pub filter_settings: FiltersConfig,
+    /// Blacklisted client ip addresses.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub blacklisted_ips: Vec<String>,
+    /// List of client releases that will be filtered.
+    #[serde(skip_serializing_if = "Vec::is_empty", rename = "releases")]
+    pub filtered_releases: Vec<String>,
+    /// List of error message patterns that will be filtered.
+    #[serde(skip_serializing_if = "Vec::is_empty", rename = "error_messages")]
+    pub filtered_error_messages: Vec<String>,
+    /// List of disallowed sources for CSP error messages
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub csp_disallowed_sources: Vec<String>,
 }
 
 impl Default for ProjectConfig {
@@ -229,6 +241,10 @@ impl Default for ProjectConfig {
             scrub_defaults: false,
             scrub_data: false,
             filter_settings: FiltersConfig::default(),
+            blacklisted_ips: vec![],
+            filtered_releases: vec![],
+            filtered_error_messages: vec![],
+            csp_disallowed_sources: vec![],
         }
     }
 }
