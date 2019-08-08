@@ -9,6 +9,7 @@ mod fingerprint;
 mod logentry;
 mod mechanism;
 mod request;
+mod security_report;
 mod span;
 mod stacktrace;
 mod tags;
@@ -45,3 +46,5 @@ pub use self::types::{
     ParseLevelError, RegVal, Values,
 };
 pub use self::user::{Geo, User};
+
+pub use self::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp};
