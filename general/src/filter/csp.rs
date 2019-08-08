@@ -5,7 +5,6 @@
 use url::Url;
 
 use crate::protocol::{Event, EventType};
-use std::collections::HashSet;
 
 /// Should filter event
 pub fn should_filter(event: &Event, csp_disallowed_sources: &[String]) -> Result<(), String> {
@@ -15,7 +14,7 @@ pub fn should_filter(event: &Event, csp_disallowed_sources: &[String]) -> Result
     }
 
     // parse the sources for easy processing
-    let csp_disallowed_sources: HashSet<SchemeDomainPort> = csp_disallowed_sources
+    let csp_disallowed_sources: Vec<SchemeDomainPort> = csp_disallowed_sources
         .iter()
         .map(|origin| -> SchemeDomainPort { origin.to_lowercase().as_str().into() })
         .collect();
@@ -29,12 +28,6 @@ pub fn should_filter(event: &Event, csp_disallowed_sources: &[String]) -> Result
         }
     }
     Ok(())
-}
-
-#[derive(PartialEq, Eq)]
-struct Bubu {
-    pub a: i32,
-    pub b: i32,
 }
 
 /// A pattern used to match allowed paths
@@ -106,7 +99,7 @@ impl From<&str> for SchemeDomainPort {
 ///  - * : anything goes
 ///  - *.domain.com : matches domain.com and any subdomains
 ///  - *.port : matches any hostname as long as the port matches
-fn matches_any_origin(url: Option<&String>, origins: &HashSet<SchemeDomainPort>) -> bool {
+fn matches_any_origin(url: Option<&String>, origins: &[SchemeDomainPort]) -> bool {
     // if we have a "*" (Any) option, anything matches so don't bother going forward
     if origins
         .iter()
@@ -115,45 +108,62 @@ fn matches_any_origin(url: Option<&String>, origins: &HashSet<SchemeDomainPort>)
         return true;
     }
 
-    if url == None {
-        return false;
-    }
-    let url = Url::parse(url.unwrap());
+    if let Some(url) = url {
+        if let Ok(url) = Url::parse(url) {
+            let scheme = Some(url.scheme().to_string());
+            let domain = url.host_str().map(|s| s.to_string());
+            let port = url.port().map(|p| p.to_string());
 
-    if let Ok(url) = url {
-        let scheme: Option<String> = Some(url.scheme().to_string());
-        let domain = url.host_str().map(|s| s.to_string());
-        let port = url.port().map(|p| p.to_string());
-
-        let mut matches: HashSet<SchemeDomainPort> = HashSet::new();
-
-        // create a cartesian product with all patterns that could match (duplicates will be eliminated by the set)
-        for s in &[&None, &scheme] {
-            for d in &[&None, &domain] {
-                for p in &[&None, &port] {
-                    matches.insert(SchemeDomainPort {
-                        //TODO why do I need to deref ?
-                        scheme: (*s).clone(),
-                        domain: (*d).clone(),
-                        port: (*p).clone(),
-                    });
+            for origin in origins {
+                if origin.scheme != None && scheme != origin.scheme {
+                    continue; // scheme not matched
                 }
+                if origin.port != None && port != origin.port {
+                    continue; // port not matched
+                }
+                if origin.domain != None && domain != origin.domain {
+                    // no direct match for domain, look for  partial patterns (e.g. "*.domain.com")
+                    if let (Some(origin_domain), Some(domain)) = (&origin.domain, &domain) {
+                        if origin_domain.starts_with("*")
+                            && ((*domain).ends_with(&origin_domain[1..])
+                                || domain.as_str() == &origin_domain[2..])
+                        {
+                            return true; // partial domain pattern match
+                        }
+                    }
+                    continue; // domain not matched
+                }
+                // if we are here all patterns have matched so we are done
+                return true;
             }
         }
-
-        return matches
-            .intersection(origins)
-            //TODO is there a better way to check if the intersection is empty ?
-            .collect::<Vec<&SchemeDomainPort>>()
-            .is_empty();
     }
-
     false
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::Csp;
+    use crate::types::Annotated;
+
+    fn get_csp_event(blocked_uri: Option<&str>, source_file: Option<&str>) -> Event {
+        fn annotated_string_or_none(val: Option<&str>) -> Annotated<String> {
+            match val {
+                None => Annotated::empty(),
+                Some(val) => Annotated::from(val.to_string()),
+            }
+        }
+        Event {
+            ty: Annotated::from(EventType::Csp),
+            csp: Annotated::from(Csp {
+                blocked_uri: annotated_string_or_none(blocked_uri),
+                source_file: annotated_string_or_none(source_file),
+                ..Csp::default()
+            }),
+            ..Event::default()
+        }
+    }
 
     #[test]
     fn test_scheme_domain_port() {
@@ -162,15 +172,25 @@ mod tests {
             ("*://*", None, None, None),
             ("*://*:*", None, None, None),
             ("https://*", Some("https"), None, None),
+            ("https://*.abc.net", Some("https"), Some("*.abc.net"), None),
             ("https://*:*", Some("https"), None, None),
             ("x.y.z", None, Some("x.y.z"), None),
             ("x.y.z:*", None, Some("x.y.z"), None),
             ("*://x.y.z:*", None, Some("x.y.z"), None),
+            ("*://*.x.y.z:*", None, Some("*.x.y.z"), None),
             ("*:8000", None, None, Some("8000")),
             ("*://*:8000", None, None, Some("8000")),
             ("http://x.y.z", Some("http"), Some("x.y.z"), None),
             ("http://*:8000", Some("http"), None, Some("8000")),
             ("abc:8000", None, Some("abc"), Some("8000")),
+            ("*.abc.com:8000", None, Some("*.abc.com"), Some("8000")),
+            ("*.com:86", None, Some("*.com"), Some("86")),
+            (
+                "http://abc.com:86",
+                Some("http"),
+                Some("abc.com"),
+                Some("86"),
+            ),
             (
                 "http://x.y.z:4000",
                 Some("http"),
@@ -195,81 +215,125 @@ mod tests {
     #[test]
     fn test_matches_any_origin() {
         let examples = &[
+            //MATCH
+            //generic matches
+            ("http://abc1.com", vec!["*://*:*", "bbc.com"], true),
+            ("http://abc2.com", vec!["*:*", "bbc.com"], true),
+            ("http://abc3.com", vec!["*", "bbc.com"], true),
+            ("http://abc4.com", vec!["http://*", "bbc.com"], true),
             (
-                "http://abc.com/some/path&param=2",
-                vec!["http://*", "http://other.com"],
+                "http://abc5.com",
+                vec!["http://abc5.com:*", "bbc.com"],
                 true,
             ),
+            ("http://abc.com:80", vec!["*://*:*", "bbc.com"], true),
+            ("http://abc.com:81", vec!["*:*", "bbc.com"], true),
+            ("http://abc.com:82", vec!["*:82", "bbc.com"], true),
+            ("http://abc.com:83", vec!["http://*:83", "bbc.com"], true),
+            ("http://abc.com:84", vec!["abc.com:*", "bbc.com"], true),
+            //partial domain matches
+            ("http://abc.com:85", vec!["*.abc.com:85", "bbc.com"], true),
+            ("http://abc.com:86", vec!["*.com:86"], true),
+            ("http://abc.com:86", vec!["*.com:86", "bbc.com"], true),
+            ("http://abc.def.ghc.com:87", vec!["*.com:87"], true),
+            ("http://abc.def.ghc.com:88", vec!["*.ghc.com:88"], true),
+            ("http://abc.def.ghc.com:89", vec!["*.def.ghc.com:89"], true),
+            //exact matches
+            ("http://abc.com:90", vec!["abc.com", "bbc.com"], true),
+            ("http://abc.com:91", vec!["abc.com:91", "bbc.com"], true),
+            ("http://abc.com:92", vec!["http://abc.com:92"], true),
+            ("http://abc.com:93", vec!["http://abc.com", "bbc.com"], true),
+            //matches in various positions
+            ("http://abc6.com", vec!["abc6.com", "bbc.com"], true),
+            ("http://abc7.com", vec!["bbc.com", "abc7.com"], true),
+            ("http://abc8.com", vec!["bbc.com", "abc8.com", "def"], true),
+            //NON MATCH
+            //different domain
             (
-                "http://abc.com/some/path&param=2",
-                vec!["http://*", "http://other.com", "fasdfas"],
-                true,
+                "http://abc9.com",
+                vec!["http://other.com", "bbc.com"],
+                false,
+            ),
+            ("http://abc10.com", vec!["http://*.other.com", "bbc"], false),
+            ("abc11.com", vec!["*.other.com", "bbc"], false),
+            //different scheme
+            (
+                "https://abc12.com",
+                vec!["http://abc12.com", "bbc.com"],
+                false,
+            ),
+            //different port
+            (
+                "http://abc13.com:80",
+                vec!["http://abc13.com:8080", "bbc.com"],
+                false,
             ),
         ];
+
+        for (url, origins, expected) in examples {
+            let origins: Vec<_> = origins
+                .iter()
+                .map(|url| SchemeDomainPort::from(*url))
+                .collect();
+            let actual = matches_any_origin(Some(&url.to_string()), &origins[..]);
+            assert_eq!(*expected, actual, "Could not match {}.", url);
+        }
     }
 
     #[test]
-    fn test_url_parsing() {
-        let urls = [
-            "http://a.b.c/f.html",
-            "abc:4000",
-            "abc:4000/f/d/h.html",
-            "http://abc:4000/f/d/h.html",
-        ];
-
-        let parsed = urls.iter().map(|u| {
-            Url::parse(u)
-                .map(|u| {
-                    vec![
-                        format!("scheme->{}", u.scheme()),
-                        format!("domain->{}", u.domain().unwrap_or("No Doamin")),
-                        format!("port->{}", u.port().map(|x| x as i16).unwrap_or(-1)),
-                        format!("path->{}", u.path()),
-                    ]
-                })
-                .unwrap_or(vec![])
-        });
-
-        let display: Vec<_> = urls.iter().zip(parsed).collect();
-        insta::assert_debug_snapshot_matches!(display, @r###"
-       ⋮[
-       ⋮    (
-       ⋮        "http://a.b.c/f.html",
-       ⋮        [
-       ⋮            "scheme->http",
-       ⋮            "domain->a.b.c",
-       ⋮            "port->-1",
-       ⋮            "path->/f.html",
-       ⋮        ],
-       ⋮    ),
-       ⋮    (
-       ⋮        "abc:4000",
-       ⋮        [
-       ⋮            "scheme->abc",
-       ⋮            "domain->No Doamin",
-       ⋮            "port->-1",
-       ⋮            "path->4000",
-       ⋮        ],
-       ⋮    ),
-       ⋮    (
-       ⋮        "abc:4000/f/d/h.html",
-       ⋮        [
-       ⋮            "scheme->abc",
-       ⋮            "domain->No Doamin",
-       ⋮            "port->-1",
-       ⋮            "path->4000/f/d/h.html",
-       ⋮        ],
-       ⋮    ),
-       ⋮    (
-       ⋮        "http://abc:4000/f/d/h.html",
-       ⋮        [
-       ⋮            "scheme->http",
-       ⋮            "domain->abc",
-       ⋮            "port->4000",
-       ⋮            "path->/f/d/h.html",
-       ⋮        ],
-       ⋮    ),
-       ⋮]
-        "###);
+    fn test_filters_known_source_files() {
+        let event = get_csp_event(None, Some("http://known.bad.com"));
+        let disallowed_sources = &["http://known.bad.com".to_string()];
+        let actual = should_filter(&event, disallowed_sources);
+        assert_ne!(
+            actual,
+            Ok(()),
+            "CSP filter should have filtered known bad source file"
+        );
+    }
+    #[test]
+    fn test_does_not_filter_benign_source_files() {
+        let event = get_csp_event(None, Some("http://good.file.com"));
+        let disallowed_sources = &["http://known.bad.com".to_string()];
+        let actual = should_filter(&event, disallowed_sources);
+        assert_eq!(
+            actual,
+            Ok(()),
+            "CSP filter should have NOT filtered good source file"
+        );
+    }
+    #[test]
+    fn test_filters_known_blocked_uris() {
+        let event = get_csp_event(Some("http://known.bad.com"), None);
+        let disallowed_sources = &["http://known.bad.com".to_string()];
+        let actual = should_filter(&event, disallowed_sources);
+        assert_ne!(
+            actual,
+            Ok(()),
+            "CSP filter should have filtered known blocked uri"
+        );
+    }
+    #[test]
+    fn test_does_not_filter_benign_uris() {
+        let event = get_csp_event(Some("http://good.file.com"), None);
+        let disallowed_sources = &["http://known.bad.com".to_string()];
+        let actual = should_filter(&event, disallowed_sources);
+        assert_eq!(
+            actual,
+            Ok(()),
+            "CSP filter should have NOT filtered unknown blocked uri"
+        );
+    }
+    #[test]
+    fn test_does_not_filter_non_csp_messages() {
+        let mut event = get_csp_event(Some("http://known.bad.com"), None);
+        event.ty = Annotated::from(EventType::Transaction);
+        let disallowed_sources = &["http://known.bad.com".to_string()];
+        let actual = should_filter(&event, disallowed_sources);
+        assert_eq!(
+            actual,
+            Ok(()),
+            "CSP filter should have NOT filtered non CSP event"
+        );
     }
 }
