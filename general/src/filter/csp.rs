@@ -2,7 +2,6 @@
 //!
 //! Events originating from a CSP message can be filtered based on the source URL
 //!
-use url::Url;
 
 use crate::protocol::{Event, EventType};
 
@@ -109,33 +108,29 @@ fn matches_any_origin(url: Option<&String>, origins: &[SchemeDomainPort]) -> boo
     }
 
     if let Some(url) = url {
-        if let Ok(url) = Url::parse(url) {
-            let scheme = Some(url.scheme().to_string());
-            let domain = url.host_str().map(|s| s.to_string());
-            let port = url.port().map(|p| p.to_string());
+        let url = SchemeDomainPort::from(url.as_str());
 
-            for origin in origins {
-                if origin.scheme != None && scheme != origin.scheme {
-                    continue; // scheme not matched
-                }
-                if origin.port != None && port != origin.port {
-                    continue; // port not matched
-                }
-                if origin.domain != None && domain != origin.domain {
-                    // no direct match for domain, look for  partial patterns (e.g. "*.domain.com")
-                    if let (Some(origin_domain), Some(domain)) = (&origin.domain, &domain) {
-                        if origin_domain.starts_with("*")
-                            && ((*domain).ends_with(&origin_domain[1..])
-                                || domain.as_str() == &origin_domain[2..])
-                        {
-                            return true; // partial domain pattern match
-                        }
-                    }
-                    continue; // domain not matched
-                }
-                // if we are here all patterns have matched so we are done
-                return true;
+        for origin in origins {
+            if origin.scheme != None && url.scheme != origin.scheme {
+                continue; // scheme not matched
             }
+            if origin.port != None && url.port != origin.port {
+                continue; // port not matched
+            }
+            if origin.domain != None && url.domain != origin.domain {
+                // no direct match for domain, look for  partial patterns (e.g. "*.domain.com")
+                if let (Some(origin_domain), Some(domain)) = (&origin.domain, &url.domain) {
+                    if origin_domain.starts_with("*")
+                        && ((*domain).ends_with(&origin_domain[1..])
+                            || domain.as_str() == &origin_domain[2..])
+                    {
+                        return true; // partial domain pattern match
+                    }
+                }
+                continue; // domain not matched
+            }
+            // if we are here all patterns have matched so we are done
+            return true;
         }
     }
     false
@@ -143,6 +138,8 @@ fn matches_any_origin(url: Option<&String>, origins: &[SchemeDomainPort]) -> boo
 
 #[cfg(test)]
 mod tests {
+    use lazy_static::lazy_static;
+
     use super::*;
     use crate::protocol::Csp;
     use crate::types::Annotated;
@@ -281,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filters_known_source_files() {
+    fn test_filters_known_blocked_source_files() {
         let event = get_csp_event(None, Some("http://known.bad.com"));
         let disallowed_sources = &["http://known.bad.com".to_string()];
         let actual = should_filter(&event, disallowed_sources);
@@ -336,4 +333,65 @@ mod tests {
             "CSP filter should have NOT filtered non CSP event"
         );
     }
+    lazy_static! {
+        static ref DISALLOWED: Vec<String> = [
+            "about",
+            "ms-browser-extension",
+            "*.superfish.com",
+            "chrome://*",
+            "chrome-extension://*",
+            "chromeinvokeimmediate://*",
+            "chromenull://*",
+            "localhost",
+        ]
+        .iter()
+        .map(|url| url.to_string())
+        .collect();
+    }
+
+    /// Copy the test cases from Sentry
+    #[test]
+    fn test_sentry_csp_filter_compatibility_bad_reports() {
+        let examples = &[
+            (Some("about"), None),
+            (Some("ms-browser-extension"), None),
+            (Some("http://foo.superfish.com"), None),
+            (None, Some("chrome-extension://fdsa")),
+            (None, Some("http://localhost:8000")),
+            (None, Some("http://localhost")),
+            (None, Some("http://foo.superfish.com")),
+        ];
+
+        for (blocked_uri, source_file) in examples {
+            let event = get_csp_event(*blocked_uri, *source_file);
+            let actual = should_filter(&event, &DISALLOWED);
+            assert_ne!(
+                actual,
+                Ok(()),
+                "CSP filter should have filtered  bad request {:?} {:?}",
+                blocked_uri,
+                source_file
+            );
+        }
+    }
+    #[test]
+    fn test_sentry_csp_filter_compatibility_good_reports() {
+        let examples = &[
+            (Some("http://example.com"), None),
+            (None, Some("http://example.com")),
+            (None, None),
+        ];
+        for (blocked_uri, source_file) in examples {
+            let event = get_csp_event(*blocked_uri, *source_file);
+            let actual = should_filter(&event, &DISALLOWED);
+            assert_eq!(
+                actual,
+                Ok(()),
+                "CSP filter should have  NOT filtered  request {:?} {:?}",
+                blocked_uri,
+                source_file
+            );
+        }
+    }
+
 }
