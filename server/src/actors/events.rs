@@ -1,21 +1,23 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use ::actix::fut::result;
-use ::actix::prelude::*;
+use actix::fut::result;
+use actix::prelude::*;
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
 use futures::prelude::*;
 use json_forensics;
 use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
-use serde_json;
 
 use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
+use semaphore_general::filter::should_filter;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
+use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use semaphore_general::types::Annotated;
+use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::project::{
@@ -69,6 +71,9 @@ enum ProcessingError {
     #[fail(display = "event submission rejected")]
     EventRejected,
 
+    #[fail(display = "event filtered with reason: {}", _0)]
+    EventFiltered(String),
+
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
 
@@ -85,11 +90,78 @@ enum ProcessingError {
     Shutdown,
 }
 
-struct EventProcessor;
+struct EventProcessor {
+    config: Arc<Config>,
+    geoip_lookup: Option<Arc<GeoIpLookup>>,
+}
 
 impl EventProcessor {
-    pub fn new() -> Self {
-        EventProcessor
+    pub fn new(config: Arc<Config>, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
+        EventProcessor {
+            config,
+            geoip_lookup,
+        }
+    }
+
+    fn process(&self, message: &ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
+        log::trace!("processing event {}", message.event_id);
+        let mut event = Annotated::<Event>::from_json_bytes(&message.data).map_err(|error| {
+            if message.log_failed_payloads {
+                let mut event = event_from_fail(&error);
+                message.add_to_sentry_event(&mut event);
+                sentry::capture_event(event);
+            }
+
+            ProcessingError::InvalidJson(error)
+        })?;
+
+        if let Some(event) = event.value_mut() {
+            event.id = Annotated::new(message.event_id);
+        }
+
+        if let Some(ref pii_config) = message.project_state.config.pii_config {
+            let mut processor = PiiProcessor::new(pii_config);
+            process_value(&mut event, &mut processor, ProcessingState::root());
+        };
+
+        if self.config.processing_enabled() {
+            let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
+            let auth = message.meta.auth();
+
+            let store_config = StoreConfig {
+                project_id: Some(message.project_id),
+                client_ip: message.meta.remote_addr().map(From::from),
+                client: auth.client_agent().map(str::to_owned),
+                key_id: Some(auth.public_key().to_owned()),
+                protocol_version: Some(auth.version().to_string()),
+                grouping_config: message.project_state.config.grouping_config.clone(),
+                valid_platforms: Default::default(), // TODO(ja): Pending removal
+                max_secs_in_future: Some(self.config.max_secs_in_future()),
+                max_secs_in_past: Some(self.config.max_secs_in_past()),
+                enable_trimming: Some(true),
+                is_renormalize: Some(false),
+                remove_other: Some(true),
+                normalize_user_agent: Some(true),
+            };
+
+            let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
+            process_value(&mut event, &mut store_processor, ProcessingState::root());
+
+            let filter_settings = &message.project_state.config.filter_settings;
+            if let Some(event) = event.value() {
+                if let Err(reason) = should_filter(event, filter_settings) {
+                    // event should be filter no more processing needed
+                    return Ok(ProcessEventResponse::Filtered { reason });
+                }
+            }
+        }
+
+        let data = event
+            .to_json()
+            .map_err(ProcessingError::SerializeFailed)?
+            .into();
+
+        Ok(ProcessEventResponse::Valid { data })
     }
 }
 
@@ -141,39 +213,11 @@ impl ProcessEvent {
                 .insert("remote_addr".to_string(), remote_addr.to_string().into());
         }
     }
-
-    fn process(&self) -> Result<ProcessEventResponse, ProcessingError> {
-        log::trace!("processing event {}", self.event_id);
-        let mut event = Annotated::<Event>::from_json_bytes(&self.data).map_err(|error| {
-            if self.log_failed_payloads {
-                let mut event = event_from_fail(&error);
-                self.add_to_sentry_event(&mut event);
-                sentry::capture_event(event);
-            }
-
-            ProcessingError::InvalidJson(error)
-        })?;
-
-        if let Some(event) = event.value_mut() {
-            event.id = Annotated::new(self.event_id);
-        }
-
-        if let Some(ref pii_config) = self.project_state.config.pii_config {
-            let mut processor = PiiProcessor::new(&pii_config);
-            process_value(&mut event, &mut processor, ProcessingState::root());
-        };
-
-        let data = event
-            .to_json()
-            .map_err(ProcessingError::SerializeFailed)?
-            .into();
-
-        Ok(ProcessEventResponse { data })
-    }
 }
 
-struct ProcessEventResponse {
-    pub data: Bytes,
+enum ProcessEventResponse {
+    Valid { data: Bytes },
+    Filtered { reason: String },
 }
 
 impl Message for ProcessEvent {
@@ -185,7 +229,7 @@ impl Handler<ProcessEvent> for EventProcessor {
 
     fn handle(&mut self, message: ProcessEvent, _context: &mut Self::Context) -> Self::Result {
         metric!(timer("event.wait_time") = message.start_time.elapsed());
-        metric!(timer("event.processing_time"), { message.process() })
+        metric!(timer("event.processing_time"), { self.process(&message) })
     }
 }
 
@@ -198,12 +242,23 @@ pub struct EventManager {
 }
 
 impl EventManager {
-    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        upstream: Addr<UpstreamRelay>,
+        geoip_lookup: Option<GeoIpLookup>,
+    ) -> Self {
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
+        let geoip_lookup = geoip_lookup.map(Arc::new);
 
         log::info!("starting {} event processing workers", thread_count);
-        let processor = SyncArbiter::start(thread_count, EventProcessor::new);
+
+        let processor = SyncArbiter::start(
+            thread_count,
+            clone!(config, || {
+                EventProcessor::new(config.clone(), geoip_lookup.clone())
+            }),
+        );
 
         EventManager {
             config,
@@ -362,6 +417,12 @@ impl Handler<HandleEvent> for EventManager {
                         })
                         .map_err(ProcessingError::ScheduleFailed)
                         .flatten()))
+                    .and_then(|response| match response {
+                        ProcessEventResponse::Valid { data } => Ok(data),
+                        ProcessEventResponse::Filtered { reason } => {
+                            Err(ProcessingError::EventFiltered(reason))
+                        }
+                    })
                     .and_then(move |processed| {
                         log::trace!("sending event {}", event_id);
                         let request = SendRequest::post(format!("/api/{}/store/", project_id))
@@ -374,7 +435,7 @@ impl Handler<HandleEvent> for EventManager {
                                     .header("X-Sentry-Auth", meta.auth().to_string())
                                     .header("X-Forwarded-For", meta.forwarded_for())
                                     .header("Content-Type", "application/json")
-                                    .body(processed.data)
+                                    .body(processed)
                             });
 
                         upstream

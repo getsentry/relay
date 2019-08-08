@@ -7,7 +7,7 @@
 
 # Semaphore - Official Sentry Relay
 
-[![Travis](https://img.shields.io/travis/getsentry/semaphore.svg)](https://travis-ci.org/getsentry/semaphore)
+[![Travis](https://travis-ci.com/getsentry/semaphore.svg?branch=master)](https://travis-ci.com/getsentry/semaphore)
 [![AppVeyor](https://img.shields.io/appveyor/ci/sentry/sentry-agent.svg)](https://ci.appveyor.com/project/sentry/sentry-agent)
 [![codecov without integration tests](https://codecov.io/gh/getsentry/semaphore/branch/master/graph/badge.svg)](https://codecov.io/gh/getsentry/semaphore)
 [![GitHub release](https://img.shields.io/github/release/getsentry/semaphore.svg)](https://github.com/getsentry/semaphore/releases/latest)

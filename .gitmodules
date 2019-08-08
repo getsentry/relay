@@ -1,0 +1,3 @@
+[submodule "general/uap-core"]
+	path = general/uap-core
+	url = https://github.com/ua-parser/uap-core.git

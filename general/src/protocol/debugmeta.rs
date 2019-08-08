@@ -300,7 +300,7 @@ fn test_debug_image_apple_default_values() {
 #[test]
 fn test_debug_image_symbolic_roundtrip() {
     let json = r#"{
-  "code_id": "59B0D8F3183000",
+  "code_id": "59b0d8f3183000",
   "code_file": "C:\\Windows\\System32\\ntdll.dll",
   "debug_id": "971f98e5-ce60-41ff-b2d7-235bbeb34578-1",
   "debug_file": "wntdll.pdb",
@@ -313,7 +313,7 @@ fn test_debug_image_symbolic_roundtrip() {
 }"#;
 
     let image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
-        code_id: Annotated::new("59B0D8F3183000".parse().unwrap()),
+        code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
         code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".to_string()),
         debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
         debug_file: Annotated::new("wntdll.pdb".to_string()),
@@ -472,7 +472,7 @@ fn test_debug_image_macho_roundtrip() {
 #[test]
 fn test_debug_image_pe_roundtrip() {
     let json = r#"{
-  "code_id": "59B0D8F3183000",
+  "code_id": "59b0d8f3183000",
   "code_file": "C:\\Windows\\System32\\ntdll.dll",
   "debug_id": "971f98e5-ce60-41ff-b2d7-235bbeb34578-1",
   "debug_file": "wntdll.pdb",
@@ -485,7 +485,7 @@ fn test_debug_image_pe_roundtrip() {
 }"#;
 
     let image = Annotated::new(DebugImage::Pe(Box::new(NativeDebugImage {
-        code_id: Annotated::new("59B0D8F3183000".parse().unwrap()),
+        code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
         code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".to_string()),
         debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
         debug_file: Annotated::new("wntdll.pdb".to_string()),

@@ -6,7 +6,7 @@ homepage = "https://github.com/getsentry/semaphore"
 license = "MIT"
 name = "semaphore-server"
 repository = "https://github.com/getsentry/semaphore"
-version = "0.4.40"
+version = "0.4.41"
 edition = "2018"
 build = "build.rs"
 
@@ -16,27 +16,27 @@ with_ssl = ["native-tls", "actix-web/tls"]
 
 [dependencies]
 actix = "0.7.9"
-actix-web = { version = "0.7.18", default-features = false, features = ["brotli", "flate2-c"] }
-base64 = "0.10.0"
-bytes = "0.4.11"
-chrono = { version = "0.4.6", features = ["serde"] }
-clap = "2.32.0"
+actix-web = { version = "0.7.19", default-features = false, features = ["brotli", "flate2-c"] }
+base64 = "0.10.1"
+bytes = "0.4.12"
+chrono = { version = "0.4.7", features = ["serde"] }
+clap = "2.33.0"
 failure = "0.1.5"
-flate2 = "1.0.6"
-futures = "0.1.25"
-lazy_static = "1.2.0"
+flate2 = "1.0.9"
+futures = "0.1.28"
+lazy_static = "1.3.0"
 listenfd = "0.3.3"
-log = "0.4.6"
-native-tls = { version = "0.2.2", optional = true }
-num_cpus = "1.9.0"
-parking_lot = "0.7.1"
-regex = "1.1.0"
-sentry = "0.13.0"
-sentry-actix = "0.13.0"
-serde = { version = "1.0.85", features = ["derive"] }
-serde_json = "1.0.36"
-tokio-timer = "0.2.8"
-url = "1.7.2"
+log = "0.4.8"
+native-tls = { version = "0.2.3", optional = true }
+num_cpus = "1.10.1"
+parking_lot = "0.9.0"
+regex = "1.2.0"
+sentry = "0.15.5"
+sentry-actix = "0.15.5"
+serde = { version = "1.0.98", features = ["derive"] }
+serde_json = "1.0.40"
+tokio-timer = "0.2.11"
+url = "2.0.0"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
 
 [dependencies.semaphore-common]
@@ -46,4 +46,7 @@ path = "../common"
 path = "../general"
 
 [target."cfg(not(windows))".dependencies]
-libc = "0.2.46"
+libc = "0.2.60"
+
+[dev-dependencies]
+insta = "0.9.0"

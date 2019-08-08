@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.42
+
+- Fix normalization of version strings from user agents.
+
+## 0.4.41
+
+**Normalization**:
+
+- Parse and normalize user agent strings.
+
+**Relay**:
+
+- Add basic support for Sentry-internal event ingestion.
+- Support extended project configuration.
+- Implement event filtering rules.
+
 ## 0.4.40
 
 - Restrict ranges of timestamps to prevent overflows in Python code and UI.

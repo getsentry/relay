@@ -10,17 +10,18 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-use ::actix::fut;
-use ::actix::prelude::*;
+use actix::fut;
+use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
 use chrono::{DateTime, Utc};
 use failure::Fail;
 use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use url::Url;
 
 use semaphore_common::{Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
-use semaphore_general::pii::PiiConfig;
+use semaphore_general::{filter::FiltersConfig, pii::PiiConfig};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
@@ -176,6 +177,12 @@ pub enum PublicKeyStatus {
     Enabled,
 }
 
+/// Helper method to check whether a flag is false.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_flag_default(flag: &bool) -> bool {
+    !*flag
+}
+
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -186,6 +193,27 @@ pub struct ProjectConfig {
     pub trusted_relays: Vec<PublicKey>,
     /// Configuration for PII stripping.
     pub pii_config: Option<PiiConfig>,
+    /// List with the fields to be excluded.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub exclude_fields: Vec<String>,
+    /// The grouping configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grouping_config: Option<Value>,
+    /// Toggles all data scrubbing on or off.
+    #[serde(skip_serializing_if = "is_flag_default")]
+    pub scrub_data: bool,
+    /// Should ip addresses be scrubbed from messages?
+    #[serde(skip_serializing_if = "is_flag_default")]
+    pub scrub_ip_addresses: bool,
+    /// List of sensitive fields to be scrubbed from the messages.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sensitive_fields: Vec<String>,
+    /// Controls whether default fields will be scrubbed.
+    #[serde(skip_serializing_if = "is_flag_default")]
+    pub scrub_defaults: bool,
+    /// Configuration for filter rules.
+    #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
+    pub filter_settings: FiltersConfig,
 }
 
 impl Default for ProjectConfig {
@@ -194,6 +222,13 @@ impl Default for ProjectConfig {
             allowed_domains: vec!["*".to_string()],
             trusted_relays: vec![],
             pii_config: None,
+            exclude_fields: vec![],
+            grouping_config: None,
+            scrub_ip_addresses: false,
+            sensitive_fields: vec![],
+            scrub_defaults: false,
+            scrub_data: false,
+            filter_settings: FiltersConfig::default(),
         }
     }
 }
@@ -220,12 +255,15 @@ pub struct ProjectState {
     /// The project's slug if available.
     #[serde(default)]
     pub slug: Option<String>,
-    /// The project's current config
+    /// The project's current config.
     #[serde(default)]
     pub config: ProjectConfig,
     /// The project state's revision id.
     #[serde(default)]
     pub rev: Option<Uuid>,
+    /// The organization id.
+    #[serde(default)]
+    pub organization_id: Option<u64>,
 }
 
 impl ProjectState {
@@ -239,6 +277,7 @@ impl ProjectState {
             slug: None,
             config: Default::default(),
             rev: None,
+            organization_id: None,
         }
     }
 
@@ -434,8 +473,11 @@ impl Handler<RetryAfter> for Project {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
     pub projects: Vec<ProjectId>,
+    #[serde(default)]
+    pub full_config: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -512,6 +554,7 @@ impl ProjectCache {
 
         let request = GetProjectStates {
             projects: channels.keys().cloned().collect(),
+            full_config: self.config.processing_enabled(),
         };
 
         self.upstream

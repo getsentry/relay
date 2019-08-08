@@ -20,8 +20,8 @@ mod user;
 pub use self::breadcrumb::Breadcrumb;
 pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
 pub use self::contexts::{
-    AppContext, BrowserContext, Context, ContextInner, Contexts, DeviceContext, OsContext,
-    RuntimeContext, SpanId, TraceContext, TraceId, OperationType
+    AppContext, BrowserContext, Context, ContextInner, Contexts, DeviceContext, OperationType,
+    OsContext, RuntimeContext, SpanId, TraceContext, TraceId,
 };
 pub use self::debugmeta::{
     AppleDebugImage, DebugImage, DebugMeta, NativeDebugImage, SystemSdkInfo,

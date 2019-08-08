@@ -32,13 +32,14 @@ install:
   - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
   - rustc -vV
   - cargo -vV
+  # Check out submodules
+  - git submodule update --init --recursive
 
 build_script:
   - cargo build --all --locked
 
 test_script:
   - C:\MinGW\bin\mingw32-make test-rust
-  - C:\MinGW\bin\mingw32-make test-process-event CARGO_ARGS="--release"
 
 on_success:
   - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%.exe .\target\release\semaphore.exe

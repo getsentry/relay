@@ -23,6 +23,10 @@ pub use crate::types::*;
 pub use crate::upstream::*;
 pub use crate::utils::*;
 
-pub use sentry_types::{
-    Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError, Scheme, Uuid,
-};
+pub use sentry_types::{Auth, AuthParseError, Dsn, DsnParseError, Scheme, Uuid};
+
+/// Represents a project ID.
+pub type ProjectId = u64;
+
+/// Raised if a project ID cannot be parsed from a string.
+pub type ProjectIdParseError = std::num::ParseIntError;

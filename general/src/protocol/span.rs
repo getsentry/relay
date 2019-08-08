@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 
-use crate::protocol::{SpanId, TraceId, OperationType};
+use crate::protocol::{OperationType, SpanId, TraceId};
 use crate::types::{Annotated, Object, Value};
-
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_span", value_type = "Span")]

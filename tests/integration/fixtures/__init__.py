@@ -80,6 +80,50 @@ class SentryLike(object):
             "slug": "python",
         }
 
+    def full_project_config(self):
+        basic = self.basic_project_config()
+        full = {
+            "organizationId": 1,
+            "config": {
+                "excludeFields": [],
+                "filterSettings": {
+                    "browser-extensions": {
+                        "isEnabled": True
+                    },
+                    "web-crawlers": {
+                        "isEnabled": True
+                    },
+                    "localhost": {
+                        "isEnabled": False
+                    },
+                    "legacy-browsers": {
+                        "isEnabled": True,
+                        "options": ["ie_pre_9"]
+                    }
+                },
+                "scrubIpAddresses": False,
+                "sensitiveFields": [],
+                "scrubDefaults": True,
+                "scrubData": True,
+                "groupingConfig": {
+                    "id": "legacy:2019-03-12",
+                    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC"
+                },
+                "blacklistedIps": [
+                    "127.43.33.22"
+                ],
+                "trustedRelays": []
+            },
+        }
+
+        return {
+            **basic,
+            **full,
+            'config': {
+                **basic['config'],
+                **full['config']},
+        }
+
     def send_event(self, project_id, payload=None):
         if payload is None:
             payload = {"message": "Hello, World!"}

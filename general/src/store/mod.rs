@@ -30,7 +30,7 @@ pub struct StoreConfig {
     pub protocol_version: Option<String>,
     pub grouping_config: Option<Value>,
 
-    pub valid_platforms: BTreeSet<String>,
+    pub valid_platforms: BTreeSet<String>, // TODO(ja): Pending removal
     pub max_secs_in_future: Option<i64>,
     pub max_secs_in_past: Option<i64>,
     pub enable_trimming: Option<bool>,
@@ -41,6 +41,9 @@ pub struct StoreConfig {
 
     /// Overrides the default flag for other removal.
     pub remove_other: Option<bool>,
+
+    /// When `true` it adds context information extracted from the user agent
+    pub normalize_user_agent: Option<bool>,
 }
 
 /// The processor that normalizes events for store.

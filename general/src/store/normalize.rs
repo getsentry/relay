@@ -25,6 +25,7 @@ mod logentry;
 mod mechanism;
 mod request;
 mod stacktrace;
+mod user_agent;
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
 fn validate_bounded_integer_field(value: u64) -> ValueAction {
@@ -285,6 +286,12 @@ impl<'a> NormalizeProcessor<'a> {
             }
         }
     }
+
+    fn normalize_user_agent(&self, event: &mut Event) {
+        if self.config.normalize_user_agent.unwrap_or(false) {
+            user_agent::normalize_user_agent(event);
+        }
+    }
 }
 
 impl<'a> Processor for NormalizeProcessor<'a> {
@@ -335,6 +342,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         self.normalize_event_tags(event);
         self.normalize_exceptions(event);
         self.normalize_user_ip(event);
+        self.normalize_user_agent(event);
 
         ValueAction::Keep
     }
@@ -1045,7 +1053,7 @@ fn test_too_long_tags() {
             vec![Annotated::new(TagEntry(
                 Annotated::new("foobar".to_string()),
                 Annotated::new("...........................................................................................................................................................................................................".to_string()),
-            )),Annotated::new(TagEntry(
+            )), Annotated::new(TagEntry(
                 Annotated::new("foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo".to_string()),
                 Annotated::new("bar".to_string()),
             ))]),

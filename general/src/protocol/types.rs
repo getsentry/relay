@@ -430,6 +430,12 @@ impl Default for IpAddr {
     }
 }
 
+impl From<std::net::IpAddr> for IpAddr {
+    fn from(ip_addr: std::net::IpAddr) -> Self {
+        Self(ip_addr.to_string())
+    }
+}
+
 impl fmt::Display for IpAddr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
