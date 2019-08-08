@@ -210,6 +210,10 @@ impl BrowserContext {
     }
 }
 
+/// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
+/// Tries to follow OpenCensus/OpenTracing's span types.
+pub type OperationType = String;
+
 lazy_static::lazy_static! {
     static ref TRACE_ID: Regex = Regex::new("^[a-fA-F0-9]{32}$").unwrap();
     static ref SPAN_ID: Regex = Regex::new("^[a-fA-F0-9]{16}$").unwrap();
@@ -335,6 +339,13 @@ pub struct TraceContext {
 
     /// The ID of the span.
     pub span_id: Annotated<SpanId>,
+
+    /// The ID of the span enclosing this span.
+    pub parent_span_id: Annotated<SpanId>,
+
+    /// Span type (see `OperationType` docs).
+    #[metastructure(max_chars = "enumlike")]
+    pub op: Annotated<OperationType>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true")]
@@ -656,12 +667,16 @@ fn test_trace_context_roundtrip() {
     let json = r#"{
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "span_id": "fa90fdead5f74052",
+  "parent_span_id": "fa90fdead5f74053",
+  "op": "http",
   "other": "value",
   "type": "trace"
 }"#;
     let context = Annotated::new(Context::Trace(Box::new(TraceContext {
         trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
         span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+        parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+        op: Annotated::new("http".into()),
         other: {
             let mut map = Object::new();
             map.insert(
