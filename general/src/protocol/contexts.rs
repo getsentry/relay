@@ -212,8 +212,6 @@ impl BrowserContext {
 
 /// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
 /// Tries to follow OpenCensus/OpenTracing's span types.
-///
-/// TODO typing ( union of predefined types and custom 'string' types)
 pub type OperationType = String;
 
 lazy_static::lazy_static! {
