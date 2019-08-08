@@ -3,6 +3,7 @@ use regex::Regex;
 use crate::protocol::LenientString;
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
+
 /// Device information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct DeviceContext {
@@ -175,6 +176,12 @@ pub struct BrowserContext {
     pub other: Object<Value>,
 }
 
+/// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
+/// Tries to follow OpenCensus/OpenTracing's span types.
+///
+/// TODO typing ( union of predefined types and custom 'string' types)
+pub type OperationType = String;
+
 lazy_static::lazy_static! {
     static ref TRACE_ID: Regex = Regex::new("^[a-fA-F0-9]{32}$").unwrap();
     static ref SPAN_ID: Regex = Regex::new("^[a-fA-F0-9]{16}$").unwrap();
@@ -238,6 +245,13 @@ pub struct TraceContext {
 
     /// The ID of the span.
     pub span_id: Annotated<SpanId>,
+
+    /// The ID of the span enclosing this span.
+    pub parent_span_id: Annotated<SpanId>,
+
+    /// Span type (see `OperationType` docs).
+    #[metastructure(max_chars = "enumlike")]
+    pub op: Annotated<OperationType>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true")]
@@ -534,6 +548,7 @@ fn test_trace_context_roundtrip() {
             );
             map
         },
+        ..Default::default()
     })));
 
     assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
