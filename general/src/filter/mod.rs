@@ -24,6 +24,7 @@ mod web_crawlers;
 mod test_utils;
 
 pub use config::*;
+use std::net::IpAddr;
 
 /// Groups all filter related information extracted from a (ProjectConfig)[server.actors.ProjectConfig].
 pub struct GlobalFilterConfig<'a> {
@@ -38,12 +39,16 @@ pub struct GlobalFilterConfig<'a> {
 ///
 /// If the event should be filter, the `Err` returned contains a filter reason.
 /// The reason is the message returned by the first filter that didn't pass.
-pub fn should_filter(event: &Event, config: GlobalFilterConfig) -> Result<(), String> {
+pub fn should_filter(
+    event: &Event,
+    client_ip: &Option<IpAddr>,
+    config: GlobalFilterConfig,
+) -> Result<(), String> {
     // NB: The order of applying filters should not matter as they are additive. Still, be careful
     // when making changes to this order.
 
     csp::should_filter(event, config.csp_disallowed_sources)?;
-    client_ip::should_filter(event, config.black_listed_ips)?;
+    client_ip::should_filter(client_ip, config.black_listed_ips)?;
     release::should_filter(event, config.filtered_releases)?;
     error_message::should_filter(event, config.filtered_error_messages)?;
     localhost::should_filter(event, &config.filters.localhost)?;

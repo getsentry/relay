@@ -151,6 +151,7 @@ impl EventProcessor {
             if let Some(event) = event.value() {
                 if let Err(reason) = should_filter(
                     event,
+                    &message.meta.remote_addr(),
                     GlobalFilterConfig {
                         filters: &project_config.filter_settings,
                         csp_disallowed_sources: &project_config.csp_disallowed_sources,

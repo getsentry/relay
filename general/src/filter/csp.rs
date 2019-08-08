@@ -97,7 +97,7 @@ impl From<&str> for SchemeDomainPort {
 ///  - http://domain.com[:port]  - an exact match is required
 ///  - * : anything goes
 ///  - *.domain.com : matches domain.com and any subdomains
-///  - *.port : matches any hostname as long as the port matches
+///  - *:port : matches any hostname as long as the port matches
 fn matches_any_origin(url: Option<&String>, origins: &[SchemeDomainPort]) -> bool {
     // if we have a "*" (Any) option, anything matches so don't bother going forward
     if origins
