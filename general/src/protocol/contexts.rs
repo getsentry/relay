@@ -667,12 +667,16 @@ fn test_trace_context_roundtrip() {
     let json = r#"{
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "span_id": "fa90fdead5f74052",
+  "parent_span_id": "fa90fdead5f74053",
+  "op": "http",
   "other": "value",
   "type": "trace"
 }"#;
     let context = Annotated::new(Context::Trace(Box::new(TraceContext {
         trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
         span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+        parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+        op: Annotated::new("http".into()),
         other: {
             let mut map = Object::new();
             map.insert(
@@ -681,7 +685,6 @@ fn test_trace_context_roundtrip() {
             );
             map
         },
-        ..Default::default()
     })));
 
     assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
