@@ -64,7 +64,7 @@ impl From<&str> for SchemeDomainPort {
         };
 
         //extract domain:port from the rest of the url
-        let end_domain_idx = rest.find("/");
+        let end_domain_idx = rest.find('/');
         let domain_port = if let Some(end_domain_idx) = end_domain_idx {
             &rest[..end_domain_idx] // remove the path from rest
         } else {
@@ -72,7 +72,7 @@ impl From<&str> for SchemeDomainPort {
         };
 
         //split the domain and the port
-        let port_separator_idx = domain_port.find(":");
+        let port_separator_idx = domain_port.find(':');
         let (domain, port) = if let Some(port_separator_idx) = port_separator_idx {
             //we have a port separator, split the string into domain and port
             (
@@ -120,7 +120,7 @@ fn matches_any_origin(url: Option<&String>, origins: &[SchemeDomainPort]) -> boo
             if origin.domain != None && url.domain != origin.domain {
                 // no direct match for domain, look for  partial patterns (e.g. "*.domain.com")
                 if let (Some(origin_domain), Some(domain)) = (&origin.domain, &url.domain) {
-                    if origin_domain.starts_with("*")
+                    if origin_domain.starts_with('*')
                         && ((*domain).ends_with(&origin_domain[1..])
                             || domain.as_str() == &origin_domain[2..])
                     {
