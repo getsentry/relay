@@ -4,8 +4,9 @@
 //! be banned from sending events (all events received from banned ip
 //! addresses will be filtered).
 
-use ipnetwork::IpNetwork;
 use std::net::IpAddr;
+
+use ipnetwork::IpNetwork;
 
 /// Should filter event
 pub fn should_filter(
