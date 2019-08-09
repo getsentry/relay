@@ -29,7 +29,7 @@ pub struct Breadcrumb {
     pub message: Annotated<String>,
 
     /// Custom user-defined data of this breadcrumb.
-    #[metastructure(pii = "true", bag_size = "small")]
+    #[metastructure(pii = "true", bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,
 
