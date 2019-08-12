@@ -76,6 +76,7 @@ impl Serialize for LegacyBrowser {
 
 /// Configuration for the client ips filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ClientIpsFilterConfig {
     /// Blacklisted client ip addresses.
     pub blacklisted_ips: Vec<String>,
@@ -90,6 +91,7 @@ impl ClientIpsFilterConfig {
 
 /// Configuration for the CSP filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CspFilterConfig {
     /// Disallowed sources for CSP reports.
     pub disallowed_sources: Vec<String>,
@@ -132,6 +134,7 @@ impl ReleasesFilterConfig {
 
 /// Configuration for the legacy browsers filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LegacyBrowsersFilterConfig {
     /// Specifies whether this filter is enabled.
     pub is_enabled: bool,
