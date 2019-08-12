@@ -276,7 +276,7 @@ mod tests {
        ⋮    "isEnabled": true
        ⋮  },
        ⋮  "clientIps": {
-       ⋮    "blacklisted_ips": [
+       ⋮    "blacklistedIps": [
        ⋮      "127.0.0.1"
        ⋮    ]
        ⋮  },
@@ -284,7 +284,7 @@ mod tests {
        ⋮    "isEnabled": true
        ⋮  },
        ⋮  "csp": {
-       ⋮    "disallowed_sources": [
+       ⋮    "disallowedSources": [
        ⋮      "https://*"
        ⋮    ]
        ⋮  },
@@ -294,7 +294,7 @@ mod tests {
        ⋮    ]
        ⋮  },
        ⋮  "legacyBrowsers": {
-       ⋮    "is_enabled": false,
+       ⋮    "isEnabled": false,
        ⋮    "options": [
        ⋮      "ie9"
        ⋮    ]
