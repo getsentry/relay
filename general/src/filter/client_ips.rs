@@ -8,22 +8,25 @@ use std::net::IpAddr;
 
 use ipnetwork::IpNetwork;
 
+use crate::filter::config::ClientIpsFilterConfig;
+
 /// Should filter event
 pub fn should_filter(
-    client_ip: &Option<IpAddr>,
-    black_listed_ips: &[String],
+    client_ip: Option<IpAddr>,
+    config: &ClientIpsFilterConfig,
 ) -> Result<(), String> {
-    if black_listed_ips.is_empty() {
+    let blacklisted_ips = &config.blacklisted_ips;
+    if blacklisted_ips.is_empty() {
         return Ok(());
     }
-    //TODO check if we shouldn't pre parse blacklisted ips when we construct the project config.
+
     if let Some(client_ip) = client_ip {
-        for black_listed_ip in black_listed_ips {
+        for black_listed_ip in blacklisted_ips {
             if black_listed_ip.contains('/') {
                 //probably a network specification
                 let bl_ip_network: Result<IpNetwork, _> = black_listed_ip.as_str().parse();
                 if let Ok(bl_ip_network) = bl_ip_network {
-                    if bl_ip_network.contains(*client_ip) {
+                    if bl_ip_network.contains(client_ip) {
                         return Err("Client ip filtered".to_string());
                     }
                 }
@@ -31,7 +34,7 @@ pub fn should_filter(
                 //probably an ip address
                 let black_listed_ip: Result<IpAddr, _> = black_listed_ip.as_str().parse();
                 if let Ok(black_listed_ip) = black_listed_ip {
-                    if client_ip == &black_listed_ip {
+                    if client_ip == black_listed_ip {
                         return Err("Client ip filtered".to_string());
                     }
                 }
@@ -46,8 +49,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_should_filter_black_listed_ips() {
-        //let blacklisted_ips = &["1.2.3.4", "122.33.230.14"][..];
+    fn test_should_filter_blacklisted_ips() {
         let examples = &[
             //test matches ipv4
             ("1.2.3.4", &[][..], false),
@@ -90,14 +92,18 @@ mod tests {
         ];
 
         for &(ip_addr, blacklisted_ips, expected) in examples {
-            let ip_addr: IpAddr = ip_addr.parse().unwrap();
-            let blocked_ips: Vec<_> = blacklisted_ips.iter().map(|ip| ip.to_string()).collect();
-            let actual = should_filter(&Some(ip_addr), &blocked_ips) != Ok(());
+            let ip_addr = ip_addr.parse::<IpAddr>().ok();
+            let config = ClientIpsFilterConfig {
+                blacklisted_ips: blacklisted_ips.iter().map(|ip| ip.to_string()).collect(),
+            };
+
+            let actual = should_filter(ip_addr, &config) != Ok(());
+
             assert_eq!(
                 actual,
                 expected,
                 "Address {} should have {} been filtered by {:?}",
-                ip_addr,
+                ip_addr.unwrap(),
                 if expected { "" } else { "not" },
                 blacklisted_ips
             );

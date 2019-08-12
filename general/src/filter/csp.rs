@@ -5,24 +5,26 @@
 
 use crate::protocol::{Event, EventType};
 
+use crate::filter::config::CspFilterConfig;
+
 /// Should filter event
-pub fn should_filter(event: &Event, csp_disallowed_sources: &[String]) -> Result<(), String> {
-    // only filter CSP events with non empty disallowed source list
-    if csp_disallowed_sources.is_empty() || event.ty.value() != Some(&EventType::Csp) {
+pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), String> {
+    let disallowed_sources = &config.disallowed_sources;
+    if disallowed_sources.is_empty() || event.ty.value() != Some(&EventType::Csp) {
         return Ok(());
     }
 
     // parse the sources for easy processing
-    let csp_disallowed_sources: Vec<SchemeDomainPort> = csp_disallowed_sources
+    let disallowed_sources: Vec<SchemeDomainPort> = disallowed_sources
         .iter()
         .map(|origin| -> SchemeDomainPort { origin.to_lowercase().as_str().into() })
         .collect();
 
     if let Some(csp) = event.csp.value() {
-        if matches_any_origin(csp.blocked_uri.value(), &csp_disallowed_sources) {
+        if matches_any_origin(csp.blocked_uri.value(), &disallowed_sources) {
             return Err("CSP filter failed, blocked_uri".to_string());
         }
-        if matches_any_origin(csp.source_file.value(), &csp_disallowed_sources) {
+        if matches_any_origin(csp.source_file.value(), &disallowed_sources) {
             return Err("CSP filter failed, source_file".to_string());
         }
     }
@@ -138,8 +140,6 @@ fn matches_any_origin(url: Option<&String>, origins: &[SchemeDomainPort]) -> boo
 
 #[cfg(test)]
 mod tests {
-    use lazy_static::lazy_static;
-
     use super::*;
     use crate::protocol::Csp;
     use crate::types::Annotated;
@@ -280,73 +280,90 @@ mod tests {
     #[test]
     fn test_filters_known_blocked_source_files() {
         let event = get_csp_event(None, Some("http://known.bad.com"));
-        let disallowed_sources = &["http://known.bad.com".to_string()];
-        let actual = should_filter(&event, disallowed_sources);
+        let config = CspFilterConfig {
+            disallowed_sources: vec!["http://known.bad.com".to_string()],
+        };
+
+        let actual = should_filter(&event, &config);
         assert_ne!(
             actual,
             Ok(()),
             "CSP filter should have filtered known bad source file"
         );
     }
+
     #[test]
     fn test_does_not_filter_benign_source_files() {
         let event = get_csp_event(None, Some("http://good.file.com"));
-        let disallowed_sources = &["http://known.bad.com".to_string()];
-        let actual = should_filter(&event, disallowed_sources);
+        let config = CspFilterConfig {
+            disallowed_sources: vec!["http://known.bad.com".to_string()],
+        };
+
+        let actual = should_filter(&event, &config);
         assert_eq!(
             actual,
             Ok(()),
             "CSP filter should have NOT filtered good source file"
         );
     }
+
     #[test]
     fn test_filters_known_blocked_uris() {
         let event = get_csp_event(Some("http://known.bad.com"), None);
-        let disallowed_sources = &["http://known.bad.com".to_string()];
-        let actual = should_filter(&event, disallowed_sources);
+        let config = CspFilterConfig {
+            disallowed_sources: vec!["http://known.bad.com".to_string()],
+        };
+
+        let actual = should_filter(&event, &config);
         assert_ne!(
             actual,
             Ok(()),
             "CSP filter should have filtered known blocked uri"
         );
     }
+
     #[test]
     fn test_does_not_filter_benign_uris() {
         let event = get_csp_event(Some("http://good.file.com"), None);
-        let disallowed_sources = &["http://known.bad.com".to_string()];
-        let actual = should_filter(&event, disallowed_sources);
+        let config = CspFilterConfig {
+            disallowed_sources: vec!["http://known.bad.com".to_string()],
+        };
+
+        let actual = should_filter(&event, &config);
         assert_eq!(
             actual,
             Ok(()),
             "CSP filter should have NOT filtered unknown blocked uri"
         );
     }
+
     #[test]
     fn test_does_not_filter_non_csp_messages() {
         let mut event = get_csp_event(Some("http://known.bad.com"), None);
         event.ty = Annotated::from(EventType::Transaction);
-        let disallowed_sources = &["http://known.bad.com".to_string()];
-        let actual = should_filter(&event, disallowed_sources);
+        let config = CspFilterConfig {
+            disallowed_sources: vec!["http://known.bad.com".to_string()],
+        };
+
+        let actual = should_filter(&event, &config);
         assert_eq!(
             actual,
             Ok(()),
             "CSP filter should have NOT filtered non CSP event"
         );
     }
-    lazy_static! {
-        static ref DISALLOWED: Vec<String> = [
-            "about",
-            "ms-browser-extension",
-            "*.superfish.com",
-            "chrome://*",
-            "chrome-extension://*",
-            "chromeinvokeimmediate://*",
-            "chromenull://*",
-            "localhost",
+
+    fn get_disallowed_sources() -> Vec<String> {
+        vec![
+            "about".to_string(),
+            "ms-browser-extension".to_string(),
+            "*.superfish.com".to_string(),
+            "chrome://*".to_string(),
+            "chrome-extension://*".to_string(),
+            "chromeinvokeimmediate://*".to_string(),
+            "chromenull://*".to_string(),
+            "localhost".to_string(),
         ]
-        .iter()
-        .map(|url| url.to_string())
-        .collect();
     }
 
     /// Copy the test cases from Sentry
@@ -364,7 +381,11 @@ mod tests {
 
         for (blocked_uri, source_file) in examples {
             let event = get_csp_event(*blocked_uri, *source_file);
-            let actual = should_filter(&event, &DISALLOWED);
+            let config = CspFilterConfig {
+                disallowed_sources: get_disallowed_sources(),
+            };
+
+            let actual = should_filter(&event, &config);
             assert_ne!(
                 actual,
                 Ok(()),
@@ -374,6 +395,7 @@ mod tests {
             );
         }
     }
+
     #[test]
     fn test_sentry_csp_filter_compatibility_good_reports() {
         let examples = &[
@@ -381,9 +403,14 @@ mod tests {
             (None, Some("http://example.com")),
             (None, None),
         ];
+
         for (blocked_uri, source_file) in examples {
             let event = get_csp_event(*blocked_uri, *source_file);
-            let actual = should_filter(&event, &DISALLOWED);
+            let config = CspFilterConfig {
+                disallowed_sources: get_disallowed_sources(),
+            };
+
+            let actual = should_filter(&event, &config);
             assert_eq!(
                 actual,
                 Ok(()),

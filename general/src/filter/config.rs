@@ -74,6 +74,62 @@ impl Serialize for LegacyBrowser {
     }
 }
 
+/// Configuration for the client ips filter.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ClientIpsFilterConfig {
+    /// Blacklisted client ip addresses.
+    pub blacklisted_ips: Vec<String>,
+}
+
+impl ClientIpsFilterConfig {
+    /// Returns true if no configuration for this filter is given.
+    pub fn is_empty(&self) -> bool {
+        self.blacklisted_ips.is_empty()
+    }
+}
+
+/// Configuration for the CSP filter.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct CspFilterConfig {
+    /// Disallowed sources for CSP reports.
+    pub disallowed_sources: Vec<String>,
+}
+
+impl CspFilterConfig {
+    /// Returns true if no configuration for this filter is given.
+    pub fn is_empty(&self) -> bool {
+        self.disallowed_sources.is_empty()
+    }
+}
+
+/// Configuration for the error messages filter.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ErrorMessagesFilterConfig {
+    /// List of error message patterns that will be filtered.
+    pub patterns: Vec<String>,
+}
+
+impl ErrorMessagesFilterConfig {
+    /// Returns true if no configuration for this filter is given.
+    pub fn is_empty(&self) -> bool {
+        self.patterns.is_empty()
+    }
+}
+
+/// Configuration for the releases filter.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ReleasesFilterConfig {
+    /// List of release names that will be filtered.
+    pub releases: Vec<String>,
+}
+
+impl ReleasesFilterConfig {
+    /// Returns true if no configuration for this filter is given.
+    pub fn is_empty(&self) -> bool {
+        self.releases.is_empty()
+    }
+}
+
 /// Configuration for the legacy browsers filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct LegacyBrowsersFilterConfig {
@@ -96,29 +152,49 @@ impl LegacyBrowsersFilterConfig {
 #[serde(rename_all = "camelCase")]
 pub struct FiltersConfig {
     /// Configuration for the Browser Extensions filter.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "FilterConfig::is_empty")]
     pub browser_extensions: FilterConfig,
 
+    /// Configuration for the Client IPs filter.
+    #[serde(default, skip_serializing_if = "ClientIpsFilterConfig::is_empty")]
+    pub client_ips: ClientIpsFilterConfig,
+
     /// Configuration for the Web Crawlers filter
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "FilterConfig::is_empty")]
     pub web_crawlers: FilterConfig,
 
+    /// Configuration for the CSP filter.
+    #[serde(default, skip_serializing_if = "CspFilterConfig::is_empty")]
+    pub csp: CspFilterConfig,
+
+    /// Configuration for the Error Messages filter.
+    #[serde(default, skip_serializing_if = "ErrorMessagesFilterConfig::is_empty")]
+    pub error_messages: ErrorMessagesFilterConfig,
+
     /// Configuration for the Legacy Browsers filter.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "LegacyBrowsersFilterConfig::is_empty")]
     pub legacy_browsers: LegacyBrowsersFilterConfig,
 
     /// Configuration for the Localhost filter.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "FilterConfig::is_empty")]
     pub localhost: FilterConfig,
+
+    /// Configuration for the releases filter.
+    #[serde(default, skip_serializing_if = "ReleasesFilterConfig::is_empty")]
+    pub releases: ReleasesFilterConfig,
 }
 
 impl FiltersConfig {
     /// Returns true if there are no filter configurations delcared.
     pub fn is_empty(&self) -> bool {
         self.browser_extensions.is_empty()
+            && self.client_ips.is_empty()
             && self.web_crawlers.is_empty()
+            && self.csp.is_empty()
+            && self.error_messages.is_empty()
             && self.legacy_browsers.is_empty()
             && self.localhost.is_empty()
+            && self.releases.is_empty()
     }
 }
 
@@ -134,8 +210,17 @@ mod tests {
        ⋮    browser_extensions: FilterConfig {
        ⋮        is_enabled: false,
        ⋮    },
+       ⋮    client_ips: ClientIpsFilterConfig {
+       ⋮        blacklisted_ips: [],
+       ⋮    },
        ⋮    web_crawlers: FilterConfig {
        ⋮        is_enabled: false,
+       ⋮    },
+       ⋮    csp: CspFilterConfig {
+       ⋮        disallowed_sources: [],
+       ⋮    },
+       ⋮    error_messages: ErrorMessagesFilterConfig {
+       ⋮        patterns: [],
        ⋮    },
        ⋮    legacy_browsers: LegacyBrowsersFilterConfig {
        ⋮        is_enabled: false,
@@ -144,21 +229,42 @@ mod tests {
        ⋮    localhost: FilterConfig {
        ⋮        is_enabled: false,
        ⋮    },
+       ⋮    releases: ReleasesFilterConfig {
+       ⋮        releases: [],
+       ⋮    },
        ⋮}
         "###);
         Ok(())
     }
 
     #[test]
-    fn test_should_serialize() {
+    fn test_serialize_empty() {
+        let filters_config = FiltersConfig::default();
+        insta::assert_json_snapshot_matches!(filters_config, @r###"{}"###);
+    }
+
+    #[test]
+    fn test_serialize_full() {
         let filters_config = FiltersConfig {
             browser_extensions: FilterConfig { is_enabled: true },
-            web_crawlers: FilterConfig { is_enabled: false },
+            client_ips: ClientIpsFilterConfig {
+                blacklisted_ips: vec!["127.0.0.1".to_string()],
+            },
+            web_crawlers: FilterConfig { is_enabled: true },
+            csp: CspFilterConfig {
+                disallowed_sources: vec!["https://*".to_string()],
+            },
+            error_messages: ErrorMessagesFilterConfig {
+                patterns: vec!["Panic".to_string()],
+            },
             legacy_browsers: LegacyBrowsersFilterConfig {
                 is_enabled: false,
                 browsers: [LegacyBrowser::Ie9].iter().cloned().collect(),
             },
             localhost: FilterConfig { is_enabled: true },
+            releases: ReleasesFilterConfig {
+                releases: vec!["1.2.3".to_string()],
+            },
         };
 
         insta::assert_json_snapshot_matches!(filters_config, @r###"
@@ -166,8 +272,23 @@ mod tests {
        ⋮  "browserExtensions": {
        ⋮    "isEnabled": true
        ⋮  },
+       ⋮  "clientIps": {
+       ⋮    "blacklisted_ips": [
+       ⋮      "127.0.0.1"
+       ⋮    ]
+       ⋮  },
        ⋮  "webCrawlers": {
-       ⋮    "isEnabled": false
+       ⋮    "isEnabled": true
+       ⋮  },
+       ⋮  "csp": {
+       ⋮    "disallowed_sources": [
+       ⋮      "https://*"
+       ⋮    ]
+       ⋮  },
+       ⋮  "errorMessages": {
+       ⋮    "patterns": [
+       ⋮      "Panic"
+       ⋮    ]
        ⋮  },
        ⋮  "legacyBrowsers": {
        ⋮    "is_enabled": false,
@@ -177,6 +298,11 @@ mod tests {
        ⋮  },
        ⋮  "localhost": {
        ⋮    "isEnabled": true
+       ⋮  },
+       ⋮  "releases": {
+       ⋮    "releases": [
+       ⋮      "1.2.3"
+       ⋮    ]
        ⋮  }
        ⋮}
         "###);
