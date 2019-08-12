@@ -130,7 +130,7 @@ impl EventProcessor {
 
             let store_config = StoreConfig {
                 project_id: Some(message.project_id),
-                client_ip: message.meta.remote_addr().map(From::from),
+                client_ip: message.meta.client_addr().map(From::from),
                 client: auth.client_agent().map(str::to_owned),
                 key_id: Some(auth.public_key().to_owned()),
                 protocol_version: Some(auth.version().to_string()),
@@ -148,11 +148,9 @@ impl EventProcessor {
             process_value(&mut event, &mut store_processor, ProcessingState::root());
 
             if let Some(event) = event.value() {
-                // TODO(ja): Use the forwarded_for address, instead.
-                let client_ip = message.meta.remote_addr();
+                let client_ip = message.meta.client_addr();
                 let filter_settings = &message.project_state.config.filter_settings;
-                let filter_result = should_filter(event, client_ip, filter_settings);
-                if let Err(reason) = filter_result {
+                if let Err(reason) = should_filter(event, client_ip, filter_settings) {
                     // If the event should be filtered, no more processing is needed
                     return Ok(ProcessEventResponse::Filtered { reason });
                 }
@@ -214,6 +212,11 @@ impl ProcessEvent {
             event
                 .extra
                 .insert("remote_addr".to_string(), remote_addr.to_string().into());
+        }
+        if let Some(client_addr) = self.meta.client_addr() {
+            event
+                .extra
+                .insert("client_addr".to_string(), client_addr.to_string().into());
         }
     }
 }
