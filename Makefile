@@ -22,11 +22,18 @@ build: setup
 
 release: setup
 	@cargo +stable build --all --all-features --release
-.PHONY: build-release
+.PHONY: release
 
 docker: setup
 	@scripts/docker-build-linux.sh
-.PHONY: build-docker
+.PHONY: docker
+
+build-linux-release:
+	cargo build --release --locked --target=${TARGET}
+	objcopy --only-keep-debug target/${TARGET}/release/semaphore{,.debug}
+	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/semaphore
+	objcopy --add-gnu-debuglink target/${TARGET}/release/semaphore{.debug,}
+.PHONE: build-linux-release
 
 sdist: setup-venv
 	cd py && ../.venv/bin/python setup.py sdist --format=zip
@@ -38,7 +45,7 @@ wheel: setup
 
 wheel-manylinux: setup
 	@scripts/docker-manylinux.sh
-.PHONY: manylinux
+.PHONY: wheel-manylinux
 
 # Tests
 
@@ -129,8 +136,11 @@ format-python: setup-venv
 setup: setup-geoip setup-git setup-venv
 .PHONY: setup
 
-setup-git: .git/hooks/pre-commit
+init-submodules:
 	@git submodule update --init --recursive
+.PHONY: init-submodules
+
+setup-git: .git/hooks/pre-commit init-submodules
 .PHONY: setup-git
 
 setup-geoip: GeoLite2-City.mmdb

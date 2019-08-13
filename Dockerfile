@@ -64,6 +64,8 @@ FROM semaphore-deps AS semaphore-builder
 
 COPY . .
 
+RUN make init-submodules
+
 RUN cargo build --release --locked --target $BUILD_TARGET
 
 RUN bash -c 'objcopy --only-keep-debug target/${BUILD_TARGET}/release/semaphore{,.debug} \

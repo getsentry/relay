@@ -1,9 +1,12 @@
 *
 !docker-entrypoint.sh
 !build.rs
+!Cargo.*
+!Makefile
 !src/
 !common/
 !general/
 !py/
 !server/
-!Cargo.*
+!.git/
+!.gitmodules

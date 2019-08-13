@@ -14,7 +14,7 @@ git:
 
 env:
   global:
-    - IMAGE_NAME=us.gcr.io/sentry.io/semaphore
+    - IMAGE_NAME=us.gcr.io/sentryio/semaphore
 
 branches:
   only:
