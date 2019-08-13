@@ -6,11 +6,15 @@ use lazy_static::lazy_static;
 use uaparser::UserAgent;
 
 use crate::filter::config::{LegacyBrowser, LegacyBrowsersFilterConfig};
+use crate::filter::FilterStatKey;
 use crate::protocol::Event;
 use crate::user_agent;
 
 /// Filters events originating from legacy browsers.
-pub fn should_filter(event: &Event, config: &LegacyBrowsersFilterConfig) -> Result<(), String> {
+pub fn should_filter(
+    event: &Event,
+    config: &LegacyBrowsersFilterConfig,
+) -> Result<(), FilterStatKey> {
     if !config.is_enabled || config.browsers.is_empty() {
         return Ok(()); // globally disabled or no individual browser enabled
     }
@@ -91,11 +95,11 @@ fn get_browser_major_version(user_agent: &UserAgent) -> Option<i32> {
     None
 }
 
-fn default_filter(mapped_family: &str, user_agent: &UserAgent) -> Result<(), String> {
+fn default_filter(mapped_family: &str, user_agent: &UserAgent) -> Result<(), FilterStatKey> {
     if let Some(browser_major_version) = get_browser_major_version(user_agent) {
         if let Some(&min_version) = MIN_VERSIONS.get(mapped_family) {
             if min_version > browser_major_version {
-                return Err("browser filtered".to_string());
+                return Err(FilterStatKey::LegacyBrowsers);
             }
         }
     }
@@ -108,14 +112,14 @@ fn filter_browser<F>(
     user_agent: &UserAgent,
     family: &str,
     should_filter: F,
-) -> Result<(), String>
+) -> Result<(), FilterStatKey>
 where
     F: FnOnce(i32) -> bool,
 {
     if mapped_family == family {
         if let Some(browser_major_version) = get_browser_major_version(user_agent) {
             if should_filter(browser_major_version) {
-                return Err("browser filtered".to_string());
+                return Err(FilterStatKey::LegacyBrowsers);
             }
         }
     }

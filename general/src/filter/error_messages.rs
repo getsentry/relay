@@ -5,11 +5,15 @@
 
 use crate::filter::common::is_glob_match;
 use crate::filter::config::ErrorMessagesFilterConfig;
+use crate::filter::FilterStatKey;
 use crate::protocol::Event;
 use crate::types::Empty;
 
 /// Filters events by patterns in their error messages.
-pub fn should_filter(event: &Event, config: &ErrorMessagesFilterConfig) -> Result<(), String> {
+pub fn should_filter(
+    event: &Event,
+    config: &ErrorMessagesFilterConfig,
+) -> Result<(), FilterStatKey> {
     if let Some(logentry) = event.logentry.value() {
         if let Some(message) = logentry.formatted.value() {
             should_filter_impl(message, config)?;
@@ -46,11 +50,14 @@ pub fn should_filter(event: &Event, config: &ErrorMessagesFilterConfig) -> Resul
     Ok(())
 }
 
-fn should_filter_impl(message: &str, config: &ErrorMessagesFilterConfig) -> Result<(), String> {
+fn should_filter_impl(
+    message: &str,
+    config: &ErrorMessagesFilterConfig,
+) -> Result<(), FilterStatKey> {
     if !message.is_empty() {
         for pattern in &config.patterns {
             if is_glob_match(pattern, message) {
-                return Err("error-message".to_string());
+                return Err(FilterStatKey::ErrorMessage);
             }
         }
     }
@@ -172,7 +179,7 @@ mod tests {
                     if should_ingest {
                         Ok(())
                     } else {
-                        Err("error-message".to_string())
+                        Err(FilterStatKey::ErrorMessage)
                     }
                 );
             }

@@ -6,9 +6,10 @@
 use crate::protocol::{Event, EventType};
 
 use crate::filter::config::CspFilterConfig;
+use crate::filter::FilterStatKey;
 
 /// Should filter event
-pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), String> {
+pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), FilterStatKey> {
     let disallowed_sources = &config.disallowed_sources;
     if disallowed_sources.is_empty() || event.ty.value() != Some(&EventType::Csp) {
         return Ok(());
@@ -22,10 +23,10 @@ pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), Stri
 
     if let Some(csp) = event.csp.value() {
         if matches_any_origin(csp.blocked_uri.value(), &disallowed_sources) {
-            return Err("CSP filter failed, blocked_uri".to_string());
+            return Err(FilterStatKey::InvalidCsp);
         }
         if matches_any_origin(csp.source_file.value(), &disallowed_sources) {
-            return Err("CSP filter failed, source_file".to_string());
+            return Err(FilterStatKey::InvalidCsp);
         }
     }
     Ok(())

@@ -9,12 +9,13 @@ use std::net::IpAddr;
 use ipnetwork::IpNetwork;
 
 use crate::filter::config::ClientIpsFilterConfig;
+use crate::filter::FilterStatKey;
 
 /// Should filter event
 pub fn should_filter(
     client_ip: Option<IpAddr>,
     config: &ClientIpsFilterConfig,
-) -> Result<(), String> {
+) -> Result<(), FilterStatKey> {
     let blacklisted_ips = &config.blacklisted_ips;
     if blacklisted_ips.is_empty() {
         return Ok(());
@@ -27,7 +28,7 @@ pub fn should_filter(
                 let bl_ip_network: Result<IpNetwork, _> = black_listed_ip.as_str().parse();
                 if let Ok(bl_ip_network) = bl_ip_network {
                     if bl_ip_network.contains(client_ip) {
-                        return Err("Client ip filtered".to_string());
+                        return Err(FilterStatKey::IpAddress);
                     }
                 }
             } else {
@@ -35,7 +36,7 @@ pub fn should_filter(
                 let black_listed_ip: Result<IpAddr, _> = black_listed_ip.as_str().parse();
                 if let Ok(black_listed_ip) = black_listed_ip {
                     if client_ip == black_listed_ip {
-                        return Err("Client ip filtered".to_string());
+                        return Err(FilterStatKey::IpAddress);
                     }
                 }
             }

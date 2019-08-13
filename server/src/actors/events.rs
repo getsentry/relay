@@ -11,7 +11,7 @@ use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 
 use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
-use semaphore_general::filter::should_filter;
+use semaphore_general::filter::{should_filter, FilterStatKey};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
@@ -72,7 +72,7 @@ enum ProcessingError {
     EventRejected,
 
     #[fail(display = "event filtered with reason: {}", _0)]
-    EventFiltered(String),
+    EventFiltered(FilterStatKey),
 
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
@@ -223,7 +223,7 @@ impl ProcessEvent {
 
 enum ProcessEventResponse {
     Valid { data: Bytes },
-    Filtered { reason: String },
+    Filtered { reason: FilterStatKey },
 }
 
 impl Message for ProcessEvent {

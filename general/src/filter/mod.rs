@@ -8,6 +8,8 @@
 //! * legacy browsers ( filter events originating from legacy browsers, can be configured)
 //!
 
+use std::net::IpAddr;
+
 use crate::protocol::Event;
 
 mod browser_extensions;
@@ -24,8 +26,8 @@ mod web_crawlers;
 #[cfg(test)]
 mod test_utils;
 
+pub use common::FilterStatKey;
 pub use config::*;
-use std::net::IpAddr;
 
 /// Checks whether an event should be filtered for a particular configuration.
 ///
@@ -35,7 +37,7 @@ pub fn should_filter(
     event: &Event,
     client_ip: Option<IpAddr>,
     config: &FiltersConfig,
-) -> Result<(), String> {
+) -> Result<(), FilterStatKey> {
     // NB: The order of applying filters should not matter as they are additive. Still, be careful
     // when making changes to this order.
 
