@@ -13,8 +13,8 @@ else
 fi
 
 TARGET=${BUILD_ARCH}-unknown-linux-gnu
-BUILD_TAG="deps"
-BUILD_IMAGE="${IMAGE_NAME}:${BUILD_TAG}"
+# TODO make global
+BUILD_IMAGE="us.gcr.io/sentryio/semaphore:deps"
 
 # Prepare build environment first
 docker pull $BUILD_IMAGE || true
@@ -27,12 +27,13 @@ docker build --build-arg DOCKER_ARCH=${DOCKER_ARCH} \
 
 DOCKER_RUN_OPTS="
   -v $(pwd):/work
-  -v $HOME/.cargo/registry:/usr/local/cargo/registry
+  -v ${HOME}/.cargo/registry:/usr/local/cargo/registry
+  -e TARGET=${TARGET}
   $BUILD_IMAGE
 "
 
 # And now build the project
-docker run -e TARGET=${TARGET} $DOCKER_RUN_OPTS \
+docker run $DOCKER_RUN_OPTS \
   make build-linux-release
 
 # Smoke test
