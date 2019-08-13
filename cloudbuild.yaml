@@ -47,7 +47,7 @@ steps:
 
 images:
   [
-    "us.gcr.io/$PROJECT_ID/semaphore:builder",
+    "us.gcr.io/$PROJECT_ID/semaphore:deps",
     "us.gcr.io/$PROJECT_ID/semaphore:$COMMIT_SHA",
   ]
 timeout: 60m
