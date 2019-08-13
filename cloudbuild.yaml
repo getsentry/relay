@@ -1,0 +1,53 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args:
+      [
+        "-c",
+        "docker pull us.gcr.io/$PROJECT_ID/semaphore:latest || true"
+      ]
+
+  # Pull the image with the first build stage
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args:
+      [
+        "-c",
+        "docker pull us.gcr.io/$PROJECT_ID/semaphore:deps || true"
+      ]
+
+  # Build the first stage
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "--target", "semaphore-deps",
+        "-t", "us.gcr.io/$PROJECT_ID/semaphore:deps",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/semaphore:deps",
+        ".",
+      ]
+
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-t", "us.gcr.io/$PROJECT_ID/semaphore:latest",
+        "-t", "us.gcr.io/$PROJECT_ID/semaphore:$COMMIT_SHA",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/semaphore:deps",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/semaphore:latest",
+        ".",
+      ]
+
+  # Only tag "latest" when on master
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+    - '-c'
+    - '[[ "$BRANCH_NAME" == "master" ]] && docker push us.gcr.io/$PROJECT_ID/semaphore:latest || true'
+
+images:
+  [
+    "us.gcr.io/$PROJECT_ID/semaphore:builder",
+    "us.gcr.io/$PROJECT_ID/semaphore:$COMMIT_SHA",
+  ]
+timeout: 60m
