@@ -4,8 +4,7 @@
 //! (known old bad releases) and Sentry will ignore events originating from
 //! clients with the specified release.
 
-use globset::Glob;
-
+use crate::filter::common::is_glob_match;
 use crate::filter::config::ReleasesFilterConfig;
 use crate::protocol::Event;
 
@@ -16,20 +15,8 @@ pub fn should_filter(event: &Event, config: &ReleasesFilterConfig) -> Result<(),
 
     if let Some(release) = release {
         for filtered_release in filtered_releases {
-            if filtered_release.contains('*') {
-                // we have a pattern do a glob match
-                let pattern = Glob::new(filtered_release);
-                if let Ok(pattern) = pattern {
-                    let pattern = pattern.compile_matcher();
-                    if pattern.is_match(release.as_str()) {
-                        return Err("Release filtered".to_string());
-                    }
-                }
-            } else {
-                //if we don't use glob patterns just do a simple comparison
-                if release.as_str() == filtered_release {
-                    return Err("Release filtered".to_string());
-                }
+            if is_glob_match(filtered_release, release.as_str()) {
+                return Err("Release filtered".to_string());
             }
         }
     }

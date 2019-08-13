@@ -12,6 +12,7 @@ use crate::protocol::Event;
 
 mod browser_extensions;
 mod client_ips;
+mod common;
 mod config;
 mod csp;
 mod error_messages;
