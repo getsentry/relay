@@ -13,7 +13,7 @@ else
 fi
 
 TARGET=${BUILD_ARCH}-unknown-linux-gnu
-BUILD_TAG="build-${BUILD_ARCH}"
+BUILD_TAG="deps"
 BUILD_IMAGE="${IMAGE_NAME}:${BUILD_TAG}"
 
 # Prepare build environment first
@@ -22,13 +22,8 @@ docker build --build-arg DOCKER_ARCH=${DOCKER_ARCH} \
              --build-arg BUILD_ARCH=${BUILD_ARCH} \
              --build-arg OPENSSL_ARCH=${OPENSSL_ARCH} \
              --cache-from=${BUILD_IMAGE} \
-             -t "${BUILD_IMAGE}" -f Dockerfile.build .
-
-# Push build image if possible
-if [ -n "${DOCKER_PASS:-}" ]; then
-  echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin || true
-  docker push "${BUILD_IMAGE}" || true
-fi
+             --target semaphore-deps \
+             -t "${BUILD_IMAGE}" .
 
 DOCKER_RUN_OPTS="
   -v $(pwd):/work
