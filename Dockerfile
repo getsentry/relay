@@ -104,9 +104,6 @@ EXPOSE 3000
 COPY --from=semaphore-builder /bin/semaphore /bin/semaphore
 COPY --from=semaphore-builder /opt/semaphore-debug.zip /opt/semaphore-debug.zip
 
-# Smoke test
-RUN semaphore --help
-
 COPY ./docker-entrypoint.sh /
 ENTRYPOINT ["/bin/bash", "/docker-entrypoint.sh"]
-CMD ["semaphore", "run"]
+CMD ["run"]

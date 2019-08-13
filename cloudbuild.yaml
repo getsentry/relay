@@ -27,6 +27,7 @@ steps:
         ".",
       ]
 
+    # Build everything
   - name: "gcr.io/cloud-builders/docker"
     args:
       [
@@ -37,6 +38,10 @@ steps:
         "--cache-from", "us.gcr.io/$PROJECT_ID/semaphore:latest",
         ".",
       ]
+
+  - name: "us.gcr.io/$PROJECT_ID/semaphore:$COMMIT_SHA"
+    args: ['--help']
+    id: "smoke test"
 
   # Only tag "latest" when on master
   - name: 'gcr.io/cloud-builders/docker'
