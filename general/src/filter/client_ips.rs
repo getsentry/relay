@@ -8,8 +8,7 @@ use std::net::IpAddr;
 
 use ipnetwork::IpNetwork;
 
-use crate::filter::config::ClientIpsFilterConfig;
-use crate::filter::FilterStatKey;
+use crate::filter::{ClientIpsFilterConfig, FilterStatKey};
 
 /// Filters events by blacklisted client IP ranges.
 ///

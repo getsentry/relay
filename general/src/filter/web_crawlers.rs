@@ -3,8 +3,7 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::filter::config::FilterConfig;
-use crate::filter::FilterStatKey;
+use crate::filter::{FilterConfig, FilterStatKey};
 use crate::protocol::Event;
 use crate::user_agent;
 

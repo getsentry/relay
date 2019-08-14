@@ -5,6 +5,8 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::filter::common::GlobPatterns;
+
 /// Common configuration for event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -108,7 +110,7 @@ impl CspFilterConfig {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ErrorMessagesFilterConfig {
     /// List of error message patterns that will be filtered.
-    pub patterns: Vec<String>,
+    pub patterns: GlobPatterns,
 }
 
 impl ErrorMessagesFilterConfig {
@@ -122,7 +124,7 @@ impl ErrorMessagesFilterConfig {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ReleasesFilterConfig {
     /// List of release names that will be filtered.
-    pub releases: Vec<String>,
+    pub releases: GlobPatterns,
 }
 
 impl ReleasesFilterConfig {
@@ -258,7 +260,7 @@ mod tests {
                 disallowed_sources: vec!["https://*".to_string()],
             },
             error_messages: ErrorMessagesFilterConfig {
-                patterns: vec!["Panic".to_string()],
+                patterns: GlobPatterns::new(vec!["Panic".to_string()]),
             },
             legacy_browsers: LegacyBrowsersFilterConfig {
                 is_enabled: false,
@@ -266,7 +268,7 @@ mod tests {
             },
             localhost: FilterConfig { is_enabled: true },
             releases: ReleasesFilterConfig {
-                releases: vec!["1.2.3".to_string()],
+                releases: GlobPatterns::new(vec!["1.2.3".to_string()]),
             },
         };
 

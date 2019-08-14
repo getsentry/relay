@@ -1,21 +1,97 @@
 use std::fmt;
 
-use globset::GlobBuilder;
+use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
+use lazycell::AtomicLazyCell;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// Pattern matching for event filters.
-///
-/// This function intends to work roughly the same as Python's `fnmatch`.
-pub fn is_glob_match(pattern: &str, data: &str) -> bool {
-    if pattern.contains('*') {
-        // we have a pattern, try a glob match
-        if let Ok(pattern) = GlobBuilder::new(pattern).case_insensitive(true).build() {
-            let pattern = pattern.compile_matcher();
-            return pattern.is_match(data);
+/// A list of patterns for glob matching.
+#[derive(Clone)]
+pub struct GlobPatterns {
+    patterns: Vec<String>,
+    globs: AtomicLazyCell<GlobSet>,
+}
+
+impl GlobPatterns {
+    /// Creates a new
+    pub fn new(patterns: Vec<String>) -> Self {
+        Self {
+            patterns,
+            globs: AtomicLazyCell::new(),
         }
     }
 
-    //if we don't use glob patterns just do a simple comparison
-    pattern.to_lowercase() == data.to_lowercase()
+    /// Returns `true` if the list of patterns is empty.
+    pub fn is_empty(&self) -> bool {
+        // Check the list of patterns and not globs. Even if there are no globs to parse, we still
+        // want to serialize the "invalid" patterns to a downstream Relay.
+        self.patterns.is_empty()
+    }
+
+    /// Returns `true` if any of the patterns match the given message.
+    pub fn is_match<S: AsRef<str>>(&self, message: S) -> bool {
+        let message = message.as_ref();
+        if message.is_empty() {
+            return false;
+        }
+
+        // Parse globs lazily to ensure that this work is not done upon deserialization.
+        // Deserialization usually happens in web workers but parsing / matching in CPU pools.
+        if !self.globs.filled() {
+            self.globs.fill(self.parse_globs()).ok();
+        }
+
+        match self.globs.borrow() {
+            Some(globs) => globs.is_match(message),
+            None => unreachable!(),
+        }
+    }
+
+    /// Parses valid patterns from the list.
+    fn parse_globs(&self) -> GlobSet {
+        let mut builder = GlobSetBuilder::new();
+
+        for pattern in &self.patterns {
+            if let Ok(glob) = GlobBuilder::new(&pattern).case_insensitive(true).build() {
+                builder.add(glob);
+            }
+        }
+
+        builder.build().unwrap_or_else(|_| GlobSet::empty())
+    }
+}
+
+impl Default for GlobPatterns {
+    fn default() -> Self {
+        GlobPatterns {
+            patterns: Vec::new(),
+            globs: AtomicLazyCell::new(),
+        }
+    }
+}
+
+impl fmt::Debug for GlobPatterns {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.patterns.fmt(f)
+    }
+}
+
+impl Serialize for GlobPatterns {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.patterns.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for GlobPatterns {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let patterns = Deserialize::deserialize(deserializer)?;
+        Ok(GlobPatterns::new(patterns))
+    }
 }
 
 /// Identifies which filter dropped an event for which reason.

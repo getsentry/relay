@@ -1,7 +1,6 @@
 //! Implements filtering for events originating from the localhost
 
-use crate::filter::config::FilterConfig;
-use crate::filter::FilterStatKey;
+use crate::filter::{FilterConfig, FilterStatKey};
 use crate::protocol::Event;
 
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];

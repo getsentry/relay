@@ -5,8 +5,7 @@ use std::collections::HashMap;
 use lazy_static::lazy_static;
 use uaparser::UserAgent;
 
-use crate::filter::config::{LegacyBrowser, LegacyBrowsersFilterConfig};
-use crate::filter::FilterStatKey;
+use crate::filter::{FilterStatKey, LegacyBrowser, LegacyBrowsersFilterConfig};
 use crate::protocol::Event;
 use crate::user_agent;
 

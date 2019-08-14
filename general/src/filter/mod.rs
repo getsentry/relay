@@ -26,7 +26,7 @@ mod web_crawlers;
 #[cfg(test)]
 mod test_utils;
 
-pub use common::FilterStatKey;
+pub use common::*;
 pub use config::*;
 
 /// Checks whether an event should be filtered for a particular configuration.

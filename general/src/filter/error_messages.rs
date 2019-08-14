@@ -3,11 +3,10 @@
 //! Specific values in the error message or in the exception values can be used to
 //! filter messages with this filter.
 
-use crate::filter::common::is_glob_match;
-use crate::filter::config::ErrorMessagesFilterConfig;
-use crate::filter::FilterStatKey;
+use std::borrow::Cow;
+
+use crate::filter::{ErrorMessagesFilterConfig, FilterStatKey};
 use crate::protocol::Event;
-use crate::types::Empty;
 
 /// Filters events by patterns in their error messages.
 pub fn should_filter(
@@ -26,19 +25,12 @@ pub fn should_filter(
         if let Some(exceptions) = exception_values.values.value() {
             for exception in exceptions {
                 if let Some(exception) = exception.value() {
-                    let message_owned;
-                    let message = match (exception.ty.is_empty(), exception.value.is_empty()) {
-                        (true, true) => "",
-                        (false, true) => exception.ty.value().unwrap(),
-                        (true, false) => exception.value.value().unwrap(),
-                        (false, false) => {
-                            message_owned = format!(
-                                "{}: {}",
-                                exception.ty.value().unwrap(),
-                                exception.value.value().unwrap().0
-                            );
-                            &message_owned
-                        }
+                    let ty = exception.ty.as_str().unwrap_or_default();
+                    let value = exception.value.as_str().unwrap_or_default();
+                    let message = match (ty, value) {
+                        ("", value) => Cow::Borrowed(value),
+                        (ty, "") => Cow::Borrowed(ty),
+                        (ty, value) => Cow::Owned(format!("{}: {}", ty, value)),
                     };
 
                     should_filter_impl(&message, config)?;
@@ -54,20 +46,17 @@ fn should_filter_impl(
     message: &str,
     config: &ErrorMessagesFilterConfig,
 ) -> Result<(), FilterStatKey> {
-    if !message.is_empty() {
-        for pattern in &config.patterns {
-            if is_glob_match(pattern, message) {
-                return Err(FilterStatKey::ErrorMessage);
-            }
-        }
+    if config.patterns.is_match(message) {
+        Err(FilterStatKey::ErrorMessage)
+    } else {
+        Ok(())
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::filter::GlobPatterns;
     use crate::protocol::{Exception, LogEntry, Values};
     use crate::types::Annotated;
 
@@ -76,20 +65,20 @@ mod tests {
         let configs = &[
             // with globs
             ErrorMessagesFilterConfig {
-                patterns: vec![
+                patterns: GlobPatterns::new(vec![
                     "filteredexception*".to_string(),
                     "*this is a filtered exception.".to_string(),
                     "".to_string(),
                     "this is".to_string(),
-                ],
+                ]),
             },
             // without globs
             ErrorMessagesFilterConfig {
-                patterns: vec![
+                patterns: GlobPatterns::new(vec![
                     "filteredexception: this is a filtered exception.".to_string(),
                     "filteredexception".to_string(),
                     "this is a filtered exception.".to_string(),
-                ],
+                ]),
             },
         ];
 

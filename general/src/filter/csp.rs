@@ -3,10 +3,8 @@
 //! Events originating from a CSP message can be filtered based on the source URL
 //!
 
+use crate::filter::{CspFilterConfig, FilterStatKey};
 use crate::protocol::{Event, EventType};
-
-use crate::filter::config::CspFilterConfig;
-use crate::filter::FilterStatKey;
 
 /// Should filter event
 pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), FilterStatKey> {
