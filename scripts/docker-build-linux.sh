@@ -13,8 +13,8 @@ else
 fi
 
 TARGET=${BUILD_ARCH}-unknown-linux-gnu
-BUILD_TAG="build-${BUILD_ARCH}"
-BUILD_IMAGE="${IMAGE_NAME}:${BUILD_TAG}"
+# TODO make global
+BUILD_IMAGE="us.gcr.io/sentryio/semaphore:deps"
 
 # Prepare build environment first
 docker pull $BUILD_IMAGE || true
@@ -22,33 +22,19 @@ docker build --build-arg DOCKER_ARCH=${DOCKER_ARCH} \
              --build-arg BUILD_ARCH=${BUILD_ARCH} \
              --build-arg OPENSSL_ARCH=${OPENSSL_ARCH} \
              --cache-from=${BUILD_IMAGE} \
-             -t "${BUILD_IMAGE}" -f Dockerfile.build .
-
-# Push build image if possible
-if [ -n "${DOCKER_PASS:-}" ]; then
-  echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin || true
-  docker push "${BUILD_IMAGE}" || true
-fi
+             --target semaphore-deps \
+             -t "${BUILD_IMAGE}" .
 
 DOCKER_RUN_OPTS="
   -v $(pwd):/work
-  -v $HOME/.cargo/registry:/usr/local/cargo/registry
+  -v ${HOME}/.cargo/registry:/usr/local/cargo/registry
+  -e TARGET=${TARGET}
   $BUILD_IMAGE
 "
 
 # And now build the project
 docker run $DOCKER_RUN_OPTS \
-  cargo build --release --locked --target=${TARGET}
-
-# Strip debug information from the main file
-docker run $DOCKER_RUN_OPTS \
-  objcopy --only-keep-debug target/${TARGET}/release/semaphore{,.debug}
-
-docker run $DOCKER_RUN_OPTS \
-  objcopy --strip-debug --strip-unneeded target/${TARGET}/release/semaphore
-
-docker run $DOCKER_RUN_OPTS \
-  objcopy --add-gnu-debuglink target/${TARGET}/release/semaphore{.debug,}
+  make build-linux-release
 
 # Smoke test
 docker run $DOCKER_RUN_OPTS \

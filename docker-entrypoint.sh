@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
-if [ "$(id -u)" == "0" ]; then
-  exec gosu semaphore /bin/semaphore "$@"
+# For compatibility with older images
+if [ "$1" == "bash" ]; then
+  set -- bash
+elif [ "$(id -u)" == "0" ]; then
+  set -- gosu semaphore /bin/semaphore "$@"
 else
-  exec /bin/semaphore "$@"
+  set -- /bin/semaphore "$@"
 fi
+
+exec "$@"
