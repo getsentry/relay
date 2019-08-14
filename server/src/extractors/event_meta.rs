@@ -48,9 +48,18 @@ impl EventMeta {
         self.origin.as_ref()
     }
 
-    /// If the request originated from HTTP this returns the remote ip
+    /// The IP address of the Relay or client that ingested the event.
     pub fn remote_addr(&self) -> Option<IpAddr> {
         self.remote_addr
+    }
+
+    /// The IP address of the client that this event originates from.
+    ///
+    /// This differs from `remote_addr` if the event was sent through a Relay or any other proxy
+    /// before.
+    pub fn client_addr(&self) -> Option<IpAddr> {
+        let client = self.forwarded_for().split(',').next()?;
+        client.trim().parse().ok()
     }
 
     /// Returns the value of the forwarded for header

@@ -3,19 +3,19 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::filter::config::FilterConfig;
+use crate::filter::{FilterConfig, FilterStatKey};
 use crate::protocol::Event;
 use crate::user_agent;
 
 /// Filters events originating from a known web crawler.
-pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String> {
+pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
     if !config.is_enabled {
         return Ok(());
     }
 
     if let Some(user_agent) = user_agent::get_user_agent(event) {
         if WEB_CRAWLERS.is_match(user_agent) {
-            return Err("User agent is web crawler".to_string());
+            return Err(FilterStatKey::WebCrawlers);
         }
     }
 

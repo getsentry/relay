@@ -1,4 +1,5 @@
 **/*.rs.bk
+.*.pending-snap
 *.pyc
 .DS_Store
 .hypothesis

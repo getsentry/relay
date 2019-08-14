@@ -1,13 +1,13 @@
 //! Implements filtering for events originating from the localhost
 
-use crate::filter::config::FilterConfig;
+use crate::filter::{FilterConfig, FilterStatKey};
 use crate::protocol::Event;
 
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
 
 /// Filters events originating from the local host.
-pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String> {
+pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
     if !config.is_enabled {
         return Ok(());
     }
@@ -15,7 +15,7 @@ pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String>
     if let Some(ip_addr) = get_ip_addr(event) {
         for &local_ip in LOCAL_IPS {
             if local_ip == ip_addr {
-                return Err("local ip".to_string());
+                return Err(FilterStatKey::Localhost);
             }
         }
     }
@@ -23,7 +23,7 @@ pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String>
     if let Some(domain) = get_domain(event) {
         for &local_domain in LOCAL_DOMAINS {
             if local_domain == domain {
-                return Err("local domain".to_string());
+                return Err(FilterStatKey::Localhost);
             }
         }
     }

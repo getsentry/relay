@@ -3,23 +3,23 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::filter::config::FilterConfig;
+use crate::filter::{FilterConfig, FilterStatKey};
 use crate::protocol::{Event, Exception};
 
 /// Filters events originating from known problematic browser extensions.
-pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), String> {
+pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
     if !config.is_enabled {
         return Ok(());
     }
 
     if let Some(ex_val) = get_exception_value(event) {
         if EXTENSION_EXC_VALUES.is_match(ex_val) {
-            return Err("filter browser extension value".to_string());
+            return Err(FilterStatKey::BrowserExtensions);
         }
     }
     if let Some(ex_source) = get_exception_source(event) {
         if EXTENSION_EXC_SOURCES.is_match(ex_source) {
-            return Err("filter browser extension source".to_string());
+            return Err(FilterStatKey::BrowserExtensions);
         }
     }
 

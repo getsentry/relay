@@ -10,8 +10,9 @@ use chrono::TimeZone;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, LenientString, Level,
-    LogEntry, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
+    Breadcrumb, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt, ExpectStaple,
+    Fingerprint, Hpkp, LenientString, Level, LogEntry, Request, Span, Stacktrace, Tags,
+    TemplateInfo, Thread, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
@@ -349,24 +350,20 @@ pub struct Event {
     pub checksum: Annotated<String>,
 
     /// CSP (security) reports.
-    // TODO: typing
     #[metastructure(legacy_alias = "sentry.interfaces.Csp")]
-    pub csp: Annotated<Value>,
+    pub csp: Annotated<Csp>,
 
     /// HPKP (security) reports.
-    // TODO: typing
     #[metastructure(legacy_alias = "sentry.interfaces.Hpkp")]
-    pub hpkp: Annotated<Value>,
+    pub hpkp: Annotated<Hpkp>,
 
     /// ExpectCT (security) reports.
-    // TODO: typing
     #[metastructure(legacy_alias = "sentry.interfaces.ExpectCT")]
-    pub expectct: Annotated<Value>,
+    pub expectct: Annotated<ExpectCt>,
 
     /// ExpectStaple (security) reports.
-    // TODO: typing
     #[metastructure(legacy_alias = "sentry.interfaces.ExpectStaple")]
-    pub expectstaple: Annotated<Value>,
+    pub expectstaple: Annotated<ExpectStaple>,
 
     /// Spans for tracing.
     pub spans: Annotated<Array<Span>>,

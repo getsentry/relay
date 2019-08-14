@@ -11,7 +11,7 @@ use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 
 use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
-use semaphore_general::filter::should_filter;
+use semaphore_general::filter::{should_filter, FilterStatKey};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
@@ -72,7 +72,7 @@ enum ProcessingError {
     EventRejected,
 
     #[fail(display = "event filtered with reason: {}", _0)]
-    EventFiltered(String),
+    EventFiltered(FilterStatKey),
 
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
@@ -130,7 +130,7 @@ impl EventProcessor {
 
             let store_config = StoreConfig {
                 project_id: Some(message.project_id),
-                client_ip: message.meta.remote_addr().map(From::from),
+                client_ip: message.meta.client_addr().map(From::from),
                 client: auth.client_agent().map(str::to_owned),
                 key_id: Some(auth.public_key().to_owned()),
                 protocol_version: Some(auth.version().to_string()),
@@ -147,10 +147,11 @@ impl EventProcessor {
             let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
             process_value(&mut event, &mut store_processor, ProcessingState::root());
 
-            let filter_settings = &message.project_state.config.filter_settings;
             if let Some(event) = event.value() {
-                if let Err(reason) = should_filter(event, filter_settings) {
-                    // event should be filter no more processing needed
+                let client_ip = message.meta.client_addr();
+                let filter_settings = &message.project_state.config.filter_settings;
+                if let Err(reason) = should_filter(event, client_ip, filter_settings) {
+                    // If the event should be filtered, no more processing is needed
                     return Ok(ProcessEventResponse::Filtered { reason });
                 }
             }
@@ -212,12 +213,17 @@ impl ProcessEvent {
                 .extra
                 .insert("remote_addr".to_string(), remote_addr.to_string().into());
         }
+        if let Some(client_addr) = self.meta.client_addr() {
+            event
+                .extra
+                .insert("client_addr".to_string(), client_addr.to_string().into());
+        }
     }
 }
 
 enum ProcessEventResponse {
     Valid { data: Bytes },
-    Filtered { reason: String },
+    Filtered { reason: FilterStatKey },
 }
 
 impl Message for ProcessEvent {
