@@ -9,10 +9,10 @@ use serde::ser::{Serialize, Serializer};
 use chrono::TimeZone;
 
 use crate::processor::ProcessValue;
-use crate::protocol::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp};
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Contexts, DebugMeta, Exception, Fingerprint, LenientString, Level,
-    LogEntry, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, User, Values,
+    Breadcrumb, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt, ExpectStaple,
+    Fingerprint, Hpkp, LenientString, Level, LogEntry, Request, Span, Stacktrace, Tags,
+    TemplateInfo, Thread, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
