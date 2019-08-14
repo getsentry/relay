@@ -1,12 +1,11 @@
 //! Implements event filtering for events originating from CSP endpoints
 //!
 //! Events originating from a CSP message can be filtered based on the source URL
-//!
 
 use crate::filter::{CspFilterConfig, FilterStatKey};
 use crate::protocol::{Event, EventType};
 
-/// Should filter event
+/// Filters CSP events based on disallowed sources.
 pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), FilterStatKey> {
     let disallowed_sources = &config.disallowed_sources;
     if disallowed_sources.is_empty() || event.ty.value() != Some(&EventType::Csp) {
@@ -27,6 +26,7 @@ pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), Filt
             return Err(FilterStatKey::InvalidCsp);
         }
     }
+
     Ok(())
 }
 
@@ -92,10 +92,11 @@ impl From<&str> for SchemeDomainPort {
     }
 }
 
-/// Checks if a url satisfies one of the specified origins
+/// Checks if a url satisfies one of the specified origins.
 ///
 /// An origin specification may be in any of the following formats:
-///  - http://domain.com[:port]  - an exact match is required
+///  - http://domain.com[:port]
+///  - an exact match is required
 ///  - * : anything goes
 ///  - *.domain.com : matches domain.com and any subdomains
 ///  - *:port : matches any hostname as long as the port matches

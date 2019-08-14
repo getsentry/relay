@@ -22,47 +22,37 @@ pub fn should_filter(
         let user_agent = user_agent::parse_user_agent(user_agent_string);
 
         // remap IE Mobile to IE (sentry python, filter compatibility)
-        let family = if user_agent.family == "IE Mobile" {
-            "IE".into()
-        } else {
-            user_agent.family.to_string()
+        let family = match user_agent.family.as_str() {
+            "IE Mobile" => "IE",
+            other => other,
         };
 
         let browsers = &config.browsers;
-
         if browsers.contains(&LegacyBrowser::Default) {
-            return default_filter(family.as_str(), &user_agent);
+            return default_filter(family, &user_agent);
         }
 
         for browser_type in browsers {
             match browser_type {
-                LegacyBrowser::IePre9 => {
-                    filter_browser(family.as_str(), &user_agent, "IE", |x| x <= 8)?
-                }
-                LegacyBrowser::Ie9 => {
-                    filter_browser(family.as_str(), &user_agent, "IE", |x| x == 9)?
-                }
-                LegacyBrowser::Ie10 => {
-                    filter_browser(family.as_str(), &user_agent, "IE", |x| x == 10)?
-                }
+                LegacyBrowser::IePre9 => filter_browser(family, &user_agent, "IE", |x| x <= 8)?,
+                LegacyBrowser::Ie9 => filter_browser(family, &user_agent, "IE", |x| x == 9)?,
+                LegacyBrowser::Ie10 => filter_browser(family, &user_agent, "IE", |x| x == 10)?,
                 LegacyBrowser::OperaMiniPre8 => {
-                    filter_browser(family.as_str(), &user_agent, "Opera Mini", &|x| x < 8)?
+                    filter_browser(family, &user_agent, "Opera Mini", |x| x < 8)?
                 }
                 LegacyBrowser::OperaPre15 => {
-                    filter_browser(family.as_str(), &user_agent, "Opera", |x| x < 15)?
+                    filter_browser(family, &user_agent, "Opera", |x| x < 15)?
                 }
                 LegacyBrowser::AndroidPre4 => {
-                    filter_browser(family.as_str(), &user_agent, "Android", |x| x < 4)?
+                    filter_browser(family, &user_agent, "Android", |x| x < 4)?
                 }
                 LegacyBrowser::SafariPre6 => {
-                    filter_browser(family.as_str(), &user_agent, "Safari", |x| x < 6)?
+                    filter_browser(family, &user_agent, "Safari", |x| x < 6)?
                 }
                 LegacyBrowser::Unknown(_) => {
                     // unknown browsers should not be filtered
                 }
-                LegacyBrowser::Default => {
-                    panic!("Browser type All should have already been handled. (programming error)")
-                }
+                LegacyBrowser::Default => unreachable!(),
             }
         }
     }
