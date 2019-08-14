@@ -11,7 +11,11 @@ use ipnetwork::IpNetwork;
 use crate::filter::config::ClientIpsFilterConfig;
 use crate::filter::FilterStatKey;
 
-/// Should filter event
+/// Filters events by blacklisted client IP ranges.
+///
+/// The client IP is the address of the originator of the event. If it was forwarded through
+/// multiple proxies, this address should be derived from the `X-Forwarded-For` header. Otherwise,
+/// it is the remote socket address.
 pub fn should_filter(
     client_ip: Option<IpAddr>,
     config: &ClientIpsFilterConfig,
@@ -21,27 +25,19 @@ pub fn should_filter(
         return Ok(());
     }
 
-    if let Some(client_ip) = client_ip {
-        for black_listed_ip in blacklisted_ips {
-            if black_listed_ip.contains('/') {
-                //probably a network specification
-                let bl_ip_network: Result<IpNetwork, _> = black_listed_ip.as_str().parse();
-                if let Ok(bl_ip_network) = bl_ip_network {
-                    if bl_ip_network.contains(client_ip) {
-                        return Err(FilterStatKey::IpAddress);
-                    }
-                }
-            } else {
-                //probably an ip address
-                let black_listed_ip: Result<IpAddr, _> = black_listed_ip.as_str().parse();
-                if let Ok(black_listed_ip) = black_listed_ip {
-                    if client_ip == black_listed_ip {
-                        return Err(FilterStatKey::IpAddress);
-                    }
-                }
+    let client_ip = match client_ip {
+        Some(client_ip) => client_ip,
+        None => return Ok(()),
+    };
+
+    for blacklisted_ip in blacklisted_ips {
+        if let Ok(blacklisted_network) = blacklisted_ip.parse::<IpNetwork>() {
+            if blacklisted_network.contains(client_ip) {
+                return Err(FilterStatKey::IpAddress);
             }
         }
     }
+
     Ok(())
 }
 
