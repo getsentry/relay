@@ -39,8 +39,8 @@ pub enum FilterStatKey {
 }
 
 impl FilterStatKey {
-    pub fn as_str(&self) -> &'static str {
-        match *self {
+    pub fn as_str(self) -> &'static str {
+        match self {
             FilterStatKey::IpAddress => "ip-address",
             FilterStatKey::ReleaseVersion => "release-version",
             FilterStatKey::ErrorMessage => "error-message",
