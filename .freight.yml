@@ -1,4 +1,17 @@
-deploy:
-  services:
-    - name: semaphore
-      healthcheck: sleep 3 && curl -fsi curl 127.0.0.1:3000/api/relay/healthcheck/
+---
+kubernetes:
+  credentials:
+    kind: gcloud
+    project: internal-sentry
+    cluster: primary
+    zone: us-central1-b
+
+steps:
+  - kind: KubernetesDeployment
+    selector:
+      label_selector: service=relay
+      namespace: default
+    containers:
+      - image: us.gcr.io/sentryio/semaphore:{sha}
+        name: relay
+
