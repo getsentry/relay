@@ -8,7 +8,7 @@ use crate::pii::{
     Redaction, ReplaceRedaction, RuleSpec, RuleType,
 };
 
-pub static BUILTIN_SELECTORS: &[&'static str] = &["text", "container"];
+pub static BUILTIN_SELECTORS: &[&str] = &["text", "container"];
 
 macro_rules! declare_builtin_rules {
     ($($rule_id:expr => $spec:expr;)*) => {

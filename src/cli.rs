@@ -170,7 +170,7 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
 
 pub fn manage_config<'a>(config: &Config, matches: &ArgMatches<'a>) -> Result<(), Error> {
     if let Some(matches) = matches.subcommand_matches("init") {
-        return init_config(config.path(), &matches);
+        init_config(config.path(), &matches)
     } else if let Some(matches) = matches.subcommand_matches("show") {
         match matches.value_of("format").unwrap() {
             "debug" => println!("{:#?}", &config),
