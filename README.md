@@ -93,6 +93,18 @@ purposes. It comes in two formats: Once as a `(.pem, .cert)`-pair, once as
 
 The password for the `.pfx` file is `password`.
 
-### Release management
+### Running in Docker
+
+Docker image for `semaphore` can be found at `us.gcr.io/sentryio/semaphore`.
+
+For example, you can start the latest version of `semaphore` as follows:
+
+```sh
+docker run -v $(pwd)/configs/:/etc/semaphore/ us.gcr.io/sentryio/semaphore run --config /etc/semaphore
+```
+
+The command assumes that semaphore's configuration (`config.yml` and `credentials.json`) are stored in `./configs/` directory on the host machine.
+
+### Release Management
 
 We use [craft](https://github.com/getsentry/semaphore) to release new versions.
