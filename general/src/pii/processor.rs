@@ -91,9 +91,12 @@ lazy_static! {
             ")([\\s]|[[:punct:]]|$)",
         )
     ).unwrap();
+
+    // http://www.richardsramblings.com/regex/credit-card-numbers/
     static ref CREDITCARD_REGEX: Regex = Regex::new(
-        r#"(?x)
-            \d{4}[- ]?\d{4,6}[- ]?\d{4,5}(?:[- ]?\d{4})
+        r#"(?x)(
+            \b(?:3[47]\d|(?:4\d|5[1-5]|65)\d{2}|6011)\d{12}\b
+        )
         "#
     ).unwrap();
     static ref PATH_REGEX: Regex = Regex::new(
@@ -236,13 +239,9 @@ macro_rules! value_process_method {
             } else {
                 ValueAction::Keep
             };
-            match rv {
-                ValueAction::Keep => ValueAction::Keep,
-                other => {
-                    value.process_child_values(self, state);
-                    other
-                }
-            }
+            value.process_child_values(self, state);
+
+            rv
         }
     };
 }

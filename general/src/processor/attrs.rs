@@ -22,7 +22,7 @@ enum SelectorPathItem {
 impl fmt::Display for SelectorPathItem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            SelectorPathItem::Type(ty) => write!(f, "#{}", ty),
+            SelectorPathItem::Type(ty) => write!(f, "${}", ty),
             SelectorPathItem::Index(index) => write!(f, "{}", index),
             SelectorPathItem::Key(ref key) => write!(f, "{}", key),
             SelectorPathItem::Wildcard => write!(f, "*"),

@@ -14,6 +14,7 @@ mod macros;
 #[macro_use]
 mod testutils;
 
+pub mod datascrubbing;
 pub mod filter;
 pub mod pii;
 pub mod processor;
