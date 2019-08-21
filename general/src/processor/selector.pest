@@ -1,0 +1,16 @@
+ObjectType = @{ "$" ~ ('a' .. 'z')+ }
+Wildcard = @{ "*" }
+DeepWildcard = @{ "**" }
+Quote = _{ "'" }
+Whitespace = _{ " "? }
+Index = { ASCII_DIGIT+ }
+Key = { (ASCII_ALPHANUMERIC | "-" | "_") + }
+ContainsKey = { "*" ~ Key ~ "*" }
+SelectorPathItem = { ContainsKey | ObjectType | DeepWildcard | Wildcard | Index | Key }
+SelectorPath = { SelectorPathItem ~ ("." ~ SelectorPathItem)* }
+
+AndSelector = { "(" ~ Selector ~ Whitespace ~ "&" ~ Whitespace ~ Selector ~ ")" }
+OrSelector = { "(" ~ Selector ~ Whitespace ~ "|" ~ Whitespace ~ Selector ~ ")" }
+NotSelector = { "~" ~ Selector }
+Selector = { AndSelector | OrSelector | NotSelector | "(" ~ Selector ~ ")" | SelectorPath }
+RootSelector = { SOI ~ Selector ~ EOI }

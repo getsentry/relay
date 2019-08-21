@@ -2059,6 +2059,8 @@ dependencies = [
  "lazycell 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "maxminddb 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pest 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pest_derive 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "semaphore-general-derive 0.4.41",
  "serde 1.0.98 (registry+https://github.com/rust-lang/crates.io-index)",
