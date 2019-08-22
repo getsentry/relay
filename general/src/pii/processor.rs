@@ -261,6 +261,8 @@ fn value_process<'a, T: ProcessValue, I: Iterator<Item = RuleRef<'a>>>(
 }
 
 impl<'a> Processor for PiiProcessor<'a> {
+    // TODO: This processor could be refactored to use more of before_process instead of value-type
+    // specific code. process_timestamp/process_array/process_object could be gone.
     value_process_method!(process_i64, i64);
     value_process_method!(process_u64, u64);
     value_process_method!(process_f64, f64);

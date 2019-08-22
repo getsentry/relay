@@ -64,12 +64,12 @@ impl SelectorPathItem {
             SelectorPathItem::Key(ref key) => state
                 .path()
                 .key()
-                .map(|k| (&k.to_lowercase()) == key)
+                .map(|k| k.to_lowercase() == key.to_lowercase())
                 .unwrap_or(false),
             SelectorPathItem::ContainsKey(ref key) => state
                 .path()
                 .key()
-                .map(|k| (&k.to_lowercase()).contains(key))
+                .map(|k| (&k.to_lowercase()).contains(&key.to_lowercase()))
                 .unwrap_or(false),
         }
     }

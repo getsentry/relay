@@ -7,8 +7,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::processor::selector::{SelectorPathItem, SelectorSpec};
-use crate::processor::ProcessValue;
+use crate::processor::{ProcessValue, SelectorPathItem, SelectorSpec};
 use crate::types::Annotated;
 
 /// Error for unknown value types.
