@@ -41,9 +41,9 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
     if datascrubbing_config.scrub_data {
         for field in &datascrubbing_config.sensitive_fields {
             applications.insert(
-                with_exclude_fields(SelectorSpec::Path(vec![
-                    SelectorPathItem::ContainsKey(field.clone()),
-                ])),
+                with_exclude_fields(SelectorSpec::Path(vec![SelectorPathItem::ContainsKey(
+                    field.clone(),
+                )])),
                 vec!["@anything:remove".to_owned()],
             );
             contains_rules = true;
@@ -1249,7 +1249,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮        "": {
        ⋮          "rem": [
        ⋮            [
-       ⋮              "strip-fields",
+       ⋮              "@anything:remove",
        ⋮              "x"
        ⋮            ]
        ⋮          ]
@@ -1259,7 +1259,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮        "": {
        ⋮          "rem": [
        ⋮            [
-       ⋮              "strip-fields",
+       ⋮              "@anything:remove",
        ⋮              "x"
        ⋮            ]
        ⋮          ]
@@ -2281,7 +2281,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮        "": {
        ⋮          "rem": [
        ⋮            [
-       ⋮              "strip-fields",
+       ⋮              "@anything:remove",
        ⋮              "x"
        ⋮            ]
        ⋮          ]
@@ -2344,7 +2344,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮        "": {
        ⋮          "rem": [
        ⋮            [
-       ⋮              "strip-fields",
+       ⋮              "@anything:remove",
        ⋮              "x"
        ⋮            ]
        ⋮          ]

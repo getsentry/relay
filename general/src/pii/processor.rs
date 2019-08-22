@@ -15,7 +15,7 @@ use crate::processor::{
     process_chunked_value, Chunk, ProcessValue, ProcessingState, Processor, SelectorSpec,
 };
 use crate::protocol::{AsPair, PairList};
-use crate::types::{Meta, Object, Remark, RemarkType, Timestamp, ValueAction};
+use crate::types::{Meta, Object, Remark, RemarkType, ValueAction};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
@@ -216,60 +216,21 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
     }
 }
 
-macro_rules! value_process_method {
-    ($name: ident, $ty:ident $(::$path:ident)*) => {
-        value_process_method!($name, $ty $(::$path)* <>);
-    };
-
-    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),* > $(, $param_req_key:ident : $param_req_trait:path)*) => {
-        #[inline]
-        fn $name<$($param),*>(
-            &mut self,
-            value: &mut $ty $(::$path)* <$($param),*>,
-            meta: &mut Meta,
-            state: &ProcessingState<'_>,
-        ) -> ValueAction
-        where
-            $($param: ProcessValue),*
-            $(, $param_req_key : $param_req_trait)*
-        {
-            let mut rules = self.iter_rules(state).peekable();
-            let rv = if rules.peek().is_some() {
-                value_process(value, meta, rules)
-            } else {
-                ValueAction::Keep
-            };
-            value.process_child_values(self, state);
-
-            rv
-        }
-    };
-}
-
-fn value_process<'a, T: ProcessValue, I: Iterator<Item = RuleRef<'a>>>(
-    value: &mut T,
-    meta: &mut Meta,
-    rules: I,
-) -> ValueAction {
-    for rule in rules {
-        match apply_rule_to_value(value, meta, rule, None) {
-            ValueAction::Keep => continue,
-            other => return other,
-        }
-    }
-    ValueAction::Keep
-}
-
 impl<'a> Processor for PiiProcessor<'a> {
-    // TODO: This processor could be refactored to use more of before_process instead of value-type
-    // specific code. process_timestamp/process_array/process_object could be gone.
-    value_process_method!(process_i64, i64);
-    value_process_method!(process_u64, u64);
-    value_process_method!(process_f64, f64);
-    value_process_method!(process_bool, bool);
-    value_process_method!(process_timestamp, Timestamp);
-    value_process_method!(process_value, crate::types::Value);
-    value_process_method!(process_array, crate::types::Array<T>);
+    fn before_process<T: ProcessValue>(
+        &mut self,
+        _value: Option<&T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ValueAction {
+        for rule in self.iter_rules(state) {
+            match apply_rule_to_value(meta, rule, None) {
+                ValueAction::Keep => continue,
+                other => return other,
+            }
+        }
+        ValueAction::Keep
+    }
 
     fn process_string(
         &mut self,
@@ -287,8 +248,6 @@ impl<'a> Processor for PiiProcessor<'a> {
                 }
                 chunks
             });
-
-            return value_process(value, meta, rules.into_iter());
         }
         ValueAction::Keep
     }
@@ -296,7 +255,7 @@ impl<'a> Processor for PiiProcessor<'a> {
     fn process_object<T: ProcessValue>(
         &mut self,
         value: &mut Object<T>,
-        meta: &mut Meta,
+        _meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
         let mut rules = self.iter_rules(state).peekable();
@@ -305,15 +264,9 @@ impl<'a> Processor for PiiProcessor<'a> {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
             for (key, annotated) in value.iter_mut() {
                 for rule in &rules {
-                    annotated.apply(|value, meta| {
-                        apply_rule_to_value(value, meta, *rule, Some(key.as_str()))
-                    });
+                    annotated
+                        .apply(|_value, meta| apply_rule_to_value(meta, *rule, Some(key.as_str())));
                 }
-            }
-
-            match value_process(value, meta, rules.into_iter()) {
-                ValueAction::Keep => {}
-                other => return other,
             }
         }
 
@@ -324,9 +277,11 @@ impl<'a> Processor for PiiProcessor<'a> {
     fn process_pairlist<T: ProcessValue + AsPair>(
         &mut self,
         value: &mut PairList<T>,
-        meta: &mut Meta,
+        _meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
+        // TODO: modify processvalue of pairlist to emit `tags.mytag` instead of `tags.0.1`. Then
+        // this thing would not be necessary.
         let mut rules = self.iter_rules(state).peekable();
 
         if rules.peek().is_some() {
@@ -335,16 +290,9 @@ impl<'a> Processor for PiiProcessor<'a> {
                 for rule in &rules {
                     if let Some(ref mut pair) = annotated.value_mut() {
                         let (ref mut key, ref mut value) = pair.as_pair_mut();
-                        value.apply(|value, meta| {
-                            apply_rule_to_value(value, meta, *rule, key.as_str())
-                        });
+                        value.apply(|_value, meta| apply_rule_to_value(meta, *rule, key.as_str()));
                     }
                 }
-            }
-
-            match value_process(value, meta, rules.into_iter()) {
-                ValueAction::Keep => {}
-                other => return other,
             }
         }
 
@@ -390,12 +338,7 @@ fn collect_rules<'a, 'b>(
     }
 }
 
-fn apply_rule_to_value<T: ProcessValue>(
-    _value: &mut T,
-    meta: &mut Meta,
-    rule: RuleRef<'_>,
-    key: Option<&str>,
-) -> ValueAction {
+fn apply_rule_to_value(meta: &mut Meta, rule: RuleRef<'_>, key: Option<&str>) -> ValueAction {
     match rule.ty {
         RuleType::RedactPair(ref redact_pair) => {
             if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
