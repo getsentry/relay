@@ -21,4 +21,5 @@ pub mod protocol;
 pub mod store;
 pub mod types;
 
+#[cfg(feature = "uaparser")]
 mod user_agent;

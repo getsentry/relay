@@ -1,4 +1,6 @@
+#[cfg(feature = "uaparser")]
 use crate::protocol::{Event, Headers, PairList, Request};
+#[cfg(feature = "uaparser")]
 use crate::types::Annotated;
 
 macro_rules! assert_eq_str {
@@ -35,6 +37,7 @@ macro_rules! assert_eq_dbg {
     };
 }
 
+#[cfg(feature = "uaparser")]
 macro_rules! assert_annotated_matches {
     ($value:expr, @$snapshot:literal) => {
         ::insta::assert_snapshot_matches!(
@@ -73,6 +76,7 @@ macro_rules! assert_annotated_matches {
     };
 }
 
+#[cfg(feature = "uaparser")]
 /// Creates an Event with the specified user agent.
 pub(super) fn get_event_with_user_agent(user_agent: &str) -> Event {
     let mut headers = Vec::new();
