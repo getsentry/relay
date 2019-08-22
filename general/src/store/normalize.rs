@@ -25,6 +25,8 @@ mod logentry;
 mod mechanism;
 mod request;
 mod stacktrace;
+
+#[cfg(feature = "uaparser")]
 mod user_agent;
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
@@ -287,9 +289,13 @@ impl<'a> NormalizeProcessor<'a> {
         }
     }
 
-    fn normalize_user_agent(&self, event: &mut Event) {
+    fn normalize_user_agent(&self, _event: &mut Event) {
         if self.config.normalize_user_agent.unwrap_or(false) {
-            user_agent::normalize_user_agent(event);
+            #[cfg(feature = "uaparser")]
+            user_agent::normalize_user_agent(_event);
+
+            #[cfg(not(feature = "uaparser"))]
+            panic!("semaphore not built with uaparser feature");
         }
     }
 }
