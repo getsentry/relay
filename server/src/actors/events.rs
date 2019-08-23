@@ -11,6 +11,7 @@ use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 
 use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
+use semaphore_general::datascrubbing;
 use semaphore_general::filter::{should_filter, FilterStatKey};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
@@ -123,6 +124,13 @@ impl EventProcessor {
             let mut processor = PiiProcessor::new(pii_config);
             process_value(&mut event, &mut processor, ProcessingState::root());
         };
+
+        if let Some(ref pii_config) =
+            datascrubbing::to_pii_config(&message.project_state.config.datascrubbing_settings)
+        {
+            let mut processor = PiiProcessor::new(pii_config);
+            process_value(&mut event, &mut processor, ProcessingState::root());
+        }
 
         if self.config.processing_enabled() {
             let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);

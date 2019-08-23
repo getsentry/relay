@@ -51,8 +51,15 @@ impl<'de> Deserialize<'de> for Pattern {
     }
 }
 
+impl PartialEq for Pattern {
+    fn eq(&self, other: &Pattern) -> bool {
+        // unclear if we could derive Eq as well, but better not. We don't need it.
+        self.0.as_str() == other.0.as_str()
+    }
+}
+
 /// A rule that matches a regex pattern.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PatternRule {
     /// The regular expression to apply.
@@ -62,7 +69,7 @@ pub struct PatternRule {
 }
 
 /// A rule that dispatches to multiple other rules.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MultipleRule {
     /// A reference to other rules to apply
@@ -73,7 +80,7 @@ pub struct MultipleRule {
 }
 
 /// An alias for another rule.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AliasRule {
     /// A reference to another rule to apply.
@@ -84,7 +91,7 @@ pub struct AliasRule {
 }
 
 /// A pair redaction rule.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactPairRule {
     /// A pattern to match for keys.
@@ -92,7 +99,7 @@ pub struct RedactPairRule {
 }
 
 /// Supported stripping rules.
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuleType {
     /// Never matches
@@ -183,7 +190,7 @@ impl Default for RuleType {
 }
 
 /// A single rule configuration.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RuleSpec {
     #[serde(flatten)]
     pub ty: RuleType,
@@ -201,7 +208,7 @@ impl Default for RuleSpec {
 }
 
 /// Configuration for rule parameters.
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Vars {
     /// The default secret key for hashing operations.
@@ -210,7 +217,7 @@ pub struct Vars {
 }
 
 /// A set of named rule configurations.
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct PiiConfig {
     /// A map of custom PII rules.
     #[serde(default)]

@@ -75,12 +75,22 @@ mod tests {
     use crate::datascrubbing::DataScrubbingConfig;
     /// These tests are ported from Sentry's Python testsuite (test_data_scrubber). Each testcase
     /// has an equivalent testcase in Python.
-    use crate::pii::PiiProcessor;
+    use crate::pii::{PiiConfig, PiiProcessor};
     use crate::processor::{process_value, ProcessingState};
     use crate::protocol::Event;
     use crate::types::FromValue;
 
-    use super::*;
+    use super::to_pii_config as to_pii_config_impl;
+
+    fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
+        let rv = to_pii_config_impl(datascrubbing_config);
+        if let Some(ref config) = rv {
+            let roundtrip: PiiConfig =
+                serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+            assert_eq_dbg!(&roundtrip, config);
+        }
+        rv
+    }
 
     lazy_static::lazy_static! {
         static ref SENSITIVE_VARS: serde_json::Value = serde_json::json!({
