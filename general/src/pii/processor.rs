@@ -15,7 +15,7 @@ use crate::processor::{
     process_chunked_value, Chunk, ProcessValue, ProcessingState, Processor, SelectorSpec,
 };
 use crate::protocol::{AsPair, PairList};
-use crate::types::{Meta, Object, Remark, RemarkType, ValueAction};
+use crate::types::{Meta, Remark, RemarkType, ValueAction};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
@@ -224,7 +224,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         state: &ProcessingState<'_>,
     ) -> ValueAction {
         for rule in self.iter_rules(state) {
-            match apply_rule_to_value(meta, rule, None) {
+            match apply_rule_to_value(meta, rule, state.path().key()) {
                 ValueAction::Keep => continue,
                 other => return other,
             }
@@ -249,28 +249,6 @@ impl<'a> Processor for PiiProcessor<'a> {
                 chunks
             });
         }
-        ValueAction::Keep
-    }
-
-    fn process_object<T: ProcessValue>(
-        &mut self,
-        value: &mut Object<T>,
-        _meta: &mut Meta,
-        state: &ProcessingState,
-    ) -> ValueAction {
-        let mut rules = self.iter_rules(state).peekable();
-
-        if rules.peek().is_some() {
-            let rules: SmallVec<[RuleRef; 16]> = rules.collect();
-            for (key, annotated) in value.iter_mut() {
-                for rule in &rules {
-                    annotated
-                        .apply(|_value, meta| apply_rule_to_value(meta, *rule, Some(key.as_str())));
-                }
-            }
-        }
-
-        value.process_child_values(self, state);
         ValueAction::Keep
     }
 
@@ -599,7 +577,7 @@ fn hash_value(
 use {
     crate::processor::process_value,
     crate::protocol::{Event, ExtraValue, Headers, LogEntry, Request},
-    crate::types::{Annotated, Value},
+    crate::types::{Annotated, Object, Value},
 };
 
 #[test]
@@ -616,7 +594,7 @@ fn test_basic_stripping() {
             },
             "applications": {
                 "$string": ["@ip"],
-                "$object": ["remove_bad_headers"]
+                "$object.**": ["remove_bad_headers"]
             }
         }
     "##,

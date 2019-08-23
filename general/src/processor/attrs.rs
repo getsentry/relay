@@ -473,6 +473,18 @@ impl<'a> ProcessingState<'a> {
             true
         }
     }
+
+    /// Returns the last path item if there is one. Skips over "dummy" path segments that exist
+    /// because of newtypes.
+    #[inline]
+    fn path_item(&self) -> Option<&PathItem<'_>> {
+        for state in self.iter() {
+            if let Some(ref path_item) = state.path_item {
+                return Some(path_item);
+            }
+        }
+        None
+    }
 }
 
 pub struct ProcessingStateIter<'a> {
@@ -510,13 +522,13 @@ impl<'a> Path<'a> {
     /// Returns the current key if there is one
     #[inline]
     pub fn key(&self) -> Option<&str> {
-        self.0.path_item.as_ref().and_then(PathItem::key)
+        PathItem::key(self.0.path_item()?)
     }
 
     /// Returns the current index if there is one
     #[inline]
     pub fn index(&self) -> Option<usize> {
-        self.0.path_item.as_ref().and_then(PathItem::index)
+        PathItem::index(self.0.path_item()?)
     }
 
     /// Checks if a path matches given selector.

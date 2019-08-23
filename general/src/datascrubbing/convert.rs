@@ -2356,5 +2356,51 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         "###);
     }
 
+    #[test]
+    fn test_exclude_fields_on_field_value() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {"foobar": "123-45-6789"}
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            exclude_fields: vec!["foobar".to_owned()],
+            ..Default::default()
+        });
+
+        insta::assert_json_snapshot_matches!(pii_config, @r###"
+       ⋮{
+       ⋮  "rules": {},
+       ⋮  "vars": {
+       ⋮    "hashKey": null
+       ⋮  },
+       ⋮  "applications": {
+       ⋮    "($string&~foobar)": [
+       ⋮      "@common"
+       ⋮    ],
+       ⋮    "($object&~foobar)": [
+       ⋮      "@common"
+       ⋮    ]
+       ⋮  }
+       ⋮}
+        "###);
+
+        let pii_config = pii_config.unwrap();
+
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
+       ⋮{
+       ⋮  "extra": {
+       ⋮    "foobar": "123-45-6789"
+       ⋮  }
+       ⋮}
+        "###);
+    }
+
     // TODO(markus): Port more tests
 }
