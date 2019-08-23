@@ -12,7 +12,7 @@ use smallvec::SmallVec;
 use crate::pii::config::RuleRef;
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, Chunk, ProcessValue, ProcessingState, Processor, SelectorSpec,
+    process_chunked_value, Chunk, ProcessValue, ProcessingState, Processor, SelectorSpec, ValueType,
 };
 use crate::protocol::{AsPair, PairList};
 use crate::types::{Meta, Remark, RemarkType, ValueAction};
@@ -223,6 +223,12 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
+        // booleans cannot be PII, and strings are handled in process_string
+        if let Some(ValueType::Boolean) | Some(ValueType::String) = state.value_type() {
+            return ValueAction::Keep;
+        }
+
+        // apply rules based on key/path
         for rule in self.iter_rules(state) {
             match apply_rule_to_value(meta, rule, state.path().key()) {
                 ValueAction::Keep => continue,
@@ -238,10 +244,24 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
+        if let "true" | "false" | "null" | "undefined" = value.as_str() {
+            return ValueAction::Keep;
+        }
+
         let mut rules = self.iter_rules(state).peekable();
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
 
+            // same as before_process. duplicated here because we can only check for "true",
+            // "false" etc in process_string.
+            for rule in &rules {
+                match apply_rule_to_value(meta, *rule, state.path().key()) {
+                    ValueAction::Keep => continue,
+                    other => return other,
+                }
+            }
+
+            // apply rules based on value (basically all the regexes)
             process_chunked_value(value, meta, |mut chunks| {
                 for rule in &rules {
                     chunks = apply_rule_to_chunks(chunks, *rule);
@@ -260,6 +280,8 @@ impl<'a> Processor for PiiProcessor<'a> {
     ) -> ValueAction {
         // TODO: modify processvalue of pairlist to emit `tags.mytag` instead of `tags.0.1`. Then
         // this thing would not be necessary.
+        //
+        // Right now this probably processes the pairlist twice too
         let mut rules = self.iter_rules(state).peekable();
 
         if rules.peek().is_some() {

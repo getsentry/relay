@@ -40,6 +40,10 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
 
     if datascrubbing_config.scrub_data {
         for field in &datascrubbing_config.sensitive_fields {
+            if field.is_empty() {
+                continue;
+            }
+
             applications.insert(
                 with_exclude_fields(SelectorSpec::Path(vec![SelectorPathItem::ContainsKey(
                     field.clone(),
@@ -2402,5 +2406,323 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         "###);
     }
 
+    #[test]
+    fn test_empty_field() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {"foobar": "xxx"}
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["".to_owned()],
+            ..Default::default()
+        });
+
+        insta::assert_json_snapshot_matches!(pii_config, @r###"
+       ⋮{
+       ⋮  "rules": {},
+       ⋮  "vars": {
+       ⋮    "hashKey": null
+       ⋮  },
+       ⋮  "applications": {
+       ⋮    "$string": [
+       ⋮      "@common"
+       ⋮    ],
+       ⋮    "$object": [
+       ⋮      "@common"
+       ⋮    ]
+       ⋮  }
+       ⋮}
+        "###);
+
+        let pii_config = pii_config.unwrap();
+
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
+       ⋮{
+       ⋮  "extra": {
+       ⋮    "foobar": "xxx"
+       ⋮  }
+       ⋮}
+        "###);
+    }
+
+    #[test]
+    fn test_should_have_mysql_pwd_as_a_default() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "MYSQL_PWD": "the one",
+                    "mysql_pwd": "the two",
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["".to_owned()],
+            ..Default::default()
+        });
+
+        insta::assert_json_snapshot_matches!(pii_config, @r###"
+       ⋮{
+       ⋮  "rules": {},
+       ⋮  "vars": {
+       ⋮    "hashKey": null
+       ⋮  },
+       ⋮  "applications": {
+       ⋮    "$string": [
+       ⋮      "@common"
+       ⋮    ],
+       ⋮    "$object": [
+       ⋮      "@common"
+       ⋮    ]
+       ⋮  }
+       ⋮}
+        "###);
+
+        let pii_config = pii_config.unwrap();
+
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
+       ⋮{
+       ⋮  "extra": {
+       ⋮    "MYSQL_PWD": null,
+       ⋮    "mysql_pwd": null
+       ⋮  },
+       ⋮  "_meta": {
+       ⋮    "extra": {
+       ⋮      "MYSQL_PWD": {
+       ⋮        "": {
+       ⋮          "rem": [
+       ⋮            [
+       ⋮              "@password",
+       ⋮              "x"
+       ⋮            ]
+       ⋮          ]
+       ⋮        }
+       ⋮      },
+       ⋮      "mysql_pwd": {
+       ⋮        "": {
+       ⋮          "rem": [
+       ⋮            [
+       ⋮              "@password",
+       ⋮              "x"
+       ⋮            ]
+       ⋮          ]
+       ⋮        }
+       ⋮      }
+       ⋮    }
+       ⋮  }
+       ⋮}
+        "###);
+    }
+
+    #[test]
+    fn test_authorization_scrubbing() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "authorization": "foobar",
+                    "auth": "foobar",
+                    "auXth": "foobar",
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["".to_owned()],
+            ..Default::default()
+        });
+
+        insta::assert_json_snapshot_matches!(pii_config, @r###"
+       ⋮{
+       ⋮  "rules": {},
+       ⋮  "vars": {
+       ⋮    "hashKey": null
+       ⋮  },
+       ⋮  "applications": {
+       ⋮    "$string": [
+       ⋮      "@common"
+       ⋮    ],
+       ⋮    "$object": [
+       ⋮      "@common"
+       ⋮    ]
+       ⋮  }
+       ⋮}
+        "###);
+
+        let pii_config = pii_config.unwrap();
+
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
+       ⋮{
+       ⋮  "extra": {
+       ⋮    "auXth": "foobar",
+       ⋮    "auth": null,
+       ⋮    "authorization": null
+       ⋮  },
+       ⋮  "_meta": {
+       ⋮    "extra": {
+       ⋮      "auth": {
+       ⋮        "": {
+       ⋮          "rem": [
+       ⋮            [
+       ⋮              "@password",
+       ⋮              "x"
+       ⋮            ]
+       ⋮          ]
+       ⋮        }
+       ⋮      },
+       ⋮      "authorization": {
+       ⋮        "": {
+       ⋮          "rem": [
+       ⋮            [
+       ⋮              "@password",
+       ⋮              "x"
+       ⋮            ]
+       ⋮          ]
+       ⋮        }
+       ⋮      }
+       ⋮    }
+       ⋮  }
+       ⋮}
+        "###);
+    }
+
+    #[test]
+    fn test_doesnt_scrub_not_scrubbed() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "test1": {
+                        "is_authenticated": "foobar",
+                    },
+
+                    "test2": {
+                        "is_authenticated": "null",
+                    },
+
+                    "test3": {
+                        "is_authenticated": true,
+                    },
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["".to_owned()],
+            ..Default::default()
+        });
+
+        insta::assert_json_snapshot_matches!(pii_config, @r###"
+       ⋮{
+       ⋮  "rules": {},
+       ⋮  "vars": {
+       ⋮    "hashKey": null
+       ⋮  },
+       ⋮  "applications": {
+       ⋮    "$string": [
+       ⋮      "@common"
+       ⋮    ],
+       ⋮    "$object": [
+       ⋮      "@common"
+       ⋮    ]
+       ⋮  }
+       ⋮}
+        "###);
+
+        let pii_config = pii_config.unwrap();
+
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
+       ⋮{
+       ⋮  "extra": {
+       ⋮    "test1": {
+       ⋮      "is_authenticated": null
+       ⋮    },
+       ⋮    "test2": {
+       ⋮      "is_authenticated": "null"
+       ⋮    },
+       ⋮    "test3": {
+       ⋮      "is_authenticated": true
+       ⋮    }
+       ⋮  },
+       ⋮  "_meta": {
+       ⋮    "extra": {
+       ⋮      "test1": {
+       ⋮        "is_authenticated": {
+       ⋮          "": {
+       ⋮            "rem": [
+       ⋮              [
+       ⋮                "@password",
+       ⋮                "x"
+       ⋮              ]
+       ⋮            ]
+       ⋮          }
+       ⋮        }
+       ⋮      }
+       ⋮    }
+       ⋮  }
+       ⋮}
+        "###);
+    }
+
+    #[test]
+    fn test_csp_blocked_uri() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "csp": {"blocked_uri": "https://example.com/?foo=4571234567890111&bar=baz"}
+            })
+            .into(),
+        );
+
+        let pii_config = get_default_pii_config();
+
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
+       ⋮{
+       ⋮  "csp": {
+       ⋮    "blocked_uri": "https://example.com/?foo=[creditcard]&bar=baz"
+       ⋮  },
+       ⋮  "_meta": {
+       ⋮    "csp": {
+       ⋮      "blocked_uri": {
+       ⋮        "": {
+       ⋮          "rem": [
+       ⋮            [
+       ⋮              "@creditcard:replace",
+       ⋮              "s",
+       ⋮              25,
+       ⋮              37
+       ⋮            ]
+       ⋮          ],
+       ⋮          "len": 49
+       ⋮        }
+       ⋮      }
+       ⋮    }
+       ⋮  }
+       ⋮}
+        "###);
+    }
     // TODO(markus): Port more tests
 }
