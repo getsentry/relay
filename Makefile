@@ -67,6 +67,10 @@ test-integration: build setup-venv
 	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
 
+test-integration-relay:
+	echo yo
+.PHONY: test-integration-relay
+
 test-coverage: setup
 	@cargo tarpaulin -v --all --out Xml
 	@bash <(curl -s https://codecov.io/bash)
