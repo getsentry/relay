@@ -46,4 +46,5 @@ pub mod events;
 pub mod keys;
 pub mod project;
 pub mod server;
+pub mod store;
 pub mod upstream;

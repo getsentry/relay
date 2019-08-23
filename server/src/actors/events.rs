@@ -24,6 +24,7 @@ use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
     ProjectState, RetryAfter,
 };
+use crate::actors::store::{StoreError, StoreEvent, StoreForwarder};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
 use crate::utils::{One, SyncActorFuture, SyncHandle};
@@ -79,6 +80,9 @@ enum ProcessingError {
 
     #[fail(display = "could not send event to upstream")]
     SendFailed(#[cause] UpstreamRequestError),
+
+    #[fail(display = "could not store event")]
+    StoreFailed(#[cause] StoreError),
 
     #[fail(display = "sending failed due to rate limit ({}s)", _0)]
     RateLimited(u64),
@@ -243,6 +247,7 @@ pub struct EventManager {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     processor: Addr<EventProcessor>,
+    store_forwarder: Option<Addr<StoreForwarder>>,
     current_active_events: u32,
     shutdown: SyncHandle,
 }
@@ -266,10 +271,17 @@ impl EventManager {
             }),
         );
 
+        let store_forwarder = if config.processing_enabled() {
+            Some(StoreForwarder::new(config.clone()).start())
+        } else {
+            None
+        };
+
         EventManager {
             config,
             upstream,
             processor,
+            store_forwarder,
             current_active_events: 0,
             shutdown: SyncHandle::new(),
         }
@@ -384,6 +396,7 @@ impl Handler<HandleEvent> for EventManager {
         let start_time = Instant::now();
 
         let upstream = self.upstream.clone();
+        let store_forwarder = self.store_forwarder.clone();
         let processor = self.processor.clone();
         let log_failed_payloads = self.config.log_failed_payloads();
 
@@ -431,34 +444,49 @@ impl Handler<HandleEvent> for EventManager {
                     })
                     .and_then(move |processed| {
                         log::trace!("sending event {}", event_id);
-                        let request = SendRequest::post(format!("/api/{}/store/", project_id))
-                            .build(move |builder| {
-                                if let Some(origin) = meta.origin() {
-                                    builder.header("Origin", origin.to_string());
-                                }
 
-                                builder
-                                    .header("X-Sentry-Auth", meta.auth().to_string())
-                                    .header("X-Forwarded-For", meta.forwarded_for())
-                                    .header("Content-Type", "application/json")
-                                    .body(processed)
-                            });
-
-                        upstream
-                            .send(request)
-                            .map_err(ProcessingError::ScheduleFailed)
-                            .and_then(move |result| {
-                                result.map_err(move |error| match error {
-                                    UpstreamRequestError::RateLimited(secs) => {
-                                        project.do_send(RetryAfter { secs });
-                                        ProcessingError::RateLimited(secs)
+                        if let Some(store_forwarder) = store_forwarder {
+                            let request = StoreEvent {
+                                payload: processed,
+                                event_id,
+                            };
+                            let future = store_forwarder
+                                .send(request)
+                                .map_err(ProcessingError::ScheduleFailed)
+                                .and_then(move |result| {
+                                    result.map_err(move |error| ProcessingError::StoreFailed(error))
+                                });
+                            Box::new(future) as ResponseFuture<_, _>
+                        } else {
+                            let request = SendRequest::post(format!("/api/{}/store/", project_id))
+                                .build(move |builder| {
+                                    if let Some(origin) = meta.origin() {
+                                        builder.header("Origin", origin.to_string());
                                     }
-                                    other => ProcessingError::SendFailed(other),
+
+                                    builder
+                                        .header("X-Sentry-Auth", meta.auth().to_string())
+                                        .header("X-Forwarded-For", meta.forwarded_for())
+                                        .header("Content-Type", "application/json")
+                                        .body(processed)
+                                });
+                            let future = upstream
+                                .send(request)
+                                .map_err(ProcessingError::ScheduleFailed)
+                                .and_then(move |result| {
+                                    result.map_err(move |error| match error {
+                                        UpstreamRequestError::RateLimited(secs) => {
+                                            project.do_send(RetryAfter { secs });
+                                            ProcessingError::RateLimited(secs)
+                                        }
+                                        other => ProcessingError::SendFailed(other),
+                                    })
                                 })
-                            })
-                            .inspect(move |_| {
-                                metric!(timer("event.total_time") = start_time.elapsed())
-                            })
+                                .inspect(move |_| {
+                                    metric!(timer("event.total_time") = start_time.elapsed())
+                                });
+                            Box::new(future) as ResponseFuture<_, _>
+                        }
                     })
             })
             .into_actor(self)

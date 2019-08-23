@@ -18,7 +18,7 @@ with_ssl = ["native-tls", "actix-web/tls"]
 actix = "0.7.9"
 actix-web = { version = "0.7.19", default-features = false, features = ["brotli", "flate2-c"] }
 base64 = "0.10.1"
-bytes = "0.4.12"
+bytes = { version = "0.4.12", features = ["serde"] }
 chrono = { version = "0.4.7", features = ["serde"] }
 clap = "2.33.0"
 failure = "0.1.5"
@@ -38,6 +38,8 @@ serde_json = "1.0.40"
 tokio-timer = "0.2.11"
 url = "2.0.0"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
+rdkafka = "0.21.0"
+rmp-serde = "0.13.7"
 
 [dependencies.semaphore-common]
 path = "../common"
