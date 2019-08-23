@@ -78,32 +78,19 @@ matrix:
       os: linux
       # https://github.com/travis-ci/travis-ci/issues/9831
       sudo: true
+      env:
+        - KAFKA_BOOTSTRAP_SERVER="localhost:9092"
       install:
         - export PATH=$PATH:$HOME/.cargo/bin
         - wget https://github.com/yyyar/gobetween/releases/download/0.6.0/gobetween_0.6.0_linux_amd64.tar.gz -O - | tar xz; mv gobetween $HOME/.cargo/bin
         - sudo add-apt-repository ppa:vbernat/haproxy-1.8 -y
         - sudo apt-get update
         - sudo apt-get install haproxy -y
+        # Start Zookeeper and Kafka
+        - docker run -d --network host --name zookeeper -e ZOOKEEPER_CLIENT_PORT=2181 confluentinc/cp-zookeeper:4.1.2-3
+        - docker run -d --network host --name kafka -e KAFKA_ZOOKEEPER_CONNECT=localhost:2181 -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$KAFKA_BOOTSTRAP_SERVER -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 confluentinc/cp-kafka:4.1.2-3
       script:
         - make -e test-integration
-
-    - name: "integration-test: relay-store"
-      os: linux
-      sudo: true
-      env:
-        - KAFKA_BOOTSTRAP_SERVER="localhost:9092"
-        - TEST_TOPIC=test-topic
-      before_install:
-        - docker run -d --network host --name zookeeper -e ZOOKEEPER_CLIENT_PORT=2181 confluentinc/cp-zookeeper:4.1.0
-        - docker run -d --network host --name kafka -e KAFKA_ZOOKEEPER_CONNECT=localhost:2181 -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$KAFKA_BOOTSTRAP_SERVER -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 confluentinc/cp-kafka:4.1.0
-      script:
-        - sleep 5
-        - docker ps
-        # Test produce
-        - echo test-message | docker run --network=host -i confluentinc/cp-kafka:4.1.0 kafka-console-producer --broker-list $KAFKA_BOOTSTRAP_SERVER --topic $TEST_TOPIC
-        # Test consume
-        - docker run --network=host -it confluentinc/cp-kafka:4.1.0 kafka-console-consumer --bootstrap-server $KAFKA_BOOTSTRAP_SERVER --topic $TEST_TOPIC --timeout-ms 5000 --from-beginning
-        - make -e test-integration-relay
 
     # -------------------------------------
     # RUST RELEASE BUILDS
