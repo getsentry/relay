@@ -596,6 +596,7 @@ impl<'a> fmt::Display for Path<'a> {
     }
 }
 
+#[allow(clippy::cognitive_complexity)]
 #[test]
 fn test_path_matching() {
     let event_state = ProcessingState::new_root(None, Some(ValueType::Event)); // .
