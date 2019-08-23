@@ -586,7 +586,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
        ⋮{
        ⋮  "user": {
-       ⋮    "username": "",
+       ⋮    "username": "secret",
        ⋮    "data": {
        ⋮      "a_password_here": null,
        ⋮      "apiKey": null,
@@ -648,19 +648,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮              ]
        ⋮            ]
        ⋮          }
-       ⋮        }
-       ⋮      },
-       ⋮      "username": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x",
-       ⋮              0,
-       ⋮              0
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 6
        ⋮        }
        ⋮      }
        ⋮    }

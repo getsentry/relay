@@ -57,12 +57,12 @@ pub struct Frame {
     pub package: Annotated<String>,
 
     /// The source file name (basename only).
-    #[metastructure(pii = "true", max_chars = "path")]
+    #[metastructure(max_chars = "path")]
     #[metastructure(skip_serialization = "empty")]
     pub filename: Annotated<String>,
 
     /// Absolute path to the source file.
-    #[metastructure(pii = "true", max_chars = "path")]
+    #[metastructure(max_chars = "path")]
     #[metastructure(skip_serialization = "empty")]
     pub abs_path: Annotated<String>,
 
@@ -92,7 +92,7 @@ pub struct Frame {
 
     /// Local variables in a convenient format.
     // XXX: Probably want to trim per-var => new bag size?
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(bag_size = "medium")]
     pub vars: Annotated<FrameVars>,
 
     /// Auxiliary information about the frame that is platform specific.

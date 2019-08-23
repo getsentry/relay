@@ -160,7 +160,7 @@ pub struct EventProcessingError {
     pub value: Annotated<Value>,
 
     /// Additional data explaining this error.
-    #[metastructure(additional_properties, pii = "true")]
+    #[metastructure(additional_properties)]
     pub other: Object<Value>,
 }
 
@@ -239,7 +239,7 @@ pub struct Event {
     pub received: Annotated<DateTime<Utc>>,
 
     /// Server or device name the event was generated on.
-    #[metastructure(pii = "true", max_chars = "symbol")]
+    #[metastructure(max_chars = "symbol")]
     pub server_name: Annotated<String>,
 
     /// Program's release identifier.
@@ -369,7 +369,7 @@ pub struct Event {
     pub spans: Annotated<Array<Span>>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, pii = "true")]
+    #[metastructure(additional_properties)]
     pub other: Object<Value>,
 }
 

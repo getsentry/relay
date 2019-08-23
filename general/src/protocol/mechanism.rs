@@ -83,7 +83,7 @@ pub struct Mechanism {
     pub synthetic: Annotated<bool>,
 
     /// Human readable detail description.
-    #[metastructure(pii = "true", max_chars = "message")]
+    #[metastructure(max_chars = "message")]
     pub description: Annotated<String>,
 
     /// Link to online resources describing this error.
@@ -94,7 +94,7 @@ pub struct Mechanism {
     pub handled: Annotated<bool>,
 
     /// Additional attributes depending on the mechanism type.
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,
 
