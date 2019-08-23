@@ -12,7 +12,7 @@ use smallvec::SmallVec;
 use crate::pii::config::RuleRef;
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, Chunk, ProcessValue, ProcessingState, Processor, SelectorSpec, ValueType,
+    process_chunked_value, process_value, Chunk, ProcessValue, ProcessingState, Processor, SelectorSpec, ValueType,
 };
 use crate::protocol::{AsPair, PairList};
 use crate::types::{Meta, Remark, RemarkType, ValueAction};
@@ -278,20 +278,23 @@ impl<'a> Processor for PiiProcessor<'a> {
         _meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
-        // TODO: modify processvalue of pairlist to emit `tags.mytag` instead of `tags.0.1`. Then
-        // this thing would not be necessary.
+        // View pairlists as objects just for the purpose of PII stripping (e.g. `event.tags.mykey`
+        // instead of `event.tags.42.0`). For other purposes such as trimming we would run into
+        // problems:
         //
-        // Right now this probably processes the pairlist twice too
-        let mut rules = self.iter_rules(state).peekable();
+        // * tag keys need to be trimmed too and therefore need to have a path
+        // * the PII processor processes every PairList value twice, with both the index-based path
+        //   and the "nicer" key-based one. This would be impossible to do for all processors due to
+        //   perf.
 
-        if rules.peek().is_some() {
-            let rules: SmallVec<[RuleRef; 16]> = rules.collect();
-            for annotated in value.iter_mut() {
-                for rule in &rules {
-                    if let Some(ref mut pair) = annotated.value_mut() {
-                        let (ref mut key, ref mut value) = pair.as_pair_mut();
-                        value.apply(|_value, meta| apply_rule_to_value(meta, *rule, key.as_str()));
-                    }
+        for annotated in value.iter_mut() {
+            if let Some(ref mut pair) = annotated.value_mut() {
+                let (ref mut key, ref mut value) = pair.as_pair_mut();
+                if let Some(ref key_name) = key.as_str() {
+                    // if the pair has no key name, we skip over it for PII stripping. It is
+                    // still processed with index-based path in the invocation of
+                    // `process_child_values`.
+                    process_value(value, self, &state.enter_borrowed(key_name, state.inner_attrs(), ValueType::for_field(value)));
                 }
             }
         }
@@ -597,7 +600,6 @@ fn hash_value(
 
 #[cfg(test)]
 use {
-    crate::processor::process_value,
     crate::protocol::{Event, ExtraValue, Headers, LogEntry, Request},
     crate::types::{Annotated, Object, Value},
 };
