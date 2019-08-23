@@ -1,65 +1,68 @@
 use std::collections::BTreeMap;
 
+use itertools::Itertools;
+use regex::RegexBuilder;
+
 use crate::datascrubbing::DataScrubbingConfig;
-use crate::pii::PiiConfig;
-use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
+use crate::pii::{Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType};
+use crate::processor::{SelectorPathItem, SelectorSpec};
 
 pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
-    let mut contains_rules = false;
-    let mut default_rules = Vec::new();
+    let mut custom_rules = BTreeMap::new();
+    let mut applied_rules = Vec::new();
 
     if datascrubbing_config.scrub_data && datascrubbing_config.scrub_defaults {
-        default_rules.push("@common".to_owned());
-        contains_rules = true;
+        applied_rules.push("@common".to_owned());
     } else if datascrubbing_config.scrub_ip_addresses {
-        default_rules.push("@ip".to_owned());
-        contains_rules = true;
+        applied_rules.push("@ip".to_owned());
     }
 
-    let exclude_fields = &datascrubbing_config.exclude_fields;
+    if datascrubbing_config.scrub_data && !datascrubbing_config.sensitive_fields.is_empty() {
+        custom_rules.insert(
+            "strip-fields".to_owned(),
+            RuleSpec {
+                ty: RuleType::RedactPair(RedactPairRule {
+                    key_pattern: Pattern(
+                        RegexBuilder::new(&format!(
+                            r"\A{}\z",
+                            datascrubbing_config
+                                .sensitive_fields
+                                .iter()
+                                .map(|x| regex::escape(&x))
+                                .join("|")
+                        ))
+                        .case_insensitive(true)
+                        .build()
+                        .unwrap(),
+                    ),
+                }),
+                redaction: Redaction::Remove,
+            },
+        );
 
-    let with_exclude_fields = |mut selector: SelectorSpec| {
-        for field in exclude_fields {
-            selector = SelectorSpec::And(
-                Box::new(selector),
-                Box::new(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
-                    SelectorPathItem::Key(field.clone()),
-                ])))),
-            );
-        }
-
-        selector
-    };
-
-    let mut applications = BTreeMap::new();
-    applications.insert(
-        with_exclude_fields(ValueType::String.into()),
-        default_rules.clone(),
-    );
-    applications.insert(with_exclude_fields(ValueType::Object.into()), default_rules);
-
-    if datascrubbing_config.scrub_data {
-        for field in &datascrubbing_config.sensitive_fields {
-            if field.is_empty() {
-                continue;
-            }
-
-            applications.insert(
-                with_exclude_fields(SelectorSpec::Path(vec![SelectorPathItem::ContainsKey(
-                    field.clone(),
-                )])),
-                vec!["@anything:remove".to_owned()],
-            );
-            contains_rules = true;
-        }
+        applied_rules.push("strip-fields".to_owned());
     }
 
-    if !contains_rules {
+    if applied_rules.is_empty() {
         return None;
     }
 
+    let mut selector = SelectorSpec::Path(vec![SelectorPathItem::DeepWildcard]);
+
+    for field in &datascrubbing_config.exclude_fields {
+        selector = SelectorSpec::And(
+            Box::new(selector),
+            Box::new(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
+                SelectorPathItem::Key(field.clone()),
+            ])))),
+        );
+    }
+
+    let mut applications = BTreeMap::new();
+    applications.insert(selector, applied_rules.clone());
+
     Some(PiiConfig {
-        rules: Default::default(),
+        rules: custom_rules,
         vars: Default::default(),
         applications,
     })
@@ -124,10 +127,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
-       ⋮    "$string": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "$object": [
+       ⋮    "**": [
        ⋮      "@common"
        ⋮    ]
        ⋮  }
@@ -1178,22 +1178,22 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
        ⋮{
-       ⋮  "rules": {},
+       ⋮  "rules": {
+       ⋮    "strip-fields": {
+       ⋮      "type": "redact_pair",
+       ⋮      "keyPattern": "\\Afieldy_field|moar_other_field\\z",
+       ⋮      "redaction": {
+       ⋮        "method": "remove"
+       ⋮      }
+       ⋮    }
+       ⋮  },
        ⋮  "vars": {
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
-       ⋮    "$string": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "$object": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "*fieldy_field*": [
-       ⋮      "@anything:remove"
-       ⋮    ],
-       ⋮    "*moar_other_field*": [
-       ⋮      "@anything:remove"
+       ⋮    "**": [
+       ⋮      "@common",
+       ⋮      "strip-fields"
        ⋮    ]
        ⋮  }
        ⋮}
@@ -1253,7 +1253,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮        "": {
        ⋮          "rem": [
        ⋮            [
-       ⋮              "@anything:remove",
+       ⋮              "strip-fields",
        ⋮              "x"
        ⋮            ]
        ⋮          ]
@@ -1263,7 +1263,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮        "": {
        ⋮          "rem": [
        ⋮            [
-       ⋮              "@anything:remove",
+       ⋮              "strip-fields",
        ⋮              "x"
        ⋮            ]
        ⋮          ]
@@ -2250,19 +2250,22 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
        ⋮{
-       ⋮  "rules": {},
+       ⋮  "rules": {
+       ⋮    "strip-fields": {
+       ⋮      "type": "redact_pair",
+       ⋮      "keyPattern": "\\Amystuff\\z",
+       ⋮      "redaction": {
+       ⋮        "method": "remove"
+       ⋮      }
+       ⋮    }
+       ⋮  },
        ⋮  "vars": {
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
-       ⋮    "$string": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "$object": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "*mystuff*": [
-       ⋮      "@anything:remove"
+       ⋮    "**": [
+       ⋮      "@common",
+       ⋮      "strip-fields"
        ⋮    ]
        ⋮  }
        ⋮}
@@ -2285,7 +2288,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮        "": {
        ⋮          "rem": [
        ⋮            [
-       ⋮              "@anything:remove",
+       ⋮              "strip-fields",
        ⋮              "x"
        ⋮            ]
        ⋮          ]
@@ -2313,19 +2316,22 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
        ⋮{
-       ⋮  "rules": {},
+       ⋮  "rules": {
+       ⋮    "strip-fields": {
+       ⋮      "type": "redact_pair",
+       ⋮      "keyPattern": "\\AmyStuff\\z",
+       ⋮      "redaction": {
+       ⋮        "method": "remove"
+       ⋮      }
+       ⋮    }
+       ⋮  },
        ⋮  "vars": {
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
-       ⋮    "$string": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "$object": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "*myStuff*": [
-       ⋮      "@anything:remove"
+       ⋮    "**": [
+       ⋮      "@common",
+       ⋮      "strip-fields"
        ⋮    ]
        ⋮  }
        ⋮}
@@ -2348,7 +2354,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮        "": {
        ⋮          "rem": [
        ⋮            [
-       ⋮              "@anything:remove",
+       ⋮              "strip-fields",
        ⋮              "x"
        ⋮            ]
        ⋮          ]
@@ -2381,10 +2387,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
-       ⋮    "($string&~foobar)": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "($object&~foobar)": [
+       ⋮    "(**&~foobar)": [
        ⋮      "@common"
        ⋮    ]
        ⋮  }
@@ -2422,16 +2425,22 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
        ⋮{
-       ⋮  "rules": {},
+       ⋮  "rules": {
+       ⋮    "strip-fields": {
+       ⋮      "type": "redact_pair",
+       ⋮      "keyPattern": "\\A\\z",
+       ⋮      "redaction": {
+       ⋮        "method": "remove"
+       ⋮      }
+       ⋮    }
+       ⋮  },
        ⋮  "vars": {
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
-       ⋮    "$string": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "$object": [
-       ⋮      "@common"
+       ⋮    "**": [
+       ⋮      "@common",
+       ⋮      "strip-fields"
        ⋮    ]
        ⋮  }
        ⋮}
@@ -2471,16 +2480,22 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
        ⋮{
-       ⋮  "rules": {},
+       ⋮  "rules": {
+       ⋮    "strip-fields": {
+       ⋮      "type": "redact_pair",
+       ⋮      "keyPattern": "\\A\\z",
+       ⋮      "redaction": {
+       ⋮        "method": "remove"
+       ⋮      }
+       ⋮    }
+       ⋮  },
        ⋮  "vars": {
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
-       ⋮    "$string": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "$object": [
-       ⋮      "@common"
+       ⋮    "**": [
+       ⋮      "@common",
+       ⋮      "strip-fields"
        ⋮    ]
        ⋮  }
        ⋮}
@@ -2546,16 +2561,22 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
        ⋮{
-       ⋮  "rules": {},
+       ⋮  "rules": {
+       ⋮    "strip-fields": {
+       ⋮      "type": "redact_pair",
+       ⋮      "keyPattern": "\\A\\z",
+       ⋮      "redaction": {
+       ⋮        "method": "remove"
+       ⋮      }
+       ⋮    }
+       ⋮  },
        ⋮  "vars": {
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
-       ⋮    "$string": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "$object": [
-       ⋮      "@common"
+       ⋮    "**": [
+       ⋮      "@common",
+       ⋮      "strip-fields"
        ⋮    ]
        ⋮  }
        ⋮}
@@ -2630,16 +2651,22 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
        ⋮{
-       ⋮  "rules": {},
+       ⋮  "rules": {
+       ⋮    "strip-fields": {
+       ⋮      "type": "redact_pair",
+       ⋮      "keyPattern": "\\A\\z",
+       ⋮      "redaction": {
+       ⋮        "method": "remove"
+       ⋮      }
+       ⋮    }
+       ⋮  },
        ⋮  "vars": {
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
-       ⋮    "$string": [
-       ⋮      "@common"
-       ⋮    ],
-       ⋮    "$object": [
-       ⋮      "@common"
+       ⋮    "**": [
+       ⋮      "@common",
+       ⋮      "strip-fields"
        ⋮    ]
        ⋮  }
        ⋮}
@@ -2724,5 +2751,66 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮}
         "###);
     }
-    // TODO(markus): Port more tests
+
+    #[test]
+    fn test_breadcrumb_message() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "breadcrumbs": {
+                    "values": [
+                        {
+                            "message": "SELECT session_key FROM django_session WHERE session_key = 'abcdefg'"
+                        }
+                    ]
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["session_key".to_owned()],
+            ..Default::default()
+        });
+
+        insta::assert_json_snapshot_matches!(pii_config, @r###"
+       ⋮{
+       ⋮  "rules": {
+       ⋮    "strip-fields": {
+       ⋮      "type": "redact_pair",
+       ⋮      "keyPattern": "\\Asession_key\\z",
+       ⋮      "redaction": {
+       ⋮        "method": "remove"
+       ⋮      }
+       ⋮    }
+       ⋮  },
+       ⋮  "vars": {
+       ⋮    "hashKey": null
+       ⋮  },
+       ⋮  "applications": {
+       ⋮    "**": [
+       ⋮      "@common",
+       ⋮      "strip-fields"
+       ⋮    ]
+       ⋮  }
+       ⋮}
+        "###);
+
+        let pii_config = pii_config.unwrap();
+
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
+       ⋮{
+       ⋮  "breadcrumbs": {
+       ⋮    "values": [
+       ⋮      {
+       ⋮        "message": "SELECT session_key FROM django_session WHERE session_key = 'abcdefg'"
+       ⋮      }
+       ⋮    ]
+       ⋮  }
+       ⋮}
+        "###);
+    }
 }
