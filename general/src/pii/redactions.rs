@@ -34,6 +34,12 @@ pub struct ReplaceRedaction {
     pub text: String,
 }
 
+impl From<String> for ReplaceRedaction {
+    fn from(text: String) -> ReplaceRedaction {
+        ReplaceRedaction { text }
+    }
+}
+
 /// Masks the value
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]

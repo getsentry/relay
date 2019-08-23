@@ -12,7 +12,8 @@ use smallvec::SmallVec;
 use crate::pii::config::RuleRef;
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, process_value, Chunk, ProcessValue, ProcessingState, Processor, SelectorSpec, ValueType,
+    process_chunked_value, process_value, Chunk, ProcessValue, ProcessingState, Processor,
+    SelectorSpec, ValueType,
 };
 use crate::protocol::{AsPair, PairList};
 use crate::types::{Meta, Remark, RemarkType, ValueAction};
@@ -283,23 +284,33 @@ impl<'a> Processor for PiiProcessor<'a> {
         // problems:
         //
         // * tag keys need to be trimmed too and therefore need to have a path
-        // * the PII processor processes every PairList value twice, with both the index-based path
-        //   and the "nicer" key-based one. This would be impossible to do for all processors due to
-        //   perf.
 
-        for annotated in value.iter_mut() {
+        for (idx, annotated) in value.iter_mut().enumerate() {
             if let Some(ref mut pair) = annotated.value_mut() {
                 let (ref mut key, ref mut value) = pair.as_pair_mut();
                 if let Some(ref key_name) = key.as_str() {
                     // if the pair has no key name, we skip over it for PII stripping. It is
                     // still processed with index-based path in the invocation of
                     // `process_child_values`.
-                    process_value(value, self, &state.enter_borrowed(key_name, state.inner_attrs(), ValueType::for_field(value)));
+                    process_value(
+                        value,
+                        self,
+                        &state.enter_borrowed(
+                            key_name,
+                            state.inner_attrs(),
+                            ValueType::for_field(value),
+                        ),
+                    );
+                } else {
+                    process_value(
+                        value,
+                        self,
+                        &state.enter_index(idx, state.inner_attrs(), ValueType::for_field(value)),
+                    );
                 }
             }
         }
 
-        value.process_child_values(self, state);
         ValueAction::Keep
     }
 }
@@ -400,8 +411,8 @@ fn apply_rule_to_chunks<'a>(mut chunks: Vec<Chunk<'a>>, rule: RuleRef<'_>) -> Ve
         RuleType::UrlAuth => apply_regex!(&URL_AUTH_REGEX, Some(&*GROUP_1)),
         RuleType::UsSsn => apply_regex!(&US_SSN_REGEX, None),
         RuleType::Userpath => apply_regex!(&PATH_REGEX, Some(&*GROUP_1)),
+        RuleType::RedactPair(ref redact_pair) => apply_regex!(&redact_pair.key_pattern, None),
         // does not apply here
-        RuleType::RedactPair { .. } => {}
         RuleType::Alias(_) => {}
         RuleType::Multiple(_) => {}
     }

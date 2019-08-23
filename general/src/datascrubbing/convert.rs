@@ -17,30 +17,32 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         applied_rules.push("@ip".to_owned());
     }
 
-    if datascrubbing_config.scrub_data && !datascrubbing_config.sensitive_fields.is_empty() {
-        custom_rules.insert(
-            "strip-fields".to_owned(),
-            RuleSpec {
-                ty: RuleType::RedactPair(RedactPairRule {
-                    key_pattern: Pattern(
-                        RegexBuilder::new(&format!(
-                            r"\A{}\z",
-                            datascrubbing_config
-                                .sensitive_fields
-                                .iter()
-                                .map(|x| regex::escape(&x))
-                                .join("|")
-                        ))
-                        .case_insensitive(true)
-                        .build()
-                        .unwrap(),
-                    ),
-                }),
-                redaction: Redaction::Remove,
-            },
-        );
+    if datascrubbing_config.scrub_data {
+        let sensitive_fields_re = datascrubbing_config
+            .sensitive_fields
+            .iter()
+            .filter(|x| !x.is_empty())
+            .map(|x| regex::escape(&x))
+            .join("|");
 
-        applied_rules.push("strip-fields".to_owned());
+        if !sensitive_fields_re.is_empty() {
+            custom_rules.insert(
+                "strip-fields".to_owned(),
+                RuleSpec {
+                    ty: RuleType::RedactPair(RedactPairRule {
+                        key_pattern: Pattern(
+                            RegexBuilder::new(&format!(r".*({}).*", sensitive_fields_re))
+                                .case_insensitive(true)
+                                .build()
+                                .unwrap(),
+                        ),
+                    }),
+                    redaction: Redaction::Replace("[filtered: sensitive keys]".to_owned().into()),
+                },
+            );
+
+            applied_rules.push("strip-fields".to_owned());
+        }
     }
 
     if applied_rules.is_empty() {
@@ -584,7 +586,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
        ⋮{
        ⋮  "user": {
-       ⋮    "username": "secret",
+       ⋮    "username": "",
        ⋮    "data": {
        ⋮      "a_password_here": null,
        ⋮      "apiKey": null,
@@ -646,6 +648,19 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮              ]
        ⋮            ]
        ⋮          }
+       ⋮        }
+       ⋮      },
+       ⋮      "username": {
+       ⋮        "": {
+       ⋮          "rem": [
+       ⋮            [
+       ⋮              "@password",
+       ⋮              "x",
+       ⋮              0,
+       ⋮              0
+       ⋮            ]
+       ⋮          ],
+       ⋮          "len": 6
        ⋮        }
        ⋮      }
        ⋮    }
@@ -1181,9 +1196,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮  "rules": {
        ⋮    "strip-fields": {
        ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": "\\Afieldy_field|moar_other_field\\z",
+       ⋮      "keyPattern": ".*(fieldy_field|moar_other_field).*",
        ⋮      "redaction": {
-       ⋮        "method": "remove"
+       ⋮        "method": "replace",
+       ⋮        "text": "[filtered: sensitive keys]"
        ⋮      }
        ⋮    }
        ⋮  },
@@ -2253,9 +2269,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮  "rules": {
        ⋮    "strip-fields": {
        ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": "\\Amystuff\\z",
+       ⋮      "keyPattern": ".*(mystuff).*",
        ⋮      "redaction": {
-       ⋮        "method": "remove"
+       ⋮        "method": "replace",
+       ⋮        "text": "[filtered: sensitive keys]"
        ⋮      }
        ⋮    }
        ⋮  },
@@ -2319,9 +2336,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮  "rules": {
        ⋮    "strip-fields": {
        ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": "\\AmyStuff\\z",
+       ⋮      "keyPattern": ".*(myStuff).*",
        ⋮      "redaction": {
-       ⋮        "method": "remove"
+       ⋮        "method": "replace",
+       ⋮        "text": "[filtered: sensitive keys]"
        ⋮      }
        ⋮    }
        ⋮  },
@@ -2425,22 +2443,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
        ⋮{
-       ⋮  "rules": {
-       ⋮    "strip-fields": {
-       ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": "\\A\\z",
-       ⋮      "redaction": {
-       ⋮        "method": "remove"
-       ⋮      }
-       ⋮    }
-       ⋮  },
+       ⋮  "rules": {},
        ⋮  "vars": {
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
        ⋮    "**": [
-       ⋮      "@common",
-       ⋮      "strip-fields"
+       ⋮      "@common"
        ⋮    ]
        ⋮  }
        ⋮}
@@ -2480,22 +2489,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
        ⋮{
-       ⋮  "rules": {
-       ⋮    "strip-fields": {
-       ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": "\\A\\z",
-       ⋮      "redaction": {
-       ⋮        "method": "remove"
-       ⋮      }
-       ⋮    }
-       ⋮  },
+       ⋮  "rules": {},
        ⋮  "vars": {
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
        ⋮    "**": [
-       ⋮      "@common",
-       ⋮      "strip-fields"
+       ⋮      "@common"
        ⋮    ]
        ⋮  }
        ⋮}
@@ -2561,22 +2561,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
        ⋮{
-       ⋮  "rules": {
-       ⋮    "strip-fields": {
-       ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": "\\A\\z",
-       ⋮      "redaction": {
-       ⋮        "method": "remove"
-       ⋮      }
-       ⋮    }
-       ⋮  },
+       ⋮  "rules": {},
        ⋮  "vars": {
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
        ⋮    "**": [
-       ⋮      "@common",
-       ⋮      "strip-fields"
+       ⋮      "@common"
        ⋮    ]
        ⋮  }
        ⋮}
@@ -2651,22 +2642,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
        ⋮{
-       ⋮  "rules": {
-       ⋮    "strip-fields": {
-       ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": "\\A\\z",
-       ⋮      "redaction": {
-       ⋮        "method": "remove"
-       ⋮      }
-       ⋮    }
-       ⋮  },
+       ⋮  "rules": {},
        ⋮  "vars": {
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
        ⋮    "**": [
-       ⋮      "@common",
-       ⋮      "strip-fields"
+       ⋮      "@common"
        ⋮    ]
        ⋮  }
        ⋮}
@@ -2777,9 +2759,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮  "rules": {
        ⋮    "strip-fields": {
        ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": "\\Asession_key\\z",
+       ⋮      "keyPattern": ".*(session_key).*",
        ⋮      "redaction": {
-       ⋮        "method": "remove"
+       ⋮        "method": "replace",
+       ⋮        "text": "[filtered: sensitive keys]"
        ⋮      }
        ⋮    }
        ⋮  },
@@ -2806,9 +2789,30 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮  "breadcrumbs": {
        ⋮    "values": [
        ⋮      {
-       ⋮        "message": "SELECT session_key FROM django_session WHERE session_key = 'abcdefg'"
+       ⋮        "message": "[filtered: sensitive keys]"
        ⋮      }
        ⋮    ]
+       ⋮  },
+       ⋮  "_meta": {
+       ⋮    "breadcrumbs": {
+       ⋮      "values": {
+       ⋮        "0": {
+       ⋮          "message": {
+       ⋮            "": {
+       ⋮              "rem": [
+       ⋮                [
+       ⋮                  "strip-fields",
+       ⋮                  "s",
+       ⋮                  0,
+       ⋮                  26
+       ⋮                ]
+       ⋮              ],
+       ⋮              "len": 68
+       ⋮            }
+       ⋮          }
+       ⋮        }
+       ⋮      }
+       ⋮    }
        ⋮  }
        ⋮}
         "###);
