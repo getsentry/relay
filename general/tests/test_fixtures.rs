@@ -43,7 +43,7 @@ macro_rules! event_snapshot {
         config.valid_platforms = VALID_PLATOFORMS.clone();
         let mut processor = StoreProcessor::new(config, None);
         process_value(&mut event, &mut processor, ProcessingState::root());
-        assert_yaml_snapshot_matches!(format!("{}_normalized", $id), SerializableAnnotated(&event), {
+        assert_yaml_snapshot_matches!(&format!("{}_normalized", $id)[..], SerializableAnnotated(&event), {
             ".received" => "[received]",
             ".timestamp" => "[timestamp]"
         });
