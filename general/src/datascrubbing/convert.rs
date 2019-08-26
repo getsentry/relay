@@ -161,9 +161,12 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 -----END RSA PRIVATE KEY-----"""#;
 
     fn get_default_pii_config() -> PiiConfig {
-        let pii_config = to_pii_config(&Default::default());
+        to_pii_config(&Default::default()).unwrap()
+    }
 
-        insta::assert_json_snapshot_matches!(pii_config, @r###"
+    #[test]
+    fn test_default_pii_config_snap() {
+        insta::assert_json_snapshot_matches!(get_default_pii_config(), @r###"
        ⋮{
        ⋮  "rules": {},
        ⋮  "vars": {
@@ -176,8 +179,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮  }
        ⋮}
         "###);
-
-        pii_config.unwrap()
     }
 
     #[test]
