@@ -28,7 +28,7 @@ pub struct DataScrubbingConfig {
 impl DataScrubbingConfig {
     /// Returns true if datascrubbing is disabled.
     pub fn is_disabled(&self) -> bool {
-        !self.scrub_data
+        !self.scrub_data && !self.scrub_ip_addresses
     }
 }
 

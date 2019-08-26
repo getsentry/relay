@@ -11,7 +11,6 @@ use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 
 use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
-use semaphore_general::datascrubbing;
 use semaphore_general::filter::{should_filter, FilterStatKey};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
@@ -120,14 +119,7 @@ impl EventProcessor {
             event.id = Annotated::new(message.event_id);
         }
 
-        if let Some(ref pii_config) = message.project_state.config.pii_config {
-            let mut processor = PiiProcessor::new(pii_config);
-            process_value(&mut event, &mut processor, ProcessingState::root());
-        };
-
-        if let Some(ref pii_config) =
-            datascrubbing::to_pii_config(&message.project_state.config.datascrubbing_settings)
-        {
+        for ref pii_config in message.project_state.config.get_pii_configs() {
             let mut processor = PiiProcessor::new(pii_config);
             process_value(&mut event, &mut processor, ProcessingState::root());
         }
