@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use itertools::Itertools;
 use regex::RegexBuilder;
 
 use crate::datascrubbing::DataScrubbingConfig;
@@ -18,20 +17,39 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
     }
 
     if datascrubbing_config.scrub_data {
-        let sensitive_fields_re = datascrubbing_config
-            .sensitive_fields
-            .iter()
-            .filter(|x| !x.is_empty())
-            .map(|x| regex::escape(&x))
-            .join("|");
+        let sensitive_fields_re = {
+            let mut re = ".*(".to_owned();
 
-        if !sensitive_fields_re.is_empty() {
+            let mut is_empty = true;
+
+            for (idx, field) in datascrubbing_config.sensitive_fields.iter().enumerate() {
+                if field.is_empty() {
+                    continue;
+                }
+
+                if idx > 0 {
+                    re.push('|');
+                }
+                // ugly: regex::escape returns owned string
+                re.push_str(&regex::escape(field));
+                is_empty = false;
+            }
+
+            re.push_str(").*");
+            if !is_empty {
+                Some(re)
+            } else {
+                None
+            }
+        };
+
+        if let Some(key_pattern) = sensitive_fields_re {
             custom_rules.insert(
                 "strip-fields".to_owned(),
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
                         key_pattern: Pattern(
-                            RegexBuilder::new(&format!(r".*({}).*", sensitive_fields_re))
+                            RegexBuilder::new(&key_pattern)
                                 .case_insensitive(true)
                                 .build()
                                 .unwrap(),
