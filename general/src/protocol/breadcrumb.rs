@@ -25,11 +25,11 @@ pub struct Breadcrumb {
     pub level: Annotated<Level>,
 
     /// Human readable message for the breadcrumb.
-    #[metastructure(max_chars = "message")]
+    #[metastructure(pii = "true", max_chars = "message")]
     pub message: Annotated<String>,
 
     /// Custom user-defined data of this breadcrumb.
-    #[metastructure(bag_size = "medium")]
+    #[metastructure(pii = "true", bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,
 

@@ -346,7 +346,7 @@ impl FromValue for Query {
 #[metastructure(process_func = "process_request", value_type = "Request")]
 pub struct Request {
     /// URL of the request.
-    #[metastructure(max_chars = "path")]
+    #[metastructure(pii = "true", max_chars = "path")]
     pub url: Annotated<String>,
 
     /// HTTP request method.
@@ -354,31 +354,31 @@ pub struct Request {
 
     /// Request data in any format that makes sense.
     // TODO: Custom logic + info
-    #[metastructure(bag_size = "large")]
+    #[metastructure(pii = "true", bag_size = "large")]
     pub data: Annotated<Value>,
 
     /// URL encoded HTTP query string.
-    #[metastructure(bag_size = "small")]
+    #[metastructure(pii = "true", bag_size = "small")]
     #[metastructure(skip_serialization = "empty")]
     pub query_string: Annotated<Query>,
 
     /// The fragment of the request URL.
-    #[metastructure(max_chars = "summary")]
+    #[metastructure(pii = "true", max_chars = "summary")]
     #[metastructure(skip_serialization = "empty")]
     pub fragment: Annotated<String>,
 
     /// URL encoded contents of the Cookie header.
-    #[metastructure(bag_size = "medium")]
+    #[metastructure(pii = "true", bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
     pub cookies: Annotated<Cookies>,
 
     /// HTTP request headers.
-    #[metastructure(bag_size = "large")]
+    #[metastructure(pii = "true", bag_size = "large")]
     #[metastructure(skip_serialization = "empty")]
     pub headers: Annotated<Headers>,
 
     /// Server environment data, such as CGI/WSGI.
-    #[metastructure(bag_size = "large")]
+    #[metastructure(pii = "true", bag_size = "large")]
     #[metastructure(skip_serialization = "empty")]
     pub env: Annotated<Object<Value>>,
 
@@ -387,7 +387,7 @@ pub struct Request {
     pub inferred_content_type: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
 }
 

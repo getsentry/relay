@@ -5,11 +5,11 @@ use crate::types::{Annotated, Array, Object, Value};
 #[metastructure(process_func = "process_template_info")]
 pub struct TemplateInfo {
     /// The file name (basename only).
-    #[metastructure(max_chars = "short_path")]
+    #[metastructure(pii = "true", max_chars = "short_path")]
     pub filename: Annotated<String>,
 
     /// Absolute path to the file.
-    #[metastructure(max_chars = "path")]
+    #[metastructure(pii = "true", max_chars = "path")]
     pub abs_path: Annotated<String>,
 
     /// Line number within the source file.

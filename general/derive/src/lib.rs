@@ -725,7 +725,7 @@ impl FieldAttrs {
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.pii)
         } else {
-            quote!(true)
+            quote!(false)
         };
 
         let retain = self.retain;

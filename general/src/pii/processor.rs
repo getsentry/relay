@@ -200,10 +200,6 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
     type Item = RuleRef<'a>;
 
     fn next(&mut self) -> Option<RuleRef<'a>> {
-        if !self.state.attrs().pii {
-            return None;
-        }
-
         'outer: loop {
             if let Some(&rv) = self.pending_refs.as_mut().and_then(Iterator::next) {
                 return Some(rv);
