@@ -94,9 +94,11 @@ mod tests {
 
     macro_rules! reference_value {
         (@$snapshot:literal) => {
-            (&|x: &str| insta::assert_snapshot_matches!(x.as_ref(), @$snapshot)) as &'static dyn Fn(&str) -> ()
+            (&|x: &str| insta::assert_snapshot_matches!(x.as_ref(), @$snapshot)) as ReferenceValue
         }
     }
+
+    type ReferenceValue = &'static dyn Fn(&str) -> ();
 
     lazy_static::lazy_static! {
         static ref SENSITIVE_VARS: serde_json::Value = serde_json::json!({
@@ -1526,79 +1528,83 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
-    fn test_sanitize_credit_card_within_value() {
-        for (cc, expected) in &[
-            (
-                "'4571234567890111'",
-                reference_value!(@r###"
-               ⋮{
-               ⋮  "extra": {
-               ⋮    "foo": "'[creditcard]'"
-               ⋮  },
-               ⋮  "_meta": {
-               ⋮    "extra": {
-               ⋮      "foo": {
-               ⋮        "": {
-               ⋮          "rem": [
-               ⋮            [
-               ⋮              "@creditcard:replace",
-               ⋮              "s",
-               ⋮              1,
-               ⋮              13
-               ⋮            ]
-               ⋮          ],
-               ⋮          "len": 18
-               ⋮        }
-               ⋮      }
-               ⋮    }
-               ⋮  }
-               ⋮}
-                "###),
-            ),
-            (
-                "foo 4571234567890111",
-                reference_value!(@r###"
-               ⋮{
-               ⋮  "extra": {
-               ⋮    "foo": "foo [creditcard]"
-               ⋮  },
-               ⋮  "_meta": {
-               ⋮    "extra": {
-               ⋮      "foo": {
-               ⋮        "": {
-               ⋮          "rem": [
-               ⋮            [
-               ⋮              "@creditcard:replace",
-               ⋮              "s",
-               ⋮              4,
-               ⋮              16
-               ⋮            ]
-               ⋮          ],
-               ⋮          "len": 20
-               ⋮        }
-               ⋮      }
-               ⋮    }
-               ⋮  }
-               ⋮}
-                "###),
-            ),
-        ] {
-            let mut data = Event::from_value(
-                serde_json::json!({
-                    "extra": {
-                        "foo": cc
-                    }
-                })
-                .into(),
-            );
+    fn test_sanitize_credit_card_within_value_1() {
+        sanitize_credit_card_within_value_test(
+            "'4571234567890111'",
+            reference_value!(@r###"
+           ⋮{
+           ⋮  "extra": {
+           ⋮    "foo": "'[creditcard]'"
+           ⋮  },
+           ⋮  "_meta": {
+           ⋮    "extra": {
+           ⋮      "foo": {
+           ⋮        "": {
+           ⋮          "rem": [
+           ⋮            [
+           ⋮              "@creditcard:replace",
+           ⋮              "s",
+           ⋮              1,
+           ⋮              13
+           ⋮            ]
+           ⋮          ],
+           ⋮          "len": 18
+           ⋮        }
+           ⋮      }
+           ⋮    }
+           ⋮  }
+           ⋮}
+            "###),
+        );
+    }
 
-            let pii_config = get_default_pii_config();
-            let mut pii_processor = PiiProcessor::new(&pii_config);
+    #[test]
+    fn test_sanitize_credit_card_within_value_2() {
+        sanitize_credit_card_within_value_test(
+            "foo 4571234567890111",
+            reference_value!(@r###"
+           ⋮{
+           ⋮  "extra": {
+           ⋮    "foo": "foo [creditcard]"
+           ⋮  },
+           ⋮  "_meta": {
+           ⋮    "extra": {
+           ⋮      "foo": {
+           ⋮        "": {
+           ⋮          "rem": [
+           ⋮            [
+           ⋮              "@creditcard:replace",
+           ⋮              "s",
+           ⋮              4,
+           ⋮              16
+           ⋮            ]
+           ⋮          ],
+           ⋮          "len": 20
+           ⋮        }
+           ⋮      }
+           ⋮    }
+           ⋮  }
+           ⋮}
+            "###),
+        );
+    }
 
-            process_value(&mut data, &mut pii_processor, ProcessingState::root());
+    fn sanitize_credit_card_within_value_test(cc: &str, expected: ReferenceValue) {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "foo": cc
+                }
+            })
+            .into(),
+        );
 
-            expected(&data.to_json_pretty().unwrap());
-        }
+        let pii_config = get_default_pii_config();
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+
+        expected(&data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -1627,216 +1633,238 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
-    fn test_sanitize_url() {
-        for (url, expected) in &[
-            (
-                "pg://matt:pass@localhost/1", 
-                reference_value!(@r###"
-               ⋮{
-               ⋮  "extra": {
-               ⋮    "foo": "pg://matt:[email]/1"
-               ⋮  },
-               ⋮  "_meta": {
-               ⋮    "extra": {
-               ⋮      "foo": {
-               ⋮        "": {
-               ⋮          "rem": [
-               ⋮            [
-               ⋮              "@email",
-               ⋮              "s",
-               ⋮              10,
-               ⋮              17
-               ⋮            ]
-               ⋮          ],
-               ⋮          "len": 26
-               ⋮        }
-               ⋮      }
-               ⋮    }
-               ⋮  }
-               ⋮}
-                "###)
-            ),
-            (
-                "foo 'redis://redis:foo@localhost:6379/0' bar", 
-                reference_value!(@r###"
-               ⋮{
-               ⋮  "extra": {
-               ⋮    "foo": "foo 'redis://redis:[email]:6379/0' bar"
-               ⋮  },
-               ⋮  "_meta": {
-               ⋮    "extra": {
-               ⋮      "foo": {
-               ⋮        "": {
-               ⋮          "rem": [
-               ⋮            [
-               ⋮              "@email",
-               ⋮              "s",
-               ⋮              19,
-               ⋮              26
-               ⋮            ]
-               ⋮          ],
-               ⋮          "len": 44
-               ⋮        }
-               ⋮      }
-               ⋮    }
-               ⋮  }
-               ⋮}
-                "###)
-            ),
-            (
-                "'redis://redis:foo@localhost:6379/0'", 
-                reference_value!(@r###"
-               ⋮{
-               ⋮  "extra": {
-               ⋮    "foo": "'redis://redis:[email]:6379/0'"
-               ⋮  },
-               ⋮  "_meta": {
-               ⋮    "extra": {
-               ⋮      "foo": {
-               ⋮        "": {
-               ⋮          "rem": [
-               ⋮            [
-               ⋮              "@email",
-               ⋮              "s",
-               ⋮              15,
-               ⋮              22
-               ⋮            ]
-               ⋮          ],
-               ⋮          "len": 36
-               ⋮        }
-               ⋮      }
-               ⋮    }
-               ⋮  }
-               ⋮}
-                "###)
-            ),
-            (
-                "foo redis://redis:foo@localhost:6379/0 bar", 
-                reference_value!(@r###"
-               ⋮{
-               ⋮  "extra": {
-               ⋮    "foo": "foo redis://redis:[email]:6379/0 bar"
-               ⋮  },
-               ⋮  "_meta": {
-               ⋮    "extra": {
-               ⋮      "foo": {
-               ⋮        "": {
-               ⋮          "rem": [
-               ⋮            [
-               ⋮              "@email",
-               ⋮              "s",
-               ⋮              18,
-               ⋮              25
-               ⋮            ]
-               ⋮          ],
-               ⋮          "len": 42
-               ⋮        }
-               ⋮      }
-               ⋮    }
-               ⋮  }
-               ⋮}
-                "###)
-            ),
-            (
-                "foo redis://redis:foo@localhost:6379/0 bar pg://matt:foo@localhost/1",  
-                reference_value!(@r###"
-               ⋮{
-               ⋮  "extra": {
-               ⋮    "foo": "foo redis://redis:[email]:6379/0 bar pg://matt:[email]/1"
-               ⋮  },
-               ⋮  "_meta": {
-               ⋮    "extra": {
-               ⋮      "foo": {
-               ⋮        "": {
-               ⋮          "rem": [
-               ⋮            [
-               ⋮              "@email",
-               ⋮              "s",
-               ⋮              18,
-               ⋮              25
-               ⋮            ],
-               ⋮            [
-               ⋮              "@email",
-               ⋮              "s",
-               ⋮              47,
-               ⋮              54
-               ⋮            ]
-               ⋮          ],
-               ⋮          "len": 68
-               ⋮        }
-               ⋮      }
-               ⋮    }
-               ⋮  }
-               ⋮}
-                "###)
-            ),
+    fn test_sanitize_url_1() {
+        sanitize_url_test(
+            "pg://matt:pass@localhost/1",
+            reference_value!(@r###"
+           ⋮{
+           ⋮  "extra": {
+           ⋮    "foo": "pg://matt:[email]/1"
+           ⋮  },
+           ⋮  "_meta": {
+           ⋮    "extra": {
+           ⋮      "foo": {
+           ⋮        "": {
+           ⋮          "rem": [
+           ⋮            [
+           ⋮              "@email",
+           ⋮              "s",
+           ⋮              10,
+           ⋮              17
+           ⋮            ]
+           ⋮          ],
+           ⋮          "len": 26
+           ⋮        }
+           ⋮      }
+           ⋮    }
+           ⋮  }
+           ⋮}
+            "###),
+        );
+    }
 
-            // Make sure we don't mess up any other url.
-            // This url specifically if passed through urlunsplit(urlsplit()),
-            // it'll change the value.
-            (
-                "postgres:///path", 
-                reference_value!(@r###"
-               ⋮{
-               ⋮  "extra": {
-               ⋮    "foo": "postgres:///path"
-               ⋮  }
-               ⋮}
-                "###)
-            ),
+    #[test]
+    fn test_sanitize_url_2() {
+        sanitize_url_test(
+            "foo 'redis://redis:foo@localhost:6379/0' bar",
+            reference_value!(@r###"
+           ⋮{
+           ⋮  "extra": {
+           ⋮    "foo": "foo 'redis://redis:[email]:6379/0' bar"
+           ⋮  },
+           ⋮  "_meta": {
+           ⋮    "extra": {
+           ⋮      "foo": {
+           ⋮        "": {
+           ⋮          "rem": [
+           ⋮            [
+           ⋮              "@email",
+           ⋮              "s",
+           ⋮              19,
+           ⋮              26
+           ⋮            ]
+           ⋮          ],
+           ⋮          "len": 44
+           ⋮        }
+           ⋮      }
+           ⋮    }
+           ⋮  }
+           ⋮}
+            "###),
+        );
+    }
 
-            // Don't be too overly eager within JSON strings an catch the right field.
-            // n.b.: We accept the difference from Python, where "b" is not masked.
-            (
-                r#"{"a":"https://localhost","b":"foo@localhost","c":"pg://matt:pass@localhost/1","d":"lol"}"#, 
-                reference_value!(@r###"
-               ⋮{
-               ⋮  "extra": {
-               ⋮    "foo": "{\"a\":\"https://localhost\",\"b\":\"[email]\",\"c\":\"pg://matt:[email]/1\",\"d\":\"lol\"}"
-               ⋮  },
-               ⋮  "_meta": {
-               ⋮    "extra": {
-               ⋮      "foo": {
-               ⋮        "": {
-               ⋮          "rem": [
-               ⋮            [
-               ⋮              "@email",
-               ⋮              "s",
-               ⋮              30,
-               ⋮              37
-               ⋮            ],
-               ⋮            [
-               ⋮              "@email",
-               ⋮              "s",
-               ⋮              54,
-               ⋮              61
-               ⋮            ]
-               ⋮          ],
-               ⋮          "len": 88
-               ⋮        }
-               ⋮      }
-               ⋮    }
-               ⋮  }
-               ⋮}
-                "###)
-            ),
-        ] {
-            let mut data = Event::from_value(
-                serde_json::json!({
-                    "extra": {
-                        "foo": url
-                    }
-                })
-                .into(),
-            );
+    #[test]
+    fn test_sanitize_url_3() {
+        sanitize_url_test(
+            "'redis://redis:foo@localhost:6379/0'",
+            reference_value!(@r###"
+           ⋮{
+           ⋮  "extra": {
+           ⋮    "foo": "'redis://redis:[email]:6379/0'"
+           ⋮  },
+           ⋮  "_meta": {
+           ⋮    "extra": {
+           ⋮      "foo": {
+           ⋮        "": {
+           ⋮          "rem": [
+           ⋮            [
+           ⋮              "@email",
+           ⋮              "s",
+           ⋮              15,
+           ⋮              22
+           ⋮            ]
+           ⋮          ],
+           ⋮          "len": 36
+           ⋮        }
+           ⋮      }
+           ⋮    }
+           ⋮  }
+           ⋮}
+            "###),
+        );
+    }
 
-            let pii_config = get_default_pii_config();
-            let mut pii_processor = PiiProcessor::new(&pii_config);
+    #[test]
+    fn test_sanitize_url_4() {
+        sanitize_url_test(
+            "foo redis://redis:foo@localhost:6379/0 bar",
+            reference_value!(@r###"
+           ⋮{
+           ⋮  "extra": {
+           ⋮    "foo": "foo redis://redis:[email]:6379/0 bar"
+           ⋮  },
+           ⋮  "_meta": {
+           ⋮    "extra": {
+           ⋮      "foo": {
+           ⋮        "": {
+           ⋮          "rem": [
+           ⋮            [
+           ⋮              "@email",
+           ⋮              "s",
+           ⋮              18,
+           ⋮              25
+           ⋮            ]
+           ⋮          ],
+           ⋮          "len": 42
+           ⋮        }
+           ⋮      }
+           ⋮    }
+           ⋮  }
+           ⋮}
+            "###),
+        );
+    }
 
-            process_value(&mut data, &mut pii_processor, ProcessingState::root());
+    #[test]
+    fn test_sanitize_url_5() {
+        sanitize_url_test(
+            "foo redis://redis:foo@localhost:6379/0 bar pg://matt:foo@localhost/1",
+            reference_value!(@r###"
+           ⋮{
+           ⋮  "extra": {
+           ⋮    "foo": "foo redis://redis:[email]:6379/0 bar pg://matt:[email]/1"
+           ⋮  },
+           ⋮  "_meta": {
+           ⋮    "extra": {
+           ⋮      "foo": {
+           ⋮        "": {
+           ⋮          "rem": [
+           ⋮            [
+           ⋮              "@email",
+           ⋮              "s",
+           ⋮              18,
+           ⋮              25
+           ⋮            ],
+           ⋮            [
+           ⋮              "@email",
+           ⋮              "s",
+           ⋮              47,
+           ⋮              54
+           ⋮            ]
+           ⋮          ],
+           ⋮          "len": 68
+           ⋮        }
+           ⋮      }
+           ⋮    }
+           ⋮  }
+           ⋮}
+            "###),
+        );
+    }
 
-            expected(&data.to_json_pretty().unwrap());
-        }
+    #[test]
+    fn test_sanitize_url_6() {
+        // Make sure we don't mess up any other url.
+        // This url specifically if passed through urlunsplit(urlsplit()),
+        // it'll change the value.
+        sanitize_url_test(
+            "postgres:///path",
+            reference_value!(@r###"
+           ⋮{
+           ⋮  "extra": {
+           ⋮    "foo": "postgres:///path"
+           ⋮  }
+           ⋮}
+            "###),
+        );
+    }
+
+    #[test]
+    fn test_sanitize_url_7() {
+        // Don't be too overly eager within JSON strings an catch the right field.
+        // n.b.: We accept the difference from Python, where "b" is not masked.
+        sanitize_url_test(
+            r#"{"a":"https://localhost","b":"foo@localhost","c":"pg://matt:pass@localhost/1","d":"lol"}"#, 
+            reference_value!(@r###"
+           ⋮{
+           ⋮  "extra": {
+           ⋮    "foo": "{\"a\":\"https://localhost\",\"b\":\"[email]\",\"c\":\"pg://matt:[email]/1\",\"d\":\"lol\"}"
+           ⋮  },
+           ⋮  "_meta": {
+           ⋮    "extra": {
+           ⋮      "foo": {
+           ⋮        "": {
+           ⋮          "rem": [
+           ⋮            [
+           ⋮              "@email",
+           ⋮              "s",
+           ⋮              30,
+           ⋮              37
+           ⋮            ],
+           ⋮            [
+           ⋮              "@email",
+           ⋮              "s",
+           ⋮              54,
+           ⋮              61
+           ⋮            ]
+           ⋮          ],
+           ⋮          "len": 88
+           ⋮        }
+           ⋮      }
+           ⋮    }
+           ⋮  }
+           ⋮}
+            "###)
+        );
+    }
+
+    fn sanitize_url_test(url: &str, expected: ReferenceValue) {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "foo": url
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = get_default_pii_config();
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+
+        expected(&data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -2385,93 +2413,97 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
-    fn test_should_have_mysql_pwd_as_a_default() {
-        for (key, expected) in &[
-            (
-                "MYSQL_PWD",
-                reference_value!(@r###"
-               ⋮{
-               ⋮  "extra": {
-               ⋮    "MYSQL_PWD": null
-               ⋮  },
-               ⋮  "_meta": {
-               ⋮    "extra": {
-               ⋮      "MYSQL_PWD": {
-               ⋮        "": {
-               ⋮          "rem": [
-               ⋮            [
-               ⋮              "@password",
-               ⋮              "x"
-               ⋮            ]
-               ⋮          ]
-               ⋮        }
-               ⋮      }
-               ⋮    }
-               ⋮  }
-               ⋮}
-                "###),
-            ),
-            (
-                "mysql_pwd",
-                reference_value!(@r###"
-               ⋮{
-               ⋮  "extra": {
-               ⋮    "mysql_pwd": null
-               ⋮  },
-               ⋮  "_meta": {
-               ⋮    "extra": {
-               ⋮      "mysql_pwd": {
-               ⋮        "": {
-               ⋮          "rem": [
-               ⋮            [
-               ⋮              "@password",
-               ⋮              "x"
-               ⋮            ]
-               ⋮          ]
-               ⋮        }
-               ⋮      }
-               ⋮    }
-               ⋮  }
-               ⋮}
-                "###),
-            ),
-        ] {
-            let mut data = Event::from_value(
-                serde_json::json!({
-                    "extra": {
-                        *key: "the one",
-                    }
-                })
-                .into(),
-            );
-
-            let pii_config = to_pii_config(&DataScrubbingConfig {
-                sensitive_fields: vec!["".to_owned()],
-                ..Default::default()
-            });
-
-            insta::assert_json_snapshot_matches!(pii_config, @r###"
+    fn test_should_have_mysql_pwd_as_a_default_1() {
+        should_have_mysql_pwd_as_a_default_test(
+            "MYSQL_PWD",
+            reference_value!(@r###"
            ⋮{
-           ⋮  "rules": {},
-           ⋮  "vars": {
-           ⋮    "hashKey": null
+           ⋮  "extra": {
+           ⋮    "MYSQL_PWD": null
            ⋮  },
-           ⋮  "applications": {
-           ⋮    "**": [
-           ⋮      "@common"
-           ⋮    ]
+           ⋮  "_meta": {
+           ⋮    "extra": {
+           ⋮      "MYSQL_PWD": {
+           ⋮        "": {
+           ⋮          "rem": [
+           ⋮            [
+           ⋮              "@password",
+           ⋮              "x"
+           ⋮            ]
+           ⋮          ]
+           ⋮        }
+           ⋮      }
+           ⋮    }
            ⋮  }
            ⋮}
-            "###);
+            "###),
+        );
+    }
 
-            let pii_config = pii_config.unwrap();
+    #[test]
+    fn test_should_have_mysql_pwd_as_a_default_2() {
+        should_have_mysql_pwd_as_a_default_test(
+            "mysql_pwd",
+            reference_value!(@r###"
+           ⋮{
+           ⋮  "extra": {
+           ⋮    "mysql_pwd": null
+           ⋮  },
+           ⋮  "_meta": {
+           ⋮    "extra": {
+           ⋮      "mysql_pwd": {
+           ⋮        "": {
+           ⋮          "rem": [
+           ⋮            [
+           ⋮              "@password",
+           ⋮              "x"
+           ⋮            ]
+           ⋮          ]
+           ⋮        }
+           ⋮      }
+           ⋮    }
+           ⋮  }
+           ⋮}
+            "###),
+        );
+    }
 
-            let mut pii_processor = PiiProcessor::new(&pii_config);
+    fn should_have_mysql_pwd_as_a_default_test(key: &str, expected: ReferenceValue) {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    *key: "the one",
+                }
+            })
+            .into(),
+        );
 
-            process_value(&mut data, &mut pii_processor, ProcessingState::root());
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["".to_owned()],
+            ..Default::default()
+        });
 
-            expected(&data.to_json_pretty().unwrap());
-        }
+        insta::assert_json_snapshot_matches!(pii_config, @r###"
+       ⋮{
+       ⋮  "rules": {},
+       ⋮  "vars": {
+       ⋮    "hashKey": null
+       ⋮  },
+       ⋮  "applications": {
+       ⋮    "**": [
+       ⋮      "@common"
+       ⋮    ]
+       ⋮  }
+       ⋮}
+        "###);
+
+        let pii_config = pii_config.unwrap();
+
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+
+        expected(&data.to_json_pretty().unwrap());
     }
 
     #[test]
