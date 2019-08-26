@@ -67,16 +67,21 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         return None;
     }
 
-    let mut selector = SelectorSpec::Path(vec![SelectorPathItem::DeepWildcard]);
+    let selector = if datascrubbing_config.exclude_fields.is_empty() {
+        SelectorSpec::Path(vec![SelectorPathItem::DeepWildcard])
+    } else {
+        let mut fields = datascrubbing_config.exclude_fields.iter().map(|field| {
+            SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![SelectorPathItem::Key(
+                field.clone(),
+            )])))
+        });
 
-    for field in &datascrubbing_config.exclude_fields {
-        selector = SelectorSpec::And(
-            Box::new(selector),
-            Box::new(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
-                SelectorPathItem::Key(field.clone()),
-            ])))),
-        );
-    }
+        if fields.len() > 1 {
+            SelectorSpec::And(fields.collect())
+        } else {
+            fields.next().unwrap()
+        }
+    };
 
     let mut applications = BTreeMap::new();
     applications.insert(selector, applied_rules.clone());
@@ -2365,7 +2370,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮    "hashKey": null
        ⋮  },
        ⋮  "applications": {
-       ⋮    "(**&~foobar)": [
+       ⋮    "(~foobar)": [
        ⋮      "@common"
        ⋮    ]
        ⋮  }

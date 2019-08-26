@@ -5,12 +5,14 @@ Quote = _{ "'" }
 WHITESPACE = _{ " " }
 Index = @{ ASCII_DIGIT+ }
 Key = @{ (ASCII_ALPHANUMERIC | "-" | "_") + }
-ContainsKey = { "*" ~ Key ~ "*" }
-SelectorPathItem = { ContainsKey | ObjectType | DeepWildcard | Wildcard | Index | Key }
+SelectorPathItem = { ObjectType | DeepWildcard | Wildcard | Index | Key }
 SelectorPath = { SelectorPathItem ~ ("." ~ SelectorPathItem)* }
 
-AndSelector = { "(" ~ Selector ~ "&" ~ Selector ~ ")" }
-OrSelector = { "(" ~ Selector ~ "|" ~ Selector ~ ")" }
-NotSelector = { "~" ~ Selector }
-Selector = { AndSelector | OrSelector | NotSelector | "(" ~ Selector ~ ")" | SelectorPath }
+// enforce parenthesis everywhere as long as we don't have clear precedence
+// rules, such that we can introduce them without breaking existing configs.
+
+AndSelector = { "(" ~ Selector ~ ("&" ~ Selector)+ ~ ")" }
+OrSelector = { "(" ~ Selector ~ ("|" ~ Selector)+ ~ ")" }
+NotSelector = { "(~" ~ Selector ~ ")" }
+Selector = { NotSelector | AndSelector | OrSelector | "(" ~ Selector ~ ")" | SelectorPath }
 RootSelector = { SOI ~ Selector ~ EOI }

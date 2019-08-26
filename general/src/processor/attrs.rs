@@ -583,9 +583,8 @@ impl<'a> Path<'a> {
                     .all(|(state, selector_path)| selector_path.matches_state(state))
                     && selector_iter.next().is_none()
             }
-            SelectorSpec::And(ref a, ref b) => self.matches_selector(a) && self.matches_selector(b),
-            SelectorSpec::Or(ref a, ref b) => self.matches_selector(a) || self.matches_selector(b),
-
+            SelectorSpec::And(ref xs) => xs.iter().all(|x| self.matches_selector(x)),
+            SelectorSpec::Or(ref xs) => xs.iter().any(|x| self.matches_selector(x)),
             SelectorSpec::Not(ref x) => !self.matches_selector(x),
         }
     }
@@ -704,19 +703,14 @@ fn test_path_matching() {
 
     assert!(zero_state
         .path()
-        .matches_selector(&"~$object".parse().unwrap()));
+        .matches_selector(&"(~$object)".parse().unwrap()));
     assert!(zero_state
         .path()
-        .matches_selector(&"($object.** & ~(absolutebogus))".parse().unwrap()));
+        .matches_selector(&"($object.** & (~absolutebogus))".parse().unwrap()));
     assert!(zero_state
         .path()
-        .matches_selector(&"($object.** & ~absolutebogus)".parse().unwrap()));
+        .matches_selector(&"($object.** & (~absolutebogus))".parse().unwrap()));
     assert!(!zero_state
         .path()
-        .matches_selector(&"~$object.**".parse().unwrap()));
-
-    // ContainsKey
-    assert!(extra_state
-        .path()
-        .matches_selector(&"$user.*tra*".parse().unwrap()));
+        .matches_selector(&"(~$object.**)".parse().unwrap()));
 }

@@ -36,7 +36,6 @@ pub enum SelectorPathItem {
     Type(ValueType),
     Index(usize),
     Key(String),
-    ContainsKey(String),
     Wildcard,
     DeepWildcard,
 }
@@ -47,7 +46,6 @@ impl fmt::Display for SelectorPathItem {
             SelectorPathItem::Type(ty) => write!(f, "${}", ty),
             SelectorPathItem::Index(index) => write!(f, "{}", index),
             SelectorPathItem::Key(ref key) => write!(f, "{}", key),
-            SelectorPathItem::ContainsKey(ref key) => write!(f, "*{}*", key),
             SelectorPathItem::Wildcard => write!(f, "*"),
             SelectorPathItem::DeepWildcard => write!(f, "**"),
         }
@@ -66,19 +64,14 @@ impl SelectorPathItem {
                 .key()
                 .map(|k| k.to_lowercase() == key.to_lowercase())
                 .unwrap_or(false),
-            SelectorPathItem::ContainsKey(ref key) => state
-                .path()
-                .key()
-                .map(|k| (&k.to_lowercase()).contains(&key.to_lowercase()))
-                .unwrap_or(false),
         }
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum SelectorSpec {
-    And(Box<SelectorSpec>, Box<SelectorSpec>),
-    Or(Box<SelectorSpec>, Box<SelectorSpec>),
+    And(Vec<SelectorSpec>),
+    Or(Vec<SelectorSpec>),
     Not(Box<SelectorSpec>),
     Path(Vec<SelectorPathItem>),
 }
@@ -86,9 +79,23 @@ pub enum SelectorSpec {
 impl fmt::Display for SelectorSpec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            SelectorSpec::And(ref a, ref b) => write!(f, "({}&{})", a, b)?,
-            SelectorSpec::Or(ref a, ref b) => write!(f, "({}|{})", a, b)?,
-            SelectorSpec::Not(ref x) => write!(f, "~{}", x)?,
+            SelectorSpec::And(ref xs) => {
+                for (idx, x) in xs.iter().enumerate() {
+                    if idx > 0 {
+                        write!(f, "&")?;
+                    }
+                    write!(f, "{}", x)?;
+                }
+            }
+            SelectorSpec::Or(ref xs) => {
+                for (idx, x) in xs.iter().enumerate() {
+                    if idx > 0 {
+                        write!(f, "|")?;
+                    }
+                    write!(f, "{}", x)?;
+                }
+            }
+            SelectorSpec::Not(ref x) => write!(f, "(~{})", x)?,
             SelectorSpec::Path(ref path) => {
                 for (idx, item) in path.iter().enumerate() {
                     if idx > 0 {
@@ -163,18 +170,16 @@ fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorErro
 
             Ok(SelectorSpec::Path(items))
         }
-        Rule::AndSelector => {
-            let mut inner = pair.into_inner();
-            let a = handle_selector(inner.next().unwrap())?;
-            let b = handle_selector(inner.next().unwrap())?;
-            Ok(SelectorSpec::And(Box::new(a), Box::new(b)))
-        }
-        Rule::OrSelector => {
-            let mut inner = pair.into_inner();
-            let a = handle_selector(inner.next().unwrap())?;
-            let b = handle_selector(inner.next().unwrap())?;
-            Ok(SelectorSpec::Or(Box::new(a), Box::new(b)))
-        }
+        Rule::AndSelector => Ok(SelectorSpec::And(
+            pair.into_inner()
+                .map(handle_selector)
+                .collect::<Result<_, _>>()?,
+        )),
+        Rule::OrSelector => Ok(SelectorSpec::Or(
+            pair.into_inner()
+                .map(handle_selector)
+                .collect::<Result<_, _>>()?,
+        )),
         Rule::NotSelector => Ok(SelectorSpec::Not(Box::new(handle_selector(
             pair.into_inner().next().unwrap(),
         )?))),
@@ -201,9 +206,6 @@ fn handle_selector_path_item(pair: Pair<Rule>) -> Result<SelectorPathItem, Inval
                 .map_err(|_| InvalidSelectorError::InvalidIndex)?,
         )),
         Rule::Key => Ok(SelectorPathItem::Key(pair.as_str().to_owned())),
-        Rule::ContainsKey => Ok(SelectorPathItem::ContainsKey(
-            pair.into_inner().next().unwrap().as_str().to_owned(),
-        )),
         rule => Err(InvalidSelectorError::UnexpectedToken(
             format!("{:?}", rule),
             "a selector path item",
