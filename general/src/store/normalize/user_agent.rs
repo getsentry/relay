@@ -47,13 +47,30 @@ pub fn normalize_user_agent(event: &mut Event) {
         })));
     }
 
-    if is_known(os.family.as_str()) && !contexts.contains_key(OsContext::default_key()) {
+    // avoid conflicts with OS-context sent by a serverside SDK by using `contexts.client_os`
+    // instead of `contexts.os`. This is then preferred by the UI to show alongside device and
+    // browser context.
+    //
+    // Why not move the existing `contexts.os` into a different key on conflicts? Because we still
+    // want to index (derive tags from) the SDK-sent context.
+    let os_context_key = match event.platform.value().map(|x| x.as_str()) {
+        Some("javascript") => OsContext::default_key(),
+        _ => "client_os",
+    };
+
+    if is_known(os.family.as_str()) && !contexts.contains_key(os_context_key) {
         let version = get_version(&os.major, &os.minor, &os.patch);
-        contexts.add(Context::Os(Box::new(OsContext {
-            name: Annotated::from(os.family),
-            version: Annotated::from(version),
-            ..OsContext::default()
-        })));
+        contexts.insert(
+            os_context_key.to_owned(),
+            Annotated::new(
+                Context::Os(Box::new(OsContext {
+                    name: Annotated::from(os.family),
+                    version: Annotated::from(version),
+                    ..OsContext::default()
+                }))
+                .into(),
+            ),
+        );
     }
 }
 
@@ -162,7 +179,7 @@ mod tests {
         normalize_user_agent(&mut event);
         assert_annotated_matches!(event.contexts, @r###"
        ⋮{
-       ⋮  "os": {
+       ⋮  "client_os": {
        ⋮    "name": "Windows 7",
        ⋮    "type": "os"
        ⋮  }
@@ -181,16 +198,16 @@ mod tests {
        ⋮    "name": "Mobile Safari UI/WKWebView",
        ⋮    "type": "browser"
        ⋮  },
+       ⋮  "client_os": {
+       ⋮    "name": "iOS",
+       ⋮    "version": "12.1",
+       ⋮    "type": "os"
+       ⋮  },
        ⋮  "device": {
        ⋮    "family": "iPhone",
        ⋮    "model": "iPhone",
        ⋮    "brand": "Apple",
        ⋮    "type": "device"
-       ⋮  },
-       ⋮  "os": {
-       ⋮    "name": "iOS",
-       ⋮    "version": "12.1",
-       ⋮    "type": "os"
        ⋮  }
        ⋮}
         "###);
@@ -203,7 +220,7 @@ mod tests {
         normalize_user_agent(&mut event);
         assert_annotated_matches!(event.contexts, @r###"
        ⋮{
-       ⋮  "os": {
+       ⋮  "client_os": {
        ⋮    "name": "Mac OS X",
        ⋮    "version": "10.13.4",
        ⋮    "type": "os"
@@ -241,16 +258,16 @@ mod tests {
        ⋮    "version": "18.0.1025",
        ⋮    "type": "browser"
        ⋮  },
+       ⋮  "client_os": {
+       ⋮    "name": "Android",
+       ⋮    "version": "4.0.4",
+       ⋮    "type": "os"
+       ⋮  },
        ⋮  "device": {
        ⋮    "family": "Samsung Galaxy Nexus",
        ⋮    "model": "Galaxy Nexus",
        ⋮    "brand": "Samsung",
        ⋮    "type": "device"
-       ⋮  },
-       ⋮  "os": {
-       ⋮    "name": "Android",
-       ⋮    "version": "4.0.4",
-       ⋮    "type": "os"
        ⋮  }
        ⋮}
         "###);
@@ -286,6 +303,11 @@ mod tests {
        ⋮    "name": "BR_FAMILY",
        ⋮    "version": "BR_VERSION",
        ⋮    "type": "browser"
+       ⋮  },
+       ⋮  "client_os": {
+       ⋮    "name": "Android",
+       ⋮    "version": "4.0.4",
+       ⋮    "type": "os"
        ⋮  },
        ⋮  "device": {
        ⋮    "family": "DEV_FAMILY",
