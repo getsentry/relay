@@ -29,7 +29,7 @@ General relay settings.
 
 `relay.upstream`
 
-: *string, default: `https://ingest.sentry.io`*
+: *string, default: `https://sentry.io`*
 
   The upstream relay or sentry instance.
 
