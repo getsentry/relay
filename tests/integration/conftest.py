@@ -3,11 +3,12 @@ import subprocess
 
 import pytest
 
+# all tests fixtures must be imported so that pytest finds them
 from .fixtures.gobetween import gobetween  # noqa
 from .fixtures.haproxy import haproxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
 from .fixtures.relay import relay  # noqa
-
+from .fixtures.kafka import  kafka_consumer, relay_with_kafka, kafka_admin # noqa
 
 @pytest.fixture
 def random_port():

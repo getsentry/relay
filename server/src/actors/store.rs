@@ -11,7 +11,7 @@ use futures::Future;
 use rdkafka::error::KafkaError;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::ClientConfig;
-use rmp_serde::Serializer;
+use rmp_serde::to_vec_named;
 use serde::Serialize;
 
 use rmp_serde::encode::Error as SerdeError;
@@ -97,16 +97,15 @@ impl Message for StoreEvent {
 }
 
 fn serialize_kafka_event(payload: Bytes) -> Result<Vec<u8>, StoreError> {
-    let mut buff = Vec::new();
     let message = EventKafkaMessage {
         payload,
         start_time: Utc::now().timestamp(),
         ty: KafkaMessageType::Event,
     };
 
-    match message.serialize(&mut Serializer::new(&mut buff)) {
+    match to_vec_named(&message) {
         Err(e) => Err(StoreError::SerializationError(e)),
-        _ => Ok(buff),
+        Ok(val) => Ok(val),
     }
 }
 

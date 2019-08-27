@@ -385,7 +385,7 @@ struct Processing {
     /// Maximum age of ingested events. Older events will be adjusted to `now()`.
     #[serde(default = "default_max_secs_in_past")]
     max_secs_in_past: u32,
-    /// Kafka producer configurations
+    /// kafka producer configurations
     kafka_config: Vec<KafkaConfigParam>,
     /// kafka topic names
     topics: TopicNames,

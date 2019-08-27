@@ -1,6 +1,9 @@
 import json
 import os
+import io
 import queue
+import datetime
+import msgpack
 
 import pytest
 
@@ -21,7 +24,19 @@ def test_store_node_base64(mini_sentry, relay_chain):
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    payload = b"eJytVctu2zAQ/BWDFzuAJYt6WVIfaAsE6KFBi6K3IjAoiXIYSyRLUm7cwP/eJaXEcZr0Bd/E5e7OzJIc3aKOak3WFBXoXCmhislOTDqiNmiO6E1FpWGCo+LrLTI7eZ8Fm1vS9nZ9SNeGVBujSAXhW9QoAq1dZcNaymEF2aUQRkOOXHFRU/9aQ13LOOUCFSkO56gSrf2O5qjpeTWAI963rf+ScMF3nej1ayhifEWkREVDWk3nqBN13/4KgPbzv4bHOb6Hx+kRPihTppf/DTukPVKbRwe44AjuYkhXPb8gjP8Gdfz4C7Q4Xz4z2xFs1QpSnwQqCZKDsPAIy6jdAPfhZGDpASwKnxJ2Ml1p+qcDW9EbQ7mGmPaH2hOgJg8exdOolegkNPlnuIVUbEsMXZhOLuy19TRfMF7Tm0d3555AGB8R+Fhe08o88zCN6h9ScH1hWyoKhLmBUYE3gIuoyWeypXzyaqLot54pOpsqG5ievYB0t+dDQcPWs+mVMVIXi0WSZDQgASF108Q4xqSMaUmDKkuzrEzD5E29Vgx8jSpvWQZ5sizxMgqbKCMJDYPEp73P10psfCYWGE/PfMbhibftzGGiSyvYUVzZGQD7kQaRplf0/M4WZ5x+nzg/nE1HG5yeuRZSaPNA5uX+cr+HrmAQXJO78bmRTIiZPDnHHtiDj+6hiqz18AXdFLHm6kymQNvMx9iP4GBRqSipK9V3pc0d3Fk76Dmyg6XaDD2GE3FJbs7QJvRTaGJFiw2zfQM/8jEEDOto7YkeSlHsBy7mXN4bbR4yIRpYuj2rYR3B2i67OnGNQ1dTqZ00Y3Zo11dEUV49iDDtlX3TWMkI+9hPrSaYwJaq1Xhd35Mfb70LUr0Dlt4nJTycwOOuSGv/VCDErByDNE/iZZLXQY3zOAnDvElpjJcJTXCUZSEZZYGMTlqKAc68IPPC5RccwQUvgsDdUmGPxJKx/GVLTCNUZ39Fzt5/AgZYWKw="  # noqa
+    payload = b"eJytVctu2zAQ/BWDFzuAJYt6WVIfaAsE6KFBi6K3IjAoiXIYSyRLUm7cwP/eJaXEcZr0Bd" \
+              b"/E5e7OzJIc3aKOak3WFBXoXCmhislOTDqiNmiO6E1FpWGCo" \
+              b"+LrLTI7eZ8Fm1vS9nZ9SNeGVBujSAXhW9QoAq1dZcNaymEF2aUQRkOOXHFRU/9aQ13LOOUCFSkO56gSrf2O5qjpeTWAI963rf" \
+              b"+ScMF3nej1ayhifEWkREVDWk3nqBN13/4KgPbzv4bHOb6Hx+kRPihTppf" \
+              b"/DTukPVKbRwe44AjuYkhXPb8gjP8Gdfz4C7Q4Xz4z2xFs1QpSnwQqCZKDsPAIy6jdAPfhZGDpASwKnxJ2Ml1p" \
+              b"+qcDW9EbQ7mGmPaH2hOgJg8exdOolegkNPlnuIVUbEsMXZhOLuy19TRfMF7Tm0d3555AGB8R" \
+              b"+Fhe08o88zCN6h9ScH1hWyoKhLmBUYE3gIuoyWeypXzyaqLot54pOpsqG5ievYB0t+dDQcPWs" \
+              b"+mVMVIXi0WSZDQgASF108Q4xqSMaUmDKkuzrEzD5E29Vgx8jSpvWQZ5sizxMgqbKCMJDYPEp73P10psfCYWGE" \
+              b"/PfMbhibftzGGiSyvYUVzZGQD7kQaRplf0/M4WZ5x+nzg/nE1HG5yeuRZSaPNA5uX+cr+HrmAQXJO78bmRTIiZPDnHHtiDj" \
+              b"+6hiqz18AXdFLHm6kymQNvMx9iP4GBRqSipK9V3pc0d3Fk76Dmyg6XaDD2GE3FJbs7QJvRTaGJFiw2zfQM" \
+              b"/8jEEDOto7YkeSlHsBy7mXN4bbR4yIRpYuj2rYR3B2i67OnGNQ1dTqZ00Y3Zo11dEUV49iDDtlX3TWMkI" \
+              b"+9hPrSaYwJaq1Xhd35Mfb70LUr0Dlt4nJTycwOOuSGv/VCDErByDNE" \
+              b"/iZZLXQY3zOAnDvElpjJcJTXCUZSEZZYGMTlqKAc68IPPC5RccwQUvgsDdUmGPxJKx/GVLTCNUZ39Fzt5/AgZYWKw="  # noqa
     relay.send_event(42, payload)
 
     event = mini_sentry.captured_events.get(timeout=1)
@@ -194,26 +209,51 @@ def test_max_concurrent_requests(mini_sentry, relay):
     store_count.acquire(timeout=4)
 
 
-def test_when_processing_is_enabled_relay_normalizes_events(mini_sentry, relay):
+def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kafka(mini_sentry, relay_with_kafka,
+                                                                                   kafka_consumer, kafka_admin):
     """
-    Test that relay normalizes messages when processing is enabled
+    Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
-    relay = relay(mini_sentry, {"processing": {"enabled":True}})
+    relay = relay_with_kafka()
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = mini_sentry.full_project_config()
-    relay.send_event(42, {"message": "some_message"})
-    event = mini_sentry.captured_events.get(timeout=1)
+    admin_client = kafka_admin()
+    admin_client.delete_events_topic()
+    # MUST create consumer before sending the event
+    consumer = kafka_consumer()
+    # create a unique message so we can make sure we don't test with stale data
+    message_text = "some message {}".format(datetime.datetime.now())
+    relay.send_event(42, {"message": message_text, "extra": {"msg_text": message_text}})
+    # polling first message can take a few good seconds
+    message = consumer.poll(timeout=10)
+    assert message is not None
+    assert message.error() is None
+    val = message.value()
+    print("message is : {}", val)
+    v = msgpack.unpackb(val, raw=False, use_list=False)
+    msg_type = v['ty']  # a tuple with messageType, message type payload ( 0, () )
+    assert msg_type[0] == 0  # KafkaMessageType::Event
+    start_time = v.get('start_time')
+    assert start_time is not None  # we have some start time field
+    payload = v['payload']
 
+    event = json.load(io.BytesIO(payload))
+
+    # check that we are actually retrieving the message that we sent
+    assert event.get('extra') is not None
+    assert event.get('extra').get('msg_text') is not None
+    assert event['extra']['msg_text'] == message_text
+
+    # check that normalization ran
     assert event.get('key_id') is not None
     assert event.get('project') is not None
     assert event.get('version') is not None
-
 
 def test_when_processing_is_not_enabled_relay_does_not_normalize_events(mini_sentry, relay):
     """
     Tests that relay does not normalize when processing is disabled
     """
-    relay = relay(mini_sentry, {"processing": {"enabled":False}})
+    relay = relay(mini_sentry, {"processing": {"enabled": False}})
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
     relay.send_event(42, {"message": "some_message"})
@@ -221,4 +261,3 @@ def test_when_processing_is_not_enabled_relay_does_not_normalize_events(mini_sen
     assert event.get('key_id') is None
     assert event.get('project') is None
     assert event.get('version') is None
-
