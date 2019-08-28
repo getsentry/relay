@@ -454,7 +454,7 @@ impl Handler<HandleEvent> for EventManager {
                                 .send(request)
                                 .map_err(ProcessingError::ScheduleFailed)
                                 .and_then(move |result| {
-                                    result.map_err(move |error| ProcessingError::StoreFailed(error))
+                                    result.map_err(ProcessingError::StoreFailed)
                                 });
                             Box::new(future) as ResponseFuture<_, _>
                         } else {
