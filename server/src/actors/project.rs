@@ -16,16 +16,13 @@ use actix_web::{http::Method, ResponseError};
 use chrono::{DateTime, Utc};
 use failure::Fail;
 use futures::{future::Shared, sync::oneshot, Future};
-use lazycell::AtomicLazyCell;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;
 
 use semaphore_common::{Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
 use semaphore_general::{
-    datascrubbing::{self, DataScrubbingConfig},
-    filter::FiltersConfig,
-    pii::PiiConfig,
+    datascrubbing::DataScrubbingConfig, filter::FiltersConfig, pii::PiiConfig,
 };
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
@@ -201,12 +198,6 @@ pub struct ProjectConfig {
     /// Configuration for data scrubbers.
     #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
     pub datascrubbing_settings: DataScrubbingConfig,
-
-    /// PII config derived from datascrubbing settings.
-    ///
-    /// Cached here because the conversion process is expensive.
-    #[serde(skip, default = "AtomicLazyCell::new")]
-    datascrubbing_pii_config: AtomicLazyCell<Option<PiiConfig>>,
 }
 
 impl Default for ProjectConfig {
@@ -218,26 +209,11 @@ impl Default for ProjectConfig {
             grouping_config: None,
             filter_settings: FiltersConfig::default(),
             datascrubbing_settings: DataScrubbingConfig::default(),
-            datascrubbing_pii_config: AtomicLazyCell::new(),
         }
     }
 }
 
 impl ProjectConfig {
-    /// Get the PII config derived from datascrubbing settings.
-    fn get_datascrubbing_pii_config(&self) -> Option<&PiiConfig> {
-        if let Some(ref pii_config) = self.datascrubbing_pii_config.borrow() {
-            pii_config.as_ref()
-        } else {
-            let pii_config = datascrubbing::to_pii_config(&self.datascrubbing_settings);
-            let _ = self.datascrubbing_pii_config.fill(pii_config);
-            self.datascrubbing_pii_config
-                .borrow()
-                .expect("filled lazycell for datascrubbing settings, but cell is still empty")
-                .as_ref()
-        }
-    }
-
     /// Get all PII configs that should be applied to this project.
     ///
     /// Yields multiple because:
@@ -248,7 +224,7 @@ impl ProjectConfig {
         self.pii_config
             .as_ref()
             .into_iter()
-            .chain(self.get_datascrubbing_pii_config().into_iter())
+            .chain(self.datascrubbing_settings.pii_config().into_iter())
     }
 }
 
