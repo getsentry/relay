@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use ::actix::prelude::*;
+use actix::prelude::*;
 use actix_web::client::ClientConnector;
 use actix_web::{server, App};
 use failure::ResultExt;
@@ -48,6 +48,13 @@ pub enum ServerErrorKind {
     /// GeoIp construction failed.
     #[fail(display = "could not load the Geoip Db")]
     GeoIpError,
+
+    /// Configuration failed.
+    #[fail(display = "configuration error")]
+    ConfigError,
+
+    #[fail(display = "kafka error")]
+    KafkaError,
 }
 
 impl Fail for ServerError {
@@ -107,13 +114,17 @@ impl ServiceState {
             None => None,
         };
 
+        let event_manager =
+            EventManager::create(config.clone(), upstream_relay.clone(), geoip_lookup)
+                .context(ServerErrorKind::ConfigError)?
+                .start();
+
         Ok(ServiceState {
             config: config.clone(),
             upstream_relay: upstream_relay.clone(),
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
-            event_manager: EventManager::new(config.clone(), upstream_relay.clone(), geoip_lookup)
-                .start(),
+            event_manager: event_manager,
         })
     }
 

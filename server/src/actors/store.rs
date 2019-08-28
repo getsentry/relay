@@ -6,12 +6,11 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use bytes::Bytes;
-use failure::Fail;
+use failure::{Fail, ResultExt};
 use futures::Future;
 use rdkafka::error::KafkaError;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::ClientConfig;
-use rmp_serde::to_vec_named;
 use serde::Serialize;
 
 use rmp_serde::encode::Error as SerdeError;
@@ -20,7 +19,8 @@ use semaphore_common::{tryf, Config, KafkaTopic};
 use semaphore_general::protocol::EventId;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
-use crate::utils::SyncHandle;
+use crate::service::{ServerError, ServerErrorKind};
+use crate::utils::{SyncFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum StoreError {
@@ -30,6 +30,8 @@ pub enum StoreError {
     Kafka(KafkaError),
     #[fail(display = "failed to serialize message")]
     SerializationError(SerdeError),
+    #[fail(display = "shutdown timer expired")]
+    Shutdown,
 }
 
 /// Actor for publishing events to Sentry through kafka topics
@@ -43,7 +45,9 @@ pub struct StoreForwarder {
 #[serde(rename_all = "snake_case")]
 enum KafkaMessageType {
     Event,
+    #[allow(dead_code)] // future use
     AttachmentChunk,
+    #[allow(dead_code)] // future use
     Transaction,
 }
 
@@ -55,19 +59,20 @@ struct EventKafkaMessage {
 }
 
 impl StoreForwarder {
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         let mut client_config = ClientConfig::new();
         for config_p in config.kafka_config() {
             client_config.set(config_p.name.as_str(), config_p.value.as_str());
         }
+        let client_config = client_config
+            .create()
+            .context(ServerErrorKind::KafkaError)?;
 
-        StoreForwarder {
+        Ok(StoreForwarder {
             config,
             shutdown: SyncHandle::new(),
-            producer: client_config
-                .create()
-                .expect("could not create kafka producer"), // TODO cleanup
-        }
+            producer: client_config,
+        })
     }
 }
 
@@ -103,10 +108,7 @@ fn serialize_kafka_event(payload: Bytes) -> Result<Vec<u8>, StoreError> {
         ty: KafkaMessageType::Event,
     };
 
-    match to_vec_named(&message) {
-        Err(e) => Err(StoreError::SerializationError(e)),
-        Ok(val) => Ok(val),
-    }
+    rmp_serde::to_vec_named(&message).map_err(StoreError::SerializationError)
 }
 
 impl Handler<StoreEvent> for StoreForwarder {
@@ -119,25 +121,34 @@ impl Handler<StoreEvent> for StoreForwarder {
             .payload(&serialized_message)
             .key(msg.event_id.0.as_bytes().as_ref());
 
-        let future = self.producer.send(record, 0).then(|result| match result {
-            Ok(Ok(_)) => Ok(()),
-            Ok(Err((kafka_error, _message))) => Err(StoreError::Kafka(kafka_error)),
-            Err(_) => Err(StoreError::Canceled),
-        });
+        let future = self
+            .producer
+            .send(record, 0)
+            .then(|result| match result {
+                Ok(Ok(_)) => Ok(()),
+                Ok(Err((kafka_error, _message))) => Err(StoreError::Kafka(kafka_error)),
+                Err(_) => Err(StoreError::Canceled),
+            })
+            .sync(&self.shutdown, StoreError::Shutdown);
 
         Box::new(future)
     }
 }
 
 impl Handler<Shutdown> for StoreForwarder {
-    type Result = ResponseFuture<(), TimeoutError>;
+    type Result = ResponseActFuture<Self, (), TimeoutError>;
 
     fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
-        self.producer.flush(message.timeout);
-
-        match message.timeout {
+        let shutdown = match message.timeout {
             Some(timeout) => self.shutdown.timeout(timeout),
             None => self.shutdown.now(),
-        }
+        };
+
+        let future = shutdown.into_actor(self).and_then(move |_, slf, _ctx| {
+            slf.producer.flush(message.timeout);
+            actix::fut::ok(())
+        });
+
+        Box::new(future)
     }
 }

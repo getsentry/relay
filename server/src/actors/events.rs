@@ -28,6 +28,7 @@ use crate::actors::store::{StoreError, StoreEvent, StoreForwarder};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
 use crate::utils::{One, SyncActorFuture, SyncHandle};
+use crate::ServerError;
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -253,11 +254,11 @@ pub struct EventManager {
 }
 
 impl EventManager {
-    pub fn new(
+    pub fn create(
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
         geoip_lookup: Option<GeoIpLookup>,
-    ) -> Self {
+    ) -> Result<Self, ServerError> {
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
         let geoip_lookup = geoip_lookup.map(Arc::new);
@@ -272,19 +273,19 @@ impl EventManager {
         );
 
         let store_forwarder = if config.processing_enabled() {
-            Some(StoreForwarder::new(config.clone()).start())
+            Some(StoreForwarder::create(config.clone())?.start())
         } else {
             None
         };
 
-        EventManager {
+        Ok(EventManager {
             config,
             upstream,
             processor,
             store_forwarder,
             current_active_events: 0,
             shutdown: SyncHandle::new(),
-        }
+        })
     }
 }
 
@@ -443,9 +444,8 @@ impl Handler<HandleEvent> for EventManager {
                         }
                     })
                     .and_then(move |processed| {
-                        log::trace!("sending event {}", event_id);
-
                         if let Some(store_forwarder) = store_forwarder {
+                            log::trace!("sending event to kafka {}", event_id);
                             let request = StoreEvent {
                                 payload: processed,
                                 event_id,
@@ -458,6 +458,7 @@ impl Handler<HandleEvent> for EventManager {
                                 });
                             Box::new(future) as ResponseFuture<_, _>
                         } else {
+                            log::trace!("sending event to sentry endpoint {}", event_id);
                             let request = SendRequest::post(format!("/api/{}/store/", project_id))
                                 .build(move |builder| {
                                     if let Some(origin) = meta.origin() {
