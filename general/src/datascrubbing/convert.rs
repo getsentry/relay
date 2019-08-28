@@ -160,13 +160,22 @@ zN87YGV0VMTG6ehxnkI4Fg6i0JPU3QIDAQABAoICAQCoCPjlYrODRU+vd2YeU/gM
 THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 -----END RSA PRIVATE KEY-----"""#;
 
-    fn get_default_pii_config() -> PiiConfig {
-        to_pii_config(&Default::default()).unwrap()
+    fn simple_enabled_pii_config() -> PiiConfig {
+        to_pii_config(&simple_enabled_config()).unwrap()
+    }
+
+    fn simple_enabled_config() -> DataScrubbingConfig {
+        DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        }
     }
 
     #[test]
     fn test_default_pii_config_snap() {
-        insta::assert_json_snapshot_matches!(get_default_pii_config(), @r###"
+        insta::assert_json_snapshot_matches!(simple_enabled_pii_config(), @r###"
        ⋮{
        ⋮  "rules": {},
        ⋮  "vars": {
@@ -196,7 +205,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -295,7 +304,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -620,7 +629,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -703,7 +712,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut data =
             Event::from_value(serde_json::json!({ "extra": SENSITIVE_VARS.clone() }).into());
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -788,7 +797,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -888,7 +897,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             }
         }).into());
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -997,7 +1006,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -1097,7 +1106,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -1156,7 +1165,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -1217,7 +1226,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["fieldy_field".to_owned(), "moar_other_field".to_owned()],
-            ..Default::default()
+            ..simple_enabled_config()
         });
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
@@ -1351,7 +1360,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -1394,7 +1403,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -1436,7 +1445,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -1478,7 +1487,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -1520,7 +1529,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -1623,7 +1632,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -1642,7 +1651,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -1883,7 +1892,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
@@ -1909,7 +1918,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut store_processor = StoreProcessor::new(Default::default(), None);
         process_value(&mut data, &mut store_processor, ProcessingState::root());
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
@@ -1962,7 +1971,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
@@ -1986,7 +1995,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
@@ -2027,7 +2036,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
@@ -2068,7 +2077,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
@@ -2109,7 +2118,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
@@ -2150,7 +2159,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
@@ -2189,7 +2198,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
@@ -2227,7 +2236,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["mystuff".to_owned()],
-            ..Default::default()
+            ..simple_enabled_config()
         });
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
@@ -2294,7 +2303,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["myStuff".to_owned()],
-            ..Default::default()
+            ..simple_enabled_config()
         });
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
@@ -2361,7 +2370,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             exclude_fields: vec!["foobar".to_owned()],
-            ..Default::default()
+            ..simple_enabled_config()
         });
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
@@ -2404,7 +2413,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["".to_owned()],
-            ..Default::default()
+            ..simple_enabled_config()
         });
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
@@ -2504,7 +2513,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["".to_owned()],
-            ..Default::default()
+            ..simple_enabled_config()
         });
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
@@ -2545,7 +2554,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["".to_owned()],
-            ..Default::default()
+            ..simple_enabled_config()
         });
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
@@ -2626,7 +2635,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["".to_owned()],
-            ..Default::default()
+            ..simple_enabled_config()
         });
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
@@ -2691,7 +2700,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = get_default_pii_config();
+        let pii_config = simple_enabled_pii_config();
 
         let mut pii_processor = PiiProcessor::new(&pii_config);
 
@@ -2740,7 +2749,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["session_key".to_owned()],
-            ..Default::default()
+            ..simple_enabled_config()
         });
 
         insta::assert_json_snapshot_matches!(pii_config, @r###"
