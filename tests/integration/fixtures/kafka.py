@@ -80,9 +80,11 @@ class _KafkaAdminWrapper:
 
     def _delete_topic(self, base_topic_name):
         topic_name = _get_topic_name(base_topic_name, self.test_name)
-        futures_dict = self.admin_client.delete_topics([topic_name])
-
-        self._sync_wait_on_result(futures_dict)
+        try:
+            futures_dict = self.admin_client.delete_topics([topic_name])
+            self._sync_wait_on_result(futures_dict)
+        except Exception:  # noqa
+            pass  # noqa nothing to do (probably there was no topic to start with)
 
     def _sync_wait_on_result(self, futures_dict):
         """
@@ -93,6 +95,7 @@ class _KafkaAdminWrapper:
         for f in futures_dict.values():
             f.result(5)  # wait up to 5 seconds for the admin operation to finish
 
+
 @pytest.fixture
 def kafka_admin(request):
     """
@@ -100,6 +103,7 @@ def kafka_admin(request):
     :param request: the pytest request
     :return: a Kafka admin wrapper
     """
+
     def inner(options=None):
         return _KafkaAdminWrapper(request, options)
 
