@@ -53,7 +53,7 @@ pub fn normalize_user_agent(event: &mut Event) {
     //
     // Why not move the existing `contexts.os` into a different key on conflicts? Because we still
     // want to index (derive tags from) the SDK-sent context.
-    let os_context_key = match event.platform.value().map(|x| x.as_str()) {
+    let os_context_key = match event.platform.as_str() {
         Some("javascript") => OsContext::default_key(),
         _ => "client_os",
     };
