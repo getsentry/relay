@@ -27,9 +27,15 @@ pub enum InvalidSelectorError {
     UnexpectedToken(String, &'static str),
 }
 
-#[derive(Parser)]
-#[grammar = "processor/selector.pest"]
-struct SelectorParser;
+mod parser {
+    use pest_derive::Parser;
+
+    #[derive(Parser)]
+    #[grammar = "processor/selector.pest"]
+    pub struct SelectorParser;
+}
+
+use self::parser::{Rule, SelectorParser};
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum SelectorPathItem {

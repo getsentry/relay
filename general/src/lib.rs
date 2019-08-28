@@ -8,9 +8,6 @@
 extern crate semaphore_general_derive;
 
 #[macro_use]
-extern crate pest_derive;
-
-#[macro_use]
 mod macros;
 
 #[cfg(test)]
