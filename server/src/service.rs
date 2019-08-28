@@ -124,7 +124,7 @@ impl ServiceState {
             upstream_relay: upstream_relay.clone(),
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
-            event_manager: event_manager,
+            event_manager,
         })
     }
 
