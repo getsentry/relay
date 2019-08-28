@@ -115,14 +115,6 @@ mod tests {
         rv
     }
 
-    macro_rules! reference_value {
-        (@$snapshot:literal) => {
-            (&|x: &str| insta::assert_snapshot_matches!(x.as_ref(), @$snapshot)) as ReferenceValue
-        }
-    }
-
-    type ReferenceValue = &'static dyn Fn(&str) -> ();
-
     lazy_static::lazy_static! {
         static ref SENSITIVE_VARS: serde_json::Value = serde_json::json!({
             "foo": "bar",
@@ -210,84 +202,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "stacktrace": {
-       ⋮    "frames": [
-       ⋮      {
-       ⋮        "vars": {
-       ⋮          "a_password_here": null,
-       ⋮          "apiKey": null,
-       ⋮          "api_key": null,
-       ⋮          "foo": "bar",
-       ⋮          "password": null,
-       ⋮          "the_secret": null
-       ⋮        }
-       ⋮      }
-       ⋮    ]
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "stacktrace": {
-       ⋮      "frames": {
-       ⋮        "0": {
-       ⋮          "vars": {
-       ⋮            "a_password_here": {
-       ⋮              "": {
-       ⋮                "rem": [
-       ⋮                  [
-       ⋮                    "@password",
-       ⋮                    "x"
-       ⋮                  ]
-       ⋮                ]
-       ⋮              }
-       ⋮            },
-       ⋮            "apiKey": {
-       ⋮              "": {
-       ⋮                "rem": [
-       ⋮                  [
-       ⋮                    "@password",
-       ⋮                    "x"
-       ⋮                  ]
-       ⋮                ]
-       ⋮              }
-       ⋮            },
-       ⋮            "api_key": {
-       ⋮              "": {
-       ⋮                "rem": [
-       ⋮                  [
-       ⋮                    "@password",
-       ⋮                    "x"
-       ⋮                  ]
-       ⋮                ]
-       ⋮              }
-       ⋮            },
-       ⋮            "password": {
-       ⋮              "": {
-       ⋮                "rem": [
-       ⋮                  [
-       ⋮                    "@password",
-       ⋮                    "x"
-       ⋮                  ]
-       ⋮                ]
-       ⋮              }
-       ⋮            },
-       ⋮            "the_secret": {
-       ⋮              "": {
-       ⋮                "rem": [
-       ⋮                  [
-       ⋮                    "@password",
-       ⋮                    "x"
-       ⋮                  ]
-       ⋮                ]
-       ⋮              }
-       ⋮            }
-       ⋮          }
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -309,312 +224,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "request": {
-       ⋮    "data": {
-       ⋮      "a_password_here": null,
-       ⋮      "apiKey": null,
-       ⋮      "api_key": null,
-       ⋮      "foo": "bar",
-       ⋮      "password": null,
-       ⋮      "the_secret": null
-       ⋮    },
-       ⋮    "cookies": [
-       ⋮      [
-       ⋮        "a_password_here",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "apiKey",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "api_key",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "foo",
-       ⋮        "bar"
-       ⋮      ],
-       ⋮      [
-       ⋮        "password",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "the_secret",
-       ⋮        null
-       ⋮      ]
-       ⋮    ],
-       ⋮    "headers": [
-       ⋮      [
-       ⋮        "A_password_here",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "ApiKey",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "Api_key",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "Foo",
-       ⋮        "bar"
-       ⋮      ],
-       ⋮      [
-       ⋮        "Password",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "The_secret",
-       ⋮        null
-       ⋮      ]
-       ⋮    ],
-       ⋮    "env": {
-       ⋮      "a_password_here": null,
-       ⋮      "apiKey": null,
-       ⋮      "api_key": null,
-       ⋮      "foo": "bar",
-       ⋮      "password": null,
-       ⋮      "the_secret": null
-       ⋮    }
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "request": {
-       ⋮      "cookies": {
-       ⋮        "0": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "1": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "2": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "4": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "5": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        }
-       ⋮      },
-       ⋮      "data": {
-       ⋮        "a_password_here": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "apiKey": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "api_key": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "password": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "the_secret": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        }
-       ⋮      },
-       ⋮      "env": {
-       ⋮        "a_password_here": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "apiKey": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "api_key": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "password": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "the_secret": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        }
-       ⋮      },
-       ⋮      "headers": {
-       ⋮        "0": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "1": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "2": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "4": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "5": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -634,77 +244,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "user": {
-       ⋮    "username": "secret",
-       ⋮    "data": {
-       ⋮      "a_password_here": null,
-       ⋮      "apiKey": null,
-       ⋮      "api_key": null,
-       ⋮      "foo": "bar",
-       ⋮      "password": null,
-       ⋮      "the_secret": null
-       ⋮    }
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "user": {
-       ⋮      "data": {
-       ⋮        "a_password_here": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "apiKey": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "api_key": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "password": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "the_secret": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -717,72 +257,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "a_password_here": null,
-       ⋮    "apiKey": null,
-       ⋮    "api_key": null,
-       ⋮    "foo": "bar",
-       ⋮    "password": null,
-       ⋮    "the_secret": null
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "a_password_here": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      },
-       ⋮      "apiKey": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      },
-       ⋮      "api_key": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      },
-       ⋮      "password": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      },
-       ⋮      "the_secret": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -805,88 +280,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         // n.b.: This diverges from Python behavior because it would strip a context that is called
         // "secret", not just a string. We accept this difference.
 
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "contexts": {
-       ⋮    "biz": {
-       ⋮      "a_password_here": null,
-       ⋮      "apiKey": null,
-       ⋮      "api_key": null,
-       ⋮      "foo": "bar",
-       ⋮      "password": null,
-       ⋮      "the_secret": null,
-       ⋮      "type": "biz"
-       ⋮    },
-       ⋮    "secret": null
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "contexts": {
-       ⋮      "biz": {
-       ⋮        "a_password_here": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "apiKey": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "api_key": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "password": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        },
-       ⋮        "the_secret": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        }
-       ⋮      },
-       ⋮      "secret": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -905,88 +299,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         // n.b.: Python's datascrubbers return the query string as string again, while Rust parses
         // it during deserialization. In either case the PII is gone.
 
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "request": {
-       ⋮    "query_string": [
-       ⋮      [
-       ⋮        "foo",
-       ⋮        "bar"
-       ⋮      ],
-       ⋮      [
-       ⋮        "password",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "the_secret",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "a_password_here",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "api_key",
-       ⋮        null
-       ⋮      ]
-       ⋮    ]
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "request": {
-       ⋮      "query_string": {
-       ⋮        "1": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "2": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "3": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "4": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -1011,88 +324,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "request": {
-       ⋮    "query_string": [
-       ⋮      [
-       ⋮        "foo",
-       ⋮        "bar"
-       ⋮      ],
-       ⋮      [
-       ⋮        "password",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "the_secret",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "a_password_here",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "api_key",
-       ⋮        null
-       ⋮      ]
-       ⋮    ]
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "request": {
-       ⋮      "query_string": {
-       ⋮        "1": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "2": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "3": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        },
-       ⋮        "4": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -1259,94 +491,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "a_password_here": null,
-       ⋮    "apiKey": null,
-       ⋮    "api_key": null,
-       ⋮    "fieldy_field": null,
-       ⋮    "foo": "bar",
-       ⋮    "moar_other_field": null,
-       ⋮    "password": null,
-       ⋮    "the_secret": null
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "a_password_here": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      },
-       ⋮      "apiKey": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      },
-       ⋮      "api_key": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      },
-       ⋮      "fieldy_field": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "strip-fields",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      },
-       ⋮      "moar_other_field": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "strip-fields",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      },
-       ⋮      "password": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      },
-       ⋮      "the_secret": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -1562,67 +707,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_sanitize_credit_card_within_value_1() {
-        sanitize_credit_card_within_value_test(
-            "'4571234567890111'",
-            reference_value!(@r###"
-           ⋮{
-           ⋮  "extra": {
-           ⋮    "foo": "'[creditcard]'"
-           ⋮  },
-           ⋮  "_meta": {
-           ⋮    "extra": {
-           ⋮      "foo": {
-           ⋮        "": {
-           ⋮          "rem": [
-           ⋮            [
-           ⋮              "@creditcard:replace",
-           ⋮              "s",
-           ⋮              1,
-           ⋮              13
-           ⋮            ]
-           ⋮          ],
-           ⋮          "len": 18
-           ⋮        }
-           ⋮      }
-           ⋮    }
-           ⋮  }
-           ⋮}
-            "###),
-        );
+        sanitize_credit_card_within_value_test("'4571234567890111'");
     }
 
     #[test]
     fn test_sanitize_credit_card_within_value_2() {
-        sanitize_credit_card_within_value_test(
-            "foo 4571234567890111",
-            reference_value!(@r###"
-           ⋮{
-           ⋮  "extra": {
-           ⋮    "foo": "foo [creditcard]"
-           ⋮  },
-           ⋮  "_meta": {
-           ⋮    "extra": {
-           ⋮      "foo": {
-           ⋮        "": {
-           ⋮          "rem": [
-           ⋮            [
-           ⋮              "@creditcard:replace",
-           ⋮              "s",
-           ⋮              4,
-           ⋮              16
-           ⋮            ]
-           ⋮          ],
-           ⋮          "len": 20
-           ⋮        }
-           ⋮      }
-           ⋮    }
-           ⋮  }
-           ⋮}
-            "###),
-        );
+        sanitize_credit_card_within_value_test("foo 4571234567890111");
     }
 
-    fn sanitize_credit_card_within_value_test(cc: &str, expected: ReferenceValue) {
+    fn sanitize_credit_card_within_value_test(cc: &str) {
         let mut data = Event::from_value(
             serde_json::json!({
                 "extra": {
@@ -1637,7 +730,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        expected(&data.to_json_pretty().unwrap());
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -1667,163 +760,27 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_sanitize_url_1() {
-        sanitize_url_test(
-            "pg://matt:pass@localhost/1",
-            reference_value!(@r###"
-           ⋮{
-           ⋮  "extra": {
-           ⋮    "foo": "pg://matt:[email]/1"
-           ⋮  },
-           ⋮  "_meta": {
-           ⋮    "extra": {
-           ⋮      "foo": {
-           ⋮        "": {
-           ⋮          "rem": [
-           ⋮            [
-           ⋮              "@email",
-           ⋮              "s",
-           ⋮              10,
-           ⋮              17
-           ⋮            ]
-           ⋮          ],
-           ⋮          "len": 26
-           ⋮        }
-           ⋮      }
-           ⋮    }
-           ⋮  }
-           ⋮}
-            "###),
-        );
+        sanitize_url_test("pg://matt:pass@localhost/1");
     }
 
     #[test]
     fn test_sanitize_url_2() {
-        sanitize_url_test(
-            "foo 'redis://redis:foo@localhost:6379/0' bar",
-            reference_value!(@r###"
-           ⋮{
-           ⋮  "extra": {
-           ⋮    "foo": "foo 'redis://redis:[email]:6379/0' bar"
-           ⋮  },
-           ⋮  "_meta": {
-           ⋮    "extra": {
-           ⋮      "foo": {
-           ⋮        "": {
-           ⋮          "rem": [
-           ⋮            [
-           ⋮              "@email",
-           ⋮              "s",
-           ⋮              19,
-           ⋮              26
-           ⋮            ]
-           ⋮          ],
-           ⋮          "len": 44
-           ⋮        }
-           ⋮      }
-           ⋮    }
-           ⋮  }
-           ⋮}
-            "###),
-        );
+        sanitize_url_test("foo 'redis://redis:foo@localhost:6379/0' bar");
     }
 
     #[test]
     fn test_sanitize_url_3() {
-        sanitize_url_test(
-            "'redis://redis:foo@localhost:6379/0'",
-            reference_value!(@r###"
-           ⋮{
-           ⋮  "extra": {
-           ⋮    "foo": "'redis://redis:[email]:6379/0'"
-           ⋮  },
-           ⋮  "_meta": {
-           ⋮    "extra": {
-           ⋮      "foo": {
-           ⋮        "": {
-           ⋮          "rem": [
-           ⋮            [
-           ⋮              "@email",
-           ⋮              "s",
-           ⋮              15,
-           ⋮              22
-           ⋮            ]
-           ⋮          ],
-           ⋮          "len": 36
-           ⋮        }
-           ⋮      }
-           ⋮    }
-           ⋮  }
-           ⋮}
-            "###),
-        );
+        sanitize_url_test("'redis://redis:foo@localhost:6379/0'");
     }
 
     #[test]
     fn test_sanitize_url_4() {
-        sanitize_url_test(
-            "foo redis://redis:foo@localhost:6379/0 bar",
-            reference_value!(@r###"
-           ⋮{
-           ⋮  "extra": {
-           ⋮    "foo": "foo redis://redis:[email]:6379/0 bar"
-           ⋮  },
-           ⋮  "_meta": {
-           ⋮    "extra": {
-           ⋮      "foo": {
-           ⋮        "": {
-           ⋮          "rem": [
-           ⋮            [
-           ⋮              "@email",
-           ⋮              "s",
-           ⋮              18,
-           ⋮              25
-           ⋮            ]
-           ⋮          ],
-           ⋮          "len": 42
-           ⋮        }
-           ⋮      }
-           ⋮    }
-           ⋮  }
-           ⋮}
-            "###),
-        );
+        sanitize_url_test("foo redis://redis:foo@localhost:6379/0 bar");
     }
 
     #[test]
     fn test_sanitize_url_5() {
-        sanitize_url_test(
-            "foo redis://redis:foo@localhost:6379/0 bar pg://matt:foo@localhost/1",
-            reference_value!(@r###"
-           ⋮{
-           ⋮  "extra": {
-           ⋮    "foo": "foo redis://redis:[email]:6379/0 bar pg://matt:[email]/1"
-           ⋮  },
-           ⋮  "_meta": {
-           ⋮    "extra": {
-           ⋮      "foo": {
-           ⋮        "": {
-           ⋮          "rem": [
-           ⋮            [
-           ⋮              "@email",
-           ⋮              "s",
-           ⋮              18,
-           ⋮              25
-           ⋮            ],
-           ⋮            [
-           ⋮              "@email",
-           ⋮              "s",
-           ⋮              47,
-           ⋮              54
-           ⋮            ]
-           ⋮          ],
-           ⋮          "len": 68
-           ⋮        }
-           ⋮      }
-           ⋮    }
-           ⋮  }
-           ⋮}
-            "###),
-        );
+        sanitize_url_test("foo redis://redis:foo@localhost:6379/0 bar pg://matt:foo@localhost/1");
     }
 
     #[test]
@@ -1831,16 +788,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         // Make sure we don't mess up any other url.
         // This url specifically if passed through urlunsplit(urlsplit()),
         // it'll change the value.
-        sanitize_url_test(
-            "postgres:///path",
-            reference_value!(@r###"
-           ⋮{
-           ⋮  "extra": {
-           ⋮    "foo": "postgres:///path"
-           ⋮  }
-           ⋮}
-            "###),
-        );
+        sanitize_url_test("postgres:///path");
     }
 
     #[test]
@@ -1849,40 +797,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         // n.b.: We accept the difference from Python, where "b" is not masked.
         sanitize_url_test(
             r#"{"a":"https://localhost","b":"foo@localhost","c":"pg://matt:pass@localhost/1","d":"lol"}"#, 
-            reference_value!(@r###"
-           ⋮{
-           ⋮  "extra": {
-           ⋮    "foo": "{\"a\":\"https://localhost\",\"b\":\"[email]\",\"c\":\"pg://matt:[email]/1\",\"d\":\"lol\"}"
-           ⋮  },
-           ⋮  "_meta": {
-           ⋮    "extra": {
-           ⋮      "foo": {
-           ⋮        "": {
-           ⋮          "rem": [
-           ⋮            [
-           ⋮              "@email",
-           ⋮              "s",
-           ⋮              30,
-           ⋮              37
-           ⋮            ],
-           ⋮            [
-           ⋮              "@email",
-           ⋮              "s",
-           ⋮              54,
-           ⋮              61
-           ⋮            ]
-           ⋮          ],
-           ⋮          "len": 88
-           ⋮        }
-           ⋮      }
-           ⋮    }
-           ⋮  }
-           ⋮}
-            "###)
         );
     }
 
-    fn sanitize_url_test(url: &str, expected: ReferenceValue) {
+    fn sanitize_url_test(url: &str) {
         let mut data = Event::from_value(
             serde_json::json!({
                 "extra": {
@@ -1897,7 +815,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        expected(&data.to_json_pretty().unwrap());
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -2447,61 +1365,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_should_have_mysql_pwd_as_a_default_1() {
-        should_have_mysql_pwd_as_a_default_test(
-            "MYSQL_PWD",
-            reference_value!(@r###"
-           ⋮{
-           ⋮  "extra": {
-           ⋮    "MYSQL_PWD": null
-           ⋮  },
-           ⋮  "_meta": {
-           ⋮    "extra": {
-           ⋮      "MYSQL_PWD": {
-           ⋮        "": {
-           ⋮          "rem": [
-           ⋮            [
-           ⋮              "@password",
-           ⋮              "x"
-           ⋮            ]
-           ⋮          ]
-           ⋮        }
-           ⋮      }
-           ⋮    }
-           ⋮  }
-           ⋮}
-            "###),
-        );
+        should_have_mysql_pwd_as_a_default_test("MYSQL_PWD");
     }
 
     #[test]
     fn test_should_have_mysql_pwd_as_a_default_2() {
-        should_have_mysql_pwd_as_a_default_test(
-            "mysql_pwd",
-            reference_value!(@r###"
-           ⋮{
-           ⋮  "extra": {
-           ⋮    "mysql_pwd": null
-           ⋮  },
-           ⋮  "_meta": {
-           ⋮    "extra": {
-           ⋮      "mysql_pwd": {
-           ⋮        "": {
-           ⋮          "rem": [
-           ⋮            [
-           ⋮              "@password",
-           ⋮              "x"
-           ⋮            ]
-           ⋮          ]
-           ⋮        }
-           ⋮      }
-           ⋮    }
-           ⋮  }
-           ⋮}
-            "###),
-        );
+        should_have_mysql_pwd_as_a_default_test("mysql_pwd");
     }
 
-    fn should_have_mysql_pwd_as_a_default_test(key: &str, expected: ReferenceValue) {
+    fn should_have_mysql_pwd_as_a_default_test(key: &str) {
         let mut data = Event::from_value(
             serde_json::json!({
                 "extra": {
@@ -2536,7 +1408,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        expected(&data.to_json_pretty().unwrap());
+        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
     }
 
     #[test]
@@ -2787,7 +1659,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮  "breadcrumbs": {
        ⋮    "values": [
        ⋮      {
-       ⋮        "message": "[filtered: sensitive keys]"
+       ⋮        "message": "[filtered]"
        ⋮      }
        ⋮    ]
        ⋮  },
@@ -2802,7 +1674,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
        ⋮                  "strip-fields",
        ⋮                  "s",
        ⋮                  0,
-       ⋮                  26
+       ⋮                  10
        ⋮                ]
        ⋮              ],
        ⋮              "len": 68
