@@ -119,7 +119,7 @@ impl EventProcessor {
             event.id = Annotated::new(message.event_id);
         }
 
-        for pii_config in message.project_state.config.get_pii_configs() {
+        for pii_config in message.project_state.config.pii_configs() {
             let mut processor = PiiProcessor::new(pii_config);
             process_value(&mut event, &mut processor, ProcessingState::root());
         }

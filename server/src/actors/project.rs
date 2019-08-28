@@ -220,7 +220,7 @@ impl ProjectConfig {
     ///
     /// 1. User will be able to define PII config themselves (in Sentry, `self.pii_config`)
     /// 2. datascrubbing settings (in Sentry, `self.datascrubbing_settings`) are converted in Relay to a PII config.
-    pub fn get_pii_configs(&self) -> impl Iterator<Item = &PiiConfig> {
+    pub fn pii_configs(&self) -> impl Iterator<Item = &PiiConfig> {
         self.pii_config
             .as_ref()
             .into_iter()
