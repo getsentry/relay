@@ -1,5 +1,5 @@
 ---
-created: "2019-08-28T17:42:00.288509Z"
+created: "2019-08-28T17:50:10.458377Z"
 creator: insta@0.10.1
 source: general/src/datascrubbing/convert.rs
 expression: data.to_json_pretty().unwrap()
@@ -14,7 +14,7 @@ expression: data.to_json_pretty().unwrap()
         "": {
           "rem": [
             [
-              "@creditcard:replace",
+              "@creditcard",
               "s",
               1,
               13

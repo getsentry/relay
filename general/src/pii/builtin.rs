@@ -49,7 +49,7 @@ declare_builtin_rules! {
             rules: vec![
                 "@ip".into(),
                 "@email".into(),
-                "@creditcard:replace".into(),
+                "@creditcard".into(),
                 "@pemkey".into(),
                 "@urlauth".into(),
                 "@userpath".into(),
@@ -203,7 +203,7 @@ declare_builtin_rules! {
     };
 
     // creditcard rules
-    "@creditcard" => rule_alias!("@creditcard:mask");
+    "@creditcard" => rule_alias!("@creditcard:replace");
     "@creditcard:mask" => RuleSpec {
         ty: RuleType::Creditcard,
         redaction: Redaction::Mask(MaskRedaction {
@@ -568,9 +568,9 @@ mod tests {
         assert_text_rule!(
             rule = "@creditcard";
             input = "John Appleseed 4571234567890111!";
-            output = "John Appleseed ************0111!";
+            output = "John Appleseed [creditcard]!";
             remarks = vec![
-                Remark::with_range(RemarkType::Masked, "@creditcard", (15, 31)),
+                Remark::with_range(RemarkType::Substituted, "@creditcard", (15, 27)),
             ];
         );
         assert_text_rule!(
