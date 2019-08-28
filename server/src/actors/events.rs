@@ -482,14 +482,12 @@ impl Handler<HandleEvent> for EventManager {
                                         }
                                         other => ProcessingError::SendFailed(other),
                                     })
-                                })
-                                .inspect(move |_| {
-                                    metric!(timer("event.total_time") = start_time.elapsed())
                                 });
                             Box::new(future) as ResponseFuture<_, _>
                         }
                     })
             })
+            .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .sync(&self.shutdown, ProcessingError::Shutdown)
