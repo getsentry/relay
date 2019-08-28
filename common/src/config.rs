@@ -338,8 +338,11 @@ impl Default for Sentry {
 
 /// Define the topics over which Semaphore communicates with Sentry
 pub enum KafkaTopic {
+    /// Simple events (without attachments) topic
     Events,
+    /// Complex events (with attachments) topic
     Attachments,
+    /// Transaction events topic
     Transactions,
 }
 
@@ -795,12 +798,14 @@ impl Config {
         self.values.processing.max_secs_in_past.into()
     }
 
+    /// Get the kafka configuration slice
     pub fn kafka_config(&self) -> &[KafkaConfigParam] {
         self.values.processing.kafka_config.as_slice()
     }
 
+    /// Get kafka topic name
     pub fn kafka_topic_name(&self, topic: KafkaTopic) -> &str {
-        let ref topics = self.values.processing.topics;
+        let topics = &self.values.processing.topics;
         match topic {
             KafkaTopic::Attachments => topics.attachments.as_str(),
             KafkaTopic::Events => topics.events.as_str(),
