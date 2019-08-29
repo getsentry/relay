@@ -71,11 +71,6 @@ test-integration-relay:
 	echo yo
 .PHONY: test-integration-relay
 
-test-coverage: setup
-	@cargo tarpaulin -v --all --out Xml
-	@bash <(curl -s https://codecov.io/bash)
-.PHONY: test-coverage
-
 test-process-event: setup
 	# Process a basic event and assert its output
 	bash -c 'diff \

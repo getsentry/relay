@@ -51,10 +51,8 @@ matrix:
           packages:
             - libssl-dev
             - libgeoip-dev
-      install:
-        - cargo tarpaulin --version || cargo install --force cargo-tarpaulin
       script:
-        - make -e test-coverage
+        - make -e test-rust
 
     - name: "test: semaphore[macos]"
       os: osx
