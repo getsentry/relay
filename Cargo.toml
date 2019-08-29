@@ -15,6 +15,7 @@ publish = false
 [features]
 default = []
 with_ssl = ["semaphore-server/with_ssl"]
+processing = ["semaphore-common/processing", "semaphore-server/processing"]
 
 [profile.release]
 debug = true

@@ -476,6 +476,7 @@ impl Handler<RetryAfter> for Project {
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
     pub projects: Vec<ProjectId>,
+    #[cfg(feature = "processing")]
     #[serde(default)]
     pub full_config: bool,
 }
@@ -554,6 +555,7 @@ impl ProjectCache {
 
         let request = GetProjectStates {
             projects: channels.keys().cloned().collect(),
+            #[cfg(feature = "processing")]
             full_config: self.config.processing_enabled(),
         };
 

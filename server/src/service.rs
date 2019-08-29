@@ -10,7 +10,6 @@ use listenfd::ListenFd;
 use sentry_actix::SentryMiddleware;
 
 use semaphore_common::Config;
-use semaphore_general::store::GeoIpLookup;
 
 use crate::actors::events::EventManager;
 use crate::actors::keys::KeyCache;
@@ -110,15 +109,10 @@ impl ServiceState {
     pub fn start(config: Config) -> Result<Self, ServerError> {
         let config = Arc::new(config);
         let upstream_relay = UpstreamRelay::new(config.clone()).start();
-        let geoip_lookup = match config.geoip_path() {
-            Some(p) => Some(GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?),
-            None => None,
-        };
 
-        let event_manager =
-            EventManager::create(config.clone(), upstream_relay.clone(), geoip_lookup)
-                .context(ServerErrorKind::ConfigError)?
-                .start();
+        let event_manager = EventManager::create(config.clone(), upstream_relay.clone())
+            .context(ServerErrorKind::ConfigError)?
+            .start();
 
         Ok(ServiceState {
             config: config.clone(),

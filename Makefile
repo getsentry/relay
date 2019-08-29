@@ -49,16 +49,16 @@ wheel-manylinux: setup
 
 # Tests
 
-test: test-rust test-python test-integration
+test: test-rust-all test-python test-integration
 .PHONY: test
 
 test-rust: setup-geoip setup-git
 	cargo test --all
 .PHONY: test-rust
 
-test-rust-all-features: setup-geoip setup-git
+test-rust-all: setup-geoip setup-git
 	cargo test --all --all-features
-.PHONY: test-rust
+.PHONY: test-rust-all
 
 test-python: setup
 	.venv/bin/pip install -U pytest
