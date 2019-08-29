@@ -24,11 +24,13 @@ use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
     ProjectState, RetryAfter,
 };
-use crate::actors::store::{StoreError, StoreEvent, StoreForwarder};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
 use crate::service::ServerError;
 use crate::utils::{One, SyncActorFuture, SyncHandle};
+
+#[cfg(feature = "processing")]
+use crate::actors::store::{StoreError, StoreEvent, StoreForwarder};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -82,6 +84,7 @@ enum ProcessingError {
     #[fail(display = "could not send event to upstream")]
     SendFailed(#[cause] UpstreamRequestError),
 
+    #[cfg(feature = "processing")]
     #[fail(display = "could not store event")]
     StoreFailed(#[cause] StoreError),
 
@@ -248,6 +251,7 @@ pub struct EventManager {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     processor: Addr<EventProcessor>,
+    #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
     current_active_events: u32,
     shutdown: SyncHandle,
@@ -272,6 +276,7 @@ impl EventManager {
             }),
         );
 
+        #[cfg(feature = "processing")]
         let store_forwarder = if config.processing_enabled() {
             Some(StoreForwarder::create(config.clone())?.start())
         } else {
@@ -282,6 +287,7 @@ impl EventManager {
             config,
             upstream,
             processor,
+            #[cfg(feature = "processing")]
             store_forwarder,
             current_active_events: 0,
             shutdown: SyncHandle::new(),
@@ -399,6 +405,7 @@ impl Handler<HandleEvent> for EventManager {
         //    the total time an event spent in this relay, corrected by incoming network delays.
 
         let upstream = self.upstream.clone();
+        #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
         let processor = self.processor.clone();
         let log_failed_payloads = self.config.log_failed_payloads();
@@ -447,52 +454,57 @@ impl Handler<HandleEvent> for EventManager {
                         }
                     })
                     .and_then(move |processed| {
-                        if let Some(store_forwarder) = store_forwarder {
-                            log::trace!("sending event to kafka {}", event_id);
+                        #[cfg(feature = "processing")]
+                        {
+                            if let Some(store_forwarder) = store_forwarder {
+                                {
+                                    log::trace!("sending event to kafka {}", event_id);
+                                    let future = store_forwarder
+                                        .send(StoreEvent {
+                                            payload: processed,
+                                            event_id,
+                                            start_time,
+                                        })
+                                        .map_err(ProcessingError::ScheduleFailed)
+                                        .and_then(move |result| {
+                                            result.map_err(ProcessingError::StoreFailed)
+                                        });
+                                }
+                                #[cfg(not(feature = "processing"))]
+                                let future = futures::future::ok(());
 
-                            let future = store_forwarder
-                                .send(StoreEvent {
-                                    payload: processed,
-                                    event_id,
-                                    start_time,
-                                })
-                                .map_err(ProcessingError::ScheduleFailed)
-                                .and_then(move |result| {
-                                    result.map_err(ProcessingError::StoreFailed)
-                                });
-
-                            Box::new(future) as ResponseFuture<_, _>
-                        } else {
-                            log::trace!("sending event to sentry endpoint {}", event_id);
-
-                            let request = SendRequest::post(format!("/api/{}/store/", project_id))
-                                .build(move |builder| {
-                                    if let Some(origin) = meta.origin() {
-                                        builder.header("Origin", origin.to_string());
-                                    }
-
-                                    builder
-                                        .header("X-Sentry-Auth", meta.auth().to_string())
-                                        .header("X-Forwarded-For", meta.forwarded_for())
-                                        .header("Content-Type", "application/json")
-                                        .body(processed)
-                                });
-
-                            let future = upstream
-                                .send(request)
-                                .map_err(ProcessingError::ScheduleFailed)
-                                .and_then(move |result| {
-                                    result.map_err(move |error| match error {
-                                        UpstreamRequestError::RateLimited(secs) => {
-                                            project.do_send(RetryAfter { secs });
-                                            ProcessingError::RateLimited(secs)
-                                        }
-                                        other => ProcessingError::SendFailed(other),
-                                    })
-                                });
-
-                            Box::new(future) as ResponseFuture<_, _>
+                                return Box::new(future) as ResponseFuture<_, _>;
+                            }
                         }
+
+                        log::trace!("sending event to sentry endpoint {}", event_id);
+                        let request = SendRequest::post(format!("/api/{}/store/", project_id))
+                            .build(move |builder| {
+                                if let Some(origin) = meta.origin() {
+                                    builder.header("Origin", origin.to_string());
+                                }
+
+                                builder
+                                    .header("X-Sentry-Auth", meta.auth().to_string())
+                                    .header("X-Forwarded-For", meta.forwarded_for())
+                                    .header("Content-Type", "application/json")
+                                    .body(processed)
+                            });
+
+                        let future = upstream
+                            .send(request)
+                            .map_err(ProcessingError::ScheduleFailed)
+                            .and_then(move |result| {
+                                result.map_err(move |error| match error {
+                                    UpstreamRequestError::RateLimited(secs) => {
+                                        project.do_send(RetryAfter { secs });
+                                        ProcessingError::RateLimited(secs)
+                                    }
+                                    other => ProcessingError::SendFailed(other),
+                                })
+                            });
+
+                        Box::new(future) as ResponseFuture<_, _>
                     })
             })
             .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))

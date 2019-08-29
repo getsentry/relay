@@ -67,8 +67,8 @@ matrix:
     - name: "test: semaphore[macos]"
       os: osx
       language: generic
-      install: cargo build --all
-      script: make -e test-rust
+      install: cargo build --all --all-features
+      script: make -e test-rust-all-features
 
     # -------------------------------------
     # PYTHON LIBRARY TESTS

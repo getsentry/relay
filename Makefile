@@ -29,7 +29,7 @@ docker: setup
 .PHONY: docker
 
 build-linux-release:
-	cargo build --release --locked --target=${TARGET}
+	cargo build --release --locked --all-features --target=${TARGET}
 	objcopy --only-keep-debug target/${TARGET}/release/semaphore{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/semaphore
 	objcopy --add-gnu-debuglink target/${TARGET}/release/semaphore{.debug,}
@@ -53,6 +53,10 @@ test: test-rust test-python test-integration
 .PHONY: test
 
 test-rust: setup-geoip setup-git
+	cargo test --all
+.PHONY: test-rust
+
+test-rust-all-features: setup-geoip setup-git
 	cargo test --all --all-features
 .PHONY: test-rust
 
