@@ -126,27 +126,27 @@ mod tests {
         });
     }
 
-    static PUBLIC_KEY: &'static str = r#"""-----BEGIN PUBLIC KEY-----
+    static PUBLIC_KEY: &str = r#"""-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA6A6TQjlPyMurLh/igZY4
 izA9sJgeZ7s5+nGydO4AI9k33gcy2DObZuadWRMnDwc3uH/qoAPw/mo3KOcgEtxU
 xdwiQeATa3HVPcQDCQiKm8xIG2Ny0oUbR0IFNvClvx7RWnPEMk05CuvsL0AA3eH5
 xn02Yg0JTLgZEtUT3whwFm8CAwEAAQ==
 -----END PUBLIC KEY-----"""#;
 
-    static PRIVATE_KEY: &'static str = r#"""-----BEGIN PRIVATE KEY-----
+    static PRIVATE_KEY: &str = r#"""-----BEGIN PRIVATE KEY-----
 MIIJRAIBADANBgkqhkiG9w0BAQEFAASCCS4wggkqAgEAAoICAQCoNFY4P+EeIXl0
 mLpO+i8uFqAaEFQ8ZX2VVpA13kNEHuiWXC3HPlQ+7G+O3XmAsO+Wf/xY6pCSeQ8h
 mLpO+i8uFqAaEFQ8ZX2VVpA13kNEHuiWXC3HPlQ+7G+O3XmAsO+Wf/xY6pCSeQ8h
 -----END PRIVATE KEY-----"""#;
 
-    static ENCRYPTED_PRIVATE_KEY: &'static str = r#"""-----BEGIN ENCRYPTED PRIVATE KEY-----
+    static ENCRYPTED_PRIVATE_KEY: &str = r#"""-----BEGIN ENCRYPTED PRIVATE KEY-----
 MIIJjjBABgkqhkiG9w0BBQ0wMzAbBgkqhkiG9w0BBQwwDgQIWVhErdQOFVoCAggA
 IrlYQUV1ig4U3viYh1Y8viVvRlANKICvgj4faYNH36UterkfDjzMonb/cXNeJEOS
 YgorM2Pfuec5vtPRPKd88+Ds/ktIlZhjJwnJjHQMX+lSw5t0/juna2sLH2dpuAbi
 PSk=
 -----END ENCRYPTED PRIVATE KEY-----"""#;
 
-    static RSA_PRIVATE_KEY: &'static str = r#"""-----BEGIN RSA PRIVATE KEY-----
+    static RSA_PRIVATE_KEY: &str = r#"""-----BEGIN RSA PRIVATE KEY-----
 +wn9Iu+zgamKDUu22xc45F2gdwM04rTITlZgjAs6U1zcvOzGxk8mWJD5MqFWwAtF
 zN87YGV0VMTG6ehxnkI4Fg6i0JPU3QIDAQABAoICAQCoCPjlYrODRU+vd2YeU/gM
 THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
