@@ -94,10 +94,24 @@ lazy_static! {
     ).unwrap();
 
     // http://www.richardsramblings.com/regex/credit-card-numbers/
+    // Re-formatted with comments and dashes support
+    //
+    // Why so complicated? Because creditcard numbers are variable length and we do not want to
+    // strip any number that just happens to have the same length.
     static ref CREDITCARD_REGEX: Regex = Regex::new(
-        r#"(?x)(
-            \b(?:3[47]\d|(?:4\d|5[1-5]|65)\d{2}|6011)\d{12}\b
-        )
+        r#"(?x)
+        \b(
+            (?:  # vendor specific prefixes
+                  3[47]\d      # amex (no 13-digit version) (length: 15)
+                | 4\d{3}       # visa (16-digit version only)
+                | 5[1-5]\d\d   # mastercard
+                | 65\d\d       # discover network (subset)
+                | 6011         # discover network (subset)
+            )
+
+            # "wildcard" remainder (allowing dashes in every position because of variable length)
+            ([-\s]?\d){12}
+        )\b
         "#
     ).unwrap();
     static ref PATH_REGEX: Regex = Regex::new(

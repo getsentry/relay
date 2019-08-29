@@ -574,6 +574,22 @@ mod tests {
             ];
         );
         assert_text_rule!(
+            rule = "@creditcard";
+            input = "John Appleseed 4571 2345 6789 0111!";
+            output = "John Appleseed [creditcard]!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@creditcard", (15, 27)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@creditcard";
+            input = "John Appleseed 4571-2345-6789-0111!";
+            output = "John Appleseed [creditcard]!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@creditcard", (15, 27)),
+            ];
+        );
+        assert_text_rule!(
             rule = "@creditcard:mask";
             input = "John Appleseed 4571234567890111!";
             output = "John Appleseed ************0111!";
