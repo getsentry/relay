@@ -27,8 +27,8 @@ use crate::actors::project::{
 use crate::actors::store::{StoreError, StoreEvent, StoreForwarder};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
+use crate::service::ServerError;
 use crate::utils::{One, SyncActorFuture, SyncHandle};
-use crate::ServerError;
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -312,6 +312,7 @@ pub struct QueueEvent {
     pub data: Bytes,
     pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
+    pub start_time: Instant,
 }
 
 impl Message for QueueEvent {
@@ -357,6 +358,7 @@ impl Handler<QueueEvent> for EventManager {
             meta: message.meta,
             project: message.project,
             event_id,
+            start_time: message.start_time,
         });
 
         log::trace!("queued event {}", event_id);
@@ -369,6 +371,7 @@ struct HandleEvent {
     pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
     pub event_id: EventId,
+    pub start_time: Instant,
 }
 
 impl Message for HandleEvent {
@@ -394,7 +397,6 @@ impl Handler<HandleEvent> for EventManager {
         // 3. `event.total_time`: The full time an event takes from being initially accepted up to
         //    being sent to the upstream (including delays in the upstream). This can be regarded
         //    the total time an event spent in this relay, corrected by incoming network delays.
-        let start_time = Instant::now();
 
         let upstream = self.upstream.clone();
         let store_forwarder = self.store_forwarder.clone();
@@ -406,6 +408,7 @@ impl Handler<HandleEvent> for EventManager {
             meta,
             project,
             event_id,
+            start_time,
         } = message;
 
         let future = project
@@ -446,19 +449,22 @@ impl Handler<HandleEvent> for EventManager {
                     .and_then(move |processed| {
                         if let Some(store_forwarder) = store_forwarder {
                             log::trace!("sending event to kafka {}", event_id);
-                            let request = StoreEvent {
-                                payload: processed,
-                                event_id,
-                            };
+
                             let future = store_forwarder
-                                .send(request)
+                                .send(StoreEvent {
+                                    payload: processed,
+                                    event_id,
+                                    start_time,
+                                })
                                 .map_err(ProcessingError::ScheduleFailed)
                                 .and_then(move |result| {
                                     result.map_err(ProcessingError::StoreFailed)
                                 });
+
                             Box::new(future) as ResponseFuture<_, _>
                         } else {
                             log::trace!("sending event to sentry endpoint {}", event_id);
+
                             let request = SendRequest::post(format!("/api/{}/store/", project_id))
                                 .build(move |builder| {
                                     if let Some(origin) = meta.origin() {
@@ -471,6 +477,7 @@ impl Handler<HandleEvent> for EventManager {
                                         .header("Content-Type", "application/json")
                                         .body(processed)
                                 });
+
                             let future = upstream
                                 .send(request)
                                 .map_err(ProcessingError::ScheduleFailed)
@@ -483,6 +490,7 @@ impl Handler<HandleEvent> for EventManager {
                                         other => ProcessingError::SendFailed(other),
                                     })
                                 });
+
                             Box::new(future) as ResponseFuture<_, _>
                         }
                     })

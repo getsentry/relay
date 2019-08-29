@@ -336,33 +336,33 @@ impl Default for Sentry {
     }
 }
 
-/// Define the topics over which Semaphore communicates with Sentry
+/// Define the topics over which Relay communicates with Sentry.
 pub enum KafkaTopic {
-    /// Simple events (without attachments) topic
+    /// Simple events (without attachments) topic.
     Events,
-    /// Complex events (with attachments) topic
+    /// Complex events (with attachments) topic.
     Attachments,
-    /// Transaction events topic
+    /// Transaction events topic.
     Transactions,
 }
 
-/// Configuration for topics
+/// Configuration for topics.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TopicNames {
-    /// simple events topic name
+    /// Simple events topic name.
     pub events: String,
-    /// events with attachments topic name
+    /// Events with attachments topic name.
     pub attachments: String,
-    /// transaction events topic name
+    /// Transaction events topic name.
     pub transactions: String,
 }
 
-/// A name value pair
+/// A name value pair of Kafka config parameter.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct KafkaConfigParam {
-    /// name
+    /// Name of the Kafka config parameter.
     pub name: String,
-    /// value
+    /// Value of the Kafka config parameter.
     pub value: String,
 }
 
@@ -388,9 +388,9 @@ struct Processing {
     /// Maximum age of ingested events. Older events will be adjusted to `now()`.
     #[serde(default = "default_max_secs_in_past")]
     max_secs_in_past: u32,
-    /// kafka producer configurations
+    /// Kafka producer configurations.
     kafka_config: Vec<KafkaConfigParam>,
-    /// kafka topic names
+    /// Kafka topic names.
     topics: TopicNames,
 }
 
@@ -798,12 +798,12 @@ impl Config {
         self.values.processing.max_secs_in_past.into()
     }
 
-    /// Get the kafka configuration slice
+    /// The list of Kafka configuration parameters.
     pub fn kafka_config(&self) -> &[KafkaConfigParam] {
         self.values.processing.kafka_config.as_slice()
     }
 
-    /// Get kafka topic name
+    /// Returns the name of the specified Kafka topic.
     pub fn kafka_topic_name(&self, topic: KafkaTopic) -> &str {
         let topics = &self.values.processing.topics;
         match topic {

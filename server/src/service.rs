@@ -53,7 +53,8 @@ pub enum ServerErrorKind {
     #[fail(display = "configuration error")]
     ConfigError,
 
-    #[fail(display = "kafka error")]
+    /// Initializing the Kafka producer failed.
+    #[fail(display = "could not initialize kafka producer")]
     KafkaError,
 }
 
