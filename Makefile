@@ -67,10 +67,6 @@ test-integration: build setup-venv
 	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
 
-test-integration-relay:
-	echo yo
-.PHONY: test-integration-relay
-
 test-process-event: setup
 	# Process a basic event and assert its output
 	bash -c 'diff \
