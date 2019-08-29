@@ -18,10 +18,14 @@ mod common;
 mod config;
 mod csp;
 mod error_messages;
+
+#[cfg(feature = "uaparser")]
 mod legacy_browsers;
+#[cfg(feature = "uaparser")]
+mod web_crawlers;
+
 mod localhost;
 mod releases;
-mod web_crawlers;
 
 #[cfg(test)]
 mod test_utils;
@@ -47,8 +51,11 @@ pub fn should_filter(
     error_messages::should_filter(event, &config.error_messages)?;
     localhost::should_filter(event, &config.localhost)?;
     browser_extensions::should_filter(event, &config.browser_extensions)?;
-    legacy_browsers::should_filter(event, &config.legacy_browsers)?;
-    web_crawlers::should_filter(event, &config.web_crawlers)?;
+    #[cfg(feature = "uaparser")]
+    {
+        legacy_browsers::should_filter(event, &config.legacy_browsers)?;
+        web_crawlers::should_filter(event, &config.web_crawlers)?;
+    }
 
     Ok(())
 }

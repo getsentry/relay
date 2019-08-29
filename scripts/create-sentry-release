@@ -5,8 +5,7 @@ set -eu
 
 VERSION="${1:-}"
 GITHUB_PROJECT="getsentry/semaphore"
-DOCKER_IMAGE="getsentry/semaphore:${VERSION}"
-BIN_DIR="$PWD/.bin"
+DOCKER_IMAGE="us.gcr.io/sentryio/semaphore:${VERSION}"
 export SENTRY_ORG="sentry"
 export SENTRY_PROJECT="relay"
 
@@ -18,12 +17,6 @@ fi
 if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
   echo 'No Sentry auth token found' && exit 1
 fi
-
-echo 'Installing sentry-cli...'
-mkdir $BIN_DIR
-curl -sS https://sentry.io/get-cli/ | INSTALL_DIR=$BIN_DIR bash
-export PATH=$PATH:$BIN_DIR
-sentry-cli --version
 
 echo 'Pulling debug information from semaphore image...'
 docker pull "${DOCKER_IMAGE}"

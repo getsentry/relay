@@ -1,0 +1,92 @@
+---
+created: "2019-08-28T17:42:00.283939Z"
+creator: insta@0.10.1
+source: general/src/datascrubbing/convert.rs
+expression: data.to_json_pretty().unwrap()
+---
+{
+  "extra": {
+    "a_password_here": null,
+    "apiKey": null,
+    "api_key": null,
+    "fieldy_field": null,
+    "foo": "bar",
+    "moar_other_field": null,
+    "password": null,
+    "the_secret": null
+  },
+  "_meta": {
+    "extra": {
+      "a_password_here": {
+        "": {
+          "rem": [
+            [
+              "@password",
+              "x"
+            ]
+          ]
+        }
+      },
+      "apiKey": {
+        "": {
+          "rem": [
+            [
+              "@password",
+              "x"
+            ]
+          ]
+        }
+      },
+      "api_key": {
+        "": {
+          "rem": [
+            [
+              "@password",
+              "x"
+            ]
+          ]
+        }
+      },
+      "fieldy_field": {
+        "": {
+          "rem": [
+            [
+              "strip-fields",
+              "x"
+            ]
+          ]
+        }
+      },
+      "moar_other_field": {
+        "": {
+          "rem": [
+            [
+              "strip-fields",
+              "x"
+            ]
+          ]
+        }
+      },
+      "password": {
+        "": {
+          "rem": [
+            [
+              "@password",
+              "x"
+            ]
+          ]
+        }
+      },
+      "the_secret": {
+        "": {
+          "rem": [
+            [
+              "@password",
+              "x"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

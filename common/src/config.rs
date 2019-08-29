@@ -162,7 +162,7 @@ impl Default for Relay {
     fn default() -> Self {
         Relay {
             mode: RelayMode::Managed,
-            upstream: "https://ingest.sentry.io/"
+            upstream: "https://sentry.io/"
                 .parse::<UpstreamDescriptor<'_>>()
                 .unwrap(),
             host: "127.0.0.1".parse().unwrap(),

@@ -13,14 +13,18 @@ use crate::types::{Annotated, Object, Value};
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct Csp {
     /// The directive whose enforcement caused the violation.
+    #[metastructure(pii = "true")]
     pub effective_directive: Annotated<String>,
     /// The URI of the resource that was blocked from loading by the Content Security Policy.
+    #[metastructure(pii = "true")]
     pub blocked_uri: Annotated<String>,
     /// The URI of the document in which the violation occurred.
+    #[metastructure(pii = "true")]
     pub document_uri: Annotated<String>,
     /// The original policy as specified by the Content-Security-Policy HTTP header.
     pub original_policy: Annotated<String>,
     /// The referrer of the document in which the violation occurred.
+    #[metastructure(pii = "true")]
     pub referrer: Annotated<String>,
     /// The HTTP status code of the resource on which the global object was instantiated.
     pub status_code: Annotated<u64>,
@@ -38,7 +42,7 @@ pub struct Csp {
     /// Policy disposition (enforce or report).
     pub disposition: Annotated<String>,
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(pii = "true", additional_properties)]
     pub other: Object<Value>,
 }
 

@@ -1,0 +1,34 @@
+---
+created: "2019-08-28T17:42:00.331144Z"
+creator: insta@0.10.1
+source: general/src/datascrubbing/convert.rs
+expression: data.to_json_pretty().unwrap()
+---
+{
+  "extra": {
+    "foo": "{\"a\":\"https://localhost\",\"b\":\"[email]\",\"c\":\"pg://matt:[email]/1\",\"d\":\"lol\"}"
+  },
+  "_meta": {
+    "extra": {
+      "foo": {
+        "": {
+          "rem": [
+            [
+              "@email",
+              "s",
+              30,
+              37
+            ],
+            [
+              "@email",
+              "s",
+              54,
+              61
+            ]
+          ],
+          "len": 88
+        }
+      }
+    }
+  }
+}

@@ -21,7 +21,9 @@ use serde_json::Value;
 use url::Url;
 
 use semaphore_common::{Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
-use semaphore_general::{filter::FiltersConfig, pii::PiiConfig};
+use semaphore_general::{
+    datascrubbing::DataScrubbingConfig, filter::FiltersConfig, pii::PiiConfig,
+};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
@@ -177,12 +179,6 @@ pub enum PublicKeyStatus {
     Enabled,
 }
 
-/// Helper method to check whether a flag is false.
-#[allow(clippy::trivially_copy_pass_by_ref)]
-fn is_flag_default(flag: &bool) -> bool {
-    !*flag
-}
-
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -193,27 +189,15 @@ pub struct ProjectConfig {
     pub trusted_relays: Vec<PublicKey>,
     /// Configuration for PII stripping.
     pub pii_config: Option<PiiConfig>,
-    /// List with the fields to be excluded.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub exclude_fields: Vec<String>,
     /// The grouping configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grouping_config: Option<Value>,
-    /// Toggles all data scrubbing on or off.
-    #[serde(skip_serializing_if = "is_flag_default")]
-    pub scrub_data: bool,
-    /// Should ip addresses be scrubbed from messages?
-    #[serde(skip_serializing_if = "is_flag_default")]
-    pub scrub_ip_addresses: bool,
-    /// List of sensitive fields to be scrubbed from the messages.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub sensitive_fields: Vec<String>,
-    /// Controls whether default fields will be scrubbed.
-    #[serde(skip_serializing_if = "is_flag_default")]
-    pub scrub_defaults: bool,
     /// Configuration for filter rules.
     #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
     pub filter_settings: FiltersConfig,
+    /// Configuration for data scrubbers.
+    #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
+    pub datascrubbing_settings: DataScrubbingConfig,
 }
 
 impl Default for ProjectConfig {
@@ -222,14 +206,25 @@ impl Default for ProjectConfig {
             allowed_domains: vec!["*".to_string()],
             trusted_relays: vec![],
             pii_config: None,
-            exclude_fields: vec![],
             grouping_config: None,
-            scrub_ip_addresses: false,
-            sensitive_fields: vec![],
-            scrub_defaults: false,
-            scrub_data: false,
             filter_settings: FiltersConfig::default(),
+            datascrubbing_settings: DataScrubbingConfig::default(),
         }
+    }
+}
+
+impl ProjectConfig {
+    /// Get all PII configs that should be applied to this project.
+    ///
+    /// Yields multiple because:
+    ///
+    /// 1. User will be able to define PII config themselves (in Sentry, `self.pii_config`)
+    /// 2. datascrubbing settings (in Sentry, `self.datascrubbing_settings`) are converted in Relay to a PII config.
+    pub fn pii_configs(&self) -> impl Iterator<Item = &PiiConfig> {
+        self.pii_config
+            .as_ref()
+            .into_iter()
+            .chain(self.datascrubbing_settings.pii_config().into_iter())
     }
 }
 

@@ -420,6 +420,12 @@ impl std::ops::DerefMut for ContextInner {
     }
 }
 
+impl From<Context> for ContextInner {
+    fn from(c: Context) -> ContextInner {
+        ContextInner(c)
+    }
+}
+
 /// An object holding multiple contexts.
 #[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, Default)]
 pub struct Contexts(pub Object<ContextInner>);

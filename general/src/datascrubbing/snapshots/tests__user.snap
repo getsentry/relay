@@ -1,0 +1,75 @@
+---
+created: "2019-08-28T17:42:00.347310Z"
+creator: insta@0.10.1
+source: general/src/datascrubbing/convert.rs
+expression: data.to_json_pretty().unwrap()
+---
+{
+  "user": {
+    "username": "secret",
+    "data": {
+      "a_password_here": null,
+      "apiKey": null,
+      "api_key": null,
+      "foo": "bar",
+      "password": null,
+      "the_secret": null
+    }
+  },
+  "_meta": {
+    "user": {
+      "data": {
+        "a_password_here": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "apiKey": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "api_key": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "password": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "the_secret": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        }
+      }
+    }
+  }
+}

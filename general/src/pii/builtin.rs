@@ -54,6 +54,7 @@ declare_builtin_rules! {
                 "@urlauth".into(),
                 "@userpath".into(),
                 "@password".into(),
+                "@usssn".into(),
             ],
             hide_inner: false,
         }),
@@ -202,7 +203,7 @@ declare_builtin_rules! {
     };
 
     // creditcard rules
-    "@creditcard" => rule_alias!("@creditcard:mask");
+    "@creditcard" => rule_alias!("@creditcard:replace");
     "@creditcard:mask" => RuleSpec {
         ty: RuleType::Creditcard,
         redaction: Redaction::Mask(MaskRedaction {
@@ -313,7 +314,7 @@ declare_builtin_rules! {
     "@password" => rule_alias!("@password:remove");
     "@password:remove" => RuleSpec {
         ty: RuleType::RedactPair(RedactPairRule {
-            key_pattern: "(?i)\\b(password|passwd|mysql_pwd|auth|credentials|secret)\\b".into(),
+            key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),
         }),
         redaction: Redaction::Remove,
         ..Default::default()
@@ -566,23 +567,39 @@ mod tests {
     fn test_creditcard() {
         assert_text_rule!(
             rule = "@creditcard";
-            input = "John Appleseed 1234-1234-1234-1234!";
-            output = "John Appleseed ****-****-****-1234!";
+            input = "John Appleseed 4571234567890111!";
+            output = "John Appleseed [creditcard]!";
             remarks = vec![
-                Remark::with_range(RemarkType::Masked, "@creditcard", (15, 34)),
+                Remark::with_range(RemarkType::Substituted, "@creditcard", (15, 27)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@creditcard";
+            input = "John Appleseed 4571 2345 6789 0111!";
+            output = "John Appleseed [creditcard]!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@creditcard", (15, 27)),
+            ];
+        );
+        assert_text_rule!(
+            rule = "@creditcard";
+            input = "John Appleseed 4571-2345-6789-0111!";
+            output = "John Appleseed [creditcard]!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@creditcard", (15, 27)),
             ];
         );
         assert_text_rule!(
             rule = "@creditcard:mask";
-            input = "John Appleseed 1234-1234-1234-1234!";
-            output = "John Appleseed ****-****-****-1234!";
+            input = "John Appleseed 4571234567890111!";
+            output = "John Appleseed ************0111!";
             remarks = vec![
-                Remark::with_range(RemarkType::Masked, "@creditcard:mask", (15, 34)),
+                Remark::with_range(RemarkType::Masked, "@creditcard:mask", (15, 31)),
             ];
         );
         assert_text_rule!(
             rule = "@creditcard:replace";
-            input = "John Appleseed 1234-1234-1234-1234!";
+            input = "John Appleseed 4571234567890111!";
             output = "John Appleseed [creditcard]!";
             remarks = vec![
                 Remark::with_range(RemarkType::Substituted, "@creditcard:replace", (15, 27)),
@@ -590,8 +607,8 @@ mod tests {
         );
         assert_text_rule!(
             rule = "@creditcard:hash";
-            input = "John Appleseed 1234-1234-1234-1234!";
-            output = "John Appleseed 97227DBC2C4F028628CE96E0A3777F97C07BBC84!";
+            input = "John Appleseed 4571234567890111!";
+            output = "John Appleseed 68C796A9ED3FB51BF850A11140FCADD8E2D88466!";
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "@creditcard:hash", (15, 55)),
             ];

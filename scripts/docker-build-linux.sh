@@ -13,7 +13,6 @@ else
 fi
 
 TARGET=${BUILD_ARCH}-unknown-linux-gnu
-# TODO make global
 BUILD_IMAGE="us.gcr.io/sentryio/semaphore:deps"
 
 # Prepare build environment first
