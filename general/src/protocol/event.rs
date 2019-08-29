@@ -286,7 +286,7 @@ pub struct Event {
     pub request: Annotated<Request>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
-    #[metastructure(legacy_alias = "sentry.interfaces.Contexts")]
+    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.Contexts")]
     pub contexts: Annotated<Contexts>,
 
     /// List of breadcrumbs recorded before this event.
@@ -318,7 +318,7 @@ pub struct Event {
 
     /// Arbitrary extra information set by the user.
     #[metastructure(bag_size = "massive")]
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(pii = "true", skip_serialization = "empty")]
     pub extra: Annotated<Object<ExtraValue>>,
 
     /// Meta data for event processing and debugging.
@@ -354,15 +354,15 @@ pub struct Event {
     pub csp: Annotated<Csp>,
 
     /// HPKP (security) reports.
-    #[metastructure(legacy_alias = "sentry.interfaces.Hpkp")]
+    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.Hpkp")]
     pub hpkp: Annotated<Hpkp>,
 
     /// ExpectCT (security) reports.
-    #[metastructure(legacy_alias = "sentry.interfaces.ExpectCT")]
+    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.ExpectCT")]
     pub expectct: Annotated<ExpectCt>,
 
     /// ExpectStaple (security) reports.
-    #[metastructure(legacy_alias = "sentry.interfaces.ExpectStaple")]
+    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.ExpectStaple")]
     pub expectstaple: Annotated<ExpectStaple>,
 
     /// Spans for tracing.

@@ -1,0 +1,25 @@
+---
+created: "2019-08-28T17:42:00.322816Z"
+creator: insta@0.10.1
+source: general/src/datascrubbing/convert.rs
+expression: data.to_json_pretty().unwrap()
+---
+{
+  "extra": {
+    "MYSQL_PWD": null
+  },
+  "_meta": {
+    "extra": {
+      "MYSQL_PWD": {
+        "": {
+          "rem": [
+            [
+              "@password",
+              "x"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

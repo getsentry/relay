@@ -38,6 +38,7 @@ serde_json = "1.0.40"
 tokio-timer = "0.2.11"
 url = "2.0.0"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
+lazycell = "1.2.1"
 
 [dependencies.semaphore-common]
 path = "../common"

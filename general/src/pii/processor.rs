@@ -12,10 +12,11 @@ use smallvec::SmallVec;
 use crate::pii::config::RuleRef;
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, Chunk, ProcessValue, ProcessingState, Processor, SelectorSpec,
+    process_chunked_value, process_value, Chunk, ProcessValue, ProcessingState, Processor,
+    SelectorSpec, ValueType,
 };
 use crate::protocol::{AsPair, PairList};
-use crate::types::{Meta, Object, Remark, RemarkType, Timestamp, ValueAction};
+use crate::types::{Meta, Remark, RemarkType, ValueAction};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
@@ -91,9 +92,26 @@ lazy_static! {
             ")([\\s]|[[:punct:]]|$)",
         )
     ).unwrap();
+
+    // http://www.richardsramblings.com/regex/credit-card-numbers/
+    // Re-formatted with comments and dashes support
+    //
+    // Why so complicated? Because creditcard numbers are variable length and we do not want to
+    // strip any number that just happens to have the same length.
     static ref CREDITCARD_REGEX: Regex = Regex::new(
         r#"(?x)
-            \d{4}[- ]?\d{4,6}[- ]?\d{4,5}(?:[- ]?\d{4})
+        \b(
+            (?:  # vendor specific prefixes
+                  3[47]\d      # amex (no 13-digit version) (length: 15)
+                | 4\d{3}       # visa (16-digit version only)
+                | 5[1-5]\d\d   # mastercard
+                | 65\d\d       # discover network (subset)
+                | 6011         # discover network (subset)
+            )
+
+            # "wildcard" remainder (allowing dashes in every position because of variable length)
+            ([-\s]?\d){12}
+        )\b
         "#
     ).unwrap();
     static ref PATH_REGEX: Regex = Regex::new(
@@ -196,6 +214,10 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
     type Item = RuleRef<'a>;
 
     fn next(&mut self) -> Option<RuleRef<'a>> {
+        if !self.state.attrs().pii {
+            return None;
+        }
+
         'outer: loop {
             if let Some(&rv) = self.pending_refs.as_mut().and_then(Iterator::next) {
                 return Some(rv);
@@ -213,62 +235,27 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
     }
 }
 
-macro_rules! value_process_method {
-    ($name: ident, $ty:ident $(::$path:ident)*) => {
-        value_process_method!($name, $ty $(::$path)* <>);
-    };
+impl<'a> Processor for PiiProcessor<'a> {
+    fn before_process<T: ProcessValue>(
+        &mut self,
+        _value: Option<&T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ValueAction {
+        // booleans cannot be PII, and strings are handled in process_string
+        if let Some(ValueType::Boolean) | Some(ValueType::String) = state.value_type() {
+            return ValueAction::Keep;
+        }
 
-    ($name: ident, $ty:ident $(::$path:ident)* < $($param:ident),* > $(, $param_req_key:ident : $param_req_trait:path)*) => {
-        #[inline]
-        fn $name<$($param),*>(
-            &mut self,
-            value: &mut $ty $(::$path)* <$($param),*>,
-            meta: &mut Meta,
-            state: &ProcessingState<'_>,
-        ) -> ValueAction
-        where
-            $($param: ProcessValue),*
-            $(, $param_req_key : $param_req_trait)*
-        {
-            let mut rules = self.iter_rules(state).peekable();
-            let rv = if rules.peek().is_some() {
-                value_process(value, meta, rules)
-            } else {
-                ValueAction::Keep
-            };
-            match rv {
-                ValueAction::Keep => ValueAction::Keep,
-                other => {
-                    value.process_child_values(self, state);
-                    other
-                }
+        // apply rules based on key/path
+        for rule in self.iter_rules(state) {
+            match apply_rule_to_value(meta, rule, state.path().key()) {
+                ValueAction::Keep => continue,
+                other => return other,
             }
         }
-    };
-}
-
-fn value_process<'a, T: ProcessValue, I: Iterator<Item = RuleRef<'a>>>(
-    value: &mut T,
-    meta: &mut Meta,
-    rules: I,
-) -> ValueAction {
-    for rule in rules {
-        match apply_rule_to_value(value, meta, rule, None) {
-            ValueAction::Keep => continue,
-            other => return other,
-        }
+        ValueAction::Keep
     }
-    ValueAction::Keep
-}
-
-impl<'a> Processor for PiiProcessor<'a> {
-    value_process_method!(process_i64, i64);
-    value_process_method!(process_u64, u64);
-    value_process_method!(process_f64, f64);
-    value_process_method!(process_bool, bool);
-    value_process_method!(process_timestamp, Timestamp);
-    value_process_method!(process_value, crate::types::Value);
-    value_process_method!(process_array, crate::types::Array<T>);
 
     fn process_string(
         &mut self,
@@ -276,78 +263,72 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
+        if let "true" | "false" | "null" | "undefined" = value.as_str() {
+            return ValueAction::Keep;
+        }
+
         let mut rules = self.iter_rules(state).peekable();
         if rules.peek().is_some() {
             let rules: SmallVec<[RuleRef; 16]> = rules.collect();
 
+            // same as before_process. duplicated here because we can only check for "true",
+            // "false" etc in process_string.
+            for rule in &rules {
+                match apply_rule_to_value(meta, *rule, state.path().key()) {
+                    ValueAction::Keep => continue,
+                    other => return other,
+                }
+            }
+
+            // apply rules based on value (basically all the regexes)
             process_chunked_value(value, meta, |mut chunks| {
                 for rule in &rules {
                     chunks = apply_rule_to_chunks(chunks, *rule);
                 }
                 chunks
             });
-
-            return value_process(value, meta, rules.into_iter());
         }
-        ValueAction::Keep
-    }
-
-    fn process_object<T: ProcessValue>(
-        &mut self,
-        value: &mut Object<T>,
-        meta: &mut Meta,
-        state: &ProcessingState,
-    ) -> ValueAction {
-        let mut rules = self.iter_rules(state).peekable();
-
-        if rules.peek().is_some() {
-            let rules: SmallVec<[RuleRef; 16]> = rules.collect();
-            for (key, annotated) in value.iter_mut() {
-                for rule in &rules {
-                    annotated.apply(|value, meta| {
-                        apply_rule_to_value(value, meta, *rule, Some(key.as_str()))
-                    });
-                }
-            }
-
-            match value_process(value, meta, rules.into_iter()) {
-                ValueAction::Keep => {}
-                other => return other,
-            }
-        }
-
-        value.process_child_values(self, state);
         ValueAction::Keep
     }
 
     fn process_pairlist<T: ProcessValue + AsPair>(
         &mut self,
         value: &mut PairList<T>,
-        meta: &mut Meta,
+        _meta: &mut Meta,
         state: &ProcessingState,
     ) -> ValueAction {
-        let mut rules = self.iter_rules(state).peekable();
+        // View pairlists as objects just for the purpose of PII stripping (e.g. `event.tags.mykey`
+        // instead of `event.tags.42.0`). For other purposes such as trimming we would run into
+        // problems:
+        //
+        // * tag keys need to be trimmed too and therefore need to have a path
 
-        if rules.peek().is_some() {
-            let rules: SmallVec<[RuleRef; 16]> = rules.collect();
-            for annotated in value.iter_mut() {
-                for rule in &rules {
-                    if let Some(ref mut pair) = annotated.value_mut() {
-                        let (ref mut key, ref mut value) = pair.as_pair_mut();
-                        value.apply(|value, meta| {
-                            apply_rule_to_value(value, meta, *rule, key.as_str())
-                        });
-                    }
+        for (idx, annotated) in value.iter_mut().enumerate() {
+            if let Some(ref mut pair) = annotated.value_mut() {
+                let (ref mut key, ref mut value) = pair.as_pair_mut();
+                if let Some(ref key_name) = key.as_str() {
+                    // if the pair has no key name, we skip over it for PII stripping. It is
+                    // still processed with index-based path in the invocation of
+                    // `process_child_values`.
+                    process_value(
+                        value,
+                        self,
+                        &state.enter_borrowed(
+                            key_name,
+                            state.inner_attrs(),
+                            ValueType::for_field(value),
+                        ),
+                    );
+                } else {
+                    process_value(
+                        value,
+                        self,
+                        &state.enter_index(idx, state.inner_attrs(), ValueType::for_field(value)),
+                    );
                 }
-            }
-
-            match value_process(value, meta, rules.into_iter()) {
-                ValueAction::Keep => {}
-                other => return other,
             }
         }
 
-        value.process_child_values(self, state);
         ValueAction::Keep
     }
 }
@@ -389,12 +370,7 @@ fn collect_rules<'a, 'b>(
     }
 }
 
-fn apply_rule_to_value<T: ProcessValue>(
-    _value: &mut T,
-    meta: &mut Meta,
-    rule: RuleRef<'_>,
-    key: Option<&str>,
-) -> ValueAction {
+fn apply_rule_to_value(meta: &mut Meta, rule: RuleRef<'_>, key: Option<&str>) -> ValueAction {
     match rule.ty {
         RuleType::RedactPair(ref redact_pair) => {
             if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
@@ -453,8 +429,8 @@ fn apply_rule_to_chunks<'a>(mut chunks: Vec<Chunk<'a>>, rule: RuleRef<'_>) -> Ve
         RuleType::UrlAuth => apply_regex!(&URL_AUTH_REGEX, Some(&*GROUP_1)),
         RuleType::UsSsn => apply_regex!(&US_SSN_REGEX, None),
         RuleType::Userpath => apply_regex!(&PATH_REGEX, Some(&*GROUP_1)),
+        RuleType::RedactPair(ref redact_pair) => apply_regex!(&redact_pair.key_pattern, None),
         // does not apply here
-        RuleType::RedactPair { .. } => {}
         RuleType::Alias(_) => {}
         RuleType::Multiple(_) => {}
     }
@@ -653,9 +629,8 @@ fn hash_value(
 
 #[cfg(test)]
 use {
-    crate::processor::process_value,
     crate::protocol::{Event, ExtraValue, Headers, LogEntry, Request},
-    crate::types::{Annotated, Value},
+    crate::types::{Annotated, Object, Value},
 };
 
 #[test]
@@ -672,7 +647,7 @@ fn test_basic_stripping() {
             },
             "applications": {
                 "$string": ["@ip"],
-                "$object": ["remove_bad_headers"]
+                "$object.**": ["remove_bad_headers"]
             }
         }
     "##,

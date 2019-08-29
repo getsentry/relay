@@ -39,7 +39,7 @@ pub struct User {
     pub ip_address: Annotated<IpAddr>,
 
     /// Username of the user.
-    #[metastructure(pii = "true", max_chars = "enumlike", skip_serialization = "empty")]
+    #[metastructure(pii = "false", max_chars = "enumlike", skip_serialization = "empty")]
     pub username: Annotated<String>,
 
     /// Human readable name of the user.
@@ -52,7 +52,7 @@ pub struct User {
 
     /// Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).
     /// All data from `self.other` should end up here after store normalization.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(pii = "true", skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,
 
     /// Additional arbitrary fields, as sent by clients.

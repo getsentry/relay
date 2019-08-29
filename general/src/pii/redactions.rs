@@ -27,15 +27,21 @@ fn default_mask_char() -> char {
 }
 
 /// Replaces a value with a specific string.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ReplaceRedaction {
     /// The replacement string.
     pub text: String,
 }
 
+impl From<String> for ReplaceRedaction {
+    fn from(text: String) -> ReplaceRedaction {
+        ReplaceRedaction { text }
+    }
+}
+
 /// Masks the value
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MaskRedaction {
     /// The character to mask with.
@@ -50,7 +56,7 @@ pub struct MaskRedaction {
 }
 
 /// Replaces the value with a hash
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct HashRedaction {
     /// The hash algorithm
@@ -61,7 +67,7 @@ pub struct HashRedaction {
 }
 
 /// Defines how replacements happen.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum Redaction {
     /// The default redaction for this operation (normally equivalent to `Remove`).
