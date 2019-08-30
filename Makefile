@@ -17,11 +17,11 @@ clean:
 # Builds
 
 build: setup
-	@cargo +stable build --all --all-features
+	@cargo +stable build --all-features
 .PHONY: build
 
 release: setup
-	@cargo +stable build --all --all-features --release
+	@cargo +stable build --release --locked --features with_ssl
 .PHONY: release
 
 docker: setup
@@ -29,7 +29,7 @@ docker: setup
 .PHONY: docker
 
 build-linux-release:
-	cargo build --release --locked --all-features --target=${TARGET}
+	cargo build --release --locked --features with_ssl --target=${TARGET}
 	objcopy --only-keep-debug target/${TARGET}/release/semaphore{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/semaphore
 	objcopy --add-gnu-debuglink target/${TARGET}/release/semaphore{.debug,}

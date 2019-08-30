@@ -36,7 +36,7 @@ install:
   - git submodule update --init --recursive
 
 build_script:
-  - cargo build --all --locked
+  - C:\MinGW\bin\mingw32-make release
 
 test_script:
   - C:\MinGW\bin\mingw32-make test-rust
