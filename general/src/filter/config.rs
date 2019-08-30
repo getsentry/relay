@@ -318,10 +318,10 @@ mod tests {
         let json = r#"{"isEnabled":false}"#;
         let config = serde_json::from_str::<LegacyBrowsersFilterConfig>(json).unwrap();
         insta::assert_debug_snapshot_matches!(config, @r###"
-        LegacyBrowsersFilterConfig {
-            is_enabled: false,
-            browsers: {},
-        }
+        ⋮LegacyBrowsersFilterConfig {
+        ⋮    is_enabled: false,
+        ⋮    browsers: {},
+        ⋮}
         "###);
     }
 }
