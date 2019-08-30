@@ -29,7 +29,7 @@ docker: setup
 .PHONY: docker
 
 build-linux-release:
-	cargo build --release --locked --target=${TARGET}
+	cargo build --release --locked --all-features --target=${TARGET}
 	objcopy --only-keep-debug target/${TARGET}/release/semaphore{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/semaphore
 	objcopy --add-gnu-debuglink target/${TARGET}/release/semaphore{.debug,}
@@ -49,12 +49,16 @@ wheel-manylinux: setup
 
 # Tests
 
-test: test-rust test-python test-integration
+test: test-rust-all test-python test-integration
 .PHONY: test
 
 test-rust: setup-geoip setup-git
-	cargo test --all --all-features
+	cargo test --all
 .PHONY: test-rust
+
+test-rust-all: setup-geoip setup-git
+	cargo test --all --all-features
+.PHONY: test-rust-all
 
 test-python: setup
 	.venv/bin/pip install -U pytest
@@ -66,11 +70,6 @@ test-integration: build setup-venv
 	.venv/bin/pip install -U pytest pytest-localserver requests flask  confluent-kafka msgpack "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist "git+https://github.com/untitaker/pytest-sentry#egg=pytest-sentry"
 	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
-
-test-coverage: setup
-	@cargo tarpaulin -v --all --out Xml
-	@bash <(curl -s https://codecov.io/bash)
-.PHONY: test-coverage
 
 test-process-event: setup
 	# Process a basic event and assert its output

@@ -7,130 +7,8 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::processor::ProcessValue;
+use crate::processor::{ProcessValue, SelectorPathItem, SelectorSpec};
 use crate::types::Annotated;
-
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-enum SelectorPathItem {
-    Type(ValueType),
-    Index(usize),
-    Key(String),
-    Wildcard,
-    DeepWildcard,
-}
-
-impl fmt::Display for SelectorPathItem {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            SelectorPathItem::Type(ty) => write!(f, "#{}", ty),
-            SelectorPathItem::Index(index) => write!(f, "{}", index),
-            SelectorPathItem::Key(ref key) => write!(f, "{}", key),
-            SelectorPathItem::Wildcard => write!(f, "*"),
-            SelectorPathItem::DeepWildcard => write!(f, "**"),
-        }
-    }
-}
-
-impl SelectorPathItem {
-    fn matches_state(&self, state: &ProcessingState<'_>) -> bool {
-        match *self {
-            SelectorPathItem::Wildcard => true,
-            SelectorPathItem::DeepWildcard => true,
-            SelectorPathItem::Type(ty) => state.value_type() == Some(ty),
-            SelectorPathItem::Index(idx) => state.path().index() == Some(idx),
-            SelectorPathItem::Key(ref key) => state.path().key() == Some(key),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub struct SelectorSpec {
-    path: Vec<SelectorPathItem>,
-}
-
-impl fmt::Display for SelectorSpec {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (idx, item) in self.path.iter().enumerate() {
-            if idx > 0 {
-                write!(f, ".")?;
-            }
-            write!(f, "{}", item)?;
-        }
-        Ok(())
-    }
-}
-
-impl FromStr for SelectorSpec {
-    type Err = InvalidSelectorError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // these are temporary legacy selectors
-        match s {
-            "freeform" | "email" | "sensitive" | "text" => {
-                return Ok(SelectorSpec {
-                    path: vec![SelectorPathItem::Type(ValueType::String)],
-                });
-            }
-            "databag" | "container" => {
-                return Ok(SelectorSpec {
-                    path: vec![SelectorPathItem::Type(ValueType::Object)],
-                });
-            }
-            _ => {}
-        }
-
-        let mut path = vec![];
-        let mut have_deep_wildcard = false;
-        for item in s.split('.') {
-            if item.starts_with('$') {
-                path.push(
-                    item[1..]
-                        .parse()
-                        .map_err(|_| InvalidSelectorError::UnknownType)
-                        .map(SelectorPathItem::Type)?,
-                );
-            } else if item == "*" {
-                path.push(SelectorPathItem::Wildcard);
-            } else if item == "**" {
-                if have_deep_wildcard {
-                    return Err(InvalidSelectorError::InvalidDeepWildcard);
-                }
-                have_deep_wildcard = true;
-                path.push(SelectorPathItem::DeepWildcard);
-            } else if let Ok(index) = item.parse() {
-                path.push(SelectorPathItem::Index(index));
-            } else {
-                path.push(SelectorPathItem::Key(item.to_string()));
-            }
-        }
-        if path.is_empty() {
-            Err(InvalidSelectorError::InvalidPath)
-        } else {
-            Ok(SelectorSpec { path })
-        }
-    }
-}
-
-impl_str_serde!(SelectorSpec);
-
-impl From<ValueType> for SelectorSpec {
-    fn from(value_type: ValueType) -> Self {
-        SelectorSpec {
-            path: vec![SelectorPathItem::Type(value_type)],
-        }
-    }
-}
-
-/// Error for invalid selectors
-#[derive(Debug, Fail)]
-pub enum InvalidSelectorError {
-    #[fail(display = "invalid selector: deep wildcard used more than once")]
-    InvalidDeepWildcard,
-    #[fail(display = "invalid selector: invalid path")]
-    InvalidPath,
-    #[fail(display = "invalid selector: unknown value")]
-    UnknownType,
-}
 
 /// Error for unknown value types.
 #[derive(Debug, Fail)]
@@ -595,6 +473,18 @@ impl<'a> ProcessingState<'a> {
             true
         }
     }
+
+    /// Returns the last path item if there is one. Skips over "dummy" path segments that exist
+    /// because of newtypes.
+    #[inline]
+    fn path_item(&self) -> Option<&PathItem<'_>> {
+        for state in self.iter() {
+            if let Some(ref path_item) = state.path_item {
+                return Some(path_item);
+            }
+        }
+        None
+    }
 }
 
 pub struct ProcessingStateIter<'a> {
@@ -632,64 +522,71 @@ impl<'a> Path<'a> {
     /// Returns the current key if there is one
     #[inline]
     pub fn key(&self) -> Option<&str> {
-        self.0.path_item.as_ref().and_then(PathItem::key)
+        PathItem::key(self.0.path_item()?)
     }
 
     /// Returns the current index if there is one
     #[inline]
     pub fn index(&self) -> Option<usize> {
-        self.0.path_item.as_ref().and_then(PathItem::index)
+        PathItem::index(self.0.path_item()?)
     }
 
     /// Checks if a path matches given selector.
     pub fn matches_selector(&self, selector: &SelectorSpec) -> bool {
-        // fastest path: the selector is deeper than the current structure.
-        if selector.path.len() > self.0.depth {
-            return false;
-        }
-
-        // fast path: we do not have any deep matches
-        let mut state_iter = self.0.iter();
-        let mut selector_iter = selector.path.iter().rev();
-        let mut depth_match = false;
-        for state in &mut state_iter {
-            if !match selector_iter.next() {
-                Some(SelectorPathItem::DeepWildcard) => {
-                    depth_match = true;
-                    break;
+        match *selector {
+            SelectorSpec::Path(ref path) => {
+                // fastest path: the selector is deeper than the current structure.
+                if path.len() > self.0.depth {
+                    return false;
                 }
-                Some(ref path_item) => path_item.matches_state(state),
-                None => break,
-            } {
-                return false;
+
+                // fast path: we do not have any deep matches
+                let mut state_iter = self.0.iter();
+                let mut selector_iter = path.iter().rev();
+                let mut depth_match = false;
+                for state in &mut state_iter {
+                    if !match selector_iter.next() {
+                        Some(SelectorPathItem::DeepWildcard) => {
+                            depth_match = true;
+                            break;
+                        }
+                        Some(ref path_item) => path_item.matches_state(state),
+                        None => break,
+                    } {
+                        return false;
+                    }
+                }
+
+                if !depth_match {
+                    return true;
+                }
+
+                // slow path: we collect the remaining states and skip up to the first
+                // match of the selector.
+                let remaining_states = state_iter.collect::<SmallVec<[&ProcessingState<'_>; 16]>>();
+                let mut selector_iter = selector_iter.rev().peekable();
+                let first_selector_path = match selector_iter.next() {
+                    Some(selector_path) => selector_path,
+                    None => return !remaining_states.is_empty(),
+                };
+                let mut path_match_iterator = remaining_states
+                    .iter()
+                    .rev()
+                    .skip_while(|state| !first_selector_path.matches_state(state));
+                if path_match_iterator.next().is_none() {
+                    return false;
+                }
+
+                // then we check all remaining items and that nothing is left of the selector
+                path_match_iterator
+                    .zip(&mut selector_iter)
+                    .all(|(state, selector_path)| selector_path.matches_state(state))
+                    && selector_iter.next().is_none()
             }
+            SelectorSpec::And(ref xs) => xs.iter().all(|x| self.matches_selector(x)),
+            SelectorSpec::Or(ref xs) => xs.iter().any(|x| self.matches_selector(x)),
+            SelectorSpec::Not(ref x) => !self.matches_selector(x),
         }
-
-        if !depth_match {
-            return true;
-        }
-
-        // slow path: we collect the remaining states and skip up to the first
-        // match of the selector.
-        let remaining_states = state_iter.collect::<SmallVec<[&ProcessingState<'_>; 16]>>();
-        let mut selector_iter = selector_iter.rev().peekable();
-        let first_selector_path = match selector_iter.next() {
-            Some(selector_path) => selector_path,
-            None => return !remaining_states.is_empty(),
-        };
-        let mut path_match_iterator = remaining_states
-            .iter()
-            .rev()
-            .skip_while(|state| !first_selector_path.matches_state(state));
-        if path_match_iterator.next().is_none() {
-            return false;
-        }
-
-        // then we check all remaining items and that nothing is left of the selector
-        path_match_iterator
-            .zip(&mut selector_iter)
-            .all(|(state, selector_path)| selector_path.matches_state(state))
-            && selector_iter.next().is_none()
     }
 }
 
@@ -712,13 +609,14 @@ impl<'a> fmt::Display for Path<'a> {
     }
 }
 
+#[allow(clippy::cognitive_complexity)]
 #[test]
 fn test_path_matching() {
-    let event_state = ProcessingState::new_root(None, Some(ValueType::Event));
-    let user_state = event_state.enter_static("user", None, Some(ValueType::User));
-    let extra_state = user_state.enter_static("extra", None, Some(ValueType::Object));
-    let foo_state = extra_state.enter_static("foo", None, Some(ValueType::Array));
-    let zero_state = foo_state.enter_index(0, None, None);
+    let event_state = ProcessingState::new_root(None, Some(ValueType::Event)); // .
+    let user_state = event_state.enter_static("user", None, Some(ValueType::User)); // .user
+    let extra_state = user_state.enter_static("extra", None, Some(ValueType::Object)); // .user.extra
+    let foo_state = extra_state.enter_static("foo", None, Some(ValueType::Array)); // .user.extra.foo
+    let zero_state = foo_state.enter_index(0, None, None); // .user.extra.foo.0
 
     // this is an exact match to the state
     assert!(extra_state
@@ -780,4 +678,39 @@ fn test_path_matching() {
     assert!(foo_state
         .path()
         .matches_selector(&"**.$array".parse().unwrap()));
+
+    // AND/OR/NOT
+    // (conjunction/disjunction/negation)
+    assert!(foo_state
+        .path()
+        .matches_selector(&"($array & $object.*)".parse().unwrap()));
+    assert!(!foo_state
+        .path()
+        .matches_selector(&"($object & $object.*)".parse().unwrap()));
+    assert!(foo_state
+        .path()
+        .matches_selector(&"(** & $object.*)".parse().unwrap()));
+
+    assert!(zero_state
+        .path()
+        .matches_selector(&"(**.0 | absolutebogus)".parse().unwrap()));
+    assert!(!zero_state
+        .path()
+        .matches_selector(&"($object | absolutebogus)".parse().unwrap()));
+    assert!(!zero_state
+        .path()
+        .matches_selector(&"($object | (**.0 & absolutebogus))".parse().unwrap()));
+
+    assert!(zero_state
+        .path()
+        .matches_selector(&"(~$object)".parse().unwrap()));
+    assert!(zero_state
+        .path()
+        .matches_selector(&"($object.** & (~absolutebogus))".parse().unwrap()));
+    assert!(zero_state
+        .path()
+        .matches_selector(&"($object.** & (~absolutebogus))".parse().unwrap()));
+    assert!(!zero_state
+        .path()
+        .matches_selector(&"(~$object.**)".parse().unwrap()));
 }

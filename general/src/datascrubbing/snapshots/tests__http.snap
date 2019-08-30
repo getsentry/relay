@@ -1,0 +1,310 @@
+---
+created: "2019-08-28T17:43:20.507163Z"
+creator: insta@0.10.1
+source: general/src/datascrubbing/convert.rs
+expression: data.to_json_pretty().unwrap()
+---
+{
+  "request": {
+    "data": {
+      "a_password_here": null,
+      "apiKey": null,
+      "api_key": null,
+      "foo": "bar",
+      "password": null,
+      "the_secret": null
+    },
+    "cookies": [
+      [
+        "a_password_here",
+        null
+      ],
+      [
+        "apiKey",
+        null
+      ],
+      [
+        "api_key",
+        null
+      ],
+      [
+        "foo",
+        "bar"
+      ],
+      [
+        "password",
+        null
+      ],
+      [
+        "the_secret",
+        null
+      ]
+    ],
+    "headers": [
+      [
+        "A_password_here",
+        null
+      ],
+      [
+        "ApiKey",
+        null
+      ],
+      [
+        "Api_key",
+        null
+      ],
+      [
+        "Foo",
+        "bar"
+      ],
+      [
+        "Password",
+        null
+      ],
+      [
+        "The_secret",
+        null
+      ]
+    ],
+    "env": {
+      "a_password_here": null,
+      "apiKey": null,
+      "api_key": null,
+      "foo": "bar",
+      "password": null,
+      "the_secret": null
+    }
+  },
+  "_meta": {
+    "request": {
+      "cookies": {
+        "0": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password",
+                  "x"
+                ]
+              ]
+            }
+          }
+        },
+        "1": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password",
+                  "x"
+                ]
+              ]
+            }
+          }
+        },
+        "2": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password",
+                  "x"
+                ]
+              ]
+            }
+          }
+        },
+        "4": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password",
+                  "x"
+                ]
+              ]
+            }
+          }
+        },
+        "5": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password",
+                  "x"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "data": {
+        "a_password_here": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "apiKey": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "api_key": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "password": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "the_secret": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        }
+      },
+      "env": {
+        "a_password_here": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "apiKey": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "api_key": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "password": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        },
+        "the_secret": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        }
+      },
+      "headers": {
+        "0": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password",
+                  "x"
+                ]
+              ]
+            }
+          }
+        },
+        "1": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password",
+                  "x"
+                ]
+              ]
+            }
+          }
+        },
+        "2": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password",
+                  "x"
+                ]
+              ]
+            }
+          }
+        },
+        "4": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password",
+                  "x"
+                ]
+              ]
+            }
+          }
+        },
+        "5": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password",
+                  "x"
+                ]
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

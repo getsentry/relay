@@ -18,7 +18,7 @@ use semaphore_general::protocol::EventId;
 use crate::actors::events::{EventError, QueueEvent};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError};
 use crate::body::{StoreBody, StorePayloadError};
-use crate::extractors::EventMeta;
+use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::ApiErrorResponse;
 
@@ -84,8 +84,11 @@ struct StoreResponse {
 
 fn store_event(
     meta: EventMeta,
+    start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<Json<StoreResponse>, BadStoreRequest> {
+    let start_time = start_time.into_inner();
+
     // For now, we only handle <= v8 and drop everything else
     if meta.auth().version() > 8 {
         // TODO: Delegate to forward_upstream here
@@ -142,6 +145,7 @@ fn store_event(
                             data,
                             meta,
                             project,
+                            start_time,
                         })
                         .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))

@@ -11,11 +11,10 @@ use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 
 use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
-use semaphore_general::filter::{should_filter, FilterStatKey};
+use semaphore_general::filter::FilterStatKey;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
-use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use semaphore_general::types::Annotated;
 use serde_json;
 
@@ -24,11 +23,19 @@ use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
     ProjectState, RetryAfter,
 };
-use crate::actors::store::{StoreError, StoreEvent, StoreForwarder};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
+use crate::service::ServerError;
 use crate::utils::{One, SyncActorFuture, SyncHandle};
-use crate::ServerError;
+
+#[cfg(feature = "processing")]
+use {
+    crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
+    crate::service::ServerErrorKind,
+    failure::ResultExt,
+    semaphore_general::filter::should_filter,
+    semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -82,6 +89,7 @@ enum ProcessingError {
     #[fail(display = "could not send event to upstream")]
     SendFailed(#[cause] UpstreamRequestError),
 
+    #[cfg(feature = "processing")]
     #[fail(display = "could not store event")]
     StoreFailed(#[cause] StoreError),
 
@@ -95,17 +103,27 @@ enum ProcessingError {
     Shutdown,
 }
 
+#[cfg(feature = "processing")]
 struct EventProcessor {
     config: Arc<Config>,
     geoip_lookup: Option<Arc<GeoIpLookup>>,
 }
 
+#[cfg(not(feature = "processing"))]
+struct EventProcessor;
+
 impl EventProcessor {
+    #[cfg(feature = "processing")]
     pub fn new(config: Arc<Config>, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
-        EventProcessor {
+        Self {
             config,
             geoip_lookup,
         }
+    }
+
+    #[cfg(not(feature = "processing"))]
+    pub fn new() -> Self {
+        Self
     }
 
     fn process(&self, message: &ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
@@ -124,40 +142,43 @@ impl EventProcessor {
             event.id = Annotated::new(message.event_id);
         }
 
-        if let Some(ref pii_config) = message.project_state.config.pii_config {
+        for pii_config in message.project_state.config.pii_configs() {
             let mut processor = PiiProcessor::new(pii_config);
             process_value(&mut event, &mut processor, ProcessingState::root());
-        };
+        }
 
-        if self.config.processing_enabled() {
-            let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
-            let auth = message.meta.auth();
+        #[cfg(feature = "processing")]
+        {
+            if self.config.processing_enabled() {
+                let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
+                let auth = message.meta.auth();
 
-            let store_config = StoreConfig {
-                project_id: Some(message.project_id),
-                client_ip: message.meta.client_addr().map(From::from),
-                client: auth.client_agent().map(str::to_owned),
-                key_id: Some(auth.public_key().to_owned()),
-                protocol_version: Some(auth.version().to_string()),
-                grouping_config: message.project_state.config.grouping_config.clone(),
-                valid_platforms: Default::default(), // TODO(ja): Pending removal
-                max_secs_in_future: Some(self.config.max_secs_in_future()),
-                max_secs_in_past: Some(self.config.max_secs_in_past()),
-                enable_trimming: Some(true),
-                is_renormalize: Some(false),
-                remove_other: Some(true),
-                normalize_user_agent: Some(true),
-            };
+                let store_config = StoreConfig {
+                    project_id: Some(message.project_id),
+                    client_ip: message.meta.client_addr().map(From::from),
+                    client: auth.client_agent().map(str::to_owned),
+                    key_id: Some(auth.public_key().to_owned()),
+                    protocol_version: Some(auth.version().to_string()),
+                    grouping_config: message.project_state.config.grouping_config.clone(),
+                    valid_platforms: Default::default(), // TODO(ja): Pending removal
+                    max_secs_in_future: Some(self.config.max_secs_in_future()),
+                    max_secs_in_past: Some(self.config.max_secs_in_past()),
+                    enable_trimming: Some(true),
+                    is_renormalize: Some(false),
+                    remove_other: Some(true),
+                    normalize_user_agent: Some(true),
+                };
 
-            let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
-            process_value(&mut event, &mut store_processor, ProcessingState::root());
+                let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
+                process_value(&mut event, &mut store_processor, ProcessingState::root());
 
-            if let Some(event) = event.value() {
-                let client_ip = message.meta.client_addr();
-                let filter_settings = &message.project_state.config.filter_settings;
-                if let Err(reason) = should_filter(event, client_ip, filter_settings) {
-                    // If the event should be filtered, no more processing is needed
-                    return Ok(ProcessEventResponse::Filtered { reason });
+                if let Some(event) = event.value() {
+                    let client_ip = message.meta.client_addr();
+                    let filter_settings = &message.project_state.config.filter_settings;
+                    if let Err(reason) = should_filter(event, client_ip, filter_settings) {
+                        // If the event should be filtered, no more processing is needed
+                        return Ok(ProcessEventResponse::Filtered { reason });
+                    }
                 }
             }
         }
@@ -226,6 +247,7 @@ impl ProcessEvent {
     }
 }
 
+#[cfg_attr(not(feature = "processing"), allow(dead_code))]
 enum ProcessEventResponse {
     Valid { data: Bytes },
     Filtered { reason: FilterStatKey },
@@ -248,21 +270,25 @@ pub struct EventManager {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     processor: Addr<EventProcessor>,
-    store_forwarder: Option<Addr<StoreForwarder>>,
     current_active_events: u32,
     shutdown: SyncHandle,
+
+    #[cfg(feature = "processing")]
+    store_forwarder: Option<Addr<StoreForwarder>>,
 }
 
 impl EventManager {
-    pub fn create(
-        config: Arc<Config>,
-        upstream: Addr<UpstreamRelay>,
-        geoip_lookup: Option<GeoIpLookup>,
-    ) -> Result<Self, ServerError> {
+    #[cfg(feature = "processing")]
+    pub fn create(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Result<Self, ServerError> {
+        let geoip_lookup = match config.geoip_path() {
+            Some(p) => Some(Arc::new(
+                GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
+            )),
+            None => None,
+        };
+
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
-        let geoip_lookup = geoip_lookup.map(Arc::new);
-
         log::info!("starting {} event processing workers", thread_count);
 
         let processor = SyncArbiter::start(
@@ -282,7 +308,24 @@ impl EventManager {
             config,
             upstream,
             processor,
+            current_active_events: 0,
+            shutdown: SyncHandle::new(),
             store_forwarder,
+        })
+    }
+
+    #[cfg(not(feature = "processing"))]
+    pub fn create(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Result<Self, ServerError> {
+        // TODO: Make the number configurable via config file
+        let thread_count = num_cpus::get();
+
+        log::info!("starting {} event processing workers", thread_count);
+        let processor = SyncArbiter::start(thread_count, EventProcessor::new);
+
+        Ok(EventManager {
+            config,
+            upstream,
+            processor,
             current_active_events: 0,
             shutdown: SyncHandle::new(),
         })
@@ -312,6 +355,7 @@ pub struct QueueEvent {
     pub data: Bytes,
     pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
+    pub start_time: Instant,
 }
 
 impl Message for QueueEvent {
@@ -357,6 +401,7 @@ impl Handler<QueueEvent> for EventManager {
             meta: message.meta,
             project: message.project,
             event_id,
+            start_time: message.start_time,
         });
 
         log::trace!("queued event {}", event_id);
@@ -369,6 +414,7 @@ struct HandleEvent {
     pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
     pub event_id: EventId,
+    pub start_time: Instant,
 }
 
 impl Message for HandleEvent {
@@ -394,18 +440,20 @@ impl Handler<HandleEvent> for EventManager {
         // 3. `event.total_time`: The full time an event takes from being initially accepted up to
         //    being sent to the upstream (including delays in the upstream). This can be regarded
         //    the total time an event spent in this relay, corrected by incoming network delays.
-        let start_time = Instant::now();
 
         let upstream = self.upstream.clone();
-        let store_forwarder = self.store_forwarder.clone();
         let processor = self.processor.clone();
         let log_failed_payloads = self.config.log_failed_payloads();
+
+        #[cfg(feature = "processing")]
+        let store_forwarder = self.store_forwarder.clone();
 
         let HandleEvent {
             data,
             meta,
             project,
             event_id,
+            start_time,
         } = message;
 
         let future = project
@@ -444,48 +492,53 @@ impl Handler<HandleEvent> for EventManager {
                         }
                     })
                     .and_then(move |processed| {
-                        if let Some(store_forwarder) = store_forwarder {
-                            log::trace!("sending event to kafka {}", event_id);
-                            let request = StoreEvent {
-                                payload: processed,
-                                event_id,
-                                project_id,
-                            };
-                            let future = store_forwarder
-                                .send(request)
-                                .map_err(ProcessingError::ScheduleFailed)
-                                .and_then(move |result| {
-                                    result.map_err(ProcessingError::StoreFailed)
-                                });
-                            Box::new(future) as ResponseFuture<_, _>
-                        } else {
-                            log::trace!("sending event to sentry endpoint {}", event_id);
-                            let request = SendRequest::post(format!("/api/{}/store/", project_id))
-                                .build(move |builder| {
-                                    if let Some(origin) = meta.origin() {
-                                        builder.header("Origin", origin.to_string());
-                                    }
-
-                                    builder
-                                        .header("X-Sentry-Auth", meta.auth().to_string())
-                                        .header("X-Forwarded-For", meta.forwarded_for())
-                                        .header("Content-Type", "application/json")
-                                        .body(processed)
-                                });
-                            let future = upstream
-                                .send(request)
-                                .map_err(ProcessingError::ScheduleFailed)
-                                .and_then(move |result| {
-                                    result.map_err(move |error| match error {
-                                        UpstreamRequestError::RateLimited(secs) => {
-                                            project.do_send(RetryAfter { secs });
-                                            ProcessingError::RateLimited(secs)
-                                        }
-                                        other => ProcessingError::SendFailed(other),
+                        #[cfg(feature = "processing")]
+                        {
+                            if let Some(store_forwarder) = store_forwarder {
+                                log::trace!("sending event to kafka {}", event_id);
+                                let future = store_forwarder
+                                    .send(StoreEvent {
+                                        payload: processed,
+                                        event_id,
+                                        start_time,
                                     })
-                                });
-                            Box::new(future) as ResponseFuture<_, _>
+                                    .map_err(ProcessingError::ScheduleFailed)
+                                    .and_then(move |result| {
+                                        result.map_err(ProcessingError::StoreFailed)
+                                    });
+
+                                return Box::new(future) as ResponseFuture<_, _>;
+                            }
                         }
+
+                        log::trace!("sending event to sentry endpoint {}", event_id);
+                        let request = SendRequest::post(format!("/api/{}/store/", project_id))
+                            .build(move |builder| {
+                                if let Some(origin) = meta.origin() {
+                                    builder.header("Origin", origin.to_string());
+                                }
+
+                                builder
+                                    .header("X-Sentry-Auth", meta.auth().to_string())
+                                    .header("X-Forwarded-For", meta.forwarded_for())
+                                    .header("Content-Type", "application/json")
+                                    .body(processed)
+                            });
+
+                        let future = upstream
+                            .send(request)
+                            .map_err(ProcessingError::ScheduleFailed)
+                            .and_then(move |result| {
+                                result.map_err(move |error| match error {
+                                    UpstreamRequestError::RateLimited(secs) => {
+                                        project.do_send(RetryAfter { secs });
+                                        ProcessingError::RateLimited(secs)
+                                    }
+                                    other => ProcessingError::SendFailed(other),
+                                })
+                            });
+
+                        Box::new(future) as ResponseFuture<_, _>
                     })
             })
             .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))

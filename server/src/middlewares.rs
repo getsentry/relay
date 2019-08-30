@@ -12,7 +12,16 @@ use crate::utils::ApiErrorResponse;
 /// Basic metrics
 pub struct Metrics;
 
-struct StartTime(Instant);
+#[derive(Clone, Copy, Debug)]
+pub struct StartTime(Instant);
+
+impl StartTime {
+    /// Returns the `Instant` of this start time.
+    #[inline]
+    pub fn into_inner(self) -> Instant {
+        self.0
+    }
+}
 
 impl<S> Middleware<S> for Metrics {
     fn start(&self, req: &HttpRequest<S>) -> Result<Started, Error> {

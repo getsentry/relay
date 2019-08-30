@@ -1,0 +1,34 @@
+---
+created: "2019-08-28T17:42:00.326063Z"
+creator: insta@0.10.1
+source: general/src/datascrubbing/convert.rs
+expression: data.to_json_pretty().unwrap()
+---
+{
+  "extra": {
+    "foo": "foo redis://redis:[email]:6379/0 bar pg://matt:[email]/1"
+  },
+  "_meta": {
+    "extra": {
+      "foo": {
+        "": {
+          "rem": [
+            [
+              "@email",
+              "s",
+              18,
+              25
+            ],
+            [
+              "@email",
+              "s",
+              47,
+              54
+            ]
+          ],
+          "len": 68
+        }
+      }
+    }
+  }
+}
