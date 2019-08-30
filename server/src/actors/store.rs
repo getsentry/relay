@@ -97,6 +97,10 @@ struct EventKafkaMessage {
     payload: Bytes,
     /// Time at which the event was received by Relay.
     start_time: u64,
+    /// The event id.
+    event_id: String,
+    /// The project id for the current event.
+    project_id: u64,
 }
 
 /// Message sent to the StoreForwarder containing an event
@@ -104,6 +108,7 @@ pub struct StoreEvent {
     pub event_id: EventId,
     pub payload: Bytes,
     pub start_time: Instant,
+    pub project_id: u64,
 }
 
 impl Message for StoreEvent {
@@ -125,6 +130,8 @@ impl Handler<StoreEvent> for StoreForwarder {
             payload: message.payload,
             start_time: start_timestamp,
             ty: KafkaMessageType::Event,
+            event_id: message.event_id.to_string(),
+            project_id: message.project_id,
         };
 
         let serialized_message =

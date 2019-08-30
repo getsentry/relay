@@ -501,6 +501,7 @@ impl Handler<HandleEvent> for EventManager {
                                         payload: processed,
                                         event_id,
                                         start_time,
+                                        project_id,
                                     })
                                     .map_err(ProcessingError::ScheduleFailed)
                                     .and_then(move |result| {
