@@ -336,30 +336,89 @@ impl Default for Sentry {
     }
 }
 
-/// Controls Sentry-internal event processing.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-struct Processing {
-    /// True if the Relay should do processing. Defaults to `false`.
-    enabled: bool,
-    /// GeoIp DB file location.
-    geoip_path: Option<PathBuf>,
-    /// Maximum future timestamp of ingested events.
-    max_secs_in_future: u32,
-    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
-    max_secs_in_past: u32,
-}
+#[cfg(feature = "processing")]
+mod processing {
+    use super::*;
 
-impl Default for Processing {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            geoip_path: None,
-            max_secs_in_future: 60,           // 1 minute
-            max_secs_in_past: 30 * 24 * 3600, // 30 days
+    /// Define the topics over which Relay communicates with Sentry.
+    pub enum KafkaTopic {
+        /// Simple events (without attachments) topic.
+        Events,
+        /// Complex events (with attachments) topic.
+        Attachments,
+        /// Transaction events topic.
+        Transactions,
+    }
+
+    /// Configuration for topics.
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct TopicNames {
+        /// Simple events topic name.
+        pub events: String,
+        /// Events with attachments topic name.
+        pub attachments: String,
+        /// Transaction events topic name.
+        pub transactions: String,
+    }
+
+    /// A name value pair of Kafka config parameter.
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct KafkaConfigParam {
+        /// Name of the Kafka config parameter.
+        pub name: String,
+        /// Value of the Kafka config parameter.
+        pub value: String,
+    }
+
+    fn default_max_secs_in_future() -> u32 {
+        60 // 1 minute
+    }
+
+    fn default_max_secs_in_past() -> u32 {
+        30 * 24 * 3600 // 30 days
+    }
+
+    /// Controls Sentry-internal event processing.
+    #[derive(Serialize, Deserialize, Debug)]
+    pub(super) struct Processing {
+        /// True if the Relay should do processing. Defaults to `false`.
+        pub(super) enabled: bool,
+        /// GeoIp DB file location.
+        #[serde(default)]
+        pub(super) geoip_path: Option<PathBuf>,
+        /// Maximum future timestamp of ingested events.
+        #[serde(default = "default_max_secs_in_future")]
+        pub(super) max_secs_in_future: u32,
+        /// Maximum age of ingested events. Older events will be adjusted to `now()`.
+        #[serde(default = "default_max_secs_in_past")]
+        pub(super) max_secs_in_past: u32,
+        /// Kafka producer configurations.
+        pub(super) kafka_config: Vec<KafkaConfigParam>,
+        /// Kafka topic names.
+        pub(super) topics: TopicNames,
+    }
+
+    impl Default for Processing {
+        /// Constructs a disabled processing configuration.
+        fn default() -> Self {
+            Self {
+                enabled: false,
+                geoip_path: None,
+                max_secs_in_future: 0,
+                max_secs_in_past: 0,
+                kafka_config: Vec::new(),
+                topics: TopicNames {
+                    events: String::new(),
+                    attachments: String::new(),
+                    transactions: String::new(),
+                },
+            }
         }
     }
 }
+
+#[cfg(feature = "processing")]
+pub use self::processing::*;
 
 /// Controls interal reporting to Sentry.
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -416,6 +475,7 @@ struct ConfigValues {
     metrics: Metrics,
     #[serde(default)]
     sentry: Sentry,
+    #[cfg(feature = "processing")]
     #[serde(default)]
     processing: Processing,
 }
@@ -722,7 +782,10 @@ impl Config {
     pub fn project_configs_path(&self) -> PathBuf {
         self.path.join("projects")
     }
+}
 
+#[cfg(feature = "processing")]
+impl Config {
     /// True if the Relay should do processing.
     pub fn processing_enabled(&self) -> bool {
         self.values.processing.enabled
@@ -745,6 +808,21 @@ impl Config {
     /// Maximum age of ingested events. Older events will be adjusted to `now()`.
     pub fn max_secs_in_past(&self) -> i64 {
         self.values.processing.max_secs_in_past.into()
+    }
+
+    /// The list of Kafka configuration parameters.
+    pub fn kafka_config(&self) -> &[KafkaConfigParam] {
+        self.values.processing.kafka_config.as_slice()
+    }
+
+    /// Returns the name of the specified Kafka topic.
+    pub fn kafka_topic_name(&self, topic: KafkaTopic) -> &str {
+        let topics = &self.values.processing.topics;
+        match topic {
+            KafkaTopic::Attachments => topics.attachments.as_str(),
+            KafkaTopic::Events => topics.events.as_str(),
+            KafkaTopic::Transactions => topics.transactions.as_str(),
+        }
     }
 }
 

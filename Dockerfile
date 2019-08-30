@@ -20,7 +20,10 @@ ENV OPENSSL_DIR=/usr/local/build/$BUILD_TARGET
 ENV OPENSSL_STATIC=1
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y curl build-essential git zip \
+    && apt-get install --no-install-recommends -y \
+      curl build-essential git zip \
+      # For librdkafka
+      libclang-3.9-dev clang-3.9 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -66,7 +69,7 @@ COPY . .
 
 RUN make init-submodules
 
-RUN cargo build --release --locked --target $BUILD_TARGET
+RUN cargo build --release --locked --all-features --target $BUILD_TARGET
 
 RUN bash -c 'objcopy --only-keep-debug target/${BUILD_TARGET}/release/semaphore{,.debug} \
     && objcopy --strip-debug --strip-unneeded target/${BUILD_TARGET}/release/semaphore \

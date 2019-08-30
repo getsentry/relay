@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use ::actix::prelude::*;
+use actix::prelude::*;
 use failure::Fail;
 use futures::future::Shared;
 use futures::prelude::*;

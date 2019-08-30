@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use ::actix::prelude::*;
+use actix::prelude::*;
 use actix_web::client::ClientConnector;
 use actix_web::{server, App};
 use failure::ResultExt;
@@ -10,7 +10,6 @@ use listenfd::ListenFd;
 use sentry_actix::SentryMiddleware;
 
 use semaphore_common::Config;
-use semaphore_general::store::GeoIpLookup;
 
 use crate::actors::events::EventManager;
 use crate::actors::keys::KeyCache;
@@ -48,6 +47,14 @@ pub enum ServerErrorKind {
     /// GeoIp construction failed.
     #[fail(display = "could not load the Geoip Db")]
     GeoIpError,
+
+    /// Configuration failed.
+    #[fail(display = "configuration error")]
+    ConfigError,
+
+    /// Initializing the Kafka producer failed.
+    #[fail(display = "could not initialize kafka producer")]
+    KafkaError,
 }
 
 impl Fail for ServerError {
@@ -102,18 +109,17 @@ impl ServiceState {
     pub fn start(config: Config) -> Result<Self, ServerError> {
         let config = Arc::new(config);
         let upstream_relay = UpstreamRelay::new(config.clone()).start();
-        let geoip_lookup = match config.geoip_path() {
-            Some(p) => Some(GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?),
-            None => None,
-        };
+
+        let event_manager = EventManager::create(config.clone(), upstream_relay.clone())
+            .context(ServerErrorKind::ConfigError)?
+            .start();
 
         Ok(ServiceState {
             config: config.clone(),
             upstream_relay: upstream_relay.clone(),
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
-            event_manager: EventManager::new(config.clone(), upstream_relay.clone(), geoip_lookup)
-                .start(),
+            event_manager,
         })
     }
 

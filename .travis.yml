@@ -51,14 +51,13 @@ matrix:
           packages:
             - libssl-dev
             - libgeoip-dev
-      script:
-        - make -e test-rust
+      script: make -e test-rust-all
 
     - name: "test: semaphore[macos]"
       os: osx
       language: generic
-      install: cargo build --all
-      script: make -e test-rust
+      install: cargo build --all --all-features
+      script: make -e test-rust-all
 
     # -------------------------------------
     # PYTHON LIBRARY TESTS
@@ -82,6 +81,7 @@ matrix:
         - export PATH=$PATH:$HOME/.cargo/bin
         - wget https://github.com/yyyar/gobetween/releases/download/0.6.0/gobetween_0.6.0_linux_amd64.tar.gz -O - | tar xz; mv gobetween $HOME/.cargo/bin
         - sudo add-apt-repository ppa:vbernat/haproxy-1.8 -y
+        - sudo apt-get clean && sudo rm -r /var/lib/apt/lists/*
         - sudo apt-get update
         - sudo apt-get install haproxy -y
         # Start Zookeeper and Kafka

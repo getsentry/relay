@@ -54,6 +54,15 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
             "cache": {"batch_interval": 0},
             "logging": {"level": "trace"},
             "http": {"timeout": 2},
+            "processing": {
+                "enabled": False,
+                "kafka_config": [],
+                "topics":{
+                    "events": "",
+                    "attachments": "",
+                    "transactions": ""
+                }
+            }
         }
 
         if options is not None:
