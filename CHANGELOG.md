@@ -1,11 +1,14 @@
 # Changelog
 
-## 0.4.42
+## 0.4.43
 
-- Fix normalization of version strings from user agents.
 - Bump size of breadcrumbs.
 - Workaround for an issue where we would not parse OS information from User Agent when SDK had already sent OS information.
 - Further work on Sentry-internal event ingestion.
+
+## 0.4.42
+
+- Fix normalization of version strings from user agents.
 
 ## 0.4.41
 
