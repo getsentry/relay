@@ -141,7 +141,7 @@ pub struct LegacyBrowsersFilterConfig {
     /// Specifies whether this filter is enabled.
     pub is_enabled: bool,
     /// The browsers to filter.
-    #[serde(rename = "options")]
+    #[serde(default, rename = "options")]
     pub browsers: BTreeSet<LegacyBrowser>,
 }
 
@@ -310,6 +310,18 @@ mod tests {
        ⋮    ]
        ⋮  }
        ⋮}
+        "###);
+    }
+
+    #[test]
+    fn test_regression_legacy_browser_missing_options() {
+        let json = r#"{"isEnabled":false}"#;
+        let config = serde_json::from_str::<LegacyBrowsersFilterConfig>(json).unwrap();
+        insta::assert_debug_snapshot_matches!(config, @r###"
+        LegacyBrowsersFilterConfig {
+            is_enabled: false,
+            browsers: {},
+        }
         "###);
     }
 }
