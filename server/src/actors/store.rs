@@ -56,6 +56,8 @@ struct EventKafkaMessage {
     ty: KafkaMessageType,
     payload: Bytes,
     start_time: i64,
+    event_id: String,
+    project_id: u64,
 }
 
 impl StoreForwarder {
@@ -95,17 +97,20 @@ impl Actor for StoreForwarder {
 pub struct StoreEvent {
     pub event_id: EventId,
     pub payload: Bytes,
+    pub project_id: u64,
 }
 
 impl Message for StoreEvent {
     type Result = Result<(), StoreError>;
 }
 
-fn serialize_kafka_event(payload: Bytes) -> Result<Vec<u8>, StoreError> {
+fn serialize_kafka_event(event: StoreEvent) -> Result<Vec<u8>, StoreError> {
     let message = EventKafkaMessage {
-        payload,
+        payload: event.payload,
+        event_id: event.event_id.to_string(),
         start_time: Utc::now().timestamp(),
         ty: KafkaMessageType::Event,
+        project_id: event.project_id,
     };
 
     rmp_serde::to_vec_named(&message).map_err(StoreError::SerializationError)
@@ -115,11 +120,12 @@ impl Handler<StoreEvent> for StoreForwarder {
     type Result = ResponseFuture<(), StoreError>;
 
     fn handle(&mut self, msg: StoreEvent, _ctx: &mut Self::Context) -> Self::Result {
-        let serialized_message = tryf!(serialize_kafka_event(msg.payload));
+        let event_id = msg.event_id.0.clone();
+        let serialized_message = tryf!(serialize_kafka_event(msg));
 
         let record = FutureRecord::to(self.config.kafka_topic_name(KafkaTopic::Events))
             .payload(&serialized_message)
-            .key(msg.event_id.0.as_bytes().as_ref());
+            .key(event_id.as_bytes().as_ref());
 
         let future = self
             .producer

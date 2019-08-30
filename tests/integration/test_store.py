@@ -236,6 +236,10 @@ def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kaf
     start_time = v.get('start_time')
     assert start_time is not None  # we have some start time field
     payload = v['payload']
+    event_id = v.get('event_id')
+    assert event_id is not None
+    project_id = v.get('project_id')
+    assert project_id is not None
 
     event = json.load(io.BytesIO(payload))
 

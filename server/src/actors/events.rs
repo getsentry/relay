@@ -449,6 +449,7 @@ impl Handler<HandleEvent> for EventManager {
                             let request = StoreEvent {
                                 payload: processed,
                                 event_id,
+                                project_id,
                             };
                             let future = store_forwarder
                                 .send(request)
