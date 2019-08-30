@@ -4,21 +4,21 @@ expression: data
 ---
 {
   "extra": {
-    "foo": "foo redis://redis:[email]:6379/0 bar"
+    "s": "\"\"-----BEGIN RSA PRIVATE KEY-----\n[pemkey]\n-----END RSA PRIVATE KEY-----\"\""
   },
   "_meta": {
     "extra": {
-      "foo": {
+      "s": {
         "": {
           "rem": [
             [
-              "@email",
+              "@pemkey",
               "s",
-              18,
-              25
+              34,
+              42
             ]
           ],
-          "len": 42
+          "len": 260
         }
       }
     }

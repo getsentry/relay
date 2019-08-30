@@ -981,7 +981,7 @@ fn test_normalize_mach_fail() {
 #[test]
 fn test_normalize_http_url() {
     use crate::types::SerializableAnnotated;
-    use insta::assert_ron_snapshot_matches;
+    use insta::assert_ron_snapshot;
 
     let mut good_mechanism = Mechanism {
         ty: Annotated::new("generic".to_string()),
@@ -990,10 +990,12 @@ fn test_normalize_http_url() {
     };
 
     normalize_mechanism(&mut good_mechanism, None);
-    assert_ron_snapshot_matches!(SerializableAnnotated(&Annotated::new(good_mechanism)), @r###"{
-  "type": "generic",
-  "help_link": "https://example.com/",
-}"###);
+    assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(good_mechanism)), @r###"
+    {
+      "type": "generic",
+      "help_link": "https://example.com/",
+    }
+    "###);
 
     let mut bad_mechanism = Mechanism {
         ty: Annotated::new("generic".to_string()),
@@ -1002,23 +1004,25 @@ fn test_normalize_http_url() {
     };
 
     normalize_mechanism(&mut bad_mechanism, None);
-    assert_ron_snapshot_matches!(SerializableAnnotated(&Annotated::new(bad_mechanism)), @r###"{
-  "type": "generic",
-  "help_link": (),
-  "_meta": {
-    "help_link": {
-      "": Meta(Some(MetaInner(
-        err: [
-          [
-            "invalid_data",
-            {
-              "reason": "expected http URL",
-            },
-          ],
-        ],
-        val: Some("javascript:alert(document.cookie)"),
-      ))),
-    },
-  },
-}"###);
+    assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(bad_mechanism)), @r###"
+    {
+      "type": "generic",
+      "help_link": (),
+      "_meta": {
+        "help_link": {
+          "": Meta(Some(MetaInner(
+            err: [
+              [
+                "invalid_data",
+                {
+                  "reason": "expected http URL",
+                },
+              ],
+            ],
+            val: Some("javascript:alert(document.cookie)"),
+          ))),
+        },
+      },
+    }
+    "###);
 }

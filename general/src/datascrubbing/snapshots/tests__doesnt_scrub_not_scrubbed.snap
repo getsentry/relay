@@ -1,0 +1,33 @@
+---
+source: general/src/datascrubbing/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "test1": {
+      "is_authenticated": null
+    },
+    "test2": {
+      "is_authenticated": "null"
+    },
+    "test3": {
+      "is_authenticated": true
+    }
+  },
+  "_meta": {
+    "extra": {
+      "test1": {
+        "is_authenticated": {
+          "": {
+            "rem": [
+              [
+                "@password",
+                "x"
+              ]
+            ]
+          }
+        }
+      }
+    }
+  }
+}

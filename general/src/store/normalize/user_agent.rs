@@ -160,14 +160,14 @@ mod tests {
 
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
-        assert_annotated_matches!(event.contexts, @r###"
-       ⋮{
-       ⋮  "browser": {
-       ⋮    "name": "Chrome Mobile",
-       ⋮    "version": "18.0.1025",
-       ⋮    "type": "browser"
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(event.contexts, @r###"
+        {
+          "browser": {
+            "name": "Chrome Mobile",
+            "version": "18.0.1025",
+            "type": "browser"
+          }
+        }
         "###);
     }
 
@@ -177,13 +177,13 @@ mod tests {
 
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
-        assert_annotated_matches!(event.contexts, @r###"
-       ⋮{
-       ⋮  "client_os": {
-       ⋮    "name": "Windows 7",
-       ⋮    "type": "os"
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(event.contexts, @r###"
+        {
+          "client_os": {
+            "name": "Windows 7",
+            "type": "os"
+          }
+        }
         "###);
     }
 
@@ -192,24 +192,24 @@ mod tests {
         let ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) - (-)";
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
-        assert_annotated_matches!(event.contexts, @r###"
-       ⋮{
-       ⋮  "browser": {
-       ⋮    "name": "Mobile Safari UI/WKWebView",
-       ⋮    "type": "browser"
-       ⋮  },
-       ⋮  "client_os": {
-       ⋮    "name": "iOS",
-       ⋮    "version": "12.1",
-       ⋮    "type": "os"
-       ⋮  },
-       ⋮  "device": {
-       ⋮    "family": "iPhone",
-       ⋮    "model": "iPhone",
-       ⋮    "brand": "Apple",
-       ⋮    "type": "device"
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(event.contexts, @r###"
+        {
+          "browser": {
+            "name": "Mobile Safari UI/WKWebView",
+            "type": "browser"
+          },
+          "client_os": {
+            "name": "iOS",
+            "version": "12.1",
+            "type": "os"
+          },
+          "device": {
+            "family": "iPhone",
+            "model": "iPhone",
+            "brand": "Apple",
+            "type": "device"
+          }
+        }
         "###);
     }
 
@@ -218,14 +218,14 @@ mod tests {
         let ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) - (-)";
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
-        assert_annotated_matches!(event.contexts, @r###"
-       ⋮{
-       ⋮  "client_os": {
-       ⋮    "name": "Mac OS X",
-       ⋮    "version": "10.13.4",
-       ⋮    "type": "os"
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(event.contexts, @r###"
+        {
+          "client_os": {
+            "name": "Mac OS X",
+            "version": "10.13.4",
+            "type": "os"
+          }
+        }
         "###);
     }
 
@@ -235,15 +235,15 @@ mod tests {
 
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
-        assert_annotated_matches!(event.contexts, @r###"
-       ⋮{
-       ⋮  "device": {
-       ⋮    "family": "Samsung Galaxy Nexus",
-       ⋮    "model": "Galaxy Nexus",
-       ⋮    "brand": "Samsung",
-       ⋮    "type": "device"
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(event.contexts, @r###"
+        {
+          "device": {
+            "family": "Samsung Galaxy Nexus",
+            "model": "Galaxy Nexus",
+            "brand": "Samsung",
+            "type": "device"
+          }
+        }
         "###);
     }
 
@@ -251,25 +251,25 @@ mod tests {
     fn test_all_contexts() {
         let mut event = testutils::get_event_with_user_agent(GOOD_UA);
         normalize_user_agent(&mut event);
-        assert_annotated_matches!(event.contexts, @r###"
-       ⋮{
-       ⋮  "browser": {
-       ⋮    "name": "Chrome Mobile",
-       ⋮    "version": "18.0.1025",
-       ⋮    "type": "browser"
-       ⋮  },
-       ⋮  "client_os": {
-       ⋮    "name": "Android",
-       ⋮    "version": "4.0.4",
-       ⋮    "type": "os"
-       ⋮  },
-       ⋮  "device": {
-       ⋮    "family": "Samsung Galaxy Nexus",
-       ⋮    "model": "Galaxy Nexus",
-       ⋮    "brand": "Samsung",
-       ⋮    "type": "device"
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(event.contexts, @r###"
+        {
+          "browser": {
+            "name": "Chrome Mobile",
+            "version": "18.0.1025",
+            "type": "browser"
+          },
+          "client_os": {
+            "name": "Android",
+            "version": "4.0.4",
+            "type": "os"
+          },
+          "device": {
+            "family": "Samsung Galaxy Nexus",
+            "model": "Galaxy Nexus",
+            "brand": "Samsung",
+            "type": "device"
+          }
+        }
         "###);
     }
 
@@ -297,30 +297,30 @@ mod tests {
         event.contexts = Annotated::new(contexts);
 
         normalize_user_agent(&mut event);
-        assert_annotated_matches!(event.contexts, @r###"
-       ⋮{
-       ⋮  "browser": {
-       ⋮    "name": "BR_FAMILY",
-       ⋮    "version": "BR_VERSION",
-       ⋮    "type": "browser"
-       ⋮  },
-       ⋮  "client_os": {
-       ⋮    "name": "Android",
-       ⋮    "version": "4.0.4",
-       ⋮    "type": "os"
-       ⋮  },
-       ⋮  "device": {
-       ⋮    "family": "DEV_FAMILY",
-       ⋮    "model": "DEV_MODEL",
-       ⋮    "brand": "DEV_BRAND",
-       ⋮    "type": "device"
-       ⋮  },
-       ⋮  "os": {
-       ⋮    "name": "OS_FAMILY",
-       ⋮    "version": "OS_VERSION",
-       ⋮    "type": "os"
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(event.contexts, @r###"
+        {
+          "browser": {
+            "name": "BR_FAMILY",
+            "version": "BR_VERSION",
+            "type": "browser"
+          },
+          "client_os": {
+            "name": "Android",
+            "version": "4.0.4",
+            "type": "os"
+          },
+          "device": {
+            "family": "DEV_FAMILY",
+            "model": "DEV_MODEL",
+            "brand": "DEV_BRAND",
+            "type": "device"
+          },
+          "os": {
+            "name": "OS_FAMILY",
+            "version": "OS_VERSION",
+            "type": "os"
+          }
+        }
         "###);
     }
 }

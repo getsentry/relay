@@ -1,6 +1,4 @@
 ---
-created: "2019-03-19T16:40:43.998917Z"
-creator: insta@0.7.4
 source: general/tests/test_fixtures.rs
 expression: SerializableAnnotated(&event)
 ---
