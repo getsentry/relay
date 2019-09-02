@@ -33,7 +33,7 @@ build-linux-release: setup-git
 	objcopy --only-keep-debug target/${TARGET}/release/semaphore{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/semaphore
 	objcopy --add-gnu-debuglink target/${TARGET}/release/semaphore{.debug,}
-.PHONE: build-linux-release
+.PHONY: build-linux-release
 
 sdist: setup-git setup-venv
 	cd py && ../.venv/bin/python setup.py sdist --format=zip
