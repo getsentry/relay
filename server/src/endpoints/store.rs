@@ -5,7 +5,7 @@ use std::sync::Arc;
 use actix::prelude::*;
 use actix_web::http::{Method, StatusCode};
 use actix_web::middleware::cors::Cors;
-use actix_web::{HttpRequest, HttpResponse, Json, ResponseError};
+use actix_web::{HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
 use futures::prelude::*;
 use sentry::Hub;
@@ -86,7 +86,7 @@ fn store_event(
     meta: EventMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
-) -> ResponseFuture<Json<StoreResponse>, BadStoreRequest> {
+) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let start_time = start_time.into_inner();
 
     // For now, we only handle <= v8 and drop everything else
@@ -134,7 +134,7 @@ fn store_event(
                         EventAction::Discard => Err(BadStoreRequest::EventRejected),
                     },
                 )
-                .and_then(move |_| {
+                .and_then(move |()| {
                     StoreBody::new(&request)
                         .limit(config.max_event_payload_size())
                         .map_err(BadStoreRequest::PayloadError)
@@ -149,7 +149,7 @@ fn store_event(
                         })
                         .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
-                        .map(|id| Json(StoreResponse { id }))
+                        .map(|id| HttpResponse::Accepted().json(StoreResponse { id }))
                 })
         })
         .map_err(move |error| {
