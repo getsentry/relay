@@ -96,7 +96,7 @@ matrix:
     - name: "release: semaphore[linux]"
       os: linux
       language: generic
-      before_install: none
+      before_install: skip
       services:
         - docker
       env:
