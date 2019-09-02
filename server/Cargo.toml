@@ -33,7 +33,9 @@ log = "0.4.8"
 native-tls = { version = "0.2.3", optional = true }
 num_cpus = "1.10.1"
 parking_lot = "0.9.0"
-rdkafka = { version = "0.21.0", optional = true }
+
+# https://github.com/fede1024/rust-rdkafka/issues/125
+rdkafka = { version = "0.21.0", git = "https://github.com/fede1024/rust-rdkafka", optional = true, rev = "0efbcf38150fad9fcd65b5f7f23f488c01248ae8" }
 regex = "1.2.0"
 rmp-serde = { version = "0.13.7", optional = true }
 sentry = "0.17.0"
