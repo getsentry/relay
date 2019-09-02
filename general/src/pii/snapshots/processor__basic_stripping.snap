@@ -1,0 +1,107 @@
+---
+source: general/src/pii/processor.rs
+expression: event
+---
+{
+  "logentry": {
+    "formatted": "Hello from [ip]!"
+  },
+  "request": {
+    "headers": [
+      [
+        "Cookie",
+        null
+      ],
+      [
+        "X-Forwarded-For",
+        "[ip]"
+      ]
+    ],
+    "env": {
+      "SECRET_KEY": null
+    }
+  },
+  "tags": [
+    [
+      "forwarded_for",
+      "[ip]"
+    ]
+  ],
+  "_meta": {
+    "logentry": {
+      "formatted": {
+        "": {
+          "rem": [
+            [
+              "@ip",
+              "s",
+              11,
+              15
+            ]
+          ],
+          "len": 21
+        }
+      }
+    },
+    "request": {
+      "env": {
+        "SECRET_KEY": {
+          "": {
+            "rem": [
+              [
+                "remove_bad_headers",
+                "x"
+              ]
+            ]
+          }
+        }
+      },
+      "headers": {
+        "0": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "remove_bad_headers",
+                  "x"
+                ]
+              ]
+            }
+          }
+        },
+        "1": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@ip",
+                  "s",
+                  0,
+                  4
+                ]
+              ],
+              "len": 9
+            }
+          }
+        }
+      }
+    },
+    "tags": {
+      "0": {
+        "1": {
+          "": {
+            "rem": [
+              [
+                "@ip",
+                "s",
+                0,
+                4
+              ]
+            ],
+            "len": 9
+          }
+        }
+      }
+    }
+  }
+}

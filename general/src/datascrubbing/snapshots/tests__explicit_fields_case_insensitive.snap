@@ -4,15 +4,15 @@ expression: data
 ---
 {
   "extra": {
-    "mysql_pwd": null
+    "MYSTUFF": null
   },
   "_meta": {
     "extra": {
-      "mysql_pwd": {
+      "MYSTUFF": {
         "": {
           "rem": [
             [
-              "@password",
+              "strip-fields",
               "x"
             ]
           ]

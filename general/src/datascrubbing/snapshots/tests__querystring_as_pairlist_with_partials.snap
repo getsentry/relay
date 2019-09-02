@@ -1,0 +1,40 @@
+---
+source: general/src/datascrubbing/convert.rs
+expression: data
+---
+{
+  "request": {
+    "query_string": [
+      [
+        "foo",
+        "bar"
+      ],
+      [
+        "password",
+        null
+      ],
+      [
+        "baz",
+        "bar"
+      ]
+    ]
+  },
+  "_meta": {
+    "request": {
+      "query_string": {
+        "1": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password",
+                  "x"
+                ]
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,8 +1,6 @@
 ---
-created: "2019-08-28T17:42:00.273284Z"
-creator: insta@0.10.1
 source: general/src/datascrubbing/convert.rs
-expression: data.to_json_pretty().unwrap()
+expression: data
 ---
 {
   "request": {

@@ -1,0 +1,38 @@
+---
+source: general/src/datascrubbing/convert.rs
+expression: data.value().unwrap().request
+---
+{
+  "data": {
+    "email": "[email]",
+    "password": null
+  },
+  "inferred_content_type": "application/json",
+  "_meta": {
+    "data": {
+      "email": {
+        "": {
+          "rem": [
+            [
+              "@email",
+              "s",
+              0,
+              7
+            ]
+          ],
+          "len": 14
+        }
+      },
+      "password": {
+        "": {
+          "rem": [
+            [
+              "@password",
+              "x"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

@@ -166,19 +166,95 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
-    fn test_default_pii_config_snap() {
-        insta::assert_json_snapshot_matches!(simple_enabled_pii_config(), @r###"
-       ⋮{
-       ⋮  "rules": {},
-       ⋮  "vars": {
-       ⋮    "hashKey": null
-       ⋮  },
-       ⋮  "applications": {
-       ⋮    "**": [
-       ⋮      "@common"
-       ⋮    ]
-       ⋮  }
-       ⋮}
+    fn test_convert_default_pii_config() {
+        insta::assert_json_snapshot!(simple_enabled_pii_config(), @r###"
+        {
+          "rules": {},
+          "vars": {
+            "hashKey": null
+          },
+          "applications": {
+            "**": [
+              "@common"
+            ]
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_convert_empty_sensitive_field() {
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["".to_owned()],
+            ..simple_enabled_config()
+        });
+
+        insta::assert_json_snapshot!(pii_config, @r###"
+        {
+          "rules": {},
+          "vars": {
+            "hashKey": null
+          },
+          "applications": {
+            "**": [
+              "@common"
+            ]
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_convert_sensitive_fields() {
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["fieldy_field".to_owned(), "moar_other_field".to_owned()],
+            ..simple_enabled_config()
+        });
+
+        insta::assert_json_snapshot!(pii_config, @r###"
+        {
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": ".*(fieldy_field|moar_other_field).*",
+              "redaction": {
+                "method": "replace",
+                "text": "[filtered]"
+              }
+            }
+          },
+          "vars": {
+            "hashKey": null
+          },
+          "applications": {
+            "**": [
+              "@common",
+              "strip-fields"
+            ]
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_convert_exclude_field() {
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            exclude_fields: vec!["foobar".to_owned()],
+            ..simple_enabled_config()
+        });
+
+        insta::assert_json_snapshot!(pii_config, @r###"
+        {
+          "rules": {},
+          "vars": {
+            "hashKey": null
+          },
+          "applications": {
+            "(~foobar)": [
+              "@common"
+            ]
+          }
+        }
         "###);
     }
 
@@ -199,10 +275,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -221,10 +295,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -241,10 +313,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -254,10 +324,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -274,13 +342,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
         // n.b.: This diverges from Python behavior because it would strip a context that is called
         // "secret", not just a string. We accept this difference.
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -293,13 +359,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        // n.b.: Python's datascrubbers return the query string as string again, while Rust parses
-        // it during deserialization. In either case the PII is gone.
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -321,10 +382,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -340,50 +399,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        // n.b.: Python's datascrubbers return the query string as string again, while Rust parses
-        // it during deserialization. In either case the PII is gone.
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "request": {
-       ⋮    "query_string": [
-       ⋮      [
-       ⋮        "foo",
-       ⋮        "bar"
-       ⋮      ],
-       ⋮      [
-       ⋮        "password",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "baz",
-       ⋮        "bar"
-       ⋮      ]
-       ⋮    ]
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "request": {
-       ⋮      "query_string": {
-       ⋮        "1": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -399,47 +416,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "request": {
-       ⋮    "query_string": [
-       ⋮      [
-       ⋮        "foo",
-       ⋮        "bar"
-       ⋮      ],
-       ⋮      [
-       ⋮        "password",
-       ⋮        null
-       ⋮      ],
-       ⋮      [
-       ⋮        "baz",
-       ⋮        "bar"
-       ⋮      ]
-       ⋮    ]
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "request": {
-       ⋮      "query_string": {
-       ⋮        "1": {
-       ⋮          "1": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "@password",
-       ⋮                  "x"
-       ⋮                ]
-       ⋮              ]
-       ⋮            }
-       ⋮          }
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -461,37 +439,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot_matches!(pii_config, @r###"
-       ⋮{
-       ⋮  "rules": {
-       ⋮    "strip-fields": {
-       ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": ".*(fieldy_field|moar_other_field).*",
-       ⋮      "redaction": {
-       ⋮        "method": "replace",
-       ⋮        "text": "[filtered]"
-       ⋮      }
-       ⋮    }
-       ⋮  },
-       ⋮  "vars": {
-       ⋮    "hashKey": null
-       ⋮  },
-       ⋮  "applications": {
-       ⋮    "**": [
-       ⋮      "@common",
-       ⋮      "strip-fields"
-       ⋮    ]
-       ⋮  }
-       ⋮}
-        "###);
-
         let pii_config = pii_config.unwrap();
-
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -507,33 +458,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "foo": "[creditcard]"
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "foo": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@creditcard",
-       ⋮              "s",
-       ⋮              0,
-       ⋮              12
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 16
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -550,33 +476,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "foo": "[creditcard]"
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "foo": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@creditcard",
-       ⋮              "s",
-       ⋮              0,
-       ⋮              12
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 15
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -592,33 +493,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "foo": "[creditcard]"
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "foo": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@creditcard",
-       ⋮              "s",
-       ⋮              0,
-       ⋮              12
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 16
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -634,33 +510,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "foo": "[creditcard]"
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "foo": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@creditcard",
-       ⋮              "s",
-       ⋮              0,
-       ⋮              12
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 16
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -676,33 +527,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "foo": "[creditcard]"
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "foo": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@creditcard",
-       ⋮              "s",
-       ⋮              0,
-       ⋮              12
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 16
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -727,10 +553,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -746,15 +570,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "foo": "1453843029218310"
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(data, @r###"
+        {
+          "extra": {
+            "foo": "1453843029218310"
+          }
+        }
         "###);
     }
 
@@ -796,7 +618,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         // Don't be too overly eager within JSON strings an catch the right field.
         // n.b.: We accept the difference from Python, where "b" is not masked.
         sanitize_url_test(
-            r#"{"a":"https://localhost","b":"foo@localhost","c":"pg://matt:pass@localhost/1","d":"lol"}"#, 
+            r#"{"a":"https://localhost","b":"foo@localhost","c":"pg://matt:pass@localhost/1","d":"lol"}"#,
         );
     }
 
@@ -812,10 +634,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -839,43 +659,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.value().unwrap().request.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "data": {
-       ⋮    "email": "[email]",
-       ⋮    "password": null
-       ⋮  },
-       ⋮  "inferred_content_type": "application/json",
-       ⋮  "_meta": {
-       ⋮    "data": {
-       ⋮      "email": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@email",
-       ⋮              "s",
-       ⋮              0,
-       ⋮              7
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 14
-       ⋮        }
-       ⋮      },
-       ⋮      "password": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data.value().unwrap().request);
     }
 
     #[test]
@@ -893,12 +677,12 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "foo": 1
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(data, @r###"
+        {
+          "extra": {
+            "foo": 1
+          }
+        }
         "###);
     }
 
@@ -916,31 +700,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "s": "\"\"-----BEGIN PUBLIC KEY-----\n[pemkey]\n-----END PUBLIC KEY-----\"\""
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "s": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@pemkey",
-       ⋮              "s",
-       ⋮              29,
-       ⋮              37
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 283
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -957,31 +717,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "s": "\"\"-----BEGIN PRIVATE KEY-----\n[pemkey]\n-----END PRIVATE KEY-----\"\""
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "s": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@pemkey",
-       ⋮              "s",
-       ⋮              30,
-       ⋮              38
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 252
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -998,31 +734,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "s": "\"\"-----BEGIN ENCRYPTED PRIVATE KEY-----\n[pemkey]\n-----END ENCRYPTED PRIVATE KEY-----\"\""
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "s": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@pemkey",
-       ⋮              "s",
-       ⋮              40,
-       ⋮              48
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 277
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -1039,31 +751,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "s": "\"\"-----BEGIN RSA PRIVATE KEY-----\n[pemkey]\n-----END RSA PRIVATE KEY-----\"\""
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "s": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@pemkey",
-       ⋮              "s",
-       ⋮              34,
-       ⋮              42
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 260
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -1080,31 +768,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "s": "***-**-****"
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "s": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@usssn",
-       ⋮              "m",
-       ⋮              0,
-       ⋮              11
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 11
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -1119,28 +783,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "password": null
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "password": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -1157,57 +800,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot_matches!(pii_config, @r###"
-       ⋮{
-       ⋮  "rules": {
-       ⋮    "strip-fields": {
-       ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": ".*(mystuff).*",
-       ⋮      "redaction": {
-       ⋮        "method": "replace",
-       ⋮        "text": "[filtered]"
-       ⋮      }
-       ⋮    }
-       ⋮  },
-       ⋮  "vars": {
-       ⋮    "hashKey": null
-       ⋮  },
-       ⋮  "applications": {
-       ⋮    "**": [
-       ⋮      "@common",
-       ⋮      "strip-fields"
-       ⋮    ]
-       ⋮  }
-       ⋮}
-        "###);
-
         let pii_config = pii_config.unwrap();
-
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "mystuff": null
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "mystuff": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "strip-fields",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -1224,57 +820,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot_matches!(pii_config, @r###"
-       ⋮{
-       ⋮  "rules": {
-       ⋮    "strip-fields": {
-       ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": ".*(myStuff).*",
-       ⋮      "redaction": {
-       ⋮        "method": "replace",
-       ⋮        "text": "[filtered]"
-       ⋮      }
-       ⋮    }
-       ⋮  },
-       ⋮  "vars": {
-       ⋮    "hashKey": null
-       ⋮  },
-       ⋮  "applications": {
-       ⋮    "**": [
-       ⋮      "@common",
-       ⋮      "strip-fields"
-       ⋮    ]
-       ⋮  }
-       ⋮}
-        "###);
-
         let pii_config = pii_config.unwrap();
-
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "MYSTUFF": null
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "MYSTUFF": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "strip-fields",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -1291,32 +840,16 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot_matches!(pii_config, @r###"
-       ⋮{
-       ⋮  "rules": {},
-       ⋮  "vars": {
-       ⋮    "hashKey": null
-       ⋮  },
-       ⋮  "applications": {
-       ⋮    "(~foobar)": [
-       ⋮      "@common"
-       ⋮    ]
-       ⋮  }
-       ⋮}
-        "###);
-
         let pii_config = pii_config.unwrap();
-
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "foobar": "123-45-6789"
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(data, @r###"
+        {
+          "extra": {
+            "foobar": "123-45-6789"
+          }
+        }
         "###);
     }
 
@@ -1334,32 +867,16 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot_matches!(pii_config, @r###"
-       ⋮{
-       ⋮  "rules": {},
-       ⋮  "vars": {
-       ⋮    "hashKey": null
-       ⋮  },
-       ⋮  "applications": {
-       ⋮    "**": [
-       ⋮      "@common"
-       ⋮    ]
-       ⋮  }
-       ⋮}
-        "###);
-
         let pii_config = pii_config.unwrap();
-
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
 
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "foobar": "xxx"
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(data, @r###"
+        {
+          "extra": {
+            "foobar": "xxx"
+          }
+        }
         "###);
     }
 
@@ -1388,27 +905,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot_matches!(pii_config, @r###"
-       ⋮{
-       ⋮  "rules": {},
-       ⋮  "vars": {
-       ⋮    "hashKey": null
-       ⋮  },
-       ⋮  "applications": {
-       ⋮    "**": [
-       ⋮      "@common"
-       ⋮    ]
-       ⋮  }
-       ⋮}
-        "###);
-
         let pii_config = pii_config.unwrap();
-
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap());
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -1429,59 +929,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot_matches!(pii_config, @r###"
-       ⋮{
-       ⋮  "rules": {},
-       ⋮  "vars": {
-       ⋮    "hashKey": null
-       ⋮  },
-       ⋮  "applications": {
-       ⋮    "**": [
-       ⋮      "@common"
-       ⋮    ]
-       ⋮  }
-       ⋮}
-        "###);
-
         let pii_config = pii_config.unwrap();
-
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "auXth": "foobar",
-       ⋮    "auth": null,
-       ⋮    "authorization": null
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "auth": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      },
-       ⋮      "authorization": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@password",
-       ⋮              "x"
-       ⋮            ]
-       ⋮          ]
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -1510,57 +961,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot_matches!(pii_config, @r###"
-       ⋮{
-       ⋮  "rules": {},
-       ⋮  "vars": {
-       ⋮    "hashKey": null
-       ⋮  },
-       ⋮  "applications": {
-       ⋮    "**": [
-       ⋮      "@common"
-       ⋮    ]
-       ⋮  }
-       ⋮}
-        "###);
-
         let pii_config = pii_config.unwrap();
-
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "extra": {
-       ⋮    "test1": {
-       ⋮      "is_authenticated": null
-       ⋮    },
-       ⋮    "test2": {
-       ⋮      "is_authenticated": "null"
-       ⋮    },
-       ⋮    "test3": {
-       ⋮      "is_authenticated": true
-       ⋮    }
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "extra": {
-       ⋮      "test1": {
-       ⋮        "is_authenticated": {
-       ⋮          "": {
-       ⋮            "rem": [
-       ⋮              [
-       ⋮                "@password",
-       ⋮                "x"
-       ⋮              ]
-       ⋮            ]
-       ⋮          }
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -1573,35 +977,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = simple_enabled_pii_config();
-
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "csp": {
-       ⋮    "blocked_uri": "https://example.com/?foo=[creditcard]&bar=baz"
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "csp": {
-       ⋮      "blocked_uri": {
-       ⋮        "": {
-       ⋮          "rem": [
-       ⋮            [
-       ⋮              "@creditcard",
-       ⋮              "s",
-       ⋮              25,
-       ⋮              37
-       ⋮            ]
-       ⋮          ],
-       ⋮          "len": 49
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 
     #[test]
@@ -1624,67 +1002,33 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot_matches!(pii_config, @r###"
-       ⋮{
-       ⋮  "rules": {
-       ⋮    "strip-fields": {
-       ⋮      "type": "redact_pair",
-       ⋮      "keyPattern": ".*(session_key).*",
-       ⋮      "redaction": {
-       ⋮        "method": "replace",
-       ⋮        "text": "[filtered]"
-       ⋮      }
-       ⋮    }
-       ⋮  },
-       ⋮  "vars": {
-       ⋮    "hashKey": null
-       ⋮  },
-       ⋮  "applications": {
-       ⋮    "**": [
-       ⋮      "@common",
-       ⋮      "strip-fields"
-       ⋮    ]
-       ⋮  }
-       ⋮}
+        insta::assert_json_snapshot!(pii_config, @r###"
+        {
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": ".*(session_key).*",
+              "redaction": {
+                "method": "replace",
+                "text": "[filtered]"
+              }
+            }
+          },
+          "vars": {
+            "hashKey": null
+          },
+          "applications": {
+            "**": [
+              "@common",
+              "strip-fields"
+            ]
+          }
+        }
         "###);
 
         let pii_config = pii_config.unwrap();
-
         let mut pii_processor = PiiProcessor::new(&pii_config);
-
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
-
-        insta::assert_snapshot_matches!(data.to_json_pretty().unwrap(), @r###"
-       ⋮{
-       ⋮  "breadcrumbs": {
-       ⋮    "values": [
-       ⋮      {
-       ⋮        "message": "[filtered]"
-       ⋮      }
-       ⋮    ]
-       ⋮  },
-       ⋮  "_meta": {
-       ⋮    "breadcrumbs": {
-       ⋮      "values": {
-       ⋮        "0": {
-       ⋮          "message": {
-       ⋮            "": {
-       ⋮              "rem": [
-       ⋮                [
-       ⋮                  "strip-fields",
-       ⋮                  "s",
-       ⋮                  0,
-       ⋮                  10
-       ⋮                ]
-       ⋮              ],
-       ⋮              "len": 68
-       ⋮            }
-       ⋮          }
-       ⋮        }
-       ⋮      }
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "###);
+        assert_annotated_snapshot!(data);
     }
 }

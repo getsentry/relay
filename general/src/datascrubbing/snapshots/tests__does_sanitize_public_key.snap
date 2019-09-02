@@ -4,18 +4,21 @@ expression: data
 ---
 {
   "extra": {
-    "mysql_pwd": null
+    "s": "\"\"-----BEGIN PUBLIC KEY-----\n[pemkey]\n-----END PUBLIC KEY-----\"\""
   },
   "_meta": {
     "extra": {
-      "mysql_pwd": {
+      "s": {
         "": {
           "rem": [
             [
-              "@password",
-              "x"
+              "@pemkey",
+              "s",
+              29,
+              37
             ]
-          ]
+          ],
+          "len": 283
         }
       }
     }

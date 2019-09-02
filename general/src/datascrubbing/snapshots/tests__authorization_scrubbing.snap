@@ -4,11 +4,23 @@ expression: data
 ---
 {
   "extra": {
-    "mysql_pwd": null
+    "auXth": "foobar",
+    "auth": null,
+    "authorization": null
   },
   "_meta": {
     "extra": {
-      "mysql_pwd": {
+      "auth": {
+        "": {
+          "rem": [
+            [
+              "@password",
+              "x"
+            ]
+          ]
+        }
+      },
+      "authorization": {
         "": {
           "rem": [
             [

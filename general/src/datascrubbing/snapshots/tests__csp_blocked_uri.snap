@@ -3,22 +3,22 @@ source: general/src/datascrubbing/convert.rs
 expression: data
 ---
 {
-  "extra": {
-    "foo": "foo redis://redis:[email]:6379/0 bar"
+  "csp": {
+    "blocked_uri": "https://example.com/?foo=[creditcard]&bar=baz"
   },
   "_meta": {
-    "extra": {
-      "foo": {
+    "csp": {
+      "blocked_uri": {
         "": {
           "rem": [
             [
-              "@email",
+              "@creditcard",
               "s",
-              18,
-              25
+              25,
+              37
             ]
           ],
-          "len": 42
+          "len": 49
         }
       }
     }

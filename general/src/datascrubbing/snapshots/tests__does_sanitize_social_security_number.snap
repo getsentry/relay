@@ -4,18 +4,21 @@ expression: data
 ---
 {
   "extra": {
-    "mysql_pwd": null
+    "s": "***-**-****"
   },
   "_meta": {
     "extra": {
-      "mysql_pwd": {
+      "s": {
         "": {
           "rem": [
             [
-              "@password",
-              "x"
+              "@usssn",
+              "m",
+              0,
+              11
             ]
-          ]
+          ],
+          "len": 11
         }
       }
     }

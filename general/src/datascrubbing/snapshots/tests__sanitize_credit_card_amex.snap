@@ -4,18 +4,21 @@ expression: data
 ---
 {
   "extra": {
-    "mysql_pwd": null
+    "foo": "[creditcard]"
   },
   "_meta": {
     "extra": {
-      "mysql_pwd": {
+      "foo": {
         "": {
           "rem": [
             [
-              "@password",
-              "x"
+              "@creditcard",
+              "s",
+              0,
+              12
             ]
-          ]
+          ],
+          "len": 15
         }
       }
     }

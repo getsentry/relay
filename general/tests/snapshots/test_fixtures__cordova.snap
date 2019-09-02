@@ -1,8 +1,6 @@
 ---
-created: "2019-01-23T01:13:33.081163+00:00"
-creator: insta@0.5.1
-expression: SerializableAnnotated(&event)
 source: general/tests/test_fixtures.rs
+expression: SerializableAnnotated(&event)
 ---
 event_id: ae3a2cc6e08741c5b09946c65c022469
 level: fatal

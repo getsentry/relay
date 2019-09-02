@@ -694,113 +694,7 @@ fn test_basic_stripping() {
 
     let mut processor = PiiProcessor::new(&config);
     process_value(&mut event, &mut processor, ProcessingState::root());
-
-    assert_eq_str!(
-        event.to_json_pretty().unwrap(),
-        r#"{
-  "logentry": {
-    "formatted": "Hello from [ip]!"
-  },
-  "request": {
-    "headers": [
-      [
-        "Cookie",
-        null
-      ],
-      [
-        "X-Forwarded-For",
-        "[ip]"
-      ]
-    ],
-    "env": {
-      "SECRET_KEY": null
-    }
-  },
-  "tags": [
-    [
-      "forwarded_for",
-      "[ip]"
-    ]
-  ],
-  "_meta": {
-    "logentry": {
-      "formatted": {
-        "": {
-          "rem": [
-            [
-              "@ip",
-              "s",
-              11,
-              15
-            ]
-          ],
-          "len": 21
-        }
-      }
-    },
-    "request": {
-      "env": {
-        "SECRET_KEY": {
-          "": {
-            "rem": [
-              [
-                "remove_bad_headers",
-                "x"
-              ]
-            ]
-          }
-        }
-      },
-      "headers": {
-        "0": {
-          "1": {
-            "": {
-              "rem": [
-                [
-                  "remove_bad_headers",
-                  "x"
-                ]
-              ]
-            }
-          }
-        },
-        "1": {
-          "1": {
-            "": {
-              "rem": [
-                [
-                  "@ip",
-                  "s",
-                  0,
-                  4
-                ]
-              ],
-              "len": 9
-            }
-          }
-        }
-      }
-    },
-    "tags": {
-      "0": {
-        "1": {
-          "": {
-            "rem": [
-              [
-                "@ip",
-                "s",
-                0,
-                4
-              ]
-            ],
-            "len": 9
-          }
-        }
-      }
-    }
-  }
-}"#
-    );
+    assert_annotated_snapshot!(event);
 }
 
 #[test]
@@ -830,23 +724,5 @@ fn test_redact_containers() {
 
     let mut processor = PiiProcessor::new(&config);
     process_value(&mut event, &mut processor, ProcessingState::root());
-
-    assert_eq_str!(
-        event.to_json_pretty().unwrap(),
-        r#"{
-  "extra": null,
-  "_meta": {
-    "extra": {
-      "": {
-        "rem": [
-          [
-            "@anything",
-            "x"
-          ]
-        ]
-      }
-    }
-  }
-}"#
-    );
+    assert_annotated_snapshot!(event);
 }

@@ -1188,7 +1188,7 @@ fn test_discards_received() {
 fn test_grouping_config() {
     use crate::protocol::LogEntry;
     use crate::types::SerializableAnnotated;
-    use insta::assert_ron_snapshot_matches;
+    use insta::assert_ron_snapshot;
     use serde_json::json;
 
     let mut event = Annotated::new(Event {
@@ -1211,23 +1211,25 @@ fn test_grouping_config() {
 
     process_value(&mut event, &mut processor, ProcessingState::root());
 
-    assert_ron_snapshot_matches!(SerializableAnnotated(&event), {
+    assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
         ".received" => "[received]",
         ".timestamp" => "[timestamp]"
-    }, @r###"{
-  "event_id": "[event-id]",
-  "level": "error",
-  "type": "default",
-  "logentry": {
-    "formatted": "Hello World!",
-  },
-  "logger": "",
-  "platform": "other",
-  "timestamp": "[timestamp]",
-  "received": "[received]",
-  "grouping_config": {
-    "id": "legacy:1234-12-12",
-  },
-}"###);
+    }, @r###"
+    {
+      "event_id": "[event-id]",
+      "level": "error",
+      "type": "default",
+      "logentry": {
+        "formatted": "Hello World!",
+      },
+      "logger": "",
+      "platform": "other",
+      "timestamp": "[timestamp]",
+      "received": "[received]",
+      "grouping_config": {
+        "id": "legacy:1234-12-12",
+      },
+    }
+    "###);
 }

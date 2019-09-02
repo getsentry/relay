@@ -4,11 +4,11 @@ expression: data
 ---
 {
   "extra": {
-    "mysql_pwd": null
+    "password": null
   },
   "_meta": {
     "extra": {
-      "mysql_pwd": {
+      "password": {
         "": {
           "rem": [
             [
