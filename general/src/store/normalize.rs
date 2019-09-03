@@ -254,6 +254,7 @@ impl<'a> NormalizeProcessor<'a> {
                 .unwrap_or(false);
             let is_missing = user.ip_address.value().is_none();
 
+            // In an ideal world all SDKs would set {{auto}} explicitly.
             let set_if_missing = match platform {
                 Some("javascript") | Some("cocoa") | Some("objc") => true,
                 _ => false,
