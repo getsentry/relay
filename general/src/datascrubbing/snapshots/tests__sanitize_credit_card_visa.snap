@@ -1,0 +1,26 @@
+---
+source: general/src/datascrubbing/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "foo": "[creditcard]"
+  },
+  "_meta": {
+    "extra": {
+      "foo": {
+        "": {
+          "rem": [
+            [
+              "@creditcard",
+              "s",
+              0,
+              12
+            ]
+          ],
+          "len": 16
+        }
+      }
+    }
+  }
+}

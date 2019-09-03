@@ -1,6 +1,6 @@
 [package]
 name = "semaphore-general"
-version = "0.4.41"
+version = "0.4.43"
 authors = ["Armin Ronacher <armin.ronacher@active-4.com>"]
 edition = "2018"
 
@@ -35,7 +35,7 @@ pest_derive = "2.1.0"
 
 [dev-dependencies]
 difference = "2.0.0"
-insta = "0.10.1"
+insta = { version = "0.11.0", features =  ["ron", "redactions"] }
 
 [features]
 bench = []

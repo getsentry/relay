@@ -1,0 +1,26 @@
+---
+source: general/src/datascrubbing/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "s": "\"\"-----BEGIN PRIVATE KEY-----\n[pemkey]\n-----END PRIVATE KEY-----\"\""
+  },
+  "_meta": {
+    "extra": {
+      "s": {
+        "": {
+          "rem": [
+            [
+              "@pemkey",
+              "s",
+              30,
+              38
+            ]
+          ],
+          "len": 252
+        }
+      }
+    }
+  }
+}

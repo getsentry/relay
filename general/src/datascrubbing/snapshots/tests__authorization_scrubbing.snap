@@ -1,0 +1,35 @@
+---
+source: general/src/datascrubbing/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "auXth": "foobar",
+    "auth": null,
+    "authorization": null
+  },
+  "_meta": {
+    "extra": {
+      "auth": {
+        "": {
+          "rem": [
+            [
+              "@password",
+              "x"
+            ]
+          ]
+        }
+      },
+      "authorization": {
+        "": {
+          "rem": [
+            [
+              "@password",
+              "x"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

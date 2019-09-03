@@ -141,7 +141,7 @@ pub struct LegacyBrowsersFilterConfig {
     /// Specifies whether this filter is enabled.
     pub is_enabled: bool,
     /// The browsers to filter.
-    #[serde(rename = "options")]
+    #[serde(default, rename = "options")]
     pub browsers: BTreeSet<LegacyBrowser>,
 }
 
@@ -210,34 +210,34 @@ mod tests {
     #[test]
     fn test_empty_config() -> Result<(), serde_json::Error> {
         let filters_config = serde_json::from_str::<FiltersConfig>("{}")?;
-        insta::assert_debug_snapshot_matches!(filters_config, @r###"
-       ⋮FiltersConfig {
-       ⋮    browser_extensions: FilterConfig {
-       ⋮        is_enabled: false,
-       ⋮    },
-       ⋮    client_ips: ClientIpsFilterConfig {
-       ⋮        blacklisted_ips: [],
-       ⋮    },
-       ⋮    web_crawlers: FilterConfig {
-       ⋮        is_enabled: false,
-       ⋮    },
-       ⋮    csp: CspFilterConfig {
-       ⋮        disallowed_sources: [],
-       ⋮    },
-       ⋮    error_messages: ErrorMessagesFilterConfig {
-       ⋮        patterns: [],
-       ⋮    },
-       ⋮    legacy_browsers: LegacyBrowsersFilterConfig {
-       ⋮        is_enabled: false,
-       ⋮        browsers: {},
-       ⋮    },
-       ⋮    localhost: FilterConfig {
-       ⋮        is_enabled: false,
-       ⋮    },
-       ⋮    releases: ReleasesFilterConfig {
-       ⋮        releases: [],
-       ⋮    },
-       ⋮}
+        insta::assert_debug_snapshot!(filters_config, @r###"
+        FiltersConfig {
+            browser_extensions: FilterConfig {
+                is_enabled: false,
+            },
+            client_ips: ClientIpsFilterConfig {
+                blacklisted_ips: [],
+            },
+            web_crawlers: FilterConfig {
+                is_enabled: false,
+            },
+            csp: CspFilterConfig {
+                disallowed_sources: [],
+            },
+            error_messages: ErrorMessagesFilterConfig {
+                patterns: [],
+            },
+            legacy_browsers: LegacyBrowsersFilterConfig {
+                is_enabled: false,
+                browsers: {},
+            },
+            localhost: FilterConfig {
+                is_enabled: false,
+            },
+            releases: ReleasesFilterConfig {
+                releases: [],
+            },
+        }
         "###);
         Ok(())
     }
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn test_serialize_empty() {
         let filters_config = FiltersConfig::default();
-        insta::assert_json_snapshot_matches!(filters_config, @r###"{}"###);
+        insta::assert_json_snapshot!(filters_config, @"{}");
     }
 
     #[test]
@@ -272,44 +272,56 @@ mod tests {
             },
         };
 
-        insta::assert_json_snapshot_matches!(filters_config, @r###"
-       ⋮{
-       ⋮  "browserExtensions": {
-       ⋮    "isEnabled": true
-       ⋮  },
-       ⋮  "clientIps": {
-       ⋮    "blacklistedIps": [
-       ⋮      "127.0.0.1"
-       ⋮    ]
-       ⋮  },
-       ⋮  "webCrawlers": {
-       ⋮    "isEnabled": true
-       ⋮  },
-       ⋮  "csp": {
-       ⋮    "disallowedSources": [
-       ⋮      "https://*"
-       ⋮    ]
-       ⋮  },
-       ⋮  "errorMessages": {
-       ⋮    "patterns": [
-       ⋮      "Panic"
-       ⋮    ]
-       ⋮  },
-       ⋮  "legacyBrowsers": {
-       ⋮    "isEnabled": false,
-       ⋮    "options": [
-       ⋮      "ie9"
-       ⋮    ]
-       ⋮  },
-       ⋮  "localhost": {
-       ⋮    "isEnabled": true
-       ⋮  },
-       ⋮  "releases": {
-       ⋮    "releases": [
-       ⋮      "1.2.3"
-       ⋮    ]
-       ⋮  }
-       ⋮}
+        insta::assert_json_snapshot!(filters_config, @r###"
+        {
+          "browserExtensions": {
+            "isEnabled": true
+          },
+          "clientIps": {
+            "blacklistedIps": [
+              "127.0.0.1"
+            ]
+          },
+          "webCrawlers": {
+            "isEnabled": true
+          },
+          "csp": {
+            "disallowedSources": [
+              "https://*"
+            ]
+          },
+          "errorMessages": {
+            "patterns": [
+              "Panic"
+            ]
+          },
+          "legacyBrowsers": {
+            "isEnabled": false,
+            "options": [
+              "ie9"
+            ]
+          },
+          "localhost": {
+            "isEnabled": true
+          },
+          "releases": {
+            "releases": [
+              "1.2.3"
+            ]
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_regression_legacy_browser_missing_options() {
+        let json = r#"{"isEnabled":false}"#;
+        let config = serde_json::from_str::<LegacyBrowsersFilterConfig>(json).unwrap();
+        insta::assert_debug_snapshot!(config, @r###"
+        LegacyBrowsersFilterConfig {
+            is_enabled: false,
+            browsers: {},
+        }
         "###);
     }
 }

@@ -1,0 +1,26 @@
+---
+source: general/src/datascrubbing/convert.rs
+expression: data
+---
+{
+  "csp": {
+    "blocked_uri": "https://example.com/?foo=[creditcard]&bar=baz"
+  },
+  "_meta": {
+    "csp": {
+      "blocked_uri": {
+        "": {
+          "rem": [
+            [
+              "@creditcard",
+              "s",
+              25,
+              37
+            ]
+          ],
+          "len": 49
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+---
+source: general/src/datascrubbing/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "mystuff": null
+  },
+  "_meta": {
+    "extra": {
+      "mystuff": {
+        "": {
+          "rem": [
+            [
+              "strip-fields",
+              "x"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}
