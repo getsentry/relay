@@ -241,7 +241,7 @@ impl<'a> NormalizeProcessor<'a> {
             .and_then(|env| env.get("REMOTE_ADDR"))
             .and_then(Annotated::<Value>::as_str)
             .and_then(|ip| IpAddr::parse(ip).ok())
-            .or(self.config.client_ip.clone());
+            .or_else(|| self.config.client_ip.clone());
 
         if let Some(ip_address) = ip_address {
             let platform = event.platform.value().map(String::as_str);
