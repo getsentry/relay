@@ -666,13 +666,10 @@ fn test_user_ip_from_remote_addr() {
         ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::new(
-        Arc::new(StoreConfig {
-            valid_platforms: Some("javascript".to_owned()).into_iter().collect(),
-            ..Default::default()
-        }),
-        None,
-    );
+    let mut config = StoreConfig::default();
+    config.valid_platforms.insert("javascript".to_owned());
+
+    let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let user = event
