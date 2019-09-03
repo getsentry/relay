@@ -71,7 +71,7 @@ test-integration: build setup-geoip setup-venv
 	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
 
-test-process-event: build setup-geoip
+test-process-event: setup-geoip
 	# Process a basic event and assert its output
 	bash -c 'diff \
 		<(cargo run ${CARGO_ARGS} -- process-event <fixtures/basic-event-input.json) \
