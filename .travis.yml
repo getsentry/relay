@@ -56,7 +56,6 @@ matrix:
     - name: "test: semaphore[macos]"
       os: osx
       language: generic
-      install: cargo build --all --all-features
       script: make -e test-rust-all
 
     # -------------------------------------
@@ -97,6 +96,7 @@ matrix:
     - name: "release: semaphore[linux]"
       os: linux
       language: generic
+      before_install: skip
       services:
         - docker
       env:

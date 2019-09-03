@@ -25,7 +25,8 @@ build:
 install:
   # Push job information to Zeus
   - npm install -g @zeus-ci/cli
-  - zeus job update --status=pending -B "%APPVEYOR_PULL_REQUEST_TITLE%" -J "%APPVEYOR_JOB_NAME%"
+  - zeus job update --status=pending -B "%APPVEYOR_PULL_REQUEST_TITLE%" -J "%APPVEYOR_JOB_NAME%" ||
+    echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
   # Install the rest
   - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
   - rustup-init -yv --default-toolchain %channel% --default-host %arch%-pc-windows-msvc
@@ -36,18 +37,22 @@ install:
   - git submodule update --init --recursive
 
 build_script:
-  - cargo build --all --locked
+  - C:\MinGW\bin\mingw32-make release
 
 test_script:
   - C:\MinGW\bin\mingw32-make test-rust
 
 on_success:
-  - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%.exe .\target\release\semaphore.exe
+  - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%.exe .\target\release\semaphore.exe ||
+    echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
   - 7z a .\semaphore-pdb.zip .\target\release\semaphore.pdb
-  - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%-pdb.zip .\semaphore-pdb.zip
-  - zeus job update --status=passed
+  - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%-pdb.zip .\semaphore-pdb.zip ||
+    echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
+  - zeus job update --status=passed ||
+    echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
   - C:\MinGW\bin\mingw32-make clean-target-dir
 
 on_failure:
-  - zeus job update --status=failed
+  - zeus job update --status=failed ||
+    echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
   - C:\MinGW\bin\mingw32-make clean-target-dir

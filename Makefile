@@ -16,34 +16,34 @@ clean:
 
 # Builds
 
-build: setup
-	@cargo +stable build --all --all-features
+build: setup-git
+	@cargo +stable build --all-features
 .PHONY: build
 
-release: setup
-	@cargo +stable build --all --all-features --release
+release: setup-git
+	@cargo +stable build --release --locked --features with_ssl
 .PHONY: release
 
-docker: setup
+docker: setup-git
 	@scripts/docker-build-linux.sh
 .PHONY: docker
 
-build-linux-release:
-	cargo build --release --locked --all-features --target=${TARGET}
+build-linux-release: setup-git
+	cargo build --release --locked --features with_ssl --target=${TARGET}
 	objcopy --only-keep-debug target/${TARGET}/release/semaphore{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/semaphore
 	objcopy --add-gnu-debuglink target/${TARGET}/release/semaphore{.debug,}
-.PHONE: build-linux-release
+.PHONY: build-linux-release
 
-sdist: setup-venv
+sdist: setup-git setup-venv
 	cd py && ../.venv/bin/python setup.py sdist --format=zip
 .PHONY: sdist
 
-wheel: setup
+wheel: setup-git setup-venv
 	cd py && ../.venv/bin/python setup.py bdist_wheel
 .PHONY: wheel
 
-wheel-manylinux: setup
+wheel-manylinux: setup-git
 	@scripts/docker-manylinux.sh
 .PHONY: wheel-manylinux
 
@@ -60,18 +60,18 @@ test-rust-all: setup-geoip setup-git
 	cargo test --all --all-features
 .PHONY: test-rust-all
 
-test-python: setup
+test-python: setup-geoip setup-git setup-venv
 	.venv/bin/pip install -U pytest
 	SEMAPHORE_DEBUG=1 .venv/bin/pip install -v --editable py
 	.venv/bin/pytest -v py
 .PHONY: test-python
 
-test-integration: build setup-venv
+test-integration: build setup-geoip setup-venv
 	.venv/bin/pip install -U pytest pytest-localserver requests flask  confluent-kafka msgpack "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist "git+https://github.com/untitaker/pytest-sentry#egg=pytest-sentry"
 	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
 
-test-process-event: setup
+test-process-event: setup-geoip
 	# Process a basic event and assert its output
 	bash -c 'diff \
 		<(cargo run ${CARGO_ARGS} -- process-event <fixtures/basic-event-input.json) \
@@ -81,7 +81,7 @@ test-process-event: setup
 
 # Documentation
 
-doc: setup
+doc: setup-git
 	@cargo doc
 .PHONY: doc
 
@@ -90,7 +90,7 @@ doc: setup
 style: style-rust style-python
 .PHONY: style
 
-style-rust: setup
+style-rust:
 	@rustup component add rustfmt --toolchain stable 2> /dev/null
 	cargo +stable fmt -- --check
 .PHONY: style-rust
@@ -105,7 +105,7 @@ style-python: setup-venv
 lint: lint-rust lint-python
 .PHONY: lint
 
-lint-rust: setup
+lint-rust: setup-git
 	@rustup component add clippy --toolchain stable 2> /dev/null
 	cargo +stable clippy --all-features --all --tests --examples -- -D clippy::all
 .PHONY: lint-rust
