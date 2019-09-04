@@ -232,28 +232,33 @@ impl<'a> NormalizeProcessor<'a> {
 
     /// Inserts the IP address into the user interface. Creates the user if it doesn't exist.
     fn normalize_user_ip(&self, event: &mut Event) {
-        let remote_addr = event
+        // If there is no User ip_address, update it either from the Http interface
+        // or the client_ip of the request.
+        let ip_address = event
             .request
             .value()
             .and_then(|request| request.env.value())
             .and_then(|env| env.get("REMOTE_ADDR"))
             .and_then(Annotated::<Value>::as_str)
-            .and_then(|ip| IpAddr::parse(ip).ok());
+            .and_then(|ip| IpAddr::parse(ip).ok())
+            .or_else(|| self.config.client_ip.clone());
 
-        // If there is no User ip_address, update it either from the Http interface
-        // or the client_ip of the request.
-        if let Some(ip_address) = remote_addr {
-            self.set_user_ip(&mut event.user, ip_address);
-        } else if let Some(ref ip_address) = self.config.client_ip {
-            self.set_user_ip(&mut event.user, ip_address.clone());
-        }
-    }
+        if let Some(ip_address) = ip_address {
+            let platform = event.platform.as_str();
+            let user = event.user.value_mut().get_or_insert_with(User::default);
 
-    /// Creates or updates the user's IP address.
-    fn set_user_ip(&self, user: &mut Annotated<User>, ip_address: IpAddr) {
-        let user = user.value_mut().get_or_insert_with(User::default);
-        if user.ip_address.value().is_none() {
-            user.ip_address = Annotated::new(ip_address);
+            let override_ip = match user.ip_address.value() {
+                Some(ip_addr) => ip_addr.is_auto(),
+                None => match platform {
+                    // In an ideal world all SDKs would set {{auto}} explicitly.
+                    Some("javascript") | Some("cocoa") | Some("objc") => true,
+                    _ => false,
+                },
+            };
+
+            if override_ip {
+                user.ip_address = Annotated::new(ip_address);
+            }
         }
     }
 
@@ -398,15 +403,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         user.process_child_values(self, state);
-
-        // Fill in ip addresses marked as {{auto}}
-        if let Some(ip_address) = user.ip_address.value_mut() {
-            if ip_address.is_auto() {
-                if let Some(ref client_ip) = self.config.client_ip {
-                    *ip_address = client_ip.clone();
-                }
-            }
-        }
 
         // Infer user.geo from user.ip_address
         if user.geo.value().is_none() {
@@ -662,10 +658,14 @@ fn test_user_ip_from_remote_addr() {
             }),
             ..Request::default()
         }),
+        platform: Annotated::new("javascript".to_owned()),
         ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::default();
+    let mut config = StoreConfig::default();
+    config.valid_platforms.insert("javascript".to_owned());
+
+    let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let user = event
@@ -694,21 +694,29 @@ fn test_user_ip_from_invalid_remote_addr() {
             }),
             ..Request::default()
         }),
+        platform: Annotated::new("javascript".to_owned()),
         ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::default();
+    let mut config = StoreConfig::default();
+    config.valid_platforms.insert("javascript".to_owned());
+
+    let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     assert_eq_dbg!(Annotated::empty(), event.value().unwrap().user);
 }
 
 #[test]
-fn test_user_ip_from_client_ip() {
-    let mut event = Annotated::new(Event::default());
+fn test_user_ip_from_client_ip_without_auto() {
+    let mut event = Annotated::new(Event {
+        platform: Annotated::new("javascript".to_owned()),
+        ..Default::default()
+    });
 
     let mut config = StoreConfig::default();
     config.client_ip = Some(IpAddr::parse("213.47.147.207").unwrap());
+    config.valid_platforms.insert("javascript".to_owned());
 
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root());
@@ -723,6 +731,45 @@ fn test_user_ip_from_client_ip() {
     let ip_addr = user.ip_address.value().expect("ip address was not created");
 
     assert_eq_dbg!(ip_addr, &IpAddr("213.47.147.207".to_string()));
+}
+
+#[test]
+fn test_user_ip_from_client_ip_with_auto() {
+    let mut event = Annotated::new(Event {
+        user: Annotated::new(User {
+            ip_address: Annotated::new(IpAddr::auto()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let mut config = StoreConfig::default();
+    config.client_ip = Some(IpAddr::parse("213.47.147.207").unwrap());
+    config.valid_platforms.insert("javascript".to_owned());
+
+    let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    let user = event.value().unwrap().user.value().expect("user missing");
+
+    let ip_addr = user.ip_address.value().expect("ip address missing");
+
+    assert_eq_dbg!(ip_addr, &IpAddr("213.47.147.207".to_string()));
+}
+
+#[test]
+fn test_user_ip_from_client_ip_without_appropriate_platform() {
+    let mut event = Annotated::new(Event::default());
+
+    let mut config = StoreConfig::default();
+    config.client_ip = Some(IpAddr::parse("213.47.147.207").unwrap());
+
+    let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+    process_value(&mut event, &mut processor, ProcessingState::root());
+
+    let user = event.value().unwrap().user.value().expect("user missing");
+
+    assert!(user.ip_address.value().is_none());
 }
 
 #[test]

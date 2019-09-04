@@ -177,8 +177,6 @@ timestamp: "[timestamp]"
 received: "[received]"
 release: e386dfd
 environment: Production
-user:
-  ip_address: "::1"
 request:
   url: /Home/PostIndex
   method: POST
