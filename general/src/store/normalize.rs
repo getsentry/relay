@@ -244,7 +244,7 @@ impl<'a> NormalizeProcessor<'a> {
             .or_else(|| self.config.client_ip.clone());
 
         if let Some(ip_address) = ip_address {
-            let platform = event.platform.value().map(String::as_str);
+            let platform = event.platform.as_str();
             let user = event.user.value_mut().get_or_insert_with(User::default);
 
             let is_auto = user
