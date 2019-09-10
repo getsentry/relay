@@ -246,7 +246,7 @@ pub struct ProjectState {
     pub disabled: bool,
     /// A container of known public keys in the project.
     #[serde(default)]
-    pub public_keys: HashMap<String, bool>,
+    pub public_keys: Vec<PublicKeyConfig>,
     /// The project's slug if available.
     #[serde(default)]
     pub slug: Option<String>,
@@ -268,7 +268,7 @@ impl ProjectState {
             last_fetch: Utc::now(),
             last_change: None,
             disabled: true,
-            public_keys: HashMap::new(),
+            public_keys: Vec::new(),
             slug: None,
             config: Default::default(),
             rev: None,
@@ -287,11 +287,16 @@ impl ProjectState {
 
     /// Returns the current status of a key.
     pub fn get_public_key_status(&self, public_key: &str) -> PublicKeyStatus {
-        match self.public_keys.get(public_key) {
-            Some(&true) => PublicKeyStatus::Enabled,
-            Some(&false) => PublicKeyStatus::Disabled,
-            None => PublicKeyStatus::Unknown,
+        for key in &self.public_keys {
+            if key.public_key == public_key {
+                if key.is_enabled {
+                    return PublicKeyStatus::Enabled;
+                } else {
+                    return PublicKeyStatus::Disabled;
+                }
+            }
         }
+        PublicKeyStatus::Unknown
     }
 
     /// Returns `true` if the entire project should be considered
@@ -373,6 +378,56 @@ impl ProjectState {
             }
         }
     }
+}
+
+/// Represents a public key received from the projectconfig endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicKeyConfig {
+    /// Public part of key (random hash).
+    pub public_key: String,
+    /// Whether this key can be used.
+    pub is_enabled: bool,
+
+    /// The primary key of the DSN in Sentry's main database.
+    ///
+    /// Only available for internal relays.
+    #[serde(default)]
+    pub numeric_id: Option<u64>,
+
+    /// List of quotas to apply to events that use this key.
+    ///
+    /// Only available for internal relays.
+    #[serde(default)]
+    pub quotas: Vec<Quota>,
+}
+
+/// Data for applying rate limits in Redis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Quota {
+    /// Type of quota.
+    ///
+    /// E.g. `k` for key quotas, or `p` for project quotas. This is used when creating the Redis
+    /// key where the counters and refunds are stored.
+    pub prefix: Option<String>,
+
+    /// Usually a project/key/organization ID, depending on type of quota.
+    pub subscope: Option<String>,
+
+    /// How many events should be accepted within the window.
+    ///
+    /// "We should accept <limit> events per <window> seconds"
+    pub limit: Option<u64>,
+
+    /// Size of the timewindow we look at (seconds).
+    ///
+    /// "We should accept <limit> events per <window> seconds"
+    pub window: Option<u64>,
+
+    /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
+    /// comes to that.
+    pub reason_code: Option<String>,
 }
 
 pub struct GetProjectState;
