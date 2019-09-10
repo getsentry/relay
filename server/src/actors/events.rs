@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use actix::fut::result;
 use actix::prelude::*;
@@ -31,8 +31,10 @@ use crate::utils::{One, SyncActorFuture, SyncHandle};
 #[cfg(feature = "processing")]
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
+    crate::quotas::{is_rate_limited, QuotasError, RedisPool},
     crate::service::ServerErrorKind,
     failure::ResultExt,
+    semaphore_common::Redis,
     semaphore_general::filter::should_filter,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
@@ -93,8 +95,12 @@ enum ProcessingError {
     #[fail(display = "could not store event")]
     StoreFailed(#[cause] StoreError),
 
-    #[fail(display = "sending failed due to rate limit ({}s)", _0)]
-    RateLimited(u64),
+    #[fail(display = "sending failed due to rate limit")]
+    RateLimited(RetryAfter),
+
+    #[cfg(feature = "processing")]
+    #[fail(display = "failed to apply quotas")]
+    QuotasFailed(#[cause] QuotasError),
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
@@ -107,6 +113,7 @@ enum ProcessingError {
 struct EventProcessor {
     config: Arc<Config>,
     geoip_lookup: Option<Arc<GeoIpLookup>>,
+    redis_client: Option<RedisPool>,
 }
 
 #[cfg(not(feature = "processing"))]
@@ -114,10 +121,15 @@ struct EventProcessor;
 
 impl EventProcessor {
     #[cfg(feature = "processing")]
-    pub fn new(config: Arc<Config>, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        geoip_lookup: Option<Arc<GeoIpLookup>>,
+        redis_client: Option<RedisPool>,
+    ) -> Self {
         Self {
             config,
             geoip_lookup,
+            redis_client,
         }
     }
 
@@ -188,6 +200,39 @@ impl EventProcessor {
                     if let Err(reason) = should_filter(event, client_ip, filter_settings) {
                         // If the event should be filtered, no more processing is needed
                         return Ok(ProcessEventResponse::Filtered { reason });
+                    }
+                }
+
+                if let Some(redis) = self.redis_client.as_ref() {
+                    let organization_id = match message.project_state.organization_id {
+                        None => {
+                            // XXX(markus): This is only here because we don't have a stricter schema
+                            // for processing configs.
+                            log::error!("Missing organization ID.");
+                            return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
+                        }
+                        Some(id) => id,
+                    };
+
+                    let key = match message
+                        .project_state
+                        .get_public_key_config(&message.meta.auth().public_key())
+                    {
+                        None => {
+                            // XXX(markus): This is only here because we don't have a stricter schema
+                            // for processing configs.
+                            log::error!(
+                                "Missing key state even though event is already being processed."
+                            );
+                            return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
+                        }
+                        Some(key) => key,
+                    };
+
+                    if let Some(retry_after) = is_rate_limited(&redis, &key.quotas, organization_id)
+                        .map_err(ProcessingError::QuotasFailed)?
+                    {
+                        return Err(ProcessingError::RateLimited(retry_after));
                     }
                 }
             }
@@ -297,6 +342,17 @@ impl EventManager {
             None => None,
         };
 
+        let redis = match config.redis() {
+            Some(Redis::Cluster { cluster_servers }) => Some(
+                RedisPool::cluster(cluster_servers.iter().map(String::as_str).collect())
+                    .context(ServerErrorKind::RedisError)?,
+            ),
+            Some(Redis::Single(ref server)) => {
+                Some(RedisPool::single(&server).context(ServerErrorKind::RedisError)?)
+            }
+            None => None,
+        };
+
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
         log::info!("starting {} event processing workers", thread_count);
@@ -304,7 +360,7 @@ impl EventManager {
         let processor = SyncArbiter::start(
             thread_count,
             clone!(config, || {
-                EventProcessor::new(config.clone(), geoip_lookup.clone())
+                EventProcessor::new(config.clone(), geoip_lookup.clone(), redis.clone())
             }),
         );
 
@@ -476,7 +532,7 @@ impl Handler<HandleEvent> for EventManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                         EventAction::Accept => Ok(()),
-                        EventAction::RetryAfter(s) => Err(ProcessingError::RateLimited(s)),
+                        EventAction::RetryAfter(r) => Err(ProcessingError::RateLimited(r)),
                         EventAction::Discard => Err(ProcessingError::EventRejected),
                     })
                     .and_then(clone!(project, |_| project
@@ -542,8 +598,10 @@ impl Handler<HandleEvent> for EventManager {
                             .and_then(move |result| {
                                 result.map_err(move |error| match error {
                                     UpstreamRequestError::RateLimited(secs) => {
-                                        project.do_send(RetryAfter { secs });
-                                        ProcessingError::RateLimited(secs)
+                                        ProcessingError::RateLimited(RetryAfter {
+                                            when: Instant::now() + Duration::from_secs(secs),
+                                            reason_code: None,
+                                        })
                                     }
                                     other => ProcessingError::SendFailed(other),
                                 })
@@ -551,6 +609,13 @@ impl Handler<HandleEvent> for EventManager {
 
                         Box::new(future) as ResponseFuture<_, _>
                     })
+                    .map_err(clone!(project, |error| {
+                        if let ProcessingError::RateLimited(ref rate_limit) = error {
+                            project.do_send(rate_limit.clone());
+                        }
+
+                        error
+                    }))
             })
             .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))
             .into_actor(self)

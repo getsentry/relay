@@ -55,6 +55,10 @@ pub enum ServerErrorKind {
     /// Initializing the Kafka producer failed.
     #[fail(display = "could not initialize kafka producer")]
     KafkaError,
+
+    /// Initializing the Redis cluster client failed.
+    #[fail(display = "could not initialize redis cluster client")]
+    RedisError,
 }
 
 impl Fail for ServerError {

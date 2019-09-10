@@ -4,6 +4,7 @@ import io
 import queue
 import datetime
 import msgpack
+import uuid
 
 import pytest
 
@@ -209,16 +210,13 @@ def test_max_concurrent_requests(mini_sentry, relay):
     store_count.acquire(timeout=4)
 
 
-def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kafka(mini_sentry, relay_with_kafka,
-                                                                                   kafka_consumer, kafka_admin):
+def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kafka(mini_sentry, relay_with_processing, kafka_consumer):
     """
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
-    relay = relay_with_kafka()
+    relay = relay_with_processing()
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = mini_sentry.full_project_config()
-    admin_client = kafka_admin()
-    admin_client.delete_events_topic()
     # MUST create consumer before sending the event
     consumer = kafka_consumer()
     # create a unique message so we can make sure we don't test with stale data
@@ -265,3 +263,31 @@ def test_when_processing_is_not_enabled_relay_does_not_normalize_events(mini_sen
     assert event.get('key_id') is None
     assert event.get('project') is None
     assert event.get('version') is None
+
+
+def test_quotas(mini_sentry, relay_with_processing, kafka_consumer):
+    relay = relay_with_processing()
+    relay.wait_relay_healthcheck()
+
+    mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
+    public_keys = projectconfig['publicKeys']
+    single_key, = public_keys
+    single_key['quotas'] = quotas = [{
+        "prefix": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+        "limit": 5,
+        "window": 60,
+        "reason_code": "get_lost"
+    }]
+
+    consumer = kafka_consumer()
+
+    for _ in range(10):
+        relay.send_event(42, {"message": "some_message"})
+
+    for i in range(5):
+        message = consumer.poll(timeout=20)
+        assert message is not None
+        assert message.error() is None
+
+    message = consumer.poll(timeout=20)
+    assert message is None

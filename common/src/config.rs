@@ -370,32 +370,24 @@ mod processing {
         pub value: String,
     }
 
-    fn default_max_secs_in_future() -> u32 {
-        60 // 1 minute
-    }
-
-    fn default_max_secs_in_past() -> u32 {
-        30 * 24 * 3600 // 30 days
-    }
-
     /// Controls Sentry-internal event processing.
     #[derive(Serialize, Deserialize, Debug)]
+    #[serde(default)]
     pub(super) struct Processing {
         /// True if the Relay should do processing. Defaults to `false`.
         pub(super) enabled: bool,
         /// GeoIp DB file location.
-        #[serde(default)]
         pub(super) geoip_path: Option<PathBuf>,
         /// Maximum future timestamp of ingested events.
-        #[serde(default = "default_max_secs_in_future")]
         pub(super) max_secs_in_future: u32,
         /// Maximum age of ingested events. Older events will be adjusted to `now()`.
-        #[serde(default = "default_max_secs_in_past")]
         pub(super) max_secs_in_past: u32,
         /// Kafka producer configurations.
         pub(super) kafka_config: Vec<KafkaConfigParam>,
         /// Kafka topic names.
         pub(super) topics: TopicNames,
+        /// Redis hosts to connect to for storing state for rate limits.
+        pub(super) redis: Option<Redis>,
     }
 
     impl Default for Processing {
@@ -404,16 +396,30 @@ mod processing {
             Self {
                 enabled: false,
                 geoip_path: None,
-                max_secs_in_future: 0,
-                max_secs_in_past: 0,
+                max_secs_in_future: 60,           // 1 minute
+                max_secs_in_past: 30 * 24 * 3600, // 30 days
                 kafka_config: Vec::new(),
                 topics: TopicNames {
                     events: String::new(),
                     attachments: String::new(),
                     transactions: String::new(),
                 },
+                redis: None,
             }
         }
+    }
+
+    /// Redis hosts to connect to for storing state for rate limits.
+    #[derive(Serialize, Deserialize, Debug)]
+    #[serde(untagged)]
+    pub enum Redis {
+        /// Connect to a redis cluster
+        Cluster {
+            /// List of `redis://` urls to use in cluster mode
+            cluster_servers: Vec<String>,
+        },
+        /// Connect to a single redis instance
+        Single(String),
     }
 }
 
@@ -823,6 +829,11 @@ impl Config {
             KafkaTopic::Events => topics.events.as_str(),
             KafkaTopic::Transactions => topics.transactions.as_str(),
         }
+    }
+
+    /// Redis servers to connect to, for rate limiting.
+    pub fn redis(&self) -> Option<&Redis> {
+        self.values.processing.redis.as_ref()
     }
 }
 
