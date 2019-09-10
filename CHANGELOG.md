@@ -1,12 +1,22 @@
 # Changelog
 
+## 0.4.44
+
+**Normalization**:
+
+- Only take the user IP address from the store request's IP for certain platforms. This restores the behavior of the old Python code.
+
 ## 0.4.43
+
+**Normalization**:
 
 - Bump size of breadcrumbs.
 - Workaround for an issue where we would not parse OS information from User Agent when SDK had already sent OS information.
 - Further work on Sentry-internal event ingestion.
 
 ## 0.4.42
+
+**Normalization**:
 
 - Fix normalization of version strings from user agents.
 
