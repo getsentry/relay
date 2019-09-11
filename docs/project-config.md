@@ -17,16 +17,19 @@ of a DSN.
 
 `publicKeys` 
 
-: *map from string to boolean, default: `{}`*
+: *array of objects, required*
 
   A map enumerating known public keys (the public key in a DSN) and whether
   events using that key should be accepted. Example:
 
   ```json
   {
-      "publicKeys": {
-          "___PUBLIC_KEY___": true
-      }
+    "publicKeys": [
+        {
+            "publicKey": "___PUBLIC_KEY___",
+            "isEnabled": true
+        }
+    ]
   }
   ```
 
