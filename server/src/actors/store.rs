@@ -2,7 +2,7 @@
 //! The actor uses kafka topics to forward data to Sentry
 
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 
 use actix::prelude::*;
 use bytes::Bytes;
@@ -20,7 +20,7 @@ use semaphore_general::protocol::EventId;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::service::{ServerError, ServerErrorKind};
-use crate::utils::{SyncFuture, SyncHandle};
+use crate::utils::{instant_to_unix_timestamp, SyncFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum StoreError {
@@ -119,12 +119,7 @@ impl Handler<StoreEvent> for StoreForwarder {
     type Result = ResponseFuture<(), StoreError>;
 
     fn handle(&mut self, message: StoreEvent, _ctx: &mut Self::Context) -> Self::Result {
-        // Convert the start time instant into a SystemTime to get the UNIX timestamp
-        let start_time = SystemTime::now() - message.start_time.elapsed();
-        let start_timestamp = start_time
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let start_timestamp = instant_to_unix_timestamp(&message.start_time);
 
         let kafka_message = EventKafkaMessage {
             payload: message.payload,

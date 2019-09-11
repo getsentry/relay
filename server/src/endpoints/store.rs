@@ -14,6 +14,7 @@ use serde::Serialize;
 
 use semaphore_common::{metric, tryf, ProjectId, ProjectIdParseError};
 use semaphore_general::protocol::EventId;
+use semaphore_general::reason::OutcomeReason;
 
 use crate::actors::events::{EventError, QueueEvent};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError};
@@ -21,6 +22,8 @@ use crate::body::{StoreBody, StorePayloadError};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::ApiErrorResponse;
+
+use crate::actors::outcome::{KafkaOutcomeMessage, Outcome};
 
 #[derive(Fail, Debug)]
 enum BadStoreRequest {
@@ -119,19 +122,44 @@ fn store_event(
     let config = request.state().config();
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
+    let outcome_producer = request.state().outcome_producer();
+    let key = 1; // TODO RaduW. 11.Sept.2019 Get it from project info
 
     let future = project_manager
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(move |project| {
+            //let op = outcome_producer;
             project
                 .send(GetEventAction::cached(meta.clone()))
                 .map_err(BadStoreRequest::ScheduleFailed)
                 .and_then(
-                    |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
+                    move |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
                         EventAction::Accept => Ok(()),
-                        EventAction::RetryAfter(secs) => Err(BadStoreRequest::RateLimited(secs)),
-                        EventAction::Discard => Err(BadStoreRequest::EventRejected),
+                        EventAction::RetryAfter(secs, reason) => {
+                            outcome_producer.do_send(KafkaOutcomeMessage {
+                                timestamp: start_time,
+                                project_id: project_id,
+                                org_id: None,
+                                key_id: key,
+                                outcome: Outcome::RateLimited,
+                                event_id: None,
+                                reason: OutcomeReason::RateLimited(reason),
+                            });
+                            Err(BadStoreRequest::RateLimited(secs))
+                        }
+                        EventAction::Discard(reason) => {
+                            outcome_producer.do_send(KafkaOutcomeMessage {
+                                timestamp: start_time,
+                                project_id: project_id,
+                                org_id: None,
+                                key_id: key,
+                                outcome: Outcome::Invalid,
+                                event_id: None,
+                                reason,
+                            });
+                            Err(BadStoreRequest::EventRejected)
+                        }
                     },
                 )
                 .and_then(move |()| {

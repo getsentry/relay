@@ -19,6 +19,7 @@ use semaphore_general::types::Annotated;
 use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
+use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
     ProjectState, RetryAfter,
@@ -80,7 +81,7 @@ enum ProcessingError {
     #[fail(display = "event submission rejected")]
     EventRejected,
 
-    #[fail(display = "event filtered with reason: {}", _0)]
+    #[fail(display = "event filtered with reason: {:?}", _0)]
     EventFiltered(FilterStatKey),
 
     #[fail(display = "could not serialize event payload")]
@@ -272,6 +273,7 @@ pub struct EventManager {
     processor: Addr<EventProcessor>,
     current_active_events: u32,
     shutdown: SyncHandle,
+    outcome_producer: Addr<OutcomeProducer>,
 
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
@@ -279,7 +281,11 @@ pub struct EventManager {
 
 impl EventManager {
     #[cfg(feature = "processing")]
-    pub fn create(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Result<Self, ServerError> {
+    pub fn create(
+        config: Arc<Config>,
+        upstream: Addr<UpstreamRelay>,
+        outcome_producer: Addr<OutcomeProducer>,
+    ) -> Result<Self, ServerError> {
         let geoip_lookup = match config.geoip_path() {
             Some(p) => Some(Arc::new(
                 GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
@@ -311,11 +317,16 @@ impl EventManager {
             current_active_events: 0,
             shutdown: SyncHandle::new(),
             store_forwarder,
+            outcome_producer,
         })
     }
 
     #[cfg(not(feature = "processing"))]
-    pub fn create(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Result<Self, ServerError> {
+    pub fn create(
+        config: Arc<Config>,
+        upstream: Addr<UpstreamRelay>,
+        outcome_producer: Addr<OutcomeProducer>,
+    ) -> Result<Self, ServerError> {
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
 
@@ -328,6 +339,7 @@ impl EventManager {
             processor,
             current_active_events: 0,
             shutdown: SyncHandle::new(),
+            outcome_producer,
         })
     }
 }
@@ -466,8 +478,10 @@ impl Handler<HandleEvent> for EventManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                         EventAction::Accept => Ok(()),
-                        EventAction::RetryAfter(s) => Err(ProcessingError::RateLimited(s)),
-                        EventAction::Discard => Err(ProcessingError::EventRejected),
+                        EventAction::RetryAfter(secs, _reason) => {
+                            Err(ProcessingError::RateLimited(secs))
+                        }
+                        EventAction::Discard(_) => Err(ProcessingError::EventRejected),
                     })
                     .and_then(clone!(project, |_| project
                         .send(GetProjectState)

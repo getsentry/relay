@@ -98,7 +98,8 @@ impl<'de> Deserialize<'de> for GlobPatterns {
 ///
 /// Ported from Sentry's same-named "enum". The enum variants are fed into outcomes in kebap-case
 /// (e.g.  "browser-extensions")
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Hash)]
+#[serde(rename_all = "kebab-case")]
 pub enum FilterStatKey {
     IpAddress,
     ReleaseVersion,
@@ -108,31 +109,33 @@ pub enum FilterStatKey {
     Localhost,
     WebCrawlers,
     InvalidCsp,
-    Cors,
-
+    // Cors, // NOTE: Although cors is in the Sentry's FilterStatKey enum it is used for
+    // Invalid outcomes and therefore should logically belong to OutcomeInvalidReason
+    // that is why it was commented here and moved to OutcomeInvalidReason enum
     /// note: Not returned by any filters implemented in Rust.
     DiscardedHash,
 }
 
-impl FilterStatKey {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            FilterStatKey::IpAddress => "ip-address",
-            FilterStatKey::ReleaseVersion => "release-version",
-            FilterStatKey::ErrorMessage => "error-message",
-            FilterStatKey::BrowserExtensions => "browser-extensions",
-            FilterStatKey::LegacyBrowsers => "legacy-browsers",
-            FilterStatKey::Localhost => "localhost",
-            FilterStatKey::WebCrawlers => "web-crawlers",
-            FilterStatKey::InvalidCsp => "invalid-csp",
-            FilterStatKey::Cors => "cors",
-            FilterStatKey::DiscardedHash => "discarded-hash",
-        }
-    }
-}
-
-impl fmt::Display for FilterStatKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
+//
+//impl FilterStatKey {
+//    pub fn as_str(self) -> &'static str {
+//        match self {
+//            FilterStatKey::IpAddress => "ip-address",
+//            FilterStatKey::ReleaseVersion => "release-version",
+//            FilterStatKey::ErrorMessage => "error-message",
+//            FilterStatKey::BrowserExtensions => "browser-extensions",
+//            FilterStatKey::LegacyBrowsers => "legacy-browsers",
+//            FilterStatKey::Localhost => "localhost",
+//            FilterStatKey::WebCrawlers => "web-crawlers",
+//            FilterStatKey::InvalidCsp => "invalid-csp",
+//            FilterStatKey::Cors => "cors",
+//            FilterStatKey::DiscardedHash => "discarded-hash",
+//        }
+//    }
+//}
+//
+//impl fmt::Display for FilterStatKey {
+//    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//        write!(f, "{}", self.as_str())
+//    }
+//}
