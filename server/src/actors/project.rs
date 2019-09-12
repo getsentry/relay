@@ -401,13 +401,13 @@ pub struct PublicKeyConfig {
     /// The primary key of the DSN in Sentry's main database.
     ///
     /// Only available for internal relays.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub numeric_id: Option<u64>,
 
     /// List of quotas to apply to events that use this key.
     ///
     /// Only available for internal relays.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
 }
 
@@ -419,23 +419,28 @@ pub struct Quota {
     ///
     /// E.g. `k` for key quotas, or `p` for project quotas. This is used when creating the Redis
     /// key where the counters and refunds are stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
 
     /// Usually a project/key/organization ID, depending on type of quota.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subscope: Option<String>,
 
     /// How many events should be accepted within the window.
     ///
     /// "We should accept <limit> events per <window> seconds"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit: Option<u64>,
 
     /// Size of the timewindow we look at (seconds).
     ///
     /// "We should accept <limit> events per <window> seconds"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<u64>,
 
     /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
     /// comes to that.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_code: Option<String>,
 }
 
