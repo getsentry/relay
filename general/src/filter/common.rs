@@ -116,26 +116,24 @@ pub enum FilterStatKey {
     DiscardedHash,
 }
 
-//
-//impl FilterStatKey {
-//    pub fn as_str(self) -> &'static str {
-//        match self {
-//            FilterStatKey::IpAddress => "ip-address",
-//            FilterStatKey::ReleaseVersion => "release-version",
-//            FilterStatKey::ErrorMessage => "error-message",
-//            FilterStatKey::BrowserExtensions => "browser-extensions",
-//            FilterStatKey::LegacyBrowsers => "legacy-browsers",
-//            FilterStatKey::Localhost => "localhost",
-//            FilterStatKey::WebCrawlers => "web-crawlers",
-//            FilterStatKey::InvalidCsp => "invalid-csp",
-//            FilterStatKey::Cors => "cors",
-//            FilterStatKey::DiscardedHash => "discarded-hash",
-//        }
-//    }
-//}
-//
-//impl fmt::Display for FilterStatKey {
-//    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//        write!(f, "{}", self.as_str())
-//    }
-//}
+impl FilterStatKey {
+    pub fn name(self) -> &'static str {
+        match self {
+            FilterStatKey::IpAddress => "ip-address",
+            FilterStatKey::ReleaseVersion => "release-version",
+            FilterStatKey::ErrorMessage => "error-message",
+            FilterStatKey::BrowserExtensions => "browser-extensions",
+            FilterStatKey::LegacyBrowsers => "legacy-browsers",
+            FilterStatKey::Localhost => "localhost",
+            FilterStatKey::WebCrawlers => "web-crawlers",
+            FilterStatKey::InvalidCsp => "invalid-csp",
+            FilterStatKey::DiscardedHash => "discarded-hash",
+        }
+    }
+}
+
+impl fmt::Display for FilterStatKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}

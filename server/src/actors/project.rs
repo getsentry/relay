@@ -338,9 +338,7 @@ impl ProjectState {
     pub fn get_event_action(&self, meta: &EventMeta, config: &Config) -> EventAction {
         // Try to verify the request origin with the project config.
         if !self.is_valid_origin(meta.origin()) {
-            return EventAction::Discard(OutcomeReason::InvalidReason(
-                OutcomeInvalidReason::ProjectId,
-            ));
+            return EventAction::Discard(OutcomeInvalidReason::ProjectId.into());
         }
 
         if self.outdated(config) {
@@ -353,17 +351,15 @@ impl ProjectState {
             // available in the meanwhile.
             match self.get_public_key_status(meta.auth().public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
-                PublicKeyStatus::Disabled => EventAction::Discard(OutcomeReason::InvalidReason(
-                    OutcomeInvalidReason::AuthClient,
-                )),
+                PublicKeyStatus::Disabled => {
+                    EventAction::Discard(OutcomeInvalidReason::AuthClient.into())
+                }
                 PublicKeyStatus::Unknown => EventAction::Accept,
             }
         } else {
             // only drop events if we know for sure the project is disabled.
             if self.disabled() {
-                return EventAction::Discard(OutcomeReason::InvalidReason(
-                    OutcomeInvalidReason::ProjectId,
-                ));
+                return EventAction::Discard(OutcomeInvalidReason::ProjectId.into());
             }
 
             // since the config has been fetched recently, we assume unknown
@@ -372,14 +368,12 @@ impl ProjectState {
             // events are sent to the upstream.
             match self.get_public_key_status(meta.auth().public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
-                PublicKeyStatus::Disabled => EventAction::Discard(OutcomeReason::InvalidReason(
-                    OutcomeInvalidReason::AuthClient,
-                )),
+                PublicKeyStatus::Disabled => {
+                    EventAction::Discard(OutcomeInvalidReason::AuthClient.into())
+                }
                 PublicKeyStatus::Unknown => match config.relay_mode() {
                     RelayMode::Proxy => EventAction::Accept,
-                    _ => EventAction::Discard(OutcomeReason::InvalidReason(
-                        OutcomeInvalidReason::AuthClient,
-                    )),
+                    _ => EventAction::Discard(OutcomeInvalidReason::AuthClient.into()),
                 },
             }
         }
