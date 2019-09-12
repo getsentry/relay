@@ -285,18 +285,27 @@ impl ProjectState {
         state
     }
 
-    /// Returns the current status of a key.
-    pub fn get_public_key_status(&self, public_key: &str) -> PublicKeyStatus {
+    /// Returns configuration options for a public key.
+    pub fn get_public_key_config(&self, public_key: &str) -> Option<&PublicKeyConfig> {
         for key in &self.public_keys {
             if key.public_key == public_key {
-                if key.is_enabled {
-                    return PublicKeyStatus::Enabled;
-                } else {
-                    return PublicKeyStatus::Disabled;
-                }
+                return Some(key);
             }
         }
-        PublicKeyStatus::Unknown
+        None
+    }
+
+    /// Returns the current status of a key.
+    pub fn get_public_key_status(&self, public_key: &str) -> PublicKeyStatus {
+        if let Some(key) = self.get_public_key_config(public_key) {
+            if key.is_enabled {
+                return PublicKeyStatus::Enabled;
+            } else {
+                return PublicKeyStatus::Disabled;
+            }
+        } else {
+            PublicKeyStatus::Unknown
+        }
     }
 
     /// Returns `true` if the entire project should be considered

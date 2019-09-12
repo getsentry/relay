@@ -152,12 +152,17 @@ impl EventProcessor {
             if self.config.processing_enabled() {
                 let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
                 let auth = message.meta.auth();
+                let key_config = message
+                    .project_state
+                    .get_public_key_config(&auth.public_key());
 
                 let store_config = StoreConfig {
                     project_id: Some(message.project_id),
                     client_ip: message.meta.client_addr().map(From::from),
                     client: auth.client_agent().map(str::to_owned),
-                    key_id: Some(auth.public_key().to_owned()),
+                    key_id: key_config
+                        .as_ref()
+                        .and_then(|k| Some(k.numeric_id?.to_string())),
                     protocol_version: Some(auth.version().to_string()),
                     grouping_config: message.project_state.config.grouping_config.clone(),
                     valid_platforms: Default::default(), // TODO(ja): Pending removal
