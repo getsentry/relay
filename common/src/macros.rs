@@ -83,6 +83,7 @@ macro_rules! tryf {
 #[macro_export]
 macro_rules! clone {
     (@param _) => ( _ );
+    (@param ()) => (());
     (@param $x:ident) => ( $x );
     ($($n:ident),+ , || $body:expr) => (
         {

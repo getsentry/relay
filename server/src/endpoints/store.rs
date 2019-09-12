@@ -160,7 +160,7 @@ fn store_event(
                         }
                     }}
                 )
-                .and_then(clone!{ outcome_producer, |_| {
+                .and_then(clone!{ outcome_producer, |()| {
                     StoreBody::new(&request)
                         .limit(config.max_event_payload_size())
                         .map_err(move |e| {
@@ -184,6 +184,8 @@ fn store_event(
                             project,
                             start_time,
                         })
+                        .map_err(BadStoreRequest::ScheduleFailed)
+                        .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
                         .map_err(move |e| {
                             outcome_producer.do_send(KafkaOutcomeMessage {
                                 timestamp: start_time,
@@ -192,11 +194,10 @@ fn store_event(
                                 key_id: key,
                                 outcome: Outcome::Invalid,
                                 event_id: None,
-                                reason: OutcomeInvalidReason::StorePayloadError.into(),
+                                reason: OutcomeInvalidReason::Internal.into(),
                             });
-                            BadStoreRequest::ScheduleFailed(e)
+                            e
                         })
-                        .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
                         .map(|id| HttpResponse::Accepted().json(StoreResponse { id }))
                 }})
         })
