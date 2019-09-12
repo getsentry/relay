@@ -10,7 +10,7 @@ use json_forensics;
 use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 
-use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
+use semaphore_common::{clone, metric, Config, LogError, ProjectId, Uuid};
 use semaphore_general::filter::FilterStatKey;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
@@ -37,23 +37,6 @@ use {
     semaphore_general::filter::should_filter,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
-
-macro_rules! clone {
-    (@param _) => ( _ );
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ , || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move || $body
-        }
-    );
-    ($($n:ident),+ , |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move |$(clone!(@param $p),)+| $body
-        }
-    );
-}
 
 #[derive(Debug, Fail)]
 pub enum EventError {

@@ -23,6 +23,10 @@ pub enum OutcomeInvalidReason {
     SecurityReportType,
     SecurityReport,
     Cors,
+
+    //new errors emitted by Semaphore (and not found in Sentry)
+    StorePayloadError,
+    Internal,
 }
 
 impl OutcomeInvalidReason {
@@ -42,6 +46,8 @@ impl OutcomeInvalidReason {
             OutcomeInvalidReason::SecurityReportType => "security_report_type",
             OutcomeInvalidReason::SecurityReport => "security_report",
             OutcomeInvalidReason::Cors => "cors",
+            OutcomeInvalidReason::StorePayloadError => "store_payload_error",
+            OutcomeInvalidReason::Internal => "internal",
         }
     }
 }

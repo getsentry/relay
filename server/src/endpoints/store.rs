@@ -12,9 +12,9 @@ use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::Serialize;
 
-use semaphore_common::{metric, tryf, ProjectId, ProjectIdParseError};
+use semaphore_common::{clone, metric, tryf, ProjectId, ProjectIdParseError};
 use semaphore_general::protocol::EventId;
-use semaphore_general::reason::OutcomeReason;
+use semaphore_general::reason::{OutcomeInvalidReason, OutcomeReason};
 
 use crate::actors::events::{EventError, QueueEvent};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError};
@@ -129,12 +129,10 @@ fn store_event(
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(move |project| {
-            //let op = outcome_producer;
             project
                 .send(GetEventAction::cached(meta.clone()))
                 .map_err(BadStoreRequest::ScheduleFailed)
-                .and_then(
-                    move |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
+                .and_then( clone! { outcome_producer, |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
                         EventAction::Accept => Ok(()),
                         EventAction::RetryAfter(secs, reason) => {
                             outcome_producer.do_send(KafkaOutcomeMessage {
@@ -160,14 +158,25 @@ fn store_event(
                             });
                             Err(BadStoreRequest::EventRejected)
                         }
-                    },
+                    }}
                 )
-                .and_then(move |()| {
+                .and_then(clone!{ outcome_producer, |_| {
                     StoreBody::new(&request)
                         .limit(config.max_event_payload_size())
-                        .map_err(BadStoreRequest::PayloadError)
-                })
-                .and_then(move |data| {
+                        .map_err(move |e| {
+                            outcome_producer.do_send(KafkaOutcomeMessage {
+                                timestamp: start_time,
+                                project_id: project_id,
+                                org_id: None,
+                                key_id: key,
+                                outcome: Outcome::Invalid,
+                                event_id: None,
+                                reason: OutcomeInvalidReason::StorePayloadError.into(),
+                            });
+                            BadStoreRequest::PayloadError(e)
+                        })
+                }})
+                .and_then(clone!{ outcome_producer,  |data| {
                     event_manager
                         .send(QueueEvent {
                             data,
@@ -175,10 +184,21 @@ fn store_event(
                             project,
                             start_time,
                         })
-                        .map_err(BadStoreRequest::ScheduleFailed)
+                        .map_err(move |e| {
+                            outcome_producer.do_send(KafkaOutcomeMessage {
+                                timestamp: start_time,
+                                project_id: project_id,
+                                org_id: None,
+                                key_id: key,
+                                outcome: Outcome::Invalid,
+                                event_id: None,
+                                reason: OutcomeInvalidReason::StorePayloadError.into(),
+                            });
+                            BadStoreRequest::ScheduleFailed(e)
+                        })
                         .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
                         .map(|id| HttpResponse::Accepted().json(StoreResponse { id }))
-                })
+                }})
         })
         .map_err(move |error| {
             metric!(counter("event.rejected") += 1);
