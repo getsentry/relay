@@ -46,9 +46,12 @@ With the following content:
 
 ```json
 {
-    "publicKeys": {
-        "___PUBLIC_KEY___": true
-    },
+    "publicKeys": [
+        {
+            "publicKey": "___PUBLIC_KEY___",
+            "isEnabled": true
+        }
+    ],
     "config": {
         "allowedDomains": ["*"],
         "piiConfig": {}
@@ -94,9 +97,12 @@ For example:
 
 ```json
 {
-    "publicKeys": {
-        "___PUBLIC_KEY___": true
-    },
+    "publicKeys": [
+        {
+            "publicKey": "___PUBLIC_KEY___",
+            "isEnabled": true
+        }
+    ],
     "config": {
         "allowedDomains": ["*"],
         "piiConfig": {
