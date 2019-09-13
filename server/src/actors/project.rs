@@ -299,9 +299,9 @@ impl ProjectState {
     pub fn get_public_key_status(&self, public_key: &str) -> PublicKeyStatus {
         if let Some(key) = self.get_public_key_config(public_key) {
             if key.is_enabled {
-                return PublicKeyStatus::Enabled;
+                PublicKeyStatus::Enabled
             } else {
-                return PublicKeyStatus::Disabled;
+                PublicKeyStatus::Disabled
             }
         } else {
             PublicKeyStatus::Unknown
