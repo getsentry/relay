@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -7,10 +8,11 @@ use bytes::{Bytes, BytesMut};
 use failure::Fail;
 use futures::prelude::*;
 use json_forensics;
+use parking_lot::RwLock;
 use sentry::integrations::failure::event_from_fail;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use semaphore_common::{metric, Config, LogError, ProjectId, Uuid};
+use semaphore_common::{metric, Config, LogError, ProjectId, RelayMode, Uuid};
 use semaphore_general::filter::FilterStatKey;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
@@ -276,6 +278,13 @@ impl Handler<ProcessEvent> for EventProcessor {
     }
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct CapturedEvent {
+    pub event_id: EventId,
+    pub payload: Option<Bytes>,
+    pub error: Option<String>,
+}
+
 pub struct EventManager {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
@@ -285,6 +294,8 @@ pub struct EventManager {
 
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
+
+    captured_events: Arc<RwLock<BTreeMap<EventId, CapturedEvent>>>,
 }
 
 impl EventManager {
@@ -320,6 +331,7 @@ impl EventManager {
             processor,
             current_active_events: 0,
             shutdown: SyncHandle::new(),
+            captured_events: Default::default(),
             store_forwarder,
         })
     }
@@ -338,6 +350,7 @@ impl EventManager {
             processor,
             current_active_events: 0,
             shutdown: SyncHandle::new(),
+            captured_events: Default::default(),
         })
     }
 }
@@ -458,6 +471,9 @@ impl Handler<HandleEvent> for EventManager {
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
 
+        let capture = self.config.relay_mode() == RelayMode::Capture;
+        let captured_events = self.captured_events.clone();
+
         let HandleEvent {
             data,
             meta,
@@ -470,7 +486,7 @@ impl Handler<HandleEvent> for EventManager {
             .send(GetProjectId)
             .map(One::into_inner)
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(move |project_id| {
+            .and_then(clone!(captured_events, |project_id| {
                 project
                     .send(GetEventAction::fetched(meta.clone()))
                     .map_err(ProcessingError::ScheduleFailed)
@@ -522,6 +538,21 @@ impl Handler<HandleEvent> for EventManager {
                             }
                         }
 
+                        // if we are in capture mode, we stash away the event instead of
+                        // forwarding it.
+                        if capture {
+                            log::debug!("capturing event {}", event_id);
+                            captured_events.write().insert(
+                                event_id,
+                                CapturedEvent {
+                                    payload: Some(processed),
+                                    error: None,
+                                    event_id,
+                                },
+                            );
+                            return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
+                        }
+
                         log::trace!("sending event to sentry endpoint {}", event_id);
                         let request = SendRequest::post(format!("/api/{}/store/", project_id))
                             .build(move |builder| {
@@ -551,16 +582,29 @@ impl Handler<HandleEvent> for EventManager {
 
                         Box::new(future) as ResponseFuture<_, _>
                     })
-            })
+            }))
             .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
-            .map_err(move |error, _, _| {
+            .map_err(clone!(captured_events, |error, _, _| {
                 log::warn!("error processing event {}: {}", event_id, LogError(&error));
+                // if we are in capture mode, we stash away the event instead of
+                // forwarding it.
+                if capture {
+                    log::debug!("capturing failed event {}", event_id);
+                    captured_events.write().insert(
+                        event_id,
+                        CapturedEvent {
+                            payload: None,
+                            error: Some(LogError(&error).to_string()),
+                            event_id,
+                        },
+                    );
+                }
                 metric!(counter("event.rejected") += 1);
-            })
+            }))
             .then(|x, slf, _| {
                 slf.current_active_events -= 1;
                 result(x)
@@ -578,5 +622,21 @@ impl Handler<Shutdown> for EventManager {
             Some(timeout) => self.shutdown.timeout(timeout),
             None => self.shutdown.now(),
         }
+    }
+}
+
+pub struct GetCapturedEvent {
+    pub event_id: EventId,
+}
+
+impl Message for GetCapturedEvent {
+    type Result = Option<CapturedEvent>;
+}
+
+impl Handler<GetCapturedEvent> for EventManager {
+    type Result = Option<CapturedEvent>;
+
+    fn handle(&mut self, message: GetCapturedEvent, _context: &mut Self::Context) -> Self::Result {
+        self.captured_events.read().get(&message.event_id).cloned()
     }
 }
