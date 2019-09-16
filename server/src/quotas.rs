@@ -234,6 +234,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::blacklisted_name, clippy::let_unit_value)]
     fn test_is_rate_limited_script() {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
