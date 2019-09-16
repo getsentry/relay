@@ -15,12 +15,11 @@ use semaphore_general::filter::FilterStatKey;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
-use semaphore_general::reason::{OutcomeInvalidReason, OutcomeReason};
 use semaphore_general::types::Annotated;
 use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
-use crate::actors::outcome::{KafkaOutcomeMessage, Outcome, OutcomeProducer};
+use crate::actors::outcome::{DiscardReason, Outcome, OutcomeMessage, OutcomeProducer};
 use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
     ProjectState, RetryAfter,
@@ -63,7 +62,7 @@ enum ProcessingError {
     PiiFailed(#[cause] ProjectError),
 
     #[fail(display = "event submission rejected")]
-    EventRejected(OutcomeReason),
+    EventRejected(DiscardReason),
 
     #[fail(display = "event filtered with reason: {:?}", _0)]
     EventFiltered(FilterStatKey),
@@ -559,25 +558,25 @@ impl Handler<HandleEvent> for EventManager {
             .map_err(move |error, _, _| {
                 log::warn!("error processing event {}: {}", event_id, LogError(&error));
                 metric!(counter("event.rejected") += 1);
-                let outcome_params: Option<(Outcome, OutcomeReason)> = match &error {
+                let outcome_params: Option<Outcome> = match &error {
                     ProcessingError::InvalidJson(_)
                     | ProcessingError::SerializeFailed(_)
                     | ProcessingError::ScheduleFailed(_)
                     | ProcessingError::PiiFailed(_)
                     | ProcessingError::Timeout
                     | ProcessingError::Shutdown => {
-                        Some((Outcome::Invalid, OutcomeInvalidReason::Internal.into()))
+                        Some(Outcome::Invalid(DiscardReason::Internal))
                     }
 
                     #[cfg(feature = "processing")]
                     ProcessingError::StoreFailed(_store_error) => {
-                        Some((Outcome::Invalid, OutcomeInvalidReason::Internal.into()))
+                        Some(Outcome::Invalid(DiscardReason::Internal))
                     }
                     ProcessingError::EventRejected(outcome_reason) => {
-                        Some((Outcome::Invalid, outcome_reason.clone()))
+                        Some(Outcome::Invalid(*outcome_reason))
                     }
                     ProcessingError::EventFiltered(filter_stat_key) => {
-                        Some((Outcome::Filtered, (*filter_stat_key).into()))
+                        Some(Outcome::Filtered(*filter_stat_key))
                     }
 
                     ProcessingError::NoAction(_)
@@ -585,20 +584,17 @@ impl Handler<HandleEvent> for EventManager {
                     | ProcessingError::SendFailed(_)
                     | ProcessingError::UpstreamRateLimited => None,
 
-                    ProcessingError::RateLimited(_timeout, reason) => Some((
-                        Outcome::RateLimited,
-                        OutcomeReason::RateLimited(reason.clone()),
-                    )),
+                    ProcessingError::RateLimited(_timeout, reason) =>
+                        Some(Outcome::RateLimited(reason.clone()))
                 };
-                if let Some((outcome, reason)) = outcome_params {
-                    outcome_producer.do_send(KafkaOutcomeMessage {
+                if let Some(outcome) = outcome_params {
+                    outcome_producer.do_send(OutcomeMessage {
                         timestamp: Instant::now(),
                         project_id: *(project_id_for_err.lock().unwrap()),
                         org_id: *(org_id_for_err.lock().unwrap()),
                         key_id: None,
                         outcome,
                         event_id: Some(event_id),
-                        reason,
                     })
                 }
             })

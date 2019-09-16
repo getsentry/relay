@@ -6,20 +6,63 @@ use std::time::Instant;
 
 use actix::prelude::*;
 use chrono::{DateTime, SecondsFormat, Utc};
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 
 use semaphore_common::Config;
 use semaphore_general::protocol::EventId;
-use semaphore_general::reason::OutcomeReason;
 
 use crate::utils::instant_to_system_time;
 use crate::ServerError;
 
-/// Message
-#[derive(Debug, Serialize)]
-pub struct KafkaOutcomeMessage {
+/// The outcome message is serialized as json and placed on the Kafka topic using OutcomePayload
+#[derive(Debug, Serialize, Clone)]
+struct OutcomePayload {
     /// The timespan of the event outcome.
-    #[serde(serialize_with = "instant_serializer")]
+    pub timestamp: String,
+    /// Organization id.
+    pub org_id: Option<u64>,
+    /// Project id.
+    pub project_id: Option<u64>,
+    /// The DSN project key id.
+    pub key_id: Option<u64>,
+    /// The outcome.
+    pub outcome: u8,
+    /// Reason for the outcome.
+    pub reason: Option<String>,
+    /// The event id.
+    pub event_id: Option<EventId>,
+}
+
+impl From<&OutcomeMessage> for OutcomePayload {
+    fn from(msg: &OutcomeMessage) -> Self {
+        let reason = match msg.outcome.to_reason() {
+            None => None,
+            Some(reason) => Some(reason.to_string()),
+        };
+
+        let start_time = instant_to_system_time(msg.timestamp);
+        let date_time: DateTime<Utc> = start_time.into();
+
+        // convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ
+        // e.g. something like: "2019-09-29T09:46:40.123456Z"
+        let timestamp = date_time.to_rfc3339_opts(SecondsFormat::Micros, true);
+
+        OutcomePayload {
+            timestamp,
+            org_id: msg.org_id,
+            project_id: msg.project_id,
+            key_id: msg.key_id,
+            outcome: msg.outcome.to_outcome_id(),
+            reason,
+            event_id: msg.event_id,
+        }
+    }
+}
+
+/// Message
+#[derive(Debug)]
+pub struct OutcomeMessage {
+    /// The timespan of the event outcome.
     pub timestamp: Instant,
     /// Organization id.
     pub org_id: Option<u64>,
@@ -29,80 +72,105 @@ pub struct KafkaOutcomeMessage {
     pub key_id: Option<u64>,
     /// The outcome.
     pub outcome: Outcome,
-    /// Reason for the outcome.
-    pub reason: OutcomeReason,
     /// The event id.
     pub event_id: Option<EventId>,
 }
 
-impl Message for KafkaOutcomeMessage {
+impl Message for OutcomeMessage {
     type Result = Result<(), OutcomeError>;
 }
 
-/// Serialization function for Instant
-/// Turns an instant in a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ
-/// e.g. something like: "2019-09-29T09:46:40.123456Z"
-fn instant_serializer<S>(time: &Instant, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let start_time = instant_to_system_time(&time);
-    let date_time: DateTime<Utc> = start_time.into();
-    let formatted_str = date_time.to_rfc3339_opts(SecondsFormat::Micros, true);
-    serializer.serialize_str(formatted_str.as_str())
-}
-
 /// Defines the possible outcomes from processing an event
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum Outcome {
-    #[allow(dead_code)]
-    Accepted = 0,
-    #[allow(dead_code)]
-    Filtered = 1,
-    RateLimited = 2,
-    Invalid = 3,
-    #[allow(dead_code)]
-    Abuse = 4,
-}
-
-impl Serialize for Outcome {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_u8(*self as u8)
-    }
+    Accepted,
+    Filtered(FilterStatKey),
+    RateLimited(String),
+    Invalid(DiscardReason),
+    Abuse,
 }
 
 impl Outcome {
     /// Returns the name of the outcome as recognized by Sentry.
-    pub fn to_name(&self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
             Outcome::Accepted => "accepted",
-            Outcome::Filtered => "filtered",
-            Outcome::RateLimited => "rate_limited",
-            Outcome::Invalid => "invalid",
+            Outcome::Filtered(_) => "filtered",
+            Outcome::RateLimited(_) => "rate_limited",
+            Outcome::Invalid(_) => "invalid",
             Outcome::Abuse => "abuse",
+        }
+    }
+
+    pub fn to_outcome_id(&self) -> u8 {
+        match self {
+            Outcome::Accepted => 0,
+            Outcome::Filtered(_) => 1,
+            Outcome::RateLimited(_) => 2,
+            Outcome::Invalid(_) => 3,
+            Outcome::Abuse => 4,
+        }
+    }
+
+    pub fn to_reason(&self) -> Option<&str> {
+        match self {
+            Outcome::Accepted => None,
+            Outcome::Invalid(discard_reason) => Some(discard_reason.name()),
+            Outcome::Filtered(filter_key) => Some(filter_key.name()),
+            Outcome::RateLimited(reason) => Some(reason.as_str()),
+            Outcome::Abuse => None,
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Taken from Sentry's outcome reasons for invalid outcomes.
+/// Unlike FilterStatKey these are serialized with snake_case (e.g. project_id)
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[allow(dead_code)]
+pub enum DiscardReason {
+    Duplicate,
+    ProjectId,
+    AuthVersion,
+    AuthClient,
+    NoData,
+    TooLarge,
+    DisallowedMethod,
+    ContentType,
+    MultiProjectId,
+    MissingMinidumpUpload,
+    InvalidMinidump,
+    SecurityReportType,
+    SecurityReport,
+    Cors,
 
-    #[test]
-    fn outcome_serialization_test() {
-        let val = serde_json::to_string(&Outcome::Accepted).unwrap_or("error".to_string());
-        println!("----{:?}", val);
-        let val = serde_json::to_string(&Outcome::RateLimited).unwrap_or("error".to_string());
-        println!("----{:?}", val);
-    }
+    //new errors emitted by Semaphore (and not found in Sentry)
+    StorePayloadError,
+    Internal,
 }
 
-//impl Serialize for Outcome {
-//    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-//        serializer.serialize_u64(*self as u64)
-//    }
-//}
+impl DiscardReason {
+    pub fn name(self) -> &'static str {
+        match self {
+            DiscardReason::Duplicate => "duplicate",
+            DiscardReason::ProjectId => "project_id",
+            DiscardReason::AuthVersion => "auth_version",
+            DiscardReason::AuthClient => "auth_client",
+            DiscardReason::NoData => "no_data",
+            DiscardReason::TooLarge => "too_large",
+            DiscardReason::DisallowedMethod => "disallowed_method",
+            DiscardReason::ContentType => "content_type",
+            DiscardReason::MultiProjectId => "multi_project_id",
+            DiscardReason::MissingMinidumpUpload => "missing_minidump_upload",
+            DiscardReason::InvalidMinidump => "invalid_minidump",
+            DiscardReason::SecurityReportType => "security_report_type",
+            DiscardReason::SecurityReport => "security_report",
+            DiscardReason::Cors => "cors",
+            DiscardReason::StorePayloadError => "store_payload_error",
+            DiscardReason::Internal => "internal",
+        }
+    }
+}
 
 // Choose the outcome module implementation (either the real one or the fake, no-op one).
 // Real outcome implementation
@@ -111,6 +179,7 @@ pub use self::real_implementation::*;
 // No-op outcome implementation
 #[cfg(not(feature = "processing"))]
 pub use self::no_op_implementation::*;
+use semaphore_general::filter::FilterStatKey;
 
 /// This is the implementation that uses kafka queues and does stuff
 #[cfg(feature = "processing")]
@@ -192,25 +261,20 @@ mod real_implementation {
         }
     }
 
-    impl Handler<KafkaOutcomeMessage> for OutcomeProducer {
+    impl Handler<OutcomeMessage> for OutcomeProducer {
         type Result = ResponseFuture<(), OutcomeError>;
 
-        fn handle(
-            &mut self,
-            message: KafkaOutcomeMessage,
-            _ctx: &mut Self::Context,
-        ) -> Self::Result {
+        fn handle(&mut self, message: OutcomeMessage, _ctx: &mut Self::Context) -> Self::Result {
             if !self.is_enabled {
                 // when processing is disabled we don't send outcomes
                 return Box::new(futures::future::ok(()));
             }
             if let Some(ref producer) = self.producer {
-                let payload = tryf![
-                    serde_json::to_string(&message).map_err(OutcomeError::SerializationError)
-                ];
+                let payload = tryf![serde_json::to_string(&OutcomePayload::from(&message))
+                    .map_err(OutcomeError::SerializationError)];
 
-                metric!(counter("events.outcomes") +=1 , "reason"=>message.reason.name(), 
-            "outcome"=>message.outcome.to_name() );
+                metric!(counter("events.outcomes") +=1 , "reason"=>message.outcome.to_reason().unwrap_or(""), 
+                    "outcome"=>message.outcome.name() );
 
                 // Since eventId is optional and we wa
                 // At the moment we support outcomes with optional EventId.
@@ -296,14 +360,10 @@ mod no_op_implementation {
         }
     }
 
-    impl Handler<KafkaOutcomeMessage> for OutcomeProducer {
+    impl Handler<OutcomeMessage> for OutcomeProducer {
         type Result = ResponseFuture<(), OutcomeError>;
 
-        fn handle(
-            &mut self,
-            _message: KafkaOutcomeMessage,
-            _ctx: &mut Self::Context,
-        ) -> Self::Result {
+        fn handle(&mut self, _message: OutcomeMessage, _ctx: &mut Self::Context) -> Self::Result {
             // nothing to do here
             Box::new(futures::future::ok(()))
         }

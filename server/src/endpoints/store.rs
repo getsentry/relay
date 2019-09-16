@@ -14,7 +14,6 @@ use serde::Serialize;
 
 use semaphore_common::{clone, metric, tryf, ProjectId, ProjectIdParseError};
 use semaphore_general::protocol::EventId;
-use semaphore_general::reason::{OutcomeInvalidReason, OutcomeReason};
 
 use crate::actors::events::{EventError, QueueEvent};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError};
@@ -23,7 +22,7 @@ use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::ApiErrorResponse;
 
-use crate::actors::outcome::{KafkaOutcomeMessage, Outcome};
+use crate::actors::outcome::{DiscardReason, Outcome, OutcomeMessage};
 
 #[derive(Fail, Debug)]
 enum BadStoreRequest {
@@ -134,26 +133,24 @@ fn store_event(
                 .and_then( clone! { outcome_producer, |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
                         EventAction::Accept => Ok(()),
                         EventAction::RetryAfter(secs, reason) => {
-                            outcome_producer.do_send(KafkaOutcomeMessage {
+                            outcome_producer.do_send(OutcomeMessage {
                                 timestamp: start_time,
                                 project_id: Some(project_id),
                                 org_id: None,
                                 key_id: None,
-                                outcome: Outcome::RateLimited,
+                                outcome: Outcome::RateLimited(reason),
                                 event_id: None,
-                                reason: OutcomeReason::RateLimited(reason),
                             });
                             Err(BadStoreRequest::RateLimited(secs))
                         }
                         EventAction::Discard(reason) => {
-                            outcome_producer.do_send(KafkaOutcomeMessage {
+                            outcome_producer.do_send(OutcomeMessage {
                                 timestamp: start_time,
                                 project_id: Some(project_id),
                                 org_id: None,
                                 key_id: None,
-                                outcome: Outcome::Invalid,
+                                outcome: Outcome::Invalid(reason),
                                 event_id: None,
-                                reason,
                             });
                             Err(BadStoreRequest::EventRejected)
                         }
@@ -163,14 +160,13 @@ fn store_event(
                     StoreBody::new(&request)
                         .limit(config.max_event_payload_size())
                         .map_err(move |e| {
-                            outcome_producer.do_send(KafkaOutcomeMessage {
+                            outcome_producer.do_send(OutcomeMessage {
                                 timestamp: start_time,
                                 project_id: Some(project_id),
                                 org_id: None,
                                 key_id: None,
-                                outcome: Outcome::Invalid,
+                                outcome: Outcome::Invalid(DiscardReason::StorePayloadError),
                                 event_id: None,
-                                reason: OutcomeInvalidReason::StorePayloadError.into(),
                             });
                             BadStoreRequest::PayloadError(e)
                         })
@@ -186,14 +182,13 @@ fn store_event(
                         .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
                         .map_err(move |e| {
-                            outcome_producer.do_send(KafkaOutcomeMessage {
+                            outcome_producer.do_send(OutcomeMessage {
                                 timestamp: start_time,
                                 project_id: Some(project_id),
                                 org_id: None,
                                 key_id: None,
-                                outcome: Outcome::Invalid,
+                                outcome: Outcome::Invalid(DiscardReason::Internal),
                                 event_id: None,
-                                reason: OutcomeInvalidReason::Internal.into(),
                             });
                             e
                         })

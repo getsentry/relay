@@ -119,7 +119,7 @@ impl Handler<StoreEvent> for StoreForwarder {
     type Result = ResponseFuture<(), StoreError>;
 
     fn handle(&mut self, message: StoreEvent, _ctx: &mut Self::Context) -> Self::Result {
-        let start_timestamp = instant_to_unix_timestamp(&message.start_time);
+        let start_timestamp = instant_to_unix_timestamp(message.start_time);
 
         let kafka_message = EventKafkaMessage {
             payload: message.payload,

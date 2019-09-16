@@ -19,7 +19,6 @@ pub mod filter;
 pub mod pii;
 pub mod processor;
 pub mod protocol;
-pub mod reason;
 pub mod store;
 pub mod types;
 
