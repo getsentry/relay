@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.45
+
+**Normalization**:
+
+- Resolved an issue where GEO IP data was not always infered.
+
 ## 0.4.44
 
 **Normalization**:
