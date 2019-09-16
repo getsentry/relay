@@ -113,7 +113,7 @@ enum ProcessingError {
 struct EventProcessor {
     config: Arc<Config>,
     geoip_lookup: Option<Arc<GeoIpLookup>>,
-    redis_client: RedisPool,
+    redis_client: Option<RedisPool>,
 }
 
 #[cfg(not(feature = "processing"))]
@@ -124,7 +124,7 @@ impl EventProcessor {
     pub fn new(
         config: Arc<Config>,
         geoip_lookup: Option<Arc<GeoIpLookup>>,
-        redis_client: RedisPool,
+        redis_client: Option<RedisPool>,
     ) -> Self {
         Self {
             config,
@@ -203,36 +203,38 @@ impl EventProcessor {
                     }
                 }
 
-                let organization_id = match message.project_state.organization_id {
-                    None => {
-                        // XXX(markus): This is only here because we don't have a stricter schema
-                        // for processing configs.
-                        log::error!("Missing organization ID.");
-                        return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
-                    }
-                    Some(id) => id,
-                };
+                if let Some(ref redis_client) = self.redis_client {
+                    let organization_id = match message.project_state.organization_id {
+                        None => {
+                            // XXX(markus): This is only here because we don't have a stricter schema
+                            // for project configs of internal relays
+                            log::error!("Missing organization ID.");
+                            return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
+                        }
+                        Some(id) => id,
+                    };
 
-                let key = match message
-                    .project_state
-                    .get_public_key_config(&message.meta.auth().public_key())
-                {
-                    None => {
-                        // XXX(markus): This is only here because we don't have a stricter schema
-                        // for processing configs.
-                        log::error!(
-                            "Missing key state even though event is already being processed."
-                        );
-                        return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
-                    }
-                    Some(key) => key,
-                };
+                    let key = match message
+                        .project_state
+                        .get_public_key_config(&message.meta.auth().public_key())
+                    {
+                        None => {
+                            // XXX(markus): This is only here because we don't have a stricter schema
+                            // for project configs of internal relays
+                            log::error!(
+                                "Missing key state even though event is already being processed."
+                            );
+                            return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
+                        }
+                        Some(key) => key,
+                    };
 
-                if let Some(retry_after) =
-                    is_rate_limited(&self.redis_client, &key.quotas, organization_id)
-                        .map_err(ProcessingError::QuotasFailed)?
-                {
-                    return Err(ProcessingError::RateLimited(retry_after));
+                    if let Some(retry_after) =
+                        is_rate_limited(&redis_client, &key.quotas, organization_id)
+                            .map_err(ProcessingError::QuotasFailed)?
+                    {
+                        return Err(ProcessingError::RateLimited(retry_after));
+                    }
                 }
             }
         }
@@ -341,14 +343,18 @@ impl EventManager {
             None => None,
         };
 
-        let redis = match config.redis() {
-            Redis::Cluster { cluster_servers } => {
-                RedisPool::cluster(cluster_servers.iter().map(String::as_str).collect())
-                    .context(ServerErrorKind::RedisError)?
-            }
-            Redis::Single(ref server) => {
-                RedisPool::single(&server).context(ServerErrorKind::RedisError)?
-            }
+        let redis = if config.processing_enabled() {
+            Some(match config.redis() {
+                Redis::Cluster { cluster_servers } => {
+                    RedisPool::cluster(cluster_servers.iter().map(String::as_str).collect())
+                        .context(ServerErrorKind::RedisError)?
+                }
+                Redis::Single(ref server) => {
+                    RedisPool::single(&server).context(ServerErrorKind::RedisError)?
+                }
+            })
+        } else {
+            None
         };
 
         // TODO: Make the number configurable via config file
