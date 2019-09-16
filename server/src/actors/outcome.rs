@@ -24,9 +24,9 @@ pub struct KafkaOutcomeMessage {
     /// Organization id.
     pub org_id: Option<u64>,
     /// Project id.
-    pub project_id: u64,
+    pub project_id: Option<u64>,
     /// The DSN project key id.
-    pub key_id: u64,
+    pub key_id: Option<u64>,
     /// The outcome.
     pub outcome: Outcome,
     /// Reason for the outcome.
@@ -88,7 +88,6 @@ impl Outcome {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     #[test]
     fn outcome_serialization_test() {
@@ -143,28 +142,38 @@ mod real_implementation {
         Shutdown,
         #[fail(display = "json serialization error")]
         SerializationError(SerdeSerializationError),
+        #[fail(display = "internal error")]
+        InternalError,
     }
 
     pub struct OutcomeProducer {
         config: Arc<Config>,
         shutdown: SyncHandle,
-        producer: FutureProducer,
+        producer: Option<FutureProducer>,
+        is_enabled: bool,
     }
 
     impl OutcomeProducer {
         pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-            let mut client_config = ClientConfig::new();
-            for config_p in config.kafka_config() {
-                client_config.set(config_p.name.as_str(), config_p.value.as_str());
-            }
-            let client_config = client_config
-                .create()
-                .context(ServerErrorKind::KafkaError)?;
+            let processing_enabled = config.processing_enabled();
+            let future_producer = if processing_enabled {
+                let mut client_config = ClientConfig::new();
+                for config_p in config.kafka_config() {
+                    client_config.set(config_p.name.as_str(), config_p.value.as_str());
+                }
+                let future_producer = client_config
+                    .create()
+                    .context(ServerErrorKind::KafkaError)?;
+                Some(future_producer)
+            } else {
+                None
+            };
 
             Ok(OutcomeProducer {
                 config,
                 shutdown: SyncHandle::new(),
-                producer: client_config,
+                producer: future_producer,
+                is_enabled: processing_enabled,
             })
         }
     }
@@ -191,33 +200,45 @@ mod real_implementation {
             message: KafkaOutcomeMessage,
             _ctx: &mut Self::Context,
         ) -> Self::Result {
-            let payload =
-                tryf![serde_json::to_string(&message).map_err(OutcomeError::SerializationError)];
+            if !self.is_enabled {
+                // when processing is disabled we don't send outcomes
+                return Box::new(futures::future::ok(()));
+            }
+            if let Some(ref producer) = self.producer {
+                let payload = tryf![
+                    serde_json::to_string(&message).map_err(OutcomeError::SerializationError)
+                ];
 
-            metric!(counter("events.outcomes") +=1 , "reason"=>message.reason.name(), 
+                metric!(counter("events.outcomes") +=1 , "reason"=>message.reason.name(), 
             "outcome"=>message.outcome.to_name() );
 
-            // TODO RaduW. 11.Sept.2019 At the moment we support outcomes with optional EventId.
-            //      Here we create a fake EventId, when we don't have the real one only, to use
-            //      it in the kafka message key so that the events are nicely spread over all the
-            //      kafka consumer groups.
-            let key = message.event_id.unwrap_or(EventId(Uuid::new_v4())).0;
+                // Since eventId is optional and we wa
+                // At the moment we support outcomes with optional EventId.
+                // Here we create a fake EventId, when we don't have the real one only, to use
+                // it in the kafka message key so that the events are nicely spread over all the
+                // kafka consumer groups.
+                let key = message.event_id.unwrap_or(EventId(Uuid::new_v4())).0;
 
-            let record = FutureRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
-                .payload(&payload)
-                .key(key.as_bytes().as_ref());
+                let record = FutureRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
+                    .payload(&payload)
+                    .key(key.as_bytes().as_ref());
 
-            let future = self
-                .producer
-                .send(record, 0)
-                .then(|result| match result {
-                    Ok(Ok(_)) => Ok(()),
-                    Ok(Err((kafka_error, _message))) => Err(OutcomeError::SendFailed(kafka_error)),
-                    Err(_) => Err(OutcomeError::Canceled),
-                })
-                .sync(&self.shutdown, OutcomeError::Shutdown);
+                let future = producer
+                    .send(record, 0)
+                    .then(|result| match result {
+                        Ok(Ok(_)) => Ok(()),
+                        Ok(Err((kafka_error, _message))) => {
+                            Err(OutcomeError::SendFailed(kafka_error))
+                        }
+                        Err(_) => Err(OutcomeError::Canceled),
+                    })
+                    .sync(&self.shutdown, OutcomeError::Shutdown);
 
-            Box::new(future)
+                Box::new(future)
+            } else {
+                // some internal error, we have processing enabled and yet we don't have a processor
+                Box::new(futures::future::err(OutcomeError::InternalError))
+            }
         }
     }
 
@@ -231,7 +252,9 @@ mod real_implementation {
             };
 
             let future = shutdown.into_actor(self).and_then(move |_, slf, _ctx| {
-                slf.producer.flush(message.timeout);
+                if let Some(ref producer) = slf.producer {
+                    producer.flush(message.timeout);
+                }
                 actix::fut::ok(())
             });
 

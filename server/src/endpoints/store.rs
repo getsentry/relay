@@ -123,7 +123,6 @@ fn store_event(
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
     let outcome_producer = request.state().outcome_producer();
-    let key = 1; // TODO RaduW. 11.Sept.2019 Get it from project info
 
     let future = project_manager
         .send(GetProject { id: project_id })
@@ -137,9 +136,9 @@ fn store_event(
                         EventAction::RetryAfter(secs, reason) => {
                             outcome_producer.do_send(KafkaOutcomeMessage {
                                 timestamp: start_time,
-                                project_id: project_id,
+                                project_id: Some(project_id),
                                 org_id: None,
-                                key_id: key,
+                                key_id: None,
                                 outcome: Outcome::RateLimited,
                                 event_id: None,
                                 reason: OutcomeReason::RateLimited(reason),
@@ -149,9 +148,9 @@ fn store_event(
                         EventAction::Discard(reason) => {
                             outcome_producer.do_send(KafkaOutcomeMessage {
                                 timestamp: start_time,
-                                project_id: project_id,
+                                project_id: Some(project_id),
                                 org_id: None,
-                                key_id: key,
+                                key_id: None,
                                 outcome: Outcome::Invalid,
                                 event_id: None,
                                 reason,
@@ -166,9 +165,9 @@ fn store_event(
                         .map_err(move |e| {
                             outcome_producer.do_send(KafkaOutcomeMessage {
                                 timestamp: start_time,
-                                project_id: project_id,
+                                project_id: Some(project_id),
                                 org_id: None,
-                                key_id: key,
+                                key_id: None,
                                 outcome: Outcome::Invalid,
                                 event_id: None,
                                 reason: OutcomeInvalidReason::StorePayloadError.into(),
@@ -189,9 +188,9 @@ fn store_event(
                         .map_err(move |e| {
                             outcome_producer.do_send(KafkaOutcomeMessage {
                                 timestamp: start_time,
-                                project_id: project_id,
+                                project_id: Some(project_id),
                                 org_id: None,
-                                key_id: key,
+                                key_id: None,
                                 outcome: Outcome::Invalid,
                                 event_id: None,
                                 reason: OutcomeInvalidReason::Internal.into(),

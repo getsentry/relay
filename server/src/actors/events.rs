@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use actix::fut::result;
@@ -15,11 +15,12 @@ use semaphore_general::filter::FilterStatKey;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
+use semaphore_general::reason::{OutcomeInvalidReason, OutcomeReason};
 use semaphore_general::types::Annotated;
 use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
-use crate::actors::outcome::OutcomeProducer;
+use crate::actors::outcome::{KafkaOutcomeMessage, Outcome, OutcomeProducer};
 use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
     ProjectState, RetryAfter,
@@ -62,7 +63,7 @@ enum ProcessingError {
     PiiFailed(#[cause] ProjectError),
 
     #[fail(display = "event submission rejected")]
-    EventRejected,
+    EventRejected(OutcomeReason),
 
     #[fail(display = "event filtered with reason: {:?}", _0)]
     EventFiltered(FilterStatKey),
@@ -78,13 +79,16 @@ enum ProcessingError {
     StoreFailed(#[cause] StoreError),
 
     #[fail(display = "sending failed due to rate limit ({}s)", _0)]
-    RateLimited(u64),
+    RateLimited(u64, String),
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
 
     #[fail(display = "shutdown timer expired")]
     Shutdown,
+
+    #[fail(display = "upstream rate limited")]
+    UpstreamRateLimited,
 }
 
 #[cfg(feature = "processing")]
@@ -439,6 +443,7 @@ impl Handler<HandleEvent> for EventManager {
         let upstream = self.upstream.clone();
         let processor = self.processor.clone();
         let log_failed_payloads = self.config.log_failed_payloads();
+        let outcome_producer = self.outcome_producer.clone();
 
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
@@ -451,26 +456,32 @@ impl Handler<HandleEvent> for EventManager {
             start_time,
         } = message;
 
+        let project_id_for_err = Arc::new(Mutex::new(None::<u64>));
+        let org_id_for_err = Arc::new(Mutex::new(None::<u64>));
+
         let future = project
             .send(GetProjectId)
             .map(One::into_inner)
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(move |project_id| {
+            .and_then(clone! { project_id_for_err, org_id_for_err, |project_id| {
+                *project_id_for_err.lock().unwrap() = Some(project_id);
                 project
                     .send(GetEventAction::fetched(meta.clone()))
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                         EventAction::Accept => Ok(()),
-                        EventAction::RetryAfter(secs, _reason) => {
-                            Err(ProcessingError::RateLimited(secs))
+                        EventAction::RetryAfter(secs, reason) => {
+                            Err(ProcessingError::RateLimited(secs, reason))
                         }
-                        EventAction::Discard(_) => Err(ProcessingError::EventRejected),
+                        EventAction::Discard(reason) => Err(ProcessingError::EventRejected(reason)),
                     })
                     .and_then(clone!(project, |_| project
                         .send(GetProjectState)
                         .map_err(ProcessingError::ScheduleFailed)
                         .and_then(|result| result.map_err(ProcessingError::PiiFailed))))
-                    .and_then(clone!(meta, |project_state| processor
+                    .and_then(clone! (meta,  |project_state| {
+                        *org_id_for_err.lock().unwrap() = project_state.organization_id;
+                       processor
                         .send(ProcessEvent {
                             data,
                             meta,
@@ -481,7 +492,8 @@ impl Handler<HandleEvent> for EventManager {
                             start_time,
                         })
                         .map_err(ProcessingError::ScheduleFailed)
-                        .flatten()))
+                        .flatten()
+                        }))
                     .and_then(|response| match response {
                         ProcessEventResponse::Valid { data } => Ok(data),
                         ProcessEventResponse::Filtered { reason } => {
@@ -530,7 +542,7 @@ impl Handler<HandleEvent> for EventManager {
                                 result.map_err(move |error| match error {
                                     UpstreamRequestError::RateLimited(secs) => {
                                         project.do_send(RetryAfter { secs });
-                                        ProcessingError::RateLimited(secs)
+                                        ProcessingError::UpstreamRateLimited
                                     }
                                     other => ProcessingError::SendFailed(other),
                                 })
@@ -538,7 +550,7 @@ impl Handler<HandleEvent> for EventManager {
 
                         Box::new(future) as ResponseFuture<_, _>
                     })
-            })
+            }})
             .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
@@ -547,6 +559,48 @@ impl Handler<HandleEvent> for EventManager {
             .map_err(move |error, _, _| {
                 log::warn!("error processing event {}: {}", event_id, LogError(&error));
                 metric!(counter("event.rejected") += 1);
+                let outcome_params: Option<(Outcome, OutcomeReason)> = match &error {
+                    ProcessingError::InvalidJson(_)
+                    | ProcessingError::SerializeFailed(_)
+                    | ProcessingError::ScheduleFailed(_)
+                    | ProcessingError::PiiFailed(_)
+                    | ProcessingError::Timeout
+                    | ProcessingError::Shutdown => {
+                        Some((Outcome::Invalid, OutcomeInvalidReason::Internal.into()))
+                    }
+
+                    #[cfg(feature = "processing")]
+                    ProcessingError::StoreFailed(_store_error) => {
+                        Some((Outcome::Invalid, OutcomeInvalidReason::Internal.into()))
+                    }
+                    ProcessingError::EventRejected(outcome_reason) => {
+                        Some((Outcome::Invalid, outcome_reason.clone()))
+                    }
+                    ProcessingError::EventFiltered(filter_stat_key) => {
+                        Some((Outcome::Filtered, (*filter_stat_key).into()))
+                    }
+
+                    ProcessingError::NoAction(_)
+                    // if we have upstream than we don't emit outcomes (the upstream should deal with this)
+                    | ProcessingError::SendFailed(_)
+                    | ProcessingError::UpstreamRateLimited => None,
+
+                    ProcessingError::RateLimited(_timeout, reason) => Some((
+                        Outcome::RateLimited,
+                        OutcomeReason::RateLimited(reason.clone()),
+                    )),
+                };
+                if let Some((outcome, reason)) = outcome_params {
+                    outcome_producer.do_send(KafkaOutcomeMessage {
+                        timestamp: Instant::now(),
+                        project_id: *(project_id_for_err.lock().unwrap()),
+                        org_id: *(org_id_for_err.lock().unwrap()),
+                        key_id: None,
+                        outcome,
+                        event_id: Some(event_id),
+                        reason,
+                    })
+                }
             })
             .then(|x, slf, _| {
                 slf.current_active_events -= 1;
