@@ -312,6 +312,9 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
+        // Insert IP addrs first, since geo lookup depends on it.
+        self.normalize_user_ip(event);
+
         event.process_child_values(self, state);
 
         // Override internal attributes, even if they were set in the payload
@@ -352,7 +355,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         self.normalize_timestamps(event);
         self.normalize_event_tags(event);
         self.normalize_exceptions(event);
-        self.normalize_user_ip(event);
         self.normalize_user_agent(event);
 
         ValueAction::Keep
@@ -747,7 +749,12 @@ fn test_user_ip_from_client_ip_with_auto() {
     config.client_ip = Some(IpAddr::parse("213.47.147.207").unwrap());
     config.valid_platforms.insert("javascript".to_owned());
 
-    let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+    let geo = GeoIpLookup::open(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../GeoLite2-City.mmdb"
+    ))
+    .unwrap();
+    let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let user = event.value().unwrap().user.value().expect("user missing");
@@ -755,6 +762,7 @@ fn test_user_ip_from_client_ip_with_auto() {
     let ip_addr = user.ip_address.value().expect("ip address missing");
 
     assert_eq_dbg!(ip_addr, &IpAddr("213.47.147.207".to_string()));
+    assert!(user.geo.value().is_some());
 }
 
 #[test]
@@ -764,12 +772,18 @@ fn test_user_ip_from_client_ip_without_appropriate_platform() {
     let mut config = StoreConfig::default();
     config.client_ip = Some(IpAddr::parse("213.47.147.207").unwrap());
 
-    let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+    let geo = GeoIpLookup::open(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../GeoLite2-City.mmdb"
+    ))
+    .unwrap();
+    let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
     process_value(&mut event, &mut processor, ProcessingState::root());
 
     let user = event.value().unwrap().user.value().expect("user missing");
 
     assert!(user.ip_address.value().is_none());
+    assert!(user.geo.value().is_none());
 }
 
 #[test]
