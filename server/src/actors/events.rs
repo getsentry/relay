@@ -113,7 +113,7 @@ enum ProcessingError {
 struct EventProcessor {
     config: Arc<Config>,
     geoip_lookup: Option<Arc<GeoIpLookup>>,
-    redis_client: Option<RedisPool>,
+    redis_client: RedisPool,
 }
 
 #[cfg(not(feature = "processing"))]
@@ -124,7 +124,7 @@ impl EventProcessor {
     pub fn new(
         config: Arc<Config>,
         geoip_lookup: Option<Arc<GeoIpLookup>>,
-        redis_client: Option<RedisPool>,
+        redis_client: RedisPool,
     ) -> Self {
         Self {
             config,
@@ -203,37 +203,36 @@ impl EventProcessor {
                     }
                 }
 
-                if let Some(redis) = self.redis_client.as_ref() {
-                    let organization_id = match message.project_state.organization_id {
-                        None => {
-                            // XXX(markus): This is only here because we don't have a stricter schema
-                            // for processing configs.
-                            log::error!("Missing organization ID.");
-                            return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
-                        }
-                        Some(id) => id,
-                    };
-
-                    let key = match message
-                        .project_state
-                        .get_public_key_config(&message.meta.auth().public_key())
-                    {
-                        None => {
-                            // XXX(markus): This is only here because we don't have a stricter schema
-                            // for processing configs.
-                            log::error!(
-                                "Missing key state even though event is already being processed."
-                            );
-                            return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
-                        }
-                        Some(key) => key,
-                    };
-
-                    if let Some(retry_after) = is_rate_limited(&redis, &key.quotas, organization_id)
-                        .map_err(ProcessingError::QuotasFailed)?
-                    {
-                        return Err(ProcessingError::RateLimited(retry_after));
+                let organization_id = match message.project_state.organization_id {
+                    None => {
+                        // XXX(markus): This is only here because we don't have a stricter schema
+                        // for processing configs.
+                        log::error!("Missing organization ID.");
+                        return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
                     }
+                    Some(id) => id,
+                };
+
+                let key = match message
+                    .project_state
+                    .get_public_key_config(&message.meta.auth().public_key())
+                {
+                    None => {
+                        // XXX(markus): This is only here because we don't have a stricter schema
+                        // for processing configs.
+                        log::error!(
+                            "Missing key state even though event is already being processed."
+                        );
+                        return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
+                    }
+                    Some(key) => key,
+                };
+
+                if let Some(retry_after) =
+                    is_rate_limited(&self.redis_client, &key.quotas, organization_id)
+                        .map_err(ProcessingError::QuotasFailed)?
+                {
+                    return Err(ProcessingError::RateLimited(retry_after));
                 }
             }
         }
@@ -343,14 +342,13 @@ impl EventManager {
         };
 
         let redis = match config.redis() {
-            Some(Redis::Cluster { cluster_servers }) => Some(
+            Redis::Cluster { cluster_servers } => {
                 RedisPool::cluster(cluster_servers.iter().map(String::as_str).collect())
-                    .context(ServerErrorKind::RedisError)?,
-            ),
-            Some(Redis::Single(ref server)) => {
-                Some(RedisPool::single(&server).context(ServerErrorKind::RedisError)?)
+                    .context(ServerErrorKind::RedisError)?
             }
-            None => None,
+            Redis::Single(ref server) => {
+                RedisPool::single(&server).context(ServerErrorKind::RedisError)?
+            }
         };
 
         // TODO: Make the number configurable via config file

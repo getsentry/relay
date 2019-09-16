@@ -387,24 +387,24 @@ mod processing {
         /// Kafka topic names.
         pub(super) topics: TopicNames,
         /// Redis hosts to connect to for storing state for rate limits.
-        pub(super) redis: Option<Redis>,
+        pub(super) redis: Redis,
     }
 
     impl Default for Processing {
         /// Constructs a disabled processing configuration.
         fn default() -> Self {
-            Self {
+            Processing {
                 enabled: false,
                 geoip_path: None,
                 max_secs_in_future: 60,           // 1 minute
                 max_secs_in_past: 30 * 24 * 3600, // 30 days
-                kafka_config: Vec::new(),
+                kafka_config: Default::default(),
                 topics: TopicNames {
                     events: String::new(),
                     attachments: String::new(),
                     transactions: String::new(),
                 },
-                redis: None,
+                redis: Default::default(),
             }
         }
     }
@@ -420,6 +420,12 @@ mod processing {
         },
         /// Connect to a single redis instance
         Single(String),
+    }
+
+    impl Default for Redis {
+        fn default() -> Self {
+            Redis::Single("redis://127.0.0.1".to_owned())
+        }
     }
 }
 
@@ -832,8 +838,8 @@ impl Config {
     }
 
     /// Redis servers to connect to, for rate limiting.
-    pub fn redis(&self) -> Option<&Redis> {
-        self.values.processing.redis.as_ref()
+    pub fn redis(&self) -> &Redis {
+        &self.values.processing.redis
     }
 }
 
