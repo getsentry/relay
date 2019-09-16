@@ -61,10 +61,10 @@ impl Default for DataScrubbingConfig {
     fn default() -> DataScrubbingConfig {
         DataScrubbingConfig {
             exclude_fields: Default::default(),
-            scrub_data: true,
-            scrub_ip_addresses: true,
+            scrub_data: false,
+            scrub_ip_addresses: false,
             sensitive_fields: Default::default(),
-            scrub_defaults: true,
+            scrub_defaults: false,
             pii_config: AtomicLazyCell::new(),
         }
     }
