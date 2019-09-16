@@ -411,43 +411,126 @@ pub struct PublicKeyConfig {
 }
 
 /// Data for applying rate limits in Redis
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct Quota {
+#[derive(Debug, Clone)]
+pub enum Quota {
+    RejectAll(RejectAllQuota),
+    Redis(RedisQuota),
+}
+
+mod __quota_serialization {
+    use super::{Quota, RedisQuota, RejectAllQuota};
+
+    use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Serialize, Deserialize, Default)]
+    #[serde(default)]
+    struct QuotaSerdeHelper {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        limit: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reason_code: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prefix: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        subscope: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        window: Option<u64>,
+    }
+
+    impl Serialize for Quota {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            match *self {
+                Quota::RejectAll(RejectAllQuota { ref reason_code }) => QuotaSerdeHelper {
+                    limit: Some(0),
+                    reason_code: reason_code.clone(),
+                    ..Default::default()
+                },
+                Quota::Redis(RedisQuota {
+                    limit,
+                    ref reason_code,
+                    ref prefix,
+                    ref subscope,
+                    window,
+                }) => QuotaSerdeHelper {
+                    limit,
+                    reason_code: reason_code.clone(),
+                    prefix: Some(prefix.clone()),
+                    subscope: subscope.clone(),
+                    window: Some(window),
+                },
+            }
+            .serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Quota {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let helper = QuotaSerdeHelper::deserialize(deserializer)?;
+
+            match (
+                helper.limit,
+                helper.reason_code,
+                helper.prefix,
+                helper.subscope,
+                helper.window,
+            ) {
+                (Some(0), reason_code, None, None, None) => {
+                    Ok(Quota::RejectAll(RejectAllQuota { reason_code }))
+                }
+                (limit, reason_code, Some(prefix), subscope, Some(window)) => {
+                    Ok(Quota::Redis(RedisQuota {
+                        limit,
+                        reason_code,
+                        prefix,
+                        subscope,
+                        window,
+                    }))
+                }
+                _ => Err(D::Error::custom(
+                    "Could not deserialize, no variant matched",
+                )),
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedisQuota {
+    /// How many events should be accepted within the window.
+    ///
+    /// "We should accept <limit> events per <window> seconds"
+    pub limit: Option<u64>,
+
+    /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
+    /// comes to that.
+    pub reason_code: Option<String>,
+
     /// Type of quota.
     ///
     /// E.g. `k` for key quotas, or `p` for project quotas. This is used when creating the Redis
     /// key where the counters and refunds are stored.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prefix: Option<String>,
+    pub prefix: String,
 
     /// Usually a project/key/organization ID, depending on type of quota.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub subscope: Option<String>,
-
-    /// How many events should be accepted within the window.
-    ///
-    /// "We should accept <limit> events per <window> seconds"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub limit: Option<u64>,
 
     /// Size of the timewindow we look at (seconds).
     ///
     /// "We should accept <limit> events per <window> seconds"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub window: Option<u64>,
-
-    /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
-    /// comes to that.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reason_code: Option<String>,
+    pub window: u64,
 }
 
-#[cfg(feature = "processing")]
-impl Quota {
-    pub fn should_track(&self) -> bool {
-        self.prefix.is_some()
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RejectAllQuota {
+    /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
+    /// comes to that.
+    pub reason_code: Option<String>,
 }
 
 pub struct GetProjectState;

@@ -3,7 +3,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use failure::Fail;
 use r2d2::Pool;
 
-use crate::actors::project::{Quota, RetryAfter};
+use crate::actors::project::{Quota, RedisQuota, RejectAllQuota, RetryAfter};
 
 /// The ``grace`` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -66,41 +66,39 @@ pub fn is_rate_limited(
     );
 
     let mut invocation = IS_RATE_LIMITED.prepare_invoke();
-    let mut empty_invocation = true;
+    let mut redis_quotas = vec![];
 
     for quota in quotas {
-        if quota.limit == Some(0) {
-            // A zero-sized quota is the absolute worst-case. Do not call
-            // into Redis at all, and do not increment any keys, as one
-            // quota has reached capacity (this is how regular quotas behave
-            // as well).
+        match *quota {
+            Quota::RejectAll(RejectAllQuota { ref reason_code }) => {
+                // A zero-sized quota is the absolute worst-case. Do not call
+                // into Redis at all, and do not increment any keys, as one
+                // quota has reached capacity (this is how regular quotas behave
+                // as well).
 
-            debug_assert!(quota.window.is_none());
-            debug_assert!(!quota.should_track());
-            return Ok(Some(RetryAfter {
-                when: Instant::now() + Duration::from_secs(60),
-                reason_code: quota.reason_code.clone(),
-            }));
+                return Ok(Some(RetryAfter {
+                    when: Instant::now() + Duration::from_secs(60),
+                    reason_code: reason_code.clone(),
+                }));
+            }
+            Quota::Redis(ref redis_quota) => {
+                let shift = organization_id % redis_quota.window;
+
+                let key = get_redis_key(redis_quota, timestamp, shift, organization_id);
+                let return_key = get_refunded_quota_key(&key);
+                invocation.key(key);
+                invocation.key(return_key);
+
+                let expiry = get_next_period_start(redis_quota, timestamp, shift);
+                let lua_quota = redis_quota.limit.map(|x| x as i64).unwrap_or(-1);
+                invocation.arg(lua_quota);
+                invocation.arg(expiry.0);
+                redis_quotas.push(redis_quota);
+            }
         }
-
-        debug_assert!(quota.should_track());
-
-        empty_invocation = false;
-
-        let shift = organization_id % quota.window.unwrap();
-
-        let key = get_redis_key(quota, timestamp, shift, organization_id);
-        let return_key = get_refunded_quota_key(&key);
-        invocation.key(key);
-        invocation.key(return_key);
-
-        let expiry = get_next_period_start(quota, timestamp, shift);
-        let lua_quota = quota.limit.map(|x| x as i64).unwrap_or(-1);
-        invocation.arg(lua_quota);
-        invocation.arg(expiry.0);
     }
 
-    if empty_invocation {
+    if redis_quotas.is_empty() {
         return Ok(None);
     }
 
@@ -121,12 +119,12 @@ pub fn is_rate_limited(
 
     let mut worst_case = None;
 
-    for (quota, is_rejected) in quotas.iter().zip(rejections) {
+    for (quota, is_rejected) in redis_quotas.iter().zip(rejections) {
         if !is_rejected {
             continue;
         }
 
-        let shift = organization_id % quota.window.unwrap();
+        let shift = organization_id % quota.window;
         let delay = get_next_period_start(quota, timestamp, shift).0 - timestamp.0;
 
         if worst_case
@@ -145,17 +143,17 @@ pub fn is_rate_limited(
 }
 
 fn get_redis_key(
-    quota: &Quota,
+    quota: &RedisQuota,
     timestamp: UnixTimestamp,
     shift: u64,
     organization_id: u64,
 ) -> String {
     format!(
         "quota:{}{{{}}}{}:{}",
-        quota.prefix.as_ref().unwrap(),
+        quota.prefix,
         organization_id,
         quota.subscope.as_ref().map(String::as_str).unwrap_or(""),
-        (timestamp.0 - shift) / quota.window.unwrap()
+        (timestamp.0 - shift) / quota.window
     )
 }
 
@@ -163,8 +161,12 @@ fn get_refunded_quota_key(counter_key: &str) -> String {
     format!("r:{}", counter_key)
 }
 
-fn get_next_period_start(quota: &Quota, timestamp: UnixTimestamp, shift: u64) -> UnixTimestamp {
-    let interval = quota.window.unwrap();
+fn get_next_period_start(
+    quota: &RedisQuota,
+    timestamp: UnixTimestamp,
+    shift: u64,
+) -> UnixTimestamp {
+    let interval = quota.window;
     let current_period = (timestamp.0 - shift) / interval;
     UnixTimestamp((current_period + 1) * interval + shift + GRACE)
 }
@@ -175,7 +177,7 @@ mod tests {
 
     use redis::Commands;
 
-    use super::{is_rate_limited, Quota, RedisPool, IS_RATE_LIMITED};
+    use super::{is_rate_limited, Quota, RedisPool, RedisQuota, RejectAllQuota, IS_RATE_LIMITED};
 
     lazy_static::lazy_static! {
         static ref REDIS_CONN: RedisPool = RedisPool::single("redis://127.0.0.1").unwrap();
@@ -186,21 +188,16 @@ mod tests {
         let retry_after = is_rate_limited(
             &*REDIS_CONN,
             &[
-                Quota {
-                    limit: Some(0),
+                Quota::RejectAll(RejectAllQuota {
                     reason_code: Some("get_lost".to_owned()),
-                    ..Default::default()
-                },
-                Quota {
+                }),
+                Quota::Redis(RedisQuota {
                     limit: None,
                     reason_code: Some("unlimited".to_owned()),
-                    ..Default::default()
-                },
-                Quota {
-                    limit: Some(42),
-                    reason_code: Some("unlimited".to_owned()),
-                    ..Default::default()
-                },
+                    window: 42,
+                    prefix: "42".to_owned(),
+                    subscope: None,
+                }),
             ],
             42,
         )
@@ -212,17 +209,17 @@ mod tests {
 
     #[test]
     fn test_simple_quota() {
-        let prefix = Some(format!("test_simple_quota_{:?}", SystemTime::now()));
+        let prefix = format!("test_simple_quota_{:?}", SystemTime::now());
         for i in 0..10 {
             let retry_after = is_rate_limited(
                 &*REDIS_CONN,
-                &[Quota {
+                &[Quota::Redis(RedisQuota {
                     prefix: prefix.clone(),
                     limit: Some(5),
-                    window: Some(60),
+                    window: 60,
                     reason_code: Some("get_lost".to_owned()),
-                    ..Default::default()
-                }][..],
+                    subscope: None,
+                })][..],
                 42,
             )
             .unwrap();
@@ -345,20 +342,20 @@ mod tests {
             let result = is_rate_limited(
                 &*REDIS_CONN,
                 &[
-                    Quota {
-                        prefix: Some("test_limited_with_unlimited_quota".to_string()),
+                    Quota::Redis(RedisQuota {
+                        prefix: "test_limited_with_unlimited_quota".to_string(),
                         subscope: Some("1".to_owned()),
                         limit: None,
-                        window: Some(1),
+                        window: 1,
                         reason_code: Some("project_quota0".to_owned()),
-                    },
-                    Quota {
-                        prefix: Some("test_limited_with_unlimited_quota".to_string()),
+                    }),
+                    Quota::Redis(RedisQuota {
+                        prefix: "test_limited_with_unlimited_quota".to_string(),
                         subscope: Some("2".to_owned()),
                         limit: Some(1),
-                        window: Some(1),
+                        window: 1,
                         reason_code: Some("project_quota1".to_owned()),
-                    },
+                    }),
                 ],
                 0,
             )
