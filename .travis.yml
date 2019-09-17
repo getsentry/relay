@@ -45,7 +45,6 @@ matrix:
 
     - name: "test: semaphore[linux]"
       os: linux
-      sudo: required
       addons:
         apt:
           packages:
