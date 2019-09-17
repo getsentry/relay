@@ -2,8 +2,8 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use url::Url;
 
-use crate::protocol::{IpAddr, Query, Request};
-use crate::types::{Annotated, ErrorKind, Meta, Object, Value, ValueAction};
+use crate::protocol::{Query, Request};
+use crate::types::{Annotated, ErrorKind, Meta, Value, ValueAction};
 
 const ELLIPSIS: char = '\u{2026}';
 
@@ -86,17 +86,6 @@ fn normalize_method(method: &mut String, meta: &mut Meta) -> ValueAction {
 
     ValueAction::Keep
 }
-
-fn set_auto_remote_addr(env: &mut Object<Value>, remote_addr: &IpAddr) {
-    if let Some(entry) = env.get_mut("REMOTE_ADDR") {
-        if let Some(value) = entry.value_mut() {
-            if value.as_str() == Some("{{auto}}") {
-                *value = Value::String(remote_addr.to_string());
-            }
-        }
-    }
-}
-
 /// Decodes an urlencoded body.
 fn urlencoded_from_str(raw: &str) -> Option<Value> {
     // Binary strings would be decoded, but we know url-encoded bodies are ASCII.
@@ -191,17 +180,11 @@ fn normalize_cookies(request: &mut Request) {
     }
 }
 
-pub fn normalize_request(request: &mut Request, client_ip: Option<&IpAddr>) {
+pub fn normalize_request(request: &mut Request) {
     request.method.apply(normalize_method);
     normalize_url(request);
     normalize_data(request);
     normalize_cookies(request);
-
-    if let Some(ref client_ip) = client_ip {
-        request
-            .env
-            .apply(|env, _meta| set_auto_remote_addr(env, client_ip));
-    }
 }
 
 #[cfg(test)]
