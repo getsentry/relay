@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 
 use actix::fut::result;
@@ -7,6 +7,7 @@ use bytes::{Bytes, BytesMut};
 use failure::Fail;
 use futures::prelude::*;
 use json_forensics;
+use parking_lot::Mutex;
 use sentry::integrations::failure::event_from_fail;
 use serde::Deserialize;
 
@@ -85,9 +86,6 @@ enum ProcessingError {
 
     #[fail(display = "shutdown timer expired")]
     Shutdown,
-
-    #[fail(display = "upstream rate limited")]
-    UpstreamRateLimited,
 }
 
 #[cfg(feature = "processing")]
@@ -463,7 +461,7 @@ impl Handler<HandleEvent> for EventManager {
             .map(One::into_inner)
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(clone! { project_id_for_err, org_id_for_err, |project_id| {
-                *project_id_for_err.lock().unwrap() = Some(project_id);
+                *project_id_for_err.lock() = Some(project_id);
                 project
                     .send(GetEventAction::fetched(meta.clone()))
                     .map_err(ProcessingError::ScheduleFailed)
@@ -479,7 +477,7 @@ impl Handler<HandleEvent> for EventManager {
                         .map_err(ProcessingError::ScheduleFailed)
                         .and_then(|result| result.map_err(ProcessingError::PiiFailed))))
                     .and_then(clone! (meta,  |project_state| {
-                        *org_id_for_err.lock().unwrap() = project_state.organization_id;
+                        *org_id_for_err.lock() = project_state.organization_id;
                        processor
                         .send(ProcessEvent {
                             data,
@@ -541,7 +539,8 @@ impl Handler<HandleEvent> for EventManager {
                                 result.map_err(move |error| match error {
                                     UpstreamRequestError::RateLimited(secs) => {
                                         project.do_send(RetryAfter { secs });
-                                        ProcessingError::UpstreamRateLimited
+                                        ProcessingError::RateLimited(secs,
+                                            "upstream_rate_limited".to_string())
                                     }
                                     other => ProcessingError::SendFailed(other),
                                 })
@@ -559,13 +558,16 @@ impl Handler<HandleEvent> for EventManager {
                 log::warn!("error processing event {}: {}", event_id, LogError(&error));
                 metric!(counter("event.rejected") += 1);
                 let outcome_params: Option<Outcome> = match &error {
-                    ProcessingError::InvalidJson(_)
                     | ProcessingError::SerializeFailed(_)
                     | ProcessingError::ScheduleFailed(_)
                     | ProcessingError::PiiFailed(_)
                     | ProcessingError::Timeout
                     | ProcessingError::Shutdown => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
+                    }
+
+                    ProcessingError::InvalidJson(_) => {
+                        Some(Outcome::Invalid(DiscardReason::InvalidPayloadJsonError))
                     }
 
                     #[cfg(feature = "processing")]
@@ -581,8 +583,7 @@ impl Handler<HandleEvent> for EventManager {
 
                     ProcessingError::NoAction(_)
                     // if we have upstream than we don't emit outcomes (the upstream should deal with this)
-                    | ProcessingError::SendFailed(_)
-                    | ProcessingError::UpstreamRateLimited => None,
+                    | ProcessingError::SendFailed(_) => None,
 
                     ProcessingError::RateLimited(_timeout, reason) =>
                         Some(Outcome::RateLimited(reason.clone()))
@@ -590,8 +591,8 @@ impl Handler<HandleEvent> for EventManager {
                 if let Some(outcome) = outcome_params {
                     outcome_producer.do_send(OutcomeMessage {
                         timestamp: Instant::now(),
-                        project_id: *(project_id_for_err.lock().unwrap()),
-                        org_id: *(org_id_for_err.lock().unwrap()),
+                        project_id: *(project_id_for_err.lock()),
+                        org_id: *(org_id_for_err.lock()),
                         key_id: None,
                         outcome,
                         event_id: Some(event_id),

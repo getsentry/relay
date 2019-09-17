@@ -124,6 +124,26 @@ impl Outcome {
     }
 }
 
+impl From<&BadStoreRequest> for Outcome {
+    fn from(err: &BadStoreRequest) -> Self {
+        match err {
+            BadStoreRequest::BadProject(_) => Outcome::Invalid(DiscardReason::ProjectId),
+            BadStoreRequest::UnsupportedProtocolVersion(_) => {
+                Outcome::Invalid(DiscardReason::UnsupportedProtocolVersion)
+            }
+            BadStoreRequest::ScheduleFailed(_)
+            | BadStoreRequest::ProjectFailed(_)
+            | BadStoreRequest::ProcessingFailed(_)
+            | BadStoreRequest::EventRejected => Outcome::Invalid(DiscardReason::Internal),
+
+            BadStoreRequest::PayloadError(_) => {
+                Outcome::Invalid(DiscardReason::InvalidPayloadFormat)
+            }
+            BadStoreRequest::RateLimited(_) => Outcome::RateLimited("rate_limited".to_string()),
+        }
+    }
+}
+
 /// Taken from Sentry's outcome reasons for invalid outcomes.
 /// Unlike FilterStatKey these are serialized with snake_case (e.g. project_id)
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -145,7 +165,11 @@ pub enum DiscardReason {
     Cors,
 
     //new errors emitted by Semaphore (and not found in Sentry)
-    StorePayloadError,
+    PayloadTooLarge,
+    UnknownPayloadLength,
+    InvalidPayloadFormat,
+    InvalidPayloadJsonError,
+    UnsupportedProtocolVersion,
     Internal,
 }
 
@@ -166,8 +190,26 @@ impl DiscardReason {
             DiscardReason::SecurityReportType => "security_report_type",
             DiscardReason::SecurityReport => "security_report",
             DiscardReason::Cors => "cors",
-            DiscardReason::StorePayloadError => "store_payload_error",
+
+            // Semaphore specific reasons (not present in Sentry)
+            DiscardReason::PayloadTooLarge => "payload_too_large",
+            DiscardReason::UnknownPayloadLength => "unknown_payload_length",
+            DiscardReason::InvalidPayloadFormat => "invalid_payload_format",
+            DiscardReason::InvalidPayloadJsonError => "invalid_payload_json_error",
+            DiscardReason::UnsupportedProtocolVersion => "unsupported_protocol_version",
             DiscardReason::Internal => "internal",
+        }
+    }
+}
+
+impl From<&StorePayloadError> for DiscardReason {
+    fn from(payload_error: &StorePayloadError) -> Self {
+        match payload_error {
+            StorePayloadError::Overflow => DiscardReason::PayloadTooLarge,
+            StorePayloadError::UnknownLength => DiscardReason::UnknownPayloadLength,
+            StorePayloadError::Decode(_) => DiscardReason::InvalidPayloadFormat,
+            StorePayloadError::Zlib(_) => DiscardReason::InvalidPayloadFormat,
+            StorePayloadError::Payload(_) => DiscardReason::InvalidPayloadFormat,
         }
     }
 }
@@ -179,6 +221,8 @@ pub use self::real_implementation::*;
 // No-op outcome implementation
 #[cfg(not(feature = "processing"))]
 pub use self::no_op_implementation::*;
+use crate::body::StorePayloadError;
+use crate::endpoints::store::BadStoreRequest;
 use semaphore_general::filter::FilterStatKey;
 
 /// This is the implementation that uses kafka queues and does stuff

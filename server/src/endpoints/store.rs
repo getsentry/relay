@@ -25,7 +25,7 @@ use crate::utils::ApiErrorResponse;
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeMessage};
 
 #[derive(Fail, Debug)]
-enum BadStoreRequest {
+pub enum BadStoreRequest {
     #[fail(display = "invalid project path parameter")]
     BadProject(#[cause] ProjectIdParseError),
 
@@ -165,7 +165,7 @@ fn store_event(
                                 project_id: Some(project_id),
                                 org_id: None,
                                 key_id: None,
-                                outcome: Outcome::Invalid(DiscardReason::StorePayloadError),
+                                outcome: Outcome::Invalid(DiscardReason::from(&e)),
                                 event_id: None,
                             });
                             BadStoreRequest::PayloadError(e)
@@ -187,7 +187,7 @@ fn store_event(
                                 project_id: Some(project_id),
                                 org_id: None,
                                 key_id: None,
-                                outcome: Outcome::Invalid(DiscardReason::Internal),
+                                outcome: (&e).into(),
                                 event_id: None,
                             });
                             e
