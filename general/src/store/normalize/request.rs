@@ -2,8 +2,8 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use url::Url;
 
-use crate::protocol::{IpAddr, Query, Request};
-use crate::types::{Annotated, ErrorKind, Meta, Object, Value, ValueAction};
+use crate::protocol::{Query, Request};
+use crate::types::{Annotated, ErrorKind, Meta, Value, ValueAction};
 
 const ELLIPSIS: char = '\u{2026}';
 
@@ -86,17 +86,6 @@ fn normalize_method(method: &mut String, meta: &mut Meta) -> ValueAction {
 
     ValueAction::Keep
 }
-
-fn set_auto_remote_addr(env: &mut Object<Value>, remote_addr: &IpAddr) {
-    if let Some(entry) = env.get_mut("REMOTE_ADDR") {
-        if let Some(value) = entry.value_mut() {
-            if value.as_str() == Some("{{auto}}") {
-                *value = Value::String(remote_addr.to_string());
-            }
-        }
-    }
-}
-
 /// Decodes an urlencoded body.
 fn urlencoded_from_str(raw: &str) -> Option<Value> {
     // Binary strings would be decoded, but we know url-encoded bodies are ASCII.
@@ -191,21 +180,18 @@ fn normalize_cookies(request: &mut Request) {
     }
 }
 
-pub fn normalize_request(request: &mut Request, client_ip: Option<&IpAddr>) {
+pub fn normalize_request(request: &mut Request) {
     request.method.apply(normalize_method);
     normalize_url(request);
     normalize_data(request);
     normalize_cookies(request);
-
-    if let Some(ref client_ip) = client_ip {
-        request
-            .env
-            .apply(|env, _meta| set_auto_remote_addr(env, client_ip));
-    }
 }
 
 #[cfg(test)]
 use crate::protocol::PairList;
+
+#[cfg(test)]
+use crate::types::Object;
 
 #[test]
 fn test_url_truncation() {
@@ -214,7 +200,7 @@ fn test_url_truncation() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(request.url.as_str(), Some("http://example.com/path"));
 }
 
@@ -226,7 +212,7 @@ fn test_url_truncation_reversed() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(request.url.as_str(), Some("http://example.com/path"));
 }
 
@@ -237,7 +223,7 @@ fn test_url_with_ellipsis() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(request.url.as_str(), Some("http://example.com/path..."));
 }
 
@@ -250,7 +236,7 @@ fn test_url_with_qs_and_fragment() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
 
     assert_eq_dbg!(
         request,
@@ -273,7 +259,7 @@ fn test_url_only_path() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(
         request,
         Request {
@@ -290,7 +276,7 @@ fn test_url_punycoded() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
 
     assert_eq_dbg!(
         request,
@@ -315,7 +301,7 @@ fn test_url_precedence() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
 
     assert_eq_dbg!(
         request,
@@ -340,7 +326,7 @@ fn test_query_string_empty_value() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
 
     assert_eq_dbg!(
         request,
@@ -368,7 +354,7 @@ fn test_cookies_in_header() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
 
     assert_eq_dbg!(
         request.cookies,
@@ -407,7 +393,7 @@ fn test_cookies_in_header_dont_override_cookies() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
 
     assert_eq_dbg!(
         request.cookies,
@@ -428,7 +414,7 @@ fn test_method_invalid() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
 
     assert_eq_dbg!(request.method.value(), None);
 }
@@ -440,7 +426,7 @@ fn test_method_valid() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
 
     assert_eq_dbg!(request.method.as_str(), Some("POST"));
 }
@@ -458,7 +444,7 @@ fn test_infer_json() {
         Annotated::from(Value::String("bar".into())),
     );
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(
         request.inferred_content_type.as_str(),
         Some("application/json")
@@ -479,7 +465,7 @@ fn test_broken_json_with_fallback() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(request.inferred_content_type.as_str(), Some("text/plain"));
     assert_eq_dbg!(request.data.as_str(), Some(r#"{"foo":"b"#));
 }
@@ -491,7 +477,7 @@ fn test_broken_json_without_fallback() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(request.inferred_content_type.value(), None);
     assert_eq_dbg!(request.data.as_str(), Some(r#"{"foo":"b"#));
 }
@@ -509,7 +495,7 @@ fn test_infer_url_encoded() {
         Annotated::from(Value::String("bar".into())),
     );
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(
         request.inferred_content_type.as_str(),
         Some("application/x-www-form-urlencoded")
@@ -524,7 +510,7 @@ fn test_infer_url_false_positive() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(request.inferred_content_type.value(), None);
     assert_eq_dbg!(request.data.as_str(), Some("dGU="));
 }
@@ -536,7 +522,7 @@ fn test_infer_url_encoded_base64() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(request.inferred_content_type.value(), None);
     assert_eq_dbg!(request.data.as_str(), Some("dA=="));
 }
@@ -548,7 +534,7 @@ fn test_infer_xml() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(request.inferred_content_type.value(), None);
     assert_eq_dbg!(request.data.as_str(), Some("<?xml version=\"1.0\" ?>"));
 }
@@ -560,7 +546,7 @@ fn test_infer_binary() {
         ..Request::default()
     };
 
-    normalize_request(&mut request, None);
+    normalize_request(&mut request);
     assert_eq_dbg!(request.inferred_content_type.value(), None);
     assert_eq_dbg!(request.data.as_str(), Some("\u{001f}1\u{0000}\u{0000}"));
 }

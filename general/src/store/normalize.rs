@@ -230,34 +230,62 @@ impl<'a> NormalizeProcessor<'a> {
         }
     }
 
-    /// Inserts the IP address into the user interface. Creates the user if it doesn't exist.
-    fn normalize_user_ip(&self, event: &mut Event) {
-        // If there is no User ip_address, update it either from the Http interface
-        // or the client_ip of the request.
-        let ip_address = event
+    /// Backfills IP addresses in various places.
+    fn normalize_ip_addresses(&self, event: &mut Event) {
+        // NOTE: This is highly order dependent, in the sense that both the statements within this
+        // function need to be executed in a certain order, and that other normalization code
+        // (geoip lookup) needs to run after this.
+        //
+        // After a series of regressions over the old Python spaghetti code we decided to put it
+        // back into one function. If a desire to split this code up overcomes you, put this in a
+        // new processor and make sure all of it runs before the rest of normalization.
+
+        // Resolve {{auto}}
+        if let Some(ref client_ip) = self.config.client_ip {
+            if let Some(ref mut request) = event.request.value_mut() {
+                if let Some(ref mut env) = request.env.value_mut() {
+                    if let Some(&mut Value::String(ref mut http_ip)) = env
+                        .get_mut("REMOTE_ADDR")
+                        .and_then(|annotated| annotated.value_mut().as_mut())
+                    {
+                        if http_ip == "{{auto}}" {
+                            *http_ip = client_ip.to_string();
+                        }
+                    }
+                }
+            }
+
+            if let Some(ref mut user) = event.user.value_mut() {
+                if let Some(ref mut user_ip) = user.ip_address.value_mut() {
+                    if user_ip.is_auto() {
+                        *user_ip = client_ip.clone();
+                    }
+                }
+            }
+        }
+
+        // Copy IPs from request interface to user, and resolve platform-specific backfilling
+        let http_ip = event
             .request
             .value()
             .and_then(|request| request.env.value())
             .and_then(|env| env.get("REMOTE_ADDR"))
             .and_then(Annotated::<Value>::as_str)
-            .and_then(|ip| IpAddr::parse(ip).ok())
-            .or_else(|| self.config.client_ip.clone());
+            .and_then(|ip| IpAddr::parse(ip).ok());
 
-        if let Some(ip_address) = ip_address {
-            let platform = event.platform.as_str();
+        if let Some(http_ip) = http_ip {
             let user = event.user.value_mut().get_or_insert_with(User::default);
+            user.ip_address.value_mut().get_or_insert(http_ip);
+        } else if let Some(ref client_ip) = self.config.client_ip {
+            let user = event.user.value_mut().get_or_insert_with(User::default);
+            // auto is already handled above
+            if user.ip_address.value().is_none() {
+                let platform = event.platform.as_str();
 
-            let override_ip = match user.ip_address.value() {
-                Some(ip_addr) => ip_addr.is_auto(),
-                None => match platform {
-                    // In an ideal world all SDKs would set {{auto}} explicitly.
-                    Some("javascript") | Some("cocoa") | Some("objc") => true,
-                    _ => false,
-                },
-            };
-
-            if override_ip {
-                user.ip_address = Annotated::new(ip_address);
+                // In an ideal world all SDKs would set {{auto}} explicitly.
+                if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
+                    user.ip_address = Annotated::new(client_ip.clone());
+                }
             }
         }
     }
@@ -313,7 +341,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         state: &ProcessingState<'_>,
     ) -> ValueAction {
         // Insert IP addrs first, since geo lookup depends on it.
-        self.normalize_user_ip(event);
+        self.normalize_ip_addresses(event);
 
         event.process_child_values(self, state);
 
@@ -387,8 +415,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     ) -> ValueAction {
         request.process_child_values(self, state);
 
-        let client_ip = self.config.client_ip.as_ref();
-        request::normalize_request(request, client_ip);
+        request::normalize_request(request);
 
         ValueAction::Keep
     }
