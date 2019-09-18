@@ -370,17 +370,27 @@ mod processing {
         pub value: String,
     }
 
+    fn default_max_secs_in_future() -> u32 {
+        60 // 1 minute
+    }
+
+    fn default_max_secs_in_past() -> u32 {
+        30 * 24 * 3600 // 30 days
+    }
+
     /// Controls Sentry-internal event processing.
     #[derive(Serialize, Deserialize, Debug)]
-    #[serde(default)]
     pub(super) struct Processing {
         /// True if the Relay should do processing. Defaults to `false`.
         pub(super) enabled: bool,
         /// GeoIp DB file location.
+        #[serde(default)]
         pub(super) geoip_path: Option<PathBuf>,
         /// Maximum future timestamp of ingested events.
+        #[serde(default = "default_max_secs_in_future")]
         pub(super) max_secs_in_future: u32,
         /// Maximum age of ingested events. Older events will be adjusted to `now()`.
+        #[serde(default = "default_max_secs_in_past")]
         pub(super) max_secs_in_past: u32,
         /// Kafka producer configurations.
         pub(super) kafka_config: Vec<KafkaConfigParam>,
@@ -393,12 +403,12 @@ mod processing {
     impl Default for Processing {
         /// Constructs a disabled processing configuration.
         fn default() -> Self {
-            Processing {
+            Self {
                 enabled: false,
                 geoip_path: None,
-                max_secs_in_future: 60,           // 1 minute
-                max_secs_in_past: 30 * 24 * 3600, // 30 days
-                kafka_config: Default::default(),
+                max_secs_in_future: 0,
+                max_secs_in_past: 0,
+                kafka_config: Vec::new(),
                 topics: TopicNames {
                     events: String::new(),
                     attachments: String::new(),
