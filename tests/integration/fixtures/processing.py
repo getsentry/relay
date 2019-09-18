@@ -8,6 +8,7 @@ from confluent_kafka.admin import AdminClient
 _EVENTS_TOPIC_NAME = 'test-ingest-events'
 _ATTACHMENTS_TOPIC_NAME = 'test-ingest-attachments'
 _TRANSACTIONS_TOPIC_NAME = 'test-ingest-transactions'
+_OUTCOMES_TOPIC_NAME = 'test-event-outcomes'
 
 
 def _get_topic_name(base_topic_name, test_name):
@@ -43,7 +44,8 @@ def _processing_config(test_name, options=None):
         processing['topics'] = {
             'events': _get_topic_name(_EVENTS_TOPIC_NAME, test_name),
             'attachments': _get_topic_name(_ATTACHMENTS_TOPIC_NAME, test_name),
-            'transactions': _get_topic_name(_TRANSACTIONS_TOPIC_NAME, test_name)
+            'transactions': _get_topic_name(_TRANSACTIONS_TOPIC_NAME, test_name),
+            'outcomes': _get_topic_name(_OUTCOMES_TOPIC_NAME, test_name),
         }
 
     if not processing.get('redis'):

@@ -25,6 +25,7 @@ use semaphore_general::{
 };
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
+use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
 use crate::utils::{self, One, Response, SyncActorFuture, SyncHandle};
@@ -350,7 +351,7 @@ impl ProjectState {
     pub fn get_event_action(&self, meta: &EventMeta, config: &Config) -> EventAction {
         // Try to verify the request origin with the project config.
         if !self.is_valid_origin(meta.origin()) {
-            return EventAction::Discard;
+            return EventAction::Discard(DiscardReason::ProjectId);
         }
 
         if self.outdated(config) {
@@ -363,13 +364,13 @@ impl ProjectState {
             // available in the meanwhile.
             match self.get_public_key_status(meta.auth().public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
-                PublicKeyStatus::Disabled => EventAction::Discard,
+                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::AuthClient),
                 PublicKeyStatus::Unknown => EventAction::Accept,
             }
         } else {
             // only drop events if we know for sure the project is disabled.
             if self.disabled() {
-                return EventAction::Discard;
+                return EventAction::Discard(DiscardReason::ProjectId);
             }
 
             // since the config has been fetched recently, we assume unknown
@@ -378,10 +379,10 @@ impl ProjectState {
             // events are sent to the upstream.
             match self.get_public_key_status(meta.auth().public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
-                PublicKeyStatus::Disabled => EventAction::Discard,
+                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::AuthClient),
                 PublicKeyStatus::Unknown => match config.relay_mode() {
                     RelayMode::Proxy => EventAction::Accept,
-                    _ => EventAction::Discard,
+                    _ => EventAction::Discard(DiscardReason::AuthClient),
                 },
             }
         }
@@ -568,7 +569,7 @@ impl GetEventAction {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EventAction {
     /// The event should be discarded.
-    Discard,
+    Discard(DiscardReason),
     /// The event should be discarded and the client should back off for some time.
     RetryAfter(RetryAfter),
     /// The event should be processed and sent to upstream.

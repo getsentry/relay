@@ -60,7 +60,8 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                 "topics":{
                     "events": "",
                     "attachments": "",
-                    "transactions": ""
+                    "transactions": "",
+                    "outcomes":"",
                 },
                 "redis": "",
             }

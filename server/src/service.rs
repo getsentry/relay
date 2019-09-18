@@ -13,6 +13,7 @@ use semaphore_common::Config;
 
 use crate::actors::events::EventManager;
 use crate::actors::keys::KeyCache;
+use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::ProjectCache;
 use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
@@ -106,6 +107,7 @@ pub struct ServiceState {
     project_cache: Addr<ProjectCache>,
     upstream_relay: Addr<UpstreamRelay>,
     event_manager: Addr<EventManager>,
+    outcome_producer: Addr<OutcomeProducer>,
 }
 
 impl ServiceState {
@@ -113,10 +115,15 @@ impl ServiceState {
     pub fn start(config: Config) -> Result<Self, ServerError> {
         let config = Arc::new(config);
         let upstream_relay = UpstreamRelay::new(config.clone()).start();
+        let outcome_producer = OutcomeProducer::create(config.clone())?.start();
 
-        let event_manager = EventManager::create(config.clone(), upstream_relay.clone())
-            .context(ServerErrorKind::ConfigError)?
-            .start();
+        let event_manager = EventManager::create(
+            config.clone(),
+            upstream_relay.clone(),
+            outcome_producer.clone(),
+        )
+        .context(ServerErrorKind::ConfigError)?
+        .start();
 
         Ok(ServiceState {
             config: config.clone(),
@@ -124,6 +131,7 @@ impl ServiceState {
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
             event_manager,
+            outcome_producer,
         })
     }
 
@@ -150,6 +158,10 @@ impl ServiceState {
     /// Returns the current event manager.
     pub fn event_manager(&self) -> Addr<EventManager> {
         self.event_manager.clone()
+    }
+
+    pub fn outcome_producer(&self) -> Addr<OutcomeProducer> {
+        self.outcome_producer.clone()
     }
 }
 

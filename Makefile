@@ -67,7 +67,7 @@ test-python: setup-geoip setup-git setup-venv
 .PHONY: test-python
 
 test-integration: build setup-geoip setup-venv
-	.venv/bin/pip install -U pytest pytest-localserver requests flask  confluent-kafka msgpack "sentry-sdk>=0.2.0" pytest-rerunfailures pytest-xdist "git+https://github.com/untitaker/pytest-sentry#egg=pytest-sentry"
+	.venv/bin/pip install -U -r integration-test-requirements.txt
 	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
 

@@ -22,8 +22,10 @@ use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::ApiErrorResponse;
 
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+
 #[derive(Fail, Debug)]
-enum BadStoreRequest {
+pub enum BadStoreRequest {
     #[fail(display = "invalid project path parameter")]
     BadProject(#[cause] ProjectIdParseError),
 
@@ -42,11 +44,11 @@ enum BadStoreRequest {
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
 
-    #[fail(display = "event rejected due to rate limit")]
+    #[fail(display = "event rejected due to rate limit: {:?}", _0)]
     RateLimited(RetryAfter),
 
-    #[fail(display = "event submission rejected")]
-    EventRejected,
+    #[fail(display = "event submission rejected with_reason:{:?}", _0)]
+    EventRejected(DiscardReason),
 }
 
 impl ResponseError for BadStoreRequest {
@@ -119,6 +121,7 @@ fn store_event(
     let config = request.state().config();
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
+    let outcome_producer = request.state().outcome_producer().clone();
 
     let future = project_manager
         .send(GetProject { id: project_id })
@@ -128,10 +131,12 @@ fn store_event(
                 .send(GetEventAction::cached(meta.clone()))
                 .map_err(BadStoreRequest::ScheduleFailed)
                 .and_then(
-                    |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
+                    move |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
                         EventAction::Accept => Ok(()),
-                        EventAction::RetryAfter(secs) => Err(BadStoreRequest::RateLimited(secs)),
-                        EventAction::Discard => Err(BadStoreRequest::EventRejected),
+                        EventAction::RetryAfter(secs, reason) => {
+                            Err(BadStoreRequest::RateLimited(secs, reason.to_string()))
+                        }
+                        EventAction::Discard(reason) => Err(BadStoreRequest::EventRejected(reason)),
                     },
                 )
                 .and_then(move |_| {
@@ -152,8 +157,18 @@ fn store_event(
                         .map(|id| Json(StoreResponse { id }))
                 })
         })
-        .map_err(move |error| {
+        .map_err(move |error: BadStoreRequest| {
             metric!(counter("event.rejected") += 1);
+
+            outcome_producer.do_send(TrackOutcome {
+                timestamp: start_time,
+                project_id: Some(project_id),
+                org_id: None,
+                key_id: None,
+                outcome: Outcome::from(&error),
+                event_id: None,
+            });
+
             error
         });
 
