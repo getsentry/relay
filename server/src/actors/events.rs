@@ -353,6 +353,13 @@ impl EventManager {
             EventProcessor::new(rate_limiter.clone())
         });
 
+        #[cfg(feature = "processing")]
+        let store_forwarder = if config.processing_enabled() {
+            Some(StoreForwarder::create(config.clone())?.start())
+        } else {
+            None
+        };
+
         Ok(EventManager {
             config,
             upstream,
@@ -362,11 +369,7 @@ impl EventManager {
             captured_events: Default::default(),
 
             #[cfg(feature = "processing")]
-            store_forwarder: if config.processing_enabled() {
-                Some(StoreForwarder::create(config.clone())?.start())
-            } else {
-                None
-            },
+            store_forwarder,
         })
     }
 }
