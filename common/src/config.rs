@@ -397,7 +397,6 @@ mod processing {
         /// Kafka topic names.
         pub(super) topics: TopicNames,
         /// Redis hosts to connect to for storing state for rate limits.
-        #[serde(default)]
         pub(super) redis: Redis,
     }
 
