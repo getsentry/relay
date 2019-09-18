@@ -20,7 +20,7 @@ fn load_lua_script() -> redis::Script {
     redis::Script::new(include_str!("is_rate_limited.lua"))
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct RateLimiter {
     redis_state: Option<(RedisPool, Arc<redis::Script>)>,
 }
@@ -56,7 +56,7 @@ impl RateLimiter {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 enum RedisPool {
     Cluster(Pool<redis::cluster::ClusterClient>),
     Single(Pool<redis::Client>),
