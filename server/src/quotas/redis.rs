@@ -1,9 +1,12 @@
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use failure::Fail;
 use r2d2::Pool;
 
 use crate::actors::project::{Quota, RedisQuota, RejectAllQuota, RetryAfter};
+
+use semaphore_common::{Config, Redis};
 
 /// The ``grace`` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -13,8 +16,48 @@ static GRACE: u64 = 60;
 #[derive(Debug, Clone, Copy)]
 struct UnixTimestamp(u64);
 
+fn load_lua_script() -> redis::Script {
+    redis::Script::new(include_str!("is_rate_limited.lua"))
+}
+
 #[derive(Clone)]
-pub enum RedisPool {
+pub struct RateLimiter {
+    redis_state: Option<(RedisPool, Arc<redis::Script>)>,
+}
+
+impl RateLimiter {
+    pub fn new(relay_config: &Config) -> Result<Self, QuotasError> {
+        let redis_state = if relay_config.processing_enabled() {
+            let pool = match relay_config.redis() {
+                Redis::Cluster { cluster_servers } => {
+                    RedisPool::cluster(cluster_servers.iter().map(String::as_str).collect())?
+                }
+                Redis::Single(ref server) => RedisPool::single(&server)?,
+            };
+
+            Some((pool, Arc::new(load_lua_script())))
+        } else {
+            None
+        };
+
+        Ok(RateLimiter { redis_state })
+    }
+
+    pub fn is_rate_limited(
+        &self,
+        quotas: &[Quota],
+        organization_id: u64,
+    ) -> Result<Option<RetryAfter>, QuotasError> {
+        if let Some((ref redis_pool, ref script)) = self.redis_state {
+            is_rate_limited(redis_pool, quotas, organization_id, script)
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+#[derive(Clone)]
+enum RedisPool {
     Cluster(Pool<redis::cluster::ClusterClient>),
     Single(Pool<redis::Client>),
 }
@@ -48,14 +91,11 @@ pub enum QuotasError {
     Redis(#[cause] redis::RedisError),
 }
 
-lazy_static::lazy_static! {
-    static ref IS_RATE_LIMITED: redis::Script = redis::Script::new(include_str!("is_rate_limited.lua"));
-}
-
-pub fn is_rate_limited(
+fn is_rate_limited(
     redis_pool: &RedisPool,
     quotas: &[Quota],
     organization_id: u64,
+    script: &redis::Script,
 ) -> Result<Option<RetryAfter>, QuotasError> {
     let timestamp = UnixTimestamp(
         SystemTime::now()
@@ -65,7 +105,7 @@ pub fn is_rate_limited(
             .unwrap_or(0),
     );
 
-    let mut invocation = IS_RATE_LIMITED.prepare_invoke();
+    let mut invocation = script.prepare_invoke();
     let mut redis_quotas = vec![];
 
     for quota in quotas {
@@ -173,36 +213,39 @@ fn get_next_period_start(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use redis::Commands;
 
-    use super::{is_rate_limited, Quota, RedisPool, RedisQuota, RejectAllQuota, IS_RATE_LIMITED};
+    use super::{load_lua_script, Quota, RateLimiter, RedisPool, RedisQuota, RejectAllQuota};
 
     lazy_static::lazy_static! {
-        static ref REDIS_CONN: RedisPool = RedisPool::single("redis://127.0.0.1").unwrap();
+        static ref RATE_LIMITER: RateLimiter = RateLimiter {
+            redis_state: Some((RedisPool::single("redis://127.0.0.1").unwrap(), Arc::new(load_lua_script())))
+        };
     }
 
     #[test]
     fn test_zero_size_quotas() {
-        let retry_after = is_rate_limited(
-            &*REDIS_CONN,
-            &[
-                Quota::RejectAll(RejectAllQuota {
-                    reason_code: Some("get_lost".to_owned()),
-                }),
-                Quota::Redis(RedisQuota {
-                    limit: None,
-                    reason_code: Some("unlimited".to_owned()),
-                    window: 42,
-                    prefix: "42".to_owned(),
-                    subscope: None,
-                }),
-            ],
-            42,
-        )
-        .unwrap()
-        .expect("expected to get a rate limit");
+        let retry_after = RATE_LIMITER
+            .is_rate_limited(
+                &[
+                    Quota::RejectAll(RejectAllQuota {
+                        reason_code: Some("get_lost".to_owned()),
+                    }),
+                    Quota::Redis(RedisQuota {
+                        limit: None,
+                        reason_code: Some("unlimited".to_owned()),
+                        window: 42,
+                        prefix: "42".to_owned(),
+                        subscope: None,
+                    }),
+                ],
+                42,
+            )
+            .unwrap()
+            .expect("expected to get a rate limit");
 
         assert_eq!(retry_after.reason_code, Some("get_lost".to_owned()));
     }
@@ -211,18 +254,18 @@ mod tests {
     fn test_simple_quota() {
         let prefix = format!("test_simple_quota_{:?}", SystemTime::now());
         for i in 0..10 {
-            let retry_after = is_rate_limited(
-                &*REDIS_CONN,
-                &[Quota::Redis(RedisQuota {
-                    prefix: prefix.clone(),
-                    limit: Some(5),
-                    window: 60,
-                    reason_code: Some("get_lost".to_owned()),
-                    subscope: None,
-                })][..],
-                42,
-            )
-            .unwrap();
+            let retry_after = RATE_LIMITER
+                .is_rate_limited(
+                    &[Quota::Redis(RedisQuota {
+                        prefix: prefix.clone(),
+                        limit: Some(5),
+                        window: 60,
+                        reason_code: Some("get_lost".to_owned()),
+                        subscope: None,
+                    })][..],
+                    42,
+                )
+                .unwrap();
 
             if i >= 5 {
                 let retry_after = retry_after.expect("expected to get a rate limit");
@@ -242,8 +285,8 @@ mod tests {
             .map(Duration::as_secs)
             .unwrap();
 
-        let conn_guard = match *REDIS_CONN {
-            RedisPool::Single(ref conn) => conn,
+        let conn_guard = match &RATE_LIMITER.redis_state.as_ref().unwrap().0 {
+            RedisPool::Single(ref conn_guard) => conn_guard,
             _ => unreachable!(),
         };
 
@@ -258,7 +301,9 @@ mod tests {
         let orange = format!("orange___{}", now);
         let baz = format!("baz___{}", now);
 
-        let mut invocation = IS_RATE_LIMITED.prepare_invoke();
+        let script = load_lua_script();
+
+        let mut invocation = script.prepare_invoke();
         invocation
             .key(&foo)
             .key(&r_foo)
@@ -307,7 +352,7 @@ mod tests {
         // Test that refunded quotas work
         let () = conn.set(&apple, 5).unwrap();
 
-        let mut invocation = IS_RATE_LIMITED.prepare_invoke();
+        let mut invocation = script.prepare_invoke();
         invocation.key(&orange).key(&baz).arg(1).arg(now + 60);
 
         // increment
@@ -322,7 +367,7 @@ mod tests {
             vec![true]
         );
 
-        let mut invocation = IS_RATE_LIMITED.prepare_invoke();
+        let mut invocation = script.prepare_invoke();
         invocation.key(&orange).key(&apple).arg(1).arg(now + 60);
 
         // test that refund key is used
@@ -334,33 +379,33 @@ mod tests {
 
     #[test]
     fn test_bails_immediately_without_any_quota() {
-        assert_eq!(is_rate_limited(&*REDIS_CONN, &[], 0).unwrap(), None);
+        assert_eq!(RATE_LIMITER.is_rate_limited(&[], 0).unwrap(), None);
     }
 
     #[test]
     fn test_limited_with_unlimited_quota() {
         for i in 0..1 {
-            let result = is_rate_limited(
-                &*REDIS_CONN,
-                &[
-                    Quota::Redis(RedisQuota {
-                        prefix: "test_limited_with_unlimited_quota".to_string(),
-                        subscope: Some("1".to_owned()),
-                        limit: None,
-                        window: 1,
-                        reason_code: Some("project_quota0".to_owned()),
-                    }),
-                    Quota::Redis(RedisQuota {
-                        prefix: "test_limited_with_unlimited_quota".to_string(),
-                        subscope: Some("2".to_owned()),
-                        limit: Some(1),
-                        window: 1,
-                        reason_code: Some("project_quota1".to_owned()),
-                    }),
-                ],
-                0,
-            )
-            .unwrap();
+            let result = RATE_LIMITER
+                .is_rate_limited(
+                    &[
+                        Quota::Redis(RedisQuota {
+                            prefix: "test_limited_with_unlimited_quota".to_string(),
+                            subscope: Some("1".to_owned()),
+                            limit: None,
+                            window: 1,
+                            reason_code: Some("project_quota0".to_owned()),
+                        }),
+                        Quota::Redis(RedisQuota {
+                            prefix: "test_limited_with_unlimited_quota".to_string(),
+                            subscope: Some("2".to_owned()),
+                            limit: Some(1),
+                            window: 1,
+                            reason_code: Some("project_quota1".to_owned()),
+                        }),
+                    ],
+                    0,
+                )
+                .unwrap();
 
             if i == 0 {
                 assert_eq!(result, None);

@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use actix::fut::result;
 use actix::prelude::*;
 use bytes::{Bytes, BytesMut};
-use failure::Fail;
+use failure::{Fail, ResultExt};
 use futures::prelude::*;
 use json_forensics;
 use sentry::integrations::failure::event_from_fail;
@@ -25,16 +25,13 @@ use crate::actors::project::{
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
-use crate::service::ServerError;
+use crate::quotas::{QuotasError, RateLimiter};
+use crate::service::{ServerError, ServerErrorKind};
 use crate::utils::{One, SyncActorFuture, SyncHandle};
 
 #[cfg(feature = "processing")]
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
-    crate::quotas::{is_rate_limited, QuotasError, RedisPool},
-    crate::service::ServerErrorKind,
-    failure::ResultExt,
-    semaphore_common::Redis,
     semaphore_general::filter::should_filter,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
@@ -98,7 +95,6 @@ enum ProcessingError {
     #[fail(display = "sending failed due to rate limit")]
     RateLimited(RetryAfter),
 
-    #[cfg(feature = "processing")]
     #[fail(display = "failed to apply quotas")]
     QuotasFailed(#[cause] QuotasError),
 
@@ -109,33 +105,32 @@ enum ProcessingError {
     Shutdown,
 }
 
-#[cfg(feature = "processing")]
 struct EventProcessor {
-    config: Arc<Config>,
-    geoip_lookup: Option<Arc<GeoIpLookup>>,
-    redis_client: Option<RedisPool>,
-}
+    rate_limiter: RateLimiter,
 
-#[cfg(not(feature = "processing"))]
-struct EventProcessor;
+    #[cfg(feature = "processing")]
+    config: Arc<Config>,
+    #[cfg(feature = "processing")]
+    geoip_lookup: Option<Arc<GeoIpLookup>>,
+}
 
 impl EventProcessor {
     #[cfg(feature = "processing")]
     pub fn new(
         config: Arc<Config>,
         geoip_lookup: Option<Arc<GeoIpLookup>>,
-        redis_client: Option<RedisPool>,
+        rate_limiter: RateLimiter,
     ) -> Self {
         Self {
             config,
             geoip_lookup,
-            redis_client,
+            rate_limiter,
         }
     }
 
     #[cfg(not(feature = "processing"))]
-    pub fn new() -> Self {
-        Self
+    pub fn new(rate_limiter: RateLimiter) -> Self {
+        Self { rate_limiter }
     }
 
     fn process(&self, message: &ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
@@ -202,39 +197,20 @@ impl EventProcessor {
                         return Ok(ProcessEventResponse::Filtered { reason });
                     }
                 }
+            }
+        }
 
-                if let Some(ref redis_client) = self.redis_client {
-                    let organization_id = match message.project_state.organization_id {
-                        None => {
-                            // XXX(markus): This is only here because we don't have a stricter schema
-                            // for project configs of internal relays
-                            log::error!("Missing organization ID.");
-                            return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
-                        }
-                        Some(id) => id,
-                    };
-
-                    let key = match message
-                        .project_state
-                        .get_public_key_config(&message.meta.auth().public_key())
-                    {
-                        None => {
-                            // XXX(markus): This is only here because we don't have a stricter schema
-                            // for project configs of internal relays
-                            log::error!(
-                                "Missing key state even though event is already being processed."
-                            );
-                            return Err(ProcessingError::NoAction(ProjectError::FetchFailed));
-                        }
-                        Some(key) => key,
-                    };
-
-                    if let Some(retry_after) =
-                        is_rate_limited(&redis_client, &key.quotas, organization_id)
-                            .map_err(ProcessingError::QuotasFailed)?
-                    {
-                        return Err(ProcessingError::RateLimited(retry_after));
-                    }
+        if let Some(organization_id) = message.project_state.organization_id {
+            if let Some(key) = message
+                .project_state
+                .get_public_key_config(&message.meta.auth().public_key())
+            {
+                if let Some(retry_after) = self
+                    .rate_limiter
+                    .is_rate_limited(&key.quotas, organization_id)
+                    .map_err(ProcessingError::QuotasFailed)?
+                {
+                    return Err(ProcessingError::RateLimited(retry_after));
                 }
             }
         }
@@ -334,8 +310,8 @@ pub struct EventManager {
 }
 
 impl EventManager {
-    #[cfg(feature = "processing")]
     pub fn create(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Result<Self, ServerError> {
+        #[cfg(feature = "processing")]
         let geoip_lookup = match config.geoip_path() {
             Some(p) => Some(Arc::new(
                 GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
@@ -343,19 +319,7 @@ impl EventManager {
             None => None,
         };
 
-        let redis = if config.processing_enabled() {
-            Some(match config.redis() {
-                Redis::Cluster { cluster_servers } => {
-                    RedisPool::cluster(cluster_servers.iter().map(String::as_str).collect())
-                        .context(ServerErrorKind::RedisError)?
-                }
-                Redis::Single(ref server) => {
-                    RedisPool::single(&server).context(ServerErrorKind::RedisError)?
-                }
-            })
-        } else {
-            None
-        };
+        let rate_limiter = RateLimiter::new(&config).context(ServerErrorKind::RedisError)?;
 
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
@@ -363,11 +327,15 @@ impl EventManager {
 
         let processor = SyncArbiter::start(
             thread_count,
+            #[cfg(feature = "processing")]
             clone!(config, || {
-                EventProcessor::new(config.clone(), geoip_lookup.clone(), redis.clone())
+                EventProcessor::new(config.clone(), geoip_lookup.clone(), rate_limiter.clone())
             }),
+            #[cfg(not(feature = "processing"))]
+            move || EventProcessor::new(rate_limiter.clone()),
         );
 
+        #[cfg(feature = "processing")]
         let store_forwarder = if config.processing_enabled() {
             Some(StoreForwarder::create(config.clone())?.start())
         } else {
@@ -380,24 +348,9 @@ impl EventManager {
             processor,
             current_active_events: 0,
             shutdown: SyncHandle::new(),
+
+            #[cfg(feature = "processing")]
             store_forwarder,
-        })
-    }
-
-    #[cfg(not(feature = "processing"))]
-    pub fn create(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Result<Self, ServerError> {
-        // TODO: Make the number configurable via config file
-        let thread_count = num_cpus::get();
-
-        log::info!("starting {} event processing workers", thread_count);
-        let processor = SyncArbiter::start(thread_count, EventProcessor::new);
-
-        Ok(EventManager {
-            config,
-            upstream,
-            processor,
-            current_active_events: 0,
-            shutdown: SyncHandle::new(),
         })
     }
 }
