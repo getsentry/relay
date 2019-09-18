@@ -55,7 +55,7 @@ images:
     "us.gcr.io/$PROJECT_ID/semaphore:deps",
     "us.gcr.io/$PROJECT_ID/semaphore:$COMMIT_SHA",
   ]
-timeout: 60m
+timeout: 3600s
 options:
   # Run on bigger machines
   machineType: 'N1_HIGHCPU_8'
