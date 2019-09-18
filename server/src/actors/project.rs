@@ -418,21 +418,23 @@ pub enum Quota {
 }
 
 mod __quota_serialization {
+    use std::borrow::Cow;
+
     use super::{Quota, RedisQuota, RejectAllQuota};
 
     use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
     #[derive(Serialize, Deserialize, Default)]
     #[serde(default)]
-    struct QuotaSerdeHelper {
+    struct QuotaSerdeHelper<'a> {
         #[serde(skip_serializing_if = "Option::is_none")]
         limit: Option<u64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        reason_code: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        prefix: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        subscope: Option<String>,
+        #[serde(borrow, skip_serializing_if = "Option::is_none")]
+        reason_code: Option<Cow<'a, str>>,
+        #[serde(borrow, skip_serializing_if = "Option::is_none")]
+        prefix: Option<Cow<'a, str>>,
+        #[serde(borrow, skip_serializing_if = "Option::is_none")]
+        subscope: Option<Cow<'a, str>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         window: Option<u64>,
     }
@@ -445,7 +447,7 @@ mod __quota_serialization {
             match *self {
                 Quota::RejectAll(RejectAllQuota { ref reason_code }) => QuotaSerdeHelper {
                     limit: Some(0),
-                    reason_code: reason_code.clone(),
+                    reason_code: reason_code.as_ref().map(String::as_str).map(Cow::Borrowed),
                     ..Default::default()
                 },
                 Quota::Redis(RedisQuota {
@@ -456,9 +458,9 @@ mod __quota_serialization {
                     window,
                 }) => QuotaSerdeHelper {
                     limit,
-                    reason_code: reason_code.clone(),
-                    prefix: Some(prefix.clone()),
-                    subscope: subscope.clone(),
+                    reason_code: reason_code.as_ref().map(String::as_str).map(Cow::Borrowed),
+                    prefix: Some(Cow::Borrowed(&prefix)),
+                    subscope: subscope.as_ref().map(String::as_str).map(Cow::Borrowed),
                     window: Some(window),
                 },
             }
@@ -480,15 +482,15 @@ mod __quota_serialization {
                 helper.subscope,
                 helper.window,
             ) {
-                (Some(0), reason_code, None, None, None) => {
-                    Ok(Quota::RejectAll(RejectAllQuota { reason_code }))
-                }
+                (Some(0), reason_code, None, None, None) => Ok(Quota::RejectAll(RejectAllQuota {
+                    reason_code: reason_code.map(Cow::into_owned),
+                })),
                 (limit, reason_code, Some(prefix), subscope, Some(window)) => {
                     Ok(Quota::Redis(RedisQuota {
                         limit,
-                        reason_code,
-                        prefix,
-                        subscope,
+                        reason_code: reason_code.map(Cow::into_owned),
+                        prefix: prefix.into_owned(),
+                        subscope: subscope.map(Cow::into_owned),
                         window,
                     }))
                 }
