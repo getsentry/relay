@@ -415,4 +415,43 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_get_redis_key() {
+        use super::{get_redis_key, RedisQuota, UnixTimestamp};
+
+        // These were manually checked to work the same in Python (the input values are random and
+        // meaningless)
+
+        assert_eq!(
+            get_redis_key(
+                &RedisQuota {
+                    prefix: "foo".to_owned(),
+                    subscope: Some("42".to_owned()),
+                    window: 2,
+                    limit: Some(0),
+                    reason_code: None
+                },
+                UnixTimestamp(123123123),
+                123123,
+                42
+            ),
+            "quota:foo{42}42:61500000"
+        );
+        assert_eq!(
+            get_redis_key(
+                &RedisQuota {
+                    prefix: "foo".to_owned(),
+                    subscope: None,
+                    window: 10,
+                    limit: Some(0),
+                    reason_code: None
+                },
+                UnixTimestamp(234531),
+                134451,
+                69420
+            ),
+            "quota:foo{69420}:10008"
+        );
+    }
 }
