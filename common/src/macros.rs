@@ -64,7 +64,7 @@ macro_rules! tryf {
 
 /// An alternative to a `move` closure.
 ///
-/// When one needs to use a clojure with move semantics one often needs to clone and
+/// When one needs to use a closure with move semantics one often needs to clone and
 /// move some of the free variables. This macro automates the process of cloning and moving
 /// variables.
 ///
