@@ -126,6 +126,11 @@ pub enum RelayMode {
     /// overridden in the file system. This relay must be white-listed in the upstream Sentry. This
     /// is only possible, if the upstream is Sentry directly, or another managed Relay.
     Managed,
+
+    /// Events are held in memory for inspection only.
+    ///
+    /// This mode is used for testing sentry SDKs.
+    Capture,
 }
 
 impl fmt::Display for RelayMode {
@@ -134,6 +139,7 @@ impl fmt::Display for RelayMode {
             RelayMode::Proxy => write!(f, "proxy"),
             RelayMode::Static => write!(f, "static"),
             RelayMode::Managed => write!(f, "managed"),
+            RelayMode::Capture => write!(f, "capture"),
         }
     }
 }
