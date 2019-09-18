@@ -500,7 +500,7 @@ impl Handler<HandleEvent> for EventManager {
             .send(GetProjectId)
             .map(One::into_inner)
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(clone! {captured_events, project_id_for_err, org_id_for_err, |project_id| {
+            .and_then(clone! {project, captured_events, project_id_for_err, org_id_for_err, |project_id| {
                 *project_id_for_err.lock() = Some(project_id);
                 project
                     .send(GetEventAction::fetched(meta.clone()))
@@ -630,7 +630,8 @@ impl Handler<HandleEvent> for EventManager {
                     | ProcessingError::PiiFailed(_)
                     | ProcessingError::Timeout
                     | ProcessingError::Shutdown
-                    | ProcessingError::NoAction(_) => {
+                    | ProcessingError::NoAction(_)
+                    | ProcessingError::QuotasFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
                     ProcessingError::InvalidJson(_) => {
@@ -651,7 +652,7 @@ impl Handler<HandleEvent> for EventManager {
 
                     ProcessingError::RateLimited(rate_limit) => {
                         project.do_send(rate_limit.clone());
-                        Some(Outcome::RateLimited(rate_limit.reason_code))
+                        Some(Outcome::RateLimited(rate_limit))
                     }
                 };
                 if let Some(outcome) = outcome_params {

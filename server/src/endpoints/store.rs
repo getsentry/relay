@@ -133,8 +133,8 @@ fn store_event(
                 .and_then(
                     move |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
                         EventAction::Accept => Ok(()),
-                        EventAction::RetryAfter(secs, reason) => {
-                            Err(BadStoreRequest::RateLimited(secs, reason.to_string()))
+                        EventAction::RetryAfter(retry_after) => {
+                            Err(BadStoreRequest::RateLimited(retry_after))
                         }
                         EventAction::Discard(reason) => Err(BadStoreRequest::EventRejected(reason)),
                     },
