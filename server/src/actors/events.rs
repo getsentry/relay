@@ -20,7 +20,7 @@ use semaphore_general::types::Annotated;
 use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
-use crate::actors::outcome::{DiscardReason, Outcome, OutcomeMessage, OutcomeProducer};
+use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
     ProjectState, RetryAfter,
@@ -589,7 +589,7 @@ impl Handler<HandleEvent> for EventManager {
                         Some(Outcome::RateLimited(reason.clone()))
                 };
                 if let Some(outcome) = outcome_params {
-                    outcome_producer.do_send(OutcomeMessage {
+                    outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),
                         project_id: *(project_id_for_err.lock()),
                         org_id: *(org_id_for_err.lock()),

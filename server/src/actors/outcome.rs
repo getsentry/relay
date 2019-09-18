@@ -33,8 +33,8 @@ struct OutcomePayload {
     pub event_id: Option<EventId>,
 }
 
-impl From<&OutcomeMessage> for OutcomePayload {
-    fn from(msg: &OutcomeMessage) -> Self {
+impl From<&TrackOutcome> for OutcomePayload {
+    fn from(msg: &TrackOutcome) -> Self {
         let reason = match msg.outcome.to_reason() {
             None => None,
             Some(reason) => Some(reason.to_string()),
@@ -61,7 +61,7 @@ impl From<&OutcomeMessage> for OutcomePayload {
 
 /// Message
 #[derive(Debug)]
-pub struct OutcomeMessage {
+pub struct TrackOutcome {
     /// The timespan of the event outcome.
     pub timestamp: Instant,
     /// Organization id.
@@ -76,7 +76,7 @@ pub struct OutcomeMessage {
     pub event_id: Option<EventId>,
 }
 
-impl Message for OutcomeMessage {
+impl Message for TrackOutcome {
     type Result = Result<(), OutcomeError>;
 }
 
@@ -305,10 +305,10 @@ mod real_implementation {
         }
     }
 
-    impl Handler<OutcomeMessage> for OutcomeProducer {
+    impl Handler<TrackOutcome> for OutcomeProducer {
         type Result = ResponseFuture<(), OutcomeError>;
 
-        fn handle(&mut self, message: OutcomeMessage, _ctx: &mut Self::Context) -> Self::Result {
+        fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
             if !self.is_enabled {
                 // when processing is disabled we don't send outcomes
                 return Box::new(futures::future::ok(()));
@@ -404,10 +404,10 @@ mod no_op_implementation {
         }
     }
 
-    impl Handler<OutcomeMessage> for OutcomeProducer {
+    impl Handler<TrackOutcome> for OutcomeProducer {
         type Result = ResponseFuture<(), OutcomeError>;
 
-        fn handle(&mut self, _message: OutcomeMessage, _ctx: &mut Self::Context) -> Self::Result {
+        fn handle(&mut self, _message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
             // nothing to do here
             Box::new(futures::future::ok(()))
         }

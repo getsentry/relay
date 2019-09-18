@@ -22,7 +22,7 @@ use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::ApiErrorResponse;
 
-use crate::actors::outcome::{DiscardReason, Outcome, OutcomeMessage};
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -133,7 +133,7 @@ fn store_event(
                 .and_then( clone! { outcome_producer, |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
                         EventAction::Accept => Ok(()),
                         EventAction::RetryAfter(secs, reason) => {
-                            outcome_producer.do_send(OutcomeMessage {
+                            outcome_producer.do_send(TrackOutcome {
                                 timestamp: start_time,
                                 project_id: Some(project_id),
                                 org_id: None,
@@ -144,7 +144,7 @@ fn store_event(
                             Err(BadStoreRequest::RateLimited(secs))
                         }
                         EventAction::Discard(reason) => {
-                            outcome_producer.do_send(OutcomeMessage {
+                            outcome_producer.do_send(TrackOutcome {
                                 timestamp: start_time,
                                 project_id: Some(project_id),
                                 org_id: None,
@@ -160,7 +160,7 @@ fn store_event(
                     StoreBody::new(&request)
                         .limit(config.max_event_payload_size())
                         .map_err(move |e| {
-                            outcome_producer.do_send(OutcomeMessage {
+                            outcome_producer.do_send(TrackOutcome {
                                 timestamp: start_time,
                                 project_id: Some(project_id),
                                 org_id: None,
@@ -182,7 +182,7 @@ fn store_event(
                         .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
                         .map_err(move |e| {
-                            outcome_producer.do_send(OutcomeMessage {
+                            outcome_producer.do_send(TrackOutcome {
                                 timestamp: start_time,
                                 project_id: Some(project_id),
                                 org_id: None,
