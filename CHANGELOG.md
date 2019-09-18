@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.46
+
+**Normalization**:
+
+- Resolved a regression in IP address normalization. The new behavior is closer to a line-by-line port of the old Python code.
+
+## 0.4.45
+
+**Normalization**:
+
+- Resolved an issue where GEO IP data was not always infered.
+
 ## 0.4.44
 
 **Normalization**:

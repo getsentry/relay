@@ -166,6 +166,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
+    fn test_datascrubbing_default() {
+        insta::assert_json_snapshot!(to_pii_config(&Default::default()), @"null");
+    }
+
+    #[test]
     fn test_convert_default_pii_config() {
         insta::assert_json_snapshot!(simple_enabled_pii_config(), @r###"
         {

@@ -2040,7 +2040,7 @@ dependencies = [
 
 [[package]]
 name = "semaphore"
-version = "0.4.44"
+version = "0.4.46"
 dependencies = [
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2053,9 +2053,9 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "openssl-probe 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "pretty_env_logger 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "semaphore-common 0.4.44",
- "semaphore-general 0.4.44",
- "semaphore-server 0.4.44",
+ "semaphore-common 0.4.46",
+ "semaphore-general 0.4.46",
+ "semaphore-server 0.4.46",
  "sentry 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.99 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.40 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2064,7 +2064,7 @@ dependencies = [
 
 [[package]]
 name = "semaphore-common"
-version = "0.4.44"
+version = "0.4.46"
 dependencies = [
  "backoff 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2078,7 +2078,7 @@ dependencies = [
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "semaphore-general 0.4.44",
+ "semaphore-general 0.4.46",
  "sentry-types 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.99 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.40 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2090,7 +2090,7 @@ dependencies = [
 
 [[package]]
 name = "semaphore-general"
-version = "0.4.44"
+version = "0.4.46"
 dependencies = [
  "bytecount 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2111,7 +2111,7 @@ dependencies = [
  "pest 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pest_derive 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "semaphore-general-derive 0.4.44",
+ "semaphore-general-derive 0.4.46",
  "serde 1.0.99 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_urlencoded 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2125,7 +2125,7 @@ dependencies = [
 
 [[package]]
 name = "semaphore-general-derive"
-version = "0.4.44"
+version = "0.4.46"
 dependencies = [
  "proc-macro2 0.4.30 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.13 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2135,7 +2135,7 @@ dependencies = [
 
 [[package]]
 name = "semaphore-server"
-version = "0.4.44"
+version = "0.4.46"
 dependencies = [
  "actix 0.7.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-web 0.7.19 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2159,8 +2159,8 @@ dependencies = [
  "rdkafka 0.21.0 (git+https://github.com/fede1024/rust-rdkafka?rev=0efbcf38150fad9fcd65b5f7f23f488c01248ae8)",
  "regex 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rmp-serde 0.13.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "semaphore-common 0.4.44",
- "semaphore-general 0.4.44",
+ "semaphore-common 0.4.46",
+ "semaphore-general 0.4.46",
  "sentry 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sentry-actix 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.99 (registry+https://github.com/rust-lang/crates.io-index)",
