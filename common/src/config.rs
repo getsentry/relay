@@ -354,6 +354,8 @@ mod processing {
         Attachments,
         /// Transaction events topic.
         Transactions,
+        /// All outcomes are sent through this channel.
+        Outcomes,
     }
 
     /// Configuration for topics.
@@ -365,6 +367,8 @@ mod processing {
         pub attachments: String,
         /// Transaction events topic name.
         pub transactions: String,
+        /// Event outcomes topic name.
+        pub outcomes: String,
     }
 
     /// A name value pair of Kafka config parameter.
@@ -417,6 +421,7 @@ mod processing {
                     events: String::new(),
                     attachments: String::new(),
                     transactions: String::new(),
+                    outcomes: String::new(),
                 },
             }
         }
@@ -828,6 +833,7 @@ impl Config {
             KafkaTopic::Attachments => topics.attachments.as_str(),
             KafkaTopic::Events => topics.events.as_str(),
             KafkaTopic::Transactions => topics.transactions.as_str(),
+            KafkaTopic::Outcomes => topics.outcomes.as_str(),
         }
     }
 }

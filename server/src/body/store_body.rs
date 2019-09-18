@@ -1,6 +1,6 @@
 use std::io::{self, Read};
 
-use ::actix::ResponseFuture;
+use actix::ResponseFuture;
 use actix_web::http::{header, StatusCode};
 use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
 use base64::DecodeError;
@@ -28,7 +28,7 @@ pub enum StorePayloadError {
     #[fail(display = "failed to decode zlib payload")]
     Zlib(#[cause] io::Error),
 
-    /// Interal Payload streaming error
+    /// Internal Payload streaming error
     #[fail(display = "failed to read request payload")]
     Payload(#[cause] PayloadError),
 }

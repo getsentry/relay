@@ -8,11 +8,11 @@ use bytes::{Bytes, BytesMut};
 use failure::Fail;
 use futures::prelude::*;
 use json_forensics;
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use sentry::integrations::failure::event_from_fail;
 use serde::{Deserialize, Serialize};
 
-use semaphore_common::{metric, Config, LogError, ProjectId, RelayMode, Uuid};
+use semaphore_common::{clone, metric, Config, LogError, ProjectId, RelayMode, Uuid};
 use semaphore_general::filter::FilterStatKey;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
@@ -21,6 +21,7 @@ use semaphore_general::types::Annotated;
 use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
+use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
     ProjectState, RetryAfter,
@@ -38,23 +39,6 @@ use {
     semaphore_general::filter::should_filter,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
-
-macro_rules! clone {
-    (@param _) => ( _ );
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ , || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move || $body
-        }
-    );
-    ($($n:ident),+ , |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move |$(clone!(@param $p),)+| $body
-        }
-    );
-}
 
 #[derive(Debug, Fail)]
 pub enum EventError {
@@ -79,10 +63,10 @@ enum ProcessingError {
     #[fail(display = "failed to resolve PII config for project")]
     PiiFailed(#[cause] ProjectError),
 
-    #[fail(display = "event submission rejected")]
-    EventRejected,
+    #[fail(display = "event submission rejected with reason: {:?}", _0)]
+    EventRejected(DiscardReason),
 
-    #[fail(display = "event filtered with reason: {}", _0)]
+    #[fail(display = "event filtered with reason: {:?}", _0)]
     EventFiltered(FilterStatKey),
 
     #[fail(display = "could not serialize event payload")]
@@ -95,8 +79,11 @@ enum ProcessingError {
     #[fail(display = "could not store event")]
     StoreFailed(#[cause] StoreError),
 
-    #[fail(display = "sending failed due to rate limit ({}s)", _0)]
-    RateLimited(u64),
+    #[fail(
+        display = "sending failed due to rate limit ({}s) with reason: {:?}",
+        _0, _1
+    )]
+    RateLimited(u64, String),
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
@@ -291,6 +278,7 @@ pub struct EventManager {
     processor: Addr<EventProcessor>,
     current_active_events: u32,
     shutdown: SyncHandle,
+    outcome_producer: Addr<OutcomeProducer>,
 
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
@@ -300,7 +288,11 @@ pub struct EventManager {
 
 impl EventManager {
     #[cfg(feature = "processing")]
-    pub fn create(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Result<Self, ServerError> {
+    pub fn create(
+        config: Arc<Config>,
+        upstream: Addr<UpstreamRelay>,
+        outcome_producer: Addr<OutcomeProducer>,
+    ) -> Result<Self, ServerError> {
         let geoip_lookup = match config.geoip_path() {
             Some(p) => Some(Arc::new(
                 GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
@@ -333,11 +325,16 @@ impl EventManager {
             shutdown: SyncHandle::new(),
             captured_events: Default::default(),
             store_forwarder,
+            outcome_producer,
         })
     }
 
     #[cfg(not(feature = "processing"))]
-    pub fn create(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Result<Self, ServerError> {
+    pub fn create(
+        config: Arc<Config>,
+        upstream: Addr<UpstreamRelay>,
+        outcome_producer: Addr<OutcomeProducer>,
+    ) -> Result<Self, ServerError> {
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
 
@@ -351,6 +348,7 @@ impl EventManager {
             current_active_events: 0,
             shutdown: SyncHandle::new(),
             captured_events: Default::default(),
+            outcome_producer,
         })
     }
 }
@@ -467,6 +465,7 @@ impl Handler<HandleEvent> for EventManager {
         let upstream = self.upstream.clone();
         let processor = self.processor.clone();
         let log_failed_payloads = self.config.log_failed_payloads();
+        let outcome_producer = self.outcome_producer.clone();
 
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
@@ -482,24 +481,32 @@ impl Handler<HandleEvent> for EventManager {
             start_time,
         } = message;
 
+        let project_id_for_err = Arc::new(Mutex::new(None::<u64>));
+        let org_id_for_err = Arc::new(Mutex::new(None::<u64>));
+
         let future = project
             .send(GetProjectId)
             .map(One::into_inner)
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(clone!(captured_events, |project_id| {
+            .and_then(clone! {captured_events, project_id_for_err, org_id_for_err, |project_id| {
+                *project_id_for_err.lock() = Some(project_id);
                 project
                     .send(GetEventAction::fetched(meta.clone()))
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                         EventAction::Accept => Ok(()),
-                        EventAction::RetryAfter(s) => Err(ProcessingError::RateLimited(s)),
-                        EventAction::Discard => Err(ProcessingError::EventRejected),
+                        EventAction::RetryAfter(secs, reason) => {
+                            Err(ProcessingError::RateLimited(secs, reason))
+                        }
+                        EventAction::Discard(reason) => Err(ProcessingError::EventRejected(reason)),
                     })
                     .and_then(clone!(project, |_| project
                         .send(GetProjectState)
                         .map_err(ProcessingError::ScheduleFailed)
                         .and_then(|result| result.map_err(ProcessingError::PiiFailed))))
-                    .and_then(clone!(meta, |project_state| processor
+                    .and_then(clone!(meta, |project_state| {
+                        *org_id_for_err.lock() = project_state.organization_id;
+                       processor
                         .send(ProcessEvent {
                             data,
                             meta,
@@ -510,7 +517,8 @@ impl Handler<HandleEvent> for EventManager {
                             start_time,
                         })
                         .map_err(ProcessingError::ScheduleFailed)
-                        .flatten()))
+                        .flatten()
+                        }))
                     .and_then(|response| match response {
                         ProcessEventResponse::Valid { data } => Ok(data),
                         ProcessEventResponse::Filtered { reason } => {
@@ -574,7 +582,8 @@ impl Handler<HandleEvent> for EventManager {
                                 result.map_err(move |error| match error {
                                     UpstreamRequestError::RateLimited(secs) => {
                                         project.do_send(RetryAfter { secs });
-                                        ProcessingError::RateLimited(secs)
+                                        ProcessingError::RateLimited(secs,
+                                            "upstream_rate_limited".to_string())
                                     }
                                     other => ProcessingError::SendFailed(other),
                                 })
@@ -582,7 +591,7 @@ impl Handler<HandleEvent> for EventManager {
 
                         Box::new(future) as ResponseFuture<_, _>
                     })
-            }))
+            }})
             .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
@@ -604,6 +613,45 @@ impl Handler<HandleEvent> for EventManager {
                     );
                 }
                 metric!(counter("event.rejected") += 1);
+                let outcome_params: Option<Outcome> = match error {
+                    ProcessingError::SerializeFailed(_)
+                    | ProcessingError::ScheduleFailed(_)
+                    | ProcessingError::PiiFailed(_)
+                    | ProcessingError::Timeout
+                    | ProcessingError::Shutdown
+                    | ProcessingError::NoAction(_) => {
+                        Some(Outcome::Invalid(DiscardReason::Internal))
+                    }
+                    ProcessingError::InvalidJson(_) => {
+                        Some(Outcome::Invalid(DiscardReason::InvalidPayloadJsonError))
+                    }
+                    #[cfg(feature = "processing")]
+                    ProcessingError::StoreFailed(_store_error) => {
+                        Some(Outcome::Invalid(DiscardReason::Internal))
+                    }
+                    ProcessingError::EventRejected(outcome_reason) => {
+                        Some(Outcome::Invalid(outcome_reason))
+                    }
+                    ProcessingError::EventFiltered(filter_stat_key) => {
+                        Some(Outcome::Filtered(filter_stat_key))
+                    }
+                    // if we have upstream then we don't emit outcomes (the upstream should deal with this)
+                    ProcessingError::SendFailed(_) => None,
+
+                    ProcessingError::RateLimited(_timeout, reason) => {
+                        Some(Outcome::RateLimited(reason))
+                    }
+                };
+                if let Some(outcome) = outcome_params {
+                    outcome_producer.do_send(TrackOutcome {
+                        timestamp: Instant::now(),
+                        project_id: *(project_id_for_err.lock()),
+                        org_id: *(org_id_for_err.lock()),
+                        key_id: None,
+                        outcome,
+                        event_id: Some(event_id),
+                    })
+                }
             }))
             .then(|x, slf, _| {
                 slf.current_active_events -= 1;
