@@ -493,7 +493,7 @@ mod __quota_serialization {
                     }))
                 }
                 _ => Err(D::Error::custom(
-                    "Could not deserialize, no variant matched",
+                    "Could not deserialize Quota, no variant matched",
                 )),
             }
         }
