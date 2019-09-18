@@ -12,7 +12,7 @@ use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::Serialize;
 
-use semaphore_common::{clone, metric, tryf, ProjectId, ProjectIdParseError};
+use semaphore_common::{metric, tryf, ProjectId, ProjectIdParseError};
 use semaphore_general::protocol::EventId;
 
 use crate::actors::events::{EventError, QueueEvent};
@@ -44,11 +44,14 @@ pub enum BadStoreRequest {
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
 
-    #[fail(display = "event rejected due to rate limit ({}s)", _0)]
-    RateLimited(u64),
+    #[fail(
+        display = "event rejected due to rate limit ({}s) with reason:{}",
+        _0, _1
+    )]
+    RateLimited(u64, String),
 
-    #[fail(display = "event submission rejected")]
-    EventRejected,
+    #[fail(display = "event submission rejected with_reason:{:?}", _0)]
+    EventRejected(DiscardReason),
 }
 
 impl ResponseError for BadStoreRequest {
@@ -56,7 +59,7 @@ impl ResponseError for BadStoreRequest {
         let body = ApiErrorResponse::from_fail(self);
 
         match self {
-            BadStoreRequest::RateLimited(secs) => {
+            BadStoreRequest::RateLimited(secs, _reason) => {
                 // For rate limits, we return a special status code and indicate the client to hold
                 // off until the rate limit period has expired. Currently, we only support the
                 // delay-seconds variant of the Rate-Limit header.
@@ -121,7 +124,7 @@ fn store_event(
     let config = request.state().config();
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
-    let outcome_producer = request.state().outcome_producer();
+    let outcome_producer = request.state().outcome_producer().clone();
 
     let future = project_manager
         .send(GetProject { id: project_id })
@@ -130,48 +133,21 @@ fn store_event(
             project
                 .send(GetEventAction::cached(meta.clone()))
                 .map_err(BadStoreRequest::ScheduleFailed)
-                .and_then( clone! { outcome_producer, |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
+                .and_then(
+                    move |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
                         EventAction::Accept => Ok(()),
                         EventAction::RetryAfter(secs, reason) => {
-                            outcome_producer.do_send(TrackOutcome {
-                                timestamp: start_time,
-                                project_id: Some(project_id),
-                                org_id: None,
-                                key_id: None,
-                                outcome: Outcome::RateLimited(reason),
-                                event_id: None,
-                            });
-                            Err(BadStoreRequest::RateLimited(secs))
+                            Err(BadStoreRequest::RateLimited(secs, reason.to_string()))
                         }
-                        EventAction::Discard(reason) => {
-                            outcome_producer.do_send(TrackOutcome {
-                                timestamp: start_time,
-                                project_id: Some(project_id),
-                                org_id: None,
-                                key_id: None,
-                                outcome: Outcome::Invalid(reason),
-                                event_id: None,
-                            });
-                            Err(BadStoreRequest::EventRejected)
-                        }
-                    }}
+                        EventAction::Discard(reason) => Err(BadStoreRequest::EventRejected(reason)),
+                    },
                 )
-                .and_then(clone!{ outcome_producer, |()| {
+                .and_then(move |()| {
                     StoreBody::new(&request)
                         .limit(config.max_event_payload_size())
-                        .map_err(move |e| {
-                            outcome_producer.do_send(TrackOutcome {
-                                timestamp: start_time,
-                                project_id: Some(project_id),
-                                org_id: None,
-                                key_id: None,
-                                outcome: Outcome::Invalid(DiscardReason::from(&e)),
-                                event_id: None,
-                            });
-                            BadStoreRequest::PayloadError(e)
-                        })
-                }})
-                .and_then(clone!{ outcome_producer,  |data| {
+                        .map_err(BadStoreRequest::PayloadError)
+                })
+                .and_then(move |data| {
                     event_manager
                         .send(QueueEvent {
                             data,
@@ -181,22 +157,21 @@ fn store_event(
                         })
                         .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
-                        .map_err(move |e| {
-                            outcome_producer.do_send(TrackOutcome {
-                                timestamp: start_time,
-                                project_id: Some(project_id),
-                                org_id: None,
-                                key_id: None,
-                                outcome: (&e).into(),
-                                event_id: None,
-                            });
-                            e
-                        })
                         .map(|id| HttpResponse::Accepted().json(StoreResponse { id }))
-                }})
+                })
         })
-        .map_err(move |error| {
+        .map_err(move |error: BadStoreRequest| {
             metric!(counter("event.rejected") += 1);
+
+            outcome_producer.do_send(TrackOutcome {
+                timestamp: start_time,
+                project_id: Some(project_id),
+                org_id: None,
+                key_id: None,
+                outcome: Outcome::from(&error),
+                event_id: None,
+            });
+
             error
         });
 

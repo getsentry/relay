@@ -9,10 +9,21 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use serde::Serialize;
 
 use semaphore_common::Config;
+use semaphore_general::filter::FilterStatKey;
 use semaphore_general::protocol::EventId;
 
+use crate::body::StorePayloadError;
+use crate::endpoints::store::BadStoreRequest;
 use crate::utils::instant_to_system_time;
 use crate::ServerError;
+
+// Choose the outcome module implementation (either the real one or the fake, no-op one).
+// Real outcome implementation
+#[cfg(feature = "processing")]
+pub use self::real_implementation::*;
+// No-op outcome implementation
+#[cfg(not(feature = "processing"))]
+pub use self::no_op_implementation::*;
 
 /// The outcome message is serialized as json and placed on the Kafka topic using OutcomePayload
 #[derive(Debug, Serialize, Clone)]
@@ -93,6 +104,7 @@ pub enum Outcome {
 
 impl Outcome {
     /// Returns the name of the outcome as recognized by Sentry.
+    #[cfg(feature = "processing")]
     pub fn name(&self) -> &'static str {
         match self {
             Outcome::Accepted => "accepted",
@@ -128,18 +140,22 @@ impl From<&BadStoreRequest> for Outcome {
     fn from(err: &BadStoreRequest) -> Self {
         match err {
             BadStoreRequest::BadProject(_) => Outcome::Invalid(DiscardReason::ProjectId),
+
             BadStoreRequest::UnsupportedProtocolVersion(_) => {
                 Outcome::Invalid(DiscardReason::UnsupportedProtocolVersion)
             }
+
             BadStoreRequest::ScheduleFailed(_)
             | BadStoreRequest::ProjectFailed(_)
-            | BadStoreRequest::ProcessingFailed(_)
-            | BadStoreRequest::EventRejected => Outcome::Invalid(DiscardReason::Internal),
+            | BadStoreRequest::ProcessingFailed(_) => Outcome::Invalid(DiscardReason::Internal),
 
-            BadStoreRequest::PayloadError(_) => {
-                Outcome::Invalid(DiscardReason::InvalidPayloadFormat)
+            BadStoreRequest::EventRejected(reason) => Outcome::Invalid(reason.clone()),
+
+            BadStoreRequest::PayloadError(payload_error) => {
+                Outcome::Invalid(DiscardReason::from(payload_error))
             }
-            BadStoreRequest::RateLimited(_) => Outcome::RateLimited("rate_limited".to_string()),
+
+            BadStoreRequest::RateLimited(_secs, reason) => Outcome::RateLimited(reason.clone()),
         }
     }
 }
@@ -214,22 +230,12 @@ impl From<&StorePayloadError> for DiscardReason {
     }
 }
 
-// Choose the outcome module implementation (either the real one or the fake, no-op one).
-// Real outcome implementation
-#[cfg(feature = "processing")]
-pub use self::real_implementation::*;
-// No-op outcome implementation
-#[cfg(not(feature = "processing"))]
-pub use self::no_op_implementation::*;
-use crate::body::StorePayloadError;
-use crate::endpoints::store::BadStoreRequest;
-use semaphore_general::filter::FilterStatKey;
-
 /// This is the implementation that uses kafka queues and does stuff
 #[cfg(feature = "processing")]
 mod real_implementation {
     use super::*;
 
+    use failure::{Fail, ResultExt};
     use futures::Future;
     use rdkafka::{
         error::KafkaError,
@@ -238,12 +244,12 @@ mod real_implementation {
     };
     use serde_json::Error as SerdeSerializationError;
 
+    use semaphore_common::tryf;
+    use semaphore_common::{metric, KafkaTopic, Uuid};
+
     use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
     use crate::service::ServerErrorKind;
     use crate::utils::{SyncFuture, SyncHandle};
-    use failure::{Fail, ResultExt};
-    use semaphore_common::tryf;
-    use semaphore_common::{metric, KafkaTopic, Uuid};
 
     #[derive(Fail, Debug)]
     pub enum OutcomeError {
@@ -255,21 +261,17 @@ mod real_implementation {
         Shutdown,
         #[fail(display = "json serialization error")]
         SerializationError(SerdeSerializationError),
-        #[fail(display = "internal error")]
-        InternalError,
     }
 
     pub struct OutcomeProducer {
         config: Arc<Config>,
         shutdown: SyncHandle,
         producer: Option<FutureProducer>,
-        is_enabled: bool,
     }
 
     impl OutcomeProducer {
         pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-            let processing_enabled = config.processing_enabled();
-            let future_producer = if processing_enabled {
+            let future_producer = if config.processing_enabled() {
                 let mut client_config = ClientConfig::new();
                 for config_p in config.kafka_config() {
                     client_config.set(config_p.name.as_str(), config_p.value.as_str());
@@ -286,7 +288,6 @@ mod real_implementation {
                 config,
                 shutdown: SyncHandle::new(),
                 producer: future_producer,
-                is_enabled: processing_enabled,
             })
         }
     }
@@ -309,44 +310,40 @@ mod real_implementation {
         type Result = ResponseFuture<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            if !self.is_enabled {
-                // when processing is disabled we don't send outcomes
-                return Box::new(futures::future::ok(()));
-            }
-            if let Some(ref producer) = self.producer {
-                let payload = tryf![serde_json::to_string(&OutcomePayload::from(&message))
-                    .map_err(OutcomeError::SerializationError)];
+            log::trace!("Tracking outcome: {:?}", message);
 
-                metric!(counter("events.outcomes") +=1 , "reason"=>message.outcome.to_reason().unwrap_or(""), 
-                    "outcome"=>message.outcome.name() );
+            let producer = match self.producer {
+                Some(ref producer) => producer,
+                None => return Box::new(futures::future::ok(())),
+            };
 
-                // Since eventId is optional and we wa
-                // At the moment we support outcomes with optional EventId.
-                // Here we create a fake EventId, when we don't have the real one only, to use
-                // it in the kafka message key so that the events are nicely spread over all the
-                // kafka consumer groups.
-                let key = message.event_id.unwrap_or(EventId(Uuid::new_v4())).0;
+            let payload = tryf![serde_json::to_string(&OutcomePayload::from(&message))
+                .map_err(OutcomeError::SerializationError)];
 
-                let record = FutureRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
-                    .payload(&payload)
-                    .key(key.as_bytes().as_ref());
+            metric!(counter("events.outcomes") +=1, 
+                    "reason"=>message.outcome.to_reason().unwrap_or(""), 
+                    "outcome"=>message.outcome.name());
 
-                let future = producer
-                    .send(record, 0)
-                    .then(|result| match result {
-                        Ok(Ok(_)) => Ok(()),
-                        Ok(Err((kafka_error, _message))) => {
-                            Err(OutcomeError::SendFailed(kafka_error))
-                        }
-                        Err(_) => Err(OutcomeError::Canceled),
-                    })
-                    .sync(&self.shutdown, OutcomeError::Shutdown);
+            // At the moment we support outcomes with optional EventId.
+            // Here we create a fake EventId, when we don't have the real one, so that we can
+            // create a kafka message key that spreads the events nicely over all the
+            // kafka consumer groups.
+            let key = message.event_id.unwrap_or(EventId(Uuid::new_v4())).0;
 
-                Box::new(future)
-            } else {
-                // some internal error, we have processing enabled and yet we don't have a processor
-                Box::new(futures::future::err(OutcomeError::InternalError))
-            }
+            let record = FutureRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
+                .payload(&payload)
+                .key(key.as_bytes().as_ref());
+
+            let future = producer
+                .send(record, 0)
+                .then(|result| match result {
+                    Ok(Ok(_)) => Ok(()),
+                    Ok(Err((kafka_error, _message))) => Err(OutcomeError::SendFailed(kafka_error)),
+                    Err(_) => Err(OutcomeError::Canceled),
+                })
+                .sync(&self.shutdown, OutcomeError::Shutdown);
+
+            Box::new(future)
         }
     }
 
@@ -407,7 +404,8 @@ mod no_op_implementation {
     impl Handler<TrackOutcome> for OutcomeProducer {
         type Result = ResponseFuture<(), OutcomeError>;
 
-        fn handle(&mut self, _message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
+        fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
+            log::trace!("Tracking outcome (no_op): {:?}", message);
             // nothing to do here
             Box::new(futures::future::ok(()))
         }

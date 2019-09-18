@@ -62,7 +62,7 @@ enum ProcessingError {
     #[fail(display = "failed to resolve PII config for project")]
     PiiFailed(#[cause] ProjectError),
 
-    #[fail(display = "event submission rejected")]
+    #[fail(display = "event submission rejected with reason: {:?}", _0)]
     EventRejected(DiscardReason),
 
     #[fail(display = "event filtered with reason: {:?}", _0)]
@@ -476,7 +476,7 @@ impl Handler<HandleEvent> for EventManager {
                         .send(GetProjectState)
                         .map_err(ProcessingError::ScheduleFailed)
                         .and_then(|result| result.map_err(ProcessingError::PiiFailed))))
-                    .and_then(clone! (meta,  |project_state| {
+                    .and_then(clone!(meta, |project_state| {
                         *org_id_for_err.lock() = project_state.organization_id;
                        processor
                         .send(ProcessEvent {
@@ -557,36 +557,34 @@ impl Handler<HandleEvent> for EventManager {
             .map_err(move |error, _, _| {
                 log::warn!("error processing event {}: {}", event_id, LogError(&error));
                 metric!(counter("event.rejected") += 1);
-                let outcome_params: Option<Outcome> = match &error {
-                    | ProcessingError::SerializeFailed(_)
+                let outcome_params: Option<Outcome> = match error {
+                    ProcessingError::SerializeFailed(_)
                     | ProcessingError::ScheduleFailed(_)
                     | ProcessingError::PiiFailed(_)
                     | ProcessingError::Timeout
-                    | ProcessingError::Shutdown => {
+                    | ProcessingError::Shutdown
+                    | ProcessingError::NoAction(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
-
                     ProcessingError::InvalidJson(_) => {
                         Some(Outcome::Invalid(DiscardReason::InvalidPayloadJsonError))
                     }
-
                     #[cfg(feature = "processing")]
                     ProcessingError::StoreFailed(_store_error) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
                     ProcessingError::EventRejected(outcome_reason) => {
-                        Some(Outcome::Invalid(*outcome_reason))
+                        Some(Outcome::Invalid(outcome_reason))
                     }
                     ProcessingError::EventFiltered(filter_stat_key) => {
-                        Some(Outcome::Filtered(*filter_stat_key))
+                        Some(Outcome::Filtered(filter_stat_key))
                     }
+                    // if we have upstream then we don't emit outcomes (the upstream should deal with this)
+                    ProcessingError::SendFailed(_) => None,
 
-                    ProcessingError::NoAction(_)
-                    // if we have upstream than we don't emit outcomes (the upstream should deal with this)
-                    | ProcessingError::SendFailed(_) => None,
-
-                    ProcessingError::RateLimited(_timeout, reason) =>
-                        Some(Outcome::RateLimited(reason.clone()))
+                    ProcessingError::RateLimited(_timeout, reason) => {
+                        Some(Outcome::RateLimited(reason))
+                    }
                 };
                 if let Some(outcome) = outcome_params {
                     outcome_producer.do_send(TrackOutcome {
