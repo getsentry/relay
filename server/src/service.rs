@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::client::ClientConnector;
-use actix_web::{server, App};
+use actix_web::{server, App, HttpResponse};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
@@ -163,7 +163,13 @@ fn make_app(state: ServiceState) -> ServiceApp {
         .middleware(AddCommonHeaders)
         .middleware(ErrorHandlers);
 
-    app = endpoints::healthcheck::configure_app(app);
+    app = app.scope("/api/relay", |mut scope| {
+        scope = endpoints::healthcheck::configure_scope(scope);
+        scope = endpoints::events::configure_scope(scope);
+        // never forward /api/relay, as that prefix is used for stuff like healthchecks
+        scope.default_resource(|r| r.f(|_| HttpResponse::NotFound()))
+    });
+
     app = endpoints::project_configs::configure_app(app);
     app = endpoints::public_keys::configure_app(app);
     app = endpoints::store::configure_app(app);
