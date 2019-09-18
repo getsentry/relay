@@ -13,14 +13,14 @@ use semaphore_common::{Config, Redis};
 /// metrics may not be in sync with the computer running this code.
 static GRACE: u64 = 60;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 struct UnixTimestamp(u64);
 
 fn load_lua_script() -> redis::Script {
     redis::Script::new(include_str!("is_rate_limited.lua"))
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RateLimiter {
     redis_state: Option<(RedisPool, Arc<redis::Script>)>,
 }
@@ -56,7 +56,7 @@ impl RateLimiter {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum RedisPool {
     Cluster(Pool<redis::cluster::ClusterClient>),
     Single(Pool<redis::Client>),

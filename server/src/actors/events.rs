@@ -107,7 +107,6 @@ enum ProcessingError {
 
 struct EventProcessor {
     rate_limiter: RateLimiter,
-
     #[cfg(feature = "processing")]
     config: Arc<Config>,
     #[cfg(feature = "processing")]
@@ -201,15 +200,17 @@ impl EventProcessor {
         }
 
         if let Some(organization_id) = message.project_state.organization_id {
-            if let Some(key) = message
+            let key_config = message
                 .project_state
-                .get_public_key_config(&message.meta.auth().public_key())
-            {
-                if let Some(retry_after) = self
+                .get_public_key_config(&message.meta.auth().public_key());
+
+            if let Some(key_config) = key_config {
+                let rate_limit = self
                     .rate_limiter
-                    .is_rate_limited(&key.quotas, organization_id)
-                    .map_err(ProcessingError::QuotasFailed)?
-                {
+                    .is_rate_limited(&key_config.quotas, organization_id)
+                    .map_err(ProcessingError::QuotasFailed)?;
+
+                if let Some(retry_after) = rate_limit {
                     return Err(ProcessingError::RateLimited(retry_after));
                 }
             }
@@ -311,36 +312,35 @@ pub struct EventManager {
 
 impl EventManager {
     pub fn create(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Result<Self, ServerError> {
-        #[cfg(feature = "processing")]
-        let geoip_lookup = match config.geoip_path() {
-            Some(p) => Some(Arc::new(
-                GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
-            )),
-            None => None,
-        };
-
         let rate_limiter = RateLimiter::new(&config).context(ServerErrorKind::RedisError)?;
 
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
         log::info!("starting {} event processing workers", thread_count);
 
-        let processor = SyncArbiter::start(
-            thread_count,
-            #[cfg(feature = "processing")]
-            clone!(config, || {
-                EventProcessor::new(config.clone(), geoip_lookup.clone(), rate_limiter.clone())
-            }),
-            #[cfg(not(feature = "processing"))]
-            move || EventProcessor::new(rate_limiter.clone()),
-        );
-
         #[cfg(feature = "processing")]
-        let store_forwarder = if config.processing_enabled() {
-            Some(StoreForwarder::create(config.clone())?.start())
-        } else {
-            None
+        let processor = {
+            let geoip_lookup = match config.geoip_path() {
+                Some(p) => Some(Arc::new(
+                    GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
+                )),
+                None => None,
+            };
+
+            SyncArbiter::start(
+                thread_count,
+                clone!(config, || EventProcessor::new(
+                    config.clone(),
+                    geoip_lookup.clone(),
+                    rate_limiter.clone()
+                )),
+            )
         };
+
+        #[cfg(not(feature = "processing"))]
+        let processor = SyncArbiter::start(thread_count, move || {
+            EventProcessor::new(rate_limiter.clone())
+        });
 
         Ok(EventManager {
             config,
@@ -350,7 +350,11 @@ impl EventManager {
             shutdown: SyncHandle::new(),
 
             #[cfg(feature = "processing")]
-            store_forwarder,
+            store_forwarder: if config.processing_enabled() {
+                Some(StoreForwarder::create(config.clone())?.start())
+            } else {
+                None
+            },
         })
     }
 }

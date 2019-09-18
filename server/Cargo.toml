@@ -33,7 +33,7 @@ log = "0.4.8"
 native-tls = { version = "0.2.3", optional = true }
 num_cpus = "1.10.1"
 parking_lot = "0.9.0"
-
+r2d2 = { version = "0.8.5", optional = true }
 # https://github.com/fede1024/rust-rdkafka/issues/125
 rdkafka = { version = "0.21.0", git = "https://github.com/fede1024/rust-rdkafka", optional = true, rev = "0efbcf38150fad9fcd65b5f7f23f488c01248ae8" }
 redis = { version = "0.12.1-alpha.0", git = "https://github.com/mitsuhiko/redis-rs", optional = true, branch = "feature/cluster", features = ["cluster", "r2d2"] }
@@ -45,7 +45,6 @@ serde = { version = "1.0.98", features = ["derive"] }
 serde_json = "1.0.40"
 tokio-timer = "0.2.11"
 url = "2.0.0"
-r2d2 = { version = "0.8.5", optional = true }
 
 [dependencies.semaphore-common]
 path = "../common"
