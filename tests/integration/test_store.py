@@ -220,7 +220,7 @@ def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kaf
     admin_client = kafka_admin()
     admin_client.delete_events_topic()
     # MUST create consumer before sending the event
-    consumer = kafka_consumer()
+    consumer = kafka_consumer("events")
     # create a unique message so we can make sure we don't test with stale data
     message_text = "some message {}".format(datetime.datetime.now())
     relay.send_event(42, {"message": message_text, "extra": {"msg_text": message_text}})
