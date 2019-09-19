@@ -15,7 +15,7 @@ def _get_topic_name(base_topic_name, test_name):
     if test_name is None:
         return base_topic_name
     else:
-        return "{}--{}".format(_EVENTS_TOPIC_NAME, test_name)
+        return "{}--{}".format(base_topic_name, test_name)
 
 
 def _processing_config(test_name, options=None):
