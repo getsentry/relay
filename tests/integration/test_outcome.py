@@ -17,7 +17,7 @@ def test_outcomes(relay_with_kafka, kafka_consumer, mini_sentry, kafka_admin):
     relay.send_event(42, {"event_id": event_id, "message": message_text, "extra": {"msg_text": message_text}})
     start = datetime.datetime.utcnow()
     # polling first message can take a few good seconds
-    outcome = outcomes.poll(timeout=10)
+    outcome = outcomes.poll(timeout=20)
     end = datetime.datetime.utcnow()
 
     assert outcome is not None
