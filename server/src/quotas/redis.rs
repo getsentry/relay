@@ -29,8 +29,8 @@ impl RateLimiter {
     pub fn new(relay_config: &Config) -> Result<Self, QuotasError> {
         let redis_state = if relay_config.processing_enabled() {
             let pool = match relay_config.redis() {
-                Redis::Cluster { cluster_servers } => {
-                    RedisPool::cluster(cluster_servers.iter().map(String::as_str).collect())?
+                Redis::Cluster { cluster_nodes } => {
+                    RedisPool::cluster(cluster_nodes.iter().map(String::as_str).collect())?
                 }
                 Redis::Single(ref server) => RedisPool::single(&server)?,
             };

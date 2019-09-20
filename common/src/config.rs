@@ -437,7 +437,7 @@ mod processing {
         /// Connect to a redis cluster
         Cluster {
             /// List of `redis://` urls to use in cluster mode
-            cluster_servers: Vec<String>,
+            cluster_nodes: Vec<String>,
         },
         /// Connect to a single redis instance
         Single(String),
