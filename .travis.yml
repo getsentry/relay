@@ -50,16 +50,14 @@ matrix:
           packages:
             - libssl-dev
             - libgeoip-dev
-      services:
-        - redis-server
       script: make -e test-rust-all
 
     - name: "test: semaphore[macos]"
       os: osx
       language: generic
-      services:
-        - redis-server
-      install: brew install redis
+      install:
+        - brew install redis
+        - brew services start redis
       script: make -e test-rust-all
 
     # -------------------------------------
