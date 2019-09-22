@@ -223,7 +223,7 @@ def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kaf
     message_text = "some message {}".format(datetime.datetime.now())
     relay.send_event(42, {"message": message_text, "extra": {"msg_text": message_text}})
     # polling first message can take a few good seconds
-    message = consumer.poll(timeout=10)
+    message = consumer.poll(timeout=20)
     assert message is not None
     assert message.error() is None
     val = message.value()
