@@ -59,6 +59,7 @@ matrix:
       language: generic
       services:
         - redis-server
+      install: brew install redis
       script: make -e test-rust-all
 
     # -------------------------------------
