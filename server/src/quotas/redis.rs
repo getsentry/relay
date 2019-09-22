@@ -432,8 +432,8 @@ mod tests {
                     limit: Some(0),
                     reason_code: None
                 },
-                UnixTimestamp(123123123),
-                123123,
+                UnixTimestamp(123_123_123),
+                123_123,
                 42
             ),
             "quota:foo{42}42:61500000"
@@ -447,8 +447,8 @@ mod tests {
                     limit: Some(0),
                     reason_code: None
                 },
-                UnixTimestamp(234531),
-                134451,
+                UnixTimestamp(234_531),
+                134_451,
                 69420
             ),
             "quota:foo{69420}:10008"
