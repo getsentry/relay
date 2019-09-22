@@ -86,10 +86,11 @@ matrix:
         - sudo add-apt-repository ppa:vbernat/haproxy-1.8 -y
         - sudo apt-get clean && sudo rm -r /var/lib/apt/lists/*
         - sudo apt-get update
-        - sudo apt-get install haproxy -y
-        # Start Zookeeper and Kafka
+        - sudo apt-get install haproxy redis-server -y
+        # Start Zookeeper, Kafka and Redis
         - docker run -d --network host --name zookeeper -e ZOOKEEPER_CLIENT_PORT=2181 confluentinc/cp-zookeeper:4.1.2-3
         - docker run -d --network host --name kafka -e KAFKA_ZOOKEEPER_CONNECT=localhost:2181 -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$KAFKA_BOOTSTRAP_SERVER -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 confluentinc/cp-kafka:4.1.2-3
+        - sudo service redis-server start --bind 127.0.0.1
       script:
         - make -e test-integration
 
