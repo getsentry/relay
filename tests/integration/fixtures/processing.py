@@ -24,9 +24,9 @@ def _get_topic_name(topic: str, test_name: Optional[str]):
         return "{}--{}".format(topic_name, test_name)
 
 
-def _kafka_processing_config(test_name: Optional[str], options=None):
+def _processing_config(test_name: Optional[str], options=None):
     """
-    Returns a minimal configuration for setting up kafka conmmunication
+    Returns a minimal configuration for setting up a relay capable of processing
     :param options: initial options to be merged
     :return: the altered options
     """
@@ -53,11 +53,14 @@ def _kafka_processing_config(test_name: Optional[str], options=None):
             'transactions': _get_topic_name("transactions", test_name),
             'outcomes': _get_topic_name("outcomes", test_name),
         }
+
+    if not processing.get('redis'):
+        processing['redis'] = 'redis://127.0.0.1'
     return options
 
 
 @pytest.fixture
-def relay_with_kafka(relay, mini_sentry, request):
+def relay_with_processing(relay, mini_sentry, request):
     """
     Creates a fixture that configures a relay with processing enabled and that forwards
     requests to the test ingestion topics
@@ -65,20 +68,22 @@ def relay_with_kafka(relay, mini_sentry, request):
 
     def inner(options=None):
         test_name = request.node.name
-        options = _kafka_processing_config(test_name, options)
+        options = _processing_config(test_name, options)
+        admin = _KafkaAdminWrapper(request, options)
+        admin.delete_events_topic()
+
         return relay(mini_sentry, options=options)
 
     return inner
 
 
 class _KafkaAdminWrapper:
-    def __init__(self, request, options=None):
+    def __init__(self, request, options):
         self.test_name = request.node.name
         self.options = options
-        config = _kafka_processing_config(self.test_name, options)
 
         kafka_config = {}
-        for elm in config['processing']['kafka_config']:
+        for elm in options['processing']['kafka_config']:
             kafka_config[elm['name']] = elm['value']
 
         self.admin_client = AdminClient(kafka_config)
@@ -107,19 +112,6 @@ class _KafkaAdminWrapper:
             f.result(5)  # wait up to 5 seconds for the admin operation to finish
 
 
-@pytest.fixture
-def kafka_admin(request):
-    """
-    A fixture representing a simple wrapper over the admin interface
-    :param request: the pytest request
-    :return: a Kafka admin wrapper
-    """
-
-    def inner(options=None):
-        return _KafkaAdminWrapper(request, options)
-
-    return inner
-
 
 @pytest.fixture
 def kafka_consumer(request):
@@ -130,7 +122,7 @@ def kafka_consumer(request):
     def inner(topic: str, options=None):
         test_name = request.node.name
         topics = [_get_topic_name(topic, test_name)]
-        options = _kafka_processing_config(test_name, options)
+        options = _processing_config(test_name, options)
         # look for the servers (it is the only config we are interested in)
         servers = [elm['value'] for elm in options['processing']['kafka_config'] if elm['name'] == 'bootstrap.servers']
         if len(servers) < 1:

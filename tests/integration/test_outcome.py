@@ -1,16 +1,13 @@
 import datetime
 import json
 
-def test_outcomes(relay_with_kafka, kafka_consumer, mini_sentry, kafka_admin):
-    relay = relay_with_kafka()
+def test_outcomes(relay_with_processing, kafka_consumer, mini_sentry):
+    relay = relay_with_processing()
     relay.wait_relay_healthcheck()
     outcomes = kafka_consumer("outcomes")
     events = kafka_consumer("events")
     # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
     mini_sentry.project_configs[42] = None
-    admin_client = kafka_admin()
-    admin_client.delete_events_topic()
-    admin_client.delete_outcomes_topic()
 
     message_text = "some message {}".format(datetime.datetime.now())
     event_id = "11122233344455566677788899900011"

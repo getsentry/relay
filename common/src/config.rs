@@ -406,6 +406,8 @@ mod processing {
         pub(super) kafka_config: Vec<KafkaConfigParam>,
         /// Kafka topic names.
         pub(super) topics: TopicNames,
+        /// Redis hosts to connect to for storing state for rate limits.
+        pub(super) redis: Redis,
     }
 
     impl Default for Processing {
@@ -423,7 +425,27 @@ mod processing {
                     transactions: String::new(),
                     outcomes: String::new(),
                 },
+                redis: Default::default(),
             }
+        }
+    }
+
+    /// Redis hosts to connect to for storing state for rate limits.
+    #[derive(Serialize, Deserialize, Debug)]
+    #[serde(untagged)]
+    pub enum Redis {
+        /// Connect to a redis cluster
+        Cluster {
+            /// List of `redis://` urls to use in cluster mode
+            cluster_nodes: Vec<String>,
+        },
+        /// Connect to a single redis instance
+        Single(String),
+    }
+
+    impl Default for Redis {
+        fn default() -> Self {
+            Redis::Single("redis://127.0.0.1".to_owned())
         }
     }
 }
@@ -835,6 +857,11 @@ impl Config {
             KafkaTopic::Transactions => topics.transactions.as_str(),
             KafkaTopic::Outcomes => topics.outcomes.as_str(),
         }
+    }
+
+    /// Redis servers to connect to, for rate limiting.
+    pub fn redis(&self) -> &Redis {
+        &self.values.processing.redis
     }
 }
 
