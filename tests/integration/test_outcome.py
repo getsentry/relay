@@ -1,11 +1,11 @@
 import datetime
 import json
 
+
 def test_outcomes(relay_with_processing, kafka_consumer, mini_sentry):
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
     outcomes = kafka_consumer("outcomes")
-    events = kafka_consumer("events")
     # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
     mini_sentry.project_configs[42] = None
 
@@ -25,9 +25,15 @@ def test_outcomes(relay_with_processing, kafka_consumer, mini_sentry):
     del outcome['timestamp']
     assert timestamp is not None
     event_emission = datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-    assert start <= event_emission
-    assert end >= event_emission
+    assert start <= event_emission <= end
     # reconstruct the expected message without timestamp
-    expected = {"org_id": None, "project_id": 42, "key_id": None, "outcome": 3, "reason": "project_id",
-                "event_id": "11122233344455566677788899900011"}
+    expected = {
+        "project_id": 42,
+        "event_id": event_id,
+        "org_id": None,
+        "key_id": None,
+        "outcome": 3,
+        "reason": "project_id",
+        "remote_addr": "127.0.0.1"
+    }
     assert outcome == expected

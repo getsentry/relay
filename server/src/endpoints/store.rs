@@ -122,6 +122,7 @@ fn store_event(
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
     let outcome_producer = request.state().outcome_producer().clone();
+    let remote_addr = meta.client_addr();
 
     let future = project_manager
         .send(GetProject { id: project_id })
@@ -167,8 +168,8 @@ fn store_event(
                 key_id: None,
                 outcome: Outcome::from(&error),
                 event_id: None,
+                remote_addr,
             });
-
             error
         });
 

@@ -1,6 +1,7 @@
 //! This module contains the actor that forwards Outcomes to a kafka topic
 //!
 
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -43,6 +44,8 @@ struct OutcomePayload {
     pub reason: Option<String>,
     /// The event id.
     pub event_id: Option<EventId>,
+    /// The client ip address.
+    pub remote_addr: Option<String>,
 }
 
 impl From<&TrackOutcome> for OutcomePayload {
@@ -67,6 +70,7 @@ impl From<&TrackOutcome> for OutcomePayload {
             outcome: msg.outcome.to_outcome_id(),
             reason,
             event_id: msg.event_id,
+            remote_addr: msg.remote_addr.map(|addr| addr.to_string()),
         }
     }
 }
@@ -86,6 +90,8 @@ pub struct TrackOutcome {
     pub outcome: Outcome,
     /// The event id.
     pub event_id: Option<EventId>,
+    /// The client ip address.
+    pub remote_addr: Option<IpAddr>,
 }
 
 impl Message for TrackOutcome {

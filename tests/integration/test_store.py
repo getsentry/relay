@@ -251,6 +251,7 @@ def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kaf
     assert event.get('project') is not None
     assert event.get('version') is not None
 
+
 def test_when_processing_is_not_enabled_relay_does_not_normalize_events(mini_sentry, relay):
     """
     Tests that relay does not normalize when processing is disabled
