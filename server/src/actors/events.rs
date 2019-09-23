@@ -495,7 +495,7 @@ impl Handler<HandleEvent> for EventManager {
 
         let project_id_for_err = Arc::new(Mutex::new(None::<u64>));
         let org_id_for_err = Arc::new(Mutex::new(None::<u64>));
-        let remote_addr = meta.client_addr().clone();
+        let remote_addr = meta.client_addr();
 
         let future = project
             .send(GetProjectId)
