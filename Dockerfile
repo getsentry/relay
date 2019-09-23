@@ -20,9 +20,9 @@ ENV OPENSSL_STATIC=1
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
-      curl build-essential git zip \
-      # For librdkafka
-      libclang-3.9-dev clang-3.9 \
+    curl build-essential git zip \
+    # For librdkafka
+    libclang-3.9-dev clang-3.9 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -41,7 +41,7 @@ RUN echo "Building zlib" \
     && sha256sum -c checksums.txt \
     && tar xzf zlib-$ZLIB_VERS.tar.gz && cd zlib-$ZLIB_VERS \
     && ./configure --static --archs="-fPIC" --prefix=$PREFIX_DIR \
-    && make && make install \
+    && make -j$(nproc) && make install \
     && cd .. && rm -rf zlib-$ZLIB_VERS.tar.gz zlib-$ZLIB_VERS checksums.txt
 
 RUN echo "Building OpenSSL" \
@@ -55,27 +55,29 @@ RUN echo "Building OpenSSL" \
     && tar xzf openssl-$OPENSSL_VERS.tar.gz && cd openssl-$OPENSSL_VERS \
     && ./Configure $OPENSSL_ARCH -fPIC --prefix=$PREFIX_DIR \
     && make depend \
-    && make && make install \
+    && make -j$(nproc) && make install \
     && cd .. && rm -rf openssl-$OPENSSL_VERS.tar.gz openssl-$OPENSSL_VERS checksums.txt
 
 #####################
 ### Builder stage ###
 #####################
 
+FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM semaphore-deps AS semaphore-builder
 
+COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 COPY . .
 
-RUN make init-submodules
-
-RUN cargo build --release --locked --all-features --target $BUILD_TARGET
-
-RUN bash -c 'objcopy --only-keep-debug target/${BUILD_TARGET}/release/semaphore{,.debug} \
-    && objcopy --strip-debug --strip-unneeded target/${BUILD_TARGET}/release/semaphore \
-    && objcopy --add-gnu-debuglink target/${BUILD_TARGET}/release/semaphore{.debug,}'
+# BUILD IT!
+RUN make build-linux-release TARGET=${BUILD_TARGET}
 
 RUN cp ./target/$BUILD_TARGET/release/semaphore /bin/semaphore \
     && zip /opt/semaphore-debug.zip target/$BUILD_TARGET/release/semaphore.debug
+
+# Collect source bundle
+RUN sentry-cli --version \
+    && sentry-cli difutil bundle-sources ./target/$BUILD_TARGET/release/semaphore.debug \
+    && mv ./target/$BUILD_TARGET/release/semaphore.src.zip /opt/semaphore.src.zip
 
 ###################
 ### Final stage ###
@@ -104,7 +106,7 @@ WORKDIR /work
 EXPOSE 3000
 
 COPY --from=semaphore-builder /bin/semaphore /bin/semaphore
-COPY --from=semaphore-builder /opt/semaphore-debug.zip /opt/semaphore-debug.zip
+COPY --from=semaphore-builder /opt/semaphore-debug.zip /opt/semaphore.src.zip /opt/
 
 COPY ./docker-entrypoint.sh /
 ENTRYPOINT ["/bin/bash", "/docker-entrypoint.sh"]
