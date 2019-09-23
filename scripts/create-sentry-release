@@ -24,9 +24,8 @@ docker pull "${DOCKER_IMAGE}"
 docker run --rm --entrypoint cat "${DOCKER_IMAGE}" /opt/semaphore-debug.zip > semaphore-debug.zip
 docker run --rm --entrypoint cat "${DOCKER_IMAGE}" /opt/semaphore.src.zip > semaphore.src.zip
 
-# TODO!
 echo 'Uploading debug information and source bundle...'
-sentry-cli upload-dif ./semaphore-debug.zip
+sentry-cli upload-dif ./semaphore-debug.zip ./semaphore.src.zip
 
 echo 'Creating a new deploy in Sentry...'
 sentry-cli releases new "${VERSION}"
