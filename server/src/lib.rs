@@ -15,6 +15,7 @@ mod constants;
 mod endpoints;
 mod extractors;
 mod middlewares;
+mod quotas;
 mod service;
 mod utils;
 

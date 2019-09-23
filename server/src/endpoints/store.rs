@@ -16,7 +16,7 @@ use semaphore_common::{metric, tryf, ProjectId, ProjectIdParseError};
 use semaphore_general::protocol::EventId;
 
 use crate::actors::events::{EventError, QueueEvent};
-use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError};
+use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RetryAfter};
 use crate::body::{StoreBody, StorePayloadError};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
@@ -44,11 +44,8 @@ pub enum BadStoreRequest {
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
 
-    #[fail(
-        display = "event rejected due to rate limit ({}s) with reason:{}",
-        _0, _1
-    )]
-    RateLimited(u64, String),
+    #[fail(display = "event rejected due to rate limit: {:?}", _0)]
+    RateLimited(RetryAfter),
 
     #[fail(display = "event submission rejected with_reason:{:?}", _0)]
     EventRejected(DiscardReason),
@@ -59,12 +56,12 @@ impl ResponseError for BadStoreRequest {
         let body = ApiErrorResponse::from_fail(self);
 
         match self {
-            BadStoreRequest::RateLimited(secs, _reason) => {
+            BadStoreRequest::RateLimited(retry_after) => {
                 // For rate limits, we return a special status code and indicate the client to hold
                 // off until the rate limit period has expired. Currently, we only support the
                 // delay-seconds variant of the Rate-Limit header.
                 HttpResponse::build(StatusCode::TOO_MANY_REQUESTS)
-                    .header("Retry-After", secs.to_string())
+                    .header("Retry-After", retry_after.remaining_seconds().to_string())
                     .json(&body)
             }
             BadStoreRequest::ScheduleFailed(_) | BadStoreRequest::ProjectFailed(_) => {
@@ -136,8 +133,8 @@ fn store_event(
                 .and_then(
                     move |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
                         EventAction::Accept => Ok(()),
-                        EventAction::RetryAfter(secs, reason) => {
-                            Err(BadStoreRequest::RateLimited(secs, reason.to_string()))
+                        EventAction::RetryAfter(retry_after) => {
+                            Err(BadStoreRequest::RateLimited(retry_after))
                         }
                         EventAction::Discard(reason) => Err(BadStoreRequest::EventRejected(reason)),
                     },

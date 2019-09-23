@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use actix::fut::result;
 use actix::prelude::*;
 use bytes::{Bytes, BytesMut};
-use failure::Fail;
+use failure::{Fail, ResultExt};
 use futures::prelude::*;
 use json_forensics;
 use parking_lot::{Mutex, RwLock};
@@ -28,14 +28,13 @@ use crate::actors::project::{
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
-use crate::service::ServerError;
+use crate::quotas::{QuotasError, RateLimiter};
+use crate::service::{ServerError, ServerErrorKind};
 use crate::utils::{One, SyncActorFuture, SyncHandle};
 
 #[cfg(feature = "processing")]
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
-    crate::service::ServerErrorKind,
-    failure::ResultExt,
     semaphore_general::filter::should_filter,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
@@ -79,11 +78,11 @@ enum ProcessingError {
     #[fail(display = "could not store event")]
     StoreFailed(#[cause] StoreError),
 
-    #[fail(
-        display = "sending failed due to rate limit ({}s) with reason: {:?}",
-        _0, _1
-    )]
-    RateLimited(u64, String),
+    #[fail(display = "sending failed due to rate limit: {:?}", _0)]
+    RateLimited(RetryAfter),
+
+    #[fail(display = "failed to apply quotas")]
+    QuotasFailed(#[cause] QuotasError),
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
@@ -92,27 +91,31 @@ enum ProcessingError {
     Shutdown,
 }
 
-#[cfg(feature = "processing")]
 struct EventProcessor {
+    rate_limiter: RateLimiter,
+    #[cfg(feature = "processing")]
     config: Arc<Config>,
+    #[cfg(feature = "processing")]
     geoip_lookup: Option<Arc<GeoIpLookup>>,
 }
 
-#[cfg(not(feature = "processing"))]
-struct EventProcessor;
-
 impl EventProcessor {
     #[cfg(feature = "processing")]
-    pub fn new(config: Arc<Config>, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        geoip_lookup: Option<Arc<GeoIpLookup>>,
+        rate_limiter: RateLimiter,
+    ) -> Self {
         Self {
             config,
             geoip_lookup,
+            rate_limiter,
         }
     }
 
     #[cfg(not(feature = "processing"))]
-    pub fn new() -> Self {
-        Self
+    pub fn new(rate_limiter: RateLimiter) -> Self {
+        Self { rate_limiter }
     }
 
     fn process(&self, message: &ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
@@ -178,6 +181,23 @@ impl EventProcessor {
                         // If the event should be filtered, no more processing is needed
                         return Ok(ProcessEventResponse::Filtered { reason });
                     }
+                }
+            }
+        }
+
+        if let Some(organization_id) = message.project_state.organization_id {
+            let key_config = message
+                .project_state
+                .get_public_key_config(&message.meta.auth().public_key());
+
+            if let Some(key_config) = key_config {
+                let rate_limit = self
+                    .rate_limiter
+                    .is_rate_limited(&key_config.quotas, organization_id)
+                    .map_err(ProcessingError::QuotasFailed)?;
+
+                if let Some(retry_after) = rate_limit {
+                    return Err(ProcessingError::RateLimited(retry_after));
                 }
             }
         }
@@ -287,30 +307,42 @@ pub struct EventManager {
 }
 
 impl EventManager {
-    #[cfg(feature = "processing")]
     pub fn create(
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
         outcome_producer: Addr<OutcomeProducer>,
     ) -> Result<Self, ServerError> {
-        let geoip_lookup = match config.geoip_path() {
-            Some(p) => Some(Arc::new(
-                GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
-            )),
-            None => None,
-        };
+        let rate_limiter = RateLimiter::new(&config).context(ServerErrorKind::RedisError)?;
 
         // TODO: Make the number configurable via config file
         let thread_count = num_cpus::get();
         log::info!("starting {} event processing workers", thread_count);
 
-        let processor = SyncArbiter::start(
-            thread_count,
-            clone!(config, || {
-                EventProcessor::new(config.clone(), geoip_lookup.clone())
-            }),
-        );
+        #[cfg(feature = "processing")]
+        let processor = {
+            let geoip_lookup = match config.geoip_path() {
+                Some(p) => Some(Arc::new(
+                    GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
+                )),
+                None => None,
+            };
 
+            SyncArbiter::start(
+                thread_count,
+                clone!(config, || EventProcessor::new(
+                    config.clone(),
+                    geoip_lookup.clone(),
+                    rate_limiter.clone()
+                )),
+            )
+        };
+
+        #[cfg(not(feature = "processing"))]
+        let processor = SyncArbiter::start(thread_count, move || {
+            EventProcessor::new(rate_limiter.clone())
+        });
+
+        #[cfg(feature = "processing")]
         let store_forwarder = if config.processing_enabled() {
             Some(StoreForwarder::create(config.clone())?.start())
         } else {
@@ -324,30 +356,10 @@ impl EventManager {
             current_active_events: 0,
             shutdown: SyncHandle::new(),
             captured_events: Default::default(),
+
+            #[cfg(feature = "processing")]
             store_forwarder,
-            outcome_producer,
-        })
-    }
 
-    #[cfg(not(feature = "processing"))]
-    pub fn create(
-        config: Arc<Config>,
-        upstream: Addr<UpstreamRelay>,
-        outcome_producer: Addr<OutcomeProducer>,
-    ) -> Result<Self, ServerError> {
-        // TODO: Make the number configurable via config file
-        let thread_count = num_cpus::get();
-
-        log::info!("starting {} event processing workers", thread_count);
-        let processor = SyncArbiter::start(thread_count, EventProcessor::new);
-
-        Ok(EventManager {
-            config,
-            upstream,
-            processor,
-            current_active_events: 0,
-            shutdown: SyncHandle::new(),
-            captured_events: Default::default(),
             outcome_producer,
         })
     }
@@ -488,16 +500,14 @@ impl Handler<HandleEvent> for EventManager {
             .send(GetProjectId)
             .map(One::into_inner)
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(clone! {captured_events, project_id_for_err, org_id_for_err, |project_id| {
+            .and_then(clone! {project, captured_events, project_id_for_err, org_id_for_err, |project_id| {
                 *project_id_for_err.lock() = Some(project_id);
                 project
                     .send(GetEventAction::fetched(meta.clone()))
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                         EventAction::Accept => Ok(()),
-                        EventAction::RetryAfter(secs, reason) => {
-                            Err(ProcessingError::RateLimited(secs, reason))
-                        }
+                        EventAction::RetryAfter(r) => Err(ProcessingError::RateLimited(r)),
                         EventAction::Discard(reason) => Err(ProcessingError::EventRejected(reason)),
                     })
                     .and_then(clone!(project, |_| project
@@ -581,9 +591,10 @@ impl Handler<HandleEvent> for EventManager {
                             .and_then(move |result| {
                                 result.map_err(move |error| match error {
                                     UpstreamRequestError::RateLimited(secs) => {
-                                        project.do_send(RetryAfter { secs });
-                                        ProcessingError::RateLimited(secs,
-                                            "upstream_rate_limited".to_string())
+                                        ProcessingError::RateLimited(RetryAfter {
+                                            when: Instant::now() + Duration::from_secs(secs),
+                                            reason_code: None,
+                                        })
                                     }
                                     other => ProcessingError::SendFailed(other),
                                 })
@@ -597,7 +608,7 @@ impl Handler<HandleEvent> for EventManager {
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
-            .map_err(clone!(captured_events, |error, _, _| {
+            .map_err(clone!(project, captured_events, |error, _, _| {
                 log::warn!("error processing event {}: {}", event_id, LogError(&error));
                 // if we are in capture mode, we stash away the event instead of
                 // forwarding it.
@@ -619,7 +630,8 @@ impl Handler<HandleEvent> for EventManager {
                     | ProcessingError::PiiFailed(_)
                     | ProcessingError::Timeout
                     | ProcessingError::Shutdown
-                    | ProcessingError::NoAction(_) => {
+                    | ProcessingError::NoAction(_)
+                    | ProcessingError::QuotasFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
                     ProcessingError::InvalidJson(_) => {
@@ -638,8 +650,9 @@ impl Handler<HandleEvent> for EventManager {
                     // if we have upstream then we don't emit outcomes (the upstream should deal with this)
                     ProcessingError::SendFailed(_) => None,
 
-                    ProcessingError::RateLimited(_timeout, reason) => {
-                        Some(Outcome::RateLimited(reason))
+                    ProcessingError::RateLimited(rate_limit) => {
+                        project.do_send(rate_limit.clone());
+                        Some(Outcome::RateLimited(rate_limit))
                     }
                 };
                 if let Some(outcome) = outcome_params {

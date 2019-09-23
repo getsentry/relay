@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::cmp;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
@@ -51,7 +50,7 @@ pub struct Project {
     manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
-    retry_after: Instant,
+    retry_after: Option<RetryAfter>,
     is_local: bool,
 }
 
@@ -63,7 +62,7 @@ impl Project {
             manager,
             state: None,
             state_channel: None,
-            retry_after: Instant::now(),
+            retry_after: None,
             is_local: false,
         }
     }
@@ -413,35 +412,127 @@ pub struct PublicKeyConfig {
 }
 
 /// Data for applying rate limits in Redis
+#[derive(Debug, Clone)]
+pub enum Quota {
+    RejectAll(RejectAllQuota),
+    Redis(RedisQuota),
+}
+
+mod __quota_serialization {
+    use std::borrow::Cow;
+
+    use super::{Quota, RedisQuota, RejectAllQuota};
+
+    use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Serialize, Deserialize, Default)]
+    #[serde(default)]
+    struct QuotaSerdeHelper<'a> {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        limit: Option<u64>,
+        #[serde(borrow, skip_serializing_if = "Option::is_none")]
+        reason_code: Option<Cow<'a, str>>,
+        #[serde(borrow, skip_serializing_if = "Option::is_none")]
+        prefix: Option<Cow<'a, str>>,
+        #[serde(borrow, skip_serializing_if = "Option::is_none")]
+        subscope: Option<Cow<'a, str>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        window: Option<u64>,
+    }
+
+    impl Serialize for Quota {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            match *self {
+                Quota::RejectAll(RejectAllQuota { ref reason_code }) => QuotaSerdeHelper {
+                    limit: Some(0),
+                    reason_code: reason_code.as_ref().map(String::as_str).map(Cow::Borrowed),
+                    ..Default::default()
+                },
+                Quota::Redis(RedisQuota {
+                    limit,
+                    ref reason_code,
+                    ref prefix,
+                    ref subscope,
+                    window,
+                }) => QuotaSerdeHelper {
+                    limit,
+                    reason_code: reason_code.as_ref().map(String::as_str).map(Cow::Borrowed),
+                    prefix: Some(Cow::Borrowed(&prefix)),
+                    subscope: subscope.as_ref().map(String::as_str).map(Cow::Borrowed),
+                    window: Some(window),
+                },
+            }
+            .serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Quota {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let helper = QuotaSerdeHelper::deserialize(deserializer)?;
+
+            match (
+                helper.limit,
+                helper.reason_code,
+                helper.prefix,
+                helper.subscope,
+                helper.window,
+            ) {
+                (Some(0), reason_code, None, None, None) => Ok(Quota::RejectAll(RejectAllQuota {
+                    reason_code: reason_code.map(Cow::into_owned),
+                })),
+                (limit, reason_code, Some(prefix), subscope, Some(window)) => {
+                    Ok(Quota::Redis(RedisQuota {
+                        limit,
+                        reason_code: reason_code.map(Cow::into_owned),
+                        prefix: prefix.into_owned(),
+                        subscope: subscope.map(Cow::into_owned),
+                        window,
+                    }))
+                }
+                _ => Err(D::Error::custom(
+                    "Could not deserialize Quota, no variant matched",
+                )),
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Quota {
+pub struct RedisQuota {
+    /// How many events should be accepted within the window.
+    ///
+    /// "We should accept <limit> events per <window> seconds"
+    pub limit: Option<u64>,
+
+    /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
+    /// comes to that.
+    pub reason_code: Option<String>,
+
     /// Type of quota.
     ///
     /// E.g. `k` for key quotas, or `p` for project quotas. This is used when creating the Redis
     /// key where the counters and refunds are stored.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub prefix: Option<String>,
+    pub prefix: String,
 
     /// Usually a project/key/organization ID, depending on type of quota.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subscope: Option<String>,
-
-    /// How many events should be accepted within the window.
-    ///
-    /// "We should accept <limit> events per <window> seconds"
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub limit: Option<u64>,
 
     /// Size of the timewindow we look at (seconds).
     ///
     /// "We should accept <limit> events per <window> seconds"
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub window: Option<u64>,
+    pub window: u64,
+}
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RejectAllQuota {
     /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
     /// comes to that.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_code: Option<String>,
 }
 
@@ -480,7 +571,7 @@ pub enum EventAction {
     /// The event should be discarded.
     Discard(DiscardReason),
     /// The event should be discarded and the client should back off for some time.
-    RetryAfter(u64, String),
+    RetryAfter(RetryAfter),
     /// The event should be processed and sent to upstream.
     Accept,
 }
@@ -495,12 +586,10 @@ impl Handler<GetEventAction> for Project {
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
         // Check for an eventual rate limit. Note that we have to ensure that the computation of the
         // backoff duration must yield a positive number or it would otherwise panic.
-        let now = Instant::now();
-        if now < self.retry_after {
-            // Compensate for the missing subsec part by adding 1s
-            let secs = (self.retry_after - now).as_secs() + 1;
-            let reason = "TODO_ADD_REASON".to_string(); // TODO we need to also keep the reason
-            return Response::ok(EventAction::RetryAfter(secs, reason));
+        if let Some(ref retry_after) = self.retry_after {
+            if !retry_after.can_retry() {
+                return Response::ok(EventAction::RetryAfter(retry_after.clone()));
+            }
         }
 
         if message.fetch {
@@ -520,9 +609,26 @@ impl Handler<GetEventAction> for Project {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct RetryAfter {
-    pub secs: u64,
+    pub when: Instant,
+    pub reason_code: Option<String>,
+}
+
+impl RetryAfter {
+    pub fn remaining_seconds(&self) -> u64 {
+        let now = Instant::now();
+        if now > self.when {
+            return 0;
+        }
+
+        // Compensate for the missing subsec part by adding 1s
+        (self.when - now).as_secs() + 1
+    }
+
+    pub fn can_retry(&self) -> bool {
+        self.remaining_seconds() == 0
+    }
 }
 
 impl Message for RetryAfter {
@@ -533,8 +639,13 @@ impl Handler<RetryAfter> for Project {
     type Result = ();
 
     fn handle(&mut self, message: RetryAfter, _context: &mut Self::Context) -> Self::Result {
-        let retry_after = Instant::now() + Duration::from_secs(message.secs);
-        self.retry_after = cmp::max(self.retry_after, retry_after);
+        if let Some(ref old_value) = self.retry_after {
+            if old_value.when > message.when {
+                return;
+            }
+        }
+
+        self.retry_after = Some(message);
     }
 }
 

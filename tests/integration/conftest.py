@@ -8,7 +8,7 @@ from .fixtures.gobetween import gobetween  # noqa
 from .fixtures.haproxy import haproxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
 from .fixtures.relay import relay  # noqa
-from .fixtures.kafka import  kafka_consumer, relay_with_kafka, kafka_admin # noqa
+from .fixtures.processing import kafka_consumer, relay_with_processing  # noqa
 
 @pytest.fixture
 def random_port():
