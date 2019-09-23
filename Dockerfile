@@ -62,14 +62,11 @@ RUN echo "Building OpenSSL" \
 ### Builder stage ###
 #####################
 
-FROM getsentry/sentry-cli:1.47.1 AS sentry-cli
+FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM semaphore-deps AS semaphore-builder
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 COPY . .
-
-# TODO remove this
-RUN make init-submodules
 
 # BUILD IT!
 RUN make build-linux-release TARGET=${BUILD_TARGET}
@@ -78,7 +75,8 @@ RUN cp ./target/$BUILD_TARGET/release/semaphore /bin/semaphore \
     && zip /opt/semaphore-debug.zip target/$BUILD_TARGET/release/semaphore.debug
 
 # Collect source bundle
-RUN sentry-cli difutil bundle-sources ./target/$BUILD_TARGET/release/semaphore.debug \
+RUN sentry-cli --version \
+    && sentry-cli difutil bundle-sources ./target/$BUILD_TARGET/release/semaphore.debug \
     && mv ./target/$BUILD_TARGET/release/semaphore.src.zip /opt/semaphore.src.zip
 
 ###################
