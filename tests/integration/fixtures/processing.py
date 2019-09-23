@@ -2,23 +2,29 @@ import pytest
 import os
 import confluent_kafka as kafka
 from copy import deepcopy
+from typing import Optional
 
 from confluent_kafka.admin import AdminClient
 
-_EVENTS_TOPIC_NAME = 'test-ingest-events'
-_ATTACHMENTS_TOPIC_NAME = 'test-ingest-attachments'
-_TRANSACTIONS_TOPIC_NAME = 'test-ingest-transactions'
-_OUTCOMES_TOPIC_NAME = 'test-event-outcomes'
+topic_names = {
+    "events": "test-ingest-events",
+    "attachments": "test-ingest-attachments",
+    "transactions": "test-ingest-transactions",
+    "outcomes": "test-event-outcomes",
+}
 
 
-def _get_topic_name(base_topic_name, test_name):
+def _get_topic_name(topic: str, test_name: Optional[str]):
+    topic_name = topic_names.get(topic)
+    if topic_name is None:
+        raise ValueError("Invalid topic_name specified, check topic_names dict for accepted topic names.", topic)
     if test_name is None:
-        return base_topic_name
+        return topic_name
     else:
-        return "{}--{}".format(base_topic_name, test_name)
+        return "{}--{}".format(topic_name, test_name)
 
 
-def _processing_config(test_name, options=None):
+def _processing_config(test_name: Optional[str], options=None):
     """
     Returns a minimal configuration for setting up a relay capable of processing
     :param options: initial options to be merged
@@ -42,10 +48,10 @@ def _processing_config(test_name, options=None):
         ]
     if processing.get('topics') is None:
         processing['topics'] = {
-            'events': _get_topic_name(_EVENTS_TOPIC_NAME, test_name),
-            'attachments': _get_topic_name(_ATTACHMENTS_TOPIC_NAME, test_name),
-            'transactions': _get_topic_name(_TRANSACTIONS_TOPIC_NAME, test_name),
-            'outcomes': _get_topic_name(_OUTCOMES_TOPIC_NAME, test_name),
+            'events': _get_topic_name("events", test_name),
+            'attachments': _get_topic_name("attachments", test_name),
+            'transactions': _get_topic_name("transactions", test_name),
+            'outcomes': _get_topic_name("outcomes", test_name),
         }
 
     if not processing.get('redis'):
@@ -83,10 +89,13 @@ class _KafkaAdminWrapper:
         self.admin_client = AdminClient(kafka_config)
 
     def delete_events_topic(self):
-        self._delete_topic(_EVENTS_TOPIC_NAME)
+        self._delete_topic("events")
 
-    def _delete_topic(self, base_topic_name):
-        topic_name = _get_topic_name(base_topic_name, self.test_name)
+    def delete_outcomes_topic(self):
+        self._delete_topic("outcomes")
+
+    def _delete_topic(self, topic):
+        topic_name = _get_topic_name(topic, self.test_name)
         try:
             futures_dict = self.admin_client.delete_topics([topic_name])
             self._sync_wait_on_result(futures_dict)
@@ -110,9 +119,9 @@ def kafka_consumer(request):
     Creates a fixture that, when called, returns an already subscribed kafka consumer.
     """
 
-    def inner(options=None):
+    def inner(topic: str, options=None):
         test_name = request.node.name
-        topics = [_get_topic_name(_EVENTS_TOPIC_NAME, test_name)]
+        topics = [_get_topic_name(topic, test_name)]
         options = _processing_config(test_name, options)
         # look for the servers (it is the only config we are interested in)
         servers = [elm['value'] for elm in options['processing']['kafka_config'] if elm['name'] == 'bootstrap.servers']

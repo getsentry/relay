@@ -218,7 +218,7 @@ def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kaf
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = mini_sentry.full_project_config()
     # MUST create consumer before sending the event
-    consumer = kafka_consumer()
+    consumer = kafka_consumer("events")
     # create a unique message so we can make sure we don't test with stale data
     message_text = "some message {}".format(datetime.datetime.now())
     relay.send_event(42, {"message": message_text, "extra": {"msg_text": message_text}})
@@ -279,7 +279,7 @@ def test_quotas(mini_sentry, relay_with_processing, kafka_consumer):
         "reason_code": "get_lost"
     }]
 
-    consumer = kafka_consumer()
+    consumer = kafka_consumer("events")
 
     for _ in range(10):
         relay.send_event(42, {"message": "some_message"})
