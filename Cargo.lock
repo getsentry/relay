@@ -1931,7 +1931,7 @@ dependencies = [
 [[package]]
 name = "redis"
 version = "0.12.1-alpha.0"
-source = "git+https://github.com/mitsuhiko/redis-rs?branch=feature/cluster#2589acb989f65a738abe80e1dde2630d8ddf8841"
+source = "git+https://github.com/mitsuhiko/redis-rs?branch=feature/cluster#5d2f66debfaf66a945d72646b5d542fd94aa5c40"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "combine 3.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
