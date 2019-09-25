@@ -44,15 +44,23 @@ impl DataScrubbingConfig {
 
     /// Get the PII config derived from datascrubbing settings.
     pub fn pii_config(&self) -> Option<&PiiConfig> {
-        if let Some(ref pii_config) = self.pii_config.borrow() {
-            pii_config.as_ref()
-        } else {
-            let pii_config = to_pii_config(&self);
-            let _ = self.pii_config.fill(pii_config);
-            self.pii_config
-                .borrow()
-                .expect("filled lazycell for datascrubbing settings, but cell is still empty")
-                .as_ref()
+        if let Some(pii_config) = self.pii_config.borrow() {
+            return pii_config.as_ref();
+        }
+
+        let pii_config = to_pii_config(&self);
+        self.pii_config.fill(pii_config).ok();
+
+        // If filling the lazy cell fails, another thread is currently inserting. There are two
+        // possible states:
+        //  1. The cell is now filled. If we borrow the value now, we will get a response.
+        //  2. The cell is locked but not filled. If we borrow the value now, we will get `None` and
+        //     have to try again. Practically, this loop only executes once or twice.
+        loop {
+            match self.pii_config.borrow() {
+                Some(pii_config) => break pii_config.as_ref(),
+                None => std::thread::sleep(std::time::Duration::from_micros(1)),
+            }
         }
     }
 }

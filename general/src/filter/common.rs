@@ -36,10 +36,17 @@ impl GlobPatterns {
 
         // Parse globs lazily to ensure that this work is not done upon deserialization.
         // Deserialization usually happens in web workers but parsing / matching in CPU pools.
-        if !self.globs.filled() {
-            self.globs.fill(self.parse_globs()).ok();
+        if let Some(globs) = self.globs.borrow() {
+            return globs.is_match(message);
         }
 
+        // If filling the lazy cell fails, another thread has filled it in the meanwhile. Use the
+        // globs to respond right away, instead of borrowing again.
+        if let Err(globs) = self.globs.fill(self.parse_globs()) {
+            return globs.is_match(message);
+        }
+
+        // The lazy cell was filled successfully, so it is safe to assume that this cannot panic.
         match self.globs.borrow() {
             Some(globs) => globs.is_match(message),
             None => unreachable!(),
