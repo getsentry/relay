@@ -1,5 +1,6 @@
 SHELL=/bin/bash
 export SEMAPHORE_PYTHON_VERSION := python3
+export SEMAPHORE_FEATURES := with_ssl
 
 all: check test
 .PHONY: all
@@ -21,7 +22,7 @@ build: setup-git
 .PHONY: build
 
 release: setup-git
-	@cargo +stable build --release --locked --features with_ssl
+	@cargo +stable build --release --locked --features ${SEMAPHORE_FEATURES}
 .PHONY: release
 
 docker: setup-git
@@ -29,7 +30,7 @@ docker: setup-git
 .PHONY: docker
 
 build-linux-release: setup-git
-	cargo build --release --locked --features with_ssl --target=${TARGET}
+	cargo build --release --locked --features ${SEMAPHORE_FEATURES} --target=${TARGET}
 	objcopy --only-keep-debug target/${TARGET}/release/semaphore{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/semaphore
 	objcopy --add-gnu-debuglink target/${TARGET}/release/semaphore{.debug,}
