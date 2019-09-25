@@ -33,7 +33,7 @@ DOCKER_RUN_OPTS="
 
 # And now build the project
 docker run $DOCKER_RUN_OPTS \
-  make build-linux-release
+  make build-linux-release SEMAPHORE_FEATURES="${SEMAPHORE_FEATURES}"
 
 # Smoke test
 docker run $DOCKER_RUN_OPTS \

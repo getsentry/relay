@@ -65,11 +65,14 @@ RUN echo "Building OpenSSL" \
 FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM semaphore-deps AS semaphore-builder
 
+ARG SEMAPHORE_FEATURES=with_ssl,processing
+ENV SEMAPHORE_FEATURES=${SEMAPHORE_FEATURES}
+
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 COPY . .
 
 # BUILD IT!
-RUN make build-linux-release TARGET=${BUILD_TARGET}
+RUN make build-linux-release TARGET=${BUILD_TARGET} SEMAPHORE_FEATURES=${SEMAPHORE_FEATURES}
 
 RUN cp ./target/$BUILD_TARGET/release/semaphore /bin/semaphore \
     && zip /opt/semaphore-debug.zip target/$BUILD_TARGET/release/semaphore.debug
