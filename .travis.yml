@@ -20,6 +20,7 @@ branches:
 before_install:
   - curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain ${RUST_TOOLCHAIN:-stable}
   - export PATH=~/.cargo/bin/:$PATH
+  - [ "$TRAVIS_BRANCH" != "master" ] || export PYTEST_SENTRY_ALWAYS_REPORT=1
 
 install: skip
 
