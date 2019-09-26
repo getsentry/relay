@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
@@ -44,13 +45,29 @@ pub enum ProjectError {
 
 impl ResponseError for ProjectError {}
 
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum RetryAfterScope {
+    Key(String),
+    Project,
+}
+
+impl RetryAfterScope {
+    fn get_variants(meta: &EventMeta) -> impl Iterator<Item = RetryAfterScope> {
+        Some(RetryAfterScope::Project)
+            .into_iter()
+            .chain(Some(RetryAfterScope::Key(
+                meta.auth().public_key().to_owned(),
+            )))
+    }
+}
+
 pub struct Project {
     id: ProjectId,
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
-    retry_after: Option<RetryAfter>,
+    retry_after: HashMap<RetryAfterScope, RetryAfter>,
     is_local: bool,
 }
 
@@ -62,7 +79,7 @@ impl Project {
             manager,
             state: None,
             state_channel: None,
-            retry_after: None,
+            retry_after: HashMap::new(),
             is_local: false,
         }
     }
@@ -571,7 +588,7 @@ pub enum EventAction {
     /// The event should be discarded.
     Discard(DiscardReason),
     /// The event should be discarded and the client should back off for some time.
-    RetryAfter(RetryAfter),
+    RetryAfter(RateLimited),
     /// The event should be processed and sent to upstream.
     Accept,
 }
@@ -584,11 +601,18 @@ impl Handler<GetEventAction> for Project {
     type Result = Response<EventAction, ProjectError>;
 
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
-        // Check for an eventual rate limit. Note that we have to ensure that the computation of the
-        // backoff duration must yield a positive number or it would otherwise panic.
-        if let Some(ref retry_after) = self.retry_after {
-            if !retry_after.can_retry() {
-                return Response::ok(EventAction::RetryAfter(retry_after.clone()));
+        // Check for an eventual rate limit. Note that we need to check for all variants of
+        // RetryAfterScope, otherwise we might miss a rate limit.
+        for scope in RetryAfterScope::get_variants(&message.meta) {
+            if let Entry::Occupied(entry) = self.retry_after.entry(scope.clone()) {
+                if entry.get().can_retry() {
+                    entry.remove_entry();
+                } else {
+                    return Response::ok(EventAction::RetryAfter(RateLimited(
+                        scope,
+                        entry.get().clone(),
+                    )));
+                }
             }
         }
 
@@ -631,21 +655,26 @@ impl RetryAfter {
     }
 }
 
-impl Message for RetryAfter {
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct RateLimited(pub RetryAfterScope, pub RetryAfter);
+
+impl Message for RateLimited {
     type Result = ();
 }
 
-impl Handler<RetryAfter> for Project {
+impl Handler<RateLimited> for Project {
     type Result = ();
 
-    fn handle(&mut self, message: RetryAfter, _context: &mut Self::Context) -> Self::Result {
-        if let Some(ref old_value) = self.retry_after {
-            if old_value.when > message.when {
+    fn handle(&mut self, message: RateLimited, _context: &mut Self::Context) -> Self::Result {
+        let RateLimited(scope, value) = message;
+
+        if let Some(ref old_value) = self.retry_after.get(&scope) {
+            if old_value.when > value.when {
                 return;
             }
         }
 
-        self.retry_after = Some(message);
+        self.retry_after.insert(scope, value);
     }
 }
 

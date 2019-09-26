@@ -24,7 +24,7 @@ use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
-    ProjectState, RetryAfter,
+    ProjectState, RateLimited, RetryAfter, RetryAfterScope,
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
@@ -79,7 +79,7 @@ enum ProcessingError {
     StoreFailed(#[cause] StoreError),
 
     #[fail(display = "sending failed due to rate limit: {:?}", _0)]
-    RateLimited(RetryAfter),
+    RateLimited(RateLimited),
 
     #[fail(display = "failed to apply quotas")]
     QuotasFailed(#[cause] QuotasError),
@@ -197,7 +197,11 @@ impl EventProcessor {
                     .map_err(ProcessingError::QuotasFailed)?;
 
                 if let Some(retry_after) = rate_limit {
-                    return Err(ProcessingError::RateLimited(retry_after));
+                    // TODO: Use quota prefix to determine scope
+                    return Err(ProcessingError::RateLimited(RateLimited(
+                        RetryAfterScope::Key(key_config.public_key.clone()),
+                        retry_after,
+                    )));
                 }
             }
         }
@@ -572,6 +576,8 @@ impl Handler<HandleEvent> for EventManager {
                             return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
                         }
 
+                        let public_key = meta.auth().public_key().to_string();
+
                         log::trace!("sending event to sentry endpoint {}", event_id);
                         let request = SendRequest::post(format!("/api/{}/store/", project_id))
                             .build(move |builder| {
@@ -592,10 +598,15 @@ impl Handler<HandleEvent> for EventManager {
                             .and_then(move |result| {
                                 result.map_err(move |error| match error {
                                     UpstreamRequestError::RateLimited(secs) => {
-                                        ProcessingError::RateLimited(RetryAfter {
-                                            when: Instant::now() + Duration::from_secs(secs),
-                                            reason_code: None,
-                                        })
+                                        ProcessingError::RateLimited(RateLimited(
+                                            // TODO: Maybe add a header that tells us the value for
+                                            // RetryAfterScope?
+                                            RetryAfterScope::Key(public_key),
+                                            RetryAfter {
+                                                when: Instant::now() + Duration::from_secs(secs),
+                                                reason_code: None,
+                                            }
+                                        ))
                                     }
                                     other => ProcessingError::SendFailed(other),
                                 })

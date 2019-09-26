@@ -13,7 +13,7 @@ use semaphore_common::Config;
 use semaphore_general::filter::FilterStatKey;
 use semaphore_general::protocol::EventId;
 
-use crate::actors::project::RetryAfter;
+use crate::actors::project::RateLimited;
 use crate::body::StorePayloadError;
 use crate::endpoints::store::BadStoreRequest;
 use crate::utils::instant_to_system_time;
@@ -104,7 +104,7 @@ impl Message for TrackOutcome {
 pub enum Outcome {
     Accepted,
     Filtered(FilterStatKey),
-    RateLimited(RetryAfter),
+    RateLimited(RateLimited),
     Invalid(DiscardReason),
     Abuse,
 }
@@ -137,7 +137,7 @@ impl Outcome {
             Outcome::Accepted => None,
             Outcome::Invalid(discard_reason) => Some(discard_reason.name()),
             Outcome::Filtered(filter_key) => Some(filter_key.name()),
-            Outcome::RateLimited(retry_after) => {
+            Outcome::RateLimited(RateLimited(_, retry_after)) => {
                 retry_after.reason_code.as_ref().map(String::as_str)
             }
             Outcome::Abuse => None,
@@ -164,7 +164,9 @@ impl From<&BadStoreRequest> for Outcome {
                 Outcome::Invalid(DiscardReason::from(payload_error))
             }
 
-            BadStoreRequest::RateLimited(retry_after) => Outcome::RateLimited(retry_after.clone()),
+            BadStoreRequest::RateLimited(rate_limited) => {
+                Outcome::RateLimited(rate_limited.clone())
+            }
         }
     }
 }
