@@ -806,7 +806,7 @@ impl FromStr for SkipSerialization {
             "null_deep" => SkipSerialization::Null(true),
             "empty" => SkipSerialization::Empty(false),
             "empty_deep" => SkipSerialization::Empty(true),
-            _ => Err(())?,
+            _ => return Err(()),
         })
     }
 }
