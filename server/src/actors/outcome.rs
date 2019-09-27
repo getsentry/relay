@@ -378,7 +378,6 @@ mod real_implementation {
             Box::new(future)
         }
     }
-
 }
 
 /// This is a shell implementation that doesn't do anything it is here to cleanly isolate the
@@ -422,5 +421,4 @@ mod no_op_implementation {
             Box::new(futures::future::ok(()))
         }
     }
-
 }

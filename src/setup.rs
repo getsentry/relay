@@ -59,7 +59,7 @@ pub fn init_logging(config: &Config) {
             .sentry_dsn()
             .map(|dsn| dsn.to_string().parse().unwrap()),
         in_app_include: vec!["semaphore_common::", "semaphore_server::", "semaphore::"],
-        release: sentry::sentry_crate_release!(),
+        release: sentry::release_name!(),
         ..Default::default()
     });
 
