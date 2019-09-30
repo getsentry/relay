@@ -16,7 +16,7 @@ use serde::Serialize;
 
 use rmp_serde::encode::Error as SerdeError;
 
-use semaphore_common::{tryf, Config, KafkaTopic};
+use semaphore_common::{metric, tryf, Config, KafkaTopic};
 use semaphore_general::protocol::EventId;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
@@ -146,7 +146,10 @@ impl Handler<StoreEvent> for StoreForwarder {
             .producer
             .send(record, 0)
             .then(|result| match result {
-                Ok(Ok(_)) => Ok(()),
+                Ok(Ok(_)) => {
+                    metric!(counter("processing.event.produced") += 1, "type" => "event");
+                    Ok(())
+                }
                 Ok(Err((kafka_error, _message))) => Err(StoreError::SendFailed(kafka_error)),
                 Err(_) => Err(StoreError::Canceled),
             })
