@@ -56,6 +56,30 @@ pub enum BadStoreRequest {
     EventRejected(DiscardReason),
 }
 
+impl BadStoreRequest {
+    fn to_outcome(&self) -> Outcome {
+        match self {
+            BadStoreRequest::BadProject(_) => Outcome::Invalid(DiscardReason::ProjectId),
+
+            BadStoreRequest::UnsupportedProtocolVersion(_) => {
+                Outcome::Invalid(DiscardReason::UnsupportedProtocolVersion)
+            }
+
+            BadStoreRequest::ScheduleFailed(_)
+            | BadStoreRequest::ProjectFailed(_)
+            | BadStoreRequest::ProcessingFailed(_) => Outcome::Invalid(DiscardReason::Internal),
+
+            BadStoreRequest::EventRejected(reason) => Outcome::Invalid(*reason),
+
+            BadStoreRequest::PayloadError(payload_error) => {
+                Outcome::Invalid(payload_error.discard_reason())
+            }
+
+            BadStoreRequest::RateLimited(retry_after) => Outcome::RateLimited(retry_after.clone()),
+        }
+    }
+}
+
 impl ResponseError for BadStoreRequest {
     fn error_response(&self) -> HttpResponse {
         let body = ApiErrorResponse::from_fail(self);
@@ -179,7 +203,7 @@ fn store_event(
                 project_id: Some(project_id),
                 org_id: None,
                 key_id: None,
-                outcome: Outcome::from(&error),
+                outcome: error.to_outcome(),
                 event_id: None,
                 remote_addr,
             });

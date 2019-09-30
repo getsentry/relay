@@ -63,14 +63,20 @@ fn healthcheck_processing(state: CurrentServiceState) -> ResponseFuture<HttpResp
     }
 }
 
-pub fn configure_scope(scope: Scope<ServiceState>) -> Scope<ServiceState> {
-    let scope = scope.resource("/healthcheck/", |r| {
+fn configure_scope_common(scope: Scope<ServiceState>) -> Scope<ServiceState> {
+    scope.resource("/healthcheck/", |r| {
         r.method(Method::GET).with(healthcheck);
-    });
+    })
+}
 
-    #[cfg(feature = "processing")]
-    let scope = scope.resource("/healthcheck_processing/", |r| {
+#[cfg(feature = "processing")]
+pub fn configure_scope(scope: Scope<ServiceState>) -> Scope<ServiceState> {
+    configure_scope_common(scope).resource("/healthcheck_processing/", |r| {
         r.method(Method::GET).with(healthcheck_processing);
-    });
-    scope
+    })
+}
+
+#[cfg(not(feature = "processing"))]
+pub fn configure_scope(scope: Scope<ServiceState>) -> Scope<ServiceState> {
+    configure_scope_common(scope)
 }
