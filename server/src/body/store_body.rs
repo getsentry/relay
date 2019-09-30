@@ -77,7 +77,7 @@ impl StoreBody {
                     limit: 262_144,
                     length: Some(value.len()),
                     stream: None,
-                    result: Some(Self::decode_bytes(value.to_string().into())),
+                    result: Some(Self::decode_bytes(value.as_bytes())),
                     fut: None,
                 }
             } else {
@@ -108,9 +108,9 @@ impl StoreBody {
         }
     }
 
-    fn decode_bytes(body: Bytes) -> Result<Bytes, StorePayloadError> {
-        if body.starts_with(b"{") {
-            return Ok(body);
+    fn decode_bytes<B: Into<Bytes> + AsRef<[u8]>>(body: B) -> Result<Bytes, StorePayloadError> {
+        if body.as_ref().starts_with(b"{") {
+            return Ok(body.into());
         }
 
         // TODO: Switch to a streaming decoder
