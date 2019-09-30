@@ -1,6 +1,7 @@
 //! This module contains the actor that forwards events and attachments to the Sentry store.
 //! The actor uses kafka topics to forward data to Sentry
 
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -101,14 +102,18 @@ struct EventKafkaMessage {
     event_id: String,
     /// The project id for the current event.
     project_id: u64,
+    /// The client ip address.
+    remote_addr: Option<String>,
 }
 
 /// Message sent to the StoreForwarder containing an event
+#[derive(Clone, Debug)]
 pub struct StoreEvent {
     pub event_id: EventId,
     pub payload: Bytes,
     pub start_time: Instant,
     pub project_id: u64,
+    pub remote_addr: Option<IpAddr>,
 }
 
 impl Message for StoreEvent {
@@ -127,6 +132,7 @@ impl Handler<StoreEvent> for StoreForwarder {
             ty: KafkaMessageType::Event,
             event_id: message.event_id.to_string(),
             project_id: message.project_id,
+            remote_addr: message.remote_addr.map(|addr| addr.to_string()),
         };
 
         let serialized_message =
