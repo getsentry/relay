@@ -238,6 +238,8 @@ def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kaf
     assert event_id is not None
     project_id = v.get('project_id')
     assert project_id is not None
+    remote_addr = v.get('remote_addr')
+    assert remote_addr is not None
 
     event = json.load(io.BytesIO(payload))
 

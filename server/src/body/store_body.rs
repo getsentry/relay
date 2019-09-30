@@ -9,6 +9,8 @@ use failure::Fail;
 use flate2::read::ZlibDecoder;
 use futures::prelude::*;
 
+use crate::actors::outcome::DiscardReason;
+
 /// A set of errors that can occur during parsing json payloads
 #[derive(Fail, Debug)]
 pub enum StorePayloadError {
@@ -31,6 +33,19 @@ pub enum StorePayloadError {
     /// Internal Payload streaming error
     #[fail(display = "failed to read request payload")]
     Payload(#[cause] PayloadError),
+}
+
+impl StorePayloadError {
+    /// Returns the outcome discard reason for this payload error.
+    pub fn discard_reason(&self) -> DiscardReason {
+        match self {
+            StorePayloadError::Overflow => DiscardReason::PayloadTooLarge,
+            StorePayloadError::UnknownLength => DiscardReason::UnknownPayloadLength,
+            StorePayloadError::Decode(_) => DiscardReason::InvalidPayloadFormat,
+            StorePayloadError::Zlib(_) => DiscardReason::InvalidPayloadFormat,
+            StorePayloadError::Payload(_) => DiscardReason::InvalidPayloadFormat,
+        }
+    }
 }
 
 impl ResponseError for StorePayloadError {
