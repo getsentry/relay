@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::{self, Read};
 
 use actix::ResponseFuture;
@@ -69,33 +70,18 @@ pub struct StoreBody {
 impl StoreBody {
     /// Create `StoreBody` for request.
     pub fn new<S>(req: &HttpRequest<S>) -> Self {
-        if req.method() == "GET" {
-            if let Some((_, value)) = form_urlencoded::parse(req.query_string().as_bytes())
-                .find(|(key, _)| key == "sentry_data")
-            {
-                StoreBody {
-                    limit: 262_144,
-                    length: Some(value.len()),
-                    stream: None,
-                    result: Some(Self::decode_bytes(value.as_bytes())),
-                    fut: None,
-                }
-            } else {
-                StoreBody::err(StorePayloadError::UnknownLength)
+        if let Some(body) = data_from_querystring(req) {
+            StoreBody {
+                limit: 262_144,
+                length: Some(body.len()),
+                stream: None,
+                result: Some(decode_bytes(body.as_bytes())),
+                fut: None,
             }
         } else {
-            let length = if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
-                if let Ok(s) = l.to_str() {
-                    if let Ok(l) = s.parse::<usize>() {
-                        Some(l)
-                    } else {
-                        return StoreBody::err(StorePayloadError::UnknownLength);
-                    }
-                } else {
-                    return StoreBody::err(StorePayloadError::UnknownLength);
-                }
-            } else {
-                None
+            let length = match get_content_length(req) {
+                Ok(x) => x,
+                Err(e) => return StoreBody::err(e),
             };
 
             StoreBody {
@@ -106,23 +92,6 @@ impl StoreBody {
                 fut: None,
             }
         }
-    }
-
-    fn decode_bytes<B: Into<Bytes> + AsRef<[u8]>>(body: B) -> Result<Bytes, StorePayloadError> {
-        if body.as_ref().starts_with(b"{") {
-            return Ok(body.into());
-        }
-
-        // TODO: Switch to a streaming decoder
-        // see https://github.com/alicemaz/rust-base64/pull/56
-        let binary_body = base64::decode(&body).map_err(StorePayloadError::Decode)?;
-        let mut decode_stream = ZlibDecoder::new(binary_body.as_slice());
-        let mut bytes = vec![];
-        decode_stream
-            .read_to_end(&mut bytes)
-            .map_err(StorePayloadError::Zlib)?;
-
-        Ok(Bytes::from(bytes))
     }
 
     /// Change max size of payload. By default max size is 256Kb
@@ -175,10 +144,54 @@ impl Future for StoreBody {
                     Ok(body)
                 }
             })
-            .and_then(|body| Self::decode_bytes(body.freeze()));
+            .and_then(|body| decode_bytes(body.freeze()));
 
         self.fut = Some(Box::new(future));
 
         self.poll()
+    }
+}
+
+fn data_from_querystring<S>(req: &HttpRequest<S>) -> Option<Cow<'_, str>> {
+    if req.method() != "GET" {
+        return None;
+    }
+
+    let (_, value) = form_urlencoded::parse(req.query_string().as_bytes())
+        .find(|(key, _)| key == "sentry_data")?;
+
+    Some(value)
+}
+
+fn decode_bytes<B: Into<Bytes> + AsRef<[u8]>>(body: B) -> Result<Bytes, StorePayloadError> {
+    if body.as_ref().starts_with(b"{") {
+        return Ok(body.into());
+    }
+
+    // TODO: Switch to a streaming decoder
+    // see https://github.com/alicemaz/rust-base64/pull/56
+    let binary_body = base64::decode(&body).map_err(StorePayloadError::Decode)?;
+    let mut decode_stream = ZlibDecoder::new(binary_body.as_slice());
+    let mut bytes = vec![];
+    decode_stream
+        .read_to_end(&mut bytes)
+        .map_err(StorePayloadError::Zlib)?;
+
+    Ok(Bytes::from(bytes))
+}
+
+fn get_content_length<S>(req: &HttpRequest<S>) -> Result<Option<usize>, StorePayloadError> {
+    if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
+        if let Ok(s) = l.to_str() {
+            if let Ok(l) = s.parse::<usize>() {
+                Ok(Some(l))
+            } else {
+                Err(StorePayloadError::UnknownLength)
+            }
+        } else {
+            Err(StorePayloadError::UnknownLength)
+        }
+    } else {
+        Ok(None)
     }
 }
