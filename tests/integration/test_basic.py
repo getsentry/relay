@@ -118,3 +118,25 @@ def test_local_project_config(mini_sentry, relay):
 
     relay.send_event(42)
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+
+
+@pytest.mark.parametrize("input", [
+    '{"message": "im in ur query params"}',
+    "eF6rVspNLS5OTE9VslJQysxVyMxTKC1SKCxNLapUKEgsSswtVqoFAOKyDI4="
+])
+def test_store_pixel_gif(mini_sentry, relay, input):
+    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    relay = relay(mini_sentry)
+
+    relay.wait_relay_healthcheck()
+
+    response = relay.get(
+        "/api/42/store/?sentry_data=%s"
+        "&sentry_key=%s" % (input, relay.dsn_public_key,)
+    )
+    response.raise_for_status()
+    assert response.headers['content-type'] == 'image/gif'
+
+    event = mini_sentry.captured_events.get(timeout=1)
+
+    assert event['logentry']['formatted'] == 'im in ur query params'

@@ -2,12 +2,14 @@ use std::io::{self, Read};
 
 use actix::ResponseFuture;
 use actix_web::http::{header, StatusCode};
+use actix_web::HttpRequest;
 use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
 use base64::DecodeError;
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
 use flate2::read::ZlibDecoder;
 use futures::prelude::*;
+use url::form_urlencoded;
 
 /// A set of errors that can occur during parsing json payloads
 #[derive(Fail, Debug)]
@@ -53,37 +55,74 @@ impl From<PayloadError> for StorePayloadError {
 }
 
 /// Future that resolves to a complete store endpoint body.
-pub struct StoreBody<T: HttpMessage> {
+pub struct StoreBody {
     limit: usize,
     length: Option<usize>,
-    stream: Option<T::Stream>,
-    err: Option<StorePayloadError>,
+
+    // These states are mutually exclusive, and only separate options due to borrowing
+    // problems:
+    result: Option<Result<Bytes, StorePayloadError>>,
     fut: Option<ResponseFuture<Bytes, StorePayloadError>>,
+    stream: Option<<HttpRequest as HttpMessage>::Stream>,
 }
 
-impl<T: HttpMessage> StoreBody<T> {
+impl StoreBody {
     /// Create `StoreBody` for request.
-    pub fn new(req: &T) -> StoreBody<T> {
-        let mut len = None;
-        if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
-            if let Ok(s) = l.to_str() {
-                if let Ok(l) = s.parse::<usize>() {
-                    len = Some(l)
-                } else {
-                    return Self::err(StorePayloadError::UnknownLength);
+    pub fn new<S>(req: &HttpRequest<S>) -> Self {
+        if req.method() == "GET" {
+            if let Some((_, value)) = form_urlencoded::parse(req.query_string().as_bytes())
+                .find(|(key, _)| key == "sentry_data")
+            {
+                StoreBody {
+                    limit: 262_144,
+                    length: Some(value.len()),
+                    stream: None,
+                    result: Some(Self::decode_bytes(value.to_string().into())),
+                    fut: None,
                 }
             } else {
-                return Self::err(StorePayloadError::UnknownLength);
+                StoreBody::err(StorePayloadError::UnknownLength)
+            }
+        } else {
+            let length = if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
+                if let Ok(s) = l.to_str() {
+                    if let Ok(l) = s.parse::<usize>() {
+                        Some(l)
+                    } else {
+                        return StoreBody::err(StorePayloadError::UnknownLength);
+                    }
+                } else {
+                    return StoreBody::err(StorePayloadError::UnknownLength);
+                }
+            } else {
+                None
+            };
+
+            StoreBody {
+                limit: 262_144,
+                length,
+                result: None,
+                stream: Some(req.payload()),
+                fut: None,
             }
         }
+    }
 
-        StoreBody {
-            limit: 262_144,
-            length: len,
-            stream: Some(req.payload()),
-            fut: None,
-            err: None,
+    fn decode_bytes(body: Bytes) -> Result<Bytes, StorePayloadError> {
+        if body.starts_with(b"{") {
+            return Ok(body);
         }
+
+        // TODO: Switch to a streaming decoder
+        // see https://github.com/alicemaz/rust-base64/pull/56
+        let binary_body = base64::decode(&body).map_err(StorePayloadError::Decode)?;
+        let mut decode_stream = ZlibDecoder::new(binary_body.as_slice());
+        let mut bytes = vec![];
+        decode_stream
+            .read_to_end(&mut bytes)
+            .map_err(StorePayloadError::Zlib)?;
+
+        Ok(Bytes::from(bytes))
     }
 
     /// Change max size of payload. By default max size is 256Kb
@@ -96,27 +135,24 @@ impl<T: HttpMessage> StoreBody<T> {
         StoreBody {
             stream: None,
             limit: 262_144,
+            result: Some(Err(e)),
             fut: None,
-            err: Some(e),
             length: None,
         }
     }
 }
 
-impl<T> Future for StoreBody<T>
-where
-    T: HttpMessage + 'static,
-{
+impl Future for StoreBody {
     type Item = Bytes;
     type Error = StorePayloadError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(ref mut fut) = self.fut {
-            return fut.poll();
+        if let Some(result) = self.result.take() {
+            return result.map(Async::Ready);
         }
 
-        if let Some(err) = self.err.take() {
-            return Err(err);
+        if let Some(ref mut fut) = self.fut {
+            return fut.poll();
         }
 
         if let Some(len) = self.length.take() {
@@ -139,23 +175,7 @@ where
                     Ok(body)
                 }
             })
-            .and_then(|body| {
-                if body.starts_with(b"{") {
-                    return Ok(body);
-                }
-
-                // TODO: Switch to a streaming decoder
-                // see https://github.com/alicemaz/rust-base64/pull/56
-                let binary_body = base64::decode(&body).map_err(StorePayloadError::Decode)?;
-                let mut decode_stream = ZlibDecoder::new(binary_body.as_slice());
-                let mut bytes = vec![];
-                decode_stream
-                    .read_to_end(&mut bytes)
-                    .map_err(StorePayloadError::Zlib)?;
-
-                Ok(BytesMut::from(bytes))
-            })
-            .map(BytesMut::freeze);
+            .and_then(|body| Self::decode_bytes(body.freeze()));
 
         self.fut = Some(Box::new(future));
 
