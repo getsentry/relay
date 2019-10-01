@@ -8,6 +8,7 @@ import uuid
 
 import pytest
 
+from requests.exceptions import HTTPError
 
 def test_store(mini_sentry, relay_chain):
     relay = relay_chain()
@@ -110,7 +111,8 @@ def test_rate_limit(mini_sentry, relay):
 
     # This event should get dropped by relay. We expect 429 here
     sleep(1)
-    relay.send_event(42, {"message": "invalid"})
+    with pytest.raises(HTTPError):
+        relay.send_event(42, {"message": "invalid"})
 
     # This event should arrive
     sleep(2)
@@ -170,7 +172,8 @@ def test_event_buffer_size(mini_sentry, relay):
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
-    relay.send_event(42, {"message": "pls ignore"})
+    with pytest.raises(HTTPError):
+        relay.send_event(42, {"message": "pls ignore"})
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=5))
 
 
