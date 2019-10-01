@@ -26,7 +26,7 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 // Transparent 1x1 gif
 // See http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
-static PIXEL: &'static [u8] =
+static PIXEL: &[u8] =
     b"GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;";
 
 #[derive(Fail, Debug)]
