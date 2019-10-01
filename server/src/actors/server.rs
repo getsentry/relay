@@ -2,7 +2,7 @@ use ::actix::prelude::*;
 use actix_web::server::StopServer;
 use futures::prelude::*;
 
-use semaphore_common::Config;
+use semaphore_common::{metric, Config};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::service::{self, ServiceState};
@@ -15,6 +15,7 @@ pub struct Server {
 
 impl Server {
     pub fn start(config: Config) -> Result<Addr<Self>, ServerError> {
+        metric!(counter("server.starting") += 1);
         let http_server = service::start(ServiceState::start(config)?)?;
         Ok(Server { http_server }.start())
     }
