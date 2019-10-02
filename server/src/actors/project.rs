@@ -21,7 +21,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;
 
-use semaphore_common::{Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
+use semaphore_common::{
+    metric, Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid,
+};
 use semaphore_general::{
     datascrubbing::DataScrubbingConfig, filter::FiltersConfig, pii::PiiConfig,
 };
@@ -170,6 +172,7 @@ impl Handler<GetProjectId> for Project {
     type Result = One<ProjectId>;
 
     fn handle(&mut self, _message: GetProjectId, _context: &mut Context<Self>) -> Self::Result {
+        metric!(set("unique_projects") = self.id as i64);
         One(self.id)
     }
 }
@@ -946,10 +949,20 @@ impl Handler<GetProject> for ProjectCache {
 
     fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
         let config = self.config.clone();
-        self.projects
-            .entry(message.id)
-            .or_insert_with(|| Project::new(message.id, config, context.address()).start())
-            .clone()
+        metric!(histogram("project_cache.size") = self.projects.len() as u64);
+        match self.projects.entry(message.id) {
+            Entry::Occupied(value) => {
+                metric!(counter("project_cache.hit") += 1);
+                value.get().clone()
+            }
+            Entry::Vacant(_) => {
+                metric!(counter("project_cache.miss") += 1);
+                let new_val = Project::new(message.id, config, context.address()).start();
+                let ret_val = new_val.clone();
+                self.projects.insert(message.id, new_val);
+                ret_val
+            }
+        }
     }
 }
 
