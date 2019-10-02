@@ -174,6 +174,8 @@ impl EventProcessor {
                 let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
                 process_value(&mut event, &mut store_processor, ProcessingState::root());
 
+                // Event filters assume a normalized event. Unfortunately, this requires us to run
+                // expensive normalization first.
                 if let Some(event) = event.value() {
                     let client_ip = message.meta.client_addr();
                     let filter_settings = &message.project_state.config.filter_settings;
@@ -185,6 +187,10 @@ impl EventProcessor {
             }
         }
 
+        // Run rate limiting after normalizing the event and running all filters. If the event is
+        // dropped or filtered for a different reason before that, it should not count against
+        // quotas. Also, this allows to reduce the number of requests to the rate limiter (currently
+        // implemented in Redis).
         if let Some(organization_id) = message.project_state.organization_id {
             let key_config = message
                 .project_state
@@ -198,10 +204,8 @@ impl EventProcessor {
 
                 if let Some(retry_after) = rate_limit {
                     // TODO: Use quota prefix to determine scope
-                    return Err(ProcessingError::RateLimited(RateLimit(
-                        RateLimitScope::Key(key_config.public_key.clone()),
-                        retry_after,
-                    )));
+                    let scope = RateLimitScope::Key(key_config.public_key.clone());
+                    return Err(ProcessingError::RateLimited(RateLimit(scope, retry_after)));
                 }
             }
         }
