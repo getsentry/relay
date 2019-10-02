@@ -55,13 +55,14 @@ matrix:
         - redis-server
       script: make -e test-rust-all
 
-    # - name: "test: semaphore[macos]"
-    #   os: osx
-    #   language: generic
-    #   install:
-    #     - brew install redis
-    #     - brew services start redis
-    #   script: make -e test-rust-all
+    - name: "test: semaphore[macos]"
+      if: branch ~= /^release\/[\d.]+$/
+      os: osx
+      language: generic
+      install:
+        - brew install redis
+        - brew services start redis
+      script: make -e test-rust-all
 
     # -------------------------------------
     # PYTHON LIBRARY TESTS
