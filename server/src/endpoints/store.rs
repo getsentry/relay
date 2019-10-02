@@ -5,7 +5,7 @@ use std::sync::Arc;
 use actix::prelude::*;
 use actix_web::http::{Method, StatusCode};
 use actix_web::middleware::cors::Cors;
-use actix_web::{HttpRequest, HttpResponse, Json, ResponseError};
+use actix_web::{HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
 use futures::prelude::*;
 use sentry::Hub;
@@ -23,6 +23,11 @@ use crate::service::{ServiceApp, ServiceState};
 use crate::utils::ApiErrorResponse;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+
+// Transparent 1x1 gif
+// See http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
+static PIXEL: &[u8] =
+    b"GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;";
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -112,7 +117,7 @@ fn store_event(
     meta: EventMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
-) -> ResponseFuture<Json<StoreResponse>, BadStoreRequest> {
+) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let start_time = start_time.into_inner();
 
     // For now, we only handle <= v8 and drop everything else
@@ -138,6 +143,8 @@ fn store_event(
             ..Default::default()
         }));
     });
+
+    let is_get_request = request.method() == "GET";
 
     metric!(counter(&format!("event.protocol.v{}", meta.auth().version())) += 1);
 
@@ -179,7 +186,13 @@ fn store_event(
                         })
                         .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
-                        .map(|id| Json(StoreResponse { id }))
+                        .map(move |id| {
+                            if is_get_request {
+                                HttpResponse::Ok().content_type("image/gif").body(PIXEL)
+                            } else {
+                                HttpResponse::Ok().json(StoreResponse { id })
+                            }
+                        })
                 })
         })
         .map_err(move |error: BadStoreRequest| {
@@ -218,6 +231,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .max_age(3600)
         .resource(r"/api/{project:\d+}/store/", |r| {
             r.method(Method::POST).with(store_event);
+            r.method(Method::GET).with(store_event);
         })
         .register()
 }
