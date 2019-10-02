@@ -24,7 +24,7 @@ use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
-    ProjectState, RateLimited, RetryAfter, RetryAfterScope,
+    ProjectState, RateLimit, RateLimitScope, RetryAfter,
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::extractors::EventMeta;
@@ -79,7 +79,7 @@ enum ProcessingError {
     StoreFailed(#[cause] StoreError),
 
     #[fail(display = "sending failed due to rate limit: {:?}", _0)]
-    RateLimited(RateLimited),
+    RateLimited(RateLimit),
 
     #[fail(display = "failed to apply quotas")]
     QuotasFailed(#[cause] QuotasError),
@@ -198,8 +198,8 @@ impl EventProcessor {
 
                 if let Some(retry_after) = rate_limit {
                     // TODO: Use quota prefix to determine scope
-                    return Err(ProcessingError::RateLimited(RateLimited(
-                        RetryAfterScope::Key(key_config.public_key.clone()),
+                    return Err(ProcessingError::RateLimited(RateLimit(
+                        RateLimitScope::Key(key_config.public_key.clone()),
                         retry_after,
                     )));
                 }
@@ -599,10 +599,10 @@ impl Handler<HandleEvent> for EventManager {
                             .and_then(move |result| {
                                 result.map_err(move |error| match error {
                                     UpstreamRequestError::RateLimited(secs) => {
-                                        ProcessingError::RateLimited(RateLimited(
+                                        ProcessingError::RateLimited(RateLimit(
                                             // TODO: Maybe add a header that tells us the value for
-                                            // RetryAfterScope?
-                                            RetryAfterScope::Key(public_key),
+                                            // RateLimitScope?
+                                            RateLimitScope::Key(public_key),
                                             RetryAfter {
                                                 when: Instant::now() + Duration::from_secs(secs),
                                                 reason_code: None,

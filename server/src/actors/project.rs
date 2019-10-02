@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
+use std::iter;
 use std::mem;
 use std::path::Path;
 use std::sync::Arc;
@@ -46,18 +47,13 @@ pub enum ProjectError {
 impl ResponseError for ProjectError {}
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum RetryAfterScope {
+pub enum RateLimitScope {
     Key(String),
-    Project,
 }
 
-impl RetryAfterScope {
-    fn get_variants(meta: &EventMeta) -> impl Iterator<Item = RetryAfterScope> {
-        Some(RetryAfterScope::Project)
-            .into_iter()
-            .chain(Some(RetryAfterScope::Key(
-                meta.auth().public_key().to_owned(),
-            )))
+impl RateLimitScope {
+    fn iter_variants(meta: &EventMeta) -> impl Iterator<Item = RateLimitScope> {
+        iter::once(RateLimitScope::Key(meta.auth().public_key().to_owned()))
     }
 }
 
@@ -67,7 +63,7 @@ pub struct Project {
     manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
-    retry_after: HashMap<RetryAfterScope, RetryAfter>,
+    rate_limits: HashMap<RateLimitScope, RetryAfter>,
     is_local: bool,
 }
 
@@ -79,7 +75,7 @@ impl Project {
             manager,
             state: None,
             state_channel: None,
-            retry_after: HashMap::new(),
+            rate_limits: HashMap::new(),
             is_local: false,
         }
     }
@@ -588,7 +584,7 @@ pub enum EventAction {
     /// The event should be discarded.
     Discard(DiscardReason),
     /// The event should be discarded and the client should back off for some time.
-    RetryAfter(RateLimited),
+    RetryAfter(RateLimit),
     /// The event should be processed and sent to upstream.
     Accept,
 }
@@ -602,21 +598,25 @@ impl Handler<GetEventAction> for Project {
 
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
         // Check for an eventual rate limit. Note that we need to check for all variants of
-        // RetryAfterScope, otherwise we might miss a rate limit.
-        for scope in RetryAfterScope::get_variants(&message.meta) {
-            if let Entry::Occupied(entry) = self.retry_after.entry(scope.clone()) {
-                if entry.get().can_retry() {
-                    entry.remove_entry();
+        // RateLimitScope, otherwise we might miss a rate limit.
+        let rate_limit = RateLimitScope::iter_variants(&message.meta)
+            .filter_map(|scope| {
+                if let Entry::Occupied(entry) = self.rate_limits.entry(scope.clone()) {
+                    if entry.get().can_retry() {
+                        entry.remove_entry();
+                        None
+                    } else {
+                        Some(RateLimit(scope, entry.get().clone()))
+                    }
                 } else {
-                    return Response::ok(EventAction::RetryAfter(RateLimited(
-                        scope,
-                        entry.get().clone(),
-                    )));
+                    None
                 }
-            }
-        }
+            })
+            .max_by_key(|rate_limit| rate_limit.remaining_seconds());
 
-        if message.fetch {
+        if let Some(rate_limit) = rate_limit {
+            Response::ok(EventAction::RetryAfter(rate_limit))
+        } else if message.fetch {
             // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
             // This will return synchronously if the state is still cached.
             let config = self.config.clone();
@@ -656,25 +656,35 @@ impl RetryAfter {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct RateLimited(pub RetryAfterScope, pub RetryAfter);
+pub struct RateLimit(pub RateLimitScope, pub RetryAfter);
 
-impl Message for RateLimited {
+impl RateLimit {
+    pub fn reason_code(&self) -> Option<&str> {
+        Some(&self.1.reason_code.as_ref()?)
+    }
+
+    pub fn remaining_seconds(&self) -> u64 {
+        self.1.remaining_seconds()
+    }
+}
+
+impl Message for RateLimit {
     type Result = ();
 }
 
-impl Handler<RateLimited> for Project {
+impl Handler<RateLimit> for Project {
     type Result = ();
 
-    fn handle(&mut self, message: RateLimited, _context: &mut Self::Context) -> Self::Result {
-        let RateLimited(scope, value) = message;
+    fn handle(&mut self, message: RateLimit, _context: &mut Self::Context) -> Self::Result {
+        let RateLimit(scope, value) = message;
 
-        if let Some(ref old_value) = self.retry_after.get(&scope) {
+        if let Some(ref old_value) = self.rate_limits.get(&scope) {
             if old_value.when > value.when {
                 return;
             }
         }
 
-        self.retry_after.insert(scope, value);
+        self.rate_limits.insert(scope, value);
     }
 }
 
