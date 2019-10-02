@@ -289,11 +289,12 @@ def test_quotas(mini_sentry, relay_with_processing, kafka_consumer):
 
     hit_rate_limit = False
 
-    for _ in range(10):
+    for _ in range(20):
         try:
             relay.send_event(42, {"message": "some_message"})
         except HTTPError:
             hit_rate_limit = True
+            break
 
     assert hit_rate_limit
 
