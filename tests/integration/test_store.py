@@ -277,13 +277,16 @@ def test_quotas(mini_sentry, relay_with_processing, kafka_consumer):
 
     mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
     public_keys = projectconfig['publicKeys']
-    single_key, = public_keys
-    single_key['quotas'] = quotas = [{
+    limited_key, = public_keys
+    limited_key['quotas'] = quotas = [{
         "prefix": "test_rate_limiting_{}".format(uuid.uuid4().hex),
         "limit": 5,
-        "window": 60,
+        "window": 3600,
         "reason_code": "get_lost"
     }]
+
+    second_key = {"publicKey": "31a5a894b4524f74a9a8d0e27e21ba92", "isEnabled": True, "numericId": 1234, "quotas": []}
+    public_keys.append(second_key)
 
     consumer = kafka_consumer("events")
 
@@ -305,3 +308,13 @@ def test_quotas(mini_sentry, relay_with_processing, kafka_consumer):
 
     message = consumer.poll(timeout=20)
     assert message is None
+
+    relay.dsn_public_key = second_key["publicKey"]
+
+    for _ in range(10):
+        relay.send_event(42, {"message": "some_message2"})
+
+    for _ in range(5):
+        message = consumer.poll(timeout=20)
+        assert message is not None
+        assert message.error() is None

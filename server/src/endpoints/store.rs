@@ -16,7 +16,7 @@ use semaphore_common::{metric, tryf, ProjectId, ProjectIdParseError};
 use semaphore_general::protocol::EventId;
 
 use crate::actors::events::{EventError, QueueEvent};
-use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RetryAfter};
+use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
 use crate::body::{StoreBody, StorePayloadError};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
@@ -50,7 +50,7 @@ pub enum BadStoreRequest {
     PayloadError(#[cause] StorePayloadError),
 
     #[fail(display = "event rejected due to rate limit: {:?}", _0)]
-    RateLimited(RetryAfter),
+    RateLimited(RateLimit),
 
     #[fail(display = "event submission rejected with_reason:{:?}", _0)]
     EventRejected(DiscardReason),
@@ -85,7 +85,7 @@ impl ResponseError for BadStoreRequest {
         let body = ApiErrorResponse::from_fail(self);
 
         match self {
-            BadStoreRequest::RateLimited(retry_after) => {
+            BadStoreRequest::RateLimited(RateLimit(_, retry_after)) => {
                 // For rate limits, we return a special status code and indicate the client to hold
                 // off until the rate limit period has expired. Currently, we only support the
                 // delay-seconds variant of the Rate-Limit header.

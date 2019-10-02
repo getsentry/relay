@@ -14,7 +14,7 @@ use semaphore_common::Config;
 use semaphore_general::filter::FilterStatKey;
 use semaphore_general::protocol::EventId;
 
-use crate::actors::project::RetryAfter;
+use crate::actors::project::RateLimit;
 use crate::ServerError;
 
 // Choose the outcome module implementation (either the real one or the fake, no-op one).
@@ -64,7 +64,7 @@ pub enum Outcome {
     Filtered(FilterStatKey),
 
     /// The event has been rate limited.
-    RateLimited(RetryAfter),
+    RateLimited(RateLimit),
 
     /// The event has been discarded because of invalid data.
     Invalid(DiscardReason),
@@ -155,9 +155,7 @@ mod real_implementation {
                 Outcome::Accepted => None,
                 Outcome::Invalid(discard_reason) => Some(discard_reason.name()),
                 Outcome::Filtered(filter_key) => Some(filter_key.name()),
-                Outcome::RateLimited(retry_after) => {
-                    retry_after.reason_code.as_ref().map(String::as_str)
-                }
+                Outcome::RateLimited(rate_limit) => rate_limit.reason_code(),
                 Outcome::Abuse => None,
             }
         }

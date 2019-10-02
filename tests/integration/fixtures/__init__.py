@@ -10,6 +10,8 @@ session = requests.session()
 class SentryLike(object):
     _healthcheck_passed = False
 
+    dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
+
     @property
     def url(self):
         return "http://{}:{}".format(*self.server_address)
@@ -35,10 +37,6 @@ class SentryLike(object):
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
-
-    @property
-    def dsn_public_key(self):
-        return "31a5a894b4524f74a9a8d0e27e21ba91"
 
     @property
     def dsn(self):
