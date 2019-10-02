@@ -55,13 +55,13 @@ matrix:
         - redis-server
       script: make -e test-rust-all
 
-    - name: "test: semaphore[macos]"
-      os: osx
-      language: generic
-      install:
-        - brew install redis
-        - brew services start redis
-      script: make -e test-rust-all
+    # - name: "test: semaphore[macos]"
+    #   os: osx
+    #   language: generic
+    #   install:
+    #     - brew install redis
+    #     - brew services start redis
+    #   script: make -e test-rust-all
 
     # -------------------------------------
     # PYTHON LIBRARY TESTS
@@ -100,6 +100,7 @@ matrix:
     # -------------------------------------
 
     - name: "release: semaphore[linux]"
+      if: branch ~= /^release\/[\d.]+$/
       os: linux
       language: generic
       before_install: skip
@@ -126,6 +127,7 @@ matrix:
     #                   target/i686-unknown-linux-gnu/release/semaphore
 
     - name: "release: semaphore[macos]"
+      if: branch ~= /^release\/[\d.]+$/
       os: osx
       language: generic
       script:
@@ -140,6 +142,7 @@ matrix:
     # -------------------------------------
 
     - name: "release: libsemaphore[linux-x86]"
+      if: branch ~= /^release\/[\d.]+$/
       os: linux
       sudo: required
       env: BUILD_ARCH=i686
@@ -150,6 +153,7 @@ matrix:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: libsemaphore[linux-x86_64]"
+      if: branch ~= /^release\/[\d.]+$/
       sudo: required
       env: BUILD_ARCH=x86_64
       language: generic
@@ -159,6 +163,7 @@ matrix:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: libsemaphore[macos]"
+      if: branch ~= /^release\/[\d.]+$/
       os: osx
       language: generic
       osx_image: xcode7.3
@@ -169,6 +174,7 @@ matrix:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: libsemaphore[sdist]"
+      if: branch ~= /^release\/[\d.]+$/
       os: linux
       sudo: required
       language: generic
