@@ -287,8 +287,15 @@ def test_quotas(mini_sentry, relay_with_processing, kafka_consumer):
 
     consumer = kafka_consumer("events")
 
+    hit_rate_limit = False
+
     for _ in range(10):
-        relay.send_event(42, {"message": "some_message"})
+        try:
+            relay.send_event(42, {"message": "some_message"})
+        except HTTPError:
+            hit_rate_limit = True
+
+    assert hit_rate_limit
 
     for i in range(5):
         message = consumer.poll(timeout=20)
