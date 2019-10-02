@@ -71,6 +71,10 @@ matrix:
       os: linux
       script: make -e test-python
 
+    - name: "test: libsemaphore[py2]"
+      os: linux
+      script: make -e SEMAPHORE_PYTHON_VERSION=python2 test-python
+
     # -------------------------------------
     # EXECUTALE INTEGRATION TESTS
     # -------------------------------------
