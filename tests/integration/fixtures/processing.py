@@ -11,23 +11,12 @@ from confluent_kafka.admin import AdminClient
 
 
 @pytest.fixture
-def get_topic_name(request):
+def get_topic_name(worker_id):
     """
     Generate a unique topic name for each test
     """
 
-    # Use this counter to use a new topic for test reruns in case the old one
-    # is busted.
-    counter = request.node.sentry_execution_count = \
-        getattr(request.node, "sentry_execution_count", 0) + 1
-
-    def inner(topic: str):
-        assert topic in ("events", "attachments", "transactions", "outcomes")
-        rv = f"semaphore-{request.node.name}-{topic}-{counter}"
-        print("using topic: ", rv)
-        return rv
-
-    return inner
+    return lambda topic: f"semaphore-test-{topic}-{worker_id}"
 
 
 @pytest.fixture
@@ -93,15 +82,6 @@ def relay_with_processing(relay, mini_sentry, processing_config, get_topic_name)
         for elm in options['processing']['kafka_config']:
             kafka_config[elm['name']] = elm['value']
 
-        admin_client = AdminClient(kafka_config)
-        try:
-            _sync_wait_on_result(admin_client.delete_topics([
-                get_topic_name(topic)
-                for topic in ("events", "outcomes")
-            ]))
-        except Exception:
-            pass
-
         return relay(mini_sentry, options=options)
 
     return inner
@@ -136,6 +116,10 @@ def kafka_consumer(request, get_topic_name, processing_config):
         consumer = kafka.Consumer(settings)
         consumer.subscribe(topics)
         request.addfinalizer(consumer.unsubscribe)
+
+        while consumer.poll(timeout=0.1) is not None:
+            pass
+
 
         return consumer
 
