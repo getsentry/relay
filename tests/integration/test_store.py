@@ -213,38 +213,30 @@ def test_max_concurrent_requests(mini_sentry, relay):
     store_count.acquire(timeout=4)
 
 
-def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kafka(mini_sentry, relay_with_processing, kafka_consumer):
+def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kafka(mini_sentry, relay_with_processing, events_consumer):
     """
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = mini_sentry.full_project_config()
-    # MUST create consumer before sending the event
-    consumer = kafka_consumer("events")
+
+    events_consumer = events_consumer()
+
     # create a unique message so we can make sure we don't test with stale data
     message_text = "some message {}".format(datetime.datetime.now())
     relay.send_event(42, {"message": message_text, "extra": {"msg_text": message_text}})
-    # polling first message can take a few good seconds
-    message = consumer.poll(timeout=20)
-    assert message is not None
-    assert message.error() is None
-    val = message.value()
-    print("message is : {}", val)
-    v = msgpack.unpackb(val, raw=False, use_list=False)
-    msg_type = v['ty']  # a tuple with messageType, message type payload ( 0, () )
-    assert msg_type[0] == 0  # KafkaMessageType::Event
+
+    event, v = events_consumer.get_event()
+
     start_time = v.get('start_time')
     assert start_time is not None  # we have some start time field
-    payload = v['payload']
     event_id = v.get('event_id')
     assert event_id is not None
     project_id = v.get('project_id')
     assert project_id is not None
     remote_addr = v.get('remote_addr')
     assert remote_addr is not None
-
-    event = json.load(io.BytesIO(payload))
 
     # check that we are actually retrieving the message that we sent
     assert event.get('extra') is not None
@@ -271,7 +263,7 @@ def test_when_processing_is_not_enabled_relay_does_not_normalize_events(mini_sen
     assert event.get('version') is None
 
 
-def test_quotas(mini_sentry, relay_with_processing, kafka_consumer):
+def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_consumer):
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
 
@@ -288,33 +280,31 @@ def test_quotas(mini_sentry, relay_with_processing, kafka_consumer):
     second_key = {"publicKey": "31a5a894b4524f74a9a8d0e27e21ba92", "isEnabled": True, "numericId": 1234, "quotas": []}
     public_keys.append(second_key)
 
-    consumer = kafka_consumer("events")
-
-    hit_rate_limit = False
-
-    for _ in range(20):
-        try:
-            relay.send_event(42, {"message": "some_message"})
-        except HTTPError:
-            hit_rate_limit = True
-            break
-
-    assert hit_rate_limit
+    events_consumer = events_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     for i in range(5):
-        message = consumer.poll(timeout=20)
-        assert message is not None
-        assert message.error() is None
+        relay.send_event(42, {"message": f"regular{i}"})
 
-    message = consumer.poll(timeout=20)
-    assert message is None
+        event, _ = events_consumer.get_event()
+        assert event['logentry']['formatted'] == f"regular{i}"
+
+    # this one will not get a 429 but still get rate limited (silently) because
+    # of our caching
+    relay.send_event(42, {"message": "some_message"})
+
+    outcomes_consumer.assert_rate_limited()
+
+    for _ in range(5):
+        with pytest.raises(HTTPError):
+            relay.send_event(42, {"message": "rate_limited"})
+
+        outcomes_consumer.assert_rate_limited()
 
     relay.dsn_public_key = second_key["publicKey"]
 
-    for _ in range(10):
-        relay.send_event(42, {"message": "some_message2"})
+    for i in range(10):
+        relay.send_event(42, {"message": f"otherkey{i}"})
+        event, _ = events_consumer.get_event()
 
-    for _ in range(5):
-        message = consumer.poll(timeout=20)
-        assert message is not None
-        assert message.error() is None
+        assert event['logentry']['formatted'] == f"otherkey{i}"
