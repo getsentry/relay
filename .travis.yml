@@ -72,6 +72,7 @@ matrix:
       script: make -e test-python
 
     - name: "test: libsemaphore[py2]"
+      python: "2.7"
       os: linux
       script: make -e SEMAPHORE_PYTHON_VERSION=python2 test-python
 
