@@ -2,7 +2,6 @@ import datetime
 import time
 
 import requests
-import sentry_sdk
 
 session = requests.session()
 

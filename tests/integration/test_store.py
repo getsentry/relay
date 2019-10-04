@@ -1,9 +1,7 @@
 import json
 import os
-import io
 import queue
 import datetime
-import msgpack
 import uuid
 
 import pytest
@@ -270,7 +268,7 @@ def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_co
     mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
     public_keys = projectconfig['publicKeys']
     limited_key, = public_keys
-    limited_key['quotas'] = quotas = [{
+    limited_key['quotas'] = [{
         "prefix": "test_rate_limiting_{}".format(uuid.uuid4().hex),
         "limit": 5,
         "window": 3600,

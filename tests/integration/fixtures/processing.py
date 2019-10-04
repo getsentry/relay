@@ -5,9 +5,6 @@ import pytest
 import os
 import confluent_kafka as kafka
 from copy import deepcopy
-from typing import Optional
-
-from confluent_kafka.admin import AdminClient
 
 
 @pytest.fixture
