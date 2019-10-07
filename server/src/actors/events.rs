@@ -120,118 +120,116 @@ impl EventProcessor {
 
     fn process(&self, message: &ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
         log::trace!("processing event {}", message.event_id);
-        metric! {timer("event_processing.total_time"), {
-            let mut event = metric!{ timer("event_processing.deserialize"), {
-                Annotated::<Event>::from_json_bytes(&message.data).map_err(|error| {
-                    if message.log_failed_payloads {
-                        let mut event = event_from_fail(&error);
-                        message.add_to_sentry_event(&mut event);
-                        sentry::capture_event(event);
-                    }
-
-                    ProcessingError::InvalidJson(error)
-                })?
-            }};
-
-            if let Some(event) = event.value_mut() {
-                event.id = Annotated::new(message.event_id);
-            }
-
-            metric!{timer("event_processing.pii"), {
-                for pii_config in message.project_state.config.pii_configs() {
-                    let mut processor = PiiProcessor::new(pii_config);
-                    process_value(&mut event, &mut processor, ProcessingState::root());
+        let mut event = metric! { timer("event_processing.deserialize"), {
+            Annotated::<Event>::from_json_bytes(&message.data).map_err(|error| {
+                if message.log_failed_payloads {
+                    let mut event = event_from_fail(&error);
+                    message.add_to_sentry_event(&mut event);
+                    sentry::capture_event(event);
                 }
-            }}
 
-            #[cfg(feature = "processing")]
-            {
-                if self.config.processing_enabled() {
-                    let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
-                    let auth = message.meta.auth();
-                    let key_id = message
-                        .project_state
-                        .get_public_key_config(&auth.public_key())
-                        .and_then(|k| Some(k.numeric_id?.to_string()));
+                ProcessingError::InvalidJson(error)
+            })?
+        }};
 
-                    if key_id.is_none() {
-                        log::error!(
-                            "can't find key in project config, but we verified auth before already"
-                        );
-                    }
+        if let Some(event) = event.value_mut() {
+            event.id = Annotated::new(message.event_id);
+        }
 
-                    let store_config = StoreConfig {
-                        project_id: Some(message.project_id),
-                        client_ip: message.meta.client_addr().map(From::from),
-                        client: auth.client_agent().map(str::to_owned),
-                        key_id,
-                        protocol_version: Some(auth.version().to_string()),
-                        grouping_config: message.project_state.config.grouping_config.clone(),
-                        valid_platforms: Default::default(), // TODO(ja): Pending removal
-                        max_secs_in_future: Some(self.config.max_secs_in_future()),
-                        max_secs_in_past: Some(self.config.max_secs_in_past()),
-                        enable_trimming: Some(true),
-                        is_renormalize: Some(false),
-                        remove_other: Some(true),
-                        normalize_user_agent: Some(true),
-                    };
-
-                    let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
-                    metric!{timer("event_processing.process"), {
-                        process_value(&mut event, &mut store_processor, ProcessingState::root());
-                    }}
-
-                    // Event filters assume a normalized event. Unfortunately, this requires us to run
-                    // expensive normalization first.
-                    if let Some(event) = event.value() {
-                        let client_ip = message.meta.client_addr();
-                        let filter_settings = &message.project_state.config.filter_settings;
-                        let filter_result = metric!{timer("event_processing.filtering"), {
-                                should_filter(event, client_ip, filter_settings)
-                        }};
-
-                        if let Err(reason) =  filter_result {
-                            // If the event should be filtered, no more processing is needed
-                            return Ok(ProcessEventResponse::Filtered { reason });
-                        }
-                    }
-                }
+        metric! {timer("event_processing.pii"), {
+            for pii_config in message.project_state.config.pii_configs() {
+                let mut processor = PiiProcessor::new(pii_config);
+                process_value(&mut event, &mut processor, ProcessingState::root());
             }
+        }}
 
-            // Run rate limiting after normalizing the event and running all filters. If the event is
-            // dropped or filtered for a different reason before that, it should not count against
-            // quotas. Also, this allows to reduce the number of requests to the rate limiter (currently
-            // implemented in Redis).
-            if let Some(organization_id) = message.project_state.organization_id {
-                let key_config = message
+        #[cfg(feature = "processing")]
+        {
+            if self.config.processing_enabled() {
+                let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
+                let auth = message.meta.auth();
+                let key_id = message
                     .project_state
-                    .get_public_key_config(&message.meta.auth().public_key());
+                    .get_public_key_config(&auth.public_key())
+                    .and_then(|k| Some(k.numeric_id?.to_string()));
 
-                if let Some(key_config) = key_config {
-                    let rate_limit = metric!{timer("event_processing.rate_limiting"), {
-                        self
-                            .rate_limiter
-                            .is_rate_limited(&key_config.quotas, organization_id)
-                            .map_err(ProcessingError::QuotasFailed)?
+                if key_id.is_none() {
+                    log::error!(
+                        "can't find key in project config, but we verified auth before already"
+                    );
+                }
+
+                let store_config = StoreConfig {
+                    project_id: Some(message.project_id),
+                    client_ip: message.meta.client_addr().map(From::from),
+                    client: auth.client_agent().map(str::to_owned),
+                    key_id,
+                    protocol_version: Some(auth.version().to_string()),
+                    grouping_config: message.project_state.config.grouping_config.clone(),
+                    valid_platforms: Default::default(), // TODO(ja): Pending removal
+                    max_secs_in_future: Some(self.config.max_secs_in_future()),
+                    max_secs_in_past: Some(self.config.max_secs_in_past()),
+                    enable_trimming: Some(true),
+                    is_renormalize: Some(false),
+                    remove_other: Some(true),
+                    normalize_user_agent: Some(true),
+                };
+
+                let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
+                metric! {timer("event_processing.process"), {
+                    process_value(&mut event, &mut store_processor, ProcessingState::root());
+                }}
+
+                // Event filters assume a normalized event. Unfortunately, this requires us to run
+                // expensive normalization first.
+                if let Some(event) = event.value() {
+                    let client_ip = message.meta.client_addr();
+                    let filter_settings = &message.project_state.config.filter_settings;
+                    let filter_result = metric! {timer("event_processing.filtering"), {
+                            should_filter(event, client_ip, filter_settings)
                     }};
 
-                    if let Some(retry_after) = rate_limit {
-                        // TODO: Use quota prefix to determine scope
-                        let scope = RateLimitScope::Key(key_config.public_key.clone());
-                        return Err(ProcessingError::RateLimited(RateLimit(scope, retry_after)));
+                    if let Err(reason) = filter_result {
+                        // If the event should be filtered, no more processing is needed
+                        return Ok(ProcessEventResponse::Filtered { reason });
                     }
                 }
             }
+        }
 
-            let data = metric!{timer("event_processing.serialization"), {
-                event
-                    .to_json()
-                    .map_err(ProcessingError::SerializeFailed)?
-                    .into()
-            }};
+        // Run rate limiting after normalizing the event and running all filters. If the event is
+        // dropped or filtered for a different reason before that, it should not count against
+        // quotas. Also, this allows to reduce the number of requests to the rate limiter (currently
+        // implemented in Redis).
+        if let Some(organization_id) = message.project_state.organization_id {
+            let key_config = message
+                .project_state
+                .get_public_key_config(&message.meta.auth().public_key());
 
-            Ok(ProcessEventResponse::Valid { data })
-        }}
+            if let Some(key_config) = key_config {
+                let rate_limit = metric! {timer("event_processing.rate_limiting"), {
+                    self
+                        .rate_limiter
+                        .is_rate_limited(&key_config.quotas, organization_id)
+                        .map_err(ProcessingError::QuotasFailed)?
+                }};
+
+                if let Some(retry_after) = rate_limit {
+                    // TODO: Use quota prefix to determine scope
+                    let scope = RateLimitScope::Key(key_config.public_key.clone());
+                    return Err(ProcessingError::RateLimited(RateLimit(scope, retry_after)));
+                }
+            }
+        }
+
+        let data = metric! {timer("event_processing.serialization"), {
+            event
+                .to_json()
+                .map_err(ProcessingError::SerializeFailed)?
+                .into()
+        }};
+
+        Ok(ProcessEventResponse::Valid { data })
     }
 }
 
