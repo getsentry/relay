@@ -21,7 +21,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;
 
-use semaphore_common::{Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
+use semaphore_common::{
+    metric, Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid,
+};
 use semaphore_general::{
     datascrubbing::DataScrubbingConfig, filter::FiltersConfig, pii::PiiConfig,
 };
@@ -88,6 +90,8 @@ impl Project {
         &mut self,
         context: &mut Context<Self>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
+        // count number of times we are looking for the project state
+        metric!(counter("project_state.get") += 1);
         if let Some(ref state) = self.state {
             // In case the state is fetched from a local file, don't use own caching logic. Rely on
             // `ProjectCache#local_states` for caching.
@@ -170,6 +174,7 @@ impl Handler<GetProjectId> for Project {
     type Result = One<ProjectId>;
 
     fn handle(&mut self, _message: GetProjectId, _context: &mut Context<Self>) -> Self::Result {
+        metric!(set("unique_projects") = self.id as i64);
         One(self.id)
     }
 }
@@ -774,7 +779,8 @@ impl ProjectCache {
             #[cfg(feature = "processing")]
             full_config: self.config.processing_enabled(),
         };
-
+        // count number of http requests for project states
+        metric!(counter("project_state.request") += 1);
         self.upstream
             .send(SendQuery(request))
             .map_err(ProjectError::ScheduleFailed)
@@ -784,6 +790,8 @@ impl ProjectCache {
                     Ok(mut response) => {
                         slf.backoff.reset();
 
+                        // count number of project states returned (via http requests)
+                        metric!(counter("project_state.received") += channels.len() as i64);
                         for (id, channel) in channels {
                             let state = response
                                 .configs
@@ -946,10 +954,20 @@ impl Handler<GetProject> for ProjectCache {
 
     fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
         let config = self.config.clone();
-        self.projects
-            .entry(message.id)
-            .or_insert_with(|| Project::new(message.id, config, context.address()).start())
-            .clone()
+        metric!(histogram("project_cache.size") = self.projects.len() as u64);
+        match self.projects.entry(message.id) {
+            Entry::Occupied(value) => {
+                metric!(counter("project_cache.hit") += 1);
+                value.get().clone()
+            }
+            Entry::Vacant(_) => {
+                metric!(counter("project_cache.miss") += 1);
+                let new_val = Project::new(message.id, config, context.address()).start();
+                let ret_val = new_val.clone();
+                self.projects.insert(message.id, new_val);
+                ret_val
+            }
+        }
     }
 }
 

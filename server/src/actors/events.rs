@@ -120,24 +120,28 @@ impl EventProcessor {
 
     fn process(&self, message: &ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
         log::trace!("processing event {}", message.event_id);
-        let mut event = Annotated::<Event>::from_json_bytes(&message.data).map_err(|error| {
-            if message.log_failed_payloads {
-                let mut event = event_from_fail(&error);
-                message.add_to_sentry_event(&mut event);
-                sentry::capture_event(event);
-            }
+        let mut event = metric! { timer("event_processing.deserialize"), {
+            Annotated::<Event>::from_json_bytes(&message.data).map_err(|error| {
+                if message.log_failed_payloads {
+                    let mut event = event_from_fail(&error);
+                    message.add_to_sentry_event(&mut event);
+                    sentry::capture_event(event);
+                }
 
-            ProcessingError::InvalidJson(error)
-        })?;
+                ProcessingError::InvalidJson(error)
+            })?
+        }};
 
         if let Some(event) = event.value_mut() {
             event.id = Annotated::new(message.event_id);
         }
 
-        for pii_config in message.project_state.config.pii_configs() {
-            let mut processor = PiiProcessor::new(pii_config);
-            process_value(&mut event, &mut processor, ProcessingState::root());
-        }
+        metric! {timer("event_processing.pii"), {
+            for pii_config in message.project_state.config.pii_configs() {
+                let mut processor = PiiProcessor::new(pii_config);
+                process_value(&mut event, &mut processor, ProcessingState::root());
+            }
+        }}
 
         #[cfg(feature = "processing")]
         {
@@ -172,14 +176,20 @@ impl EventProcessor {
                 };
 
                 let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
-                process_value(&mut event, &mut store_processor, ProcessingState::root());
+                metric! {timer("event_processing.process"), {
+                    process_value(&mut event, &mut store_processor, ProcessingState::root());
+                }}
 
                 // Event filters assume a normalized event. Unfortunately, this requires us to run
                 // expensive normalization first.
                 if let Some(event) = event.value() {
                     let client_ip = message.meta.client_addr();
                     let filter_settings = &message.project_state.config.filter_settings;
-                    if let Err(reason) = should_filter(event, client_ip, filter_settings) {
+                    let filter_result = metric! {timer("event_processing.filtering"), {
+                            should_filter(event, client_ip, filter_settings)
+                    }};
+
+                    if let Err(reason) = filter_result {
                         // If the event should be filtered, no more processing is needed
                         return Ok(ProcessEventResponse::Filtered { reason });
                     }
@@ -197,10 +207,12 @@ impl EventProcessor {
                 .get_public_key_config(&message.meta.auth().public_key());
 
             if let Some(key_config) = key_config {
-                let rate_limit = self
-                    .rate_limiter
-                    .is_rate_limited(&key_config.quotas, organization_id)
-                    .map_err(ProcessingError::QuotasFailed)?;
+                let rate_limit = metric! {timer("event_processing.rate_limiting"), {
+                    self
+                        .rate_limiter
+                        .is_rate_limited(&key_config.quotas, organization_id)
+                        .map_err(ProcessingError::QuotasFailed)?
+                }};
 
                 if let Some(retry_after) = rate_limit {
                     // TODO: Use quota prefix to determine scope
@@ -210,10 +222,12 @@ impl EventProcessor {
             }
         }
 
-        let data = event
-            .to_json()
-            .map_err(ProcessingError::SerializeFailed)?
-            .into();
+        let data = metric! {timer("event_processing.serialization"), {
+            event
+                .to_json()
+                .map_err(ProcessingError::SerializeFailed)?
+                .into()
+        }};
 
         Ok(ProcessEventResponse::Valid { data })
     }
@@ -427,6 +441,12 @@ impl Handler<QueueEvent> for EventManager {
             .map(|event| event.id)
             .map_err(EventError::InvalidJson)?
             .unwrap_or_else(|| EventId(Uuid::new_v4()));
+
+        metric!(histogram("event.queue_size") = u64::from(self.current_active_events));
+
+        let queue_size_pct =
+            self.current_active_events as f32 * 100.0 / self.config.event_buffer_size() as f32;
+        metric!(histogram("event.queue_size.pct") = queue_size_pct.floor() as u64);
 
         if self.config.event_buffer_size() <= self.current_active_events {
             return Err(EventError::TooManyEvents);

@@ -107,6 +107,34 @@ macro_rules! metric {
         })
     }};
 
+    // histograms
+    (histogram($id:expr) = $value:expr) => {{
+        use $crate::metrics::_pred::*;
+        $crate::metrics::with_client(|client| { client.histogram($id, $value).ok(); })
+    }};
+    (histogram($id:expr) = $value:expr, $($k:expr => $v:expr),*) => {{
+        use $crate::metrics::_pred::*;
+        $crate::metrics::with_client(|client| {
+            client.histogram_with_tags($id, $value)
+                $(.with_tag($k, $v))*
+                .send();
+        })
+    }};
+
+    // sets ( count unique occurrences of a value per time interval)
+    (set($id:expr) = $value:expr) => {{
+        use $crate::metrics::_pred::*;
+        $crate::metrics::with_client(|client| { client.set($id, $value).ok(); })
+    }};
+    (set($id:expr) = $value:expr, $($k:expr => $v:expr),*) => {{
+        use $crate::metrics::_pred::*;
+        $crate::metrics::with_client(|client| {
+            client.set_with_tags($id, $value)
+                $(.with_tag($k, $v))*
+                .send();
+        })
+    }};
+
     // timers
     (timer($id:expr) = $value:expr) => {{
         use $crate::metrics::_pred::*;
