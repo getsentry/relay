@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.47
+
+**Normalization**:
+
+- Fix encoding issue in the Python layer of event normalization.
+
+**Store**:
+
+- Various work on re-implementing Sentry's `/api/X/store` endpoint in Relay.
+  Relay can now apply rate limits based on Redis and emit the correct outcomes.
+
 ## 0.4.46
 
 **Normalization**:
