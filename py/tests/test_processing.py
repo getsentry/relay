@@ -138,10 +138,10 @@ def test_data_scrubbing_default_config():
     assert scrubbed == {
         "extra": {
             "foo": "bar",
-            "password": None,
-            "the_secret": None,
-            "a_password_here": None,
-            "api_key": None,
-            "apiKey": None,
+            "password": "[filtered]",
+            "the_secret": "[filtered]",
+            "a_password_here": "[filtered]",
+            "api_key": "[filtered]",
+            "apiKey": "[filtered]",
         }
     }
