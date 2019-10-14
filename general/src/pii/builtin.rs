@@ -114,7 +114,7 @@ declare_builtin_rules! {
     "@ip:filter" => RuleSpec {
         ty: RuleType::Ip,
         redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[filtered]".into(),
+            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };
@@ -247,7 +247,7 @@ declare_builtin_rules! {
     "@creditcard:filter" => RuleSpec {
         ty: RuleType::Creditcard,
         redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[filtered]".into(),
+            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };
@@ -272,7 +272,7 @@ declare_builtin_rules! {
     "@pemkey:filter" => RuleSpec {
         ty: RuleType::Pemkey,
         redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[filtered]".into(),
+            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };
@@ -301,7 +301,7 @@ declare_builtin_rules! {
             replace_groups: Some([2].iter().copied().collect()),
         }),
         redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[filtered]".into(),
+            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };
@@ -326,7 +326,7 @@ declare_builtin_rules! {
     "@usssn:filter" => RuleSpec {
         ty: RuleType::UsSsn,
         redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[filtered]".into(),
+            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };
@@ -373,7 +373,7 @@ declare_builtin_rules! {
             key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),
         }),
         redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[filtered]".into(),
+            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };

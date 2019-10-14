@@ -11,7 +11,7 @@ expression: data
       ],
       [
         "password",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "baz",

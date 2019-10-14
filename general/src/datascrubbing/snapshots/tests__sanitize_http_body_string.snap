@@ -3,7 +3,7 @@ source: general/src/datascrubbing/convert.rs
 expression: data.value().unwrap().request
 ---
 {
-  "data": "[filtered]",
+  "data": "[Filtered]",
   "_meta": {
     "data": {
       "": {

@@ -5,25 +5,25 @@ expression: data
 {
   "request": {
     "data": {
-      "a_password_here": "[filtered]",
-      "apiKey": "[filtered]",
-      "api_key": "[filtered]",
+      "a_password_here": "[Filtered]",
+      "apiKey": "[Filtered]",
+      "api_key": "[Filtered]",
       "foo": "bar",
-      "password": "[filtered]",
-      "the_secret": "[filtered]"
+      "password": "[Filtered]",
+      "the_secret": "[Filtered]"
     },
     "cookies": [
       [
         "a_password_here",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "apiKey",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "api_key",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "foo",
@@ -31,25 +31,25 @@ expression: data
       ],
       [
         "password",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "the_secret",
-        "[filtered]"
+        "[Filtered]"
       ]
     ],
     "headers": [
       [
         "A_password_here",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "ApiKey",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "Api_key",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "Foo",
@@ -57,20 +57,20 @@ expression: data
       ],
       [
         "Password",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "The_secret",
-        "[filtered]"
+        "[Filtered]"
       ]
     ],
     "env": {
-      "a_password_here": "[filtered]",
-      "apiKey": "[filtered]",
-      "api_key": "[filtered]",
+      "a_password_here": "[Filtered]",
+      "apiKey": "[Filtered]",
+      "api_key": "[Filtered]",
       "foo": "bar",
-      "password": "[filtered]",
-      "the_secret": "[filtered]"
+      "password": "[Filtered]",
+      "the_secret": "[Filtered]"
     }
   },
   "_meta": {

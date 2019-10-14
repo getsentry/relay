@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "foo": "foo [filtered]"
+    "foo": "foo [Filtered]"
   },
   "_meta": {
     "extra": {

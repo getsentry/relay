@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "s": "\"\"-----BEGIN PUBLIC KEY-----\n[filtered]\n-----END PUBLIC KEY-----\"\""
+    "s": "\"\"-----BEGIN PUBLIC KEY-----\n[Filtered]\n-----END PUBLIC KEY-----\"\""
   },
   "_meta": {
     "extra": {

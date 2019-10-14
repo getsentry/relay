@@ -7,12 +7,12 @@ expression: data
     "frames": [
       {
         "vars": {
-          "a_password_here": "[filtered]",
-          "apiKey": "[filtered]",
-          "api_key": "[filtered]",
+          "a_password_here": "[Filtered]",
+          "apiKey": "[Filtered]",
+          "api_key": "[Filtered]",
           "foo": "bar",
-          "password": "[filtered]",
-          "the_secret": "[filtered]"
+          "password": "[Filtered]",
+          "the_secret": "[Filtered]"
         }
       }
     ]

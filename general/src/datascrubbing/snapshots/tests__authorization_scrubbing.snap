@@ -5,8 +5,8 @@ expression: data
 {
   "extra": {
     "auXth": "foobar",
-    "auth": "[filtered]",
-    "authorization": "[filtered]"
+    "auth": "[Filtered]",
+    "authorization": "[Filtered]"
   },
   "_meta": {
     "extra": {

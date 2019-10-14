@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "foo": "pg://matt:[filtered]@localhost/1"
+    "foo": "pg://matt:[Filtered]@localhost/1"
   },
   "_meta": {
     "extra": {

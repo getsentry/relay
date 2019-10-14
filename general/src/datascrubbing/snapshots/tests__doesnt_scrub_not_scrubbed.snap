@@ -5,7 +5,7 @@ expression: data
 {
   "extra": {
     "test1": {
-      "is_authenticated": "[filtered]"
+      "is_authenticated": "[Filtered]"
     },
     "test2": {
       "is_authenticated": "null"

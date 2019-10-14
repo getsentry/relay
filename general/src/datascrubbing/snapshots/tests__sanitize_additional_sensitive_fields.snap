@@ -4,14 +4,14 @@ expression: data
 ---
 {
   "extra": {
-    "a_password_here": "[filtered]",
-    "apiKey": "[filtered]",
-    "api_key": "[filtered]",
-    "fieldy_field": "[filtered]",
+    "a_password_here": "[Filtered]",
+    "apiKey": "[Filtered]",
+    "api_key": "[Filtered]",
+    "fieldy_field": "[Filtered]",
     "foo": "bar",
-    "moar_other_field": "[filtered]",
-    "password": "[filtered]",
-    "the_secret": "[filtered]"
+    "moar_other_field": "[Filtered]",
+    "password": "[Filtered]",
+    "the_secret": "[Filtered]"
   },
   "_meta": {
     "extra": {

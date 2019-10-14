@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "MYSQL_PWD": "[filtered]"
+    "MYSQL_PWD": "[Filtered]"
   },
   "_meta": {
     "extra": {

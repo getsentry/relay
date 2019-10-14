@@ -55,7 +55,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
                                 .unwrap(),
                         ),
                     }),
-                    redaction: Redaction::Replace("[filtered]".to_owned().into()),
+                    redaction: Redaction::Replace("[Filtered]".to_owned().into()),
                 },
             );
 
@@ -224,7 +224,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "keyPattern": ".*(fieldy_field|moar_other_field).*",
               "redaction": {
                 "method": "replace",
-                "text": "[filtered]"
+                "text": "[Filtered]"
               }
             }
           },
@@ -1039,7 +1039,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "keyPattern": ".*(session_key).*",
               "redaction": {
                 "method": "replace",
-                "text": "[filtered]"
+                "text": "[Filtered]"
               }
             }
           },

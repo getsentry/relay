@@ -11,19 +11,19 @@ expression: data
       ],
       [
         "password",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "the_secret",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "a_password_here",
-        "[filtered]"
+        "[Filtered]"
       ],
       [
         "api_key",
-        "[filtered]"
+        "[Filtered]"
       ]
     ]
   },

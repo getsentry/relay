@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "foo": "'redis://redis:[filtered]@localhost:6379/0'"
+    "foo": "'redis://redis:[Filtered]@localhost:6379/0'"
   },
   "_meta": {
     "extra": {
