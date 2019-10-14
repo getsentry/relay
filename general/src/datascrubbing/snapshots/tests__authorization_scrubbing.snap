@@ -5,8 +5,8 @@ expression: data
 {
   "extra": {
     "auXth": "foobar",
-    "auth": null,
-    "authorization": null
+    "auth": "[filtered]",
+    "authorization": "[filtered]"
   },
   "_meta": {
     "extra": {
@@ -15,9 +15,12 @@ expression: data
           "rem": [
             [
               "@password:filter",
-              "x"
+              "s",
+              0,
+              10
             ]
-          ]
+          ],
+          "len": 6
         }
       },
       "authorization": {
@@ -25,9 +28,12 @@ expression: data
           "rem": [
             [
               "@password:filter",
-              "x"
+              "s",
+              0,
+              10
             ]
-          ]
+          ],
+          "len": 6
         }
       }
     }

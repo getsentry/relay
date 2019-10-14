@@ -1,0 +1,22 @@
+---
+source: general/src/datascrubbing/convert.rs
+expression: data.value().unwrap().request
+---
+{
+  "data": "[filtered]",
+  "_meta": {
+    "data": {
+      "": {
+        "rem": [
+          [
+            "@password:filter",
+            "s",
+            0,
+            10
+          ]
+        ],
+        "len": 48
+      }
+    }
+  }
+}

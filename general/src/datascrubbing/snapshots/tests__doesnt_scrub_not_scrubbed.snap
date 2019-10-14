@@ -5,7 +5,7 @@ expression: data
 {
   "extra": {
     "test1": {
-      "is_authenticated": null
+      "is_authenticated": "[filtered]"
     },
     "test2": {
       "is_authenticated": "null"
@@ -22,9 +22,12 @@ expression: data
             "rem": [
               [
                 "@password:filter",
-                "x"
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 6
           }
         }
       }

@@ -668,6 +668,30 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
+    fn test_sanitize_http_body_string() {
+        use crate::store::StoreProcessor;
+
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "data": r#"{"email":"zzzz@gmail.com","password":"zzzzz"}xxx"#
+                }
+            })
+            .into(),
+        );
+
+        // n.b.: In Rust we rely on store normalization to parse inline JSON
+
+        let mut store_processor = StoreProcessor::new(Default::default(), None);
+        process_value(&mut data, &mut store_processor, ProcessingState::root());
+
+        let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+        assert_annotated_snapshot!(data.value().unwrap().request);
+    }
+
+    #[test]
     fn test_does_not_fail_on_non_string() {
         let mut data = Event::from_value(
             serde_json::json!({

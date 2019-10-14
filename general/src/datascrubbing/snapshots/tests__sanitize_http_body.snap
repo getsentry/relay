@@ -5,7 +5,7 @@ expression: data.value().unwrap().request
 {
   "data": {
     "email": "zzzz@gmail.com",
-    "password": null
+    "password": "[filtered]"
   },
   "inferred_content_type": "application/json",
   "_meta": {
@@ -15,9 +15,12 @@ expression: data.value().unwrap().request
           "rem": [
             [
               "@password:filter",
-              "x"
+              "s",
+              0,
+              10
             ]
-          ]
+          ],
+          "len": 5
         }
       }
     }

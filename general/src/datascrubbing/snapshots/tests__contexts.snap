@@ -5,12 +5,12 @@ expression: data
 {
   "contexts": {
     "biz": {
-      "a_password_here": null,
-      "apiKey": null,
-      "api_key": null,
+      "a_password_here": "[filtered]",
+      "apiKey": "[filtered]",
+      "api_key": "[filtered]",
       "foo": "bar",
-      "password": null,
-      "the_secret": null,
+      "password": "[filtered]",
+      "the_secret": "[filtered]",
       "type": "biz"
     },
     "secret": null
@@ -23,9 +23,12 @@ expression: data
             "rem": [
               [
                 "@password:filter",
-                "x"
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 5
           }
         },
         "apiKey": {
@@ -33,9 +36,12 @@ expression: data
             "rem": [
               [
                 "@password:filter",
-                "x"
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 10
           }
         },
         "api_key": {
@@ -43,9 +49,12 @@ expression: data
             "rem": [
               [
                 "@password:filter",
-                "x"
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 10
           }
         },
         "password": {
@@ -53,9 +62,12 @@ expression: data
             "rem": [
               [
                 "@password:filter",
-                "x"
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 5
           }
         },
         "the_secret": {
@@ -63,9 +75,12 @@ expression: data
             "rem": [
               [
                 "@password:filter",
-                "x"
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 5
           }
         }
       },

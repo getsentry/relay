@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "mysql_pwd": null
+    "mysql_pwd": "[filtered]"
   },
   "_meta": {
     "extra": {
@@ -13,9 +13,12 @@ expression: data
           "rem": [
             [
               "@password:filter",
-              "x"
+              "s",
+              0,
+              10
             ]
-          ]
+          ],
+          "len": 7
         }
       }
     }

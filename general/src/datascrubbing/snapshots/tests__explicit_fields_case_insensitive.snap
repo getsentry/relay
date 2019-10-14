@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "MYSTUFF": null
+    "MYSTUFF": "[filtered]"
   },
   "_meta": {
     "extra": {
@@ -13,9 +13,12 @@ expression: data
           "rem": [
             [
               "strip-fields",
-              "x"
+              "s",
+              0,
+              10
             ]
-          ]
+          ],
+          "len": 3
         }
       }
     }
