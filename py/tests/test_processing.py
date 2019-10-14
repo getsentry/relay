@@ -13,6 +13,15 @@ CHUNKS = [
 ]
 META_WITH_CHUNKS = {"": {"rem": REMARKS, "chunks": CHUNKS}}
 
+PII_VARS = {
+    "foo": "bar",
+    "password": "hello",
+    "the_secret": "hello",
+    "a_password_here": "hello",
+    "api_key": "secret_key",
+    "apiKey": "secret_key",
+}
+
 
 def test_split_chunks():
     chunks = semaphore.split_chunks(TEXT, REMARKS)
@@ -83,3 +92,56 @@ def test_broken_json():
     assert "World" in event["logentry"]["formatted"]
     if not PY2:
         assert event["logentry"]["formatted"] != bad_str
+
+
+def test_data_scrubbing_missing_config():
+    event = {"extra": PII_VARS}
+    config = None
+
+    scrubbed = semaphore.scrub_event(config, event)
+    assert event == scrubbed
+
+
+def test_data_scrubbing_empty_config():
+    event = {"extra": PII_VARS}
+    config = {}
+
+    scrubbed = semaphore.scrub_event(config, event)
+    assert event == scrubbed
+
+
+def test_data_scrubbing_disabled_config():
+    event = {"extra": PII_VARS}
+    config = {
+        "scrubData": False,
+        "excludeFields": [],
+        "scrubIpAddresses": False,
+        "sensitiveFields": [],
+        "scrubDefaults": True,
+    }
+
+    scrubbed = semaphore.scrub_event(config, event)
+    assert event == scrubbed
+
+def test_data_scrubbing_default_config():
+    event = {"extra": PII_VARS}
+    config = {
+        "scrubData": True,
+        "excludeFields": [],
+        "scrubIpAddresses": True,
+        "sensitiveFields": [],
+        "scrubDefaults": True,
+    }
+
+    scrubbed = semaphore.scrub_event(config, event)
+    assert scrubbed.pop("_meta", None)
+    assert scrubbed == {
+        "extra": {
+            "foo": "bar",
+            "password": None,
+            "the_secret": None,
+            "a_password_here": None,
+            "api_key": None,
+            "apiKey": None,
+        }
+    }

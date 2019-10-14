@@ -2,14 +2,16 @@
 #![allow(clippy::cast_ptr_alignment)]
 
 use std::ffi::CStr;
-use std::slice;
 use std::os::raw::c_char;
+use std::slice;
 
+use json_forensics;
+use semaphore_general::datascrubbing::DataScrubbingConfig;
+use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, split_chunks, ProcessingState};
 use semaphore_general::protocol::Event;
 use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use semaphore_general::types::{Annotated, Remark};
-use json_forensics;
 
 use crate::core::SemaphoreStr;
 
@@ -91,5 +93,23 @@ ffi_fn! {
         let data = slice::from_raw_parts_mut((*event).data as *mut u8, (*event).len);
         json_forensics::translate_slice(data);
         Ok(true)
+    }
+}
+
+ffi_fn! {
+    unsafe fn semaphore_scrub_event(
+        config: *const SemaphoreStr,
+        event: *const SemaphoreStr,
+    ) -> Result<SemaphoreStr> {
+        let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
+        let mut processor = match config.pii_config() {
+            Some(pii_config) => PiiProcessor::new(pii_config),
+            None => return Ok(SemaphoreStr::new((*event).as_str())),
+        };
+
+        let mut event = Annotated::<Event>::from_json((*event).as_str())?;
+        process_value(&mut event, &mut processor, ProcessingState::root());
+
+        Ok(SemaphoreStr::from_string(event.to_json()?))
     }
 }
