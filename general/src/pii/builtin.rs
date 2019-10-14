@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 use lazy_static::lazy_static;
 
 use crate::pii::{
-    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, RedactPairRule,
-    Redaction, ReplaceRedaction, RuleSpec, RuleType,
+    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, PatternRule,
+    RedactPairRule, Redaction, ReplaceRedaction, RuleSpec, RuleType,
 };
 
 pub static BUILTIN_SELECTORS: &[&str] = &["text", "container"];
@@ -66,10 +66,9 @@ declare_builtin_rules! {
         ty: RuleType::Multiple(MultipleRule {
             rules: vec![
                 "@ip:filter".into(),
-                "@email:filter".into(),
                 "@creditcard:filter".into(),
                 "@pemkey:filter".into(),
-                "@urlauth:filter".into(),
+                "@urlauth:legacy".into(),
                 "@userpath:filter".into(),
                 "@password:filter".into(),
                 "@usssn:filter".into(),
@@ -218,13 +217,6 @@ declare_builtin_rules! {
         }),
         ..Default::default()
     };
-    "@email:filter" => RuleSpec {
-        ty: RuleType::Email,
-        redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[filtered]".into(),
-        }),
-        ..Default::default()
-    };
     "@email:hash" => RuleSpec {
         ty: RuleType::Email,
         redaction: Redaction::Hash(HashRedaction {
@@ -302,8 +294,12 @@ declare_builtin_rules! {
         }),
         ..Default::default()
     };
-    "@urlauth:filter" => RuleSpec {
-        ty: RuleType::UrlAuth,
+    "@urlauth:legacy" => RuleSpec {
+        ty: RuleType::Pattern(PatternRule {
+            // Regex copied from legacy Sentry `URL_PASSWORD_RE`
+            pattern: r"\b((?:[a-z0-9]+:)?//[a-zA-Z0-9%_.-]+:)([a-zA-Z0-9%_.-]+)@".into(),
+            replace_groups: Some([2].iter().copied().collect()),
+        }),
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[filtered]".into(),
         }),
