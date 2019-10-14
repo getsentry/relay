@@ -5,7 +5,13 @@ from semaphore._lowlevel import lib, ffi
 from semaphore.utils import encode_str, decode_str, rustcall, RustObject, attached_refs
 
 
-__all__ = ["split_chunks", "meta_with_chunks", "StoreNormalizer", "GeoIpLookup", "scrub_event"]
+__all__ = [
+    "split_chunks",
+    "meta_with_chunks",
+    "StoreNormalizer",
+    "GeoIpLookup",
+    "scrub_event",
+]
 
 
 def split_chunks(string, remarks):

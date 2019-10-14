@@ -123,6 +123,7 @@ def test_data_scrubbing_disabled_config():
     scrubbed = semaphore.scrub_event(config, event)
     assert event == scrubbed
 
+
 def test_data_scrubbing_default_config():
     event = {"extra": PII_VARS}
     config = {
