@@ -11,9 +11,9 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
     let mut applied_rules = Vec::new();
 
     if datascrubbing_config.scrub_data && datascrubbing_config.scrub_defaults {
-        applied_rules.push("@common".to_owned());
+        applied_rules.push("@common:filter".to_owned());
     } else if datascrubbing_config.scrub_ip_addresses {
-        applied_rules.push("@ip".to_owned());
+        applied_rules.push("@ip:filter".to_owned());
     }
 
     if datascrubbing_config.scrub_data {
@@ -180,7 +180,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "**": [
-              "@common"
+              "@common:filter"
             ]
           }
         }
@@ -202,7 +202,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "**": [
-              "@common"
+              "@common:filter"
             ]
           }
         }
@@ -233,7 +233,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "**": [
-              "@common",
+              "@common:filter",
               "strip-fields"
             ]
           }
@@ -256,7 +256,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "(~foobar)": [
-              "@common"
+              "@common:filter"
             ]
           }
         }
@@ -1024,7 +1024,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "**": [
-              "@common",
+              "@common:filter",
               "strip-fields"
             ]
           }

@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "foo": "foo redis://redis:[email]:6379/0 bar pg://matt:[email]/1"
+    "foo": "foo redis://redis:[filtered]:6379/0 bar pg://matt:[filtered]/1"
   },
   "_meta": {
     "extra": {
@@ -12,16 +12,16 @@ expression: data
         "": {
           "rem": [
             [
-              "@email",
+              "@email:filter",
               "s",
               18,
-              25
+              28
             ],
             [
-              "@email",
+              "@email:filter",
               "s",
-              47,
-              54
+              50,
+              60
             ]
           ],
           "len": 68

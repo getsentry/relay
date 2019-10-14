@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "csp": {
-    "blocked_uri": "https://example.com/?foo=[creditcard]&bar=baz"
+    "blocked_uri": "https://example.com/?foo=[filtered]&bar=baz"
   },
   "_meta": {
     "csp": {
@@ -12,10 +12,10 @@ expression: data
         "": {
           "rem": [
             [
-              "@creditcard",
+              "@creditcard:filter",
               "s",
               25,
-              37
+              35
             ]
           ],
           "len": 49

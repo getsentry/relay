@@ -61,6 +61,24 @@ declare_builtin_rules! {
         redaction: Redaction::Default,
         ..Default::default()
     };
+    // legacy data scrubbing equivalent
+    "@common:filter" => RuleSpec {
+        ty: RuleType::Multiple(MultipleRule {
+            rules: vec![
+                "@ip:filter".into(),
+                "@email:filter".into(),
+                "@creditcard:filter".into(),
+                "@pemkey:filter".into(),
+                "@urlauth:filter".into(),
+                "@userpath:filter".into(),
+                "@password:filter".into(),
+                "@usssn:filter".into(),
+            ],
+            hide_inner: false,
+        }),
+        redaction: Redaction::Default,
+        ..Default::default()
+    };
 
     // anything
     "@anything" => rule_alias!("@anything:replace");
@@ -91,6 +109,13 @@ declare_builtin_rules! {
         ty: RuleType::Ip,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[ip]".into(),
+        }),
+        ..Default::default()
+    };
+    "@ip:filter" => RuleSpec {
+        ty: RuleType::Ip,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[filtered]".into(),
         }),
         ..Default::default()
     };
@@ -193,6 +218,13 @@ declare_builtin_rules! {
         }),
         ..Default::default()
     };
+    "@email:filter" => RuleSpec {
+        ty: RuleType::Email,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[filtered]".into(),
+        }),
+        ..Default::default()
+    };
     "@email:hash" => RuleSpec {
         ty: RuleType::Email,
         redaction: Redaction::Hash(HashRedaction {
@@ -220,6 +252,13 @@ declare_builtin_rules! {
         }),
         ..Default::default()
     };
+    "@creditcard:filter" => RuleSpec {
+        ty: RuleType::Creditcard,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[filtered]".into(),
+        }),
+        ..Default::default()
+    };
     "@creditcard:hash" => RuleSpec {
         ty: RuleType::Creditcard,
         redaction: Redaction::Hash(HashRedaction {
@@ -235,6 +274,13 @@ declare_builtin_rules! {
         ty: RuleType::Pemkey,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[pemkey]".into(),
+        }),
+        ..Default::default()
+    };
+    "@pemkey:filter" => RuleSpec {
+        ty: RuleType::Pemkey,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[filtered]".into(),
         }),
         ..Default::default()
     };
@@ -256,6 +302,13 @@ declare_builtin_rules! {
         }),
         ..Default::default()
     };
+    "@urlauth:filter" => RuleSpec {
+        ty: RuleType::UrlAuth,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[filtered]".into(),
+        }),
+        ..Default::default()
+    };
     "@urlauth:hash" => RuleSpec {
         ty: RuleType::UrlAuth,
         redaction: Redaction::Hash(HashRedaction {
@@ -271,6 +324,13 @@ declare_builtin_rules! {
         ty: RuleType::UsSsn,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[us-ssn]".into(),
+        }),
+        ..Default::default()
+    };
+    "@usssn:filter" => RuleSpec {
+        ty: RuleType::UsSsn,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[filtered]".into(),
         }),
         ..Default::default()
     };
@@ -312,6 +372,15 @@ declare_builtin_rules! {
 
     // password field removal
     "@password" => rule_alias!("@password:remove");
+    "@password:filter" => RuleSpec {
+        ty: RuleType::RedactPair(RedactPairRule {
+            key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),
+        }),
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[filtered]".into(),
+        }),
+        ..Default::default()
+    };
     "@password:remove" => RuleSpec {
         ty: RuleType::RedactPair(RedactPairRule {
             key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),

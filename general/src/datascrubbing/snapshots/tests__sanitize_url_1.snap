@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "foo": "pg://matt:[email]/1"
+    "foo": "pg://matt:[filtered]/1"
   },
   "_meta": {
     "extra": {
@@ -12,10 +12,10 @@ expression: data
         "": {
           "rem": [
             [
-              "@email",
+              "@email:filter",
               "s",
               10,
-              17
+              20
             ]
           ],
           "len": 26

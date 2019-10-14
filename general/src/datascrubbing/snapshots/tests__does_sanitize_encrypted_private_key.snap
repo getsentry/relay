@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "s": "\"\"-----BEGIN ENCRYPTED PRIVATE KEY-----\n[pemkey]\n-----END ENCRYPTED PRIVATE KEY-----\"\""
+    "s": "\"\"-----BEGIN ENCRYPTED PRIVATE KEY-----\n[filtered]\n-----END ENCRYPTED PRIVATE KEY-----\"\""
   },
   "_meta": {
     "extra": {
@@ -12,10 +12,10 @@ expression: data
         "": {
           "rem": [
             [
-              "@pemkey",
+              "@pemkey:filter",
               "s",
               40,
-              48
+              50
             ]
           ],
           "len": 277

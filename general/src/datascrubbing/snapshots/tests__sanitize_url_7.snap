@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "foo": "{\"a\":\"https://localhost\",\"b\":\"[email]\",\"c\":\"pg://matt:[email]/1\",\"d\":\"lol\"}"
+    "foo": "{\"a\":\"https://localhost\",\"b\":\"[filtered]\",\"c\":\"pg://matt:[filtered]/1\",\"d\":\"lol\"}"
   },
   "_meta": {
     "extra": {
@@ -12,16 +12,16 @@ expression: data
         "": {
           "rem": [
             [
-              "@email",
+              "@email:filter",
               "s",
               30,
-              37
+              40
             ],
             [
-              "@email",
+              "@email:filter",
               "s",
-              54,
-              61
+              57,
+              67
             ]
           ],
           "len": 88

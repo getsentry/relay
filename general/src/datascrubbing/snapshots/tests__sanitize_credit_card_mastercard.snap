@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "foo": "[creditcard]"
+    "foo": "[filtered]"
   },
   "_meta": {
     "extra": {
@@ -12,10 +12,10 @@ expression: data
         "": {
           "rem": [
             [
-              "@creditcard",
+              "@creditcard:filter",
               "s",
               0,
-              12
+              10
             ]
           ],
           "len": 16
