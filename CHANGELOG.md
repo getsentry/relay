@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.48
+
+**Store**:
+
+- Fix various bugs in the datascrubber and PII processing code to get closer to behavior of the Python implementation.
+
 ## 0.4.47
 
 **Normalization**:
