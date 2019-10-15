@@ -42,7 +42,6 @@ pub struct Frame {
     ///
     /// Note that this might also include a class name if that is something the
     /// language natively considers to be part of the stack (for instance in Java).
-    #[metastructure(pii = "true")]
     #[metastructure(skip_serialization = "empty")]
     // TODO: Cap? This can be a FS path or a dotted path
     pub module: Annotated<String>,
@@ -51,18 +50,17 @@ pub struct Frame {
     ///
     /// For instance this can be a dylib for native languages, the name of the jar
     /// or .NET assembly.
-    #[metastructure(pii = "true")]
     #[metastructure(skip_serialization = "empty")]
     // TODO: Cap? This can be a FS path or a dotted path
     pub package: Annotated<String>,
 
     /// The source file name (basename only).
-    #[metastructure(pii = "true", max_chars = "path")]
+    #[metastructure(max_chars = "path")]
     #[metastructure(skip_serialization = "empty")]
     pub filename: Annotated<String>,
 
     /// Absolute path to the source file.
-    #[metastructure(pii = "true", max_chars = "path")]
+    #[metastructure(max_chars = "path")]
     #[metastructure(skip_serialization = "empty")]
     pub abs_path: Annotated<String>,
 
