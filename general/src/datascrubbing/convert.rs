@@ -621,7 +621,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     #[test]
     fn test_sanitize_url_7() {
         // Don't be too overly eager within JSON strings an catch the right field.
-        // n.b.: We accept the difference from Python, where "b" is not masked.
         sanitize_url_test(
             r#"{"a":"https://localhost","b":"foo@localhost","c":"pg://matt:pass@localhost/1","d":"lol"}"#,
         );
@@ -643,6 +642,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         assert_annotated_snapshot!(data);
     }
 
+    /// Ensure that valid JSON as request body is parsed as such, and that the PII stripping is
+    /// then more granular/sophisticated because we now understand the structure.
     #[test]
     fn test_sanitize_http_body() {
         use crate::store::StoreProcessor;
@@ -667,6 +668,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         assert_annotated_snapshot!(data.value().unwrap().request);
     }
 
+    /// Ensure that a request body that cannot be parsed by the store processor gets PII stripped
+    /// nevertheless.
     #[test]
     fn test_sanitize_http_body_string() {
         use crate::store::StoreProcessor;
@@ -680,7 +683,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        // n.b.: In Rust we rely on store normalization to parse inline JSON
+        // n.b.: In Rust we rely on store normalization to parse inline JSON.
 
         let mut store_processor = StoreProcessor::new(Default::default(), None);
         process_value(&mut data, &mut store_processor, ProcessingState::root());
