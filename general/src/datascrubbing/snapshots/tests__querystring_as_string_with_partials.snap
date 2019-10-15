@@ -11,7 +11,7 @@ expression: data
       ],
       [
         "password",
-        null
+        "[Filtered]"
       ],
       [
         "baz",
@@ -27,10 +27,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 0
             }
           }
         }

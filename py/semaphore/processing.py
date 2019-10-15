@@ -5,7 +5,13 @@ from semaphore._lowlevel import lib, ffi
 from semaphore.utils import encode_str, decode_str, rustcall, RustObject, attached_refs
 
 
-__all__ = ["split_chunks", "meta_with_chunks", "StoreNormalizer", "GeoIpLookup"]
+__all__ = [
+    "split_chunks",
+    "meta_with_chunks",
+    "StoreNormalizer",
+    "GeoIpLookup",
+    "scrub_event",
+]
 
 
 def split_chunks(string, remarks):
@@ -75,11 +81,34 @@ class StoreNormalizer(RustObject):
 
     def normalize_event(self, event=None, raw_event=None):
         if raw_event is None:
-            raw_event = json.dumps(event, ensure_ascii=False)
-            if isinstance(raw_event, text_type):
-                raw_event = raw_event.encode("utf-8", errors="replace")
+            raw_event = _serialize_event(event)
 
-        event = encode_str(raw_event, mutable=True)
-        rustcall(lib.semaphore_translate_legacy_python_json, event)
+        event = _encode_raw_event(raw_event)
         rv = self._methodcall(lib.semaphore_store_normalizer_normalize_event, event)
         return json.loads(decode_str(rv))
+
+
+def _serialize_event(event):
+    raw_event = json.dumps(event, ensure_ascii=False)
+    if isinstance(raw_event, text_type):
+        raw_event = raw_event.encode("utf-8", errors="replace")
+    return raw_event
+
+
+def _encode_raw_event(raw_event):
+    event = encode_str(raw_event, mutable=True)
+    rustcall(lib.semaphore_translate_legacy_python_json, event)
+    return event
+
+
+def scrub_event(config, data):
+    if not config:
+        return data
+
+    config = json.dumps(config)
+
+    raw_event = _serialize_event(data)
+    event = _encode_raw_event(raw_event)
+
+    rv = rustcall(lib.semaphore_scrub_event, encode_str(config), event)
+    return json.loads(decode_str(rv))

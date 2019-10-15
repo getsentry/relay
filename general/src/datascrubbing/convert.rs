@@ -11,9 +11,9 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
     let mut applied_rules = Vec::new();
 
     if datascrubbing_config.scrub_data && datascrubbing_config.scrub_defaults {
-        applied_rules.push("@common".to_owned());
+        applied_rules.push("@common:filter".to_owned());
     } else if datascrubbing_config.scrub_ip_addresses {
-        applied_rules.push("@ip".to_owned());
+        applied_rules.push("@ip:filter".to_owned());
     }
 
     if datascrubbing_config.scrub_data {
@@ -55,7 +55,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
                                 .unwrap(),
                         ),
                     }),
-                    redaction: Redaction::Replace("[filtered]".to_owned().into()),
+                    redaction: Redaction::Replace("[Filtered]".to_owned().into()),
                 },
             );
 
@@ -180,7 +180,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "**": [
-              "@common"
+              "@common:filter"
             ]
           }
         }
@@ -202,7 +202,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "**": [
-              "@common"
+              "@common:filter"
             ]
           }
         }
@@ -224,7 +224,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "keyPattern": ".*(fieldy_field|moar_other_field).*",
               "redaction": {
                 "method": "replace",
-                "text": "[filtered]"
+                "text": "[Filtered]"
               }
             }
           },
@@ -233,7 +233,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "**": [
-              "@common",
+              "@common:filter",
               "strip-fields"
             ]
           }
@@ -256,7 +256,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "(~foobar)": [
-              "@common"
+              "@common:filter"
             ]
           }
         }
@@ -621,7 +621,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     #[test]
     fn test_sanitize_url_7() {
         // Don't be too overly eager within JSON strings an catch the right field.
-        // n.b.: We accept the difference from Python, where "b" is not masked.
         sanitize_url_test(
             r#"{"a":"https://localhost","b":"foo@localhost","c":"pg://matt:pass@localhost/1","d":"lol"}"#,
         );
@@ -643,6 +642,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         assert_annotated_snapshot!(data);
     }
 
+    /// Ensure that valid JSON as request body is parsed as such, and that the PII stripping is
+    /// then more granular/sophisticated because we now understand the structure.
     #[test]
     fn test_sanitize_http_body() {
         use crate::store::StoreProcessor;
@@ -657,6 +658,32 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         // n.b.: In Rust we rely on store normalization to parse inline JSON
+
+        let mut store_processor = StoreProcessor::new(Default::default(), None);
+        process_value(&mut data, &mut store_processor, ProcessingState::root());
+
+        let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+        assert_annotated_snapshot!(data.value().unwrap().request);
+    }
+
+    /// Ensure that a request body that cannot be parsed by the store processor gets PII stripped
+    /// nevertheless.
+    #[test]
+    fn test_sanitize_http_body_string() {
+        use crate::store::StoreProcessor;
+
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "data": r#"{"email":"zzzz@gmail.com","password":"zzzzz"}xxx"#
+                }
+            })
+            .into(),
+        );
+
+        // n.b.: In Rust we rely on store normalization to parse inline JSON.
 
         let mut store_processor = StoreProcessor::new(Default::default(), None);
         process_value(&mut data, &mut store_processor, ProcessingState::root());
@@ -1015,7 +1042,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "keyPattern": ".*(session_key).*",
               "redaction": {
                 "method": "replace",
-                "text": "[filtered]"
+                "text": "[Filtered]"
               }
             }
           },
@@ -1024,7 +1051,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "**": [
-              "@common",
+              "@common:filter",
               "strip-fields"
             ]
           }

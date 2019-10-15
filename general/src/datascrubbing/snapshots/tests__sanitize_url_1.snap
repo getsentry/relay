@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "foo": "pg://matt:[email]/1"
+    "foo": "pg://matt:[Filtered]@localhost/1"
   },
   "_meta": {
     "extra": {
@@ -12,10 +12,10 @@ expression: data
         "": {
           "rem": [
             [
-              "@email",
+              "@urlauth:legacy",
               "s",
               10,
-              17
+              20
             ]
           ],
           "len": 26

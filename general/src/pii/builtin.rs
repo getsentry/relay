@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 use lazy_static::lazy_static;
 
 use crate::pii::{
-    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, RedactPairRule,
-    Redaction, ReplaceRedaction, RuleSpec, RuleType,
+    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, PatternRule,
+    RedactPairRule, Redaction, ReplaceRedaction, RuleSpec, RuleType,
 };
 
 pub static BUILTIN_SELECTORS: &[&str] = &["text", "container"];
@@ -61,6 +61,23 @@ declare_builtin_rules! {
         redaction: Redaction::Default,
         ..Default::default()
     };
+    // legacy data scrubbing equivalent
+    "@common:filter" => RuleSpec {
+        ty: RuleType::Multiple(MultipleRule {
+            rules: vec![
+                "@ip:filter".into(),
+                "@creditcard:filter".into(),
+                "@pemkey:filter".into(),
+                "@urlauth:legacy".into(),
+                "@userpath:filter".into(),
+                "@password:filter".into(),
+                "@usssn:filter".into(),
+            ],
+            hide_inner: false,
+        }),
+        redaction: Redaction::Default,
+        ..Default::default()
+    };
 
     // anything
     "@anything" => rule_alias!("@anything:replace");
@@ -91,6 +108,13 @@ declare_builtin_rules! {
         ty: RuleType::Ip,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[ip]".into(),
+        }),
+        ..Default::default()
+    };
+    "@ip:filter" => RuleSpec {
+        ty: RuleType::Ip,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };
@@ -220,6 +244,13 @@ declare_builtin_rules! {
         }),
         ..Default::default()
     };
+    "@creditcard:filter" => RuleSpec {
+        ty: RuleType::Creditcard,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
+        }),
+        ..Default::default()
+    };
     "@creditcard:hash" => RuleSpec {
         ty: RuleType::Creditcard,
         redaction: Redaction::Hash(HashRedaction {
@@ -235,6 +266,13 @@ declare_builtin_rules! {
         ty: RuleType::Pemkey,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[pemkey]".into(),
+        }),
+        ..Default::default()
+    };
+    "@pemkey:filter" => RuleSpec {
+        ty: RuleType::Pemkey,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };
@@ -256,6 +294,17 @@ declare_builtin_rules! {
         }),
         ..Default::default()
     };
+    "@urlauth:legacy" => RuleSpec {
+        ty: RuleType::Pattern(PatternRule {
+            // Regex copied from legacy Sentry `URL_PASSWORD_RE`
+            pattern: r"\b((?:[a-z0-9]+:)?//[a-zA-Z0-9%_.-]+:)([a-zA-Z0-9%_.-]+)@".into(),
+            replace_groups: Some([2].iter().copied().collect()),
+        }),
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
+        }),
+        ..Default::default()
+    };
     "@urlauth:hash" => RuleSpec {
         ty: RuleType::UrlAuth,
         redaction: Redaction::Hash(HashRedaction {
@@ -271,6 +320,13 @@ declare_builtin_rules! {
         ty: RuleType::UsSsn,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[us-ssn]".into(),
+        }),
+        ..Default::default()
+    };
+    "@usssn:filter" => RuleSpec {
+        ty: RuleType::UsSsn,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };
@@ -312,6 +368,15 @@ declare_builtin_rules! {
 
     // password field removal
     "@password" => rule_alias!("@password:remove");
+    "@password:filter" => RuleSpec {
+        ty: RuleType::RedactPair(RedactPairRule {
+            key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),
+        }),
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
+        }),
+        ..Default::default()
+    };
     "@password:remove" => RuleSpec {
         ty: RuleType::RedactPair(RedactPairRule {
             key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),

@@ -5,25 +5,25 @@ expression: data
 {
   "request": {
     "data": {
-      "a_password_here": null,
-      "apiKey": null,
-      "api_key": null,
+      "a_password_here": "[Filtered]",
+      "apiKey": "[Filtered]",
+      "api_key": "[Filtered]",
       "foo": "bar",
-      "password": null,
-      "the_secret": null
+      "password": "[Filtered]",
+      "the_secret": "[Filtered]"
     },
     "cookies": [
       [
         "a_password_here",
-        null
+        "[Filtered]"
       ],
       [
         "apiKey",
-        null
+        "[Filtered]"
       ],
       [
         "api_key",
-        null
+        "[Filtered]"
       ],
       [
         "foo",
@@ -31,25 +31,25 @@ expression: data
       ],
       [
         "password",
-        null
+        "[Filtered]"
       ],
       [
         "the_secret",
-        null
+        "[Filtered]"
       ]
     ],
     "headers": [
       [
         "A_password_here",
-        null
+        "[Filtered]"
       ],
       [
         "ApiKey",
-        null
+        "[Filtered]"
       ],
       [
         "Api_key",
-        null
+        "[Filtered]"
       ],
       [
         "Foo",
@@ -57,20 +57,20 @@ expression: data
       ],
       [
         "Password",
-        null
+        "[Filtered]"
       ],
       [
         "The_secret",
-        null
+        "[Filtered]"
       ]
     ],
     "env": {
-      "a_password_here": null,
-      "apiKey": null,
-      "api_key": null,
+      "a_password_here": "[Filtered]",
+      "apiKey": "[Filtered]",
+      "api_key": "[Filtered]",
       "foo": "bar",
-      "password": null,
-      "the_secret": null
+      "password": "[Filtered]",
+      "the_secret": "[Filtered]"
     }
   },
   "_meta": {
@@ -81,10 +81,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 5
             }
           }
         },
@@ -93,10 +96,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 10
             }
           }
         },
@@ -105,10 +111,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 10
             }
           }
         },
@@ -117,10 +126,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 5
             }
           }
         },
@@ -129,10 +141,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 5
             }
           }
         }
@@ -142,50 +157,65 @@ expression: data
           "": {
             "rem": [
               [
-                "@password",
-                "x"
+                "@password:filter",
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 5
           }
         },
         "apiKey": {
           "": {
             "rem": [
               [
-                "@password",
-                "x"
+                "@password:filter",
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 10
           }
         },
         "api_key": {
           "": {
             "rem": [
               [
-                "@password",
-                "x"
+                "@password:filter",
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 10
           }
         },
         "password": {
           "": {
             "rem": [
               [
-                "@password",
-                "x"
+                "@password:filter",
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 5
           }
         },
         "the_secret": {
           "": {
             "rem": [
               [
-                "@password",
-                "x"
+                "@password:filter",
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 5
           }
         }
       },
@@ -194,50 +224,65 @@ expression: data
           "": {
             "rem": [
               [
-                "@password",
-                "x"
+                "@password:filter",
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 5
           }
         },
         "apiKey": {
           "": {
             "rem": [
               [
-                "@password",
-                "x"
+                "@password:filter",
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 10
           }
         },
         "api_key": {
           "": {
             "rem": [
               [
-                "@password",
-                "x"
+                "@password:filter",
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 10
           }
         },
         "password": {
           "": {
             "rem": [
               [
-                "@password",
-                "x"
+                "@password:filter",
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 5
           }
         },
         "the_secret": {
           "": {
             "rem": [
               [
-                "@password",
-                "x"
+                "@password:filter",
+                "s",
+                0,
+                10
               ]
-            ]
+            ],
+            "len": 5
           }
         }
       },
@@ -247,10 +292,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 5
             }
           }
         },
@@ -259,10 +307,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 10
             }
           }
         },
@@ -271,10 +322,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 10
             }
           }
         },
@@ -283,10 +337,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 5
             }
           }
         },
@@ -295,10 +352,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 5
             }
           }
         }

@@ -32,6 +32,11 @@ macro_rules! ip {
 
 #[rustfmt::skip]
 lazy_static! {
+    static ref GROUP_0: BTreeSet<u8> = {
+        let mut set = BTreeSet::new();
+        set.insert(0);
+        set
+    };
     static ref GROUP_1: BTreeSet<u8> = {
         let mut set = BTreeSet::new();
         set.insert(1);
@@ -249,7 +254,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 
         // apply rules based on key/path
         for rule in self.iter_rules(state) {
-            match apply_rule_to_value(meta, rule, state.path().key()) {
+            match apply_rule_to_value(meta, rule, state.path().key(), None) {
                 ValueAction::Keep => continue,
                 other => return other,
             }
@@ -274,7 +279,7 @@ impl<'a> Processor for PiiProcessor<'a> {
             // same as before_process. duplicated here because we can only check for "true",
             // "false" etc in process_string.
             for rule in &rules {
-                match apply_rule_to_value(meta, *rule, state.path().key()) {
+                match apply_rule_to_value(meta, *rule, state.path().key(), Some(value)) {
                     ValueAction::Keep => continue,
                     other => return other,
                 }
@@ -370,12 +375,36 @@ fn collect_rules<'a, 'b>(
     }
 }
 
-fn apply_rule_to_value(meta: &mut Meta, rule: RuleRef<'_>, key: Option<&str>) -> ValueAction {
+fn apply_rule_to_value(
+    meta: &mut Meta,
+    rule: RuleRef<'_>,
+    key: Option<&str>,
+    value: Option<&mut String>,
+) -> ValueAction {
     match rule.ty {
         RuleType::RedactPair(ref redact_pair) => {
             if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
-                meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
-                ValueAction::DeleteHard
+                // The rule might specify to remove or to redact. If redaction is chosen, we need to
+                // chunk up the value, otherwise we need to simply mark the value for deletion.
+                let should_redact_chunks = match *rule.redaction {
+                    Redaction::Default | Redaction::Remove => false,
+                    _ => true,
+                };
+
+                if let (Some(value), true) = (value, should_redact_chunks) {
+                    // If we're given a string value here, redact the value. However, we need to
+                    // replace the rule's type with "Anything" so that it matches no matter what the
+                    // value is. Then, we keep the redacted value.
+                    let mut value_rule = rule;
+                    value_rule.ty = &RuleType::Anything;
+                    process_chunked_value(value, meta, |chunks| {
+                        apply_rule_to_chunks(chunks, value_rule)
+                    });
+                    ValueAction::Keep
+                } else {
+                    meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
+                    ValueAction::DeleteHard
+                }
             } else {
                 ValueAction::Keep
             }
@@ -414,20 +443,20 @@ fn apply_rule_to_chunks<'a>(mut chunks: Vec<Chunk<'a>>, rule: RuleRef<'_>) -> Ve
 
     match rule.ty {
         RuleType::Never => {}
-        RuleType::Anything => apply_regex!(&ANYTHING_REGEX, None),
+        RuleType::Anything => apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0)),
         RuleType::Pattern(r) => apply_regex!(&r.pattern.0, r.replace_groups.as_ref()),
-        RuleType::Imei => apply_regex!(&IMEI_REGEX, None),
-        RuleType::Mac => apply_regex!(&MAC_REGEX, None),
-        RuleType::Uuid => apply_regex!(&UUID_REGEX, None),
-        RuleType::Email => apply_regex!(&EMAIL_REGEX, None),
+        RuleType::Imei => apply_regex!(&IMEI_REGEX, Some(&*GROUP_0)),
+        RuleType::Mac => apply_regex!(&MAC_REGEX, Some(&*GROUP_0)),
+        RuleType::Uuid => apply_regex!(&UUID_REGEX, Some(&*GROUP_0)),
+        RuleType::Email => apply_regex!(&EMAIL_REGEX, Some(&*GROUP_0)),
         RuleType::Ip => {
-            apply_regex!(&IPV4_REGEX, None);
+            apply_regex!(&IPV4_REGEX, Some(&*GROUP_0));
             apply_regex!(&IPV6_REGEX, Some(&*GROUP_1));
         }
-        RuleType::Creditcard => apply_regex!(&CREDITCARD_REGEX, None),
+        RuleType::Creditcard => apply_regex!(&CREDITCARD_REGEX, Some(&*GROUP_0)),
         RuleType::Pemkey => apply_regex!(&PEM_KEY_REGEX, Some(&*GROUP_1)),
         RuleType::UrlAuth => apply_regex!(&URL_AUTH_REGEX, Some(&*GROUP_1)),
-        RuleType::UsSsn => apply_regex!(&US_SSN_REGEX, None),
+        RuleType::UsSsn => apply_regex!(&US_SSN_REGEX, Some(&*GROUP_0)),
         RuleType::Userpath => apply_regex!(&PATH_REGEX, Some(&*GROUP_1)),
         RuleType::RedactPair(ref redact_pair) => apply_regex!(&redact_pair.key_pattern, None),
         // does not apply here
@@ -497,15 +526,9 @@ fn apply_regex_to_chunks<'a>(
     let mut rv = Vec::with_capacity(replacement_chunks.len());
 
     for m in captures_iter {
-        let g0 = m.get(0).unwrap();
-
         match replace_groups {
             Some(groups) => {
                 for (idx, g) in m.iter().enumerate() {
-                    if idx == 0 {
-                        continue;
-                    }
-
                     if let Some(g) = g {
                         if groups.contains(&(idx as u8)) {
                             process_text(
@@ -520,13 +543,10 @@ fn apply_regex_to_chunks<'a>(
                 }
             }
             None => {
-                process_text(
-                    &search_string[pos..g0.start()],
-                    &mut rv,
-                    &mut replacement_chunks,
-                );
-                insert_replacement_chunks(rule, g0.as_str(), &mut rv);
-                pos = g0.end();
+                process_text(&"", &mut rv, &mut replacement_chunks);
+                insert_replacement_chunks(rule, &search_string, &mut rv);
+                pos = search_string.len();
+                break;
             }
         }
     }

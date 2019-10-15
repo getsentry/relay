@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "foo": "'redis://redis:[email]:6379/0'"
+    "foo": "'redis://redis:[Filtered]@localhost:6379/0'"
   },
   "_meta": {
     "extra": {
@@ -12,10 +12,10 @@ expression: data
         "": {
           "rem": [
             [
-              "@email",
+              "@urlauth:legacy",
               "s",
               15,
-              22
+              25
             ]
           ],
           "len": 36
