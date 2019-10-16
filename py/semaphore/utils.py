@@ -10,7 +10,7 @@ attached_refs = weakref.WeakKeyDictionary()
 
 
 lib.semaphore_init()
-os.environ['RUST_BACKTRACE'] = '1'
+os.environ["RUST_BACKTRACE"] = "1"
 
 
 class _NoDict(type):
