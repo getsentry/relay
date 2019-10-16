@@ -78,8 +78,9 @@ def test_query_retry(failure_type, mini_sentry, relay):
 
     relay.send_event(42)
 
-    # relay's http timeout is 2 seconds, and retry interval 1s * 1.5^n
-    event = mini_sentry.captured_events.get(timeout=4)
+    # Wait way longer than necessary because of the lack of dedicated resources
+    # in Travis
+    event = mini_sentry.captured_events.get(timeout=8)
     assert event["logentry"] == {"formatted": "Hello, World!"}
     assert retry_count == 2
 
