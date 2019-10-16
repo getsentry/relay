@@ -12,7 +12,9 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
 
     if datascrubbing_config.scrub_data && datascrubbing_config.scrub_defaults {
         applied_rules.push("@common:filter".to_owned());
-    } else if datascrubbing_config.scrub_ip_addresses {
+    }
+
+    if datascrubbing_config.scrub_ip_addresses {
         applied_rules.push("@ip:filter".to_owned());
     }
 
@@ -180,7 +182,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "**": [
-              "@common:filter"
+              "@common:filter",
+              "@ip:filter"
             ]
           }
         }
@@ -202,7 +205,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "**": [
-              "@common:filter"
+              "@common:filter",
+              "@ip:filter"
             ]
           }
         }
@@ -234,6 +238,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           "applications": {
             "**": [
               "@common:filter",
+              "@ip:filter",
               "strip-fields"
             ]
           }
@@ -256,7 +261,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           },
           "applications": {
             "(~foobar)": [
-              "@common:filter"
+              "@common:filter",
+              "@ip:filter"
             ]
           }
         }
@@ -1052,6 +1058,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           "applications": {
             "**": [
               "@common:filter",
+              "@ip:filter",
               "strip-fields"
             ]
           }
