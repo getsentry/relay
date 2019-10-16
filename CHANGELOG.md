@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.49
+
+**Python**
+
+- Fix handling of panics in CABI/Python bindings.
+
+
 ## 0.4.48
 
 **Store**:
