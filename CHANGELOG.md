@@ -1,11 +1,16 @@
 # Changelog
 
+## 0.4.50
+
+**Store**:
+
+- Fix bug where IP scrubbers were applied even when not enabled.
+
 ## 0.4.49
 
 **Python**
 
 - Fix handling of panics in CABI/Python bindings.
-
 
 ## 0.4.48
 
