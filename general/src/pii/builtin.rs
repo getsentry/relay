@@ -61,11 +61,10 @@ declare_builtin_rules! {
         redaction: Redaction::Default,
         ..Default::default()
     };
-    // legacy data scrubbing equivalent
+    // legacy data scrubbing equivalent. Note
     "@common:filter" => RuleSpec {
         ty: RuleType::Multiple(MultipleRule {
             rules: vec![
-                "@ip:filter".into(),
                 "@creditcard:filter".into(),
                 "@pemkey:filter".into(),
                 "@urlauth:legacy".into(),
