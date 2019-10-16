@@ -72,6 +72,7 @@ typedef struct {
 
 /**
  * Frees a semaphore buf.
+ *
  * If the buffer is marked as not owned then this function does not
  * do anything.
  */
@@ -96,12 +97,14 @@ SemaphoreStr semaphore_err_get_backtrace(void);
 
 /**
  * Returns the last error code.
+ *
  * If there is no error, 0 is returned.
  */
 SemaphoreErrorCode semaphore_err_get_last_code(void);
 
 /**
  * Returns the last error message.
+ *
  * If there is no error an empty string is returned.  This allocates new memory
  * that needs to be freed with `semaphore_str_free`.
  */
@@ -196,6 +199,7 @@ SemaphoreStr semaphore_store_normalizer_normalize_event(SemaphoreStoreNormalizer
 
 /**
  * Frees a semaphore str.
+ *
  * If the string is marked as not owned then this function does not
  * do anything.
  */
@@ -203,11 +207,14 @@ void semaphore_str_free(SemaphoreStr *s);
 
 /**
  * Creates a semaphore str from a c string.
+ *
  * This sets the string to owned.  In case it's not owned you either have
  * to make sure you are not freeing the memory or you need to set the
  * owned flag to false.
  */
 SemaphoreStr semaphore_str_from_cstr(const char *s);
+
+void semaphore_test_panic(void);
 
 bool semaphore_translate_legacy_python_json(SemaphoreStr *event);
 
@@ -218,6 +225,7 @@ bool semaphore_uuid_is_nil(const SemaphoreUuid *uuid);
 
 /**
  * Formats the UUID into a string.
+ *
  * The string is newly allocated and needs to be released with
  * `semaphore_cstr_free`.
  */
