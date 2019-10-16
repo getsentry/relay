@@ -6,8 +6,8 @@ use crate::types::{Annotated, Object, Value};
 
 /// Models the content of a CSP report.
 ///
-/// Note this models the older CSP reports (report-uri policy directive). The new CSP reports (using
-/// report-to policy directive) are different.
+/// Note this models the older CSP reports (report-uri policy directive).
+/// The new CSP reports (using report-to policy directive) are different.
 ///
 /// See https://www.w3.org/TR/CSP3/
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
