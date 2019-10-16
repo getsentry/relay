@@ -132,7 +132,7 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
 
     relay.wait_relay_healthcheck()
 
-    response = relay.post(
+    response = relay.get(
         "/api/42/store%s?sentry_data=%s"
         "&sentry_key=%s" % ("/" if trailing_slash else "", input, relay.dsn_public_key,)
     )
