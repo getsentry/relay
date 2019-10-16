@@ -60,6 +60,7 @@ matrix:
       os: osx
       language: generic
       install:
+        - brew update-reset
         - brew install redis
         - brew services start redis
       script: make -e test-rust-all
