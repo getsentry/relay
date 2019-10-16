@@ -113,3 +113,9 @@ ffi_fn! {
         Ok(SemaphoreStr::from_string(event.to_json()?))
     }
 }
+
+ffi_fn! {
+    unsafe fn semaphore_test_panic() -> Result<()> {
+        panic!("this is a test panic")
+    }
+}

@@ -1,3 +1,4 @@
+import os
 import uuid
 import weakref
 from semaphore._lowlevel import ffi, lib
@@ -6,6 +7,10 @@ from semaphore.exceptions import exceptions_by_code, SemaphoreError
 
 
 attached_refs = weakref.WeakKeyDictionary()
+
+
+lib.semaphore_init()
+os.environ['RUST_BACKTRACE'] = '1'
 
 
 class _NoDict(type):
