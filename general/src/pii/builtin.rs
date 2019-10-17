@@ -110,13 +110,6 @@ declare_builtin_rules! {
         }),
         ..Default::default()
     };
-    "@ip:filter" => RuleSpec {
-        ty: RuleType::Ip,
-        redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[Filtered]".into(),
-        }),
-        ..Default::default()
-    };
     "@ip:hash" => RuleSpec {
         ty: RuleType::Ip,
         redaction: Redaction::Hash(HashRedaction {

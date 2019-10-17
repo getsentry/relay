@@ -4,7 +4,7 @@ expression: event
 ---
 {
   "logentry": {
-    "formatted": "Hello from [ip]!"
+    "formatted": "Hello world!"
   },
   "request": {
     "headers": [
@@ -28,21 +28,6 @@ expression: event
     ]
   ],
   "_meta": {
-    "logentry": {
-      "formatted": {
-        "": {
-          "rem": [
-            [
-              "@ip",
-              "s",
-              11,
-              15
-            ]
-          ],
-          "len": 21
-        }
-      }
-    },
     "request": {
       "env": {
         "SECRET_KEY": {
