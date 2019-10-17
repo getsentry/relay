@@ -6,16 +6,23 @@ use crate::datascrubbing::DataScrubbingConfig;
 use crate::pii::{Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType};
 use crate::processor::{SelectorPathItem, SelectorSpec};
 
+lazy_static::lazy_static! {
+    // XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
+    // compatibility with Python.
+    static ref KNOWN_IP_FIELDS: SelectorSpec = "($event.request.env.REMOTE_ADDR | $user.ip_address | $event.sdk.client_ip)".parse().unwrap();
+}
+
 pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
     let mut custom_rules = BTreeMap::new();
     let mut applied_rules = Vec::new();
+    let mut applications = BTreeMap::new();
 
     if datascrubbing_config.scrub_data && datascrubbing_config.scrub_defaults {
         applied_rules.push("@common:filter".to_owned());
     }
 
     if datascrubbing_config.scrub_ip_addresses {
-        applied_rules.push("@ip:filter".to_owned());
+        applications.insert(KNOWN_IP_FIELDS.clone(), vec!["@anything:remove".to_owned()]);
     }
 
     if datascrubbing_config.scrub_data {
@@ -85,7 +92,6 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         }
     };
 
-    let mut applications = BTreeMap::new();
     applications.insert(selector, applied_rules.clone());
 
     Some(PiiConfig {
@@ -181,9 +187,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
+            "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
+              "@anything:remove"
+            ],
             "**": [
-              "@common:filter",
-              "@ip:filter"
+              "@common:filter"
             ]
           }
         }
@@ -204,9 +212,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
+            "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
+              "@anything:remove"
+            ],
             "**": [
-              "@common:filter",
-              "@ip:filter"
+              "@common:filter"
             ]
           }
         }
@@ -236,9 +246,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
+            "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
+              "@anything:remove"
+            ],
             "**": [
               "@common:filter",
-              "@ip:filter",
               "strip-fields"
             ]
           }
@@ -260,9 +272,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
+            "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
+              "@anything:remove"
+            ],
             "(~foobar)": [
-              "@common:filter",
-              "@ip:filter"
+              "@common:filter"
             ]
           }
         }
@@ -1056,9 +1070,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
+            "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
+              "@anything:remove"
+            ],
             "**": [
               "@common:filter",
-              "@ip:filter",
               "strip-fields"
             ]
           }

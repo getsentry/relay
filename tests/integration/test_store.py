@@ -49,12 +49,12 @@ def test_store_pii_stripping(mini_sentry, relay):
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.send_event(42, {"message": "test@mail.org"})
+    relay.send_event(42, {"message": "hi", "extra": {"foo": "test@mail.org"}})
 
     event = mini_sentry.captured_events.get(timeout=2)
 
     # Email should be stripped:
-    assert event["logentry"] == {"formatted": "[email]"}
+    assert event["extra"]["foo"] == "[email]"
 
 
 def test_event_timeout(mini_sentry, relay):

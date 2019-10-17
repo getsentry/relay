@@ -676,7 +676,7 @@ fn test_basic_stripping() {
 
     let mut event = Annotated::new(Event {
         logentry: Annotated::new(LogEntry {
-            formatted: Annotated::new("Hello from 127.0.0.1!".to_string()),
+            formatted: Annotated::new("Hello world!".to_string()),
             ..Default::default()
         }),
         request: Annotated::new(Request {
