@@ -34,6 +34,7 @@ pub enum ValueType {
     Thread,
     Breadcrumb,
     Span,
+    ClientSdkInfo,
 }
 
 impl ValueType {
@@ -59,6 +60,7 @@ impl ValueType {
             ValueType::Thread => "thread",
             ValueType::Breadcrumb => "breadcrumb",
             ValueType::Span => "span",
+            ValueType::ClientSdkInfo => "sdk",
         }
     }
 }
@@ -89,6 +91,7 @@ impl FromStr for ValueType {
             "logentry" => ValueType::LogEntry,
             "thread" => ValueType::Thread,
             "breadcrumb" => ValueType::Breadcrumb,
+            "sdk" => ValueType::ClientSdkInfo,
             _ => return Err(UnknownValueTypeError),
         })
     }
