@@ -24,7 +24,7 @@ expression: event
   "tags": [
     [
       "forwarded_for",
-      "[ip]"
+      "127.0.0.1"
     ]
   ],
   "_meta": {
@@ -67,23 +67,6 @@ expression: event
               ],
               "len": 9
             }
-          }
-        }
-      }
-    },
-    "tags": {
-      "0": {
-        "1": {
-          "": {
-            "rem": [
-              [
-                "@ip",
-                "s",
-                0,
-                4
-              ]
-            ],
-            "len": 9
           }
         }
       }

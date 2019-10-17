@@ -43,7 +43,7 @@ impl FromValue for TagEntry {
 
 /// Manual key/value tag pairs.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-pub struct Tags(#[metastructure(pii = "true")] pub PairList<TagEntry>);
+pub struct Tags(pub PairList<TagEntry>);
 
 impl std::ops::Deref for Tags {
     type Target = Array<TagEntry>;
