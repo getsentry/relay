@@ -32,6 +32,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
             let mut is_empty = true;
 
             for (idx, field) in datascrubbing_config.sensitive_fields.iter().enumerate() {
+                let field = field.trim();
                 if field.is_empty() {
                     continue;
                 }
@@ -201,7 +202,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     #[test]
     fn test_convert_empty_sensitive_field() {
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["".to_owned()],
+            sensitive_fields: vec!["".to_owned(), " ".to_owned()],
             ..simple_enabled_config()
         });
 
