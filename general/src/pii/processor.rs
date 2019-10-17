@@ -268,7 +268,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        if let "true" | "false" | "null" | "undefined" = value.as_str() {
+        if let "" | "true" | "false" | "null" | "undefined" = value.as_str() {
             return ValueAction::Keep;
         }
 

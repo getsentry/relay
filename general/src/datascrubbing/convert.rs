@@ -4,7 +4,7 @@ use regex::RegexBuilder;
 
 use crate::datascrubbing::DataScrubbingConfig;
 use crate::pii::{Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType};
-use crate::processor::{SelectorPathItem, SelectorSpec};
+use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
 
 lazy_static::lazy_static! {
     // XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
@@ -77,23 +77,21 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         return None;
     }
 
-    let selector = if datascrubbing_config.exclude_fields.is_empty() {
-        SelectorSpec::Path(vec![SelectorPathItem::DeepWildcard])
-    } else {
-        let mut fields = datascrubbing_config.exclude_fields.iter().map(|field| {
-            SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![SelectorPathItem::Key(
-                field.clone(),
-            )])))
-        });
+    let mut applied_selector: SelectorSpec = ValueType::String.into();
 
-        if fields.len() > 1 {
-            SelectorSpec::And(fields.collect())
-        } else {
-            fields.next().unwrap()
+    if !datascrubbing_config.exclude_fields.is_empty() {
+        let mut conjunctions = vec![applied_selector];
+
+        for field in &datascrubbing_config.exclude_fields {
+            conjunctions.push(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
+                SelectorPathItem::Key(field.clone()),
+            ]))));
         }
-    };
 
-    applications.insert(selector, applied_rules.clone());
+        applied_selector = SelectorSpec::And(conjunctions);
+    }
+
+    applications.insert(applied_selector, applied_rules.clone());
 
     Some(PiiConfig {
         rules: custom_rules,
@@ -191,7 +189,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
               "@anything:remove"
             ],
-            "**": [
+            "$string": [
               "@common:filter"
             ]
           }
@@ -216,7 +214,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
               "@anything:remove"
             ],
-            "**": [
+            "$string": [
               "@common:filter"
             ]
           }
@@ -250,7 +248,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
               "@anything:remove"
             ],
-            "**": [
+            "$string": [
               "@common:filter",
               "strip-fields"
             ]
@@ -273,11 +271,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
+            "($string&(~foobar))": [
+              "@common:filter"
+            ],
             "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
               "@anything:remove"
-            ],
-            "(~foobar)": [
-              "@common:filter"
             ]
           }
         }
@@ -1074,7 +1072,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
               "@anything:remove"
             ],
-            "**": [
+            "$string": [
               "@common:filter",
               "strip-fields"
             ]
