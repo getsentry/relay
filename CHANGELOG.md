@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.51
+
+**Store**:
+
+- Fix a few bugs in datascrubbing converter.
+- Accept trailing slashes.
+
+**Normalization**:
+
+- Fix a panic on overflowing timestamps.
+
 ## 0.4.50
 
 **Store**:
