@@ -346,7 +346,7 @@ impl FromValue for Query {
 #[metastructure(process_func = "process_request", value_type = "Request")]
 pub struct Request {
     /// URL of the request.
-    #[metastructure(pii = "true", max_chars = "path")]
+    #[metastructure(max_chars = "path")]
     pub url: Annotated<String>,
 
     /// HTTP request method.
