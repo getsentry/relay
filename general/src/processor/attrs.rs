@@ -541,7 +541,7 @@ impl<'a> Path<'a> {
                 }
 
                 // fast path: we do not have any deep matches
-                let mut state_iter = self.0.iter();
+                let mut state_iter = self.0.iter().filter(|state| state.entered_anything());
                 let mut selector_iter = path.iter().rev();
                 let mut depth_match = false;
                 for state in &mut state_iter {

@@ -329,6 +329,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             serde_json::json!({
                 "user": {
                     "username": "secret",
+                    "ip_address": "73.133.27.120",
                     "data": SENSITIVE_VARS.clone()
                 }
             })
