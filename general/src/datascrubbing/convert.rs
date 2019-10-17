@@ -9,7 +9,7 @@ use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
 lazy_static::lazy_static! {
     // XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
     // compatibility with Python.
-    static ref KNOWN_IP_FIELDS: SelectorSpec = "($event.request.env.REMOTE_ADDR | $user.ip_address | $event.sdk.client_ip)".parse().unwrap();
+    static ref KNOWN_IP_FIELDS: SelectorSpec = "($request.env.REMOTE_ADDR | $user.ip_address | $event.sdk.client_ip)".parse().unwrap();
 }
 
 pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
@@ -186,7 +186,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
+            "($request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
               "@anything:remove"
             ],
             "$string": [
@@ -211,7 +211,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
+            "($request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
               "@anything:remove"
             ],
             "$string": [
@@ -245,7 +245,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
+            "($request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
               "@anything:remove"
             ],
             "$string": [
@@ -274,7 +274,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string&(~foobar))": [
               "@common:filter"
             ],
-            "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
+            "($request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
               "@anything:remove"
             ]
           }
@@ -312,6 +312,25 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                     "env": SENSITIVE_VARS.clone(),
                     "headers": SENSITIVE_VARS.clone(),
                     "cookies": SENSITIVE_VARS.clone()
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_http_remote_addr_stripped() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "env": {
+                        "REMOTE_ADDR": "127.0.0.1"
+                    }
                 }
             })
             .into(),
@@ -1070,7 +1089,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($event.request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
+            "($request.env.REMOTE_ADDR|$user.ip_address|$event.sdk.client_ip)": [
               "@anything:remove"
             ],
             "$string": [
