@@ -73,7 +73,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         }
     }
 
-    if applied_rules.is_empty() {
+    if applied_rules.is_empty() && applications.is_empty() {
         return None;
     }
 
@@ -95,7 +95,9 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         applied_selector = SelectorSpec::And(conjunctions);
     }
 
-    applications.insert(applied_selector, applied_rules.clone());
+    if !applied_rules.is_empty() {
+        applications.insert(applied_selector, applied_rules.clone());
+    }
 
     Some(PiiConfig {
         rules: custom_rules,
@@ -287,6 +289,30 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
+    fn test_convert_scrub_ip_only() {
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            scrub_data: false,
+            scrub_ip_addresses: true,
+            scrub_defaults: false,
+            ..Default::default()
+        });
+
+        insta::assert_json_snapshot!(pii_config, @r###"
+        {
+          "rules": {},
+          "vars": {
+            "hashKey": null
+          },
+          "applications": {
+            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+              "@anything:remove"
+            ]
+          }
+        }
+        "###);
+    }
+
+    #[test]
     fn test_stacktrace() {
         let mut data = Event::from_value(
             serde_json::json!({
@@ -377,6 +403,32 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+        process_value(&mut data, &mut pii_processor, ProcessingState::root());
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_user_ip_stripped() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "user": {
+                    "username": "secret",
+                    "ip_address": "73.133.27.120",
+                    "data": SENSITIVE_VARS.clone()
+                }
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: false,
+            scrub_ip_addresses: true,
+            scrub_defaults: false,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
         let mut pii_processor = PiiProcessor::new(&pii_config);
         process_value(&mut data, &mut pii_processor, ProcessingState::root());
         assert_annotated_snapshot!(data);
