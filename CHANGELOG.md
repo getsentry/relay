@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.55
+
+**Store**:
+
+- Fix more bugs in datascrubbing converter.
+
 ## 0.4.54
 
 **Store**:
