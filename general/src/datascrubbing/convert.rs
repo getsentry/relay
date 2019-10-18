@@ -26,31 +26,29 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
     }
 
     if datascrubbing_config.scrub_data {
-        let sensitive_fields_re = {
+        let mut sensitive_fields = datascrubbing_config
+            .sensitive_fields
+            .iter()
+            .map(|x| x.trim())
+            .filter(|x| !x.is_empty())
+            .peekable();
+
+        let sensitive_fields_re = if sensitive_fields.peek().is_some() {
             let mut re = ".*(".to_owned();
 
-            let mut is_empty = true;
-
-            for (idx, field) in datascrubbing_config.sensitive_fields.iter().enumerate() {
-                let field = field.trim();
-                if field.is_empty() {
-                    continue;
-                }
-
-                if idx > 0 {
+            for (idx, field) in sensitive_fields.enumerate() {
+                if idx != 0 {
                     re.push('|');
                 }
+
                 // ugly: regex::escape returns owned string
                 re.push_str(&regex::escape(field));
-                is_empty = false;
             }
 
             re.push_str(").*");
-            if !is_empty {
-                Some(re)
-            } else {
-                None
-            }
+            Some(re)
+        } else {
+            None
         };
 
         if let Some(key_pattern) = sensitive_fields_re {
@@ -83,12 +81,19 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         SelectorSpec::from(ValueType::Array),
     ]);
 
-    if !datascrubbing_config.exclude_fields.is_empty() {
+    let mut exclude_fields = datascrubbing_config
+        .exclude_fields
+        .iter()
+        .map(|x| x.trim())
+        .filter(|x| !x.is_empty())
+        .peekable();
+
+    if exclude_fields.peek().is_some() {
         let mut conjunctions = vec![applied_selector];
 
-        for field in &datascrubbing_config.exclude_fields {
+        for field in exclude_fields {
             conjunctions.push(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
-                SelectorPathItem::Key(field.clone()),
+                SelectorPathItem::Key(field.to_owned()),
             ]))));
         }
 
@@ -1020,7 +1025,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["".to_owned()],
+            sensitive_fields: vec!["".to_owned(), " ".to_owned()],
+            exclude_fields: vec!["".to_owned(), " ".to_owned()],
             ..simple_enabled_config()
         });
 
