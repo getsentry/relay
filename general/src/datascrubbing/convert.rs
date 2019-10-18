@@ -77,7 +77,11 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         return None;
     }
 
-    let mut applied_selector: SelectorSpec = ValueType::String.into();
+    let mut applied_selector = SelectorSpec::Or(vec![
+        SelectorSpec::from(ValueType::String),
+        SelectorSpec::from(ValueType::Number),
+        SelectorSpec::from(ValueType::Array),
+    ]);
 
     if !datascrubbing_config.exclude_fields.is_empty() {
         let mut conjunctions = vec![applied_selector];
@@ -186,11 +190,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
+            "($string|$number|$array)": [
+              "@common:filter"
+            ],
             "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
               "@anything:remove"
-            ],
-            "$string": [
-              "@common:filter"
             ]
           }
         }
@@ -211,11 +215,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
+            "($string|$number|$array)": [
+              "@common:filter"
+            ],
             "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
               "@anything:remove"
-            ],
-            "$string": [
-              "@common:filter"
             ]
           }
         }
@@ -245,12 +249,12 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
-              "@anything:remove"
-            ],
-            "$string": [
+            "($string|$number|$array)": [
               "@common:filter",
               "strip-fields"
+            ],
+            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+              "@anything:remove"
             ]
           }
         }
@@ -271,7 +275,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string&(~foobar))": [
+            "(($string|$number|$array)&(~foobar))": [
               "@common:filter"
             ],
             "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
@@ -380,8 +384,21 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_extra() {
-        let mut data =
-            Event::from_value(serde_json::json!({ "extra": SENSITIVE_VARS.clone() }).into());
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "foo": "bar",
+                    "password": "hello",
+                    "the_secret": "hello",
+                    "a_password_here": "hello",
+                    "api_key": "secret_key",
+                    "apiKey": "secret_key",
+                    "a_password_number": 42,
+                    "a_password_array": [42, 43],
+                }
+            })
+            .into(),
+        );
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);
@@ -1106,12 +1123,12 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
-              "@anything:remove"
-            ],
-            "$string": [
+            "($string|$number|$array)": [
               "@common:filter",
               "strip-fields"
+            ],
+            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+              "@anything:remove"
             ]
           }
         }

@@ -4,7 +4,9 @@ expression: data
 ---
 {
   "extra": {
+    "a_password_array": null,
     "a_password_here": "[Filtered]",
+    "a_password_number": null,
     "apiKey": "[Filtered]",
     "api_key": "[Filtered]",
     "foo": "bar",
@@ -13,6 +15,16 @@ expression: data
   },
   "_meta": {
     "extra": {
+      "a_password_array": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "x"
+            ]
+          ]
+        }
+      },
       "a_password_here": {
         "": {
           "rem": [
@@ -24,6 +36,16 @@ expression: data
             ]
           ],
           "len": 5
+        }
+      },
+      "a_password_number": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "x"
+            ]
+          ]
         }
       },
       "apiKey": {
