@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.56
+
+**Store**:
+
+- Fix a panic in trimming.
+
 ## 0.4.55
 
 **Store**:
