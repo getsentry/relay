@@ -359,15 +359,17 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 
     let app_count = app_frame_indices.len();
     let system_allowance_half = frame_allowance.saturating_sub(app_count) / 2;
-    let system_frames_to_remove = &system_frame_indices
-        [system_allowance_half..system_frame_indices.len() - system_allowance_half];
+    let system_frames_to_remove = system_frame_indices
+        .get(system_allowance_half..system_frame_indices.len() - system_allowance_half)
+        .unwrap_or(&[]);
 
     let remaining = frames_len
         .saturating_sub(frame_allowance)
         .saturating_sub(system_frames_to_remove.len());
     let app_allowance_half = app_count.saturating_sub(remaining) / 2;
-    let app_frames_to_remove =
-        &app_frame_indices[app_allowance_half..app_frame_indices.len() - app_allowance_half];
+    let app_frames_to_remove = app_frame_indices
+        .get(app_allowance_half..app_frame_indices.len() - app_allowance_half)
+        .unwrap_or(&[]);
 
     // TODO: Which annotation to set?
 
