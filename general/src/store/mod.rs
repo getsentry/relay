@@ -15,6 +15,7 @@ mod legacy;
 mod normalize;
 mod remove_other;
 mod schema;
+mod transactions;
 mod trimming;
 
 pub use crate::store::geo::GeoIpLookup;
@@ -103,6 +104,9 @@ impl<'a> Processor for StoreProcessor<'a> {
             // Trim large strings and databags down
             trimming::TrimmingProcessor::new().process_event(event, meta, state)?;
         }
+
+        // internally noops for non-transaction events
+        transactions::TransactionsProcessor.process_event(event, meta, state)?;
 
         Ok(())
     }
