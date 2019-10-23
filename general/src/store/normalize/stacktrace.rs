@@ -3,7 +3,7 @@ use std::mem;
 use url::Url;
 
 use crate::protocol::{Frame, RawStacktrace};
-use crate::types::{Annotated, Empty, Meta};
+use crate::types::{Annotated, Empty, Meta, ValueAction};
 
 fn is_url(filename: &str) -> bool {
     filename.starts_with("file:")
@@ -12,16 +12,18 @@ fn is_url(filename: &str) -> bool {
         || filename.starts_with("applewebdata:")
 }
 
-pub fn process_stacktrace(stacktrace: &mut RawStacktrace, _meta: &mut Meta) {
+pub fn process_stacktrace(stacktrace: &mut RawStacktrace, _meta: &mut Meta) -> ValueAction {
     // This processing is only done for non raw frames (i.e. not for exception.raw_stacktrace).
     if let Some(frames) = stacktrace.frames.value_mut() {
         for frame in frames.iter_mut() {
-            frame.apply(process_non_raw_frame);
+            frame.apply(process_non_raw_frame)?;
         }
     }
+
+    Ok(())
 }
 
-pub fn process_non_raw_frame(frame: &mut Frame, _meta: &mut Meta) {
+pub fn process_non_raw_frame(frame: &mut Frame, _meta: &mut Meta) -> ValueAction {
     if frame.abs_path.value().is_empty() {
         frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
     }
@@ -41,6 +43,8 @@ pub fn process_non_raw_frame(frame: &mut Frame, _meta: &mut Meta) {
             }
         }
     }
+
+    Ok(())
 }
 
 #[test]
@@ -51,7 +55,7 @@ fn test_coerces_url_filenames() {
         ..Default::default()
     });
 
-    frame.apply(process_non_raw_frame);
+    frame.apply(process_non_raw_frame).unwrap();
     let frame = frame.value().unwrap();
 
     assert_eq!(frame.filename.as_str(), Some("/foo.js"));
@@ -67,7 +71,7 @@ fn test_does_not_overwrite_filename() {
         ..Default::default()
     });
 
-    frame.apply(process_non_raw_frame);
+    frame.apply(process_non_raw_frame).unwrap();
     let frame = frame.value().unwrap();
 
     assert_eq!(frame.filename.as_str(), Some("foo.js"));
@@ -82,7 +86,7 @@ fn test_ignores_results_with_empty_path() {
         ..Default::default()
     });
 
-    frame.apply(process_non_raw_frame);
+    frame.apply(process_non_raw_frame).unwrap();
     let frame = frame.value().unwrap();
 
     assert_eq!(frame.filename.as_str(), Some("http://foo.com"));
@@ -97,7 +101,7 @@ fn test_ignores_results_with_slash_path() {
         ..Default::default()
     });
 
-    frame.apply(process_non_raw_frame);
+    frame.apply(process_non_raw_frame).unwrap();
     let frame = frame.value().unwrap();
 
     assert_eq!(frame.filename.as_str(), Some("http://foo.com/"));
@@ -113,7 +117,7 @@ fn test_coerce_empty_filename() {
         ..Default::default()
     });
 
-    frame.apply(process_non_raw_frame);
+    frame.apply(process_non_raw_frame).unwrap();
     let frame = frame.value().unwrap();
 
     assert_eq!(frame.filename.as_str(), Some("/foo.js"));

@@ -5,8 +5,8 @@ use syn::Ident;
 use crate::{is_newtype, parse_field_attributes, parse_type_attributes};
 
 pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
-    s.bind_with(|_bi| synstructure::BindStyle::RefMut);
-    s.add_bounds(synstructure::AddBounds::Generics);
+    let _ = s.bind_with(|_bi| synstructure::BindStyle::RefMut);
+    let _ = s.add_bounds(synstructure::AddBounds::Generics);
 
     let type_attrs = parse_type_attributes(&s);
     let process_func_call_tokens = type_attrs.process_func_call_tokens();
@@ -34,34 +34,30 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
 
                 // This is a copy of `funcs::process_value`, due to ownership issues. In particular
                 // we want to pass the same meta twice.
+                //
+                // NOTE: Handling for DiscardValue is slightly different (early-return). This
+                // should be fine though.
                 let action = __processor.before_process(
                     Some(&*#ident),
                     __meta,
                     &__state
-                ).and_then(|| {
-                    crate::processor::ProcessValue::process_value(
-                        #ident,
-                        __meta,
-                        __processor,
-                        &__state
-                    )
-                });
+                )?;
 
-                let new_value = match action {
-                    crate::types::ValueAction::Keep => Some(&*#ident),
-                    _=> None
-                };
+                crate::processor::ProcessValue::process_value(
+                    #ident,
+                    __meta,
+                    __processor,
+                    &__state
+                )?;
 
                 __processor.after_process(
-                    new_value,
+                    Some(#ident),
                     __meta,
                     &__state
-                );
-
-                action
+                )?;
             }
         } else {
-            quote!(crate::types::ValueAction::Keep)
+            quote!()
         }
     });
 
@@ -98,7 +94,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                 };
 
                 (quote! {
-                    __processor.process_other(#ident, #additional_state);
+                    __processor.process_other(#ident, #additional_state)?;
                 }).to_tokens(&mut body);
             } else {
                 let enter_state = if is_tuple_struct {
@@ -127,7 +123,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                             #field_attrs_tokens;
                     }
 
-                    crate::processor::process_value(#ident, __processor, &#enter_state);
+                    crate::processor::process_value(#ident, __processor, &#enter_state)?;
                 })
                 .to_tokens(&mut body);
             }
@@ -136,7 +132,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
         quote!({ #body })
     });
 
-    s.bind_with(|_bi| synstructure::BindStyle::Ref);
+    let _ = s.bind_with(|_bi| synstructure::BindStyle::Ref);
 
     let value_type_arms = s.each_variant(|variant| {
         if let Some(ref value_name) = type_attrs.value_type {
@@ -169,11 +165,12 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
             where
                 P: crate::processor::Processor,
             {
-                #process_func_call_tokens.and_then(|| {
-                    match *self {
-                        #process_value_arms
-                    }
-                })
+                #process_func_call_tokens;
+                match *self {
+                    #process_value_arms
+                }
+
+                Ok(())
             }
 
             #[inline]
@@ -181,13 +178,15 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                 &mut self,
                 __processor: &mut P,
                 __state: &crate::processor::ProcessingState<'_>
-            )
+            ) -> crate::types::ValueAction
             where
                 P: crate::processor::Processor,
             {
                 match *self {
                     #process_child_values_arms
                 }
+
+                Ok(())
             }
         }
     })

@@ -809,11 +809,11 @@ fn test_context_processing() {
             _state: &ProcessingState<'_>,
         ) -> ValueAction {
             self.called = true;
-            ValueAction::default()
+            Ok(())
         }
     }
 
     let mut processor = FooProcessor { called: false };
-    crate::processor::process_value(&mut event, &mut processor, ProcessingState::root());
+    crate::processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert!(processor.called);
 }

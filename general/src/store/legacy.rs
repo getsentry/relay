@@ -33,6 +33,6 @@ impl Processor for LegacyProcessor {
             *image = DebugImage::MachO(Box::new(native));
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 }

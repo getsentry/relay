@@ -5,7 +5,9 @@ use serde_json;
 use crate::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk, MaxChars};
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::{Frame, RawStacktrace};
-use crate::types::{Annotated, Array, Empty, Meta, Object, RemarkType, Value, ValueAction};
+use crate::types::{
+    Annotated, Array, DiscardValue, Empty, Meta, Object, RemarkType, Value, ValueAction,
+};
 
 #[derive(Clone, Debug)]
 struct BagSizeState {
@@ -71,15 +73,15 @@ impl Processor for TrimmingProcessor {
 
         if self.remaining_bag_size() == Some(0) {
             // TODO: Create remarks (ensure they do not bloat event)
-            return ValueAction::DeleteHard;
+            return Err(DiscardValue::DeleteHard);
         }
 
         if self.remaining_bag_depth(state) == Some(0) {
             // TODO: Create remarks (ensure they do not bloat event)
-            return ValueAction::DeleteHard;
+            return Err(DiscardValue::DeleteHard);
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 
     fn after_process<T: ProcessValue>(
@@ -87,7 +89,7 @@ impl Processor for TrimmingProcessor {
         value: Option<&T>,
         _: &mut Meta,
         state: &ProcessingState<'_>,
-    ) {
+    ) -> ValueAction {
         if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
             // If our current depth is the one where we found a bag_size attribute, this means we
             // are done processing a databag. Pop the bag size state.
@@ -112,6 +114,8 @@ impl Processor for TrimmingProcessor {
                     bag_size_state.size_remaining.saturating_sub(item_length);
             }
         }
+
+        Ok(())
     }
 
     fn process_string(
@@ -121,14 +125,14 @@ impl Processor for TrimmingProcessor {
         state: &ProcessingState<'_>,
     ) -> ValueAction {
         if let Some(max_chars) = state.attrs().max_chars {
-            trim_string(value, meta, max_chars);
+            trim_string(value, meta, max_chars)?;
         }
 
         if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
-            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
+            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining))?;
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_array<T>(
@@ -145,7 +149,7 @@ impl Processor for TrimmingProcessor {
             let original_length = value.len();
 
             if self.should_remove_container(value, state) {
-                return ValueAction::DeleteHard;
+                return Err(DiscardValue::DeleteHard);
             }
 
             let mut split_index = None;
@@ -156,7 +160,7 @@ impl Processor for TrimmingProcessor {
                 }
 
                 let item_state = state.enter_index(index, None, ValueType::for_field(item));
-                process_value(item, self, &item_state);
+                process_value(item, self, &item_state)?;
             }
 
             if let Some(split_index) = split_index {
@@ -167,10 +171,10 @@ impl Processor for TrimmingProcessor {
                 meta.set_original_length(Some(original_length));
             }
         } else {
-            value.process_child_values(self, state);
+            value.process_child_values(self, state)?;
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_object<T>(
@@ -187,7 +191,7 @@ impl Processor for TrimmingProcessor {
             let original_length = value.len();
 
             if self.should_remove_container(value, state) {
-                return ValueAction::DeleteHard;
+                return Err(DiscardValue::DeleteHard);
             }
 
             let mut split_key = None;
@@ -198,7 +202,7 @@ impl Processor for TrimmingProcessor {
                 }
 
                 let item_state = state.enter_borrowed(key, None, ValueType::for_field(item));
-                process_value(item, self, &item_state);
+                process_value(item, self, &item_state)?;
             }
 
             if let Some(split_key) = split_key {
@@ -209,10 +213,10 @@ impl Processor for TrimmingProcessor {
                 meta.set_original_length(Some(original_length));
             }
         } else {
-            value.process_child_values(self, state);
+            value.process_child_values(self, state)?;
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_value(
@@ -233,8 +237,8 @@ impl Processor for TrimmingProcessor {
             _ => (),
         }
 
-        value.process_child_values(self, state);
-        ValueAction::Keep
+        value.process_child_values(self, state)?;
+        Ok(())
     }
 
     fn process_raw_stacktrace(
@@ -245,25 +249,25 @@ impl Processor for TrimmingProcessor {
     ) -> ValueAction {
         stacktrace
             .frames
-            .apply(|frames, meta| enforce_frame_hard_limit(frames, meta, 250));
+            .apply(|frames, meta| enforce_frame_hard_limit(frames, meta, 250))?;
 
-        stacktrace.process_child_values(self, state);
+        stacktrace.process_child_values(self, state)?;
 
         stacktrace
             .frames
-            .apply(|frames, _meta| slim_frame_data(frames, 50));
+            .apply(|frames, _meta| slim_frame_data(frames, 50))?;
 
-        ValueAction::Keep
+        Ok(())
     }
 }
 
 /// Trims the string to the given maximum length and updates meta data.
-fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
+fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) -> ValueAction {
     let soft_limit = max_chars.limit();
     let hard_limit = soft_limit + max_chars.allowance();
 
     if bytecount::num_chars(value.as_bytes()) <= hard_limit {
-        return;
+        return Ok(());
     }
 
     process_chunked_value(value, meta, |chunks| {
@@ -317,9 +321,15 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
 
         new_chunks
     });
+
+    Ok(())
 }
 
-fn enforce_frame_hard_limit(frames: &mut Array<Frame>, meta: &mut Meta, limit: usize) {
+fn enforce_frame_hard_limit(
+    frames: &mut Array<Frame>,
+    meta: &mut Meta,
+    limit: usize,
+) -> ValueAction {
     // Trim down the frame list to a hard limit. Leave the last frame in place in case
     // it's useful for debugging.
     let original_length = frames.len();
@@ -332,16 +342,18 @@ fn enforce_frame_hard_limit(frames: &mut Array<Frame>, meta: &mut Meta, limit: u
             frames.push(last_frame);
         }
     }
+
+    Ok(())
 }
 
 /// Remove excess metadata for middle frames which go beyond `frame_allowance`.
 ///
 /// This is supposed to be equivalent to `slim_frame_data` in Sentry.
-fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
+fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) -> ValueAction {
     let frames_len = frames.len();
 
     if frames_len <= frame_allowance {
-        return;
+        return Ok(());
     }
 
     // Avoid ownership issues by only storing indices
@@ -382,6 +394,8 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
             }
         }
     }
+
+    Ok(())
 }
 
 #[test]
@@ -390,7 +404,9 @@ fn test_string_trimming() {
     use crate::types::{Annotated, Meta, Remark, RemarkType};
 
     let mut value = Annotated::new("This is my long string I want to have trimmed!".to_string());
-    value.apply(|v, m| trim_string(v, m, MaxChars::Hard(20)));
+    value
+        .apply(|v, m| trim_string(v, m, MaxChars::Hard(20)))
+        .unwrap();
 
     assert_eq_dbg!(
         value,
@@ -422,10 +438,12 @@ fn test_basic_trimming() {
         ..Default::default()
     });
 
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let mut expected = Annotated::new(repeat("x").take(300).collect::<String>());
-    expected.apply(|v, m| trim_string(v, m, MaxChars::Culprit));
+    expected
+        .apply(|v, m| trim_string(v, m, MaxChars::Culprit))
+        .unwrap();
     assert_eq_dbg!(event.value().unwrap().culprit, expected);
 }
 
@@ -467,7 +485,7 @@ fn test_databag_stripping() {
         ..Default::default()
     });
 
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     let stripped_extra = &event.value().unwrap().extra;
     let json = stripped_extra.to_json_pretty().unwrap();
 
@@ -527,7 +545,7 @@ fn test_databag_array_stripping() {
         ..Default::default()
     });
 
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     let stripped_extra = SerializableAnnotated(&event.value().unwrap().extra);
 
     assert_ron_snapshot!(stripped_extra);
@@ -552,7 +570,7 @@ fn test_tags_stripping() {
         ..Default::default()
     });
 
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     let json = event
         .value()
         .unwrap()
@@ -616,7 +634,7 @@ fn test_databag_state_leak() {
 
     let mut processor = TrimmingProcessor::new();
     let mut stripped_event = event.clone();
-    process_value(&mut stripped_event, &mut processor, ProcessingState::root());
+    process_value(&mut stripped_event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_str!(
         event.to_json_pretty().unwrap(),
@@ -649,7 +667,7 @@ fn test_custom_context_trimming() {
 
     let mut contexts = Annotated::new(Contexts(contexts));
     let mut processor = TrimmingProcessor::new();
-    process_value(&mut contexts, &mut processor, ProcessingState::root());
+    process_value(&mut contexts, &mut processor, ProcessingState::root()).unwrap();
 
     for i in 1..2 {
         let other = match contexts
@@ -712,7 +730,7 @@ fn test_extra_trimming_long_arrays() {
     });
 
     let mut processor = TrimmingProcessor::new();
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let arr = match event
         .value()
@@ -763,7 +781,7 @@ fn test_newtypes_do_not_add_to_depth() {
     });
 
     let mut processor = TrimmingProcessor::new();
-    process_value(&mut value, &mut processor, ProcessingState::root());
+    process_value(&mut value, &mut processor, ProcessingState::root()).unwrap();
 
     // Ensure stack does not leak with newtypes
     assert!(processor.bag_size_state.is_empty());
@@ -791,7 +809,9 @@ fn test_frame_hard_limit() {
         create_frame("foo5.py"),
     ]);
 
-    frames.apply(|f, m| enforce_frame_hard_limit(f, m, 3));
+    frames
+        .apply(|f, m| enforce_frame_hard_limit(f, m, 3))
+        .unwrap();
 
     let mut expected_meta = Meta::default();
     expected_meta.set_original_length(Some(5));
@@ -820,7 +840,7 @@ fn test_slim_frame_data_under_max() {
     })];
 
     let old_frames = frames.clone();
-    slim_frame_data(&mut frames, 4);
+    slim_frame_data(&mut frames, 4).unwrap();
 
     assert_eq_dbg!(frames, old_frames);
 }
@@ -839,7 +859,7 @@ fn test_slim_frame_data_over_max() {
         }));
     }
 
-    slim_frame_data(&mut frames, 4);
+    slim_frame_data(&mut frames, 4).unwrap();
 
     let expected = vec![
         Annotated::new(Frame {

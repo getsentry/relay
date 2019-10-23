@@ -19,9 +19,9 @@ impl Processor for RecordingProcessor {
     ) -> ValueAction {
         self.0.push(format!("process_value({})", state.path()));
         self.0.push("before_process_child_values".to_string());
-        value.process_child_values(self, state);
+        value.process_child_values(self, state)?;
         self.0.push("after_process_child_values".to_string());
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_string(
@@ -31,7 +31,7 @@ impl Processor for RecordingProcessor {
         state: &ProcessingState<'_>,
     ) -> ValueAction {
         self.0.push(format!("process_string({})", state.path()));
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_header_name(
@@ -43,9 +43,9 @@ impl Processor for RecordingProcessor {
         self.0
             .push(format!("process_header_name({})", state.path()));
         self.0.push("before_process_child_values".to_string());
-        value.process_child_values(self, state);
+        value.process_child_values(self, state)?;
         self.0.push("after_process_child_values".to_string());
-        ValueAction::Keep
+        Ok(())
     }
 }
 
@@ -58,7 +58,8 @@ fn test_enums_processor_calls() {
         &mut value,
         &mut processor,
         &ProcessingState::root().enter_static("foo", None, None),
-    );
+    )
+    .unwrap();
 
     // Assert that calling `process_child_values` does not recurse. This is surprising and slightly
     // undesirable for processors, but not a big deal and easy to implement.
@@ -82,7 +83,8 @@ fn test_simple_newtype() {
         &mut value,
         &mut processor,
         &ProcessingState::root().enter_static("foo", None, None),
-    );
+    )
+    .unwrap();
 
     // Assert that calling `process_child_values` does not recurse. This is surprising and slightly
     // undesirable for processors, but not a big deal and easy to implement.

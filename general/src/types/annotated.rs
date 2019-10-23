@@ -1,5 +1,7 @@
 use std::fmt;
 
+use failure::Fail;
+
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -54,55 +56,23 @@ impl MetaTree {
 /// Meta for children.
 pub type MetaMap = Map<String, MetaTree>;
 
-/// Used to indicate how to handle an annotated value in a callback.
-#[must_use = "This `ValueAction` must be handled by `Annotated::apply`"]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ValueAction {
-    /// Keeps the value as is.
-    Keep,
+pub type ValueAction = Result<(), DiscardValue>;
 
+/// Used to indicate how to handle an annotated value in a callback.
+#[must_use = "This `DiscardValue` must be handled by `Annotated::apply`"]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Fail)]
+pub enum DiscardValue {
     /// Discards the value entirely.
+    #[fail(display = "value should be hard-deleted (unreachable, should not surface as error!)")]
     DeleteHard,
 
     /// Discards the value and moves it into meta's `original_value`.
+    #[fail(display = "value should be hard-deleted (unreachable, should not surface as error!)")]
     DeleteSoft,
-}
 
-impl ValueAction {
-    /// Returns the result of `f` if the current action is `ValueAction::Keep`.
-    #[inline]
-    pub fn and_then<F>(self, f: F) -> Self
-    where
-        F: FnOnce() -> Self,
-    {
-        match self {
-            ValueAction::Keep => f(),
-            ValueAction::DeleteHard | ValueAction::DeleteSoft => self,
-        }
-    }
-}
-
-impl Default for ValueAction {
-    #[inline]
-    fn default() -> Self {
-        ValueAction::Keep
-    }
-}
-
-impl From<()> for ValueAction {
-    fn from(_: ()) -> Self {
-        ValueAction::Keep
-    }
-}
-
-impl From<bool> for ValueAction {
-    fn from(b: bool) -> Self {
-        if b {
-            ValueAction::Keep
-        } else {
-            ValueAction::DeleteHard
-        }
-    }
+    /// The event is invalid (needs to bubble up)
+    #[fail(display = "invalid event: {}", _0)]
+    InvalidEvent(&'static str),
 }
 
 /// Wrapper for data fields with optional meta data.
@@ -359,23 +329,26 @@ where
 
     /// Modifies this value based on the action returned by `f`.
     #[inline]
-    pub fn apply<F, R>(&mut self, f: F)
+    pub fn apply<F, R>(&mut self, f: F) -> ValueAction
     where
         F: FnOnce(&mut T, &mut Meta) -> R,
         R: Into<ValueAction>,
     {
         let result = match (self.0.as_mut(), &mut self.1) {
             (Some(value), meta) => f(value, meta).into(),
-            (None, _) => Default::default(),
+            (None, _) => Ok(()),
         };
 
         match result {
-            ValueAction::DeleteHard => self.0 = None,
-            ValueAction::Keep => (),
-            ValueAction::DeleteSoft => {
+            Ok(()) => (),
+            Err(DiscardValue::DeleteHard) => self.0 = None,
+            Err(DiscardValue::DeleteSoft) => {
                 self.1.set_original_value(self.0.take());
             }
+            x @ Err(DiscardValue::InvalidEvent(_)) => return x,
         }
+
+        Ok(())
     }
 }
 

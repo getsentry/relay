@@ -5,12 +5,18 @@ use crate::types::{Annotated, ErrorKind, Meta, Object, Value, ValueAction};
 pub struct RemoveOtherProcessor;
 
 impl Processor for RemoveOtherProcessor {
-    fn process_other(&mut self, other: &mut Object<Value>, state: &ProcessingState<'_>) {
+    fn process_other(
+        &mut self,
+        other: &mut Object<Value>,
+        state: &ProcessingState<'_>,
+    ) -> ValueAction {
         // Drop unknown attributes at all levels without error messages, unless `retain = "true"`
         // was specified explicitly on the field.
         if !state.attrs().retain {
             other.clear();
         }
+
+        Ok(())
     }
 
     fn process_event(
@@ -38,10 +44,10 @@ impl Processor for RemoveOtherProcessor {
         }
 
         // Recursively clean all `other`s now. Note that this won't touch the event's other
-        event.process_child_values(self, state);
+        event.process_child_values(self, state)?;
 
         event.other = other;
-        ValueAction::Keep
+        Ok(())
     }
 }
 
@@ -66,7 +72,8 @@ fn test_remove_legacy_attributes() {
         &mut event,
         &mut RemoveOtherProcessor,
         ProcessingState::root(),
-    );
+    )
+    .unwrap();
 
     assert!(event.value().unwrap().other.is_empty());
 }
@@ -87,7 +94,8 @@ fn test_remove_unknown_attributes() {
         &mut event,
         &mut RemoveOtherProcessor,
         ProcessingState::root(),
-    );
+    )
+    .unwrap();
 
     let other = &event.value().unwrap().other;
     assert_eq_dbg!(
@@ -121,7 +129,8 @@ fn test_remove_nested_other() {
         &mut event,
         &mut RemoveOtherProcessor,
         ProcessingState::root(),
-    );
+    )
+    .unwrap();
 
     assert!(event
         .value()
@@ -156,7 +165,8 @@ fn test_retain_context_other() {
         &mut event,
         &mut RemoveOtherProcessor,
         ProcessingState::root(),
-    );
+    )
+    .unwrap();
 
     assert_eq_dbg!(
         &event.value().unwrap().contexts.value().unwrap().0,

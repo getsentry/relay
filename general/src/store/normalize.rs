@@ -17,7 +17,7 @@ use crate::protocol::{
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
-    Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Value, ValueAction,
+    Annotated, DiscardValue, Empty, Error, ErrorKind, FromValue, Meta, Object, Value, ValueAction,
 };
 
 mod contexts;
@@ -32,9 +32,9 @@ mod user_agent;
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
 fn validate_bounded_integer_field(value: u64) -> ValueAction {
     if value < 2_147_483_647 {
-        ValueAction::Keep
+        Ok(())
     } else {
-        ValueAction::DeleteHard
+        Err(DiscardValue::DeleteHard)
     }
 }
 
@@ -103,7 +103,7 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     /// Validates the timestamp range and sets a default value.
-    fn normalize_timestamps(&self, event: &mut Event) {
+    fn normalize_timestamps(&self, event: &mut Event) -> ValueAction {
         let current_timestamp = Utc::now();
         event.received = Annotated::new(current_timestamp);
 
@@ -111,19 +111,19 @@ impl<'a> NormalizeProcessor<'a> {
             if let Some(secs) = self.config.max_secs_in_future {
                 if *timestamp > current_timestamp + Duration::seconds(secs) {
                     meta.add_error(ErrorKind::FutureTimestamp);
-                    return ValueAction::DeleteSoft;
+                    return Err(DiscardValue::DeleteSoft);
                 }
             }
 
             if let Some(secs) = self.config.max_secs_in_past {
                 if *timestamp < current_timestamp - Duration::seconds(secs) {
                     meta.add_error(ErrorKind::PastTimestamp);
-                    return ValueAction::DeleteSoft;
+                    return Err(DiscardValue::DeleteSoft);
                 }
             }
 
-            ValueAction::Keep
-        });
+            Ok(())
+        })?;
 
         if event.timestamp.value().is_none() {
             event.timestamp.set_value(Some(current_timestamp));
@@ -131,11 +131,13 @@ impl<'a> NormalizeProcessor<'a> {
 
         event
             .time_spent
-            .apply(|time_spent, _| validate_bounded_integer_field(*time_spent));
+            .apply(|time_spent, _| validate_bounded_integer_field(*time_spent))?;
+
+        Ok(())
     }
 
     /// Removes internal tags and adds tags for well-known attributes.
-    fn normalize_event_tags(&self, event: &mut Event) {
+    fn normalize_event_tags(&self, event: &mut Event) -> ValueAction {
         let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
         let environment = &mut event.environment;
         if environment.is_empty() {
@@ -166,24 +168,24 @@ impl<'a> NormalizeProcessor<'a> {
                 if let Some(key) = tag.key() {
                     if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
                         meta.add_error(Error::new(ErrorKind::ValueTooLong));
-                        return ValueAction::DeleteHard;
+                        return Err(DiscardValue::DeleteHard);
                     }
                 }
 
                 if let Some(value) = tag.value() {
                     if value.is_empty() {
                         meta.add_error(Error::nonempty());
-                        return ValueAction::DeleteHard;
+                        return Err(DiscardValue::DeleteHard);
                     }
 
                     if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
                         meta.add_error(Error::new(ErrorKind::ValueTooLong));
-                        return ValueAction::DeleteHard;
+                        return Err(DiscardValue::DeleteHard);
                     }
                 }
 
-                ValueAction::Keep
-            });
+                Ok(())
+            })?;
         }
 
         let server_name = std::mem::replace(&mut event.server_name, Annotated::empty());
@@ -195,6 +197,8 @@ impl<'a> NormalizeProcessor<'a> {
         if site.value().is_some() {
             tags.insert("site".to_string(), site);
         }
+
+        Ok(())
     }
 
     /// Infers the `EventType` from the event's interfaces.
@@ -290,7 +294,7 @@ impl<'a> NormalizeProcessor<'a> {
         }
     }
 
-    fn normalize_exceptions(&self, event: &mut Event) {
+    fn normalize_exceptions(&self, event: &mut Event) -> ValueAction {
         let os_hint = mechanism::OsHint::from_event(&event);
 
         if let Some(exception_values) = event.exceptions.value_mut() {
@@ -314,12 +318,14 @@ impl<'a> NormalizeProcessor<'a> {
                 for exception in exceptions {
                     if let Some(exception) = exception.value_mut() {
                         if let Some(mechanism) = exception.mechanism.value_mut() {
-                            mechanism::normalize_mechanism(mechanism, os_hint);
+                            mechanism::normalize_mechanism(mechanism, os_hint)?;
                         }
                     }
                 }
             }
         }
+
+        Ok(())
     }
 
     fn normalize_user_agent(&self, _event: &mut Event) {
@@ -343,7 +349,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         // Insert IP addrs first, since geo lookup depends on it.
         self.normalize_ip_addresses(event);
 
-        event.process_child_values(self, state);
+        event.process_child_values(self, state)?;
 
         // Override internal attributes, even if they were set in the payload
         event.project = Annotated::from(self.config.project_id);
@@ -361,11 +367,11 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         // Validate basic attributes
         event.platform.apply(|platform, _| {
             if self.config.valid_platforms.contains(platform) {
-                ValueAction::Keep
+                Ok(())
             } else {
-                ValueAction::DeleteSoft
+                Err(DiscardValue::DeleteSoft)
             }
-        });
+        })?;
 
         // Default required attributes, even if they have errors
         event.errors.get_or_insert_with(Vec::new);
@@ -380,12 +386,12 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         // Normalize connected attributes and interfaces
         self.normalize_release_dist(event);
-        self.normalize_timestamps(event);
-        self.normalize_event_tags(event);
-        self.normalize_exceptions(event);
+        self.normalize_timestamps(event)?;
+        self.normalize_event_tags(event)?;
+        self.normalize_exceptions(event)?;
         self.normalize_user_agent(event);
 
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_breadcrumb(
@@ -394,7 +400,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        breadcrumb.process_child_values(self, state);
+        breadcrumb.process_child_values(self, state)?;
 
         if breadcrumb.ty.value().is_empty() {
             breadcrumb.ty.set_value(Some("default".to_string()));
@@ -404,7 +410,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             breadcrumb.level.set_value(Some(Level::Info));
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_request(
@@ -413,11 +419,11 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        request.process_child_values(self, state);
+        request.process_child_values(self, state)?;
 
-        request::normalize_request(request);
+        request::normalize_request(request)?;
 
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_user(
@@ -431,7 +437,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             data.extend(std::mem::replace(&mut user.other, Object::new()).into_iter());
         }
 
-        user.process_child_values(self, state);
+        user.process_child_values(self, state)?;
 
         // Infer user.geo from user.ip_address
         if user.geo.value().is_none() {
@@ -444,7 +450,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             }
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_debug_image(
@@ -456,9 +462,9 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         match image {
             DebugImage::Other(_) => {
                 meta.add_error(Error::invalid("unsupported debug image type"));
-                ValueAction::DeleteSoft
+                Err(DiscardValue::DeleteSoft)
             }
-            _ => ValueAction::Keep,
+            _ => Ok(()),
         }
     }
 
@@ -477,7 +483,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        exception.process_child_values(self, state);
+        exception.process_child_values(self, state)?;
 
         lazy_static! {
             static ref TYPE_VALUE_RE: Regex = Regex::new(r"^(\w+):(.*)$").unwrap();
@@ -500,10 +506,10 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             meta.add_error(Error::with(ErrorKind::MissingAttribute, |error| {
                 error.insert("attribute", "type or value");
             }));
-            return ValueAction::DeleteSoft;
+            return Err(DiscardValue::DeleteSoft);
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_frame(
@@ -512,7 +518,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        frame.process_child_values(self, state);
+        frame.process_child_values(self, state)?;
 
         if frame.function.as_str() == Some("?") {
             frame.function.set_value(None);
@@ -540,7 +546,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             frame.context_line.set_value(Some(String::new()));
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_stacktrace(
@@ -549,8 +555,8 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         meta: &mut Meta,
         _state: &ProcessingState<'_>,
     ) -> ValueAction {
-        stacktrace::process_stacktrace(&mut stacktrace.0, meta);
-        ValueAction::Keep
+        stacktrace::process_stacktrace(&mut stacktrace.0, meta)?;
+        Ok(())
     }
 
     fn process_context(
@@ -560,7 +566,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _state: &ProcessingState<'_>,
     ) -> ValueAction {
         contexts::normalize_context(context);
-        ValueAction::Keep
+        Ok(())
     }
 }
 
@@ -586,7 +592,7 @@ fn test_handles_type_in_value() {
         ..Exception::default()
     });
 
-    process_value(&mut exception, &mut processor, ProcessingState::root());
+    process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
     let exception = exception.value().unwrap();
     assert_eq_dbg!(exception.value.as_str(), Some("unauthorized"));
     assert_eq_dbg!(exception.ty.as_str(), Some("ValueError"));
@@ -596,7 +602,7 @@ fn test_handles_type_in_value() {
         ..Exception::default()
     });
 
-    process_value(&mut exception, &mut processor, ProcessingState::root());
+    process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
     let exception = exception.value().unwrap();
     assert_eq_dbg!(exception.value.as_str(), Some("unauthorized"));
     assert_eq_dbg!(exception.ty.as_str(), Some("ValueError"));
@@ -612,7 +618,7 @@ fn test_rejects_empty_exception_fields() {
         ..Default::default()
     });
 
-    process_value(&mut exception, &mut processor, ProcessingState::root());
+    process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
     assert!(exception.value().is_none());
     assert!(exception.meta().has_errors());
 }
@@ -625,7 +631,7 @@ fn test_json_value() {
         value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
         ..Exception::default()
     });
-    process_value(&mut exception, &mut processor, ProcessingState::root());
+    process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
     let exception = exception.value().unwrap();
 
     // Don't split a json-serialized value on the colon
@@ -638,7 +644,7 @@ fn test_exception_invalid() {
     let mut processor = NormalizeProcessor::default();
 
     let mut exception = Annotated::new(Exception::default());
-    process_value(&mut exception, &mut processor, ProcessingState::root());
+    process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
 
     let expected = Error::with(ErrorKind::MissingAttribute, |error| {
         error.insert("attribute", "type or value");
@@ -662,7 +668,7 @@ fn test_geo_from_ip_address() {
         ..User::default()
     });
 
-    process_value(&mut user, &mut processor, ProcessingState::root());
+    process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
 
     let expected = Annotated::new(Geo {
         country_code: Annotated::new("AT".to_string()),
@@ -695,7 +701,7 @@ fn test_user_ip_from_remote_addr() {
     config.valid_platforms.insert("javascript".to_owned());
 
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = event
         .value()
@@ -731,7 +737,7 @@ fn test_user_ip_from_invalid_remote_addr() {
     config.valid_platforms.insert("javascript".to_owned());
 
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(Annotated::empty(), event.value().unwrap().user);
 }
@@ -748,7 +754,7 @@ fn test_user_ip_from_client_ip_without_auto() {
     config.valid_platforms.insert("javascript".to_owned());
 
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = event
         .value()
@@ -782,7 +788,7 @@ fn test_user_ip_from_client_ip_with_auto() {
     ))
     .unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = event.value().unwrap().user.value().expect("user missing");
 
@@ -805,7 +811,7 @@ fn test_user_ip_from_client_ip_without_appropriate_platform() {
     ))
     .unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = event.value().unwrap().user.value().expect("user missing");
 
@@ -824,7 +830,7 @@ fn test_environment_tag_is_moved() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
 
@@ -844,7 +850,7 @@ fn test_empty_environment_is_removed_and_overwritten_with_tag() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
 
@@ -860,7 +866,7 @@ fn test_empty_environment_is_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
     assert_eq_dbg!(event.environment.value(), None);
@@ -885,7 +891,7 @@ fn test_top_level_keys_moved_into_tags() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
 
@@ -940,7 +946,7 @@ fn test_internal_tags_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq!(event.value().unwrap().tags.value().unwrap().len(), 1);
 }
@@ -966,7 +972,7 @@ fn test_empty_tags_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let tags = event.value().unwrap().tags.value().unwrap();
     assert_eq!(tags.len(), 2);
@@ -1006,7 +1012,7 @@ fn test_tags_deduplicated() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     // should keep the first occurrence of every tag
     assert_eq_dbg!(
@@ -1039,7 +1045,7 @@ fn test_user_data_moved() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut user, &mut processor, ProcessingState::root());
+    process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
 
     let user = user.value().unwrap();
 
@@ -1068,7 +1074,7 @@ fn test_unknown_debug_image() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let expected = Annotated::new(DebugMeta {
         images: Annotated::new(vec![Annotated::from_error(
@@ -1090,7 +1096,7 @@ fn test_context_line_default() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut frame, &mut processor, ProcessingState::root());
+    process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
 
     let frame = frame.value().unwrap();
     assert_eq_dbg!(frame.context_line.as_str(), Some(""));
@@ -1106,7 +1112,7 @@ fn test_context_line_retain() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut frame, &mut processor, ProcessingState::root());
+    process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
 
     let frame = frame.value().unwrap();
     assert_eq_dbg!(frame.context_line.as_str(), Some("some line"));
@@ -1121,7 +1127,7 @@ fn test_frame_null_context_lines() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut frame, &mut processor, ProcessingState::root());
+    process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
 
     let frame = frame.value().unwrap();
     assert_eq_dbg!(
@@ -1156,7 +1162,7 @@ fn test_too_long_tags() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
 
@@ -1196,7 +1202,7 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let expected = Annotated::new(
         RawStacktrace {
@@ -1241,7 +1247,7 @@ fn test_parses_sdk_info_from_header() {
         }),
         None,
     );
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
         event.value().unwrap().client_sdk,
@@ -1263,7 +1269,7 @@ fn test_discards_received() {
 
     let mut processor = NormalizeProcessor::default();
 
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert!(event.value().unwrap().timestamp.value().is_some());
     assert_eq_dbg!(
@@ -1297,7 +1303,7 @@ fn test_grouping_config() {
         None,
     );
 
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",

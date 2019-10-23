@@ -664,6 +664,7 @@ impl RetryAfter {
 pub struct RateLimit(pub RateLimitScope, pub RetryAfter);
 
 impl RateLimit {
+    #[cfg(feature = "processing")]
     pub fn reason_code(&self) -> Option<&str> {
         Some(&self.1.reason_code.as_ref()?)
     }

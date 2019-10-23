@@ -43,7 +43,7 @@ macro_rules! event_snapshot {
         let mut config = StoreConfig::default();
         config.valid_platforms = VALID_PLATOFORMS.clone();
         let mut processor = StoreProcessor::new(config, None);
-        process_value(&mut event, &mut processor, ProcessingState::root());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
         assert_yaml_snapshot!(SerializableAnnotated(&event), {
             ".received" => "[received]",
             ".timestamp" => "[timestamp]"

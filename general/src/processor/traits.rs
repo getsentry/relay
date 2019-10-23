@@ -23,8 +23,8 @@ macro_rules! process_method {
             $($param: ProcessValue),*
             $(, $param_req_key : $param_req_trait)*
         {
-            value.process_child_values(self, state);
-            ValueAction::Keep
+            value.process_child_values(self, state)?;
+            Ok(())
         }
     };
 }
@@ -38,7 +38,7 @@ pub trait Processor: Sized {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ValueAction {
-        ValueAction::Keep
+        Ok(())
     }
 
     #[inline]
@@ -47,7 +47,8 @@ pub trait Processor: Sized {
         value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) {
+    ) -> ValueAction {
+        Ok(())
     }
 
     process_method!(process_string, String);
@@ -91,14 +92,16 @@ pub trait Processor: Sized {
         &mut self,
         other: &mut crate::types::Object<crate::types::Value>,
         state: &ProcessingState<'_>,
-    ) {
+    ) -> ValueAction {
         for (key, value) in other {
             process_value(
                 value,
                 self,
                 &state.enter_borrowed(key.as_str(), None, ValueType::for_field(value)),
-            );
+            )?;
         }
+
+        Ok(())
     }
 }
 
@@ -122,15 +125,19 @@ pub trait ProcessValue: FromValue + ToValue + Debug {
     where
         P: Processor,
     {
-        self.process_child_values(processor, state);
-        Default::default()
+        self.process_child_values(processor, state)
     }
 
     /// Recurses into children of this value.
     #[inline]
-    fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
+    fn process_child_values<P>(
+        &mut self,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ValueAction
     where
         P: Processor,
     {
+        Ok(())
     }
 }

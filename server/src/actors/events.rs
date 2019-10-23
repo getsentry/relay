@@ -17,7 +17,7 @@ use semaphore_general::filter::FilterStatKey;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
-use semaphore_general::types::Annotated;
+use semaphore_general::types::{Annotated, DiscardValue};
 use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
@@ -50,8 +50,11 @@ pub enum EventError {
 
 #[derive(Debug, Fail)]
 enum ProcessingError {
-    #[fail(display = "invalid event data")]
+    #[fail(display = "invalid json in event")]
     InvalidJson(#[cause] serde_json::Error),
+
+    #[fail(display = "invalid event")]
+    InvalidEvent(#[cause] DiscardValue),
 
     #[fail(display = "could not schedule project fetch")]
     ScheduleFailed(#[cause] MailboxError),
@@ -136,12 +139,13 @@ impl EventProcessor {
             event.id = Annotated::new(message.event_id);
         }
 
-        metric! {timer("event_processing.pii"), {
+        metric!(timer("event_processing.pii"), {
             for pii_config in message.project_state.config.pii_configs() {
                 let mut processor = PiiProcessor::new(pii_config);
-                process_value(&mut event, &mut processor, ProcessingState::root());
+                process_value(&mut event, &mut processor, ProcessingState::root())
+                    .map_err(ProcessingError::InvalidEvent)?;
             }
-        }}
+        });
 
         #[cfg(feature = "processing")]
         {
@@ -176,9 +180,10 @@ impl EventProcessor {
                 };
 
                 let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
-                metric! {timer("event_processing.process"), {
-                    process_value(&mut event, &mut store_processor, ProcessingState::root());
-                }}
+                metric!(timer("event_processing.process"), {
+                    process_value(&mut event, &mut store_processor, ProcessingState::root())
+                        .map_err(ProcessingError::InvalidEvent)?;
+                });
 
                 // Event filters assume a normalized event. Unfortunately, this requires us to run
                 // expensive normalization first.
@@ -665,6 +670,7 @@ impl Handler<HandleEvent> for EventManager {
                     ProcessingError::SerializeFailed(_)
                     | ProcessingError::ScheduleFailed(_)
                     | ProcessingError::PiiFailed(_)
+                    | ProcessingError::InvalidEvent(_)
                     | ProcessingError::Timeout
                     | ProcessingError::Shutdown
                     | ProcessingError::NoAction(_)

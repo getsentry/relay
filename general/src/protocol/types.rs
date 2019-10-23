@@ -279,14 +279,20 @@ where
         processor.process_pairlist(self, meta, state)
     }
 
-    fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
+    fn process_child_values<P>(
+        &mut self,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ValueAction
     where
         P: Processor,
     {
         for (idx, pair) in self.0.iter_mut().enumerate() {
             let state = state.enter_index(idx, state.inner_attrs(), ValueType::for_field(pair));
-            process_value(pair, processor, &state);
+            process_value(pair, processor, &state)?;
         }
+
+        Ok(())
     }
 }
 
