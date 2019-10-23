@@ -17,7 +17,8 @@ use crate::protocol::{
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
-    Annotated, DiscardValue, Empty, Error, ErrorKind, FromValue, Meta, Object, Value, ValueAction,
+    Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
+    ProcessingResult, Value,
 };
 
 mod contexts;
@@ -30,11 +31,11 @@ mod stacktrace;
 mod user_agent;
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
-fn validate_bounded_integer_field(value: u64) -> ValueAction {
+fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
     if value < 2_147_483_647 {
         Ok(())
     } else {
-        Err(DiscardValue::DeleteHard)
+        Err(ProcessingAction::DeleteValueHard)
     }
 }
 
@@ -103,7 +104,7 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     /// Validates the timestamp range and sets a default value.
-    fn normalize_timestamps(&self, event: &mut Event) -> ValueAction {
+    fn normalize_timestamps(&self, event: &mut Event) -> ProcessingResult {
         let current_timestamp = Utc::now();
         event.received = Annotated::new(current_timestamp);
 
@@ -111,14 +112,14 @@ impl<'a> NormalizeProcessor<'a> {
             if let Some(secs) = self.config.max_secs_in_future {
                 if *timestamp > current_timestamp + Duration::seconds(secs) {
                     meta.add_error(ErrorKind::FutureTimestamp);
-                    return Err(DiscardValue::DeleteSoft);
+                    return Err(ProcessingAction::DeleteValueSoft);
                 }
             }
 
             if let Some(secs) = self.config.max_secs_in_past {
                 if *timestamp < current_timestamp - Duration::seconds(secs) {
                     meta.add_error(ErrorKind::PastTimestamp);
-                    return Err(DiscardValue::DeleteSoft);
+                    return Err(ProcessingAction::DeleteValueSoft);
                 }
             }
 
@@ -137,7 +138,7 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     /// Removes internal tags and adds tags for well-known attributes.
-    fn normalize_event_tags(&self, event: &mut Event) -> ValueAction {
+    fn normalize_event_tags(&self, event: &mut Event) -> ProcessingResult {
         let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
         let environment = &mut event.environment;
         if environment.is_empty() {
@@ -168,19 +169,19 @@ impl<'a> NormalizeProcessor<'a> {
                 if let Some(key) = tag.key() {
                     if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
                         meta.add_error(Error::new(ErrorKind::ValueTooLong));
-                        return Err(DiscardValue::DeleteHard);
+                        return Err(ProcessingAction::DeleteValueHard);
                     }
                 }
 
                 if let Some(value) = tag.value() {
                     if value.is_empty() {
                         meta.add_error(Error::nonempty());
-                        return Err(DiscardValue::DeleteHard);
+                        return Err(ProcessingAction::DeleteValueHard);
                     }
 
                     if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
                         meta.add_error(Error::new(ErrorKind::ValueTooLong));
-                        return Err(DiscardValue::DeleteHard);
+                        return Err(ProcessingAction::DeleteValueHard);
                     }
                 }
 
@@ -294,7 +295,7 @@ impl<'a> NormalizeProcessor<'a> {
         }
     }
 
-    fn normalize_exceptions(&self, event: &mut Event) -> ValueAction {
+    fn normalize_exceptions(&self, event: &mut Event) -> ProcessingResult {
         let os_hint = mechanism::OsHint::from_event(&event);
 
         if let Some(exception_values) = event.exceptions.value_mut() {
@@ -345,7 +346,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         event: &mut Event,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         // Insert IP addrs first, since geo lookup depends on it.
         self.normalize_ip_addresses(event);
 
@@ -369,7 +370,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             if self.config.valid_platforms.contains(platform) {
                 Ok(())
             } else {
-                Err(DiscardValue::DeleteSoft)
+                Err(ProcessingAction::DeleteValueSoft)
             }
         })?;
 
@@ -399,7 +400,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         breadcrumb: &mut Breadcrumb,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         breadcrumb.process_child_values(self, state)?;
 
         if breadcrumb.ty.value().is_empty() {
@@ -418,7 +419,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         request: &mut Request,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         request.process_child_values(self, state)?;
 
         request::normalize_request(request)?;
@@ -431,7 +432,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         user: &mut User,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         if !user.other.is_empty() {
             let data = user.data.value_mut().get_or_insert_with(Object::new);
             data.extend(std::mem::replace(&mut user.other, Object::new()).into_iter());
@@ -458,11 +459,11 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         image: &mut DebugImage,
         meta: &mut Meta,
         _state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         match image {
             DebugImage::Other(_) => {
                 meta.add_error(Error::invalid("unsupported debug image type"));
-                Err(DiscardValue::DeleteSoft)
+                Err(ProcessingAction::DeleteValueSoft)
             }
             _ => Ok(()),
         }
@@ -473,7 +474,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         logentry: &mut LogEntry,
         meta: &mut Meta,
         _state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         logentry::normalize_logentry(logentry, meta)
     }
 
@@ -482,7 +483,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         exception: &mut Exception,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         exception.process_child_values(self, state)?;
 
         lazy_static! {
@@ -506,7 +507,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             meta.add_error(Error::with(ErrorKind::MissingAttribute, |error| {
                 error.insert("attribute", "type or value");
             }));
-            return Err(DiscardValue::DeleteSoft);
+            return Err(ProcessingAction::DeleteValueSoft);
         }
 
         Ok(())
@@ -517,7 +518,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         frame: &mut Frame,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         frame.process_child_values(self, state)?;
 
         if frame.function.as_str() == Some("?") {
@@ -554,7 +555,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         stacktrace: &mut Stacktrace,
         meta: &mut Meta,
         _state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         stacktrace::process_stacktrace(&mut stacktrace.0, meta)?;
         Ok(())
     }
@@ -564,7 +565,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         context: &mut Context,
         _meta: &mut Meta,
         _state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         contexts::normalize_context(context);
         Ok(())
     }

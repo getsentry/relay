@@ -3,7 +3,7 @@ use regex::Regex;
 use url::Url;
 
 use crate::protocol::{Query, Request};
-use crate::types::{Annotated, DiscardValue, ErrorKind, Meta, Value, ValueAction};
+use crate::types::{Annotated, ErrorKind, Meta, ProcessingAction, ProcessingResult, Value};
 
 const ELLIPSIS: char = '\u{2026}';
 
@@ -76,12 +76,12 @@ fn normalize_url(request: &mut Request) {
     };
 }
 
-fn normalize_method(method: &mut String, meta: &mut Meta) -> ValueAction {
+fn normalize_method(method: &mut String, meta: &mut Meta) -> ProcessingResult {
     method.make_ascii_uppercase();
 
     if !meta.has_errors() && !METHOD_RE.is_match(&method) {
         meta.add_error(ErrorKind::InvalidData);
-        return Err(DiscardValue::DeleteSoft);
+        return Err(ProcessingAction::DeleteValueSoft);
     }
 
     Ok(())
@@ -180,7 +180,7 @@ fn normalize_cookies(request: &mut Request) {
     }
 }
 
-pub fn normalize_request(request: &mut Request) -> ValueAction {
+pub fn normalize_request(request: &mut Request) -> ProcessingResult {
     request.method.apply(normalize_method)?;
     normalize_url(request);
     normalize_data(request);

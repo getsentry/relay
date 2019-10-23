@@ -1,5 +1,5 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::types::{Annotated, ValueAction};
+use crate::types::{Annotated, ProcessingResult};
 
 /// Processes the value using the given processor.
 #[inline]
@@ -7,7 +7,7 @@ pub fn process_value<T, P>(
     annotated: &mut Annotated<T>,
     processor: &mut P,
     state: &ProcessingState<'_>,
-) -> ValueAction
+) -> ProcessingResult
 where
     T: ProcessValue,
     P: Processor,

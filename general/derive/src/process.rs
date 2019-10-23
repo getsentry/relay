@@ -35,7 +35,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                 // This is a copy of `funcs::process_value`, due to ownership issues. In particular
                 // we want to pass the same meta twice.
                 //
-                // NOTE: Handling for DiscardValue is slightly different (early-return). This
+                // NOTE: Handling for ProcessingAction is slightly different (early-return). This
                 // should be fine though.
                 let action = __processor.before_process(
                     Some(&*#ident),
@@ -161,7 +161,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                 __meta: &mut crate::types::Meta,
                 __processor: &mut P,
                 __state: &crate::processor::ProcessingState<'_>,
-            ) -> crate::types::ValueAction
+            ) -> crate::types::ProcessingResult
             where
                 P: crate::processor::Processor,
             {
@@ -178,7 +178,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                 &mut self,
                 __processor: &mut P,
                 __state: &crate::processor::ProcessingState<'_>
-            ) -> crate::types::ValueAction
+            ) -> crate::types::ProcessingResult
             where
                 P: crate::processor::Processor,
             {

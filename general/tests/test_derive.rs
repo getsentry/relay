@@ -5,8 +5,8 @@ use semaphore_general::processor::Processor;
 use semaphore_general::protocol::HeaderName;
 use semaphore_general::types::Annotated;
 use semaphore_general::types::Meta;
+use semaphore_general::types::ProcessingResult;
 use semaphore_general::types::Value;
-use semaphore_general::types::ValueAction;
 
 struct RecordingProcessor(Vec<String>);
 
@@ -16,7 +16,7 @@ impl Processor for RecordingProcessor {
         value: &mut Value,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         self.0.push(format!("process_value({})", state.path()));
         self.0.push("before_process_child_values".to_string());
         value.process_child_values(self, state)?;
@@ -29,7 +29,7 @@ impl Processor for RecordingProcessor {
         _value: &mut String,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         self.0.push(format!("process_string({})", state.path()));
         Ok(())
     }
@@ -39,7 +39,7 @@ impl Processor for RecordingProcessor {
         value: &mut HeaderName,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         self.0
             .push(format!("process_header_name({})", state.path()));
         self.0.push("before_process_child_values".to_string());

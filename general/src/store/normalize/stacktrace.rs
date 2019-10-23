@@ -3,7 +3,7 @@ use std::mem;
 use url::Url;
 
 use crate::protocol::{Frame, RawStacktrace};
-use crate::types::{Annotated, Empty, Meta, ValueAction};
+use crate::types::{Annotated, Empty, Meta, ProcessingResult};
 
 fn is_url(filename: &str) -> bool {
     filename.starts_with("file:")
@@ -12,7 +12,7 @@ fn is_url(filename: &str) -> bool {
         || filename.starts_with("applewebdata:")
 }
 
-pub fn process_stacktrace(stacktrace: &mut RawStacktrace, _meta: &mut Meta) -> ValueAction {
+pub fn process_stacktrace(stacktrace: &mut RawStacktrace, _meta: &mut Meta) -> ProcessingResult {
     // This processing is only done for non raw frames (i.e. not for exception.raw_stacktrace).
     if let Some(frames) = stacktrace.frames.value_mut() {
         for frame in frames.iter_mut() {
@@ -23,7 +23,7 @@ pub fn process_stacktrace(stacktrace: &mut RawStacktrace, _meta: &mut Meta) -> V
     Ok(())
 }
 
-pub fn process_non_raw_frame(frame: &mut Frame, _meta: &mut Meta) -> ValueAction {
+pub fn process_non_raw_frame(frame: &mut Frame, _meta: &mut Meta) -> ProcessingResult {
     if frame.abs_path.value().is_empty() {
         frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
     }

@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{Event, IpAddr};
-use crate::types::{Meta, ValueAction};
+use crate::types::{Meta, ProcessingResult};
 
 mod event_error;
 mod geo;
@@ -75,7 +75,7 @@ impl<'a> Processor for StoreProcessor<'a> {
         event: &mut Event,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         // Convert legacy data structures to current format
         legacy::LegacyProcessor.process_event(event, meta, state)?;
 

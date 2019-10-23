@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
-use crate::types::{Annotated, Array, Meta, Object, ValueAction};
+use crate::types::{Annotated, Array, Meta, Object, ProcessingResult};
 
 impl ProcessValue for String {
     #[inline]
@@ -16,7 +16,7 @@ impl ProcessValue for String {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -36,7 +36,7 @@ impl ProcessValue for bool {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -56,7 +56,7 @@ impl ProcessValue for u64 {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -76,7 +76,7 @@ impl ProcessValue for i64 {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -96,7 +96,7 @@ impl ProcessValue for f64 {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -116,7 +116,7 @@ impl ProcessValue for DateTime<Utc> {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -141,7 +141,7 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -153,7 +153,7 @@ where
         &mut self,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -184,7 +184,7 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -196,7 +196,7 @@ where
         &mut self,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -227,7 +227,7 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -246,7 +246,7 @@ macro_rules! process_tuple {
             #[inline]
             #[allow(non_snake_case, unused_assignments)]
             fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
-                -> ValueAction
+                -> ProcessingResult
             where
                 P: Processor,
             {

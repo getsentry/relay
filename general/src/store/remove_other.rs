@@ -1,6 +1,6 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::Event;
-use crate::types::{Annotated, ErrorKind, Meta, Object, Value, ValueAction};
+use crate::types::{Annotated, ErrorKind, Meta, Object, ProcessingResult, Value};
 
 pub struct RemoveOtherProcessor;
 
@@ -9,7 +9,7 @@ impl Processor for RemoveOtherProcessor {
         &mut self,
         other: &mut Object<Value>,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         // Drop unknown attributes at all levels without error messages, unless `retain = "true"`
         // was specified explicitly on the field.
         if !state.attrs().retain {
@@ -24,7 +24,7 @@ impl Processor for RemoveOtherProcessor {
         event: &mut Event,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         // Move the current map out so we don't clear it in `process_other`
         let mut other = std::mem::replace(&mut event.other, Default::default());
 

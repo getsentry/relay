@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use dynfmt::{Argument, Format, FormatArgs, PythonFormat, SimpleCurlyFormat};
 
 use crate::protocol::LogEntry;
-use crate::types::{Annotated, DiscardValue, Empty, Error, Meta, Value, ValueAction};
+use crate::types::{Annotated, Empty, Error, Meta, ProcessingAction, ProcessingResult, Value};
 
 impl FormatArgs for Value {
     fn get_index(&self, index: usize) -> Result<Option<Argument<'_>>, ()> {
@@ -47,7 +47,7 @@ fn format_message<'f>(format: &'f str, params: &Value) -> Option<String> {
     }
 }
 
-pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> ValueAction {
+pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> ProcessingResult {
     // An empty logentry should just be skipped during serialization. No need for an error.
     if logentry.is_empty() {
         return Ok(());
@@ -55,7 +55,7 @@ pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> ValueActi
 
     if logentry.formatted.value().is_none() && logentry.message.value().is_none() {
         meta.add_error(Error::invalid("no message present"));
-        return Err(DiscardValue::DeleteSoft);
+        return Err(ProcessingAction::DeleteValueSoft);
     }
 
     if let Some(params) = logentry.params.value() {
@@ -190,7 +190,7 @@ fn test_empty_missing_message() {
 
     assert_eq_dbg!(
         normalize_logentry(&mut logentry, &mut meta),
-        Err(DiscardValue::DeleteSoft)
+        Err(ProcessingAction::DeleteValueSoft)
     );
     assert!(meta.has_errors());
 }

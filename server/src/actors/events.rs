@@ -17,7 +17,7 @@ use semaphore_general::filter::FilterStatKey;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
-use semaphore_general::types::{Annotated, DiscardValue};
+use semaphore_general::types::{Annotated, ProcessingAction};
 use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
@@ -54,7 +54,7 @@ enum ProcessingError {
     InvalidJson(#[cause] serde_json::Error),
 
     #[fail(display = "invalid event")]
-    InvalidEvent(#[cause] DiscardValue),
+    InvalidEvent(#[cause] ProcessingAction),
 
     #[fail(display = "could not schedule project fetch")]
     ScheduleFailed(#[cause] MailboxError),

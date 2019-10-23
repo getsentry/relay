@@ -1,6 +1,6 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{Event, EventProcessingError};
-use crate::types::{Annotated, Meta, ValueAction};
+use crate::types::{Annotated, Meta, ProcessingResult};
 
 pub struct EmitEventErrors {
     errors: Vec<EventProcessingError>,
@@ -18,7 +18,7 @@ impl Processor for EmitEventErrors {
         _: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         if !meta.has_errors() {
             return Ok(());
         }
@@ -46,7 +46,7 @@ impl Processor for EmitEventErrors {
         event: &mut Event,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         event.process_child_values(self, state)?;
 
         if !self.errors.is_empty() {

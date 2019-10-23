@@ -1,5 +1,7 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::types::{Array, DiscardValue, Empty, Error, ErrorKind, Meta, Object, ValueAction};
+use crate::types::{
+    Array, Empty, Error, ErrorKind, Meta, Object, ProcessingAction, ProcessingResult,
+};
 
 pub struct SchemaProcessor;
 
@@ -9,7 +11,7 @@ impl Processor for SchemaProcessor {
         value: &mut String,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         value_trim_whitespace(value, meta, &state)?;
         verify_value_nonempty(value, meta, &state)?;
         verify_value_pattern(value, meta, &state)?;
@@ -21,7 +23,7 @@ impl Processor for SchemaProcessor {
         value: &mut Array<T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         T: ProcessValue,
     {
@@ -35,7 +37,7 @@ impl Processor for SchemaProcessor {
         value: &mut Object<T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         T: ProcessValue,
     {
@@ -49,7 +51,7 @@ impl Processor for SchemaProcessor {
         value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         if value.is_none() && state.attrs().required && !meta.has_errors() {
             meta.add_error(ErrorKind::MissingAttribute);
         }
@@ -62,7 +64,7 @@ fn value_trim_whitespace(
     value: &mut String,
     _meta: &mut Meta,
     state: &ProcessingState<'_>,
-) -> ValueAction {
+) -> ProcessingResult {
     if state.attrs().trim_whitespace {
         let new_value = value.trim().to_owned();
         value.clear();
@@ -76,13 +78,13 @@ fn verify_value_nonempty<T>(
     value: &mut T,
     meta: &mut Meta,
     state: &ProcessingState<'_>,
-) -> ValueAction
+) -> ProcessingResult
 where
     T: Empty,
 {
     if state.attrs().nonempty && value.is_empty() {
         meta.add_error(Error::nonempty());
-        Err(DiscardValue::DeleteHard)
+        Err(ProcessingAction::DeleteValueHard)
     } else {
         Ok(())
     }
@@ -92,11 +94,11 @@ fn verify_value_pattern(
     value: &mut String,
     meta: &mut Meta,
     state: &ProcessingState<'_>,
-) -> ValueAction {
+) -> ProcessingResult {
     if let Some(ref regex) = state.attrs().match_regex {
         if !regex.is_match(value) {
             meta.add_error(Error::invalid("invalid characters in string"));
-            return Err(DiscardValue::DeleteSoft);
+            return Err(ProcessingAction::DeleteValueSoft);
         }
     }
 

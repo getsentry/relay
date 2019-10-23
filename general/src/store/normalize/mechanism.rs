@@ -1,5 +1,5 @@
 use crate::protocol::{Context, ContextInner, Event, Mechanism};
-use crate::types::{Annotated, DiscardValue, Error, ValueAction};
+use crate::types::{Annotated, Error, ProcessingAction, ProcessingResult};
 
 #[cfg(test)]
 use crate::protocol::{CError, MachException, MechanismMeta, PosixSignal};
@@ -595,13 +595,13 @@ impl OsHint {
 }
 
 /// Normalizes the exception mechanism in place.
-pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) -> ValueAction {
+pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) -> ProcessingResult {
     mechanism.help_link.apply(|value, meta| {
         if value.starts_with("http://") || value.starts_with("https://") {
             Ok(())
         } else {
             meta.add_error(Error::expected("http URL"));
-            Err(DiscardValue::DeleteSoft)
+            Err(ProcessingAction::DeleteValueSoft)
         }
     })?;
 

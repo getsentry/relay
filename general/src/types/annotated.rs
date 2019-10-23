@@ -56,19 +56,19 @@ impl MetaTree {
 /// Meta for children.
 pub type MetaMap = Map<String, MetaTree>;
 
-pub type ValueAction = Result<(), DiscardValue>;
+pub type ProcessingResult = Result<(), ProcessingAction>;
 
 /// Used to indicate how to handle an annotated value in a callback.
-#[must_use = "This `DiscardValue` must be handled by `Annotated::apply`"]
+#[must_use = "This `ProcessingAction` must be handled by `Annotated::apply`"]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Fail)]
-pub enum DiscardValue {
+pub enum ProcessingAction {
     /// Discards the value entirely.
     #[fail(display = "value should be hard-deleted (unreachable, should not surface as error!)")]
-    DeleteHard,
+    DeleteValueHard,
 
     /// Discards the value and moves it into meta's `original_value`.
     #[fail(display = "value should be hard-deleted (unreachable, should not surface as error!)")]
-    DeleteSoft,
+    DeleteValueSoft,
 
     /// The event is invalid (needs to bubble up)
     #[fail(display = "invalid event: {}", _0)]
@@ -329,10 +329,10 @@ where
 
     /// Modifies this value based on the action returned by `f`.
     #[inline]
-    pub fn apply<F, R>(&mut self, f: F) -> ValueAction
+    pub fn apply<F, R>(&mut self, f: F) -> ProcessingResult
     where
         F: FnOnce(&mut T, &mut Meta) -> R,
-        R: Into<ValueAction>,
+        R: Into<ProcessingResult>,
     {
         let result = match (self.0.as_mut(), &mut self.1) {
             (Some(value), meta) => f(value, meta).into(),
@@ -341,11 +341,11 @@ where
 
         match result {
             Ok(()) => (),
-            Err(DiscardValue::DeleteHard) => self.0 = None,
-            Err(DiscardValue::DeleteSoft) => {
+            Err(ProcessingAction::DeleteValueHard) => self.0 = None,
+            Err(ProcessingAction::DeleteValueSoft) => {
                 self.1.set_original_value(self.0.take());
             }
-            x @ Err(DiscardValue::InvalidEvent(_)) => return x,
+            x @ Err(ProcessingAction::InvalidEvent(_)) => return x,
         }
 
         Ok(())

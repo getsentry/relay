@@ -4,7 +4,7 @@
 use std::fmt::Debug;
 
 use crate::processor::{process_value, ProcessingState, ValueType};
-use crate::types::{FromValue, Meta, Timestamp, ToValue, ValueAction};
+use crate::types::{FromValue, Meta, ProcessingResult, Timestamp, ToValue};
 
 macro_rules! process_method {
     ($name: ident, $ty:ident $(::$path:ident)*) => {
@@ -18,7 +18,7 @@ macro_rules! process_method {
             value: &mut $ty $(::$path)* <$($param),*>,
             meta: &mut Meta,
             state: &ProcessingState<'_>,
-        ) -> ValueAction
+        ) -> ProcessingResult
         where
             $($param: ProcessValue),*
             $(, $param_req_key : $param_req_trait)*
@@ -37,7 +37,7 @@ pub trait Processor: Sized {
         value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         Ok(())
     }
 
@@ -47,7 +47,7 @@ pub trait Processor: Sized {
         value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         Ok(())
     }
 
@@ -92,7 +92,7 @@ pub trait Processor: Sized {
         &mut self,
         other: &mut crate::types::Object<crate::types::Value>,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         for (key, value) in other {
             process_value(
                 value,
@@ -121,7 +121,7 @@ pub trait ProcessValue: FromValue + ToValue + Debug {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -134,7 +134,7 @@ pub trait ProcessValue: FromValue + ToValue + Debug {
         &mut self,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {

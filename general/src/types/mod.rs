@@ -11,7 +11,7 @@ mod traits;
 mod value;
 
 pub use self::annotated::{
-    Annotated, DiscardValue, MetaMap, MetaTree, SerializableAnnotated, ValueAction,
+    Annotated, MetaMap, MetaTree, ProcessingAction, ProcessingResult, SerializableAnnotated,
 };
 pub use self::impls::SerializePayload;
 pub use self::meta::{Error, ErrorKind, Meta, Range, Remark, RemarkType};

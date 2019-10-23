@@ -6,7 +6,7 @@ use crate::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::{Frame, RawStacktrace};
 use crate::types::{
-    Annotated, Array, DiscardValue, Empty, Meta, Object, RemarkType, Value, ValueAction,
+    Annotated, Array, Empty, Meta, Object, ProcessingAction, ProcessingResult, RemarkType, Value,
 };
 
 #[derive(Clone, Debug)]
@@ -60,7 +60,7 @@ impl Processor for TrimmingProcessor {
         _: Option<&T>,
         _: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         // If we encounter a bag size attribute it resets the depth and size
         // that is permitted below it.
         if let Some(bag_size) = state.attrs().bag_size {
@@ -73,12 +73,12 @@ impl Processor for TrimmingProcessor {
 
         if self.remaining_bag_size() == Some(0) {
             // TODO: Create remarks (ensure they do not bloat event)
-            return Err(DiscardValue::DeleteHard);
+            return Err(ProcessingAction::DeleteValueHard);
         }
 
         if self.remaining_bag_depth(state) == Some(0) {
             // TODO: Create remarks (ensure they do not bloat event)
-            return Err(DiscardValue::DeleteHard);
+            return Err(ProcessingAction::DeleteValueHard);
         }
 
         Ok(())
@@ -89,7 +89,7 @@ impl Processor for TrimmingProcessor {
         value: Option<&T>,
         _: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
             // If our current depth is the one where we found a bag_size attribute, this means we
             // are done processing a databag. Pop the bag size state.
@@ -123,7 +123,7 @@ impl Processor for TrimmingProcessor {
         value: &mut String,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         if let Some(max_chars) = state.attrs().max_chars {
             trim_string(value, meta, max_chars)?;
         }
@@ -140,7 +140,7 @@ impl Processor for TrimmingProcessor {
         value: &mut Array<T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         T: ProcessValue,
     {
@@ -149,7 +149,7 @@ impl Processor for TrimmingProcessor {
             let original_length = value.len();
 
             if self.should_remove_container(value, state) {
-                return Err(DiscardValue::DeleteHard);
+                return Err(ProcessingAction::DeleteValueHard);
             }
 
             let mut split_index = None;
@@ -182,7 +182,7 @@ impl Processor for TrimmingProcessor {
         value: &mut Object<T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         T: ProcessValue,
     {
@@ -191,7 +191,7 @@ impl Processor for TrimmingProcessor {
             let original_length = value.len();
 
             if self.should_remove_container(value, state) {
-                return Err(DiscardValue::DeleteHard);
+                return Err(ProcessingAction::DeleteValueHard);
             }
 
             let mut split_key = None;
@@ -224,7 +224,7 @@ impl Processor for TrimmingProcessor {
         value: &mut Value,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         match value {
             Value::Array(_) | Value::Object(_) => {
                 if self.remaining_bag_depth(state) == Some(1) {
@@ -246,7 +246,7 @@ impl Processor for TrimmingProcessor {
         stacktrace: &mut RawStacktrace,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         stacktrace
             .frames
             .apply(|frames, meta| enforce_frame_hard_limit(frames, meta, 250))?;
@@ -262,7 +262,7 @@ impl Processor for TrimmingProcessor {
 }
 
 /// Trims the string to the given maximum length and updates meta data.
-fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) -> ValueAction {
+fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) -> ProcessingResult {
     let soft_limit = max_chars.limit();
     let hard_limit = soft_limit + max_chars.allowance();
 
@@ -329,7 +329,7 @@ fn enforce_frame_hard_limit(
     frames: &mut Array<Frame>,
     meta: &mut Meta,
     limit: usize,
-) -> ValueAction {
+) -> ProcessingResult {
     // Trim down the frame list to a hard limit. Leave the last frame in place in case
     // it's useful for debugging.
     let original_length = frames.len();
@@ -349,7 +349,7 @@ fn enforce_frame_hard_limit(
 /// Remove excess metadata for middle frames which go beyond `frame_allowance`.
 ///
 /// This is supposed to be equivalent to `slim_frame_data` in Sentry.
-fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) -> ValueAction {
+fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) -> ProcessingResult {
     let frames_len = frames.len();
 
     if frames_len <= frame_allowance {

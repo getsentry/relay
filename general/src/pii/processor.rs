@@ -16,7 +16,7 @@ use crate::processor::{
     SelectorSpec, ValueType,
 };
 use crate::protocol::{AsPair, PairList};
-use crate::types::{DiscardValue, Meta, Remark, RemarkType, ValueAction};
+use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
@@ -246,7 +246,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         _value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         // booleans cannot be PII, and strings are handled in process_string
         if let Some(ValueType::Boolean) | Some(ValueType::String) = state.value_type() {
             return Ok(());
@@ -267,7 +267,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         value: &mut String,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         if let "" | "true" | "false" | "null" | "undefined" = value.as_str() {
             return Ok(());
         }
@@ -301,7 +301,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         value: &mut PairList<T>,
         _meta: &mut Meta,
         state: &ProcessingState,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         // View pairlists as objects just for the purpose of PII stripping (e.g. `event.tags.mykey`
         // instead of `event.tags.42.0`). For other purposes such as trimming we would run into
         // problems:
@@ -380,7 +380,7 @@ fn apply_rule_to_value(
     rule: RuleRef<'_>,
     key: Option<&str>,
     value: Option<&mut String>,
-) -> ValueAction {
+) -> ProcessingResult {
     match rule.ty {
         RuleType::RedactPair(ref redact_pair) => {
             if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
@@ -403,7 +403,7 @@ fn apply_rule_to_value(
                     Ok(())
                 } else {
                     meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
-                    Err(DiscardValue::DeleteHard)
+                    Err(ProcessingAction::DeleteValueHard)
                 }
             } else {
                 Ok(())
@@ -412,7 +412,7 @@ fn apply_rule_to_value(
         RuleType::Never => Ok(()),
         RuleType::Anything => {
             meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
-            Err(DiscardValue::DeleteHard)
+            Err(ProcessingAction::DeleteValueHard)
         }
 
         // These are not handled by the container code but will be independently picked

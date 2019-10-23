@@ -10,8 +10,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{
-    Annotated, Array, Empty, Error, ErrorKind, FromValue, Meta, Object, SkipSerialization, ToValue,
-    Value, ValueAction,
+    Annotated, Array, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingResult,
+    SkipSerialization, ToValue, Value,
 };
 
 /// A array like wrapper used in various places.
@@ -272,7 +272,7 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -283,7 +283,7 @@ where
         &mut self,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
