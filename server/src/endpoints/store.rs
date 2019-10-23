@@ -6,6 +6,7 @@ use actix::prelude::*;
 use actix_web::http::{Method, StatusCode};
 use actix_web::middleware::cors::Cors;
 use actix_web::{HttpRequest, HttpResponse, ResponseError};
+use bytes::Bytes;
 use failure::Fail;
 use futures::prelude::*;
 use sentry::Hub;
@@ -54,6 +55,9 @@ pub enum BadStoreRequest {
 
     #[fail(display = "event submission rejected with_reason:{:?}", _0)]
     EventRejected(DiscardReason),
+
+    #[fail(display = "Processing the event body failed, with_reason:{:?}", _0)]
+    EventBodyProcessingError(String),
 }
 
 impl BadStoreRequest {
@@ -73,6 +77,9 @@ impl BadStoreRequest {
 
             BadStoreRequest::PayloadError(payload_error) => {
                 Outcome::Invalid(payload_error.discard_reason())
+            }
+            BadStoreRequest::EventBodyProcessingError(_) => {
+                Outcome::Invalid(DiscardReason::SecurityReport)
             }
 
             BadStoreRequest::RateLimited(retry_after) => Outcome::RateLimited(retry_after.clone()),
@@ -113,11 +120,43 @@ struct StoreResponse {
     id: EventId,
 }
 
-fn store_event(
+/// Handler for the event store endpoint.
+///
+/// This simply delegates to `store_event` which does all the work.
+/// `handle_store_event` is an adaptor for `store_event` which cannot
+/// be used directly as a request handler since not all of its arguments
+/// implement the FromRequest trait.
+fn handle_store_event(
     meta: EventMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
+    store_event(
+        meta,
+        start_time,
+        request,
+        None::<Box<dyn Fn(Bytes) -> Result<Bytes, String> + 'static>>, // no request body processing
+    )
+}
+
+/// Handles Sentry events.
+///
+/// Sentry events may come either directly from a http request ( the store endpoint
+/// calls this method directly) or are generated inside Semaphore from requests to
+/// other endpoints (e.g. the security endpoint)
+///
+/// If store_event receives a non empty store_body it will use it as the body of the
+/// event otherwise it will try to create a store_body from the request.
+///
+pub fn store_event<F>(
+    meta: EventMeta,
+    start_time: StartTime,
+    request: HttpRequest<ServiceState>,
+    process_body: Option<F>,
+) -> ResponseFuture<HttpResponse, BadStoreRequest>
+where
+    F: Fn(Bytes) -> Result<Bytes, String> + 'static,
+{
     let start_time = start_time.into_inner();
 
     // For now, we only handle <= v8 and drop everything else
@@ -177,6 +216,21 @@ fn store_event(
                         .map_err(BadStoreRequest::PayloadError)
                 })
                 .and_then(move |data| {
+                    // do any processing of the request body
+                    // Processing is done when the request does not directly represent an Sentry event but
+                    // rather something that can be converted into a sentry event ( like a security report)
+                    if let Some(process_body) = process_body {
+                        // we need to transform the request body before passing it as an event
+                        match process_body(data) {
+                            Ok(data) => Ok(data),
+                            Err(err) => Err(BadStoreRequest::EventBodyProcessingError(err)),
+                        }
+                    } else {
+                        // just an ordinary event, pass it through unchanged
+                        Ok(data)
+                    }
+                })
+                .and_then(move |data| {
                     event_manager
                         .send(QueueEvent {
                             data,
@@ -230,8 +284,8 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .expose_headers(vec!["X-Sentry-Error", "Retry-After"])
         .max_age(3600)
         .resource(r"/api/{project:\d+}/store/", |r| {
-            r.method(Method::POST).with(store_event);
-            r.method(Method::GET).with(store_event);
+            r.method(Method::POST).with(handle_store_event);
+            r.method(Method::GET).with(handle_store_event);
         })
         .register()
 }
