@@ -307,7 +307,8 @@ struct Cache {
     batch_interval: u32,
     /// Interval for watching local cache override files in seconds.
     file_interval: u32,
-    /// Jitter to be applied to cache timeouts (such as projects).
+    /// Jitter to be applied to cache timeouts, such as projects. `0` for no jitter, `1` for 100%
+    /// jitter.
     cache_jitter: f64,
 }
 
