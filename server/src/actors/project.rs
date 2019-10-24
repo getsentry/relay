@@ -345,7 +345,6 @@ impl ProjectState {
         // Jitter is used to compute a random interval between [0; 2 * expiry_interval]
         let jitter = config.cache_timeout_jitter();
         let factor = jitter * (self.seed * 2.0);
-        debug_assert!(factor >= 0.0 && factor <= 2.0 * self.seed);
 
         SystemTime::from(self.last_fetch)
             .elapsed()
