@@ -16,7 +16,7 @@ use crate::processor::{
     SelectorSpec, ValueType,
 };
 use crate::protocol::{AsPair, PairList};
-use crate::types::{Meta, Remark, RemarkType, ValueAction};
+use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
@@ -246,20 +246,20 @@ impl<'a> Processor for PiiProcessor<'a> {
         _value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         // booleans cannot be PII, and strings are handled in process_string
         if let Some(ValueType::Boolean) | Some(ValueType::String) = state.value_type() {
-            return ValueAction::Keep;
+            return Ok(());
         }
 
         // apply rules based on key/path
         for rule in self.iter_rules(state) {
             match apply_rule_to_value(meta, rule, state.path().key(), None) {
-                ValueAction::Keep => continue,
+                Ok(()) => continue,
                 other => return other,
             }
         }
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_string(
@@ -267,9 +267,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         value: &mut String,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         if let "" | "true" | "false" | "null" | "undefined" = value.as_str() {
-            return ValueAction::Keep;
+            return Ok(());
         }
 
         let mut rules = self.iter_rules(state).peekable();
@@ -280,7 +280,7 @@ impl<'a> Processor for PiiProcessor<'a> {
             // "false" etc in process_string.
             for rule in &rules {
                 match apply_rule_to_value(meta, *rule, state.path().key(), Some(value)) {
-                    ValueAction::Keep => continue,
+                    Ok(()) => continue,
                     other => return other,
                 }
             }
@@ -293,7 +293,7 @@ impl<'a> Processor for PiiProcessor<'a> {
                 chunks
             });
         }
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_pairlist<T: ProcessValue + AsPair>(
@@ -301,7 +301,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         value: &mut PairList<T>,
         _meta: &mut Meta,
         state: &ProcessingState,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         // View pairlists as objects just for the purpose of PII stripping (e.g. `event.tags.mykey`
         // instead of `event.tags.42.0`). For other purposes such as trimming we would run into
         // problems:
@@ -323,18 +323,18 @@ impl<'a> Processor for PiiProcessor<'a> {
                             state.inner_attrs(),
                             ValueType::for_field(value),
                         ),
-                    );
+                    )?;
                 } else {
                     process_value(
                         value,
                         self,
                         &state.enter_index(idx, state.inner_attrs(), ValueType::for_field(value)),
-                    );
+                    )?;
                 }
             }
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 }
 
@@ -380,7 +380,7 @@ fn apply_rule_to_value(
     rule: RuleRef<'_>,
     key: Option<&str>,
     value: Option<&mut String>,
-) -> ValueAction {
+) -> ProcessingResult {
     match rule.ty {
         RuleType::RedactPair(ref redact_pair) => {
             if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
@@ -400,19 +400,19 @@ fn apply_rule_to_value(
                     process_chunked_value(value, meta, |chunks| {
                         apply_rule_to_chunks(chunks, value_rule)
                     });
-                    ValueAction::Keep
+                    Ok(())
                 } else {
                     meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
-                    ValueAction::DeleteHard
+                    Err(ProcessingAction::DeleteValueHard)
                 }
             } else {
-                ValueAction::Keep
+                Ok(())
             }
         }
-        RuleType::Never => ValueAction::Keep,
+        RuleType::Never => Ok(()),
         RuleType::Anything => {
             meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
-            ValueAction::DeleteHard
+            Err(ProcessingAction::DeleteValueHard)
         }
 
         // These are not handled by the container code but will be independently picked
@@ -427,10 +427,10 @@ fn apply_rule_to_value(
         | RuleType::Pemkey
         | RuleType::UrlAuth
         | RuleType::UsSsn
-        | RuleType::Userpath => ValueAction::Keep,
+        | RuleType::Userpath => Ok(()),
 
         // These have been resolved by `collect_applications` and will never occur here.
-        RuleType::Alias(_) | RuleType::Multiple(_) => ValueAction::Keep,
+        RuleType::Alias(_) | RuleType::Multiple(_) => Ok(()),
     }
 }
 
@@ -713,7 +713,7 @@ fn test_basic_stripping() {
     });
 
     let mut processor = PiiProcessor::new(&config);
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
 
@@ -743,6 +743,6 @@ fn test_redact_containers() {
     });
 
     let mut processor = PiiProcessor::new(&config);
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }

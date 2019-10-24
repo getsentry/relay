@@ -4,7 +4,7 @@
 use std::fmt::Debug;
 
 use crate::processor::{process_value, ProcessingState, ValueType};
-use crate::types::{FromValue, Meta, Timestamp, ToValue, ValueAction};
+use crate::types::{FromValue, Meta, ProcessingResult, Timestamp, ToValue};
 
 macro_rules! process_method {
     ($name: ident, $ty:ident $(::$path:ident)*) => {
@@ -18,13 +18,13 @@ macro_rules! process_method {
             value: &mut $ty $(::$path)* <$($param),*>,
             meta: &mut Meta,
             state: &ProcessingState<'_>,
-        ) -> ValueAction
+        ) -> ProcessingResult
         where
             $($param: ProcessValue),*
             $(, $param_req_key : $param_req_trait)*
         {
-            value.process_child_values(self, state);
-            ValueAction::Keep
+            value.process_child_values(self, state)?;
+            Ok(())
         }
     };
 }
@@ -37,8 +37,8 @@ pub trait Processor: Sized {
         value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
-        ValueAction::Keep
+    ) -> ProcessingResult {
+        Ok(())
     }
 
     #[inline]
@@ -47,7 +47,8 @@ pub trait Processor: Sized {
         value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) {
+    ) -> ProcessingResult {
+        Ok(())
     }
 
     process_method!(process_string, String);
@@ -91,14 +92,16 @@ pub trait Processor: Sized {
         &mut self,
         other: &mut crate::types::Object<crate::types::Value>,
         state: &ProcessingState<'_>,
-    ) {
+    ) -> ProcessingResult {
         for (key, value) in other {
             process_value(
                 value,
                 self,
                 &state.enter_borrowed(key.as_str(), None, ValueType::for_field(value)),
-            );
+            )?;
         }
+
+        Ok(())
     }
 }
 
@@ -118,19 +121,23 @@ pub trait ProcessValue: FromValue + ToValue + Debug {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
-        self.process_child_values(processor, state);
-        Default::default()
+        self.process_child_values(processor, state)
     }
 
     /// Recurses into children of this value.
     #[inline]
-    fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
+    fn process_child_values<P>(
+        &mut self,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
     where
         P: Processor,
     {
+        Ok(())
     }
 }

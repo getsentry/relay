@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
-use crate::types::{Annotated, Array, Meta, Object, ValueAction};
+use crate::types::{Annotated, Array, Meta, Object, ProcessingResult};
 
 impl ProcessValue for String {
     #[inline]
@@ -16,7 +16,7 @@ impl ProcessValue for String {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -36,7 +36,7 @@ impl ProcessValue for bool {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -56,7 +56,7 @@ impl ProcessValue for u64 {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -76,7 +76,7 @@ impl ProcessValue for i64 {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -96,7 +96,7 @@ impl ProcessValue for f64 {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -116,7 +116,7 @@ impl ProcessValue for DateTime<Utc> {
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -141,7 +141,7 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -149,7 +149,11 @@ where
     }
 
     #[inline]
-    fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
+    fn process_child_values<P>(
+        &mut self,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -158,8 +162,10 @@ where
                 element,
                 processor,
                 &state.enter_index(index, state.inner_attrs(), ValueType::for_field(element)),
-            );
+            )?;
         }
+
+        Ok(())
     }
 }
 
@@ -178,7 +184,7 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -186,7 +192,11 @@ where
     }
 
     #[inline]
-    fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
+    fn process_child_values<P>(
+        &mut self,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -195,8 +205,10 @@ where
                 v,
                 processor,
                 &state.enter_borrowed(k, state.inner_attrs(), ValueType::for_field(v)),
-            );
+            )?;
         }
+
+        Ok(())
     }
 }
 
@@ -215,7 +227,7 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
@@ -234,6 +246,7 @@ macro_rules! process_tuple {
             #[inline]
             #[allow(non_snake_case, unused_assignments)]
             fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
+                -> ProcessingResult
             where
                 P: Processor,
             {
@@ -241,9 +254,11 @@ macro_rules! process_tuple {
                 let mut index = 0;
 
                 $(
-                    process_value($name, processor, &state.enter_index(index, state.inner_attrs(), ValueType::for_field($name)));
+                    process_value($name, processor, &state.enter_index(index, state.inner_attrs(), ValueType::for_field($name)))?;
                     index += 1;
                 )*
+
+                Ok(())
             }
         }
     };

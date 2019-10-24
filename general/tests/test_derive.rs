@@ -5,8 +5,8 @@ use semaphore_general::processor::Processor;
 use semaphore_general::protocol::HeaderName;
 use semaphore_general::types::Annotated;
 use semaphore_general::types::Meta;
+use semaphore_general::types::ProcessingResult;
 use semaphore_general::types::Value;
-use semaphore_general::types::ValueAction;
 
 struct RecordingProcessor(Vec<String>);
 
@@ -16,12 +16,12 @@ impl Processor for RecordingProcessor {
         value: &mut Value,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         self.0.push(format!("process_value({})", state.path()));
         self.0.push("before_process_child_values".to_string());
-        value.process_child_values(self, state);
+        value.process_child_values(self, state)?;
         self.0.push("after_process_child_values".to_string());
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_string(
@@ -29,9 +29,9 @@ impl Processor for RecordingProcessor {
         _value: &mut String,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         self.0.push(format!("process_string({})", state.path()));
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_header_name(
@@ -39,13 +39,13 @@ impl Processor for RecordingProcessor {
         value: &mut HeaderName,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         self.0
             .push(format!("process_header_name({})", state.path()));
         self.0.push("before_process_child_values".to_string());
-        value.process_child_values(self, state);
+        value.process_child_values(self, state)?;
         self.0.push("after_process_child_values".to_string());
-        ValueAction::Keep
+        Ok(())
     }
 }
 
@@ -58,7 +58,8 @@ fn test_enums_processor_calls() {
         &mut value,
         &mut processor,
         &ProcessingState::root().enter_static("foo", None, None),
-    );
+    )
+    .unwrap();
 
     // Assert that calling `process_child_values` does not recurse. This is surprising and slightly
     // undesirable for processors, but not a big deal and easy to implement.
@@ -82,7 +83,8 @@ fn test_simple_newtype() {
         &mut value,
         &mut processor,
         &ProcessingState::root().enter_static("foo", None, None),
-    );
+    )
+    .unwrap();
 
     // Assert that calling `process_child_values` does not recurse. This is surprising and slightly
     // undesirable for processors, but not a big deal and easy to implement.

@@ -778,7 +778,7 @@ fn test_multiple_contexts_roundtrip() {
 fn test_context_processing() {
     use crate::processor::{ProcessingState, Processor};
     use crate::protocol::Event;
-    use crate::types::{Meta, ValueAction};
+    use crate::types::{Meta, ProcessingResult};
 
     let mut event = Annotated::new(Event {
         contexts: Annotated::new(Contexts({
@@ -807,13 +807,13 @@ fn test_context_processing() {
             _value: &mut Context,
             _meta: &mut Meta,
             _state: &ProcessingState<'_>,
-        ) -> ValueAction {
+        ) -> ProcessingResult {
             self.called = true;
-            ValueAction::default()
+            Ok(())
         }
     }
 
     let mut processor = FooProcessor { called: false };
-    crate::processor::process_value(&mut event, &mut processor, ProcessingState::root());
+    crate::processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert!(processor.called);
 }

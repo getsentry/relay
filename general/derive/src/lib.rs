@@ -1,5 +1,6 @@
 #![recursion_limit = "256"]
 #![allow(clippy::cognitive_complexity)]
+#![deny(unused_must_use)]
 
 mod empty;
 mod process;
@@ -262,7 +263,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
         Err(s) => s,
     };
 
-    s.add_bounds(synstructure::AddBounds::Generics);
+    let _ = s.add_bounds(synstructure::AddBounds::Generics);
 
     let variants = s.variants();
     if variants.len() != 1 {
@@ -594,14 +595,11 @@ impl TypeAttrs {
         if let Some(ref func_name) = self.process_func {
             let func_name = Ident::new(&func_name, Span::call_site());
             quote! {
-                __processor.#func_name(self, __meta, __state)
+                __processor.#func_name(self, __meta, __state)?;
             }
         } else {
             quote! {
-                {
-                    self.process_child_values(__processor, __state);
-                    crate::types::ValueAction::Keep
-                }
+                self.process_child_values(__processor, __state)?;
             }
         }
     }

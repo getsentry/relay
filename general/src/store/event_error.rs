@@ -1,6 +1,6 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{Event, EventProcessingError};
-use crate::types::{Annotated, Meta, ValueAction};
+use crate::types::{Annotated, Meta, ProcessingResult};
 
 pub struct EmitEventErrors {
     errors: Vec<EventProcessingError>,
@@ -18,9 +18,9 @@ impl Processor for EmitEventErrors {
         _: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         if !meta.has_errors() {
-            return ValueAction::Keep;
+            return Ok(());
         }
 
         // Only append the original value to the first error if there are multiple.
@@ -38,7 +38,7 @@ impl Processor for EmitEventErrors {
             });
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_event(
@@ -46,8 +46,8 @@ impl Processor for EmitEventErrors {
         event: &mut Event,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
-        event.process_child_values(self, state);
+    ) -> ProcessingResult {
+        event.process_child_values(self, state)?;
 
         if !self.errors.is_empty() {
             event
@@ -56,7 +56,7 @@ impl Processor for EmitEventErrors {
                 .extend(self.errors.drain(..).map(Annotated::from));
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 }
 
@@ -74,7 +74,8 @@ fn test_no_errors() {
         &mut event,
         &mut EmitEventErrors::new(),
         ProcessingState::root(),
-    );
+    )
+    .unwrap();
 
     assert_eq_dbg!(event.value().unwrap().errors.value(), None);
 }
@@ -90,7 +91,8 @@ fn test_top_level_errors() {
         &mut event,
         &mut EmitEventErrors::new(),
         ProcessingState::root(),
-    );
+    )
+    .unwrap();
 
     assert_eq_dbg!(
         *event.value().unwrap().errors.value().unwrap(),
@@ -121,7 +123,8 @@ fn test_errors_in_other() {
         &mut event,
         &mut EmitEventErrors::new(),
         ProcessingState::root(),
-    );
+    )
+    .unwrap();
 
     assert_eq_dbg!(
         *event.value().unwrap().errors.value().unwrap(),
@@ -150,7 +153,8 @@ fn test_nested_errors() {
         &mut event,
         &mut EmitEventErrors::new(),
         ProcessingState::root(),
-    );
+    )
+    .unwrap();
 
     assert_eq_dbg!(
         *event.value().unwrap().errors.value().unwrap(),
@@ -177,7 +181,8 @@ fn test_multiple_errors() {
         &mut event,
         &mut EmitEventErrors::new(),
         ProcessingState::root(),
-    );
+    )
+    .unwrap();
 
     assert_eq_dbg!(
         *event.value().unwrap().errors.value().unwrap(),
@@ -213,7 +218,8 @@ fn test_original_value() {
         &mut event,
         &mut EmitEventErrors::new(),
         ProcessingState::root(),
-    );
+    )
+    .unwrap();
 
     assert_eq_dbg!(
         *event.value().unwrap().errors.value().unwrap(),
