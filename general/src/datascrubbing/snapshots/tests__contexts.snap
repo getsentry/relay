@@ -13,7 +13,15 @@ expression: data
       "the_secret": "[Filtered]",
       "type": "biz"
     },
-    "secret": null
+    "secret": {
+      "a_password_here": "[Filtered]",
+      "apiKey": "[Filtered]",
+      "api_key": "[Filtered]",
+      "foo": "bar",
+      "password": "[Filtered]",
+      "the_secret": "[Filtered]",
+      "type": "[Filtered]"
+    }
   },
   "_meta": {
     "contexts": {
@@ -85,13 +93,83 @@ expression: data
         }
       },
       "secret": {
-        "": {
-          "rem": [
-            [
-              "@password:filter",
-              "x"
-            ]
-          ]
+        "a_password_here": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 5
+          }
+        },
+        "apiKey": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 10
+          }
+        },
+        "api_key": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 10
+          }
+        },
+        "password": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 5
+          }
+        },
+        "the_secret": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 5
+          }
+        },
+        "type": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
         }
       }
     }

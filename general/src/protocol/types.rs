@@ -10,8 +10,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{
-    Annotated, Array, Empty, Error, ErrorKind, FromValue, Meta, Object, SkipSerialization, ToValue,
-    Value, ValueAction,
+    Annotated, Array, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingResult,
+    SkipSerialization, ToValue, Value,
 };
 
 /// A array like wrapper used in various places.
@@ -272,21 +272,27 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
         processor.process_pairlist(self, meta, state)
     }
 
-    fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
+    fn process_child_values<P>(
+        &mut self,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
     where
         P: Processor,
     {
         for (idx, pair) in self.0.iter_mut().enumerate() {
             let state = state.enter_index(idx, state.inner_attrs(), ValueType::for_field(pair));
-            process_value(pair, processor, &state);
+            process_value(pair, processor, &state)?;
         }
+
+        Ok(())
     }
 }
 

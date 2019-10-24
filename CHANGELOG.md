@@ -1,11 +1,57 @@
 # Changelog
 
+## 0.4.56
+
+**Store**:
+
+- Fix a panic in trimming.
+
+## 0.4.55
+
+**Store**:
+
+- Fix more bugs in datascrubbing converter.
+
+## 0.4.54
+
+**Store**:
+
+- Fix more bugs in datascrubbing converter.
+
+## 0.4.53
+
+**Store**:
+
+- Fix more bugs in datascrubbing converter.
+
+## 0.4.52
+
+**Store**:
+
+- Fix more bugs in datascrubbing converter.
+
+## 0.4.51
+
+**Store**:
+
+- Fix a few bugs in datascrubbing converter.
+- Accept trailing slashes.
+
+**Normalization**:
+
+- Fix a panic on overflowing timestamps.
+
+## 0.4.50
+
+**Store**:
+
+- Fix bug where IP scrubbers were applied even when not enabled.
+
 ## 0.4.49
 
 **Python**
 
 - Fix handling of panics in CABI/Python bindings.
-
 
 ## 0.4.48
 

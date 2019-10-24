@@ -61,11 +61,10 @@ declare_builtin_rules! {
         redaction: Redaction::Default,
         ..Default::default()
     };
-    // legacy data scrubbing equivalent
+    // legacy data scrubbing equivalent. Note
     "@common:filter" => RuleSpec {
         ty: RuleType::Multiple(MultipleRule {
             rules: vec![
-                "@ip:filter".into(),
                 "@creditcard:filter".into(),
                 "@pemkey:filter".into(),
                 "@urlauth:legacy".into(),
@@ -108,13 +107,6 @@ declare_builtin_rules! {
         ty: RuleType::Ip,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[ip]".into(),
-        }),
-        ..Default::default()
-    };
-    "@ip:filter" => RuleSpec {
-        ty: RuleType::Ip,
-        redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };
@@ -419,7 +411,7 @@ mod tests {
             let mut root = Annotated::new(FreeformRoot {
                 value: Annotated::new(input),
             });
-            process_value(&mut root, &mut processor, ProcessingState::root());
+            process_value(&mut root, &mut processor, ProcessingState::root()).unwrap();
             let root = root.0.unwrap();
             assert_eq_str!(root.value.value().unwrap(), $output);
             let remarks: Vec<Remark> = $remarks;

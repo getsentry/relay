@@ -1,3 +1,4 @@
+use crate::protocol::IpAddr;
 use crate::types::{Annotated, Array, Object, Value};
 
 /// An installed and loaded package as part of the Sentry SDK.
@@ -11,7 +12,7 @@ pub struct ClientSdkPackage {
 
 /// Information about the Sentry SDK.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-#[metastructure(process_func = "process_client_sdk_info")]
+#[metastructure(process_func = "process_client_sdk_info", value_type = "ClientSdkInfo")]
 pub struct ClientSdkInfo {
     /// Unique SDK name.
     #[metastructure(required = "true", max_chars = "symbol")]
@@ -28,6 +29,10 @@ pub struct ClientSdkInfo {
     /// List of installed and loaded SDK packages.
     #[metastructure(skip_serialization = "empty_deep")]
     pub packages: Annotated<Array<ClientSdkPackage>>,
+
+    /// IP Address of sender??? Seems unused.
+    #[metastructure(pii = "true", skip_serialization = "empty")]
+    pub client_ip: Annotated<IpAddr>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
@@ -54,6 +59,7 @@ fn test_client_sdk_roundtrip() {
       "version": "0.10.0"
     }
   ],
+  "client_ip": "127.0.0.1",
   "other": "value"
 }"#;
     let sdk = Annotated::new(ClientSdkInfo {
@@ -70,6 +76,7 @@ fn test_client_sdk_roundtrip() {
                 version: Annotated::new("0.10.0".to_string()),
             }),
         ]),
+        client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
         other: {
             let mut map = Map::new();
             map.insert(
@@ -88,13 +95,15 @@ fn test_client_sdk_roundtrip() {
 fn test_client_sdk_default_values() {
     let json = r#"{
   "name": "sentry.rust",
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "client_ip": "127.0.0.1"
 }"#;
     let sdk = Annotated::new(ClientSdkInfo {
         name: Annotated::new("sentry.rust".to_string()),
         version: Annotated::new("1.0.0".to_string()),
         integrations: Annotated::empty(),
         packages: Annotated::empty(),
+        client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
         other: Default::default(),
     });
 

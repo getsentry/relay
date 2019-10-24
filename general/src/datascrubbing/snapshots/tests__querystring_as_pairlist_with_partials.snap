@@ -11,33 +11,12 @@ expression: data
       ],
       [
         "password",
-        "[Filtered]"
+        ""
       ],
       [
         "baz",
         "bar"
       ]
     ]
-  },
-  "_meta": {
-    "request": {
-      "query_string": {
-        "1": {
-          "1": {
-            "": {
-              "rem": [
-                [
-                  "@password:filter",
-                  "s",
-                  0,
-                  10
-                ]
-              ],
-              "len": 0
-            }
-          }
-        }
-      }
-    }
   }
 }

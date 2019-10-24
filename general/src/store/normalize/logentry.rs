@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use dynfmt::{Argument, Format, FormatArgs, PythonFormat, SimpleCurlyFormat};
 
 use crate::protocol::LogEntry;
-use crate::types::{Annotated, Empty, Error, Meta, Value, ValueAction};
+use crate::types::{Annotated, Empty, Error, Meta, ProcessingAction, ProcessingResult, Value};
 
 impl FormatArgs for Value {
     fn get_index(&self, index: usize) -> Result<Option<Argument<'_>>, ()> {
@@ -47,15 +47,15 @@ fn format_message<'f>(format: &'f str, params: &Value) -> Option<String> {
     }
 }
 
-pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> ValueAction {
+pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> ProcessingResult {
     // An empty logentry should just be skipped during serialization. No need for an error.
     if logentry.is_empty() {
-        return ValueAction::Keep;
+        return Ok(());
     }
 
     if logentry.formatted.value().is_none() && logentry.message.value().is_none() {
         meta.add_error(Error::invalid("no message present"));
-        return ValueAction::DeleteSoft;
+        return Err(ProcessingAction::DeleteValueSoft);
     }
 
     if let Some(params) = logentry.params.value() {
@@ -77,7 +77,7 @@ pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> ValueActi
         logentry.formatted = std::mem::replace(&mut logentry.message, Annotated::empty());
     }
 
-    ValueAction::Keep
+    Ok(())
 }
 
 #[cfg(test)]
@@ -190,7 +190,7 @@ fn test_empty_missing_message() {
 
     assert_eq_dbg!(
         normalize_logentry(&mut logentry, &mut meta),
-        ValueAction::DeleteSoft
+        Err(ProcessingAction::DeleteValueSoft)
     );
     assert!(meta.has_errors());
 }
@@ -200,9 +200,6 @@ fn test_empty_logentry() {
     let mut logentry = LogEntry::default();
     let mut meta = Meta::default();
 
-    assert_eq_dbg!(
-        normalize_logentry(&mut logentry, &mut meta),
-        ValueAction::Keep
-    );
+    assert_eq_dbg!(normalize_logentry(&mut logentry, &mut meta), Ok(()));
     assert!(!meta.has_errors());
 }

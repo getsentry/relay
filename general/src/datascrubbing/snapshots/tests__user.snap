@@ -4,6 +4,7 @@ expression: data
 ---
 {
   "user": {
+    "ip_address": null,
     "username": "secret",
     "data": {
       "a_password_here": "[Filtered]",
@@ -81,6 +82,16 @@ expression: data
             ],
             "len": 5
           }
+        }
+      },
+      "ip_address": {
+        "": {
+          "rem": [
+            [
+              "@anything:remove",
+              "x"
+            ]
+          ]
         }
       }
     }
