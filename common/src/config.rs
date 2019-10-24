@@ -307,6 +307,8 @@ struct Cache {
     batch_interval: u32,
     /// Interval for watching local cache override files in seconds.
     file_interval: u32,
+    /// Jitter to be applied to cache timeouts (such as projects).
+    cache_jitter: f64,
 }
 
 impl Default for Cache {
@@ -319,6 +321,7 @@ impl Default for Cache {
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
             file_interval: 10,   // 10 seconds
+            cache_jitter: 0.2,   // 20%
         }
     }
 }
@@ -775,6 +778,15 @@ impl Config {
     /// Returns the interval in seconds in which local project configurations should be reloaded.
     pub fn local_cache_interval(&self) -> Duration {
         Duration::from_secs(self.values.cache.file_interval.into())
+    }
+
+    /// Returns a jitter percentage that should be applied to cache timeouts.
+    pub fn cache_timeout_jitter(&self) -> f64 {
+        match self.values.cache.cache_jitter {
+            jitter if jitter > 1.0 => 1.0,
+            jitter if jitter < 0.0 => 0.0,
+            jitter => jitter,
+        }
     }
 
     /// Returns the maximum size of an event payload in bytes.

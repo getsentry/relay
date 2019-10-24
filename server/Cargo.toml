@@ -33,6 +33,7 @@ native-tls = { version = "0.2.3", optional = true }
 num_cpus = "1.10.1"
 parking_lot = "0.9.0"
 r2d2 = { version = "0.8.5", optional = true }
+rand = "0.7.2"
 rdkafka = { version = "0.21.0", git = "https://github.com/fede1024/rust-rdkafka", optional = true, rev = "b1a391b3264ca8e0b0e053c6aec7a6db09af3131" }
 redis = { version = "0.12.1-alpha.0", git = "https://github.com/mitsuhiko/redis-rs", optional = true, branch = "feature/cluster", features = ["cluster", "r2d2"] }
 regex = "1.2.0"

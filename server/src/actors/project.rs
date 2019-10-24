@@ -246,6 +246,10 @@ impl ProjectConfig {
     }
 }
 
+fn project_state_seed() -> f64 {
+    rand::random()
+}
+
 /// The project state is a cached server state of a project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -277,6 +281,9 @@ pub struct ProjectState {
     /// The organization id.
     #[serde(default)]
     pub organization_id: Option<u64>,
+    /// Random seed for jitter and related operations.
+    #[serde(skip, default = "project_state_seed")]
+    pub seed: f64,
 }
 
 impl ProjectState {
@@ -291,6 +298,7 @@ impl ProjectState {
             config: Default::default(),
             rev: None,
             organization_id: None,
+            seed: project_state_seed(),
         }
     }
 
@@ -334,8 +342,13 @@ impl ProjectState {
 
     /// Returns whether this state is outdated and needs to be refetched.
     pub fn outdated(&self, config: &Config) -> bool {
+        let jitter = config.cache_timeout_jitter();
+        let factor = jitter * (self.seed * 2.0 - self.seed);
+        debug_assert!(factor >= -1.0 * self.seed && factor <= 1.0 * self.seed);
+
         SystemTime::from(self.last_fetch)
             .elapsed()
+            .map(|e| e.mul_f64(factor))
             .map(|e| match self.slug {
                 Some(_) => e > config.project_cache_expiry(),
                 None => e > config.cache_miss_expiry(),
