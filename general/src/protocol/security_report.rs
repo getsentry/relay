@@ -170,15 +170,6 @@ pub enum SecurityReportType {
     HpKp,
 }
 
-impl SecurityReportType {
-    /// Tries to detect the type of SecurityReport from a JSON serialized string
-    /// of a security report.
-    pub fn get_report_type(raw_message: &str) -> Result<Self, &'static str> {
-        serde_json::from_str::<SecurityReportType>(raw_message)
-            .map_err(|_| "Invalid Security Report Type")
-    }
-}
-
 impl<'de> Deserialize<'de> for SecurityReportType {
     fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
     where

@@ -55,12 +55,13 @@ pub enum BadStoreRequest {
 
     #[fail(display = "event submission rejected with_reason:{:?}", _0)]
     EventRejected(DiscardReason),
-
-    #[fail(display = "Processing the event body failed, with_reason:{:?}", _0)]
-    EventBodyProcessingError(String),
 }
 
-impl BadStoreRequest {
+pub trait ToOutcome {
+    fn to_outcome(&self) -> Outcome;
+}
+
+impl ToOutcome for BadStoreRequest {
     fn to_outcome(&self) -> Outcome {
         match self {
             BadStoreRequest::BadProject(_) => Outcome::Invalid(DiscardReason::ProjectId),
@@ -77,9 +78,6 @@ impl BadStoreRequest {
 
             BadStoreRequest::PayloadError(payload_error) => {
                 Outcome::Invalid(payload_error.discard_reason())
-            }
-            BadStoreRequest::EventBodyProcessingError(_) => {
-                Outcome::Invalid(DiscardReason::SecurityReport)
             }
 
             BadStoreRequest::RateLimited(retry_after) => Outcome::RateLimited(retry_after.clone()),
@@ -131,11 +129,8 @@ fn handle_store_event(
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    store_event(
-        meta,
-        start_time,
-        request,
-        None::<Box<dyn Fn(Bytes) -> Result<Bytes, String> + 'static>>, // no request body processing
+    store_event::<Box<dyn Fn(Bytes) -> Result<Bytes, BadStoreRequest> + 'static>, BadStoreRequest>(
+        meta, start_time, request, None, // no request body processing
     )
 }
 
@@ -148,23 +143,24 @@ fn handle_store_event(
 /// If store_event receives a non empty store_body it will use it as the body of the
 /// event otherwise it will try to create a store_body from the request.
 ///
-pub fn store_event<F>(
+pub fn store_event<F, E>(
     meta: EventMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
     process_body: Option<F>,
-) -> ResponseFuture<HttpResponse, BadStoreRequest>
+) -> ResponseFuture<HttpResponse, E>
 where
-    F: Fn(Bytes) -> Result<Bytes, String> + 'static,
+    F: Fn(Bytes) -> Result<Bytes, E> + 'static,
+    E: From<BadStoreRequest> + ToOutcome + 'static,
 {
     let start_time = start_time.into_inner();
 
     // For now, we only handle <= v8 and drop everything else
     if meta.auth().version() > 8 {
         // TODO: Delegate to forward_upstream here
-        tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(
+        tryf!(Err(E::from(BadStoreRequest::UnsupportedProtocolVersion(
             meta.auth().version()
-        )));
+        ))));
     }
 
     // Make sure we have a project ID. Does not check if the project exists yet
@@ -173,7 +169,8 @@ where
         .get("project")
         .unwrap_or_default()
         .parse::<ProjectId>()
-        .map_err(BadStoreRequest::BadProject));
+        .map_err(BadStoreRequest::BadProject)
+        .map_err(E::from));
 
     let hub = Hub::from_request(&request);
     hub.configure_scope(|scope| {
@@ -197,6 +194,7 @@ where
     let future = project_manager
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
+        .map_err(E::from)
         .and_then(move |project| {
             project
                 .send(GetEventAction::cached(meta.clone()))
@@ -215,16 +213,14 @@ where
                         .limit(config.max_event_payload_size())
                         .map_err(BadStoreRequest::PayloadError)
                 })
+                .map_err(E::from)
                 .and_then(move |data| {
                     // do any processing of the request body
                     // Processing is done when the request does not directly represent an Sentry event but
                     // rather something that can be converted into a sentry event ( like a security report)
                     if let Some(process_body) = process_body {
                         // we need to transform the request body before passing it as an event
-                        match process_body(data) {
-                            Ok(data) => Ok(data),
-                            Err(err) => Err(BadStoreRequest::EventBodyProcessingError(err)),
-                        }
+                        process_body(data)
                     } else {
                         // just an ordinary event, pass it through unchanged
                         Ok(data)
@@ -247,9 +243,10 @@ where
                                 HttpResponse::Ok().json(StoreResponse { id })
                             }
                         })
+                        .map_err(E::from)
                 })
         })
-        .map_err(move |error: BadStoreRequest| {
+        .map_err(move |error: E| {
             metric!(counter("event.rejected") += 1);
 
             outcome_producer.do_send(TrackOutcome {
@@ -261,6 +258,7 @@ where
                 event_id: None,
                 remote_addr,
             });
+
             error
         });
 
