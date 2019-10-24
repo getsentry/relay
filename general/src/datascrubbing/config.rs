@@ -68,10 +68,10 @@ impl DataScrubbingConfig {
 impl Default for DataScrubbingConfig {
     fn default() -> DataScrubbingConfig {
         DataScrubbingConfig {
-            exclude_fields: Default::default(),
+            exclude_fields: Vec::new(),
             scrub_data: false,
             scrub_ip_addresses: false,
-            sensitive_fields: Default::default(),
+            sensitive_fields: Vec::new(),
             scrub_defaults: false,
             pii_config: AtomicLazyCell::new(),
         }

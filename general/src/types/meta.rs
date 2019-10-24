@@ -284,7 +284,7 @@ impl Error {
     /// Creates a new error without data.
     #[inline]
     pub fn new(kind: ErrorKind) -> Self {
-        Error::with_data(kind, Default::default())
+        Error::with_data(kind, Map::default())
     }
 
     /// Creates a new error and allows instant modification in a function.

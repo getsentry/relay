@@ -425,7 +425,7 @@ mod processing {
                     transactions: String::new(),
                     outcomes: String::new(),
                 },
-                redis: Default::default(),
+                redis: Redis::default(),
             }
         }
     }

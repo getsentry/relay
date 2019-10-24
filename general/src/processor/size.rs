@@ -2,13 +2,13 @@ use serde::de::value::Error;
 use serde::{ser, Serialize};
 use smallvec::SmallVec;
 
-use crate::types::ToValue;
+use crate::types::{SkipSerialization, ToValue};
 
 /// Estimates the size in bytes this would be in JSON.
 pub fn estimate_size<T: ToValue>(value: Option<&T>) -> usize {
     let mut ser = SizeEstimatingSerializer::new();
     if let Some(value) = value {
-        ToValue::serialize_payload(value, &mut ser, Default::default()).unwrap();
+        ToValue::serialize_payload(value, &mut ser, SkipSerialization::default()).unwrap();
     }
     ser.size()
 }
@@ -18,7 +18,7 @@ pub fn estimate_size_flat<T: ToValue>(value: Option<&T>) -> usize {
     let mut ser = SizeEstimatingSerializer::new();
     ser.flat = true;
     if let Some(value) = value {
-        ToValue::serialize_payload(value, &mut ser, Default::default()).unwrap();
+        ToValue::serialize_payload(value, &mut ser, SkipSerialization::default()).unwrap();
     }
     ser.size()
 }
@@ -35,8 +35,8 @@ struct SizeEstimatingSerializer {
 
 impl SizeEstimatingSerializer {
     /// Creates a new serializer
-    pub fn new() -> SizeEstimatingSerializer {
-        Default::default()
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Returns the calculated size

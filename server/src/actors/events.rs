@@ -36,6 +36,7 @@ use crate::utils::{One, SyncActorFuture, SyncHandle};
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
     semaphore_general::filter::should_filter,
+    semaphore_general::protocol::IpAddr,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
 
@@ -165,7 +166,7 @@ impl EventProcessor {
 
                 let store_config = StoreConfig {
                     project_id: Some(message.project_id),
-                    client_ip: message.meta.client_addr().map(From::from),
+                    client_ip: message.meta.client_addr().map(IpAddr::from),
                     client: auth.client_agent().map(str::to_owned),
                     key_id,
                     protocol_version: Some(auth.version().to_string()),
@@ -382,7 +383,7 @@ impl EventManager {
             processor,
             current_active_events: 0,
             shutdown: SyncHandle::new(),
-            captured_events: Default::default(),
+            captured_events: Arc::default(),
 
             #[cfg(feature = "processing")]
             store_forwarder,
