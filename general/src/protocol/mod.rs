@@ -36,7 +36,9 @@ pub use self::fingerprint::Fingerprint;
 pub use self::logentry::LogEntry;
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
 pub use self::request::{Cookies, HeaderName, Headers, Query, Request};
-pub use self::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp, SecurityReportType};
+pub use self::security_report::{
+    Csp, CspReportRaw, ExpectCt, ExpectStaple, Hpkp, SecurityReportType,
+};
 pub use self::span::Span;
 pub use self::stacktrace::{Frame, FrameData, FrameVars, RawStacktrace, Stacktrace};
 pub use self::tags::{TagEntry, Tags};

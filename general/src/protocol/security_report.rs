@@ -1,7 +1,8 @@
 //! Contains definitions for the security report interfaces.
 //!
 //! The security interfaces are CSP, HPKP, ExpectCT and ExpectStaple.
-use core::fmt;
+use std::collections::BTreeMap;
+use std::fmt;
 
 use serde::de::Error;
 use serde::de::{MapAccess, Visitor};
@@ -97,42 +98,47 @@ pub struct CspRaw {
     /// Policy disposition (enforce or report).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disposition: Option<String>,
-    // Additional arbitrary fields for forwards compatibility.
-    //pub other: Object<Value>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[serde(flatten)]
+    pub other: BTreeMap<String, serde_json::Value>,
+}
+
+macro_rules! to_annotated_fields {
+    ($ty:ty, [$($field:ident),*]) => {
+        $ty {
+            $($field: Annotated::from(raw.$field), )*
+            other: raw.other.into_iter().map(|(k, v)| (k, Value::from(v))).collect()
+        }
+    }
+}
+
+impl From<CspRaw> for Csp {
+    fn from(raw: CspRaw) -> Csp {
+        to_annotated_fields!(
+            Csp,
+            [
+                effective_directive,
+                blocked_uri,
+                document_uri,
+                original_policy,
+                referrer,
+                status_code,
+                violated_directive,
+                source_file,
+                line_number,
+                column_number,
+                script_sample,
+                disposition
+            ]
+        )
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct CspReportRaw {
     pub csp_report: CspRaw,
-}
-
-//#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-// TODO RaduW  implement FromValue ToValue (either for
-pub enum CspEffectiveDirective {
-    BaseUri,
-    ChildSrc,
-    ConnectSrc,
-    DefaultSrc,
-    FontSrc,
-    FormAction,
-    FrameAncestors,
-    FrameSrc,
-    ImgSrc,
-    ManifestSrc,
-    MediaSrc,
-    ObjectSrc,
-    PluginTypes,
-    PrefetchSrc,
-    Referrer,
-    ScriptSrc,
-    ScriptSrcAttr,
-    ScriptSrcElem,
-    StyleSrc,
-    StyleSrcElem,
-    StyleSrcAttr,
-    UpgradeInsecureRequests,
-    WorkerSrc,
 }
 
 /// Expect CT security report sent by user agent (browser).
@@ -175,53 +181,28 @@ impl<'de> Deserialize<'de> for SecurityReportType {
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_map(SecurityReportTypeVisitor)
-    }
-}
-
-/// Helper structure to support custom deserialization of SecurityReportType
-struct SecurityReportTypeVisitor;
-
-// The deserializer expects a Visitor that can consume input and transform it in the
-// deserialized object (this is the visitor for deserializing SecurityReportType objects)
-impl<'de> Visitor<'de> for SecurityReportTypeVisitor {
-    type Value = SecurityReportType;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("Expecting a dictionary.")
-    }
-
-    /// SecurityReportType should be an object (JSON object) so we only need to
-    /// support map deserialization (anything else is a format error)
-    fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
-    where
-        M: MapAccess<'de>,
-    {
-        let mut message_type: Option<SecurityReportType> = None;
-
-        // look for key attributes that mark the object as being a specific type of report
-        while let Some((key, _)) = access.next_entry::<&str, SerdeValue>()? {
-            // NOTE: In theory we could stop as soon as we detect the type of security report.
-            // In practice if we stop in the middle of the object deserialization the
-            // deserialization fails because it expects the visitor to consume the whole object.
-            // Maybe there is a cleaner/faster way to do that but I (RaduW) don't know it.
-            match key {
-                "csp-report" => {
-                    message_type = Some(SecurityReportType::Csp);
-                }
-                "known-pins" => {
-                    message_type = Some(SecurityReportType::HpKp);
-                }
-                "expect-staple-report" => {
-                    message_type = Some(SecurityReportType::ExpectStaple);
-                }
-                "expect-ct-report" => {
-                    message_type = Some(SecurityReportType::ExpectCt);
-                }
-                _ => {}
-            }
+        #[derive(Deserialize)]
+        #[serde(rename_all = "kebap-case")]
+        struct Helper {
+            csp_report: Option<IgnoredAny>,
+            known_pins: Option<IgnoredAny>,
+            expect_staple_report: Option<IgnoredAny>,
+            expect_ct_report: Option<IgnoredAny>,
         }
-        message_type.ok_or(M::Error::custom("Invalid  security message type"))
+
+        let helper = Helper::deserialize(deserializer)?;
+
+        if helper.csp_report.is_some() {
+            Ok(SecurityReportType::Csp)
+        } else if helper.known_pins.is_some() {
+            Ok(SecurityReportType::KnownPins)
+        } else if helper.expect_staple_report.is_some() {
+            Ok(SecurityReportType::ExpectStaple)
+        } else if helper.expect_ct_report.is_some() {
+            Ok(SecurityReportType::ExpectCt)
+        } else {
+            Err(D::Error::custom("Invalid security message type"))
+        }
     }
 }
 

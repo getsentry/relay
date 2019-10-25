@@ -93,20 +93,13 @@ fn get_security_report_type(data: &str) -> Result<SecurityReportType, SecurityEr
 }
 
 fn csp_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
-    let annotated_csp =
+    let CspReportRaw { csp_report } =
         serde_json::from_str::<CspReportRaw>(data).map_err(SecurityError::InvalidJson)?;
 
-    match annotated_csp {
-        Annotated(Some(csp), _) => event_to_bytes(make_csp_event(csp)),
-        Annotated(None, _) => Err(SecurityError::EmptyReport),
-    }
-}
-
-fn make_csp_event(csp: Csp) -> Event {
-    Event {
-        csp: Annotated::new(csp),
-        ..Default::default()
-    }
+    event_to_bytes(Event {
+        csp: Annotated::new(csp_report.into()),
+        ..Event::default()
+    })
 }
 
 fn expect_ct_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
