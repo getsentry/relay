@@ -9,7 +9,7 @@ use std::mem;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use actix::fut;
 use actix::prelude::*;
@@ -95,7 +95,7 @@ impl Project {
         if let Some(ref state) = self.state {
             // In case the state is fetched from a local file, don't use own caching logic. Rely on
             // `ProjectCache#local_states` for caching.
-            if !self.is_local && !state.outdated(&self.config) {
+            if !self.is_local && !state.outdated(self.id, &self.config) {
                 return Response::ok(state.clone());
             }
         }
@@ -333,14 +333,35 @@ impl ProjectState {
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
-    pub fn outdated(&self, config: &Config) -> bool {
-        SystemTime::from(self.last_fetch)
-            .elapsed()
-            .map(|e| match self.slug {
-                Some(_) => e > config.project_cache_expiry(),
-                None => e > config.cache_miss_expiry(),
-            })
-            .unwrap_or(false)
+    pub fn outdated(&self, project_id: ProjectId, config: &Config) -> bool {
+        let expiry = match self.slug {
+            Some(_) => config.project_cache_expiry(),
+            None => config.cache_miss_expiry(),
+        };
+
+        // Project state updates are aligned to a fixed grid based on the expiry interval. By
+        // default, that's a grid of 1 minute intervals for invalid projects, and a grid of 5
+        // minutes for existing projects (cache hits). The exception to this is when a project is
+        // seen for the first time, where it is fetched immediately.
+        let window = expiry.as_secs();
+
+        // To spread out project state updates more evenly, they are shifted deterministically
+        // within the grid window. A 5 minute interval results in 300 theoretical slots that can be
+        // chosen for each project based on its project id.
+        let project_shift = project_id % window;
+
+        // Based on the last fetch, compute the timestamp of the next fetch. The time stamp is
+        // shifted by the project shift to move the grid accordingly. Note that if the remainder is
+        // zero, the next fetch is one full window ahead to avoid instant reloading.
+        let last_fetch = self.last_fetch.timestamp() as u64;
+        let remainder = (last_fetch - project_shift) % window;
+        let next_fetch = last_fetch + (window - remainder);
+
+        // See the below assertion for constraints on the next fetch time.
+        debug_assert!(next_fetch > last_fetch && next_fetch <= last_fetch + window);
+
+        // A project state counts as outdated when the time of the next fetch has passed.
+        Utc::now().timestamp() as u64 >= next_fetch
     }
 
     /// Returns the project config.
@@ -366,13 +387,18 @@ impl ProjectState {
     }
 
     /// Determines whether the given event should be accepted or dropped.
-    pub fn get_event_action(&self, meta: &EventMeta, config: &Config) -> EventAction {
+    pub fn get_event_action(
+        &self,
+        project_id: ProjectId,
+        meta: &EventMeta,
+        config: &Config,
+    ) -> EventAction {
         // Try to verify the request origin with the project config.
         if !self.is_valid_origin(meta.origin()) {
             return EventAction::Discard(DiscardReason::ProjectId);
         }
 
-        if self.outdated(config) {
+        if self.outdated(project_id, config) {
             // if the state is out of date, we proceed as if it was still up to date. The
             // upstream relay (or sentry) will still filter events.
 
@@ -602,6 +628,8 @@ impl Handler<GetEventAction> for Project {
     type Result = Response<EventAction, ProjectError>;
 
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
+        let project_id = self.id;
+
         // Check for an eventual rate limit. Note that we need to check for all variants of
         // RateLimitScope, otherwise we might miss a rate limit.
         let rate_limit = RateLimitScope::iter_variants(&message.meta)
@@ -626,13 +654,13 @@ impl Handler<GetEventAction> for Project {
             // This will return synchronously if the state is still cached.
             let config = self.config.clone();
             self.get_or_fetch_state(context)
-                .map(move |state| state.get_event_action(&message.meta, &config))
+                .map(move |state| state.get_event_action(project_id, &message.meta, &config))
         } else {
             // Fetching is not permitted (as part of the store request). In case the state is not
             // cached, assume that the event can be accepted. The EventManager will later fetch the
             // project state and reevaluate the event action.
             Response::ok(self.state().map_or(EventAction::Accept, |state| {
-                state.get_event_action(&message.meta, &self.config)
+                state.get_event_action(project_id, &message.meta, &self.config)
             }))
         }
     }
