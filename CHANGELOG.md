@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.57
+
+**Store**:
+
+- Stricter validation of transaction events.
+
 ## 0.4.56
 
 **Store**:
