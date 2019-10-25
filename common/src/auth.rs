@@ -103,7 +103,7 @@ impl SecretKey {
     ///
     /// This is will sign with the default header.
     pub fn sign(&self, data: &[u8]) -> String {
-        self.sign_with_header(data, &Default::default())
+        self.sign_with_header(data, &SignatureHeader::default())
     }
 
     /// Signs some data with the seret key and a specific header and
@@ -126,7 +126,7 @@ impl SecretKey {
 
     /// Packs some serializable data into JSON and signs it with the default header.
     pub fn pack<S: Serialize>(&self, data: S) -> (Vec<u8>, String) {
-        self.pack_with_header(data, &Default::default())
+        self.pack_with_header(data, &SignatureHeader::default())
     }
 
     /// Packs some serializable data into JSON and signs it with the specified header.

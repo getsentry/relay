@@ -59,7 +59,7 @@ where
         if let Some(client) = client {
             f(&*client)
         } else {
-            Default::default()
+            R::default()
         }
     })
 }

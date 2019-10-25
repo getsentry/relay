@@ -43,7 +43,7 @@ struct DedupCache(SmallVec<[u64; 16]>);
 
 impl DedupCache {
     pub fn new() -> Self {
-        DedupCache(Default::default())
+        Self(SmallVec::default())
     }
 
     pub fn probe<H: Hash>(&mut self, element: H) -> bool {
@@ -1068,7 +1068,7 @@ fn test_unknown_debug_image() {
 
     let mut event = Annotated::new(Event {
         debug_meta: Annotated::new(DebugMeta {
-            images: Annotated::new(vec![Annotated::new(DebugImage::Other(Default::default()))]),
+            images: Annotated::new(vec![Annotated::new(DebugImage::Other(Object::default()))]),
             ..DebugMeta::default()
         }),
         ..Event::default()
@@ -1080,7 +1080,7 @@ fn test_unknown_debug_image() {
     let expected = Annotated::new(DebugMeta {
         images: Annotated::new(vec![Annotated::from_error(
             Error::invalid("unsupported debug image type"),
-            Some(Value::Object(Default::default())),
+            Some(Value::Object(Object::default())),
         )]),
         ..DebugMeta::default()
     });

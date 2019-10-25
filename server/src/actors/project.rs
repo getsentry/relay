@@ -288,7 +288,7 @@ impl ProjectState {
             disabled: true,
             public_keys: Vec::new(),
             slug: None,
-            config: Default::default(),
+            config: ProjectConfig::default(),
             rev: None,
             organization_id: None,
         }

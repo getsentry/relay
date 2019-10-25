@@ -329,8 +329,8 @@ impl SendRequest {
         SendRequest {
             method,
             path: path.into(),
-            builder: Default::default(),
-            transformer: Default::default(),
+            builder: (),
+            transformer: (),
         }
     }
 
