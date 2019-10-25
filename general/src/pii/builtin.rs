@@ -383,8 +383,8 @@ declare_builtin_rules! {
 mod tests {
     use std::collections::BTreeMap;
 
-    use crate::pii::config::PiiConfig;
-    use crate::pii::processor::{PiiProcessor, Vars};
+    use crate::pii::config::{PiiConfig, Vars};
+    use crate::pii::processor::PiiProcessor;
     use crate::processor::{process_value, ProcessingState, ValueType};
     use crate::types::{Annotated, Remark, RemarkType};
 
