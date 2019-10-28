@@ -5,9 +5,8 @@ use actix_web::http::Method;
 use actix_web::{HttpRequest, HttpResponse, ResponseError};
 use bytes::Bytes;
 use failure::Fail;
-use futures::future::Future;
 
-use semaphore_general::protocol::{Csp, CspReportRaw, Event, SecurityReportType};
+use semaphore_general::protocol::{CspReportRaw, Event, SecurityReportType};
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::endpoints::store::{store_event, BadStoreRequest, ToOutcome};
@@ -29,9 +28,6 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
 
 #[derive(Fail, Debug)]
 pub enum SecurityError {
-    #[fail(display = "empty security report")]
-    EmptyReport,
-
     #[fail(display = "error parsing security report")]
     InvalidJson(#[cause] serde_json::Error),
 
@@ -42,7 +38,7 @@ pub enum SecurityError {
 impl ResponseError for SecurityError {
     fn error_response(&self) -> HttpResponse {
         match self {
-            SecurityError::EmptyReport | SecurityError::InvalidJson(_) => {
+            SecurityError::InvalidJson(_) => {
                 HttpResponse::BadRequest().json(ApiErrorResponse::from_fail(self))
             }
             SecurityError::StoreError(se) => se.error_response(),
@@ -83,7 +79,7 @@ fn security_report_to_event(data: Bytes) -> Result<Bytes, SecurityError> {
         SecurityReportType::Csp => csp_report_to_event_data(str_body.as_ref()),
         SecurityReportType::ExpectCt => expect_ct_report_to_event_data(str_body.as_ref()),
         SecurityReportType::ExpectStaple => expect_staple_report_to_event_data(str_body.as_ref()),
-        SecurityReportType::HpKp => hpkp_report_to_event_data(str_body.as_ref()),
+        SecurityReportType::Hpkp => hpkp_report_to_event_data(str_body.as_ref()),
     }
 }
 
@@ -102,17 +98,17 @@ fn csp_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
     })
 }
 
-fn expect_ct_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
+fn expect_ct_report_to_event_data(_data: &str) -> Result<Bytes, SecurityError> {
     //TODO implement
     unimplemented!();
 }
 
-fn expect_staple_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
+fn expect_staple_report_to_event_data(_data: &str) -> Result<Bytes, SecurityError> {
     //TODO implement
     unimplemented!();
 }
 
-fn hpkp_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
+fn hpkp_report_to_event_data(_data: &str) -> Result<Bytes, SecurityError> {
     //TODO implement
     unimplemented!();
 }
