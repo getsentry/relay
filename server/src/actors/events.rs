@@ -17,7 +17,7 @@ use semaphore_general::filter::FilterStatKey;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
-use semaphore_general::types::{Annotated, ProcessingAction};
+use semaphore_general::types::{Annotated, ProcessingAction, Value};
 use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
@@ -188,7 +188,7 @@ impl EventProcessor {
 
                 // Event filters assume a normalized event. Unfortunately, this requires us to run
                 // expensive normalization first.
-                if let Some(event) = event.value() {
+                if let Some(event) = event.value_mut() {
                     let client_ip = message.meta.client_addr();
                     let filter_settings = &message.project_state.config.filter_settings;
                     let filter_result = metric! {timer("event_processing.filtering"), {
@@ -199,6 +199,11 @@ impl EventProcessor {
                         // If the event should be filtered, no more processing is needed
                         return Ok(ProcessEventResponse::Filtered { reason });
                     }
+
+                    event.other.insert(
+                        "_relay_processed".to_owned(),
+                        Annotated::new(Value::Bool(false)),
+                    );
                 }
             }
         }
