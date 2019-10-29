@@ -80,7 +80,8 @@ pub enum Outcome {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[allow(dead_code)]
 pub enum DiscardReason {
-    // Outcomes also defined in Sentry:
+    // Outcomes also defined in Sentry
+    // -------------------------------
     Duplicate,
     ProjectId,
     AuthVersion,
@@ -96,12 +97,29 @@ pub enum DiscardReason {
     SecurityReport,
     Cors,
 
-    // Outcomes only emitted by Relay, not in Sentry:
+    // Outcomes only emitted by Relay, not in Sentry
+    // ---------------------------------------------
+    ///  The event payload exceeds the maximum size limit for the respective endpoint.
     PayloadTooLarge,
+
+    /// The payload length was not specified in headers.
     UnknownPayloadLength,
+
+    /// Reading or decoding the payload from the socket failed for any reason.
     InvalidPayloadFormat,
+
+    /// Parsing the event JSON payload failed due to a syntax error.
     InvalidPayloadJsonError,
+
+    /// A project state returned by the upstream could not be parsed.
+    ProjectState,
+
+    /// Relay does not support the protocol version sent by the SDK and may not understand the event
+    /// payload.
     UnsupportedProtocolVersion,
+
+    /// An error in Relay caused event ingestion to fail. This is the catch-all and usually
+    /// indicates bugs in Relay, rather than an expected failure.
     Internal,
 }
 
@@ -184,6 +202,7 @@ mod real_implementation {
                 DiscardReason::UnknownPayloadLength => "unknown_payload_length",
                 DiscardReason::InvalidPayloadFormat => "invalid_payload_format",
                 DiscardReason::InvalidPayloadJsonError => "invalid_payload_json_error",
+                DiscardReason::ProjectState => "project_state",
                 DiscardReason::UnsupportedProtocolVersion => "unsupported_protocol_version",
                 DiscardReason::Internal => "internal",
             }

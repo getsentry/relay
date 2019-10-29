@@ -7,6 +7,7 @@ use crate::actors::project::{
 };
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
+use crate::utils::ErrorBoundary;
 
 #[allow(clippy::needless_pass_by_value)]
 fn get_project_configs(
@@ -40,9 +41,13 @@ fn get_project_configs(
     });
 
     Box::new(future::join_all(futures).map(|mut project_states| {
-        Json(GetProjectStatesResponse {
-            configs: project_states.drain(..).collect(),
-        })
+        let configs = project_states
+            .drain(..)
+            .filter(|(_, state)| !state.as_ref().map_or(false, |s| s.invalid()))
+            .map(|(id, state)| (id, ErrorBoundary::Ok(state)))
+            .collect();
+
+        Json(GetProjectStatesResponse { configs })
     }))
 }
 
