@@ -17,7 +17,7 @@ use semaphore_general::filter::FilterStatKey;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
-use semaphore_general::types::{Annotated, ProcessingAction, Value};
+use semaphore_general::types::{Annotated, ProcessingAction};
 use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
@@ -200,6 +200,7 @@ impl EventProcessor {
                         return Ok(ProcessEventResponse::Filtered { reason });
                     }
 
+                    // TODO: Remove this once cutover is complete.
                     event.other.insert(
                         "_relay_processed".to_owned(),
                         Annotated::new(Value::Bool(false)),
