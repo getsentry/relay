@@ -32,7 +32,7 @@ use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
-use crate::utils::{self, One, Response, SyncActorFuture, SyncHandle};
+use crate::utils::{self, ErrorBoundary, One, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -277,6 +277,10 @@ pub struct ProjectState {
     /// The organization id.
     #[serde(default)]
     pub organization_id: Option<u64>,
+
+    /// True if this project state was fetched but incompatible with this Relay.
+    #[serde(skip, default)]
+    pub invalid: bool,
 }
 
 impl ProjectState {
@@ -291,6 +295,7 @@ impl ProjectState {
             config: ProjectConfig::default(),
             rev: None,
             organization_id: None,
+            invalid: false,
         }
     }
 
@@ -300,6 +305,13 @@ impl ProjectState {
     pub fn allowed() -> Self {
         let mut state = ProjectState::missing();
         state.disabled = false;
+        state
+    }
+
+    /// Project state for a deserialization error.
+    pub fn err() -> Self {
+        let mut state = ProjectState::missing();
+        state.invalid = true;
         state
     }
 
@@ -330,6 +342,13 @@ impl ProjectState {
     /// disabled (blackholed, deleted etc.).
     pub fn disabled(&self) -> bool {
         self.disabled
+    }
+
+    /// Returns `true` if the project state obtained from the upstream could not be parsed. This
+    /// results in events being dropped similar to disabled states, but can provide separate
+    /// metrics.
+    pub fn invalid(&self) -> bool {
+        self.invalid
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
@@ -412,6 +431,12 @@ impl ProjectState {
                 PublicKeyStatus::Unknown => EventAction::Accept,
             }
         } else {
+            // if we recorded an invalid project state response from the upstream (i.e. parsing
+            // failed), discard the event with a s
+            if self.invalid() {
+                return EventAction::Discard(DiscardReason::ProjectState);
+            }
+
             // only drop events if we know for sure the project is disabled.
             if self.disabled() {
                 return EventAction::Discard(DiscardReason::ProjectId);
@@ -733,7 +758,7 @@ pub struct GetProjectStates {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetProjectStatesResponse {
-    pub configs: HashMap<ProjectId, Option<ProjectState>>,
+    pub configs: HashMap<ProjectId, ErrorBoundary<Option<ProjectState>>>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -825,7 +850,8 @@ impl ProjectCache {
                             let state = response
                                 .configs
                                 .remove(&id)
-                                .unwrap_or(None)
+                                .unwrap_or(ErrorBoundary::Ok(None))
+                                .unwrap_or_else(|| Some(ProjectState::err()))
                                 .unwrap_or_else(ProjectState::missing);
 
                             channel.send(state).ok();
