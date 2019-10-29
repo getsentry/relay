@@ -38,6 +38,7 @@ use {
     semaphore_general::filter::should_filter,
     semaphore_general::protocol::IpAddr,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    semaphore_general::types::Value,
 };
 
 #[derive(Debug, Fail)]
