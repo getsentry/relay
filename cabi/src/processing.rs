@@ -1,5 +1,6 @@
 // TODO: Fix casts between SemaphoreGeoIpLookup and GeoIpLookup
 #![allow(clippy::cast_ptr_alignment)]
+#![deny(unused_must_use)]
 
 use std::ffi::CStr;
 use std::os::raw::c_char;
@@ -108,7 +109,7 @@ ffi_fn! {
         };
 
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
-        process_value(&mut event, &mut processor, ProcessingState::root());
+        process_value(&mut event, &mut processor, ProcessingState::root())?;
 
         Ok(SemaphoreStr::from_string(event.to_json()?))
     }
