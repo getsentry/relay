@@ -50,6 +50,11 @@ def test_forced_shutdown(mini_sentry, relay):
     relay.shutdown(sig=signal.SIGINT)
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
+    (route, error), = mini_sentry.test_failures
+    assert route == '/api/666/store/'
+    assert 'shutdown timer expired' in str(error)
+    mini_sentry.test_failures.clear()
+
 
 @pytest.mark.parametrize("failure_type", ["timeout", "socketerror"])
 def test_query_retry(failure_type, mini_sentry, relay):
