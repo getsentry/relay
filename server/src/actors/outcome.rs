@@ -224,9 +224,8 @@ mod real_implementation {
                 DiscardReason::Cors => "cors",
 
                 // Relay specific reasons (not present in Sentry)
-                DiscardReason::UnknownPayloadLength => "unknown_payload_length",
-                DiscardReason::InvalidPayloadFormat => "invalid_payload_format",
-                DiscardReason::InvalidPayloadJsonError => "invalid_payload_json_error",
+                DiscardReason::Payload => "payload",
+                DiscardReason::InvalidJson => "invalid_json",
                 DiscardReason::ProjectState => "project_state",
                 DiscardReason::Internal => "internal",
             }
