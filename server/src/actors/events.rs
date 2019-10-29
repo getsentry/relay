@@ -666,7 +666,6 @@ impl Handler<HandleEvent> for EventManager {
             .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(clone!(project, captured_events, |error, _, _| {
-                log::warn!("error processing event {}: {}", event_id, LogError(&error));
                 // if we are in capture mode, we stash away the event instead of
                 // forwarding it.
                 if capture {
@@ -680,6 +679,7 @@ impl Handler<HandleEvent> for EventManager {
                         },
                     );
                 }
+
                 metric!(counter("event.rejected") += 1);
                 let outcome_params: Option<Outcome> = match error {
                     ProcessingError::SerializeFailed(_)
@@ -696,23 +696,34 @@ impl Handler<HandleEvent> for EventManager {
                         Some(Outcome::Invalid(DiscardReason::InvalidJson))
                     }
                     #[cfg(feature = "processing")]
-                    ProcessingError::StoreFailed(_store_error) => {
+                    ProcessingError::StoreFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
                     ProcessingError::EventRejected(outcome_reason) => {
                         Some(Outcome::Invalid(outcome_reason))
                     }
-                    ProcessingError::EventFiltered(filter_stat_key) => {
-                        Some(Outcome::Filtered(filter_stat_key))
+                    ProcessingError::EventFiltered(ref filter_stat_key) => {
+                        Some(Outcome::Filtered(*filter_stat_key))
                     }
-                    // if we have upstream then we don't emit outcomes (the upstream should deal with this)
+                    // if we have an upstream, we don't emit outcomes. the upstream should deal with
+                    // this
                     ProcessingError::SendFailed(_) => None,
 
-                    ProcessingError::RateLimited(rate_limit) => {
+                    ProcessingError::RateLimited(ref rate_limit) => {
                         project.do_send(rate_limit.clone());
-                        Some(Outcome::RateLimited(rate_limit))
+                        Some(Outcome::RateLimited(rate_limit.clone()))
                     }
                 };
+
+                if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome_params {
+                    // Errors are only logged for what we consider an internal discard reason. These
+                    // indicate errors in the infrastructure or implementation bugs. In other cases,
+                    // we "expect" errors and log them as info level.
+                    log::error!("error processing event {}: {}", event_id, LogError(&error));
+                } else {
+                    log::info!("dropped event {}: {}", event_id, LogError(&error));
+                }
+
                 if let Some(outcome) = outcome_params {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),

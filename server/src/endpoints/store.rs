@@ -12,7 +12,7 @@ use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::Serialize;
 
-use semaphore_common::{metric, tryf, ProjectId, ProjectIdParseError};
+use semaphore_common::{metric, tryf, LogError, ProjectId, ProjectIdParseError};
 use semaphore_general::protocol::EventId;
 
 use crate::actors::events::{EventError, QueueEvent};
@@ -204,7 +204,7 @@ fn store_event(
                         })
                 })
         })
-        .map_err(move |error: BadStoreRequest| {
+        .or_else(move |error: BadStoreRequest| {
             metric!(counter("event.rejected") += 1);
 
             outcome_producer.do_send(TrackOutcome {
@@ -216,7 +216,13 @@ fn store_event(
                 event_id: None,
                 remote_addr,
             });
-            error
+
+            let response = error.error_response();
+            if response.status().is_server_error() {
+                log::error!("error handling request: {}", LogError(&error));
+            }
+
+            Ok(response)
         });
 
     Box::new(future)

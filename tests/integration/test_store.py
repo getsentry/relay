@@ -80,6 +80,10 @@ def test_event_timeout(mini_sentry, relay):
         "formatted": "correct"
     }
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+    (route, error), = mini_sentry.test_failures
+    assert route == '/api/666/store/'
+    assert 'configured lifetime' in str(error)
+    mini_sentry.test_failures.clear()
 
 
 def test_rate_limit(mini_sentry, relay):
