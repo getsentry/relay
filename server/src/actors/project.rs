@@ -414,7 +414,7 @@ impl ProjectState {
     ) -> EventAction {
         // Try to verify the request origin with the project config.
         if !self.is_valid_origin(meta.origin()) {
-            return EventAction::Discard(DiscardReason::ProjectId);
+            return EventAction::Discard(DiscardReason::Cors);
         }
 
         if self.outdated(project_id, config) {
@@ -427,7 +427,7 @@ impl ProjectState {
             // available in the meanwhile.
             match self.get_public_key_status(meta.auth().public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
-                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::AuthClient),
+                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::ProjectId),
                 PublicKeyStatus::Unknown => EventAction::Accept,
             }
         } else {
@@ -448,10 +448,10 @@ impl ProjectState {
             // events are sent to the upstream.
             match self.get_public_key_status(meta.auth().public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
-                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::AuthClient),
+                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::ProjectId),
                 PublicKeyStatus::Unknown => match config.relay_mode() {
                     RelayMode::Proxy => EventAction::Accept,
-                    _ => EventAction::Discard(DiscardReason::AuthClient),
+                    _ => EventAction::Discard(DiscardReason::ProjectId),
                 },
             }
         }

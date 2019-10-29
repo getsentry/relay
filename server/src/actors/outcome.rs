@@ -80,45 +80,71 @@ pub enum Outcome {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[allow(dead_code)]
 pub enum DiscardReason {
-    // Outcomes also defined in Sentry
-    // -------------------------------
+    /// [Post Processing] An event with the same id has already been processed for this project.
+    /// Sentry does not allow duplicate events and only stores the first one.
     Duplicate,
+
+    /// [Relay] There was no valid project id in the request or the required project does not exist.
     ProjectId,
+
+    /// [Relay] The protocol version sent by the SDK is not supported and parts of the payload may
+    /// be invalid.
     AuthVersion,
+
+    /// [Legacy] The SDK did not send a client identifier.
+    ///
+    /// In Relay, this is no longer required.
     AuthClient,
+
+    /// [Relay] The store request was missing an event payload.
     NoData,
+
+    /// [Relay] The event payload exceeds the maximum size limit for the respective endpoint.
     TooLarge,
+
+    /// [Legacy] A store request was received with an invalid method.
+    ///
+    /// This outcome is no longer emitted by Relay, as HTTP method validation occurs before an event
+    /// id or project id are extracted for a request.
     DisallowedMethod,
+
+    /// [Relay] The content type for a specific endpoint did not match the whitelist.
+    ///
+    /// While the standard store endpoint allows all content types, other endpoints may have
+    /// stricter requirements.
     ContentType,
+
+    /// [Legacy] The project id in the URL does not match the one specified for the public key.
+    ///
+    /// This outcome is no longer emitted by Relay. Instead, Relay will emit a standard `ProjectId`
+    /// since it resolves the project first, and then checks for the valid project key.
     MultiProjectId,
+
+    /// [Relay] A minidump file was missing for the minidump endpoint.
     MissingMinidumpUpload,
+
+    /// [Relay] The file submitted as minidump is not a valid minidump file.
     InvalidMinidump,
+
+    /// [Relay] The security report was not recognized due to missing data.
     SecurityReportType,
+
+    /// [Relay] The security report did not pass schema validation.
     SecurityReport,
+
+    /// [Relay] The request origin is not allowed for the project.
     Cors,
 
-    // Outcomes only emitted by Relay, not in Sentry
-    // ---------------------------------------------
-    ///  The event payload exceeds the maximum size limit for the respective endpoint.
-    PayloadTooLarge,
+    /// [Relay] Reading or decoding the payload from the socket failed for any reason.
+    Payload,
 
-    /// The payload length was not specified in headers.
-    UnknownPayloadLength,
+    /// [Relay] Parsing the event JSON payload failed due to a syntax error.
+    InvalidJson,
 
-    /// Reading or decoding the payload from the socket failed for any reason.
-    InvalidPayloadFormat,
-
-    /// Parsing the event JSON payload failed due to a syntax error.
-    InvalidPayloadJsonError,
-
-    /// A project state returned by the upstream could not be parsed.
+    /// [Relay] A project state returned by the upstream could not be parsed.
     ProjectState,
 
-    /// Relay does not support the protocol version sent by the SDK and may not understand the event
-    /// payload.
-    UnsupportedProtocolVersion,
-
-    /// An error in Relay caused event ingestion to fail. This is the catch-all and usually
+    /// [All] An error in Relay caused event ingestion to fail. This is the catch-all and usually
     /// indicates bugs in Relay, rather than an expected failure.
     Internal,
 }
@@ -198,12 +224,9 @@ mod real_implementation {
                 DiscardReason::Cors => "cors",
 
                 // Relay specific reasons (not present in Sentry)
-                DiscardReason::PayloadTooLarge => "payload_too_large",
-                DiscardReason::UnknownPayloadLength => "unknown_payload_length",
-                DiscardReason::InvalidPayloadFormat => "invalid_payload_format",
-                DiscardReason::InvalidPayloadJsonError => "invalid_payload_json_error",
+                DiscardReason::Payload => "payload",
+                DiscardReason::InvalidJson => "invalid_json",
                 DiscardReason::ProjectState => "project_state",
-                DiscardReason::UnsupportedProtocolVersion => "unsupported_protocol_version",
                 DiscardReason::Internal => "internal",
             }
         }
