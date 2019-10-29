@@ -353,7 +353,7 @@ impl EventManager {
         let rate_limiter = RateLimiter::new(&config).context(ServerErrorKind::RedisError)?;
 
         // TODO: Make the number configurable via config file
-        let thread_count = num_cpus::get();
+        let thread_count = config.cpu_concurrency();
         log::info!("starting {} event processing workers", thread_count);
 
         #[cfg(feature = "processing")]

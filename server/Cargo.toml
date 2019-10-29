@@ -30,7 +30,6 @@ lazy_static = "1.3.0"
 listenfd = "0.3.3"
 log = "0.4.8"
 native-tls = { version = "0.2.3", optional = true }
-num_cpus = "1.10.1"
 parking_lot = "0.9.0"
 r2d2 = { version = "0.8.5", optional = true }
 rdkafka = { version = "0.21.0", git = "https://github.com/fede1024/rust-rdkafka", optional = true, rev = "b1a391b3264ca8e0b0e053c6aec7a6db09af3131" }

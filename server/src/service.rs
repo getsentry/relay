@@ -282,7 +282,10 @@ where
 pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, ServerError> {
     let config = state.config();
     let mut server = server::new(move || make_app(state.clone()));
-    server = server.shutdown_timeout(SHUTDOWN_TIMEOUT).disable_signals();
+    server = server
+        .workers(config.cpu_concurrency())
+        .shutdown_timeout(SHUTDOWN_TIMEOUT)
+        .disable_signals();
 
     let connector = ClientConnector::default()
         .limit(config.max_concurrent_requests())
