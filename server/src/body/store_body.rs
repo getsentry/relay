@@ -42,11 +42,11 @@ impl StorePayloadError {
     /// Returns the outcome discard reason for this payload error.
     pub fn discard_reason(&self) -> DiscardReason {
         match self {
-            StorePayloadError::Overflow => DiscardReason::PayloadTooLarge,
-            StorePayloadError::UnknownLength => DiscardReason::UnknownPayloadLength,
-            StorePayloadError::Decode(_) => DiscardReason::InvalidPayloadFormat,
-            StorePayloadError::Zlib(_) => DiscardReason::InvalidPayloadFormat,
-            StorePayloadError::Payload(_) => DiscardReason::InvalidPayloadFormat,
+            StorePayloadError::Overflow => DiscardReason::TooLarge,
+            StorePayloadError::UnknownLength => DiscardReason::Payload,
+            StorePayloadError::Decode(_) => DiscardReason::Payload,
+            StorePayloadError::Zlib(_) => DiscardReason::Payload,
+            StorePayloadError::Payload(_) => DiscardReason::Payload,
         }
     }
 }

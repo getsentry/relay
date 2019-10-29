@@ -43,6 +43,9 @@ use {
 
 #[derive(Debug, Fail)]
 pub enum EventError {
+    #[fail(display = "empty event data")]
+    EmptyBody,
+
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] serde_json::Error),
 
@@ -436,6 +439,10 @@ impl Handler<QueueEvent> for EventManager {
     fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
         let mut data: BytesMut = message.data.into();
 
+        if data.is_empty() {
+            return Err(EventError::EmptyBody);
+        }
+
         // python clients are well known to send crappy JSON in the Sentry world.  The reason
         // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
         // server could deal with this but we cannot.  To work around this issue we run a basic
@@ -686,7 +693,7 @@ impl Handler<HandleEvent> for EventManager {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
                     ProcessingError::InvalidJson(_) => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidPayloadJsonError))
+                        Some(Outcome::Invalid(DiscardReason::InvalidJson))
                     }
                     #[cfg(feature = "processing")]
                     ProcessingError::StoreFailed(_store_error) => {
