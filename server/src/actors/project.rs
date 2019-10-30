@@ -833,13 +833,17 @@ impl ProjectCache {
             #[cfg(feature = "processing")]
             full_config: self.config.processing_enabled(),
         };
+        let start_time = Instant::now();
+
         // count number of http requests for project states
         metric!(counter("project_state.request") += 1);
         self.upstream
             .send(SendQuery(request))
             .map_err(ProjectError::ScheduleFailed)
             .into_actor(self)
-            .and_then(|response, slf, ctx| {
+            .and_then(move |response, slf, ctx| {
+                metric!(timer("project_state.request.duration") = start_time.elapsed());
+
                 match response {
                     Ok(mut response) => {
                         slf.backoff.reset();
