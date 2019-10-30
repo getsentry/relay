@@ -108,7 +108,7 @@ fn test_globs() {
     test_glob!("foo\\hello\\bar.PY", "foo/**/*.py", false, {double_star: true, case_insensitive: true});
     test_glob!("foo\\hello\\bar.PY", "foo/**/*.py", true, {double_star: true, case_insensitive: true, path_normalize: true});
 
-    let mut long_string = std::iter::repeat('x').take(1000000).collect::<String>();
+    let mut long_string = std::iter::repeat('x').take(1_000_000).collect::<String>();
     long_string.push_str(".PY");
     test_glob!(&long_string, "*************************.py", true, {double_star: true, case_insensitive: true, path_normalize: true});
     test_glob!(&long_string, "*************************.js", false, {double_star: true, case_insensitive: true, path_normalize: true});
