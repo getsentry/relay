@@ -230,6 +230,8 @@ impl EventProcessor {
             }
         }
 
+        // Run PII stripping after normalization because normalization adds IP addresses to the
+        // event.
         metric!(timer("event_processing.pii"), {
             for pii_config in message.project_state.config.pii_configs() {
                 let mut processor = PiiProcessor::new(pii_config);
