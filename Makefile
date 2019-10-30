@@ -82,9 +82,31 @@ test-process-event: setup-geoip
 
 # Documentation
 
-doc: setup-git
-	@cargo doc
+doc: docs
 .PHONY: doc
+
+docs: api-docs prose-docs
+.PHONY: api-docs prose-docs
+
+api-docs: setup-git
+	@cargo doc
+.PHONY: api-docs
+
+prose-docs: .venv/bin/python
+	.venv/bin/pip install -U mkdocs mkdocs-material pygments pymdown-extensions
+	.venv/bin/mkdocs build
+	touch site/.nojekyll
+.PHONY: prose-docs
+
+docserver: prose-docs
+	.venv/bin/mkdocs serve
+.PHONY: docserver
+
+travis-upload-prose-docs: prose-docs
+	cd site && zip -r gh-pages .
+	zeus upload -t "application/zip+docs" site/gh-pages.zip \
+		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
+.PHONY: travis-upload-docs
 
 # Style checking
 

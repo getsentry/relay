@@ -1,7 +1,5 @@
 # Actors
 
-
-
 This document describes how Semaphore works through the perspective of the system actors and the messages exchanged by them.
 
 **TODO** Short description about infrastructure (i.e. actix-web, actix, tokio, futures), note that we are using the old style Future trait, and actix 0.7.x .

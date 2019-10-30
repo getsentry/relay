@@ -844,12 +844,14 @@ impl ProjectCache {
             self.backoff.attempt(),
         );
 
+        let eviction_start = Instant::now();
+
         // Remove outdated projects that are not being refreshed from the cache. If the project is
         // being updated now, also remove its update entry from the queue, since we will be
         // inserting a new timestamp at the end (see `extend`).
-        let eviction_instant = Instant::now() - 2 * self.config.project_cache_expiry();
+        let eviction_threshold = eviction_start - 2 * self.config.project_cache_expiry();
         while let Some(update) = self.updates.get(0) {
-            if update.instant > eviction_instant {
+            if update.instant > eviction_threshold {
                 break;
             }
 
@@ -868,6 +870,8 @@ impl ProjectCache {
         self.updates
             .extend(channels.keys().copied().map(ProjectUpdate::new));
 
+        metric!(timer("project_state.eviction.duration") = eviction_start.elapsed());
+
         let request = GetProjectStates {
             projects: channels.keys().copied().collect(),
             #[cfg(feature = "processing")]
@@ -876,11 +880,15 @@ impl ProjectCache {
 
         // count number of http requests for project states
         metric!(counter("project_state.request") += 1);
+        let request_start = Instant::now();
+
         self.upstream
             .send(SendQuery(request))
             .map_err(ProjectError::ScheduleFailed)
             .into_actor(self)
-            .and_then(|response, slf, ctx| {
+            .and_then(move |response, slf, ctx| {
+                metric!(timer("project_state.request.duration") = request_start.elapsed());
+
                 match response {
                     Ok(mut response) => {
                         slf.backoff.reset();
