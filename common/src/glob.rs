@@ -18,7 +18,7 @@ pub struct GlobOptions {
     pub double_star: bool,
     /// Enables case insensitive path matching.
     pub case_insensitive: bool,
-    /// Enables path normalization
+    /// Enables path normalization.
     pub path_normalize: bool,
 }
 
