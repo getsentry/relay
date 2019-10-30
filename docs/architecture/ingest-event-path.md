@@ -68,17 +68,24 @@ external services) is deferred into a background task. Except for responding to
 the HTTP request, there's no I/O done in the endpoint in any form. We didn't
 even hit Redis to calculate rate limits.
 
-The fast response times are supposed to benefit application environments which
-cannot send HTTP requests fully asynchronously (PHP and certain serverless
-platorms), at the cost of status codes being inaccurate. Note that we still
-emit accurate outcomes into Kafka if configured to do so.
+!!! Summary
+    The HTTP response returned is just a best-effort guess at what the actual
+    outcome of the event is going to be. We only return a `4xx` code if we know that
+    the response will fail (based on cached information), if we don't we return a
+    200 and continue to process the event asynchronously. This asynchronous
+    processing used to happen synchronously in the Python implementation of
+    `StoreView`.
+
+    The effect of this is that the server will respond much faster that before but
+    we might return 200 for events that will ultimately not be accepted.
+
+    Generally Relay will return a 200 in many more situations than the old
+    `StoreView`.
 
 ## The background task
 
-The HTTP response is out, with a status code that is just a best-effort guess
-at what the actual outcome of the event is going to be. The rest of what used
-to happen synchronously in the Python `StoreView` is done asynchronously, but
-still in the same process.
+The HTTP response is out by now. The rest of what used to happen synchronously in the
+Python `StoreView` is done asynchronously, but still in the same process.
 
 So, now to the real work:
 
@@ -131,6 +138,12 @@ So, now to the real work:
 **Note:** If we discard an event at any point, an outcome is written to Kafka
 if Relay is configured to do so.
 
+!!! Summary
+    For events that returned a `200` we spawn an in-process background task
+    that does the rest of what the old `StoreView` did.
+
+    This task updates in-memory state for rate limits and disabled
+    projects/keys.
 
 ## The outcomes consumer
 

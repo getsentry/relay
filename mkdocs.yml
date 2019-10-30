@@ -18,6 +18,7 @@ nav:
     - architecture/ingest-event-path.md
 
 markdown_extensions:
+  - admonition: {}
   - tables: {}
   - codehilite: {}
 
