@@ -2,7 +2,14 @@ import json
 
 from semaphore._compat import string_types, iteritems, text_type
 from semaphore._lowlevel import lib, ffi
-from semaphore.utils import encode_str, decode_str, rustcall, RustObject, attached_refs, make_buf
+from semaphore.utils import (
+    encode_str,
+    decode_str,
+    rustcall,
+    RustObject,
+    attached_refs,
+    make_buf,
+)
 
 
 __all__ = [
@@ -114,7 +121,9 @@ def scrub_event(config, data):
     return json.loads(decode_str(rv))
 
 
-def is_glob_match(value, pat, double_star=False, case_insensitive=False, path_normalize=False):
+def is_glob_match(
+    value, pat, double_star=False, case_insensitive=False, path_normalize=False
+):
     flags = 0
     if double_star:
         flags |= lib.GLOB_FLAGS_DOUBLE_STAR
@@ -128,5 +137,7 @@ def is_glob_match(value, pat, double_star=False, case_insensitive=False, path_no
         flags |= lib.GLOB_FLAGS_PATH_NORMALIZE
 
     if isinstance(value, text_type):
-        value = value.encode('utf-8')
-    return rustcall(lib.semaphore_is_glob_match, make_buf(value), encode_str(pat), flags)
+        value = value.encode("utf-8")
+    return rustcall(
+        lib.semaphore_is_glob_match, make_buf(value), encode_str(pat), flags
+    )
