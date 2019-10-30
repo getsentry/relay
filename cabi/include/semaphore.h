@@ -9,6 +9,16 @@
 #include <stdlib.h>
 
 /**
+ * Controls the globbing behavios
+ */
+enum GlobFlags {
+  GLOB_FLAGS_DOUBLE_STAR = 1,
+  GLOB_FLAGS_CASE_INSENSITIVE = 2,
+  GLOB_FLAGS_PATH_NORMALIZE = 4,
+};
+typedef uint32_t GlobFlags;
+
+/**
  * Represents all possible error codes
  */
 enum SemaphoreErrorCode {
@@ -135,7 +145,7 @@ SemaphoreUuid semaphore_get_register_response_relay_id(const SemaphoreBuf *data)
  */
 void semaphore_init(void);
 
-bool semaphore_is_glob_match(const SemaphoreBuf *value, const SemaphoreStr *pat, uint32_t flags);
+bool semaphore_is_glob_match(const SemaphoreBuf *value, const SemaphoreStr *pat, GlobFlags flags);
 
 /**
  * Frees a public key.

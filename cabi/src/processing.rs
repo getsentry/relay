@@ -122,8 +122,9 @@ ffi_fn! {
     }
 }
 
+/// Controls the globbing behavios
 #[repr(u32)]
-pub enum GlobFlag {
+pub enum GlobFlags {
     DoubleStar = 1,
     CaseInsensitive = 2,
     PathNormalize = 4,
@@ -133,9 +134,10 @@ ffi_fn! {
     unsafe fn semaphore_is_glob_match(
         value: *const SemaphoreBuf,
         pat: *const SemaphoreStr,
-        flags: u32,
+        flags: GlobFlags,
     ) -> Result<bool> {
         let mut options = GlobOptions::default();
+        let flags = flags as u32;
         if (flags & GlobFlag::DoubleStar as u32) != 0 {
             options.double_star = true;
         }

@@ -2,7 +2,7 @@ import json
 
 from semaphore._compat import string_types, iteritems, text_type
 from semaphore._lowlevel import lib, ffi
-from semaphore.utils import encode_str, decode_str, rustcall, RustObject, attached_refs, make_buf
+from semaphore.utils import encode_str, decode_str, rustcall, RustObject, attached_refs, make_bufG
 
 
 __all__ = [
@@ -117,15 +117,15 @@ def scrub_event(config, data):
 def is_glob_match(value, pat, double_star=False, case_insensitive=False, path_normalize=False):
     flags = 0
     if double_star:
-        flags |= lib.GLOB_FLAG_DOUBLE_STAR
+        flags |= lib.GLOB_FLAGS_DOUBLE_STAR
     if case_insensitive:
-        flags |= lib.GLOB_FLAG_CASE_INSENSITIVE
+        flags |= lib.GLOB_FLAGS_CASE_INSENSITIVE
         # Since on the C side we're only working with bytes we need to lowercase the pattern
         # and value here.  This works with both bytes and unicode strings.
         value = value.lower()
         pat = pat.lower()
     if path_normalize:
-        flags |= lib.GLOB_FLAG_PATH_NORMALIZE
+        flags |= lib.GLOB_FLAGS_PATH_NORMALIZE
 
     if isinstance(value, text_type):
         value = value.encode('utf-8')
