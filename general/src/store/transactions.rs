@@ -15,18 +15,26 @@ impl Processor for TransactionsProcessor {
             return Ok(());
         }
 
-        if event.timestamp.value().is_none() {
-            // This invariant should be already guaranteed for regular error events.
-            return Err(ProcessingAction::InvalidEvent(
-                "timestamp hard-required for transaction events",
-            ));
-        }
-
-        // XXX: Maybe copy timestamp over?
-        if event.start_timestamp.value().is_none() {
-            return Err(ProcessingAction::InvalidEvent(
-                "start_timestamp hard-required for transaction events",
-            ));
+        match (event.start_timestamp.value(), event.timestamp.value_mut()) {
+            (Some(start), Some(end)) => {
+                if end < start {
+                    return Err(ProcessingAction::InvalidEvent(
+                        "end timestamp is smaller than start timestamp",
+                    ));
+                }
+            }
+            (_, None) => {
+                // This invariant should be already guaranteed for regular error events.
+                return Err(ProcessingAction::InvalidEvent(
+                    "timestamp hard-required for transaction events",
+                ));
+            }
+            (None, _) => {
+                // XXX: Maybe copy timestamp over?
+                return Err(ProcessingAction::InvalidEvent(
+                    "start_timestamp hard-required for transaction events",
+                ));
+            }
         }
 
         if let Some(Contexts(ref contexts)) = event.contexts.value() {
@@ -88,16 +96,24 @@ impl Processor for TransactionsProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // XXX: Maybe do the same as event.timestamp?
-        if span.timestamp.value().is_none() {
-            return Err(ProcessingAction::InvalidEvent("span is missing timestamp"));
-        }
-
-        // XXX: Maybe copy timestamp over?
-        if span.start_timestamp.value().is_none() {
-            return Err(ProcessingAction::InvalidEvent(
-                "span is missing start_timestamp",
-            ));
+        match (span.start_timestamp.value(), span.timestamp.value()) {
+            (Some(start), Some(end)) => {
+                if end < start {
+                    return Err(ProcessingAction::InvalidEvent(
+                        "end timestamp in span is smaller than start timestamp",
+                    ));
+                }
+            }
+            (_, None) => {
+                // XXX: Maybe do the same as event.timestamp?
+                return Err(ProcessingAction::InvalidEvent("span is missing timestamp"));
+            }
+            (None, _) => {
+                // XXX: Maybe copy timestamp over?
+                return Err(ProcessingAction::InvalidEvent(
+                    "span is missing start_timestamp",
+                ));
+            }
         }
 
         if span.trace_id.value().is_none() {
