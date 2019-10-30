@@ -7,6 +7,7 @@ use std::os::raw::c_char;
 use std::slice;
 
 use json_forensics;
+use semaphore_common::{glob_match_bytes, GlobOptions};
 use semaphore_general::datascrubbing::DataScrubbingConfig;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, split_chunks, ProcessingState};
@@ -14,7 +15,7 @@ use semaphore_general::protocol::Event;
 use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use semaphore_general::types::{Annotated, Remark};
 
-use crate::core::SemaphoreStr;
+use crate::core::{SemaphoreBuf, SemaphoreStr};
 
 pub struct SemaphoreGeoIpLookup;
 pub struct SemaphoreStoreNormalizer;
@@ -118,5 +119,34 @@ ffi_fn! {
 ffi_fn! {
     unsafe fn semaphore_test_panic() -> Result<()> {
         panic!("this is a test panic")
+    }
+}
+
+/// Controls the globbing behaviors.
+#[repr(u32)]
+pub enum GlobFlags {
+    DoubleStar = 1,
+    CaseInsensitive = 2,
+    PathNormalize = 4,
+}
+
+ffi_fn! {
+    unsafe fn semaphore_is_glob_match(
+        value: *const SemaphoreBuf,
+        pat: *const SemaphoreStr,
+        flags: GlobFlags,
+    ) -> Result<bool> {
+        let mut options = GlobOptions::default();
+        let flags = flags as u32;
+        if (flags & GlobFlags::DoubleStar as u32) != 0 {
+            options.double_star = true;
+        }
+        if (flags & GlobFlags::CaseInsensitive as u32) != 0 {
+            options.case_insensitive = true;
+        }
+        if (flags & GlobFlags::PathNormalize as u32) != 0 {
+            options.path_normalize = true;
+        }
+        Ok(glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options))
     }
 }
