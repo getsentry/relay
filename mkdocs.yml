@@ -1,0 +1,36 @@
+site_name: Sentry Relay
+repo_url: https://github.com/getsentry/semaphore
+site_author: Sentry
+theme:
+  name: material
+
+nav:
+  - index.md
+  - options.md
+  - project-config.md
+  - PII stripping and datascrubbing:
+    - pii-config/index.md
+    - pii-config/types.md
+    - pii-config/methods.md
+
+  - Architecture:
+    - architecture/index.md
+    - architecture/actors.md
+
+markdown_extensions:
+  - tables: {}
+  - codehilite: {}
+
+  # Config for diagrams
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_div_format
+
+extra_css:
+  # Config for diagrams
+  - https://unpkg.com/mermaid@7.1.2/dist/mermaid.css
+extra_javascript:
+  # Config for diagrams
+  - https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js

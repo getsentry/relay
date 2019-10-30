@@ -1,4 +1,9 @@
-# Getting started
+# Introduction
+
+The Sentry Relay (aka Semaphore) is a work in progress service that pushes some
+functionality from the Sentry SDKs as well as the Sentry server into a proxy process.
+
+## Getting started
 
 The relay server is called "semaphore".  Binaries can be downloaded from the
 [GitHub releases page](https://github.com/getsentry/semaphore/releases).  After

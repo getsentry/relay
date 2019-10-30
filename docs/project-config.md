@@ -1,6 +1,6 @@
 # Project Configuration
 
-A Relay will generally not accept or forward events where it doesn't know the project. See [_Getting Started_](quickstart.md) for a short introduction to project configs. This page enumerates all possible options.
+A Relay will generally not accept or forward events where it doesn't know the project. See [_Getting Started_](index.md) for a short introduction to project configs. This page enumerates all possible options.
 
 The configuration for a project with the ID *123* lives in the file
 `.semaphore/projects/123.json`. You can get the project ID from the path section
