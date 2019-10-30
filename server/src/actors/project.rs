@@ -1,6 +1,5 @@
 use std::borrow::Cow;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap, VecDeque};
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -773,6 +772,21 @@ impl UpstreamQuery for GetProjectStates {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+struct ProjectUpdate {
+    project_id: ProjectId,
+    instant: Instant,
+}
+
+impl ProjectUpdate {
+    pub fn new(project_id: ProjectId) -> Self {
+        ProjectUpdate {
+            project_id,
+            instant: Instant::now(),
+        }
+    }
+}
+
 pub struct ProjectCache {
     backoff: RetryBackoff,
     config: Arc<Config>,
@@ -780,6 +794,7 @@ pub struct ProjectCache {
     projects: HashMap<ProjectId, Addr<Project>>,
     local_states: HashMap<ProjectId, Arc<ProjectState>>,
     state_channels: HashMap<ProjectId, oneshot::Sender<ProjectState>>,
+    updates: VecDeque<ProjectUpdate>,
     shutdown: SyncHandle,
 }
 
@@ -792,6 +807,7 @@ impl ProjectCache {
             projects: HashMap::new(),
             local_states: HashMap::new(),
             state_channels: HashMap::new(),
+            updates: VecDeque::new(),
             shutdown: SyncHandle::new(),
         }
     }
@@ -828,11 +844,36 @@ impl ProjectCache {
             self.backoff.attempt(),
         );
 
+        // Remove outdated projects that are not being refreshed from the cache. If the project is
+        // being updated now, also remove its update entry from the queue, since we will be
+        // inserting a new timestamp at the end (see `extend`).
+        let eviction_instant = Instant::now() - 2 * self.config.project_cache_expiry();
+        while let Some(update) = self.updates.get(0) {
+            if update.instant > eviction_instant {
+                break;
+            }
+
+            if !channels.contains_key(&update.project_id) {
+                self.projects.remove(&update.project_id);
+            }
+
+            self.updates.pop_front();
+        }
+
+        // The remaining projects are not outdated anymore. Still, clean them from the queue to
+        // reinsert them at the end, as they are now receiving an updated timestamp. Then,
+        // batch-insert all new projects with the new timestamp.
+        self.updates
+            .retain(|update| !channels.contains_key(&update.project_id));
+        self.updates
+            .extend(channels.keys().copied().map(ProjectUpdate::new));
+
         let request = GetProjectStates {
-            projects: channels.keys().cloned().collect(),
+            projects: channels.keys().copied().collect(),
             #[cfg(feature = "processing")]
             full_config: self.config.processing_enabled(),
         };
+
         // count number of http requests for project states
         metric!(counter("project_state.request") += 1);
         self.upstream
@@ -1011,16 +1052,15 @@ impl Handler<GetProject> for ProjectCache {
         let config = self.config.clone();
         metric!(histogram("project_cache.size") = self.projects.len() as u64);
         match self.projects.entry(message.id) {
-            Entry::Occupied(value) => {
+            Entry::Occupied(entry) => {
                 metric!(counter("project_cache.hit") += 1);
-                value.get().clone()
+                entry.get().clone()
             }
-            Entry::Vacant(_) => {
+            Entry::Vacant(entry) => {
                 metric!(counter("project_cache.miss") += 1);
-                let new_val = Project::new(message.id, config, context.address()).start();
-                let ret_val = new_val.clone();
-                self.projects.insert(message.id, new_val);
-                ret_val
+                let project = Project::new(message.id, config, context.address()).start();
+                entry.insert(project.clone());
+                project
             }
         }
     }
