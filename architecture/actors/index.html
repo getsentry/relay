@@ -1,0 +1,1133 @@
+
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+      
+        <meta name="author" content="Sentry">
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.4.3">
+    
+    
+      
+        <title>Actors - Sentry Relay</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/application.30686662.css">
+      
+      
+    
+    
+      <script src="../../assets/javascripts/modernizr.74668098.js"></script>
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono&display=fallback">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+    
+    <link rel="stylesheet" href="../../assets/fonts/material-icons.css">
+    
+    
+      <link rel="stylesheet" href="https://unpkg.com/mermaid@7.1.2/dist/mermaid.css">
+    
+    
+      
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448" viewBox="0 0 416 448" id="__github"><path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19T128 352t-18.125-8.5-10.75-19T96 304t3.125-20.5 10.75-19T128 256t18.125 8.5 10.75 19T160 304zm160 0q0 10-3.125 20.5t-10.75 19T288 352t-18.125-8.5-10.75-19T256 304t3.125-20.5 10.75-19T288 256t18.125 8.5 10.75 19T320 304zm40 0q0-30-17.25-51T296 232q-10.25 0-48.75 5.25Q229.5 240 208 240t-39.25-2.75Q130.75 232 120 232q-29.5 0-46.75 21T56 304q0 22 8 38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0 37.25-1.75t35-7.375 30.5-15 20.25-25.75T360 304zm56-44q0 51.75-15.25 82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5T212 416q-19.5 0-35.5-.75t-36.875-3.125-38.125-7.5-34.25-12.875T37 371.5t-21.5-28.75Q0 312 0 260q0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25 30.875Q171.5 96 212 96q37 0 70 8 26.25-20.5 46.75-30.25T376 64q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34 99.5z"/></svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="#actors" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="../.." title="Sentry Relay" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            <span class="md-header-nav__topic">
+              Sentry Relay
+            </span>
+            <span class="md-header-nav__topic">
+              
+                Actors
+              
+            </span>
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          <label class="md-icon md-icon--search md-header-nav__button" for="__search"></label>
+          
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="__search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+<a href="https://github.com/getsentry/semaphore/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main" role="main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="__drawer">
+    <a href="../.." title="Sentry Relay" class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </a>
+    Sentry Relay
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+<a href="https://github.com/getsentry/semaphore/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../.." title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../options/" title="Configuration Options" class="md-nav__link">
+      Configuration Options
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../project-config/" title="Project Configuration" class="md-nav__link">
+      Project Configuration
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      PII and datascrubbing
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        PII and datascrubbing
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../pii-config/" title="PII Configuration" class="md-nav__link">
+      PII Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../pii-config/types/" title="PII Rule Types" class="md-nav__link">
+      PII Rule Types
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../pii-config/methods/" title="PII Rule Redaction Methods" class="md-nav__link">
+      PII Rule Redaction Methods
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5" checked>
+    
+    <label class="md-nav__link" for="nav-5">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Actors
+      </label>
+    
+    <a href="./" title="Actors" class="md-nav__link md-nav__link--active">
+      Actors
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#controllerrs" class="md-nav__link">
+    controller.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eventsrs" class="md-nav__link">
+    events.rs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eventmanager" class="md-nav__link">
+    EventManager
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eventprocessor" class="md-nav__link">
+    EventProcessor
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#processevent" class="md-nav__link">
+    ProcessEvent
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keysrs" class="md-nav__link">
+    keys.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#outcomers" class="md-nav__link">
+    outcome.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serverrs" class="md-nav__link">
+    server.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#storers" class="md-nav__link">
+    store.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upstreamrs" class="md-nav__link">
+    upstream.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#projectrs" class="md-nav__link">
+    project.rs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#project" class="md-nav__link">
+    Project
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#getprojectid" class="md-nav__link">
+    GetProjectId
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getprojectstate" class="md-nav__link">
+    GetProjectState
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pseudo-code" class="md-nav__link">
+    Pseudo Code
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#geteventaction" class="md-nav__link">
+    GetEventAction
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pseudo-code_1" class="md-nav__link">
+    Pseudo Code
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ratelimit" class="md-nav__link">
+    RateLimit
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pseudo-code_2" class="md-nav__link">
+    Pseudo Code
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#projectcache" class="md-nav__link">
+    ProjectCache
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#getproject" class="md-nav__link">
+    GetProject
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pseudo-code_3" class="md-nav__link">
+    Pseudo Code
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fetchprojectstate" class="md-nav__link">
+    FetchProjectState
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updatelocalstates" class="md-nav__link">
+    UpdateLocalStates
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../ingest-event-path/" title="Path of an Event through Relay" class="md-nav__link">
+      Path of an Event through Relay
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#controllerrs" class="md-nav__link">
+    controller.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eventsrs" class="md-nav__link">
+    events.rs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eventmanager" class="md-nav__link">
+    EventManager
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eventprocessor" class="md-nav__link">
+    EventProcessor
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#processevent" class="md-nav__link">
+    ProcessEvent
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keysrs" class="md-nav__link">
+    keys.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#outcomers" class="md-nav__link">
+    outcome.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serverrs" class="md-nav__link">
+    server.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#storers" class="md-nav__link">
+    store.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upstreamrs" class="md-nav__link">
+    upstream.rs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#projectrs" class="md-nav__link">
+    project.rs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#project" class="md-nav__link">
+    Project
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#getprojectid" class="md-nav__link">
+    GetProjectId
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getprojectstate" class="md-nav__link">
+    GetProjectState
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pseudo-code" class="md-nav__link">
+    Pseudo Code
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#geteventaction" class="md-nav__link">
+    GetEventAction
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pseudo-code_1" class="md-nav__link">
+    Pseudo Code
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ratelimit" class="md-nav__link">
+    RateLimit
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pseudo-code_2" class="md-nav__link">
+    Pseudo Code
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#projectcache" class="md-nav__link">
+    ProjectCache
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#getproject" class="md-nav__link">
+    GetProject
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pseudo-code_3" class="md-nav__link">
+    Pseudo Code
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fetchprojectstate" class="md-nav__link">
+    FetchProjectState
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updatelocalstates" class="md-nav__link">
+    UpdateLocalStates
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/getsentry/semaphore/edit/master/docs/architecture/actors.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="actors">Actors</h1>
+<p>This document describes how Semaphore works through the perspective of the system actors and the messages exchanged by them.</p>
+<p><strong>TODO</strong> Short description about infrastructure (i.e. actix-web, actix, tokio, futures), note that we are using the old style Future trait, and actix 0.7.x .</p>
+<h2 id="controllerrs">controller.rs</h2>
+<h2 id="eventsrs">events.rs</h2>
+<p>The <code>events.rs</code> module contains functionality related to the processing of events. Raw events being sent to the system are first processed, and then sent to Sentry for saving.</p>
+<p>The module contains to actors:</p>
+<ul>
+<li><code>EventManager</code> : an actor that receives all events, checks if the event should be processed (i.e. it is not filtered) and orchestrates all data needed for event processing. If the event should be processed it is passed to the <code>EventProcessor</code>. There is one <code>EventManager</code> in the system.</li>
+<li><code>EventProcessor</code> : an CPU bound actor that receives all necessary project configuration and does the heavy lifting of processing the message (normalisation, PII stripping ...). There are multiple <code>EventProcessor</code> actors running in a thread pool.</li>
+</ul>
+<h3 id="eventmanager">EventManager</h3>
+<p>The <code>EventManager</code> is an actor running in the main system arbiter. The system arbiter is a asynchronous arbiter  created when the Semaphore starts. The upshot of this is that all processing done by the event manager should be extremly quick. It is ok to wait on I/O but no significant processing may be done in the <code>EventManager</code>.</p>
+<p>Once the <code>EventManager</code> had obtained the project state and had decided that the event should be processed the <code>EventManager</code> passes the event to the <code>EventProcessor</code> actors.</p>
+<p><strong>TODO</strong> document all handlers</p>
+<h3 id="eventprocessor">EventProcessor</h3>
+<p>The <code>EventProcessor</code> is an actor running in a SyncArbiter. There are multiple instances of the <code>EventProcessor</code> actor (roughly 1 per thread)  (<strong>TODO</strong> RaduW check that I'm not talking nonsense here.).</p>
+<p>The <code>EventProcessor</code> does the heavy lifting of event processing. The event processing does only synchronous work ( all the IO is handleed in the <code>EventManager</code> and all the needed state is passed to the <code>EventProcessor</code>)</p>
+<p>Since all the work done by the event processor is the synchronous processing of an event there is only one type of message accepted by the <code>EventProcessor</code> actor:</p>
+<h4 id="processevent">ProcessEvent</h4>
+<p>The <code>ProcessEvent</code> handler prepares the event for ingestion. It normalizes the event, symbolicates its stack-trace and strips sensitive information (PPI stripping).</p>
+<p><strong>TODO</strong> finish here</p>
+<h2 id="keysrs">keys.rs</h2>
+<h2 id="outcomers">outcome.rs</h2>
+<h2 id="serverrs">server.rs</h2>
+<h2 id="storers">store.rs</h2>
+<h2 id="upstreamrs">upstream.rs</h2>
+<h2 id="projectrs">project.rs</h2>
+<p>The <code>project.rs</code> module contains functionality related to the project state. Sentry events belong to projects and projects belong to organizations (Semaphore doesn't care at the moment about organizations).</p>
+<p>Projects serve to group the events (so that each Sentry customer can only see and deal with his/hers own events) and prescribe how messages are to be processed ( what should be filtered, which data inside the event should be anonymised (i.e PPI stripping), etc).</p>
+<p>All activities around obtaining, caching and refreshing the project state is handled in this module.</p>
+<p>The module contains two actors:</p>
+<ul>
+<li><code>Project</code>: an actor that holds project data</li>
+<li><code>ProjectCache</code>: an actor that holds references to <code>Project</code> actors. </li>
+</ul>
+<p>From a high level perspective one obtains a <code>Project</code> from the <code>ProjectCache</code> and then uses the <code>Project</code> in order to get 'project specific' information.</p>
+<h3 id="project">Project</h3>
+<p>The <code>Project</code> actor is responsible with decisions about how an event for a particular project should be handled. The project runs in an async arbiter ( I think it actully runs in the SystemArbiter <strong>TODO</strong> check ir that is true, or if it runs in another async arbiter).</p>
+<p>The system constructs an actor for each project used. </p>
+<p>The <code>Project</code> actor runs in an async context.</p>
+<p>The <code>Project</code> actor responds to the following message types:</p>
+<h4 id="getprojectid">GetProjectId</h4>
+<p>The <code>GetProjectId</code> handler returns the <code>project_id</code> (trivial functionality).</p>
+<h4 id="getprojectstate">GetProjectState</h4>
+<p>The handler retuns the <code>ProjectState</code>, either directly (if it has a recent cached version) or by asking the <code>ProjectCache</code> to fetch it on its behalf.</p>
+<h5 id="pseudo-code">Pseudo Code</h5>
+<div class="codehilite"><pre><span></span><span class="k">if</span> <span class="s1">&#39;we have an up-to-date project state&#39;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">project_state</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="p">:</span> <span class="c1"># we don&#39;t have an already active request for the project state </span>
+    <span class="n">channel</span><span class="p">,</span> <span class="n">receiver</span> <span class="o">=</span> <span class="s1">&#39;create a channel and save its receiver&#39;</span>
+    <span class="n">async</span><span class="p">:</span> <span class="c1"># ops that run at some time in the future</span>
+        <span class="n">project_state</span> <span class="o">=</span> <span class="n">await</span> <span class="n">ProjectCache</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">FetchProjectState</span><span class="p">)</span>
+        <span class="n">channel</span><span class="o">.</span><span class="n">sender</span><span class="o">.</span><span class="n">push</span><span class="p">(</span><span class="n">project_state</span><span class="p">)</span> <span class="c1"># put the state on the channel when available</span>
+        <span class="n">channel</span> <span class="o">=</span> <span class="bp">None</span> <span class="c1"># clenaup after we have pushed the ProjectState</span>
+<span class="k">return</span> <span class="n">future</span><span class="p">(</span><span class="n">receiver</span><span class="p">)</span> <span class="c1"># a Future that resolves with the ProjectState when available</span>
+</pre></div>
+
+<h4 id="geteventaction">GetEventAction</h4>
+<p>The handler answers the question: How should an event be handled? </p>
+<p>An event may be handled in one of three ways specified by the <code>EventAction</code> enum.</p>
+<div class="codehilite"><pre><span></span><span class="k">pub</span><span class="w"> </span><span class="k">enum</span> <span class="nc">EventAction</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// The event should be discarded.</span>
+<span class="w">    </span><span class="n">Discard</span><span class="p">(</span><span class="n">DiscardReason</span><span class="p">),</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// The event should be discarded and the client should back off for some time.</span>
+<span class="w">    </span><span class="n">RetryAfter</span><span class="p">(</span><span class="n">RateLimit</span><span class="p">),</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// The event should be processed and sent to upstream.</span>
+<span class="w">    </span><span class="n">Accept</span><span class="p">,</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+
+<h5 id="pseudo-code_1">Pseudo Code</h5>
+<div class="codehilite"><pre><span></span><span class="k">if</span> <span class="s1">&#39;we have a cached rate limit value for the current event key&#39;</span><span class="p">:</span>
+  <span class="k">return</span> <span class="n">RetryAfter</span> <span class="c1"># the event is discarded without further processing</span>
+<span class="k">if</span> <span class="s1">&#39;we have a recent project state&#39;</span>
+  <span class="c1"># Ask the ProjectState what to do with the msg</span>
+  <span class="k">return</span> <span class="n">projectState</span><span class="o">.</span><span class="n">get_event_action</span><span class="p">(</span><span class="n">event</span><span class="p">)</span> 
+<span class="c1"># No recent ProjectState, fetch it from the ProjectCache actor</span>
+<span class="n">async</span><span class="p">:</span> <span class="c1"># ops that run at soem time in the future</span>
+    <span class="n">projectState</span> <span class="o">=</span> <span class="n">await</span> <span class="n">ProjectCache</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">FetchProjectState</span><span class="p">)</span>
+<span class="c1"># return a future that will resolve when the project state becomes avaialble  </span>
+<span class="k">return</span> <span class="n">future</span><span class="p">(</span><span class="n">projectState</span><span class="o">.</span><span class="n">get_event_action</span><span class="p">(</span><span class="n">event</span><span class="p">))</span>
+</pre></div>
+
+<h4 id="ratelimit">RateLimit</h4>
+<p>The handler is used to update chached versions of project RateLimits.</p>
+<h5 id="pseudo-code_2">Pseudo Code</h5>
+<div class="codehilite"><pre><span></span><span class="k">if</span> <span class="n">rate_limit</span><span class="o">.</span><span class="n">type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rate_limit_cache</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">rate_limit_cache</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">rate_limit</span><span class="p">)</span> <span class="c1"># insert a new rate limit</span>
+<span class="k">else</span> <span class="k">if</span> <span class="s2">&quot;rate_limit expires sooner than the old cached value&quot;</span><span class="p">:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">rate_limit_cache</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">rate_limit</span><span class="p">)</span> <span class="c1"># update old rate limit</span>
+</pre></div>
+
+<h3 id="projectcache">ProjectCache</h3>
+<p>The <code>ProjectCache</code>  actor is responsible for providing <code>Project</code> actors.</p>
+<p>The <code>ProjectCache</code> runs in an asynchronous context. There is only one instance of the <code>ProjectCache</code> in the system.</p>
+<p>The project runs in an async arbiter ( I think it actully runs in the SystemArbiter <strong>TODO</strong> check ir that is true, or if it runs in another async arbiter).</p>
+<p>The <code>ProjectCache</code> actor responds to the following messages:</p>
+<h4 id="getproject">GetProject</h4>
+<p>Retuns a <code>Project</code> actor for the required project.</p>
+<h5 id="pseudo-code_3">Pseudo Code</h5>
+<div class="codehilite"><pre><span></span><span class="k">if</span> <span class="n">project_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">project_cache</span><span class="p">:</span>
+  <span class="n">project</span> <span class="o">=</span> <span class="n">Project</span><span class="p">(</span><span class="n">project_id</span><span class="p">)</span>
+  <span class="n">project</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+  <span class="bp">self</span><span class="o">.</span><span class="n">project_cache</span><span class="p">[</span><span class="n">project_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">project</span>
+
+<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">project_cache</span><span class="p">[</span><span class="n">porject_id</span><span class="p">]</span> 
+</pre></div>
+
+<h4 id="fetchprojectstate">FetchProjectState</h4>
+<p>Registers the intention of a project to retrieve the project state.</p>
+<p>The <code>FetchProjectState</code> functionality logicaly belongs to the <code>Project</code> actor but it is handled by the <code>ProjectCache</code> in order to batch requests for the project state from multiple <code>Project</code> actors. </p>
+<p>A <code>Project</code> registers its desire to obtain its project state with the <code>ProjectCache</code> by sending the <code>FetchProjectState</code> and the <code>ProjectCache</code> batches all requests during a batching period and emits one request to the upstream (another semaphore or the Sentry server) for all required project states.</p>
+<p>The handler checks if there is already a scheduled time for fetching project states and, if not, it schedules a delayed function that will do the actual fetching for all projects that registered their desire for getting the project state (see function: <code>ProjectCache::fetch_states</code>). </p>
+<p><strong>TODO: Add pseudo code </strong></p>
+<h4 id="updatelocalstates">UpdateLocalStates</h4>
+<p>Updates project states for project states comming from a local file configuration.(TODO check if that is correct  RaduW.  10.Oct.2019)</p>
+<p>This message is emmited periodically by a thread that loops and periodically checks the local file system for configuration changes (see function: <code>poll_local_states</code> ).</p>
+<p><strong>Store endpoint request processing</strong></p>
+<div class="mermaid">graph LR
+
+Store&gt;/api/#PRJ#/store&lt;br/&gt;store.storeEvent]
+Upstream(UpstreamRelay)
+EvMan(EventManager)
+Proj(Project)
+EvProc["EventProcessor &lt;br/&gt;(sync)"]
+Cache(ProjectCache)
+StoreF(StoreForwarder)
+
+Store--&gt;|GetEventAction|Proj
+Store--&gt;|GetProject|Cache
+Store--&gt;|QueueEvent|EvMan
+
+Proj--&gt;|FetchProjectState|Cache
+
+EvMan--&gt;|GetProjectState|Proj
+EvMan--&gt;|GetEventAction|Proj
+EvMan--&gt;|RateLimit|Proj
+EvMan--&gt;|HandleEvent|EvMan
+EvMan--&gt;|GetProjectId|Proj
+EvMan--&gt;|ProcessEvent|EvProc
+EvMan--&gt;|StoreEvent|StoreF
+EvMan--&gt;|SendRequest|Upstream
+
+Cache--&gt;|UpdateLocalStates|Cache</div>
+
+<p><strong>Event ingestion</strong></p>
+<div class="codehilite"><pre><span></span><span class="n">Title</span><span class="o">:</span> <span class="n">Event</span> <span class="n">Ingestion</span>
+<span class="n">store_event</span><span class="o">--&gt;</span><span class="n">ProjectCache</span><span class="o">:</span> <span class="n">GetProject</span>
+<span class="n">ProjectCache</span><span class="o">--&gt;</span><span class="n">store_event</span><span class="o">:</span> <span class="n">Project</span>
+<span class="n">store_event</span><span class="o">--&gt;</span><span class="n">Project</span><span class="o">:</span> <span class="n">GetEventAction</span>
+<span class="n">Project</span> <span class="o">--&gt;</span> <span class="n">store_event</span><span class="o">:</span> <span class="n">EventAction</span>
+<span class="n">store_event</span><span class="o">--&gt;</span><span class="n">EventManager</span><span class="o">:</span><span class="n">QueueEvent</span>
+<span class="n">EventManager</span><span class="o">--&gt;</span><span class="n">store_event</span><span class="o">:</span><span class="n">event_id</span>
+<span class="n">EventManager</span><span class="o">--&gt;</span><span class="n">EventManager</span><span class="o">:</span><span class="n">HandleEvent</span>
+<span class="n">EventManager</span><span class="o">--&gt;</span><span class="n">Project</span><span class="o">:</span><span class="n">GetProjectId</span>
+<span class="n">Project</span><span class="o">--&gt;</span><span class="n">EventManager</span><span class="o">:</span><span class="n">ProjectId</span>
+<span class="n">EventManager</span><span class="o">--&gt;</span><span class="n">Project</span><span class="o">:</span><span class="n">GetEventAction</span>
+<span class="n">Project</span><span class="o">--&gt;</span><span class="n">EventManager</span><span class="o">:</span><span class="n">EventAction</span>
+<span class="n">EventManager</span><span class="o">--&gt;</span><span class="n">Project</span><span class="o">:</span><span class="n">GetProjectState</span>
+<span class="n">Project</span><span class="o">--&gt;</span><span class="n">EventManager</span><span class="o">:</span><span class="n">ProjectState</span>
+<span class="n">EventManager</span><span class="o">--&gt;</span><span class="n">EventProcessor</span><span class="o">:</span><span class="n">ProcessEvent</span>
+<span class="n">EventProcessor</span><span class="o">--&gt;</span><span class="n">EventManager</span><span class="o">:</span><span class="n">ProcessEventResponse</span>
+</pre></div>
+
+<p><strong>Server bootstrap</strong></p>
+<div class="codehilite"><pre><span></span><span class="n">main</span><span class="p">.</span><span class="n">main</span><span class="o">-&gt;</span><span class="n">cli</span><span class="p">.</span><span class="k">execute</span><span class="p">:</span>
+<span class="n">cli</span><span class="p">.</span><span class="k">execute</span><span class="o">-&gt;</span><span class="n">cli</span><span class="p">.</span><span class="k">execute</span><span class="p">:</span><span class="n">make_app</span>
+<span class="n">cli</span><span class="p">.</span><span class="k">execute</span><span class="o">-&gt;</span><span class="n">server</span><span class="p">.</span><span class="n">lib</span><span class="p">.</span><span class="n">run</span><span class="p">:</span> 
+<span class="n">server</span><span class="p">.</span><span class="n">lib</span><span class="p">.</span><span class="n">run</span><span class="o">-&gt;</span><span class="n">Controller</span><span class="p">:</span> <span class="n">run</span>
+<span class="n">Controller</span><span class="o">-&gt;</span><span class="n">server</span><span class="p">.</span><span class="n">actors</span><span class="p">.</span><span class="n">Server</span><span class="p">:</span> <span class="k">start</span>
+<span class="n">server</span><span class="p">.</span><span class="n">actors</span><span class="p">.</span><span class="n">Server</span><span class="o">-&gt;</span><span class="n">server</span><span class="p">.</span><span class="n">service</span><span class="p">:</span><span class="k">start</span>
+<span class="n">server</span><span class="p">.</span><span class="n">service</span><span class="o">-&gt;</span><span class="n">ServiceState</span><span class="p">:</span> <span class="k">start</span>
+</pre></div>
+
+<p><strong>ServiceState start</strong></p>
+<div class="codehilite"><pre><span></span><span class="n">ServiceState</span><span class="o">-&gt;</span><span class="n">UpstreamRelay</span><span class="p">:</span><span class="k">start</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+<span class="n">ServiceState</span><span class="o">-&gt;</span><span class="n">EventManager</span><span class="p">:</span><span class="k">start</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">upstream_realy</span><span class="p">)</span>
+<span class="n">ServiceState</span><span class="o">-&gt;</span><span class="n">KeyCache</span><span class="p">:</span><span class="k">start</span><span class="p">(</span><span class="n">config</span><span class="p">,</span><span class="n">upstream_relay</span><span class="p">)</span>
+<span class="n">ServiceState</span><span class="o">-&gt;</span><span class="n">ProjectCache</span><span class="p">:</span><span class="k">start</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">upstream_relay</span><span class="p">)</span>
+</pre></div>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../../pii-config/methods/" title="PII Rule Redaction Methods" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                PII Rule Redaction Methods
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../ingest-event-path/" title="Path of an Event through Relay" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Path of an Event through Relay
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="https://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../assets/javascripts/application.ac79c3b0.js"></script>
+      
+      <script>app.initialize({version:"1.0.4",url:{base:"../.."}})</script>
+      
+        <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+      
+    
+  </body>
+</html>

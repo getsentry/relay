@@ -1,0 +1,658 @@
+
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+      
+        <meta name="author" content="Sentry">
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.4.3">
+    
+    
+      
+        <title>Sentry Relay</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/application.30686662.css">
+      
+      
+    
+    
+      <script src="assets/javascripts/modernizr.74668098.js"></script>
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono&display=fallback">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+    
+    <link rel="stylesheet" href="assets/fonts/material-icons.css">
+    
+    
+      <link rel="stylesheet" href="https://unpkg.com/mermaid@7.1.2/dist/mermaid.css">
+    
+    
+      
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448" viewBox="0 0 416 448" id="__github"><path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19T128 352t-18.125-8.5-10.75-19T96 304t3.125-20.5 10.75-19T128 256t18.125 8.5 10.75 19T160 304zm160 0q0 10-3.125 20.5t-10.75 19T288 352t-18.125-8.5-10.75-19T256 304t3.125-20.5 10.75-19T288 256t18.125 8.5 10.75 19T320 304zm40 0q0-30-17.25-51T296 232q-10.25 0-48.75 5.25Q229.5 240 208 240t-39.25-2.75Q130.75 232 120 232q-29.5 0-46.75 21T56 304q0 22 8 38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0 37.25-1.75t35-7.375 30.5-15 20.25-25.75T360 304zm56-44q0 51.75-15.25 82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5T212 416q-19.5 0-35.5-.75t-36.875-3.125-38.125-7.5-34.25-12.875T37 371.5t-21.5-28.75Q0 312 0 260q0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25 30.875Q171.5 96 212 96q37 0 70 8 26.25-20.5 46.75-30.25T376 64q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34 99.5z"/></svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="#introduction" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="." title="Sentry Relay" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            <span class="md-header-nav__topic">
+              Sentry Relay
+            </span>
+            <span class="md-header-nav__topic">
+              
+                Introduction
+              
+            </span>
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          <label class="md-icon md-icon--search md-header-nav__button" for="__search"></label>
+          
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="__search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+<a href="https://github.com/getsentry/semaphore/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main" role="main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="__drawer">
+    <a href="." title="Sentry Relay" class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </a>
+    Sentry Relay
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+<a href="https://github.com/getsentry/semaphore/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Introduction
+      </label>
+    
+    <a href="." title="Introduction" class="md-nav__link md-nav__link--active">
+      Introduction
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#getting-started" class="md-nav__link">
+    Getting started
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-a-project" class="md-nav__link">
+    Setting up a Project
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sending-a-test-event" class="md-nav__link">
+    Sending a Test Event
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pii-stripping" class="md-nav__link">
+    PII Stripping
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="options/" title="Configuration Options" class="md-nav__link">
+      Configuration Options
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="project-config/" title="Project Configuration" class="md-nav__link">
+      Project Configuration
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      PII and datascrubbing
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        PII and datascrubbing
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="pii-config/" title="PII Configuration" class="md-nav__link">
+      PII Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="pii-config/types/" title="PII Rule Types" class="md-nav__link">
+      PII Rule Types
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="pii-config/methods/" title="PII Rule Redaction Methods" class="md-nav__link">
+      PII Rule Redaction Methods
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+    
+    <label class="md-nav__link" for="nav-5">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="architecture/actors/" title="Actors" class="md-nav__link">
+      Actors
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="architecture/ingest-event-path/" title="Path of an Event through Relay" class="md-nav__link">
+      Path of an Event through Relay
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#getting-started" class="md-nav__link">
+    Getting started
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-a-project" class="md-nav__link">
+    Setting up a Project
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sending-a-test-event" class="md-nav__link">
+    Sending a Test Event
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pii-stripping" class="md-nav__link">
+    PII Stripping
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/getsentry/semaphore/edit/master/docs/index.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="introduction">Introduction</h1>
+<p>The Sentry Relay (aka Semaphore) is a work in progress service that pushes some
+functionality from the Sentry SDKs as well as the Sentry server into a proxy process.</p>
+<h2 id="getting-started">Getting started</h2>
+<p>The relay server is called "semaphore".  Binaries can be downloaded from the
+<a href="https://github.com/getsentry/semaphore/releases">GitHub releases page</a>.  After
+downloading place the binary somewhere on your <code>PATH</code> and make it executable.</p>
+<p>The <code>config init</code> command is provided to initialize the initial config.  The
+config will be created the folder it's run from in a hidden <code>.semaphore</code>
+subdirectory:</p>
+<div class="codehilite"><pre><span></span>$ semaphore config init
+</pre></div>
+
+
+<p>The wizard will ask a few questions:</p>
+<ol>
+<li>default vs custom config.  In the default config the relay will connect to
+   sentry.io for sending and will generally use the defaults.  In the custom
+   config a different upstream can be configured.</li>
+<li>Relay internal crash reporting can be enabled or disabled.  When enabled the
+   relay will report its own internal errors to sentry.io to help us debug it.</li>
+<li>Lastly the relay will ask it should run authenticated with credentials or
+   not.  Currently we do not yet support authenticated mode against sentry.io.</li>
+</ol>
+<p>You now have a folder named <code>.semaphore</code> in your current working directory. To
+launch the server, run:</p>
+<div class="codehilite"><pre><span></span><span class="n">semaphore</span> <span class="n">run</span>
+</pre></div>
+
+
+<p>If you moved your config folder somewhere else, you can use the <code>-c</code> option:</p>
+<div class="codehilite"><pre><span></span><span class="n">semaphore</span> <span class="n">run</span> <span class="o">-</span><span class="k">c</span> <span class="p">.</span><span class="o">/</span><span class="n">my</span><span class="o">/</span><span class="n">custom</span><span class="o">/</span><span class="n">semaphore_folder</span><span class="o">/</span>
+</pre></div>
+
+
+<h2 id="setting-up-a-project">Setting up a Project</h2>
+<p>Right now Relay is only really usable in "simple proxy mode" (without
+credentials), and as such calls the same exact endpoints on Sentry that an SDK
+would.  That also means you have to configure each project individually in
+Relay.</p>
+<p>Create a new file in the form <code>project_id.json</code>:</p>
+<div class="codehilite"><pre><span></span><span class="na">.semaphore</span><span class="err">/</span><span class="no">projects</span><span class="err">/</span><span class="no">___PROJECT_ID___.json</span>
+</pre></div>
+
+<p>With the following content:</p>
+<div class="codehilite"><pre><span></span><span class="p">{</span>
+    <span class="nt">&quot;publicKeys&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="nt">&quot;publicKey&quot;</span><span class="p">:</span> <span class="s2">&quot;___PUBLIC_KEY___&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;isEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span>
+        <span class="p">}</span>
+    <span class="p">],</span>
+    <span class="nt">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="nt">&quot;allowedDomains&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>
+        <span class="nt">&quot;piiConfig&quot;</span><span class="p">:</span> <span class="p">{}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+
+<p>The relay has to know all public keys (i.e. the secret part of the DSN) that
+will send events to it.  DSNs unknown for this project will be rejected.</p>
+<h2 id="sending-a-test-event">Sending a Test Event</h2>
+<p>Launch the server with <code>semaphore run</code>, and set up any SDK with the following DSN:</p>
+<div class="codehilite"><pre><span></span><span class="nl">http</span><span class="p">:</span><span class="c1">//___PUBLIC_KEY___@127.0.0.1:3000/___PROJECT_ID___</span>
+</pre></div>
+
+<p>As you can see we only changed the host and port of the DSN to point to your
+Relay setup. You should be able to use the SDK normally at this point. Events
+arrive at the Sentry instance that Relay is configured to use in
+<code>.semaphore/config.yml</code>.</p>
+<h2 id="pii-stripping">PII Stripping</h2>
+<p>Now let's get to the entire point of this proxy setup: Stripping sensitive
+data.</p>
+<p>The easiest way to go about this is if you already have a raw JSON payload from some SDK. Go to our PII config editor <a href="https://getsentry.github.io/piinguin/">Piinguin</a>, and:</p>
+<ol>
+<li>Paste in a raw event</li>
+<li>Click on data you want eliminated</li>
+<li>Paste in other payloads and see if they look fine, go to step <strong>2</strong> if necessary.</li>
+</ol>
+<p>After iterating on the config, paste it back into the project config you created earlier:</p>
+<div class="codehilite"><pre><span></span><span class="na">.semaphore</span><span class="err">/</span><span class="no">projects</span><span class="err">/</span><span class="no">___PROJECT_ID___.json</span>
+</pre></div>
+
+<p>For example:</p>
+<div class="codehilite"><pre><span></span><span class="p">{</span>
+    <span class="nt">&quot;publicKeys&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="nt">&quot;publicKey&quot;</span><span class="p">:</span> <span class="s2">&quot;___PUBLIC_KEY___&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;isEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span>
+        <span class="p">}</span>
+    <span class="p">],</span>
+    <span class="nt">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="nt">&quot;allowedDomains&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>
+        <span class="nt">&quot;piiConfig&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="nt">&quot;device_id&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;pattern&quot;</span><span class="p">,</span>
+                    <span class="nt">&quot;pattern&quot;</span><span class="p">:</span> <span class="s2">&quot;d/[a-f0-9]{12}&quot;</span><span class="p">,</span>
+                    <span class="nt">&quot;redaction&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="nt">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;hash&quot;</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+            <span class="p">},</span>
+            <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="nt">&quot;freeform&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;device_id&quot;</span><span class="p">]</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+        
+          <a href="options/" title="Configuration Options" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Configuration Options
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="https://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="assets/javascripts/application.ac79c3b0.js"></script>
+      
+      <script>app.initialize({version:"1.0.4",url:{base:"."}})</script>
+      
+        <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+      
+    
+  </body>
+</html>

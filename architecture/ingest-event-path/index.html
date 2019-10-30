@@ -1,0 +1,716 @@
+
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+      
+        <meta name="author" content="Sentry">
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.4.3">
+    
+    
+      
+        <title>Path of an Event through Relay - Sentry Relay</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/application.30686662.css">
+      
+      
+    
+    
+      <script src="../../assets/javascripts/modernizr.74668098.js"></script>
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono&display=fallback">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+    
+    <link rel="stylesheet" href="../../assets/fonts/material-icons.css">
+    
+    
+      <link rel="stylesheet" href="https://unpkg.com/mermaid@7.1.2/dist/mermaid.css">
+    
+    
+      
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448" viewBox="0 0 416 448" id="__github"><path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19T128 352t-18.125-8.5-10.75-19T96 304t3.125-20.5 10.75-19T128 256t18.125 8.5 10.75 19T160 304zm160 0q0 10-3.125 20.5t-10.75 19T288 352t-18.125-8.5-10.75-19T256 304t3.125-20.5 10.75-19T288 256t18.125 8.5 10.75 19T320 304zm40 0q0-30-17.25-51T296 232q-10.25 0-48.75 5.25Q229.5 240 208 240t-39.25-2.75Q130.75 232 120 232q-29.5 0-46.75 21T56 304q0 22 8 38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0 37.25-1.75t35-7.375 30.5-15 20.25-25.75T360 304zm56-44q0 51.75-15.25 82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5T212 416q-19.5 0-35.5-.75t-36.875-3.125-38.125-7.5-34.25-12.875T37 371.5t-21.5-28.75Q0 312 0 260q0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25 30.875Q171.5 96 212 96q37 0 70 8 26.25-20.5 46.75-30.25T376 64q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34 99.5z"/></svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="#path-of-an-event-through-relay" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="../.." title="Sentry Relay" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            <span class="md-header-nav__topic">
+              Sentry Relay
+            </span>
+            <span class="md-header-nav__topic">
+              
+                Path of an Event through Relay
+              
+            </span>
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          <label class="md-icon md-icon--search md-header-nav__button" for="__search"></label>
+          
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="__search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+<a href="https://github.com/getsentry/semaphore/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main" role="main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="__drawer">
+    <a href="../.." title="Sentry Relay" class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </a>
+    Sentry Relay
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+<a href="https://github.com/getsentry/semaphore/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../.." title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../options/" title="Configuration Options" class="md-nav__link">
+      Configuration Options
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../project-config/" title="Project Configuration" class="md-nav__link">
+      Project Configuration
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      PII and datascrubbing
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        PII and datascrubbing
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../pii-config/" title="PII Configuration" class="md-nav__link">
+      PII Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../pii-config/types/" title="PII Rule Types" class="md-nav__link">
+      PII Rule Types
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../pii-config/methods/" title="PII Rule Redaction Methods" class="md-nav__link">
+      PII Rule Redaction Methods
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5" checked>
+    
+    <label class="md-nav__link" for="nav-5">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../actors/" title="Actors" class="md-nav__link">
+      Actors
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Path of an Event through Relay
+      </label>
+    
+    <a href="./" title="Path of an Event through Relay" class="md-nav__link md-nav__link--active">
+      Path of an Event through Relay
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#processing-enabled-vs-not" class="md-nav__link">
+    Processing enabled vs not?
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inside-the-endpoint" class="md-nav__link">
+    Inside the endpoint
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-background-task" class="md-nav__link">
+    The background task
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-outcomes-consumer" class="md-nav__link">
+    The outcomes consumer
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-ingest-consumer" class="md-nav__link">
+    The ingest consumer
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#processing-enabled-vs-not" class="md-nav__link">
+    Processing enabled vs not?
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inside-the-endpoint" class="md-nav__link">
+    Inside the endpoint
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-background-task" class="md-nav__link">
+    The background task
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-outcomes-consumer" class="md-nav__link">
+    The outcomes consumer
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-ingest-consumer" class="md-nav__link">
+    The ingest consumer
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/getsentry/semaphore/edit/master/docs/architecture/ingest-event-path.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="path-of-an-event-through-relay">Path of an Event through Relay</h1>
+<h2 id="processing-enabled-vs-not">Processing enabled vs not?</h2>
+<p>Relay can run as part of a Sentry installation, such as within <code>sentry.io</code>'s
+infrastructure, or next to the application as a forwarding proxy. A lot of
+steps described here are skipped or run in a limited form when Relay is <em>not</em>
+running in processing mode:</p>
+<ul>
+<li>
+<p>Event normalization does different (less) things.</p>
+</li>
+<li>
+<p>In <code>static</code> mode, project config is read from disk instead of fetched from
+   an HTTP endpoint. In <code>proxy</code> mode, project config is just filled out with
+   defaults.</p>
+</li>
+<li>
+<p>Events are forwarded to an HTTP endpoint instead of being written to Kafka.</p>
+</li>
+<li>
+<p>Rate limits are not calculated using Redis, instead Relay just honors 429s
+   from previously mentioned endpoint.</p>
+</li>
+<li>
+<p>Filters are not applied at all.</p>
+</li>
+</ul>
+<h2 id="inside-the-endpoint">Inside the endpoint</h2>
+<p>When an SDK hits <code>/api/X/store</code> on Relay, the code in
+<code>server/src/endpoints/store.rs</code> is called before returning a HTTP response.</p>
+<p>That code looks into an in-memory cache to answer basic information about a project such as:</p>
+<ul>
+<li>
+<p>Does it exist? Is it suspended/disabled?</p>
+</li>
+<li>
+<p>Is it rate limited right now? If so, which key is rate limited?</p>
+</li>
+<li>
+<p>Which DSNs are valid for this project?</p>
+</li>
+</ul>
+<p>Some of the data for this cache is coming from the <a href="https://github.com/getsentry/sentry/blob/c868def30e013177383f8ca5909090c8bdbd8f6f/src/sentry/api/endpoints/relay_projectconfigs.py">projectconfigs
+endpoint</a>.
+It is refreshed every couple of minutes, depending on configuration.</p>
+<p>If the cache is fresh, we may return a <code>429</code> for rate limits or a <code>4xx</code> for
+invalid auth information.</p>
+<p>That cache might be empty or stale. If that is the case, Relay does not
+actually attempt to populate it at this stage. <strong>It just returns a <code>200</code> even
+though the event might be dropped later.</strong> This implies:</p>
+<ul>
+<li>
+<p>The first store request that runs into a rate limit doesn't actually result
+   in a <code>429</code>, but a subsequent request will (because by that time the project
+   cache will have been updated).</p>
+</li>
+<li>
+<p>A store request for a non-existent project may result in a <code>200</code>, but
+   subsequent ones will not.</p>
+</li>
+<li>
+<p>A store request with wrong auth information may result in a <code>200</code>, but
+   subsequent ones will not.</p>
+</li>
+<li>
+<p>Filters are also not applied at this stage, so <strong>a filtered event will
+   always result in a <code>200</code></strong>. This matches the Python behavior since <a href="https://github.com/getsentry/sentry/pull/14561">a while
+   now</a>.</p>
+</li>
+</ul>
+<p>These examples assume that a project receives one event at a time. In practice
+one may observe that a highly concurrent burst of store requests for a single
+project results in <code>200 OK</code>s only. However, a multi-second flood of incoming
+events should quickly result in eventually consistent and correct status codes.</p>
+<p>The response is completed at this point. All expensive work (such as talking to
+external services) is deferred into a background task. Except for responding to
+the HTTP request, there's no I/O done in the endpoint in any form. We didn't
+even hit Redis to calculate rate limits.</p>
+<p>The fast response times are supposed to benefit application environments which
+cannot send HTTP requests fully asynchronously (PHP and certain serverless
+platorms), at the cost of status codes being inaccurate. Note that we still
+emit accurate outcomes into Kafka if configured to do so.</p>
+<h2 id="the-background-task">The background task</h2>
+<p>The HTTP response is out, with a status code that is just a best-effort guess
+at what the actual outcome of the event is going to be. The rest of what used
+to happen synchronously in the Python <code>StoreView</code> is done asynchronously, but
+still in the same process.</p>
+<p>So, now to the real work:</p>
+<ol>
+<li>
+<p><strong>Project config is fetched.</strong> If the project cache is stale or
+    missing, we fetch it. We may wait a couple milliseconds here to be able to
+    batch multiple project config fetches into the same HTTP request to not
+    overload Sentry too much.</p>
+<p>At this stage Relay may drop the event because it realized that the DSN was
+invalid or the project didn't even exist. The next incoming event will get a
+proper 4xx status code.</p>
+</li>
+<li>
+<p><strong>The event is parsed.</strong> In the endpoint we only did decompression, a basic
+    JSON syntax check, and extraction of the event ID to be able to return it as
+    part of the response.</p>
+<p>Now we create an <code>Event</code> struct, which conceptually is the equivalent to
+parsing it into a Python dictionary: We allocate more memory.</p>
+</li>
+<li>
+<p><strong>The event is datascrubbed.</strong> We have a PII config (new format) and a
+    datascrubbing config (old format, converted to new format on the fly) as
+    part of the project config fetched from Sentry.</p>
+</li>
+<li>
+<p><strong>The event is normalized.</strong> Event normalization is probably the most
+    CPU-intensive task running in Relay. It discards invalid data, moves data
+    from deprecated fields to newer fields and generally just does schema
+    validation.</p>
+</li>
+<li>
+<p><strong>Filters ("inbound filters") are applied.</strong> Event may be discarded because of IP
+    addresses, patterns on the error message or known web crawlers.</p>
+</li>
+<li>
+<p><strong>Exact rate limits ("quotas") are applied.</strong> <code>is_rate_limited.lua</code> is
+    executed on Redis. The input parameters for <code>is_rate_limited.lua</code> ("quota
+    objects") are part of the project config. See <a href="https://github.com/getsentry/sentry/pull/14558">this pull
+    request</a> for an explanation
+    of what quota objects are.</p>
+<p>The event may be discarded here. If so, we write the rate limit info
+(reason and expiration timestamp) into the in-memory project cache so that
+the next store request returns a 429 in the endpoint and doesn't hit Redis
+at all.</p>
+<p>This contraption has the advantage that suspended or permanently
+rate-limited projects are very cheap to handle, and do not involve external
+services (ignoring the polling of the project config every couple of
+minutes).</p>
+</li>
+<li>
+<p><strong>Event is written to Kafka.</strong></p>
+</li>
+</ol>
+<p><strong>Note:</strong> If we discard an event at any point, an outcome is written to Kafka
+if Relay is configured to do so.</p>
+<h2 id="the-outcomes-consumer">The outcomes consumer</h2>
+<p>Outcomes are small messages in Kafka that contain an event ID and information
+about whether that event was rejected, and if so, why.</p>
+<p>The outcomes consumer is mostly responsible for updating (user-visible)
+counters in Sentry (buffers/counters and tsdb, which are two separate systems).</p>
+<h2 id="the-ingest-consumer">The ingest consumer</h2>
+<p>The ingest consumer reads accepted events from Kafka, and also updates some
+stats. Some of <em>those</em> stats are billing-relevant.</p>
+<p>Its main purpose is to do what <code>insert_data_to_database</code> in Python store did:
+Call <code>preprocess_event</code>, after which comes sourcemap processing, native
+symbolication, grouping, snuba and all that other stuff that is of no concern
+to Relay.</p>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../actors/" title="Actors" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Actors
+              </span>
+            </div>
+          </a>
+        
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="https://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../assets/javascripts/application.ac79c3b0.js"></script>
+      
+      <script>app.initialize({version:"1.0.4",url:{base:"../.."}})</script>
+      
+        <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+      
+    
+  </body>
+</html>
