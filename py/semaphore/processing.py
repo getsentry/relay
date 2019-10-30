@@ -18,6 +18,7 @@ __all__ = [
     "StoreNormalizer",
     "GeoIpLookup",
     "scrub_event",
+    "is_glob_match",
 ]
 
 
