@@ -138,13 +138,13 @@ ffi_fn! {
     ) -> Result<bool> {
         let mut options = GlobOptions::default();
         let flags = flags as u32;
-        if (flags & GlobFlag::DoubleStar as u32) != 0 {
+        if (flags & GlobFlags::DoubleStar as u32) != 0 {
             options.double_star = true;
         }
-        if (flags & GlobFlag::CaseInsensitive as u32) != 0 {
+        if (flags & GlobFlags::CaseInsensitive as u32) != 0 {
             options.case_insensitive = true;
         }
-        if (flags & GlobFlag::PathNormalize as u32) != 0 {
+        if (flags & GlobFlags::PathNormalize as u32) != 0 {
             options.path_normalize = true;
         }
         Ok(glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options))

@@ -2,7 +2,7 @@ import json
 
 from semaphore._compat import string_types, iteritems, text_type
 from semaphore._lowlevel import lib, ffi
-from semaphore.utils import encode_str, decode_str, rustcall, RustObject, attached_refs, make_bufG
+from semaphore.utils import encode_str, decode_str, rustcall, RustObject, attached_refs, make_buf
 
 
 __all__ = [
