@@ -105,10 +105,6 @@ So, now to the real work:
     Now we create an `Event` struct, which conceptually is the equivalent to
     parsing it into a Python dictionary: We allocate more memory.
 
-1.  **The event is datascrubbed.** We have a PII config (new format) and a
-    datascrubbing config (old format, converted to new format on the fly) as
-    part of the project config fetched from Sentry.
-
 1.  **The event is normalized.** Event normalization is probably the most
     CPU-intensive task running in Relay. It discards invalid data, moves data
     from deprecated fields to newer fields and generally just does schema
@@ -132,6 +128,10 @@ So, now to the real work:
     rate-limited projects are very cheap to handle, and do not involve external
     services (ignoring the polling of the project config every couple of
     minutes).
+
+1.  **The event is datascrubbed.** We have a PII config (new format) and a
+    datascrubbing config (old format, converted to new format on the fly) as
+    part of the project config fetched from Sentry.
 
 1.  **Event is written to Kafka.**
 
