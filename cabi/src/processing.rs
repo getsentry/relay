@@ -7,6 +7,7 @@ use std::os::raw::c_char;
 use std::slice;
 
 use json_forensics;
+use semaphore_common::{glob_match_bytes, GlobOptions};
 use semaphore_general::datascrubbing::DataScrubbingConfig;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, split_chunks, ProcessingState};
@@ -118,5 +119,17 @@ ffi_fn! {
 ffi_fn! {
     unsafe fn semaphore_test_panic() -> Result<()> {
         panic!("this is a test panic")
+    }
+}
+
+/// Represents all possible error codes
+ffi_fn! {
+    unsafe fn semaphore_is_glob_match(
+        value: *const SemaphoreStr,
+        pat: *const SemaphoreStr,
+        double_star: bool,
+        case_insensitive: bool,
+        path_normalize: bool
+    ) -> Result<bool> {
     }
 }
