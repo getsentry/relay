@@ -122,7 +122,7 @@ ffi_fn! {
     }
 }
 
-/// Controls the globbing behavios
+/// Controls the globbing behaviors.
 #[repr(u32)]
 pub enum GlobFlags {
     DoubleStar = 1,
