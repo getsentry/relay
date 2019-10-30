@@ -85,6 +85,7 @@ pub fn glob_match(value: &str, pat: &str, options: GlobOptions) -> bool {
 fn test_globs() {
     macro_rules! test_glob {
         ($value:expr, $pat:expr, $is_match:expr, {$($k:ident: $v:expr),*}) => {{
+            #[allow(clippy::needless_update)]
             let options = GlobOptions { $($k: $v,)* ..Default::default() };
             assert_eq!(
                 glob_match($value, $pat, options),

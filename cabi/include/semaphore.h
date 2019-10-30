@@ -9,7 +9,7 @@
 #include <stdlib.h>
 
 /**
- * Controls the globbing behavios
+ * Controls the globbing behaviors
  */
 enum GlobFlags {
   GLOB_FLAGS_DOUBLE_STAR = 1,
