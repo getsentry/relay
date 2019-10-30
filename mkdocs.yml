@@ -14,6 +14,7 @@ nav:
     - pii-config/methods.md
 
   - Architecture:
+    - architecture/index.md
     - architecture/actors.md
     - architecture/ingest-event-path.md
 
