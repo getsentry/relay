@@ -12,6 +12,8 @@ use flate2::read::ZlibDecoder;
 use futures::prelude::*;
 use url::form_urlencoded;
 
+use semaphore_common::metric;
+
 use crate::actors::outcome::DiscardReason;
 
 /// A set of errors that can occur during parsing json payloads
@@ -159,7 +161,12 @@ impl Future for StoreBody {
                     Ok(body)
                 }
             })
-            .and_then(|body| decode_bytes(body.freeze()));
+            .and_then(|body| {
+                metric!(time_raw("event.size_bytes.raw") = body.len() as u64);
+                let decoded = decode_bytes(body.freeze())?;
+                metric!(time_raw("event.size_bytes.uncompressed") = decoded.len() as u64);
+                Ok(decoded)
+            });
 
         self.fut = Some(Box::new(future));
 
