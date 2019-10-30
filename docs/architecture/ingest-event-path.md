@@ -35,7 +35,7 @@ That code looks into an in-memory cache to answer basic information about a proj
 
 Some of the data for this cache is coming from the [projectconfigs
 endpoint](https://github.com/getsentry/sentry/blob/c868def30e013177383f8ca5909090c8bdbd8f6f/src/sentry/api/endpoints/relay_projectconfigs.py).
-It is refreshed every couple of minutes, depending on configuration.
+It is refreshed every couple of minutes, depending on configuration (`project_expiry`).
 
 If the cache is fresh, we may return a `429` for rate limits or a `4xx` for
 invalid auth information.
@@ -82,10 +82,10 @@ still in the same process.
 
 So, now to the real work:
 
-1.  **Project config is fetched.** If the project cache is stale or
-    missing, we fetch it. We may wait a couple milliseconds here to be able to
-    batch multiple project config fetches into the same HTTP request to not
-    overload Sentry too much.
+1.  **Project config is fetched.** If the project cache is stale or missing, we
+    fetch it. We may wait a couple milliseconds (`batch_interval`) here to be
+    able to batch multiple project config fetches into the same HTTP request to
+    not overload Sentry too much.
 
     At this stage Relay may drop the event because it realized that the DSN was
     invalid or the project didn't even exist. The next incoming event will get a
