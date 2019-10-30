@@ -168,4 +168,15 @@ macro_rules! metric {
         });
         rv
     }};
+
+    // we use statsd timers to send things such as filesizes as well.
+    (time_raw($id:expr) = $value:expr $(, $k:expr => $v:expr)* $(,)?) => {{
+        use $crate::metrics::_pred::*;
+        $crate::metrics::with_client(|client| {
+            client.time_with_tags($id, $value)
+                $(.with_tag($k, $v))*
+                .send();
+        })
+    }};
+
 }
