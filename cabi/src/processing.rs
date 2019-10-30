@@ -15,7 +15,7 @@ use semaphore_general::protocol::Event;
 use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use semaphore_general::types::{Annotated, Remark};
 
-use crate::core::SemaphoreStr;
+use crate::core::{SemaphoreBuf, SemaphoreStr};
 
 pub struct SemaphoreGeoIpLookup;
 pub struct SemaphoreStoreNormalizer;
@@ -122,14 +122,29 @@ ffi_fn! {
     }
 }
 
-/// Represents all possible error codes
+#[repr(u32)]
+pub enum GlobFlag {
+    DoubleStar = 1,
+    CaseInsensitive = 2,
+    PathNormalize = 4,
+}
+
 ffi_fn! {
     unsafe fn semaphore_is_glob_match(
-        value: *const SemaphoreStr,
+        value: *const SemaphoreBuf,
         pat: *const SemaphoreStr,
-        double_star: bool,
-        case_insensitive: bool,
-        path_normalize: bool
+        flags: u32,
     ) -> Result<bool> {
+        let mut options = GlobOptions::default();
+        if (flags & GlobFlag::DoubleStar as u32) != 0 {
+            options.double_star = true;
+        }
+        if (flags & GlobFlag::CaseInsensitive as u32) != 0 {
+            options.case_insensitive = true;
+        }
+        if (flags & GlobFlag::PathNormalize as u32) != 0 {
+            options.path_normalize = true;
+        }
+        Ok(glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options))
     }
 }

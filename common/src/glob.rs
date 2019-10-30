@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::path::{Path, PathBuf};
 
 use globset::GlobBuilder;
 use lazy_static::lazy_static;
@@ -15,8 +14,11 @@ lazy_static! {
 /// Controls the options of the globber.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct GlobOptions {
+    /// When enabled `**` matches over path separators and `*` does not.
     pub double_star: bool,
+    /// Enables case insensitive path matching.
     pub case_insensitive: bool,
+    /// Enables path normalization
     pub path_normalize: bool,
 }
 
@@ -40,10 +42,18 @@ fn translate_pattern(pat: &str, options: GlobOptions) -> Option<Regex> {
 
 /// Performs a glob operation on bytes.
 ///
-/// Returns `true` if the glob matches.
+/// Returns `true` if the glob matches, `false` otherwise.
 pub fn glob_match_bytes(value: &[u8], pat: &str, options: GlobOptions) -> bool {
     let (value, pat) = if options.path_normalize {
-        (Cow::Owned(value.replace('\\', "/")), pat.replace('\\', "/"))
+        (
+            Cow::Owned(
+                value
+                    .iter()
+                    .map(|&x| if x == b'\\' { b'/' } else { x })
+                    .collect(),
+            ),
+            pat.replace('\\', "/"),
+        )
     } else {
         (Cow::Borrowed(value), pat.to_string())
     };
@@ -51,9 +61,9 @@ pub fn glob_match_bytes(value: &[u8], pat: &str, options: GlobOptions) -> bool {
     let mut cache = GLOB_CACHE.lock();
 
     if let Some(pattern) = cache.get(&key) {
-        pattern.is_match(value.as_bytes())
+        pattern.is_match(&value)
     } else if let Some(pattern) = translate_pattern(&key.1, options) {
-        let rv = pattern.is_match(value.as_bytes());
+        let rv = pattern.is_match(&value);
         cache.put(key, pattern);
         rv
     } else {
@@ -64,8 +74,11 @@ pub fn glob_match_bytes(value: &[u8], pat: &str, options: GlobOptions) -> bool {
 /// Performs a glob operation.
 ///
 /// Returns `true` if the glob matches.
+///
+/// Note that even though this accepts strings, the case insensitivity here is only
+/// applied on ASCII characters as the underlying globber matches on bytes exclusively.
 pub fn glob_match(value: &str, pat: &str, options: GlobOptions) -> bool {
-    glob_match_bytes(value.as_bytes(), pat, options: GlobOptions)
+    glob_match_bytes(value.as_bytes(), pat, options)
 }
 
 #[test]
