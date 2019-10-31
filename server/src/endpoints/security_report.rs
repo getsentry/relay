@@ -2,78 +2,22 @@
 
 use actix_web::actix::ResponseFuture;
 use actix_web::http::Method;
-use actix_web::{HttpRequest, HttpResponse, ResponseError};
+use actix_web::{HttpRequest, HttpResponse};
 use bytes::Bytes;
-use failure::Fail;
+use serde::Serialize;
 
 use semaphore_general::protocol::{
-    CspReportRaw, Event, ExpectCtReportRaw, ExpectStapleReportRaw, HpkpRaw, SecurityReportType,
+    CspReportRaw, Event, EventId, ExpectCtReportRaw, ExpectStapleReportRaw, HpkpRaw,
+    SecurityReportType,
 };
-
-use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::endpoints::store::{store_event, BadStoreRequest, ToOutcome};
-use crate::extractors::{EventMeta, StartTime};
-use crate::service::{ServiceApp, ServiceState};
-use crate::utils::ApiErrorResponse;
 use semaphore_general::types::Annotated;
 
-pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    //hook security endpoint
-    app.resource(r"/api/{project:\d+}/security/", |r| {
-        r.method(Method::POST).with(handle_security_report);
-    })
-    //legacy security endpoint
-    .resource(r"/api/{project:\d+}/csp-report/", |r| {
-        r.method(Method::POST).with(handle_security_report);
-    })
-}
+use crate::actors::events::EventError;
+use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
+use crate::extractors::{EventMeta, StartTime};
+use crate::service::{ServiceApp, ServiceState};
 
-#[derive(Fail, Debug)]
-pub enum SecurityError {
-    #[fail(display = "error parsing security report")]
-    InvalidJson(#[cause] serde_json::Error),
-
-    #[fail(display = "failed to process message in store")]
-    StoreError(#[cause] BadStoreRequest),
-}
-
-impl ResponseError for SecurityError {
-    fn error_response(&self) -> HttpResponse {
-        match self {
-            SecurityError::InvalidJson(_) => {
-                HttpResponse::BadRequest().json(ApiErrorResponse::from_fail(self))
-            }
-            SecurityError::StoreError(se) => se.error_response(),
-        }
-    }
-}
-
-impl From<BadStoreRequest> for SecurityError {
-    fn from(e: BadStoreRequest) -> SecurityError {
-        SecurityError::StoreError(e)
-    }
-}
-
-impl ToOutcome for SecurityError {
-    fn to_outcome(&self) -> Outcome {
-        match self {
-            SecurityError::StoreError(se) => se.to_outcome(),
-            _ => Outcome::Invalid(DiscardReason::SecurityReport),
-        }
-    }
-}
-
-/// This handles all messages coming on the Security endpoint.
-/// The security reports will be checked
-fn handle_security_report(
-    meta: EventMeta,
-    start_time: StartTime,
-    request: HttpRequest<ServiceState>,
-) -> ResponseFuture<HttpResponse, SecurityError> {
-    store_event(meta, start_time, request, Some(security_report_to_event))
-}
-
-fn security_report_to_event(data: Bytes) -> Result<Bytes, SecurityError> {
+fn security_report_to_event(data: Bytes) -> Result<Bytes, BadStoreRequest> {
     let str_body = String::from_utf8_lossy(&data);
     let security_report_type = get_security_report_type(str_body.as_ref())?;
 
@@ -86,13 +30,14 @@ fn security_report_to_event(data: Bytes) -> Result<Bytes, SecurityError> {
 }
 
 // Look into the body
-fn get_security_report_type(data: &str) -> Result<SecurityReportType, SecurityError> {
-    serde_json::from_str::<SecurityReportType>(data).map_err(SecurityError::InvalidJson)
+fn get_security_report_type(data: &str) -> Result<SecurityReportType, BadStoreRequest> {
+    serde_json::from_str::<SecurityReportType>(data)
+        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidJson(e)))
 }
 
-fn csp_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
-    let CspReportRaw { csp_report } =
-        serde_json::from_str::<CspReportRaw>(data).map_err(SecurityError::InvalidJson)?;
+fn csp_report_to_event_data(data: &str) -> Result<Bytes, BadStoreRequest> {
+    let CspReportRaw { csp_report } = serde_json::from_str::<CspReportRaw>(data)
+        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidJson(e)))?;
 
     //TODO finish add message and any other derived fields
     event_to_bytes(Event {
@@ -102,9 +47,9 @@ fn csp_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
     })
 }
 
-fn expect_ct_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
-    let ExpectCtReportRaw { expect_ct_report } =
-        serde_json::from_str::<ExpectCtReportRaw>(data).map_err(SecurityError::InvalidJson)?;
+fn expect_ct_report_to_event_data(data: &str) -> Result<Bytes, BadStoreRequest> {
+    let ExpectCtReportRaw { expect_ct_report } = serde_json::from_str::<ExpectCtReportRaw>(data)
+        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidJson(e)))?;
 
     //TODO finish add message and any other derived fields
     event_to_bytes(Event {
@@ -114,10 +59,11 @@ fn expect_ct_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
     })
 }
 
-fn expect_staple_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
+fn expect_staple_report_to_event_data(data: &str) -> Result<Bytes, BadStoreRequest> {
     let ExpectStapleReportRaw {
         expect_staple_report,
-    } = serde_json::from_str::<ExpectStapleReportRaw>(data).map_err(SecurityError::InvalidJson)?;
+    } = serde_json::from_str::<ExpectStapleReportRaw>(data)
+        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidJson(e)))?;
 
     //TODO finish add message and any other derived fields
     event_to_bytes(Event {
@@ -127,8 +73,9 @@ fn expect_staple_report_to_event_data(data: &str) -> Result<Bytes, SecurityError
     })
 }
 
-fn hpkp_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
-    let hpkp_raw = serde_json::from_str::<HpkpRaw>(data).map_err(SecurityError::InvalidJson)?;
+fn hpkp_report_to_event_data(data: &str) -> Result<Bytes, BadStoreRequest> {
+    let hpkp_raw = serde_json::from_str::<HpkpRaw>(data)
+        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidJson(e)))?;
 
     //TODO finish add message and any other derived fields
     event_to_bytes(Event {
@@ -138,9 +85,41 @@ fn hpkp_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
     })
 }
 
-fn event_to_bytes(event: Event) -> Result<Bytes, SecurityError> {
+fn event_to_bytes(event: Event) -> Result<Bytes, BadStoreRequest> {
     let json_string = Annotated::new(event)
         .to_json()
-        .map_err(SecurityError::InvalidJson)?;
+        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidJson(e)))?;
     Ok(Bytes::from(json_string))
+}
+
+#[derive(Serialize)]
+struct SecurityReportResponse {
+    id: EventId,
+}
+
+/// This handles all messages coming on the Security endpoint.
+///
+/// The security reports will be checked.
+fn store_security_report(
+    meta: EventMeta,
+    start_time: StartTime,
+    request: HttpRequest<ServiceState>,
+) -> ResponseFuture<HttpResponse, BadStoreRequest> {
+    let future =
+        handle_store_like_request(meta, start_time, request, security_report_to_event, |id| {
+            HttpResponse::Ok().json(SecurityReportResponse { id })
+        });
+
+    Box::new(future)
+}
+
+pub fn configure_app(app: ServiceApp) -> ServiceApp {
+    //hook security endpoint
+    app.resource(r"/api/{project:\d+}/security/", |r| {
+        r.method(Method::POST).with(store_security_report);
+    })
+    //legacy security endpoint
+    .resource(r"/api/{project:\d+}/csp-report/", |r| {
+        r.method(Method::POST).with(store_security_report);
+    })
 }
