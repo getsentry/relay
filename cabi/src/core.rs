@@ -76,6 +76,11 @@ impl SemaphoreErrorCode {
     }
 }
 
+// SemaphoreStr is immutable, thus it can be Send + Sync
+
+unsafe impl Sync for SemaphoreStr {}
+unsafe impl Send for SemaphoreStr {}
+
 impl Default for SemaphoreStr {
     fn default() -> SemaphoreStr {
         SemaphoreStr {

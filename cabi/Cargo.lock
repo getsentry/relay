@@ -879,6 +879,7 @@ dependencies = [
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "json-forensics 0.1.0 (git+https://github.com/getsentry/rust-json-forensics)",
+ "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "semaphore-common 0.4.58",
  "semaphore-general 0.4.58",
  "serde 1.0.98 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, LogEntry, Request, Stacktrace, Tags, User,
+    Frame, IpAddr, Level, LogEntry, Request, Stacktrace, Tags, User, VALID_PLATFORMS,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -58,6 +58,10 @@ impl DedupCache {
             true
         }
     }
+}
+
+pub fn is_valid_platform(platform: &str) -> bool {
+    VALID_PLATFORMS.contains(&platform)
 }
 
 /// The processor that normalizes events for store.
@@ -367,7 +371,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         // Validate basic attributes
         event.platform.apply(|platform, _| {
-            if self.config.valid_platforms.contains(platform) {
+            if is_valid_platform(&platform) {
                 Ok(())
             } else {
                 Err(ProcessingAction::DeleteValueSoft)
@@ -698,9 +702,7 @@ fn test_user_ip_from_remote_addr() {
         ..Event::default()
     });
 
-    let mut config = StoreConfig::default();
-    config.valid_platforms.insert("javascript".to_owned());
-
+    let config = StoreConfig::default();
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -734,9 +736,7 @@ fn test_user_ip_from_invalid_remote_addr() {
         ..Event::default()
     });
 
-    let mut config = StoreConfig::default();
-    config.valid_platforms.insert("javascript".to_owned());
-
+    let config = StoreConfig::default();
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -752,7 +752,6 @@ fn test_user_ip_from_client_ip_without_auto() {
 
     let mut config = StoreConfig::default();
     config.client_ip = Some(IpAddr::parse("213.47.147.207").unwrap());
-    config.valid_platforms.insert("javascript".to_owned());
 
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -781,7 +780,6 @@ fn test_user_ip_from_client_ip_with_auto() {
 
     let mut config = StoreConfig::default();
     config.client_ip = Some(IpAddr::parse("213.47.147.207").unwrap());
-    config.valid_platforms.insert("javascript".to_owned());
 
     let geo = GeoIpLookup::open(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -1,5 +1,4 @@
 //! Utility code for sentry's internal store.
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -31,7 +30,6 @@ pub struct StoreConfig {
     pub protocol_version: Option<String>,
     pub grouping_config: Option<Value>,
 
-    pub valid_platforms: BTreeSet<String>, // TODO(ja): Pending removal
     pub max_secs_in_future: Option<i64>,
     pub max_secs_in_past: Option<i64>,
     pub enable_trimming: Option<bool>,

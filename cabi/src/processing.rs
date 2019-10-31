@@ -11,7 +11,7 @@ use semaphore_common::{glob_match_bytes, GlobOptions};
 use semaphore_general::datascrubbing::DataScrubbingConfig;
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, split_chunks, ProcessingState};
-use semaphore_general::protocol::Event;
+use semaphore_general::protocol::{Event, VALID_PLATFORMS};
 use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use semaphore_general::types::{Annotated, Remark};
 
@@ -19,6 +19,11 @@ use crate::core::{SemaphoreBuf, SemaphoreStr};
 
 pub struct SemaphoreGeoIpLookup;
 pub struct SemaphoreStoreNormalizer;
+
+lazy_static::lazy_static! {
+    static ref VALID_PLATFORM_STRS: Vec<SemaphoreStr> =
+        VALID_PLATFORMS.iter().map(|s| SemaphoreStr::new(s)).collect();
+}
 
 ffi_fn! {
     unsafe fn semaphore_split_chunks(
@@ -50,6 +55,19 @@ ffi_fn! {
             let lookup = lookup as *mut GeoIpLookup;
             Box::from_raw(lookup);
         }
+    }
+}
+
+ffi_fn! {
+    /// Returns a list of all valid platform identifiers.
+    unsafe fn semaphore_valid_platforms(
+        size_out: *mut usize,
+    ) -> Result<*const SemaphoreStr> {
+        if let Some(size_out) = size_out.as_mut() {
+            *size_out = VALID_PLATFORM_STRS.len();
+        }
+
+        Ok(VALID_PLATFORM_STRS.as_ptr())
     }
 }
 
