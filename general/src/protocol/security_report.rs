@@ -6,92 +6,46 @@ use std::collections::BTreeMap;
 use serde::de::{Error, IgnoredAny};
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::protocol::{Event, LogEntry};
 use crate::types::{Annotated, Array, Object, Value};
-
-/// Models the content of a CSP report.
-///
-/// Note this models the older CSP reports (report-uri policy directive).
-/// The new CSP reports (using report-to policy directive) are different.
-///
-/// NOTE: This is the structure used inside the Event (serialization is based on Annotated
-/// infrastructure). We also use a version of this structure to deserialize from raw JSON
-/// via serde.
-///
-///
-/// See https://www.w3.org/TR/CSP3/
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-pub struct Csp {
-    /// The directive whose enforcement caused the violation.
-    #[metastructure(pii = "true")]
-    pub effective_directive: Annotated<String>,
-    /// The URI of the resource that was blocked from loading by the Content Security Policy.
-    #[metastructure(pii = "true")]
-    pub blocked_uri: Annotated<String>,
-    /// The URI of the document in which the violation occurred.
-    #[metastructure(pii = "true")]
-    pub document_uri: Annotated<String>,
-    /// The original policy as specified by the Content-Security-Policy HTTP header.
-    pub original_policy: Annotated<String>,
-    /// The referrer of the document in which the violation occurred.
-    #[metastructure(pii = "true")]
-    pub referrer: Annotated<String>,
-    /// The HTTP status code of the resource on which the global object was instantiated.
-    pub status_code: Annotated<u64>,
-    /// The name of the policy section that was violated.
-    pub violated_directive: Annotated<String>,
-    /// The URL of the resource where the violation occurred.
-    pub source_file: Annotated<String>,
-    /// The line number in source-file on which the violation occurred.
-    pub line_number: Annotated<u64>,
-    /// The column number in source-file on which the violation occurred.
-    pub column_number: Annotated<u64>,
-    /// The first 40 characters of the inline script, event handler, or style that caused the
-    /// violation.
-    pub script_sample: Annotated<String>,
-    /// Policy disposition (enforce or report).
-    pub disposition: Annotated<String>,
-    /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(pii = "true", additional_properties)]
-    pub other: Object<Value>,
-}
 
 /// Inner (useful) part of a CSP report.
 ///
 /// See `Csp` for meaning of fields.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct CspRaw {
+struct CspRaw {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub effective_directive: Option<String>,
+    effective_directive: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub blocked_uri: Option<String>,
+    blocked_uri: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub document_uri: Option<String>,
+    document_uri: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub original_policy: Option<String>,
+    original_policy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub referrer: Option<String>,
+    referrer: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub status_code: Option<u64>,
+    status_code: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub violated_directive: Option<String>,
+    violated_directive: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_file: Option<String>,
+    source_file: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub line_number: Option<u64>,
+    line_number: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub column_number: Option<u64>,
+    column_number: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub script_sample: Option<String>,
+    script_sample: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub disposition: Option<String>,
+    disposition: Option<String>,
 
     #[serde(flatten)]
-    pub other: BTreeMap<String, serde_json::Value>,
+    other: BTreeMap<String, serde_json::Value>,
 }
 
 impl CspRaw {
-    pub fn get_message(&self) -> String {
+    fn get_message(&self) -> String {
         let directive = self
             .local_script_violation_type()
             .or_else(|| self.effective_directive.as_ref().map(String::as_str))
@@ -144,6 +98,28 @@ impl CspRaw {
         }
     }
 
+    fn into_protocol(self) -> Csp {
+        Csp {
+            effective_directive: Annotated::from(self.effective_directive),
+            blocked_uri: Annotated::from(self.blocked_uri),
+            document_uri: Annotated::from(self.document_uri),
+            original_policy: Annotated::from(self.original_policy),
+            referrer: Annotated::from(self.referrer),
+            status_code: Annotated::from(self.status_code),
+            violated_directive: Annotated::from(self.violated_directive),
+            source_file: Annotated::from(self.source_file),
+            line_number: Annotated::from(self.line_number),
+            column_number: Annotated::from(self.column_number),
+            script_sample: Annotated::from(self.script_sample),
+            disposition: Annotated::from(self.disposition),
+            other: self
+                .other
+                .into_iter()
+                .map(|(k, v)| (k, Annotated::from(v)))
+                .collect(),
+        }
+    }
+
     fn local_script_violation_type(&self) -> Option<&'static str> {
         if CspRaw::is_local(&self.blocked_uri) {
             let effective_directive = self.effective_directive.as_ref()?;
@@ -177,32 +153,150 @@ impl CspRaw {
 /// See `Csp` for meaning of fields.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct CspReportRaw {
-    pub csp_report: CspRaw,
+struct CspReportRaw {
+    csp_report: CspRaw,
 }
 
-impl From<CspRaw> for Csp {
-    fn from(raw: CspRaw) -> Csp {
-        Csp {
-            effective_directive: Annotated::from(raw.effective_directive),
-            blocked_uri: Annotated::from(raw.blocked_uri),
-            document_uri: Annotated::from(raw.document_uri),
-            original_policy: Annotated::from(raw.original_policy),
-            referrer: Annotated::from(raw.referrer),
-            status_code: Annotated::from(raw.status_code),
-            violated_directive: Annotated::from(raw.violated_directive),
-            source_file: Annotated::from(raw.source_file),
-            line_number: Annotated::from(raw.line_number),
-            column_number: Annotated::from(raw.column_number),
-            script_sample: Annotated::from(raw.script_sample),
-            disposition: Annotated::from(raw.disposition),
-            other: raw
+/// Models the content of a CSP report.
+///
+/// Note this models the older CSP reports (report-uri policy directive).
+/// The new CSP reports (using report-to policy directive) are different.
+///
+/// NOTE: This is the structure used inside the Event (serialization is based on Annotated
+/// infrastructure). We also use a version of this structure to deserialize from raw JSON
+/// via serde.
+///
+///
+/// See https://www.w3.org/TR/CSP3/
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+pub struct Csp {
+    /// The directive whose enforcement caused the violation.
+    #[metastructure(pii = "true")]
+    pub effective_directive: Annotated<String>,
+    /// The URI of the resource that was blocked from loading by the Content Security Policy.
+    #[metastructure(pii = "true")]
+    pub blocked_uri: Annotated<String>,
+    /// The URI of the document in which the violation occurred.
+    #[metastructure(pii = "true")]
+    pub document_uri: Annotated<String>,
+    /// The original policy as specified by the Content-Security-Policy HTTP header.
+    pub original_policy: Annotated<String>,
+    /// The referrer of the document in which the violation occurred.
+    #[metastructure(pii = "true")]
+    pub referrer: Annotated<String>,
+    /// The HTTP status code of the resource on which the global object was instantiated.
+    pub status_code: Annotated<u64>,
+    /// The name of the policy section that was violated.
+    pub violated_directive: Annotated<String>,
+    /// The URL of the resource where the violation occurred.
+    pub source_file: Annotated<String>,
+    /// The line number in source-file on which the violation occurred.
+    pub line_number: Annotated<u64>,
+    /// The column number in source-file on which the violation occurred.
+    pub column_number: Annotated<u64>,
+    /// The first 40 characters of the inline script, event handler, or style that caused the
+    /// violation.
+    pub script_sample: Annotated<String>,
+    /// Policy disposition (enforce or report).
+    pub disposition: Annotated<String>,
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(pii = "true", additional_properties)]
+    pub other: Object<Value>,
+}
+
+impl Csp {
+    pub fn parse_event(data: &[u8]) -> Result<Event, serde_json::Error> {
+        let raw_report = serde_json::from_slice::<CspReportRaw>(data)?;
+        let raw_csp = raw_report.csp_report;
+
+        Ok(Event {
+            logentry: Annotated::new(LogEntry::from(raw_csp.get_message())),
+            csp: Annotated::new(raw_csp.into_protocol()),
+            ..Event::default()
+        })
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+struct SingleCertificateTimestampRaw {
+    version: Option<i64>,
+    status: Option<String>,
+    source: Option<String>,
+    serialized_stc: Option<String>,
+}
+
+impl SingleCertificateTimestampRaw {
+    fn into_protocol(self) -> SingleCertificateTimestamp {
+        SingleCertificateTimestamp {
+            version: Annotated::from(self.version),
+            status: Annotated::from(self.status),
+            source: Annotated::from(self.source),
+            serialized_stc: Annotated::from(self.serialized_stc),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+struct ExpectCtRaw {
+    date_time: Option<String>,
+    host_name: Option<String>,
+    port: Option<i64>,
+    effective_expiration_date: Option<String>,
+    served_certificate_chain: Option<String>,
+    validated_certificate_chain: Option<String>,
+    scts: Option<Vec<SingleCertificateTimestampRaw>>,
+    failure_mode: Option<String>,
+    test_report: Option<String>,
+    #[serde(flatten)]
+    other: BTreeMap<String, serde_json::Value>,
+}
+
+impl ExpectCtRaw {
+    fn get_message(&self) -> String {
+        format!("Expect-CT failed for '{}'", "TODO host_name")
+    }
+
+    fn into_protocol(self) -> ExpectCt {
+        ExpectCt {
+            date_time: Annotated::from(self.date_time),
+            host_name: Annotated::from(self.host_name),
+            port: Annotated::from(self.port),
+            effective_expiration_date: Annotated::from(self.effective_expiration_date),
+            served_certificate_chain: Annotated::from(self.served_certificate_chain),
+            validated_certificate_chain: Annotated::from(self.validated_certificate_chain),
+            scts: Annotated::from(self.scts.map(|scts| {
+                scts.into_iter()
+                    .map(|elm| Annotated::from(elm.into_protocol()))
+                    .collect()
+            })),
+            failure_mode: Annotated::from(self.failure_mode),
+            test_report: Annotated::from(self.test_report),
+            other: self
                 .other
                 .into_iter()
                 .map(|(k, v)| (k, Annotated::from(v)))
                 .collect(),
         }
     }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+struct ExpectCtReportRaw {
+    expect_ct_report: ExpectCtRaw,
+}
+
+/// Object used in ExpectCt reports
+///
+/// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+pub struct SingleCertificateTimestamp {
+    pub version: Annotated<i64>,
+    pub status: Annotated<String>,
+    pub source: Annotated<String>,
+    pub serialized_stc: Annotated<String>,
 }
 
 /// Expect CT security report sent by user agent (browser).
@@ -228,88 +322,79 @@ pub struct ExpectCt {
     pub other: Object<Value>,
 }
 
-impl From<ExpectCtRaw> for ExpectCt {
-    fn from(raw: ExpectCtRaw) -> ExpectCt {
-        ExpectCt {
-            date_time: Annotated::from(raw.date_time),
-            host_name: Annotated::from(raw.host_name),
-            port: Annotated::from(raw.port),
-            effective_expiration_date: Annotated::from(raw.effective_expiration_date),
-            served_certificate_chain: Annotated::from(raw.served_certificate_chain),
-            validated_certificate_chain: Annotated::from(raw.validated_certificate_chain),
-            scts: Annotated::from(raw.scts.map(|scts| {
-                scts.into_iter()
-                    .map(|elm| Annotated::from(SingleCertificateTimestamp::from(elm)))
-                    .collect()
-            })),
-            failure_mode: Annotated::from(raw.failure_mode),
-            test_report: Annotated::from(raw.test_report),
-            other: raw
+impl ExpectCt {
+    pub fn parse_event(data: &[u8]) -> Result<Event, serde_json::Error> {
+        let raw_report = serde_json::from_slice::<ExpectCtReportRaw>(data)?;
+        let raw_expect_ct = raw_report.expect_ct_report;
+
+        Ok(Event {
+            logentry: Annotated::new(LogEntry::from(raw_expect_ct.get_message())),
+            expectct: Annotated::new(raw_expect_ct.into_protocol()),
+            ..Event::default()
+        })
+    }
+}
+
+/// Defines external, RFC-defined schema we accept, while `Hpkp` defines our own schema.
+///
+/// See `Hpkp` for meaning of fields.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+struct HpkpRaw {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    date_time: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hostname: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    port: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    effective_expiration_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    include_subdomains: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    noted_hostname: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    served_certificate_chain: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    validated_certificate_chain: Option<Vec<String>>,
+    known_pins: Vec<String>,
+    #[serde(flatten)]
+    other: BTreeMap<String, serde_json::Value>,
+}
+
+impl HpkpRaw {
+    fn get_message(&self) -> String {
+        //TODO get the host_name
+        format!(
+            "Public key pinning validation failed for '{}'",
+            "TODO get the host_name"
+        )
+    }
+
+    fn into_protocol(self) -> Hpkp {
+        Hpkp {
+            date_time: Annotated::from(self.date_time),
+            hostname: Annotated::from(self.hostname),
+            port: Annotated::from(self.port),
+            effective_expiration_date: Annotated::from(self.effective_expiration_date),
+            include_subdomains: Annotated::from(self.include_subdomains),
+            noted_hostname: Annotated::from(self.noted_hostname),
+            served_certificate_chain: Annotated::from(
+                self.served_certificate_chain
+                    .map(|chain| chain.into_iter().map(Annotated::from).collect()),
+            ),
+            validated_certificate_chain: Annotated::from(
+                self.validated_certificate_chain
+                    .map(|chain| chain.into_iter().map(Annotated::from).collect()),
+            ),
+            known_pins: Annotated::new(self.known_pins.into_iter().map(Annotated::from).collect()),
+            other: self
                 .other
                 .into_iter()
                 .map(|(k, v)| (k, Annotated::from(v)))
                 .collect(),
         }
     }
-}
-
-/// Object used in ExpectCt reports
-///
-/// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-pub struct SingleCertificateTimestamp {
-    pub version: Annotated<i64>,
-    pub status: Annotated<String>,
-    pub source: Annotated<String>,
-    pub serialized_stc: Annotated<String>,
-}
-
-impl From<SingleCertificateTimestampRaw> for SingleCertificateTimestamp {
-    fn from(raw: SingleCertificateTimestampRaw) -> SingleCertificateTimestamp {
-        SingleCertificateTimestamp {
-            version: Annotated::from(raw.version),
-            status: Annotated::from(raw.status),
-            source: Annotated::from(raw.source),
-            serialized_stc: Annotated::from(raw.serialized_stc),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct ExpectCtReportRaw {
-    pub expect_ct_report: ExpectCtRaw,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct ExpectCtRaw {
-    pub date_time: Option<String>,
-    pub host_name: Option<String>,
-    pub port: Option<i64>,
-    pub effective_expiration_date: Option<String>,
-    pub served_certificate_chain: Option<String>,
-    pub validated_certificate_chain: Option<String>,
-    pub scts: Option<Vec<SingleCertificateTimestampRaw>>,
-    pub failure_mode: Option<String>,
-    pub test_report: Option<String>,
-    #[serde(flatten)]
-    pub other: BTreeMap<String, serde_json::Value>,
-}
-
-impl ExpectCtRaw {
-    pub fn get_message(&self) -> String {
-        format!("Expect-CT failed for '{}'", "TODO host_name")
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct SingleCertificateTimestampRaw {
-    pub version: Option<i64>,
-    pub status: Option<String>,
-    pub source: Option<String>,
-    pub serialized_stc: Option<String>,
 }
 
 /// Schema as defined in RFC7469, Section 3
@@ -355,66 +440,70 @@ pub struct Hpkp {
     pub other: Object<Value>,
 }
 
-/// Defines external, RFC-defined schema we accept, while `Hpkp` defines our own schema.
-///
-/// See `Hpkp` for meaning of fields.
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct HpkpRaw {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub date_time: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hostname: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub port: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effective_expiration_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub include_subdomains: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub noted_hostname: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub served_certificate_chain: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub validated_certificate_chain: Option<Vec<String>>,
-    pub known_pins: Vec<String>,
-    #[serde(flatten)]
-    pub other: BTreeMap<String, serde_json::Value>,
-}
+impl Hpkp {
+    pub fn parse_event(data: &[u8]) -> Result<Event, serde_json::Error> {
+        let raw_hpkp = serde_json::from_slice::<HpkpRaw>(data)?;
 
-impl HpkpRaw {
-    pub fn get_message(&self) -> String {
-        //TODO get the host_name
-        format!(
-            "Public key pinning validation failed for '{}'",
-            "TODO get the host_name"
-        )
+        Ok(Event {
+            logentry: Annotated::new(LogEntry::from(raw_hpkp.get_message())),
+            hpkp: Annotated::new(raw_hpkp.into_protocol()),
+            ..Event::default()
+        })
     }
 }
 
-impl From<HpkpRaw> for Hpkp {
-    fn from(raw: HpkpRaw) -> Hpkp {
-        Hpkp {
-            date_time: Annotated::from(raw.date_time),
-            hostname: Annotated::from(raw.hostname),
-            port: Annotated::from(raw.port),
-            effective_expiration_date: Annotated::from(raw.effective_expiration_date),
-            include_subdomains: Annotated::from(raw.include_subdomains),
-            noted_hostname: Annotated::from(raw.noted_hostname),
+/// Defines external, RFC-defined schema we accept, while `ExpectStaple` defines our own schema.
+///
+/// See `ExpectStaple` for meaning of fields.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+struct ExpectStapleReportRaw {
+    expect_staple_report: ExpectStapleRaw,
+}
+
+/// Inner (useful) part of a Expect Stable report as sent by a user agent ( browser)
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+struct ExpectStapleRaw {
+    date_time: String,
+    hostname: String,
+    port: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    effective_expiration_date: Option<String>,
+    response_status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cert_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    served_certificate_chain: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    validated_certificate_chain: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ocsp_response: Option<String>,
+}
+
+impl ExpectStapleRaw {
+    fn get_message(&self) -> String {
+        //TODO implement
+        format!("Expect-Staple failed for '{}'", "TODO self.hostname")
+    }
+
+    fn into_protocol(self) -> ExpectStaple {
+        ExpectStaple {
+            date_time: Annotated::from(self.date_time),
+            hostname: Annotated::from(self.hostname),
+            port: Annotated::from(self.port),
+            effective_expiration_date: Annotated::from(self.effective_expiration_date),
+            response_status: Annotated::from(self.response_status),
+            cert_status: Annotated::from(self.cert_status),
             served_certificate_chain: Annotated::from(
-                raw.served_certificate_chain
-                    .map(|chain| chain.into_iter().map(Annotated::from).collect()),
+                self.served_certificate_chain
+                    .map(|cert_chain| cert_chain.into_iter().map(Annotated::from).collect()),
             ),
             validated_certificate_chain: Annotated::from(
-                raw.validated_certificate_chain
-                    .map(|chain| chain.into_iter().map(Annotated::from).collect()),
+                self.validated_certificate_chain
+                    .map(|cert_chain| cert_chain.into_iter().map(Annotated::from).collect()),
             ),
-            known_pins: Annotated::new(raw.known_pins.into_iter().map(Annotated::from).collect()),
-            other: raw
-                .other
-                .into_iter()
-                .map(|(k, v)| (k, Annotated::from(v)))
-                .collect(),
+            ocsp_response: Annotated::from(self.ocsp_response),
         }
     }
 }
@@ -434,63 +523,16 @@ pub struct ExpectStaple {
     ocsp_response: Annotated<String>,
 }
 
-impl From<ExpectStapleRaw> for ExpectStaple {
-    fn from(staple_raw: ExpectStapleRaw) -> ExpectStaple {
-        ExpectStaple {
-            date_time: Annotated::from(staple_raw.date_time),
-            hostname: Annotated::from(staple_raw.hostname),
-            port: Annotated::from(staple_raw.port),
-            effective_expiration_date: Annotated::from(staple_raw.effective_expiration_date),
-            response_status: Annotated::from(staple_raw.response_status),
-            cert_status: Annotated::from(staple_raw.cert_status),
-            served_certificate_chain: Annotated::from(
-                staple_raw
-                    .served_certificate_chain
-                    .map(|cert_chain| cert_chain.into_iter().map(Annotated::from).collect()),
-            ),
-            validated_certificate_chain: Annotated::from(
-                staple_raw
-                    .validated_certificate_chain
-                    .map(|cert_chain| cert_chain.into_iter().map(Annotated::from).collect()),
-            ),
-            ocsp_response: Annotated::from(staple_raw.ocsp_response),
-        }
-    }
-}
+impl ExpectStaple {
+    pub fn parse_event(data: &[u8]) -> Result<Event, serde_json::Error> {
+        let raw_report = serde_json::from_slice::<ExpectStapleReportRaw>(data)?;
+        let raw_expect_staple = raw_report.expect_staple_report;
 
-/// Defines external, RFC-defined schema we accept, while `ExpectStaple` defines our own schema.
-///
-/// See `ExpectStaple` for meaning of fields.
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct ExpectStapleReportRaw {
-    pub expect_staple_report: ExpectStapleRaw,
-}
-
-/// Inner (useful) part of a Expect Stable report as sent by a user agent ( browser)
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct ExpectStapleRaw {
-    date_time: String,
-    hostname: String,
-    port: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    effective_expiration_date: Option<String>,
-    response_status: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    cert_status: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    served_certificate_chain: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    validated_certificate_chain: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ocsp_response: Option<String>,
-}
-
-impl ExpectStapleRaw {
-    pub fn get_message(&self) -> String {
-        //TODO implement
-        format!("Expect-Staple failed for '{}'", "TODO self.hostname")
+        Ok(Event {
+            logentry: Annotated::new(LogEntry::from(raw_expect_staple.get_message())),
+            expectstaple: Annotated::new(raw_expect_staple.into_protocol()),
+            ..Event::default()
+        })
     }
 }
 
@@ -500,6 +542,16 @@ pub enum SecurityReportType {
     ExpectCt,
     ExpectStaple,
     Hpkp,
+}
+
+impl SecurityReportType {
+    /// Infers the type of a security report from its payload.
+    ///
+    /// This looks into the JSON payload and tries to infer the type from keys. If no report
+    /// matches, an error is returned.
+    pub fn from_json(data: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(data)
+    }
 }
 
 impl<'de> Deserialize<'de> for SecurityReportType {
