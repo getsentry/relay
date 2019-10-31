@@ -1,6 +1,6 @@
 [package]
 name = "semaphore-cabi"
-version = "0.4.58"
+version = "0.4.59"
 license = "MIT"
 authors = ["Sentry <hello@sentry.io>"]
 homepage = "https://github.com/getsentry/semaphore"
