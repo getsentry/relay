@@ -561,14 +561,14 @@ impl<'de> Deserialize<'de> for SecurityReportType {
     {
         #[derive(Deserialize)]
         #[serde(rename_all = "kebab-case")]
-        struct Helper {
+        struct SecurityReport {
             csp_report: Option<IgnoredAny>,
             known_pins: Option<IgnoredAny>,
             expect_staple_report: Option<IgnoredAny>,
             expect_ct_report: Option<IgnoredAny>,
         }
 
-        let helper = Helper::deserialize(deserializer)?;
+        let helper = SecurityReport::deserialize(deserializer)?;
 
         if helper.csp_report.is_some() {
             Ok(SecurityReportType::Csp)
