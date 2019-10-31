@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.59
+
+* Fix: Normalize legacy stacktrace attributes (#292)
+* Fix: Validate platform attributes in Relay (#294)
+* Flip the flag that indicates Relay processing (#293)
+
 ## 0.4.58
 
 * Expose globbing code from Semaphore to Python (#288)
