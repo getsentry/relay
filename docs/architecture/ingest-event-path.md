@@ -32,13 +32,12 @@ process-->save
 Relay can run as part of a Sentry installation, such as within `sentry.io`'s
 infrastructure, or next to the application as a forwarding proxy. A lot of
 steps described here are skipped or run in a limited form when Relay is *not*
-running in processing mode:
+running with processing enabled:
 
 *  Event normalization does different (less) things.
 
-*  In `static` mode, project config is read from disk instead of fetched from
-   an HTTP endpoint. In `proxy` mode, project config is just filled out with
-   defaults.
+*  In certain modes, project config is not fetched from Sentry at all (but
+   rather from disk or filled out with defaults).
 
 *  Events are forwarded to an HTTP endpoint instead of being written to Kafka.
 
