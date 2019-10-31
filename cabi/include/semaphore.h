@@ -244,6 +244,11 @@ bool semaphore_uuid_is_nil(const SemaphoreUuid *uuid);
 SemaphoreStr semaphore_uuid_to_str(const SemaphoreUuid *uuid);
 
 /**
+ * Returns a list of all valid platform identifiers.
+ */
+const SemaphoreStr *semaphore_valid_platforms(uintptr_t *size_out);
+
+/**
  * Validates a register response.
  */
 SemaphoreStr semaphore_validate_register_response(const SemaphorePublicKey *pk,

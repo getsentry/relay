@@ -167,7 +167,6 @@ impl EventProcessor {
                     key_id,
                     protocol_version: Some(auth.version().to_string()),
                     grouping_config: message.project_state.config.grouping_config.clone(),
-                    valid_platforms: Default::default(), // TODO(ja): Pending removal
                     max_secs_in_future: Some(self.config.max_secs_in_future()),
                     max_secs_in_past: Some(self.config.max_secs_in_past()),
                     enable_trimming: Some(true),

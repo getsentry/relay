@@ -19,7 +19,27 @@ __all__ = [
     "GeoIpLookup",
     "scrub_event",
     "is_glob_match",
+    "VALID_PLATFORMS",
 ]
+
+
+VALID_PLATFORMS = frozenset()
+
+
+def _init_valid_platforms():
+    global VALID_PLATFORMS
+
+    size_out = ffi.new("uintptr_t *")
+    strings = rustcall(lib.semaphore_valid_platforms, size_out)
+
+    valid_platforms = []
+    for i in range(int(size_out[0])):
+        valid_platforms.append(decode_str(strings[i]))
+
+    VALID_PLATFORMS = frozenset(valid_platforms)
+
+
+_init_valid_platforms()
 
 
 def split_chunks(string, remarks):
