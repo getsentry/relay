@@ -199,7 +199,7 @@ impl EventProcessor {
                     // TODO: Remove this once cutover is complete.
                     event.other.insert(
                         "_relay_processed".to_owned(),
-                        Annotated::new(Value::Bool(false)),
+                        Annotated::new(Value::Bool(true)),
                     );
                 }
             }
