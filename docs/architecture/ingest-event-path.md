@@ -1,5 +1,32 @@
 # Path of an Event through Relay
 
+## Overview
+
+Simplified overview of event ingestion (ignores snuba/postprocessing):
+
+```mermaid
+graph LR
+
+loadbalancer(Load Balancer)
+relay(Relay)
+projectconfigs("Project config endpoint (in Sentry)")
+ingestconsumer(Ingest Consumer)
+outcomesconsumer(Outcomes Consumer)
+preprocess{"<code>preprocess_event</code><br>(just a function call now)"}
+process(<code>process_event</code>)
+save(<code>save_event</code>)
+
+loadbalancer-->relay
+relay---projectconfigs
+relay-->ingestconsumer
+relay-->outcomesconsumer
+ingestconsumer-->preprocess
+preprocess-->process
+preprocess-->save
+process-->save
+
+```
+
 ## Processing enabled vs not?
 
 Relay can run as part of a Sentry installation, such as within `sentry.io`'s
@@ -162,3 +189,44 @@ Its main purpose is to do what `insert_data_to_database` in Python store did:
 Call `preprocess_event`, after which comes sourcemap processing, native
 symbolication, grouping, snuba and all that other stuff that is of no concern
 to Relay.
+
+## Sequence diagram of components inside Relay
+
+```mermaid
+sequenceDiagram
+participant sdk as SDK
+participant endpoint as Endpoint
+participant projectcache as ProjectCache
+participant eventmanager as EventManager
+participant cpupool as CPU Pool
+
+sdk->>endpoint:POST /api/42/store
+activate endpoint
+endpoint->>projectcache: get project (cached only)
+activate projectcache
+projectcache-->>endpoint: return project
+deactivate projectcache
+Note over endpoint: Checking rate limits and auth (fast path)
+endpoint->>eventmanager: queue event
+
+activate eventmanager
+eventmanager-->>endpoint:event ID
+endpoint-->>sdk:200 OK
+deactivate endpoint
+
+eventmanager->>projectcache:fetch project
+activate projectcache
+Note over eventmanager,projectcache: web request (batched with other projects)
+projectcache-->>eventmanager: return project
+deactivate projectcache
+
+eventmanager->>cpupool: .
+activate cpupool
+Note over eventmanager,cpupool: normalization, datascrubbing, redis rate limits, ...
+cpupool-->>eventmanager: .
+deactivate cpupool
+
+Note over eventmanager: Send event to kafka
+
+deactivate eventmanager
+```
