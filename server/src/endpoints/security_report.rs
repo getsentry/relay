@@ -6,7 +6,9 @@ use actix_web::{HttpRequest, HttpResponse, ResponseError};
 use bytes::Bytes;
 use failure::Fail;
 
-use semaphore_general::protocol::{CspReportRaw, Event, SecurityReportType};
+use semaphore_general::protocol::{
+    CspReportRaw, Event, ExpectCtReportRaw, ExpectStapleReportRaw, HpkpRaw, SecurityReportType,
+};
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::endpoints::store::{store_event, BadStoreRequest, ToOutcome};
@@ -92,25 +94,48 @@ fn csp_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
     let CspReportRaw { csp_report } =
         serde_json::from_str::<CspReportRaw>(data).map_err(SecurityError::InvalidJson)?;
 
+    //TODO finish add message and any other derived fields
     event_to_bytes(Event {
+        logentry: Annotated::new(csp_report.get_message().into()),
         csp: Annotated::new(csp_report.into()),
         ..Event::default()
     })
 }
 
-fn expect_ct_report_to_event_data(_data: &str) -> Result<Bytes, SecurityError> {
-    //TODO implement
-    unimplemented!();
+fn expect_ct_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
+    let ExpectCtReportRaw { expect_ct_report } =
+        serde_json::from_str::<ExpectCtReportRaw>(data).map_err(SecurityError::InvalidJson)?;
+
+    //TODO finish add message and any other derived fields
+    event_to_bytes(Event {
+        logentry: Annotated::new(expect_ct_report.get_message().into()),
+        expectct: Annotated::new(expect_ct_report.into()),
+        ..Event::default()
+    })
 }
 
-fn expect_staple_report_to_event_data(_data: &str) -> Result<Bytes, SecurityError> {
-    //TODO implement
-    unimplemented!();
+fn expect_staple_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
+    let ExpectStapleReportRaw {
+        expect_staple_report,
+    } = serde_json::from_str::<ExpectStapleReportRaw>(data).map_err(SecurityError::InvalidJson)?;
+
+    //TODO finish add message and any other derived fields
+    event_to_bytes(Event {
+        logentry: Annotated::new(expect_staple_report.get_message().into()),
+        expectstaple: Annotated::new(expect_staple_report.into()),
+        ..Event::default()
+    })
 }
 
-fn hpkp_report_to_event_data(_data: &str) -> Result<Bytes, SecurityError> {
-    //TODO implement
-    unimplemented!();
+fn hpkp_report_to_event_data(data: &str) -> Result<Bytes, SecurityError> {
+    let hpkp_raw = serde_json::from_str::<HpkpRaw>(data).map_err(SecurityError::InvalidJson)?;
+
+    //TODO finish add message and any other derived fields
+    event_to_bytes(Event {
+        logentry: Annotated::new(hpkp_raw.get_message().into()),
+        hpkp: Annotated::new(hpkp_raw.into()),
+        ..Event::default()
+    })
 }
 
 fn event_to_bytes(event: Event) -> Result<Bytes, SecurityError> {

@@ -55,7 +55,7 @@ pub struct Csp {
     pub other: Object<Value>,
 }
 
-/// Defines external, RFC-defined schema we accept, while `Csp` defines our own schema.
+/// Inner (useful) part of a CSP report.
 ///
 /// See `Csp` for meaning of fields.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
@@ -90,6 +90,97 @@ pub struct CspRaw {
     pub other: BTreeMap<String, serde_json::Value>,
 }
 
+impl CspRaw {
+    pub fn get_message(&self) -> String {
+        let directive = self
+            .local_script_violation_type()
+            .or_else(|| self.effective_directive.as_ref().map(String::as_str))
+            .unwrap_or("");
+
+        let is_local = CspRaw::is_local(&self.blocked_uri);
+
+        if is_local {
+            match directive {
+                "child-src" => "Blocked inline 'child'".to_string(),
+                "connect-src" => "Blocked inline 'connect'".to_string(),
+                "font-src" => "Blocked inline 'font'".to_string(),
+                "form-action" => "".to_string(),
+                "img-src" => "Blocked inline 'image'".to_string(),
+                "manifest-src" => "Blocked inline 'manifest'".to_string(),
+                "media-src" => "Blocked inline 'media'".to_string(),
+                "object-src" => "Blocked inline 'object'".to_string(),
+                "script-src" => "Blocked unsafe (eval() or inline) 'script'".to_string(),
+                "script-src-elem" => "Blocked unsafe 'script' element".to_string(),
+                "script-src-attr" => "Blocked inline script attribute".to_string(),
+                "style-src" => "Blocked inline 'style'".to_string(),
+                "style-src-elem" => "Blocked 'style' or 'link' element".to_string(),
+                "style-src-attr" => "Blocked style attribute".to_string(),
+                "unsafe-inline" => "Blocked unsafe inline 'script'".to_string(),
+                "unsafe-eval" => "Blocked unsafe eval() 'script'".to_string(),
+                directive => format!("Blocked inline {}", directive),
+            }
+        } else {
+            let uri = self.blocked_uri.as_ref().map(String::as_str).unwrap_or("");
+
+            match directive {
+                "child-src" => format!("Blocked 'child' from '{}'", uri),
+                "connect-src" => format!("Blocked 'connect' from '{}'", uri),
+                "font-src" => format!("Blocked 'font' from '{}'", uri),
+                "form-action" => format!("Blocked 'form' action to '{}'", uri),
+                "img-src" => format!("Blocked 'image' from '{}'", uri),
+                "manifest-src" => format!("Blocked 'manifest' from '{}'", uri),
+                "media-src" => format!("Blocked 'media' from '{}'", uri),
+                "object-src" => format!("Blocked 'object' from '{}'", uri),
+                "script-src" => format!("Blocked 'script' from '{}'", uri),
+                "script-src-elem" => format!("Blocked 'script' from '{}'", uri),
+                "script-src-attr" => format!("Blocked inline script attribute from '{}'", uri),
+                "style-src" => format!("Blocked 'style' from '{}'", uri),
+                "style-src-elem" => format!("Blocked 'style' from '{}'", uri),
+                "style-src-attr" => format!("Blocked style attribute from '{}'", uri),
+                "unsafe-inline" => "".to_string(), // should not happen
+                "unsafe-eval" => "".to_string(),   // should not happen
+                directive => format!("Blocked {} from {} ", directive, uri),
+            }
+        }
+    }
+
+    fn local_script_violation_type(&self) -> Option<&'static str> {
+        if CspRaw::is_local(&self.blocked_uri) {
+            let effective_directive = self.effective_directive.as_ref()?;
+            let violated_directive = self.violated_directive.as_ref()?;
+
+            if effective_directive == "script_src" {
+                if violated_directive.contains("'unsafe-inline'") {
+                    return Some("unsafe-inline");
+                }
+                if violated_directive.contains("'unsafe-eval'") {
+                    return Some("unsafe-eval");
+                }
+            }
+        }
+        None
+    }
+
+    fn is_local(uri: &Option<String>) -> bool {
+        match uri {
+            None => true,
+            Some(uri) => match uri.as_str() {
+                "" | "self" | "'self'" => true,
+                _ => false,
+            },
+        }
+    }
+}
+
+/// Defines external, RFC-defined schema we accept, while `Csp` defines our own schema.
+///
+/// See `Csp` for meaning of fields.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct CspReportRaw {
+    pub csp_report: CspRaw,
+}
+
 impl From<CspRaw> for Csp {
     fn from(raw: CspRaw) -> Csp {
         Csp {
@@ -114,12 +205,6 @@ impl From<CspRaw> for Csp {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct CspReportRaw {
-    pub csp_report: CspRaw,
-}
-
 /// Expect CT security report sent by user agent (browser).
 ///
 /// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
@@ -135,12 +220,96 @@ pub struct ExpectCt {
     pub effective_expiration_date: Annotated<String>,
     pub served_certificate_chain: Annotated<String>,
     pub validated_certificate_chain: Annotated<String>,
-    pub scts: Annotated<Value>,
+    pub scts: Annotated<Array<SingleCertificateTimestamp>>,
     pub failure_mode: Annotated<String>,
     pub test_report: Annotated<String>,
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(pii = "true", additional_properties)]
     pub other: Object<Value>,
+}
+
+impl From<ExpectCtRaw> for ExpectCt {
+    fn from(raw: ExpectCtRaw) -> ExpectCt {
+        ExpectCt {
+            date_time: Annotated::from(raw.date_time),
+            host_name: Annotated::from(raw.host_name),
+            port: Annotated::from(raw.port),
+            effective_expiration_date: Annotated::from(raw.effective_expiration_date),
+            served_certificate_chain: Annotated::from(raw.served_certificate_chain),
+            validated_certificate_chain: Annotated::from(raw.validated_certificate_chain),
+            scts: Annotated::from(raw.scts.map(|scts| {
+                scts.into_iter()
+                    .map(|elm| Annotated::from(SingleCertificateTimestamp::from(elm)))
+                    .collect()
+            })),
+            failure_mode: Annotated::from(raw.failure_mode),
+            test_report: Annotated::from(raw.test_report),
+            other: raw
+                .other
+                .into_iter()
+                .map(|(k, v)| (k, Annotated::from(v)))
+                .collect(),
+        }
+    }
+}
+
+/// Object used in ExpectCt reports
+///
+/// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+pub struct SingleCertificateTimestamp {
+    pub version: Annotated<i64>,
+    pub status: Annotated<String>,
+    pub source: Annotated<String>,
+    pub serialized_stc: Annotated<String>,
+}
+
+impl From<SingleCertificateTimestampRaw> for SingleCertificateTimestamp {
+    fn from(raw: SingleCertificateTimestampRaw) -> SingleCertificateTimestamp {
+        SingleCertificateTimestamp {
+            version: Annotated::from(raw.version),
+            status: Annotated::from(raw.status),
+            source: Annotated::from(raw.source),
+            serialized_stc: Annotated::from(raw.serialized_stc),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ExpectCtReportRaw {
+    pub expect_ct_report: ExpectCtRaw,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ExpectCtRaw {
+    pub date_time: Option<String>,
+    pub host_name: Option<String>,
+    pub port: Option<i64>,
+    pub effective_expiration_date: Option<String>,
+    pub served_certificate_chain: Option<String>,
+    pub validated_certificate_chain: Option<String>,
+    pub scts: Option<Vec<SingleCertificateTimestampRaw>>,
+    pub failure_mode: Option<String>,
+    pub test_report: Option<String>,
+    #[serde(flatten)]
+    pub other: BTreeMap<String, serde_json::Value>,
+}
+
+impl ExpectCtRaw {
+    pub fn get_message(&self) -> String {
+        format!("Expect-CT failed for '{}'", "TODO host_name")
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct SingleCertificateTimestampRaw {
+    pub version: Option<i64>,
+    pub status: Option<String>,
+    pub source: Option<String>,
+    pub serialized_stc: Option<String>,
 }
 
 /// Schema as defined in RFC7469, Section 3
@@ -213,6 +382,16 @@ pub struct HpkpRaw {
     pub other: BTreeMap<String, serde_json::Value>,
 }
 
+impl HpkpRaw {
+    pub fn get_message(&self) -> String {
+        //TODO get the host_name
+        format!(
+            "Public key pinning validation failed for '{}'",
+            "TODO get the host_name"
+        )
+    }
+}
+
 impl From<HpkpRaw> for Hpkp {
     fn from(raw: HpkpRaw) -> Hpkp {
         Hpkp {
@@ -240,8 +419,80 @@ impl From<HpkpRaw> for Hpkp {
     }
 }
 
-//TODO: fill in the types
-pub type ExpectStaple = Value;
+/// Represents an Expect Staple security report
+/// See https://scotthelme.co.uk/ocsp-expect-staple/ for specification
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+pub struct ExpectStaple {
+    date_time: Annotated<String>,
+    hostname: Annotated<String>,
+    port: Annotated<i64>,
+    effective_expiration_date: Annotated<String>,
+    response_status: Annotated<String>,
+    cert_status: Annotated<String>,
+    served_certificate_chain: Annotated<Array<String>>,
+    validated_certificate_chain: Annotated<Array<String>>,
+    ocsp_response: Annotated<String>,
+}
+
+impl From<ExpectStapleRaw> for ExpectStaple {
+    fn from(staple_raw: ExpectStapleRaw) -> ExpectStaple {
+        ExpectStaple {
+            date_time: Annotated::from(staple_raw.date_time),
+            hostname: Annotated::from(staple_raw.hostname),
+            port: Annotated::from(staple_raw.port),
+            effective_expiration_date: Annotated::from(staple_raw.effective_expiration_date),
+            response_status: Annotated::from(staple_raw.response_status),
+            cert_status: Annotated::from(staple_raw.cert_status),
+            served_certificate_chain: Annotated::from(
+                staple_raw
+                    .served_certificate_chain
+                    .map(|cert_chain| cert_chain.into_iter().map(Annotated::from).collect()),
+            ),
+            validated_certificate_chain: Annotated::from(
+                staple_raw
+                    .validated_certificate_chain
+                    .map(|cert_chain| cert_chain.into_iter().map(Annotated::from).collect()),
+            ),
+            ocsp_response: Annotated::from(staple_raw.ocsp_response),
+        }
+    }
+}
+
+/// Defines external, RFC-defined schema we accept, while `ExpectStaple` defines our own schema.
+///
+/// See `ExpectStaple` for meaning of fields.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ExpectStapleReportRaw {
+    pub expect_staple_report: ExpectStapleRaw,
+}
+
+/// Inner (useful) part of a Expect Stable report as sent by a user agent ( browser)
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ExpectStapleRaw {
+    date_time: String,
+    hostname: String,
+    port: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    effective_expiration_date: Option<String>,
+    response_status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cert_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    served_certificate_chain: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    validated_certificate_chain: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ocsp_response: Option<String>,
+}
+
+impl ExpectStapleRaw {
+    pub fn get_message(&self) -> String {
+        //TODO implement
+        format!("Expect-Staple failed for '{}'", "TODO self.hostname")
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SecurityReportType {
@@ -311,5 +562,102 @@ mod tests {
        ⋮  }
        ⋮}
         "###);
+    }
+
+    #[test]
+    fn test_deserialize_expect_ct_report() {}
+
+    #[test]
+    fn test_deserialize_expect_staple_report() {}
+
+    #[test]
+    fn test_deserialize_hpkp_report() {}
+
+    #[test]
+    fn test_security_report_type_deserializer_recognizes_csp_reports() {
+        let csp_report_text = r#"{
+            "csp-report": {
+                "document-uri": "https://example.com/foo/bar",
+                "referrer": "https://www.google.com/",
+                "violated-directive": "default-src self",
+                "original-policy": "default-src self; report-uri /csp-hotline.php",
+                "blocked-uri": "http://evilhackerscripts.com"
+            }
+        }"#;
+
+        let report_type: SecurityReportType = serde_json::from_str(csp_report_text).unwrap();
+        assert_eq!(report_type, SecurityReportType::Csp);
+    }
+
+    #[test]
+    fn test_security_report_type_deserializer_recognizes_expect_ct_reports() {
+        let expect_ct_report_text = r#"{
+            "expect-ct-report": {
+                "date-time": "2014-04-06T13:00:50Z",
+                "hostname": "www.example.com",
+                "port": 443,
+                "effective-expiration-date": "2014-05-01T12:40:50Z",
+                "served-certificate-chain": [
+                    "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+                ],
+                "validated-certificate-chain": [
+                    "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+                ],
+                "scts": [
+                    {
+                        "version": 1,
+                        "status": "invalid",
+                        "source": "embedded",
+                        "serialized_sct": "ABCD=="
+                    }
+                ]
+            }
+        }"#;
+
+        let report_type: SecurityReportType = serde_json::from_str(expect_ct_report_text).unwrap();
+        assert_eq!(report_type, SecurityReportType::ExpectCt);
+    }
+
+    #[test]
+    fn test_security_report_type_deserializer_recognizes_expect_staple_reports() {
+        let expect_staple_report_text = r#"{
+             "expect-staple-report": {
+                "date-time": "2014-04-06T13:00:50Z",
+                "hostname": "www.example.com",
+                "port": 443,
+                "response-status": "ERROR_RESPONSE",
+                "cert-status": "REVOKED",
+                "effective-expiration-date": "2014-05-01T12:40:50Z",
+                "served-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+                "validated-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"]
+            }
+        }"#;
+        let report_type: SecurityReportType =
+            serde_json::from_str(expect_staple_report_text).unwrap();
+        assert_eq!(report_type, SecurityReportType::ExpectStaple);
+    }
+
+    #[test]
+    fn test_security_report_type_deserializer_recognizes_hpkp_reports() {
+        let hpkp_report_text = r#"{
+            "date-time": "2014-04-06T13:00:50Z",
+            "hostname": "www.example.com",
+            "port": 443,
+            "effective-expiration-date": "2014-05-01T12:40:50Z",
+            "include-subdomains": false,
+            "served-certificate-chain": [
+              "-----BEGIN CERTIFICATE-----\n MIIEBDCCAuygAwIBAgIDAjppMA0GCSqGSIb3DQEBBQUAMEIxCzAJBgNVBAYTAlVT\n... -----END CERTIFICATE-----"
+            ],
+            "validated-certificate-chain": [
+              "-----BEGIN CERTIFICATE-----\n MIIEBDCCAuygAwIBAgIDAjppMA0GCSqGSIb3DQEBBQUAMEIxCzAJBgNVBAYTAlVT\n... -----END CERTIFICATE-----"
+            ],
+            "known-pins": [
+              "pin-sha256=\"d6qzRu9zOECb90Uez27xWltNsj0e1Md7GkYYkVoZWmM=\"",
+              "pin-sha256=\"E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\""
+            ]
+          }"#;
+
+        let report_type: SecurityReportType = serde_json::from_str(hpkp_report_text).unwrap();
+        assert_eq!(report_type, SecurityReportType::Hpkp);
     }
 }

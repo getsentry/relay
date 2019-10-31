@@ -37,7 +37,8 @@ pub use self::logentry::LogEntry;
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
 pub use self::request::{Cookies, HeaderName, Headers, Query, Request};
 pub use self::security_report::{
-    Csp, CspReportRaw, ExpectCt, ExpectStaple, Hpkp, SecurityReportType,
+    Csp, CspReportRaw, ExpectCt, ExpectCtReportRaw, ExpectStaple, ExpectStapleReportRaw, Hpkp,
+    HpkpRaw, SecurityReportType,
 };
 pub use self::span::Span;
 pub use self::stacktrace::{Frame, FrameData, FrameVars, RawStacktrace, Stacktrace};
