@@ -386,6 +386,13 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    Overview
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#processing-enabled-vs-not" class="md-nav__link">
     Processing enabled vs not?
   </a>
@@ -416,6 +423,13 @@
         <li class="md-nav__item">
   <a href="#the-ingest-consumer" class="md-nav__link">
     The ingest consumer
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sequence-diagram-of-components-inside-relay" class="md-nav__link">
+    Sequence diagram of components inside Relay
   </a>
   
 </li>
@@ -457,6 +471,13 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    Overview
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#processing-enabled-vs-not" class="md-nav__link">
     Processing enabled vs not?
   </a>
@@ -491,6 +512,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#sequence-diagram-of-components-inside-relay" class="md-nav__link">
+    Sequence diagram of components inside Relay
+  </a>
+  
+</li>
+      
       
       
       
@@ -511,6 +539,29 @@
                 
                 
                 <h1 id="path-of-an-event-through-relay">Path of an Event through Relay</h1>
+<h2 id="overview">Overview</h2>
+<p>Simplified overview of event ingestion (ignores snuba/postprocessing):</p>
+<div class="mermaid">graph LR
+
+loadbalancer(Load Balancer)
+relay(Relay)
+projectconfigs("Project config endpoint (in Sentry)")
+ingestconsumer(Ingest Consumer)
+outcomesconsumer(Outcomes Consumer)
+preprocess{"&lt;code&gt;preprocess_event&lt;/code&gt;&lt;br&gt;(just a function call now)"}
+process(&lt;code&gt;process_event&lt;/code&gt;)
+save(&lt;code&gt;save_event&lt;/code&gt;)
+
+loadbalancer--&gt;relay
+relay---projectconfigs
+relay--&gt;ingestconsumer
+relay--&gt;outcomesconsumer
+ingestconsumer--&gt;preprocess
+preprocess--&gt;process
+preprocess--&gt;save
+process--&gt;save
+</div>
+
 <h2 id="processing-enabled-vs-not">Processing enabled vs not?</h2>
 <p>Relay can run as part of a Sentry installation, such as within <code>sentry.io</code>'s
 infrastructure, or next to the application as a forwarding proxy. A lot of
@@ -622,11 +673,6 @@ proper 4xx status code.</p>
 parsing it into a Python dictionary: We allocate more memory.</p>
 </li>
 <li>
-<p><strong>The event is datascrubbed.</strong> We have a PII config (new format) and a
-    datascrubbing config (old format, converted to new format on the fly) as
-    part of the project config fetched from Sentry.</p>
-</li>
-<li>
 <p><strong>The event is normalized.</strong> Event normalization is probably the most
     CPU-intensive task running in Relay. It discards invalid data, moves data
     from deprecated fields to newer fields and generally just does schema
@@ -650,6 +696,11 @@ at all.</p>
 rate-limited projects are very cheap to handle, and do not involve external
 services (ignoring the polling of the project config every couple of
 minutes).</p>
+</li>
+<li>
+<p><strong>The event is datascrubbed.</strong> We have a PII config (new format) and a
+    datascrubbing config (old format, converted to new format on the fly) as
+    part of the project config fetched from Sentry.</p>
 </li>
 <li>
 <p><strong>Event is written to Kafka.</strong></p>
@@ -676,6 +727,43 @@ stats. Some of <em>those</em> stats are billing-relevant.</p>
 Call <code>preprocess_event</code>, after which comes sourcemap processing, native
 symbolication, grouping, snuba and all that other stuff that is of no concern
 to Relay.</p>
+<h2 id="sequence-diagram-of-components-inside-relay">Sequence diagram of components inside Relay</h2>
+<div class="mermaid">sequenceDiagram
+participant sdk as SDK
+participant endpoint as Endpoint
+participant projectcache as ProjectCache
+participant eventmanager as EventManager
+participant cpupool as CPU Pool
+
+sdk-&gt;&gt;endpoint:POST /api/42/store
+activate endpoint
+endpoint-&gt;&gt;projectcache: get project (cached only)
+activate projectcache
+projectcache--&gt;&gt;endpoint: return project
+deactivate projectcache
+Note over endpoint: Checking rate limits and auth (fast path)
+endpoint-&gt;&gt;eventmanager: queue event
+
+activate eventmanager
+eventmanager--&gt;&gt;endpoint:event ID
+endpoint--&gt;&gt;sdk:200 OK
+deactivate endpoint
+
+eventmanager-&gt;&gt;projectcache:fetch project
+activate projectcache
+Note over eventmanager,projectcache: web request (batched with other projects)
+projectcache--&gt;&gt;eventmanager: return project
+deactivate projectcache
+
+eventmanager-&gt;&gt;cpupool: .
+activate cpupool
+Note over eventmanager,cpupool: normalization, datascrubbing, redis rate limits, ...
+cpupool--&gt;&gt;eventmanager: .
+deactivate cpupool
+
+Note over eventmanager: Send event to kafka
+
+deactivate eventmanager</div>
                 
                   
                 
