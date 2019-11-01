@@ -108,6 +108,11 @@ travis-upload-prose-docs: prose-docs
 		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
 .PHONY: travis-upload-docs
 
+local-upload-prose-docs: prose-docs
+	# Use this for hotfixing docs, prefer a new release
+	.venv/bin/pip install -U ghp-import
+	.venv/bin/ghp-import -pf site/
+
 # Style checking
 
 style: style-rust style-python
