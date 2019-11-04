@@ -22,7 +22,7 @@ impl fmt::Display for InvalidSecurityError {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CspEffectiveDirective {
+pub enum CspDirective {
     BaseUri,
     ChildSrc,
     ConnectSrc,
@@ -49,7 +49,7 @@ pub enum CspEffectiveDirective {
     // Sandbox , // unsupported
 }
 
-impl fmt::Display for CspEffectiveDirective {
+impl fmt::Display for CspDirective {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::BaseUri => write!(f, "base-uri"),
@@ -79,7 +79,7 @@ impl fmt::Display for CspEffectiveDirective {
     }
 }
 
-impl FromStr for CspEffectiveDirective {
+impl FromStr for CspDirective {
     type Err = InvalidSecurityError;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
@@ -112,7 +112,7 @@ impl FromStr for CspEffectiveDirective {
     }
 }
 
-impl_str_serde!(CspEffectiveDirective);
+impl_str_serde!(CspDirective);
 
 /// Inner (useful) part of a CSP report.
 ///
@@ -120,7 +120,8 @@ impl_str_serde!(CspEffectiveDirective);
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 struct CspRaw {
-    effective_directive: CspEffectiveDirective,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    effective_directive: Option<CspDirective>,
     #[serde(default = "CspRaw::default_blocked_uri")]
     blocked_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -149,65 +150,77 @@ struct CspRaw {
 }
 
 impl CspRaw {
-    fn get_message(&self) -> String {
-        //TODO construct a &str
-        let directive = self
-            .local_script_violation_type()
-            .map(str::to_string)
-            .unwrap_or_else(|| self.effective_directive.to_string());
+    fn default_blocked_uri() -> String {
+        "self".to_string()
+    }
 
+    fn effective_directive(&self) -> Result<CspDirective, InvalidSecurityError> {
+        // Firefox doesn't send effective-directive, so parse it from
+        // violated-directive but prefer effective-directive when present
+        //
+        // refs: https://bugzil.la/1192684#c8
+
+        self.violated_directive
+            .split(' ')
+            .next()
+            .and_then(|v| v.parse().ok())
+            .ok_or(InvalidSecurityError)
+    }
+
+    fn get_message(&self, effective_directive: CspDirective) -> String {
         if self.is_local() {
-            match directive.as_str() {
-                "child-src" => "Blocked inline 'child'".to_string(),
-                "connect-src" => "Blocked inline 'connect'".to_string(),
-                "font-src" => "Blocked inline 'font'".to_string(),
-                "form-action" => "".to_string(),
-                "img-src" => "Blocked inline 'image'".to_string(),
-                "manifest-src" => "Blocked inline 'manifest'".to_string(),
-                "media-src" => "Blocked inline 'media'".to_string(),
-                "object-src" => "Blocked inline 'object'".to_string(),
-                "script-src" => "Blocked unsafe (eval() or inline) 'script'".to_string(),
-                "script-src-elem" => "Blocked unsafe 'script' element".to_string(),
-                "script-src-attr" => "Blocked inline script attribute".to_string(),
-                "style-src" => "Blocked inline 'style'".to_string(),
-                "style-src-elem" => "Blocked 'style' or 'link' element".to_string(),
-                "style-src-attr" => "Blocked style attribute".to_string(),
-                "unsafe-inline" => "Blocked unsafe inline 'script'".to_string(),
-                "unsafe-eval" => "Blocked unsafe eval() 'script'".to_string(),
+            match effective_directive {
+                CspDirective::ChildSrc => "Blocked inline 'child'".to_string(),
+                CspDirective::ConnectSrc => "Blocked inline 'connect'".to_string(),
+                CspDirective::FontSrc => "Blocked inline 'font'".to_string(),
+                CspDirective::ImgSrc => "Blocked inline 'image'".to_string(),
+                CspDirective::ManifestSrc => "Blocked inline 'manifest'".to_string(),
+                CspDirective::MediaSrc => "Blocked inline 'media'".to_string(),
+                CspDirective::ObjectSrc => "Blocked inline 'object'".to_string(),
+                CspDirective::ScriptSrcAttr => "Blocked unsafe 'script' element".to_string(),
+                CspDirective::ScriptSrcElem => "Blocked inline script attribute".to_string(),
+                CspDirective::StyleSrc => "Blocked inline 'style'".to_string(),
+                CspDirective::StyleSrcElem => "Blocked 'style' or 'link' element".to_string(),
+                CspDirective::StyleSrcAttr => "Blocked style attribute".to_string(),
+                CspDirective::ScriptSrc => {
+                    if self.violated_directive.contains("'unsafe-inline'") {
+                        "Blocked unsafe inline 'script'".to_string()
+                    } else if self.violated_directive.contains("'unsafe-eval'") {
+                        "Blocked unsafe eval() 'script'".to_string()
+                    } else {
+                        "Blocked unsafe (eval() or inline) 'script'".to_string()
+                    }
+                }
                 directive => format!("Blocked inline {}", directive),
             }
         } else {
             let uri = &self.blocked_uri;
 
-            match directive.as_str() {
-                "child-src" => format!("Blocked 'child' from '{}'", uri),
-                "connect-src" => format!("Blocked 'connect' from '{}'", uri),
-                "font-src" => format!("Blocked 'font' from '{}'", uri),
-                "form-action" => format!("Blocked 'form' action to '{}'", uri),
-                "img-src" => format!("Blocked 'image' from '{}'", uri),
-                "manifest-src" => format!("Blocked 'manifest' from '{}'", uri),
-                "media-src" => format!("Blocked 'media' from '{}'", uri),
-                "object-src" => format!("Blocked 'object' from '{}'", uri),
-                "script-src" => format!("Blocked 'script' from '{}'", uri),
-                "script-src-elem" => format!("Blocked 'script' from '{}'", uri),
-                "script-src-attr" => format!("Blocked inline script attribute from '{}'", uri),
-                "style-src" => format!("Blocked 'style' from '{}'", uri),
-                "style-src-elem" => format!("Blocked 'style' from '{}'", uri),
-                "style-src-attr" => format!("Blocked style attribute from '{}'", uri),
-                "unsafe-inline" => "".to_string(), // should not happen
-                "unsafe-eval" => "".to_string(),   // should not happen
+            match effective_directive {
+                CspDirective::ChildSrc => format!("Blocked 'child' from '{}'", uri),
+                CspDirective::ConnectSrc => format!("Blocked 'connect' from '{}'", uri),
+                CspDirective::FontSrc => format!("Blocked 'font' from '{}'", uri),
+                CspDirective::FormAction => format!("Blocked 'form' action to '{}'", uri),
+                CspDirective::ImgSrc => format!("Blocked 'image' from '{}'", uri),
+                CspDirective::ManifestSrc => format!("Blocked 'manifest' from '{}'", uri),
+                CspDirective::MediaSrc => format!("Blocked 'media' from '{}'", uri),
+                CspDirective::ObjectSrc => format!("Blocked 'object' from '{}'", uri),
+                CspDirective::ScriptSrc => format!("Blocked 'script' from '{}'", uri),
+                CspDirective::ScriptSrcAttr => {
+                    format!("Blocked inline script attribute from '{}'", uri)
+                }
+                CspDirective::ScriptSrcElem => format!("Blocked 'script' from '{}'", uri),
+                CspDirective::StyleSrc => format!("Blocked 'style' from '{}'", uri),
+                CspDirective::StyleSrcElem => format!("Blocked 'style' from '{}'", uri),
+                CspDirective::StyleSrcAttr => format!("Blocked style attribute from '{}'", uri),
                 directive => format!("Blocked {} from {} ", directive, uri),
             }
         }
     }
 
-    fn default_blocked_uri() -> String {
-        "self".to_string()
-    }
-
-    fn into_protocol(self) -> Csp {
+    fn into_protocol(self, effective_directive: CspDirective) -> Csp {
         Csp {
-            effective_directive: Annotated::from(self.effective_directive.to_string()),
+            effective_directive: Annotated::from(effective_directive.to_string()),
             blocked_uri: Annotated::from(self.blocked_uri),
             document_uri: Annotated::from(self.document_uri),
             original_policy: Annotated::from(self.original_policy),
@@ -225,19 +238,6 @@ impl CspRaw {
                 .map(|(k, v)| (k, Annotated::from(v)))
                 .collect(),
         }
-    }
-
-    fn local_script_violation_type(&self) -> Option<&'static str> {
-        if self.is_local() && self.effective_directive == CspEffectiveDirective::ScriptSrc {
-            if self.violated_directive.contains("'unsafe-inline'") {
-                return Some("unsafe-inline");
-            }
-            if self.violated_directive.contains("'unsafe-eval'") {
-                return Some("unsafe-eval");
-            }
-        }
-
-        None
     }
 
     fn sanitized_blocked_uri(&self) -> String {
@@ -259,11 +259,11 @@ impl CspRaw {
         }
     }
 
-    fn get_tags(&self) -> Tags {
+    fn get_tags(&self, effective_directive: CspDirective) -> Tags {
         Tags(PairList::from(vec![
             Annotated::new(TagEntry(
                 Annotated::new("effective-directive".to_string()),
-                Annotated::new(self.effective_directive.to_string()),
+                Annotated::new(effective_directive.to_string()),
             )),
             Annotated::new(TagEntry(
                 Annotated::new("blocked-uri".to_string()),
@@ -334,10 +334,14 @@ impl Csp {
         let raw_report = serde_json::from_slice::<CspReportRaw>(data)?;
         let raw_csp = raw_report.csp_report;
 
+        let effective_directive = raw_csp
+            .effective_directive()
+            .map_err(serde::de::Error::custom)?;
+
         Ok(Event {
-            logentry: Annotated::new(LogEntry::from(raw_csp.get_message())),
-            tags: Annotated::new(raw_csp.get_tags()),
-            csp: Annotated::new(raw_csp.into_protocol()),
+            logentry: Annotated::new(LogEntry::from(raw_csp.get_message(effective_directive))),
+            tags: Annotated::new(raw_csp.get_tags(effective_directive)),
+            csp: Annotated::new(raw_csp.into_protocol(effective_directive)),
             ..Event::default()
         })
     }
