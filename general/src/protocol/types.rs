@@ -178,6 +178,14 @@ where
             .position(|entry| entry.as_pair().0.as_str() == Some(key))
     }
 
+    /// Returns `true` if the pair list contains a value for the specified key.
+    pub fn contains<Q>(&self, key: Q) -> bool
+    where
+        Q: AsRef<str>,
+    {
+        self.position(key).is_some()
+    }
+
     /// Removes an entry matching the given key and returns its value, if found.
     pub fn remove<Q>(&mut self, key: Q) -> Option<Annotated<V>>
     where
