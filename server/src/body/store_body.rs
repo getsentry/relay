@@ -12,6 +12,8 @@ use flate2::read::ZlibDecoder;
 use futures::prelude::*;
 use url::form_urlencoded;
 
+use semaphore_common::metric;
+
 use crate::actors::outcome::DiscardReason;
 
 /// A set of errors that can occur during parsing json payloads
@@ -42,11 +44,11 @@ impl StorePayloadError {
     /// Returns the outcome discard reason for this payload error.
     pub fn discard_reason(&self) -> DiscardReason {
         match self {
-            StorePayloadError::Overflow => DiscardReason::PayloadTooLarge,
-            StorePayloadError::UnknownLength => DiscardReason::UnknownPayloadLength,
-            StorePayloadError::Decode(_) => DiscardReason::InvalidPayloadFormat,
-            StorePayloadError::Zlib(_) => DiscardReason::InvalidPayloadFormat,
-            StorePayloadError::Payload(_) => DiscardReason::InvalidPayloadFormat,
+            StorePayloadError::Overflow => DiscardReason::TooLarge,
+            StorePayloadError::UnknownLength => DiscardReason::Payload,
+            StorePayloadError::Decode(_) => DiscardReason::Payload,
+            StorePayloadError::Zlib(_) => DiscardReason::Payload,
+            StorePayloadError::Payload(_) => DiscardReason::Payload,
         }
     }
 }
@@ -159,7 +161,12 @@ impl Future for StoreBody {
                     Ok(body)
                 }
             })
-            .and_then(|body| decode_bytes(body.freeze()));
+            .and_then(|body| {
+                metric!(time_raw("event.size_bytes.raw") = body.len() as u64);
+                let decoded = decode_bytes(body.freeze())?;
+                metric!(time_raw("event.size_bytes.uncompressed") = decoded.len() as u64);
+                Ok(decoded)
+            });
 
         self.fut = Some(Box::new(future));
 

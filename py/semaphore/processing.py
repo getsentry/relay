@@ -2,7 +2,14 @@ import json
 
 from semaphore._compat import string_types, iteritems, text_type
 from semaphore._lowlevel import lib, ffi
-from semaphore.utils import encode_str, decode_str, rustcall, RustObject, attached_refs
+from semaphore.utils import (
+    encode_str,
+    decode_str,
+    rustcall,
+    RustObject,
+    attached_refs,
+    make_buf,
+)
 
 
 __all__ = [
@@ -11,7 +18,28 @@ __all__ = [
     "StoreNormalizer",
     "GeoIpLookup",
     "scrub_event",
+    "is_glob_match",
+    "VALID_PLATFORMS",
 ]
+
+
+VALID_PLATFORMS = frozenset()
+
+
+def _init_valid_platforms():
+    global VALID_PLATFORMS
+
+    size_out = ffi.new("uintptr_t *")
+    strings = rustcall(lib.semaphore_valid_platforms, size_out)
+
+    valid_platforms = []
+    for i in range(int(size_out[0])):
+        valid_platforms.append(decode_str(strings[i]))
+
+    VALID_PLATFORMS = frozenset(valid_platforms)
+
+
+_init_valid_platforms()
 
 
 def split_chunks(string, remarks):
@@ -112,3 +140,25 @@ def scrub_event(config, data):
 
     rv = rustcall(lib.semaphore_scrub_event, encode_str(config), event)
     return json.loads(decode_str(rv))
+
+
+def is_glob_match(
+    value, pat, double_star=False, case_insensitive=False, path_normalize=False
+):
+    flags = 0
+    if double_star:
+        flags |= lib.GLOB_FLAGS_DOUBLE_STAR
+    if case_insensitive:
+        flags |= lib.GLOB_FLAGS_CASE_INSENSITIVE
+        # Since on the C side we're only working with bytes we need to lowercase the pattern
+        # and value here.  This works with both bytes and unicode strings.
+        value = value.lower()
+        pat = pat.lower()
+    if path_normalize:
+        flags |= lib.GLOB_FLAGS_PATH_NORMALIZE
+
+    if isinstance(value, text_type):
+        value = value.encode("utf-8")
+    return rustcall(
+        lib.semaphore_is_glob_match, make_buf(value), encode_str(pat), flags
+    )

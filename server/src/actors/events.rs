@@ -36,11 +36,16 @@ use crate::utils::{One, SyncActorFuture, SyncHandle};
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
     semaphore_general::filter::should_filter,
+    semaphore_general::protocol::IpAddr,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    semaphore_general::types::Value,
 };
 
 #[derive(Debug, Fail)]
 pub enum EventError {
+    #[fail(display = "empty event data")]
+    EmptyBody,
+
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] serde_json::Error),
 
@@ -139,14 +144,6 @@ impl EventProcessor {
             event.id = Annotated::new(message.event_id);
         }
 
-        metric!(timer("event_processing.pii"), {
-            for pii_config in message.project_state.config.pii_configs() {
-                let mut processor = PiiProcessor::new(pii_config);
-                process_value(&mut event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::InvalidEvent)?;
-            }
-        });
-
         #[cfg(feature = "processing")]
         {
             if self.config.processing_enabled() {
@@ -165,12 +162,11 @@ impl EventProcessor {
 
                 let store_config = StoreConfig {
                     project_id: Some(message.project_id),
-                    client_ip: message.meta.client_addr().map(From::from),
+                    client_ip: message.meta.client_addr().map(IpAddr::from),
                     client: auth.client_agent().map(str::to_owned),
                     key_id,
                     protocol_version: Some(auth.version().to_string()),
                     grouping_config: message.project_state.config.grouping_config.clone(),
-                    valid_platforms: Default::default(), // TODO(ja): Pending removal
                     max_secs_in_future: Some(self.config.max_secs_in_future()),
                     max_secs_in_past: Some(self.config.max_secs_in_past()),
                     enable_trimming: Some(true),
@@ -187,7 +183,7 @@ impl EventProcessor {
 
                 // Event filters assume a normalized event. Unfortunately, this requires us to run
                 // expensive normalization first.
-                if let Some(event) = event.value() {
+                if let Some(event) = event.value_mut() {
                     let client_ip = message.meta.client_addr();
                     let filter_settings = &message.project_state.config.filter_settings;
                     let filter_result = metric! {timer("event_processing.filtering"), {
@@ -198,6 +194,12 @@ impl EventProcessor {
                         // If the event should be filtered, no more processing is needed
                         return Ok(ProcessEventResponse::Filtered { reason });
                     }
+
+                    // TODO: Remove this once cutover is complete.
+                    event.other.insert(
+                        "_relay_processed".to_owned(),
+                        Annotated::new(Value::Bool(true)),
+                    );
                 }
             }
         }
@@ -226,6 +228,16 @@ impl EventProcessor {
                 }
             }
         }
+
+        // Run PII stripping after normalization because normalization adds IP addresses to the
+        // event.
+        metric!(timer("event_processing.pii"), {
+            for pii_config in message.project_state.config.pii_configs() {
+                let mut processor = PiiProcessor::new(pii_config);
+                process_value(&mut event, &mut processor, ProcessingState::root())
+                    .map_err(ProcessingError::InvalidEvent)?;
+            }
+        });
 
         let data = metric! {timer("event_processing.serialization"), {
             event
@@ -342,7 +354,7 @@ impl EventManager {
         let rate_limiter = RateLimiter::new(&config).context(ServerErrorKind::RedisError)?;
 
         // TODO: Make the number configurable via config file
-        let thread_count = num_cpus::get();
+        let thread_count = config.cpu_concurrency();
         log::info!("starting {} event processing workers", thread_count);
 
         #[cfg(feature = "processing")]
@@ -382,7 +394,7 @@ impl EventManager {
             processor,
             current_active_events: 0,
             shutdown: SyncHandle::new(),
-            captured_events: Default::default(),
+            captured_events: Arc::default(),
 
             #[cfg(feature = "processing")]
             store_forwarder,
@@ -427,6 +439,10 @@ impl Handler<QueueEvent> for EventManager {
 
     fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
         let mut data: BytesMut = message.data.into();
+
+        if data.is_empty() {
+            return Err(EventError::EmptyBody);
+        }
 
         // python clients are well known to send crappy JSON in the Sentry world.  The reason
         // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
@@ -651,7 +667,6 @@ impl Handler<HandleEvent> for EventManager {
             .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(clone!(project, captured_events, |error, _, _| {
-                log::warn!("error processing event {}: {}", event_id, LogError(&error));
                 // if we are in capture mode, we stash away the event instead of
                 // forwarding it.
                 if capture {
@@ -665,6 +680,7 @@ impl Handler<HandleEvent> for EventManager {
                         },
                     );
                 }
+
                 metric!(counter("event.rejected") += 1);
                 let outcome_params: Option<Outcome> = match error {
                     ProcessingError::SerializeFailed(_)
@@ -678,26 +694,37 @@ impl Handler<HandleEvent> for EventManager {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
                     ProcessingError::InvalidJson(_) => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidPayloadJsonError))
+                        Some(Outcome::Invalid(DiscardReason::InvalidJson))
                     }
                     #[cfg(feature = "processing")]
-                    ProcessingError::StoreFailed(_store_error) => {
+                    ProcessingError::StoreFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
                     ProcessingError::EventRejected(outcome_reason) => {
                         Some(Outcome::Invalid(outcome_reason))
                     }
-                    ProcessingError::EventFiltered(filter_stat_key) => {
-                        Some(Outcome::Filtered(filter_stat_key))
+                    ProcessingError::EventFiltered(ref filter_stat_key) => {
+                        Some(Outcome::Filtered(*filter_stat_key))
                     }
-                    // if we have upstream then we don't emit outcomes (the upstream should deal with this)
+                    // if we have an upstream, we don't emit outcomes. the upstream should deal with
+                    // this
                     ProcessingError::SendFailed(_) => None,
 
-                    ProcessingError::RateLimited(rate_limit) => {
+                    ProcessingError::RateLimited(ref rate_limit) => {
                         project.do_send(rate_limit.clone());
-                        Some(Outcome::RateLimited(rate_limit))
+                        Some(Outcome::RateLimited(rate_limit.clone()))
                     }
                 };
+
+                if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome_params {
+                    // Errors are only logged for what we consider an internal discard reason. These
+                    // indicate errors in the infrastructure or implementation bugs. In other cases,
+                    // we "expect" errors and log them as info level.
+                    log::error!("error processing event {}: {}", event_id, LogError(&error));
+                } else {
+                    log::info!("dropped event {}: {}", event_id, LogError(&error));
+                }
+
                 if let Some(outcome) = outcome_params {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),

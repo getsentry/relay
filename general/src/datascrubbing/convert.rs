@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use regex::RegexBuilder;
 
 use crate::datascrubbing::DataScrubbingConfig;
-use crate::pii::{Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType};
+use crate::pii::{Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType, Vars};
 use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
 
 lazy_static::lazy_static! {
@@ -106,7 +106,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
 
     Some(PiiConfig {
         rules: custom_rules,
-        vars: Default::default(),
+        vars: Vars::default(),
         applications,
     })
 }
@@ -185,7 +185,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_datascrubbing_default() {
-        insta::assert_json_snapshot!(to_pii_config(&Default::default()), @"null");
+        insta::assert_json_snapshot!(to_pii_config(&DataScrubbingConfig::default()), @"null");
     }
 
     #[test]
@@ -776,7 +776,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     /// then more granular/sophisticated because we now understand the structure.
     #[test]
     fn test_sanitize_http_body() {
-        use crate::store::StoreProcessor;
+        use crate::store::{StoreConfig, StoreProcessor};
 
         let mut data = Event::from_value(
             serde_json::json!({
@@ -789,7 +789,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         // n.b.: In Rust we rely on store normalization to parse inline JSON
 
-        let mut store_processor = StoreProcessor::new(Default::default(), None);
+        let mut store_processor = StoreProcessor::new(StoreConfig::default(), None);
         process_value(&mut data, &mut store_processor, ProcessingState::root()).unwrap();
 
         let pii_config = simple_enabled_pii_config();
@@ -802,7 +802,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     /// nevertheless.
     #[test]
     fn test_sanitize_http_body_string() {
-        use crate::store::StoreProcessor;
+        use crate::store::{StoreConfig, StoreProcessor};
 
         let mut data = Event::from_value(
             serde_json::json!({
@@ -815,7 +815,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         // n.b.: In Rust we rely on store normalization to parse inline JSON.
 
-        let mut store_processor = StoreProcessor::new(Default::default(), None);
+        let mut store_processor = StoreProcessor::new(StoreConfig::default(), None);
         process_value(&mut data, &mut store_processor, ProcessingState::root()).unwrap();
 
         let pii_config = simple_enabled_pii_config();

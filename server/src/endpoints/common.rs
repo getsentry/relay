@@ -51,17 +51,26 @@ pub enum BadStoreRequest {
 }
 
 impl BadStoreRequest {
-    pub fn to_outcome(&self) -> Outcome {
+    fn to_outcome(&self) -> Outcome {
         match self {
             BadStoreRequest::BadProject(_) => Outcome::Invalid(DiscardReason::ProjectId),
 
             BadStoreRequest::UnsupportedProtocolVersion(_) => {
-                Outcome::Invalid(DiscardReason::UnsupportedProtocolVersion)
+                Outcome::Invalid(DiscardReason::AuthVersion)
             }
 
-            BadStoreRequest::ScheduleFailed(_)
-            | BadStoreRequest::ProjectFailed(_)
-            | BadStoreRequest::ProcessingFailed(_) => Outcome::Invalid(DiscardReason::Internal),
+            BadStoreRequest::ProcessingFailed(event_error) => match event_error {
+                EventError::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
+                EventError::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
+                EventError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
+            },
+
+            BadStoreRequest::ProjectFailed(project_error) => match project_error {
+                ProjectError::FetchFailed => Outcome::Invalid(DiscardReason::ProjectState),
+                _ => Outcome::Invalid(DiscardReason::Internal),
+            },
+
+            BadStoreRequest::ScheduleFailed(_) => Outcome::Invalid(DiscardReason::Internal),
 
             BadStoreRequest::EventRejected(reason) => Outcome::Invalid(*reason),
 

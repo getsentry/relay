@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.59
+
+* Fix: Normalize legacy stacktrace attributes (#292)
+* Fix: Validate platform attributes in Relay (#294)
+* Flip the flag that indicates Relay processing (#293)
+
+## 0.4.58
+
+* Expose globbing code from Semaphore to Python (#288)
+* Normalize before datascrubbing (#290)
+* Evict project caches after some time (#287)
+* Add event size metrics (#286)
+* Selectively log internal errors to stderr (#285)
+* Do not ignore `process_value` result in `scrub_event` (#284)
+* Add a config value for thread counts (#283)
+* Refactor outcomes for parity with Sentry (#282)
+* Add an error boundary to parsing project states (#281)
+* Remove warning and add comment for temporary attribute
+* Add flag that relay processed an event (#279)
+
+## 0.4.57
+
+**Store**:
+
+- Stricter validation of transaction events.
+
 ## 0.4.56
 
 **Store**:

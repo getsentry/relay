@@ -381,11 +381,12 @@ declare_builtin_rules! {
 // TODO: Move these tests to /tests
 #[cfg(test)]
 mod tests {
-    use crate::pii::config::PiiConfig;
+    use std::collections::BTreeMap;
+
+    use crate::pii::config::{PiiConfig, Vars};
     use crate::pii::processor::PiiProcessor;
     use crate::processor::{process_value, ProcessingState, ValueType};
     use crate::types::{Annotated, Remark, RemarkType};
-    use std::collections::BTreeMap;
 
     #[derive(Clone, Debug, PartialEq, Empty, FromValue, ProcessValue, ToValue)]
     struct FreeformRoot {
@@ -398,8 +399,8 @@ mod tests {
             rule = $rule:expr; input = $input:expr; output = $output:expr; remarks = $remarks:expr;
         ) => {{
             let config = PiiConfig {
-                rules: Default::default(),
-                vars: Default::default(),
+                rules: BTreeMap::new(),
+                vars: Vars::default(),
                 applications: {
                     let mut map = BTreeMap::new();
                     map.insert(ValueType::String.into(), vec![$rule.to_string()]);

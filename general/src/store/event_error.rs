@@ -52,7 +52,7 @@ impl Processor for EmitEventErrors {
         if !self.errors.is_empty() {
             event
                 .errors
-                .get_or_insert_with(Default::default)
+                .get_or_insert_with(Vec::new)
                 .extend(self.errors.drain(..).map(Annotated::from));
         }
 

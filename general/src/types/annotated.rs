@@ -278,7 +278,11 @@ where
 
         if let Some(value) = self.value() {
             use serde::private::ser::FlatMapSerializer;
-            ToValue::serialize_payload(value, FlatMapSerializer(&mut map_ser), Default::default())?;
+            ToValue::serialize_payload(
+                value,
+                FlatMapSerializer(&mut map_ser),
+                SkipSerialization::default(),
+            )?;
         }
 
         if !meta_tree.is_empty() {
@@ -308,7 +312,9 @@ where
         let mut ser = serde_json::Serializer::new(Vec::with_capacity(128));
 
         match self.value() {
-            Some(value) => ToValue::serialize_payload(value, &mut ser, Default::default())?,
+            Some(value) => {
+                ToValue::serialize_payload(value, &mut ser, SkipSerialization::default())?
+            }
             None => ser.serialize_unit()?,
         }
 
@@ -320,7 +326,9 @@ where
         let mut ser = serde_json::Serializer::pretty(Vec::with_capacity(128));
 
         match self.value() {
-            Some(value) => ToValue::serialize_payload(value, &mut ser, Default::default())?,
+            Some(value) => {
+                ToValue::serialize_payload(value, &mut ser, SkipSerialization::default())?
+            }
             None => ser.serialize_unit()?,
         }
 

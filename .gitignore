@@ -10,3 +10,4 @@ GeoLiteCity.dat
 target
 /.venv/
 /.idea/
+/site

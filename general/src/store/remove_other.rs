@@ -26,7 +26,7 @@ impl Processor for RemoveOtherProcessor {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         // Move the current map out so we don't clear it in `process_other`
-        let mut other = std::mem::replace(&mut event.other, Default::default());
+        let mut other = std::mem::replace(&mut event.other, Object::default());
 
         // Drop Sentry internal attributes
         other.remove("metadata");
