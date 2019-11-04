@@ -1,13 +1,16 @@
 //! Contains definitions for the security report interfaces.
 //!
 //! The security interfaces are CSP, HPKP, ExpectCT and ExpectStaple.
+
+use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::fmt;
+use std::fmt::{self, Write};
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use serde::de::{Error, IgnoredAny};
 use serde::{Deserialize, Deserializer, Serialize};
+use url::Url;
 
 use crate::protocol::{
     Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request, TagEntry, Tags,
@@ -163,14 +166,14 @@ impl CspRaw {
         // refs: https://bugzil.la/1192684#c8
 
         self.violated_directive
-            .split(' ')
+            .splitn(2, ' ')
             .next()
             .and_then(|v| v.parse().ok())
             .ok_or(InvalidSecurityError)
     }
 
     fn get_message(&self, effective_directive: CspDirective) -> String {
-        if self.is_local() {
+        if self.is_local(&self.blocked_uri) {
             match effective_directive {
                 CspDirective::ChildSrc => "Blocked inline 'child'".to_string(),
                 CspDirective::ConnectSrc => "Blocked inline 'connect'".to_string(),
@@ -196,7 +199,7 @@ impl CspRaw {
                 directive => format!("Blocked inline {}", directive),
             }
         } else {
-            let uri = &self.blocked_uri;
+            let uri = self.normalize_uri(&self.blocked_uri);
 
             match effective_directive {
                 CspDirective::ChildSrc => format!("Blocked 'child' from '{}'", uri),
@@ -261,11 +264,95 @@ impl CspRaw {
         uri
     }
 
-    fn is_local(&self) -> bool {
-        match self.blocked_uri.as_str() {
+    fn is_local(&self, uri: &str) -> bool {
+        match uri {
             "" | "self" | "'self'" => true,
             _ => false,
         }
+    }
+
+    fn normalize_uri<'a>(&self, value: &'a str) -> Cow<'a, str> {
+        if self.is_local(value) {
+            return Cow::Borrowed("'self'");
+        }
+
+        // A lot of these values get reported as literally
+        // just the scheme. So a value like 'data' or 'blob', which
+        // are valid schemes, just not a uri. So we want to
+        // normalize it into a uri.
+
+        if !value.contains(':') {
+            return Cow::Owned(format!("{}://", value));
+        }
+
+        match Url::parse(value) {
+            Ok(url) => format!("{}://{}", url.scheme(), url.host_str().unwrap_or_default()).into(),
+            Err(_) => Cow::Borrowed(value),
+        }
+    }
+
+    fn normalize_value<'a>(&self, value: &'a str, document_uri: &str) -> Cow<'a, str> {
+        // > If no scheme is specified, the same scheme as the one used to access the protected
+        // > document is assumed.
+        // Source: https://developer.mozilla.org/en-US/docs/Web/Security/CSP/CSP_policy_directives
+        if let "'none'" | "'self'" | "'unsafe-inline'" | "'unsafe-eval'" = value {
+            return Cow::Borrowed(value);
+        }
+
+        // Normalize a value down to 'self' if it matches the origin of document-uri FireFox
+        // transforms a 'self' value into the spelled out origin, so we want to reverse this and
+        // bring it back.
+        if value.starts_with("data:")
+            || value.starts_with("mediastream:")
+            || value.starts_with("blob:")
+            || value.starts_with("filesystem:")
+            || value.starts_with("http:")
+            || value.starts_with("https:")
+            || value.starts_with("file:")
+        {
+            if document_uri == self.normalize_uri(value) {
+                return Cow::Borrowed("'self'");
+            }
+
+            // Their rule had an explicit scheme, so let's respect that
+            return Cow::Borrowed(value);
+        }
+
+        // Value doesn't have a scheme, but let's see if their hostnames match at least, if so,
+        // they're the same.
+        if value == document_uri {
+            return Cow::Borrowed("'self'");
+        }
+
+        // Now we need to stitch on a scheme to the value, but let's not stitch on the boring
+        // values.
+        match value.splitn(2, ':').next().unwrap_or_default() {
+            "http" | "https" => Cow::Borrowed(value),
+            scheme => Cow::Owned(format!("{}://{}", scheme, value)),
+        }
+    }
+
+    fn get_culprit(&self) -> String {
+        if self.violated_directive.is_empty() {
+            return String::new();
+        }
+
+        let mut bits = self.violated_directive.split(' ');
+        let mut culprit = bits.next().unwrap_or_default().to_owned();
+
+        let document_uri = self
+            .document_uri
+            .as_ref()
+            .map(String::as_str)
+            .unwrap_or_default();
+
+        let normalized_uri = self.normalize_uri(document_uri);
+
+        for bit in bits {
+            write!(culprit, " {}", self.normalize_value(bit, &normalized_uri)).ok();
+        }
+
+        culprit
     }
 
     fn get_tags(&self, effective_directive: CspDirective) -> Tags {
@@ -361,10 +448,10 @@ impl Csp {
         Ok(Event {
             logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_csp.get_message(effective_directive))),
-            culprit: unimplemented!(),
-            csp: Annotated::new(raw_csp.into_protocol(effective_directive)),
+            culprit: Annotated::new(raw_csp.get_culprit()),
             tags: Annotated::new(raw_csp.get_tags(effective_directive)),
             request: Annotated::new(raw_csp.get_request()),
+            csp: Annotated::new(raw_csp.into_protocol(effective_directive)),
             ..Event::default()
         })
     }
@@ -483,6 +570,10 @@ impl ExpectCtRaw {
         }
     }
 
+    fn get_culprit(&self) -> String {
+        self.hostname.clone()
+    }
+
     fn get_tags(&self) -> Tags {
         let mut tags = vec![Annotated::new(TagEntry(
             Annotated::new("hostname".to_string()),
@@ -550,10 +641,10 @@ impl ExpectCt {
         Ok(Event {
             logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_expect_ct.get_message())),
-            culprit: unimplemented!(),
-            expectct: Annotated::new(raw_expect_ct.into_protocol()),
+            culprit: Annotated::new(raw_expect_ct.get_culprit()),
             tags: Annotated::new(raw_expect_ct.get_tags()),
             request: Annotated::new(raw_expect_ct.get_request()),
+            expectct: Annotated::new(raw_expect_ct.into_protocol()),
             ..Event::default()
         })
     }
@@ -696,10 +787,9 @@ impl Hpkp {
         Ok(Event {
             logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_hpkp.get_message())),
-            culprit: unimplemented!(),
-            hpkp: Annotated::new(raw_hpkp.into_protocol()),
             tags: Annotated::new(raw_hpkp.get_tags()),
             request: Annotated::new(raw_hpkp.get_request()),
+            hpkp: Annotated::new(raw_hpkp.into_protocol()),
             ..Event::default()
         })
     }
@@ -843,6 +933,10 @@ impl ExpectStapleRaw {
         }
     }
 
+    fn get_culprit(&self) -> String {
+        self.hostname.clone()
+    }
+
     fn get_tags(&self) -> Tags {
         let mut tags = vec![Annotated::new(TagEntry(
             Annotated::new("hostname".to_string()),
@@ -904,10 +998,10 @@ impl ExpectStaple {
         Ok(Event {
             logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_expect_staple.get_message())),
-            culprit: unimplemented!(),
-            expectstaple: Annotated::new(raw_expect_staple.into_protocol()),
+            culprit: Annotated::new(raw_expect_staple.get_culprit()),
             tags: Annotated::new(raw_expect_staple.get_tags()),
             request: Annotated::new(raw_expect_staple.get_request()),
+            expectstaple: Annotated::new(raw_expect_staple.into_protocol()),
             ..Event::default()
         })
     }
