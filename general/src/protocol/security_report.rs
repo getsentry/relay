@@ -9,7 +9,9 @@ use chrono::{DateTime, Utc};
 use serde::de::{Error, IgnoredAny};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::protocol::{Event, LogEntry, PairList, TagEntry, Tags};
+use crate::protocol::{
+    Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request, TagEntry, Tags,
+};
 use crate::types::{Annotated, Array, Object, Value};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -278,6 +280,17 @@ impl CspRaw {
             )),
         ]))
     }
+
+    fn get_request(&self) -> Request {
+        Request {
+            url: Annotated::from(self.document_uri.clone()),
+            headers: Annotated::new(Headers(PairList(vec![Annotated::new((
+                Annotated::new(HeaderName::new("Referer")),
+                Annotated::new(HeaderValue::new(self.referrer.clone())),
+            ))]))),
+            ..Request::default()
+        }
+    }
 }
 
 /// Defines external, RFC-defined schema we accept, while `Csp` defines our own schema.
@@ -348,8 +361,10 @@ impl Csp {
         Ok(Event {
             logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_csp.get_message(effective_directive))),
-            tags: Annotated::new(raw_csp.get_tags(effective_directive)),
+            culprit: unimplemented!(),
             csp: Annotated::new(raw_csp.into_protocol(effective_directive)),
+            tags: Annotated::new(raw_csp.get_tags(effective_directive)),
+            request: Annotated::new(raw_csp.get_request()),
             ..Event::default()
         })
     }
@@ -380,7 +395,7 @@ impl SingleCertificateTimestampRaw {
 struct ExpectCtRaw {
     #[serde(with = "serde_date_time_3339")]
     date_time: Option<DateTime<Utc>>,
-    host_name: String,
+    hostname: String,
     port: Option<i64>,
     effective_expiration_date: Option<DateTime<Utc>>,
     served_certificate_chain: Option<Vec<String>>,
@@ -444,7 +459,7 @@ impl ExpectCtRaw {
     fn into_protocol(self) -> ExpectCt {
         ExpectCt {
             date_time: Annotated::from(self.date_time.map(|d| d.to_rfc3339())),
-            host_name: Annotated::from(self.host_name),
+            hostname: Annotated::from(self.hostname),
             port: Annotated::from(self.port),
             effective_expiration_date: Annotated::from(
                 self.effective_expiration_date.map(|d| d.to_rfc3339()),
@@ -465,6 +480,13 @@ impl ExpectCtRaw {
                     .map(|elm| Annotated::from(elm.into_protocol()))
                     .collect()
             })),
+        }
+    }
+
+    fn get_request(&self) -> Request {
+        Request {
+            url: Annotated::from(self.hostname.clone()),
+            ..Request::default()
         }
     }
 }
@@ -495,7 +517,7 @@ pub struct ExpectCt {
     /// UTC time that the UA observed the CT compliance failure
     pub date_time: Annotated<String>,
     /// The hostname to which the UA made the original request that failed the CT compliance check.
-    pub host_name: Annotated<String>,
+    pub hostname: Annotated<String>,
     pub port: Annotated<i64>,
     /// Date time in rfc3339 format
     pub effective_expiration_date: Annotated<String>,
@@ -512,7 +534,10 @@ impl ExpectCt {
         Ok(Event {
             logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_expect_ct.get_message())),
+            culprit: unimplemented!(),
             expectct: Annotated::new(raw_expect_ct.into_protocol()),
+            tags: unimplemented!(),
+            request: Annotated::new(raw_expect_ct.get_request()),
             ..Event::default()
         })
     }
@@ -580,6 +605,13 @@ impl HpkpRaw {
                 .collect(),
         }
     }
+
+    fn get_request(&self) -> Request {
+        Request {
+            url: Annotated::from(self.hostname.clone()),
+            ..Request::default()
+        }
+    }
 }
 
 /// Schema as defined in RFC7469, Section 3
@@ -626,7 +658,10 @@ impl Hpkp {
         Ok(Event {
             logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_hpkp.get_message())),
+            culprit: unimplemented!(),
             hpkp: Annotated::new(raw_hpkp.into_protocol()),
+            tags: unimplemented!(),
+            request: Annotated::new(raw_hpkp.get_request()),
             ..Event::default()
         })
     }
@@ -769,6 +804,13 @@ impl ExpectStapleRaw {
             ocsp_response: Annotated::from(self.ocsp_response),
         }
     }
+
+    fn get_request(&self) -> Request {
+        Request {
+            url: Annotated::from(self.hostname.clone()),
+            ..Request::default()
+        }
+    }
 }
 
 /// Represents an Expect Staple security report
@@ -794,7 +836,10 @@ impl ExpectStaple {
         Ok(Event {
             logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_expect_staple.get_message())),
+            culprit: unimplemented!(),
             expectstaple: Annotated::new(raw_expect_staple.into_protocol()),
+            tags: unimplemented!(),
+            request: Annotated::new(raw_expect_staple.get_request()),
             ..Event::default()
         })
     }
