@@ -836,28 +836,26 @@ impl ProjectCache {
             return;
         }
 
+        let eviction_start = Instant::now();
+
         let to_fetch: Vec<_> = self
             .state_channels
             .keys()
             .copied()
             .take(self.config.query_batch_size())
             .collect();
-        let channels: HashMap<_, _> = to_fetch
+
+        let batch: HashMap<_, _> = to_fetch
             .into_iter()
             .map(|id| (id, self.state_channels.remove(&id).unwrap()))
             .collect();
 
         log::debug!(
             "updating project states for {}/{} projects (attempt {})",
-            channels.len(),
-            self.state_channels.len(),
+            batch.len(),
+            batch.len() + self.state_channels.len(),
             self.backoff.attempt(),
         );
-
-        metric!(counter("project_state.request.size") += channels.len() as i64);
-        metric!(counter("project_state.pending.size") += self.state_channels.len() as i64);
-
-        let eviction_start = Instant::now();
 
         // Remove outdated projects that are not being refreshed from the cache. If the project is
         // being updated now, also remove its update entry from the queue, since we will be
@@ -868,7 +866,7 @@ impl ProjectCache {
                 break;
             }
 
-            if !channels.contains_key(&update.project_id) {
+            if !batch.contains_key(&update.project_id) {
                 self.projects.remove(&update.project_id);
             }
 
@@ -879,14 +877,16 @@ impl ProjectCache {
         // reinsert them at the end, as they are now receiving an updated timestamp. Then,
         // batch-insert all new projects with the new timestamp.
         self.updates
-            .retain(|update| !channels.contains_key(&update.project_id));
+            .retain(|update| !batch.contains_key(&update.project_id));
         self.updates
-            .extend(channels.keys().copied().map(ProjectUpdate::new));
+            .extend(batch.keys().copied().map(ProjectUpdate::new));
 
         metric!(timer("project_state.eviction.duration") = eviction_start.elapsed());
+        metric!(counter("project_state.request.size") += batch.len() as i64);
+        metric!(histogram("project_cache.size") = self.state_channels.len() as u64);
 
         let request = GetProjectStates {
-            projects: channels.keys().copied().collect(),
+            projects: batch.keys().copied().collect(),
             #[cfg(feature = "processing")]
             full_config: self.config.processing_enabled(),
         };
@@ -907,8 +907,8 @@ impl ProjectCache {
                         slf.backoff.reset();
 
                         // count number of project states returned (via http requests)
-                        metric!(counter("project_state.received") += channels.len() as i64);
-                        for (id, channel) in channels {
+                        metric!(counter("project_state.received") += response.configs.len() as i64);
+                        for (id, channel) in batch {
                             let state = response
                                 .configs
                                 .remove(&id)
@@ -925,7 +925,10 @@ impl ProjectCache {
                         if !slf.shutdown.requested() {
                             // Put the channels back into the queue, in addition to channels that
                             // have been pushed in the meanwhile. We will retry again shortly.
-                            slf.state_channels.extend(channels);
+                            slf.state_channels.extend(batch);
+                            metric!(
+                                histogram("project_cache.size") = slf.state_channels.len() as u64
+                            );
                         }
                     }
                 }
