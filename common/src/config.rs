@@ -311,7 +311,7 @@ struct Cache {
     miss_expiry: u32,
     /// The buffer timeout for batched queries before sending them upstream in ms.
     batch_interval: u32,
-    /// The maximum number of project configs to fetch from Sentry at once. Defaults to 3000.
+    /// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
     ///
     /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
     batch_size: usize,
@@ -328,7 +328,7 @@ impl Default for Cache {
             event_buffer_size: 1000,
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
-            batch_size: 3000,
+            batch_size: 500,
             file_interval: 10, // 10 seconds
         }
     }
