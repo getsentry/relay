@@ -4,7 +4,6 @@ use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::iter;
-use std::mem;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread;
@@ -837,10 +836,15 @@ impl ProjectCache {
             return;
         }
 
-        let channels = self
+        let to_fetch: Vec<_> = self
             .state_channels
-            .drain()
-            .take(self.max_query_batch_size())
+            .keys()
+            .copied()
+            .take(self.config.query_batch_size())
+            .collect();
+        let channels: HashMap<_, _> = to_fetch
+            .into_iter()
+            .map(|id| (id, self.state_channels.remove(&id).unwrap()))
             .collect();
 
         log::debug!(
@@ -850,8 +854,8 @@ impl ProjectCache {
             self.state_channels.len()
         );
 
-        metric!(counter("project_state.request.size") += channels.len());
-        metric!(counter("project_state.pending.size") += self.state_channels.len());
+        metric!(counter("project_state.request.size") += channels.len() as i64);
+        metric!(counter("project_state.pending.size") += self.state_channels.len() as i64);
 
         let eviction_start = Instant::now();
 

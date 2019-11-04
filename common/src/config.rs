@@ -258,10 +258,6 @@ struct Limits {
     /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
     /// the number of logical CPU cores on the host.
     max_thread_count: usize,
-    /// The maximum number of project configs to fetch from Sentry at once. Defaults to 3000.
-    ///
-    /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
-    max_query_batch_size: usize,
 }
 
 impl Default for Limits {
@@ -273,7 +269,6 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::from_megabytes(40),
             max_api_chunk_upload_size: ByteSize::from_megabytes(100),
             max_thread_count: num_cpus::get(),
-            max_query_batch_size: 3000,
         }
     }
 }
@@ -316,6 +311,10 @@ struct Cache {
     miss_expiry: u32,
     /// The buffer timeout for batched queries before sending them upstream in ms.
     batch_interval: u32,
+    /// The maximum number of project configs to fetch from Sentry at once. Defaults to 3000.
+    ///
+    /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
+    batch_size: usize,
     /// Interval for watching local cache override files in seconds.
     file_interval: u32,
 }
@@ -329,7 +328,8 @@ impl Default for Cache {
             event_buffer_size: 1000,
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
-            file_interval: 10,   // 10 seconds
+            batch_size: 3000,
+            file_interval: 10, // 10 seconds
         }
     }
 }
@@ -819,8 +819,8 @@ impl Config {
     }
 
     /// Returns the maximum size of a project config query.
-    pub fn max_query_batch_size(&self) -> usize {
-        self.values.limits.max_query_batch_size
+    pub fn query_batch_size(&self) -> usize {
+        self.values.cache.batch_size
     }
 
     /// Return the Sentry DSN if reporting to Sentry is enabled.
