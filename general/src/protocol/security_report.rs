@@ -241,6 +241,13 @@ impl CspRaw {
     }
 
     fn sanitized_blocked_uri(&self) -> String {
+        // HACK: This is 100% to work around Stripe urls that will casually put extremely sensitive
+        // information in querystrings. The real solution is to apply data scrubbing to all tags
+        // generically.
+        //
+        //    if netloc == 'api.stripe.com':
+        //      query = '' fragment = ''
+
         let mut uri = self.blocked_uri.clone();
 
         if uri.starts_with("https://api.stripe.com/") {
