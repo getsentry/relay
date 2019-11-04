@@ -838,16 +838,16 @@ impl ProjectCache {
 
         let eviction_start = Instant::now();
 
-        let to_fetch: Vec<_> = self
+        let batch_ids: Vec<_> = self
             .state_channels
             .keys()
             .copied()
             .take(self.config.query_batch_size())
             .collect();
 
-        let batch: HashMap<_, _> = to_fetch
-            .into_iter()
-            .map(|id| (id, self.state_channels.remove(&id).unwrap()))
+        let batch: HashMap<_, _> = batch_ids
+            .iter()
+            .map(|id| (*id, self.state_channels.remove(id).unwrap()))
             .collect();
 
         log::debug!(
@@ -886,7 +886,7 @@ impl ProjectCache {
         metric!(histogram("project_cache.size") = self.state_channels.len() as u64);
 
         let request = GetProjectStates {
-            projects: batch.keys().copied().collect(),
+            projects: batch_ids,
             #[cfg(feature = "processing")]
             full_config: self.config.processing_enabled(),
         };
