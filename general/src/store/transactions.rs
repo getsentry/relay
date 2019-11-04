@@ -17,7 +17,7 @@ impl Processor for TransactionsProcessor {
 
         match (event.start_timestamp.value(), event.timestamp.value_mut()) {
             (Some(start), Some(end)) => {
-                if end < start {
+                if *end < *start {
                     return Err(ProcessingAction::InvalidEvent(
                         "end timestamp is smaller than start timestamp",
                     ));
