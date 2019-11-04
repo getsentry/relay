@@ -483,6 +483,22 @@ impl ExpectCtRaw {
         }
     }
 
+    fn get_tags(&self) -> Tags {
+        let mut tags = vec![Annotated::new(TagEntry(
+            Annotated::new("hostname".to_string()),
+            Annotated::new(self.hostname.clone()),
+        ))];
+
+        if let Some(port) = self.port {
+            tags.push(Annotated::new(TagEntry(
+                Annotated::new("port".to_string()),
+                Annotated::new(port.to_string()),
+            )));
+        }
+
+        Tags(PairList::from(tags))
+    }
+
     fn get_request(&self) -> Request {
         Request {
             url: Annotated::from(self.hostname.clone()),
@@ -536,7 +552,7 @@ impl ExpectCt {
             logentry: Annotated::new(LogEntry::from(raw_expect_ct.get_message())),
             culprit: unimplemented!(),
             expectct: Annotated::new(raw_expect_ct.into_protocol()),
-            tags: unimplemented!(),
+            tags: Annotated::new(raw_expect_ct.get_tags()),
             request: Annotated::new(raw_expect_ct.get_request()),
             ..Event::default()
         })
@@ -551,8 +567,7 @@ impl ExpectCt {
 struct HpkpRaw {
     #[serde(skip_serializing_if = "Option::is_none")]
     date_time: Option<DateTime<Utc>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    hostname: Option<String>,
+    hostname: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     port: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -582,7 +597,7 @@ impl HpkpRaw {
     fn into_protocol(self) -> Hpkp {
         Hpkp {
             date_time: Annotated::from(self.date_time.map(|d| d.to_rfc3339())),
-            hostname: Annotated::from(self.hostname),
+            hostname: Annotated::new(self.hostname),
             port: Annotated::from(self.port),
             effective_expiration_date: Annotated::from(
                 self.effective_expiration_date.map(|d| d.to_rfc3339()),
@@ -604,6 +619,29 @@ impl HpkpRaw {
                 .map(|(k, v)| (k, Annotated::from(v)))
                 .collect(),
         }
+    }
+
+    fn get_tags(&self) -> Tags {
+        let mut tags = vec![Annotated::new(TagEntry(
+            Annotated::new("hostname".to_string()),
+            Annotated::new(self.hostname.clone()),
+        ))];
+
+        if let Some(port) = self.port {
+            tags.push(Annotated::new(TagEntry(
+                Annotated::new("port".to_string()),
+                Annotated::new(port.to_string()),
+            )));
+        }
+
+        if let Some(include_subdomains) = self.include_subdomains {
+            tags.push(Annotated::new(TagEntry(
+                Annotated::new("include-subdomains".to_string()),
+                Annotated::new(include_subdomains.to_string()),
+            )));
+        }
+
+        Tags(PairList::from(tags))
     }
 
     fn get_request(&self) -> Request {
@@ -660,7 +698,7 @@ impl Hpkp {
             logentry: Annotated::new(LogEntry::from(raw_hpkp.get_message())),
             culprit: unimplemented!(),
             hpkp: Annotated::new(raw_hpkp.into_protocol()),
-            tags: unimplemented!(),
+            tags: Annotated::new(raw_hpkp.get_tags()),
             request: Annotated::new(raw_hpkp.get_request()),
             ..Event::default()
         })
@@ -805,6 +843,36 @@ impl ExpectStapleRaw {
         }
     }
 
+    fn get_tags(&self) -> Tags {
+        let mut tags = vec![Annotated::new(TagEntry(
+            Annotated::new("hostname".to_string()),
+            Annotated::new(self.hostname.clone()),
+        ))];
+
+        if let Some(port) = self.port {
+            tags.push(Annotated::new(TagEntry(
+                Annotated::new("port".to_string()),
+                Annotated::new(port.to_string()),
+            )));
+        }
+
+        if let Some(response_status) = self.response_status {
+            tags.push(Annotated::new(TagEntry(
+                Annotated::new("response_status".to_string()),
+                Annotated::new(response_status.to_string()),
+            )));
+        }
+
+        if let Some(cert_status) = self.cert_status {
+            tags.push(Annotated::new(TagEntry(
+                Annotated::new("cert_status".to_string()),
+                Annotated::new(cert_status.to_string()),
+            )));
+        }
+
+        Tags(PairList::from(tags))
+    }
+
     fn get_request(&self) -> Request {
         Request {
             url: Annotated::from(self.hostname.clone()),
@@ -838,7 +906,7 @@ impl ExpectStaple {
             logentry: Annotated::new(LogEntry::from(raw_expect_staple.get_message())),
             culprit: unimplemented!(),
             expectstaple: Annotated::new(raw_expect_staple.into_protocol()),
-            tags: unimplemented!(),
+            tags: Annotated::new(raw_expect_staple.get_tags()),
             request: Annotated::new(raw_expect_staple.get_request()),
             ..Event::default()
         })
