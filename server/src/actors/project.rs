@@ -850,13 +850,6 @@ impl ProjectCache {
             .map(|id| (*id, self.state_channels.remove(id).unwrap()))
             .collect();
 
-        log::debug!(
-            "updating project states for {}/{} projects (attempt {})",
-            batch.len(),
-            batch.len() + self.state_channels.len(),
-            self.backoff.attempt(),
-        );
-
         // Remove outdated projects that are not being refreshed from the cache. If the project is
         // being updated now, also remove its update entry from the queue, since we will be
         // inserting a new timestamp at the end (see `extend`).
@@ -882,8 +875,15 @@ impl ProjectCache {
             .extend(batch_ids.iter().copied().map(ProjectUpdate::new));
 
         metric!(timer("project_state.eviction.duration") = eviction_start.elapsed());
-        metric!(counter("project_state.request.size") += batch.len() as i64);
-        metric!(histogram("project_state.request.pending") = self.state_channels.len() as u64);
+        metric!(histogram("project_state.request") = batch.len() as u64);
+        metric!(histogram("project_state.pending") = self.state_channels.len() as u64);
+
+        log::debug!(
+            "updating project states for {}/{} projects (attempt {})",
+            batch.len(),
+            batch.len() + self.state_channels.len(),
+            self.backoff.attempt(),
+        );
 
         let request = GetProjectStates {
             projects: batch_ids,
@@ -927,7 +927,7 @@ impl ProjectCache {
                             // have been pushed in the meanwhile. We will retry again shortly.
                             slf.state_channels.extend(batch);
                             metric!(
-                                histogram("project_state.request.pending") =
+                                histogram("project_state.pending") =
                                     slf.state_channels.len() as u64
                             );
                         }
