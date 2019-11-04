@@ -23,6 +23,11 @@ PII_VARS = {
 }
 
 
+def test_valid_platforms():
+    assert len(semaphore.VALID_PLATFORMS) > 0
+    assert "native" in semaphore.VALID_PLATFORMS
+
+
 def test_split_chunks():
     chunks = semaphore.split_chunks(TEXT, REMARKS)
     assert chunks == CHUNKS

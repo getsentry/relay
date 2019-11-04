@@ -302,6 +302,7 @@ pub struct Event {
 
     /// Deprecated event stacktrace.
     #[metastructure(skip_serialization = "empty")]
+    #[metastructure(legacy_alias = "sentry.interfaces.Stacktrace")]
     pub stacktrace: Annotated<Stacktrace>,
 
     /// Simplified template error location information.

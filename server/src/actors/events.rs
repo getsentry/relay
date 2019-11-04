@@ -144,14 +144,6 @@ impl EventProcessor {
             event.id = Annotated::new(message.event_id);
         }
 
-        metric!(timer("event_processing.pii"), {
-            for pii_config in message.project_state.config.pii_configs() {
-                let mut processor = PiiProcessor::new(pii_config);
-                process_value(&mut event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::InvalidEvent)?;
-            }
-        });
-
         #[cfg(feature = "processing")]
         {
             if self.config.processing_enabled() {
@@ -175,7 +167,6 @@ impl EventProcessor {
                     key_id,
                     protocol_version: Some(auth.version().to_string()),
                     grouping_config: message.project_state.config.grouping_config.clone(),
-                    valid_platforms: Default::default(), // TODO(ja): Pending removal
                     max_secs_in_future: Some(self.config.max_secs_in_future()),
                     max_secs_in_past: Some(self.config.max_secs_in_past()),
                     enable_trimming: Some(true),
@@ -207,7 +198,7 @@ impl EventProcessor {
                     // TODO: Remove this once cutover is complete.
                     event.other.insert(
                         "_relay_processed".to_owned(),
-                        Annotated::new(Value::Bool(false)),
+                        Annotated::new(Value::Bool(true)),
                     );
                 }
             }
@@ -237,6 +228,16 @@ impl EventProcessor {
                 }
             }
         }
+
+        // Run PII stripping after normalization because normalization adds IP addresses to the
+        // event.
+        metric!(timer("event_processing.pii"), {
+            for pii_config in message.project_state.config.pii_configs() {
+                let mut processor = PiiProcessor::new(pii_config);
+                process_value(&mut event, &mut processor, ProcessingState::root())
+                    .map_err(ProcessingError::InvalidEvent)?;
+            }
+        });
 
         let data = metric! {timer("event_processing.serialization"), {
             event

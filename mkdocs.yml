@@ -8,7 +8,7 @@ nav:
   - index.md
   - options.md
   - project-config.md
-  - PII stripping and datascrubbing:
+  - PII and datascrubbing:
     - pii-config/index.md
     - pii-config/types.md
     - pii-config/methods.md
@@ -16,8 +16,10 @@ nav:
   - Architecture:
     - architecture/index.md
     - architecture/actors.md
+    - architecture/ingest-event-path.md
 
 markdown_extensions:
+  - admonition: {}
   - tables: {}
   - codehilite: {}
 
