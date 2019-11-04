@@ -457,12 +457,76 @@ impl Csp {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExpectCtStatus {
+    Unknown,
+    Valid,
+    Invalid,
+}
+
+impl fmt::Display for ExpectCtStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::Unknown => write!(f, "unknown"),
+            Self::Valid => write!(f, "valid"),
+            Self::Invalid => write!(f, "invalid"),
+        }
+    }
+}
+
+impl FromStr for ExpectCtStatus {
+    type Err = InvalidSecurityError;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Ok(match string {
+            "unknown" => Self::Unknown,
+            "valid" => Self::Valid,
+            "invalid" => Self::Invalid,
+            _ => return Err(InvalidSecurityError),
+        })
+    }
+}
+
+impl_str_serde!(ExpectCtStatus);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExpectCtSource {
+    TlsExtension,
+    Ocsp,
+    Embedded,
+}
+
+impl fmt::Display for ExpectCtSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::TlsExtension => write!(f, "tls-extension"),
+            Self::Ocsp => write!(f, "ocsp"),
+            Self::Embedded => write!(f, "embedded"),
+        }
+    }
+}
+
+impl FromStr for ExpectCtSource {
+    type Err = InvalidSecurityError;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Ok(match string {
+            "tls-extension" => Self::TlsExtension,
+            "ocsp" => Self::Ocsp,
+            "embedded" => Self::Embedded,
+            _ => return Err(InvalidSecurityError),
+        })
+    }
+}
+
+impl_str_serde!(ExpectCtSource);
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 struct SingleCertificateTimestampRaw {
     version: Option<i64>,
-    status: Option<String>,
-    source: Option<String>,
+    status: Option<ExpectCtStatus>,
+    source: Option<ExpectCtSource>,
     serialized_stc: Option<String>,
 }
 
@@ -470,8 +534,8 @@ impl SingleCertificateTimestampRaw {
     fn into_protocol(self) -> SingleCertificateTimestamp {
         SingleCertificateTimestamp {
             version: Annotated::from(self.version),
-            status: Annotated::from(self.status),
-            source: Annotated::from(self.source),
+            status: Annotated::from(self.status.map(|s| s.to_string())),
+            source: Annotated::from(self.source.map(|s| s.to_string())),
             serialized_stc: Annotated::from(self.serialized_stc),
         }
     }
@@ -848,6 +912,7 @@ impl FromStr for ExpectStapleResponseStatus {
         })
     }
 }
+
 impl_str_serde!(ExpectStapleResponseStatus);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -896,13 +961,13 @@ struct ExpectStapleRaw {
     #[serde(skip_serializing_if = "Option::is_none")]
     response_status: Option<ExpectStapleResponseStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    ocsp_response: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     cert_status: Option<ExpectStapleCertStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     served_certificate_chain: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     validated_certificate_chain: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ocsp_response: Option<String>,
 }
 
 impl ExpectStapleRaw {
@@ -987,7 +1052,7 @@ pub struct ExpectStaple {
     cert_status: Annotated<String>,
     served_certificate_chain: Annotated<Array<String>>,
     validated_certificate_chain: Annotated<Array<String>>,
-    ocsp_response: Annotated<String>,
+    ocsp_response: Annotated<Value>,
 }
 
 impl ExpectStaple {
