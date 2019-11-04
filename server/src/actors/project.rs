@@ -848,10 +848,10 @@ impl ProjectCache {
             .collect();
 
         log::debug!(
-            "updating project states for {} projects (attempt {}, {} additional states pending)",
+            "updating project states for {}/{} projects (attempt {})",
             channels.len(),
+            self.state_channels.len(),
             self.backoff.attempt(),
-            self.state_channels.len()
         );
 
         metric!(counter("project_state.request.size") += channels.len() as i64);
