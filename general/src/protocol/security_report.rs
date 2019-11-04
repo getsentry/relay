@@ -649,7 +649,7 @@ impl fmt::Display for ExpectStapleResponseStatus {
         match *self {
             Self::Missing => write!(f, "MISSING"),
             Self::Provided => write!(f, "PROVIDED"),
-            Self::ErrorResponse => write!(f, "ERROR_RESPONSE-response"),
+            Self::ErrorResponse => write!(f, "ERROR_RESPONSE"),
             Self::BadProducedAt => write!(f, "BAD_PRODUCED_AT"),
             Self::NoMatchingResponse => write!(f, "NO_MATCHING_RESPONSE"),
             Self::InvalidDate => write!(f, "INVALID_DATE"),
