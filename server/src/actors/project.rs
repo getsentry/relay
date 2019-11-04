@@ -879,7 +879,7 @@ impl ProjectCache {
         self.updates
             .retain(|update| !batch.contains_key(&update.project_id));
         self.updates
-            .extend(batch.keys().copied().map(ProjectUpdate::new));
+            .extend(batch_ids.iter().copied().map(ProjectUpdate::new));
 
         metric!(timer("project_state.eviction.duration") = eviction_start.elapsed());
         metric!(counter("project_state.request.size") += batch.len() as i64);
