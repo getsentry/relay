@@ -883,7 +883,7 @@ impl ProjectCache {
 
         metric!(timer("project_state.eviction.duration") = eviction_start.elapsed());
         metric!(counter("project_state.request.size") += batch.len() as i64);
-        metric!(histogram("project_cache.size") = self.state_channels.len() as u64);
+        metric!(histogram("project_state.request.pending") = self.state_channels.len() as u64);
 
         let request = GetProjectStates {
             projects: batch_ids,
@@ -927,7 +927,8 @@ impl ProjectCache {
                             // have been pushed in the meanwhile. We will retry again shortly.
                             slf.state_channels.extend(batch);
                             metric!(
-                                histogram("project_cache.size") = slf.state_channels.len() as u64
+                                histogram("project_state.request.pending") =
+                                    slf.state_channels.len() as u64
                             );
                         }
                     }
