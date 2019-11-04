@@ -837,12 +837,21 @@ impl ProjectCache {
             return;
         }
 
-        let channels = mem::replace(&mut self.state_channels, HashMap::new());
+        let channels = self
+            .state_channels
+            .drain()
+            .take(self.max_query_batch_size())
+            .collect();
+
         log::debug!(
-            "updating project states for {} projects (attempt {})",
+            "updating project states for {} projects (attempt {}, {} additional states pending)",
             channels.len(),
             self.backoff.attempt(),
+            self.state_channels.len()
         );
+
+        metric!(counter("project_state.request.size") += channels.len());
+        metric!(counter("project_state.pending.size") += self.state_channels.len());
 
         let eviction_start = Instant::now();
 
