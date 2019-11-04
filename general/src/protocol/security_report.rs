@@ -228,16 +228,15 @@ impl CspRaw {
     }
 
     fn local_script_violation_type(&self) -> Option<&'static str> {
-        if self.is_local() {
-            if self.effective_directive == CspEffectiveDirective::ScriptSrc {
-                if self.violated_directive.contains("'unsafe-inline'") {
-                    return Some("unsafe-inline");
-                }
-                if self.violated_directive.contains("'unsafe-eval'") {
-                    return Some("unsafe-eval");
-                }
+        if self.is_local() && self.effective_directive == CspEffectiveDirective::ScriptSrc {
+            if self.violated_directive.contains("'unsafe-inline'") {
+                return Some("unsafe-inline");
+            }
+            if self.violated_directive.contains("'unsafe-eval'") {
+                return Some("unsafe-eval");
             }
         }
+
         None
     }
 
@@ -440,18 +439,14 @@ impl ExpectCtRaw {
             ),
             served_certificate_chain: Annotated::new(
                 self.served_certificate_chain
-                    .unwrap_or(vec![])
-                    .into_iter()
-                    .map(Annotated::from)
-                    .collect(),
+                    .map(|s| s.into_iter().map(Annotated::from).collect())
+                    .unwrap_or_default(),
             ),
 
             validated_certificate_chain: Annotated::new(
                 self.validated_certificate_chain
-                    .unwrap_or(vec![])
-                    .into_iter()
-                    .map(Annotated::from)
-                    .collect(),
+                    .map(|v| v.into_iter().map(Annotated::from).collect())
+                    .unwrap_or_default(),
             ),
             scts: Annotated::from(self.scts.map(|scts| {
                 scts.into_iter()
@@ -856,7 +851,7 @@ mod tests {
 
         let report: CspReportRaw = serde_json::from_str(csp_report_text).unwrap();
 
-        ::insta::assert_snapshot!(serde_json::to_string_pretty( & report).unwrap(),
+        insta::assert_snapshot!(serde_json::to_string_pretty( & report).unwrap(),
 @r###"
        ⋮{
        ⋮  "csp-report": {
