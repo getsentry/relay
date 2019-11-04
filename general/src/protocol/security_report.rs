@@ -339,6 +339,7 @@ impl Csp {
             .map_err(serde::de::Error::custom)?;
 
         Ok(Event {
+            logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_csp.get_message(effective_directive))),
             tags: Annotated::new(raw_csp.get_tags(effective_directive)),
             csp: Annotated::new(raw_csp.into_protocol(effective_directive)),
@@ -502,6 +503,7 @@ impl ExpectCt {
         let raw_expect_ct = raw_report.expect_ct_report;
 
         Ok(Event {
+            logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_expect_ct.get_message())),
             expectct: Annotated::new(raw_expect_ct.into_protocol()),
             ..Event::default()
@@ -615,6 +617,7 @@ impl Hpkp {
         let raw_hpkp = serde_json::from_slice::<HpkpRaw>(data)?;
 
         Ok(Event {
+            logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_hpkp.get_message())),
             hpkp: Annotated::new(raw_hpkp.into_protocol()),
             ..Event::default()
@@ -782,6 +785,7 @@ impl ExpectStaple {
         let raw_expect_staple = raw_report.expect_staple_report;
 
         Ok(Event {
+            logger: Annotated::new("csp".to_string()),
             logentry: Annotated::new(LogEntry::from(raw_expect_staple.get_message())),
             expectstaple: Annotated::new(raw_expect_staple.into_protocol()),
             ..Event::default()
