@@ -2,33 +2,137 @@
 //!
 //! The security interfaces are CSP, HPKP, ExpectCT and ExpectStaple.
 use std::collections::BTreeMap;
+use std::fmt;
+use std::str::FromStr;
 
+use chrono::{DateTime, Utc};
 use serde::de::{Error, IgnoredAny};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::protocol::{Event, LogEntry};
+use crate::protocol::{Event, LogEntry, PairList, TagEntry, Tags};
 use crate::types::{Annotated, Array, Object, Value};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct InvalidSecurityError;
+
+impl fmt::Display for InvalidSecurityError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid security report")
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CspEffectiveDirective {
+    BaseUri,
+    ChildSrc,
+    ConnectSrc,
+    DefaultSrc,
+    FontSrc,
+    FormAction,
+    FrameAncestors,
+    FrameSrc,
+    ImgSrc,
+    ManifestSrc,
+    MediaSrc,
+    ObjectSrc,
+    PluginTypes,
+    PrefetchSrc,
+    Referrer,
+    ScriptSrc,
+    ScriptSrcAttr,
+    ScriptSrcElem,
+    StyleSrc,
+    StyleSrcElem,
+    StyleSrcAttr,
+    UpgradeInsecureRequests,
+    WorkerSrc,
+    // Sandbox , // unsupported
+}
+
+impl fmt::Display for CspEffectiveDirective {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::BaseUri => write!(f, "base-uri"),
+            Self::ChildSrc => write!(f, "child-src"),
+            Self::ConnectSrc => write!(f, "connect-src"),
+            Self::DefaultSrc => write!(f, "default-src"),
+            Self::FontSrc => write!(f, "font-src"),
+            Self::FormAction => write!(f, "form-action"),
+            Self::FrameAncestors => write!(f, "frame-ancestors"),
+            Self::FrameSrc => write!(f, "frame-src"),
+            Self::ImgSrc => write!(f, "img-src"),
+            Self::ManifestSrc => write!(f, "manifest-src"),
+            Self::MediaSrc => write!(f, "media-src"),
+            Self::ObjectSrc => write!(f, "object-src"),
+            Self::PluginTypes => write!(f, "plugin-types"),
+            Self::PrefetchSrc => write!(f, "prefetch-src"),
+            Self::Referrer => write!(f, "referrer"),
+            Self::ScriptSrc => write!(f, "script-src"),
+            Self::ScriptSrcAttr => write!(f, "script-src-attr"),
+            Self::ScriptSrcElem => write!(f, "script-src-elem"),
+            Self::StyleSrc => write!(f, "style-src"),
+            Self::StyleSrcElem => write!(f, "style-src-elem"),
+            Self::StyleSrcAttr => write!(f, "style-src-attr"),
+            Self::UpgradeInsecureRequests => write!(f, "upgrade-insecure-requests"),
+            Self::WorkerSrc => write!(f, "worker-src"),
+        }
+    }
+}
+
+impl FromStr for CspEffectiveDirective {
+    type Err = InvalidSecurityError;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Ok(match string {
+            "base-uri" => Self::BaseUri,
+            "child-src" => Self::ChildSrc,
+            "connect-src" => Self::ConnectSrc,
+            "default-src" => Self::DefaultSrc,
+            "font-src" => Self::FontSrc,
+            "form-action" => Self::FormAction,
+            "frame-ancestors" => Self::FrameAncestors,
+            "frame-src" => Self::FrameSrc,
+            "img-src" => Self::ImgSrc,
+            "manifest-src" => Self::ManifestSrc,
+            "media-src" => Self::MediaSrc,
+            "object-src" => Self::ObjectSrc,
+            "plugin-types" => Self::PluginTypes,
+            "prefetch-src" => Self::PrefetchSrc,
+            "referrer" => Self::Referrer,
+            "script-src" => Self::ScriptSrc,
+            "script-src-attr" => Self::ScriptSrcAttr,
+            "script-src-elem" => Self::ScriptSrcElem,
+            "style-src" => Self::StyleSrc,
+            "style-src-elem" => Self::StyleSrcElem,
+            "style-src-attr" => Self::StyleSrcAttr,
+            "upgrade-insecure-requests" => Self::UpgradeInsecureRequests,
+            "worker-src" => Self::WorkerSrc,
+            _ => return Err(InvalidSecurityError),
+        })
+    }
+}
+
+impl_str_serde!(CspEffectiveDirective);
 
 /// Inner (useful) part of a CSP report.
 ///
 /// See `Csp` for meaning of fields.
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 struct CspRaw {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    effective_directive: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    blocked_uri: Option<String>,
+    effective_directive: CspEffectiveDirective,
+    #[serde(default = "CspRaw::default_blocked_uri")]
+    blocked_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     document_uri: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     original_policy: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    referrer: Option<String>,
+    #[serde(default = "String::new")]
+    referrer: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     status_code: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    violated_directive: Option<String>,
+    #[serde(default = "String::new")]
+    violated_directive: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     source_file: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -46,15 +150,14 @@ struct CspRaw {
 
 impl CspRaw {
     fn get_message(&self) -> String {
+        //TODO construct a &str
         let directive = self
             .local_script_violation_type()
-            .or_else(|| self.effective_directive.as_ref().map(String::as_str))
-            .unwrap_or("");
+            .map(str::to_string)
+            .unwrap_or_else(|| self.effective_directive.to_string());
 
-        let is_local = CspRaw::is_local(&self.blocked_uri);
-
-        if is_local {
-            match directive {
+        if self.is_local() {
+            match directive.as_str() {
                 "child-src" => "Blocked inline 'child'".to_string(),
                 "connect-src" => "Blocked inline 'connect'".to_string(),
                 "font-src" => "Blocked inline 'font'".to_string(),
@@ -74,9 +177,9 @@ impl CspRaw {
                 directive => format!("Blocked inline {}", directive),
             }
         } else {
-            let uri = self.blocked_uri.as_ref().map(String::as_str).unwrap_or("");
+            let uri = &self.blocked_uri;
 
-            match directive {
+            match directive.as_str() {
                 "child-src" => format!("Blocked 'child' from '{}'", uri),
                 "connect-src" => format!("Blocked 'connect' from '{}'", uri),
                 "font-src" => format!("Blocked 'font' from '{}'", uri),
@@ -98,9 +201,13 @@ impl CspRaw {
         }
     }
 
+    fn default_blocked_uri() -> String {
+        "self".to_string()
+    }
+
     fn into_protocol(self) -> Csp {
         Csp {
-            effective_directive: Annotated::from(self.effective_directive),
+            effective_directive: Annotated::from(self.effective_directive.to_string()),
             blocked_uri: Annotated::from(self.blocked_uri),
             document_uri: Annotated::from(self.document_uri),
             original_policy: Annotated::from(self.original_policy),
@@ -121,15 +228,12 @@ impl CspRaw {
     }
 
     fn local_script_violation_type(&self) -> Option<&'static str> {
-        if CspRaw::is_local(&self.blocked_uri) {
-            let effective_directive = self.effective_directive.as_ref()?;
-            let violated_directive = self.violated_directive.as_ref()?;
-
-            if effective_directive == "script_src" {
-                if violated_directive.contains("'unsafe-inline'") {
+        if self.is_local() {
+            if self.effective_directive == CspEffectiveDirective::ScriptSrc {
+                if self.violated_directive.contains("'unsafe-inline'") {
                     return Some("unsafe-inline");
                 }
-                if violated_directive.contains("'unsafe-eval'") {
+                if self.violated_directive.contains("'unsafe-eval'") {
                     return Some("unsafe-eval");
                 }
             }
@@ -137,21 +241,43 @@ impl CspRaw {
         None
     }
 
-    fn is_local(uri: &Option<String>) -> bool {
-        match uri {
-            None => true,
-            Some(uri) => match uri.as_str() {
-                "" | "self" | "'self'" => true,
-                _ => false,
-            },
+    fn sanitized_blocked_uri(&self) -> String {
+        let mut uri = self.blocked_uri.clone();
+
+        if uri.starts_with("https://api.stripe.com/") {
+            if let Some(index) = uri.find(&['#', '?'][..]) {
+                uri.truncate(index);
+            }
         }
+
+        uri
+    }
+
+    fn is_local(&self) -> bool {
+        match self.blocked_uri.as_str() {
+            "" | "self" | "'self'" => true,
+            _ => false,
+        }
+    }
+
+    fn get_tags(&self) -> Tags {
+        Tags(PairList::from(vec![
+            Annotated::new(TagEntry(
+                Annotated::new("effective-directive".to_string()),
+                Annotated::new(self.effective_directive.to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("blocked-uri".to_string()),
+                Annotated::new(self.sanitized_blocked_uri()),
+            )),
+        ]))
     }
 }
 
 /// Defines external, RFC-defined schema we accept, while `Csp` defines our own schema.
 ///
 /// See `Csp` for meaning of fields.
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 struct CspReportRaw {
     csp_report: CspRaw,
@@ -211,6 +337,7 @@ impl Csp {
 
         Ok(Event {
             logentry: Annotated::new(LogEntry::from(raw_csp.get_message())),
+            tags: Annotated::new(raw_csp.get_tags()),
             csp: Annotated::new(raw_csp.into_protocol()),
             ..Event::default()
         })
@@ -240,17 +367,62 @@ impl SingleCertificateTimestampRaw {
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 struct ExpectCtRaw {
-    date_time: Option<String>,
-    host_name: Option<String>,
+    #[serde(with = "serde_date_time_3339")]
+    date_time: Option<DateTime<Utc>>,
+    host_name: String,
     port: Option<i64>,
-    effective_expiration_date: Option<String>,
-    served_certificate_chain: Option<String>,
-    validated_certificate_chain: Option<String>,
+    effective_expiration_date: Option<DateTime<Utc>>,
+    served_certificate_chain: Option<Vec<String>>,
+    validated_certificate_chain: Option<Vec<String>>,
     scts: Option<Vec<SingleCertificateTimestampRaw>>,
-    failure_mode: Option<String>,
-    test_report: Option<String>,
-    #[serde(flatten)]
-    other: BTreeMap<String, serde_json::Value>,
+}
+
+mod serde_date_time_3339 {
+    use super::*;
+    use serde::de::Visitor;
+
+    pub fn serialize<S>(date_time: &Option<DateTime<Utc>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match date_time {
+            None => serializer.serialize_none(),
+            Some(d) => serializer.serialize_str(&d.to_rfc3339()),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DateTime<Utc>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct DateTimeVisitor;
+
+        impl<'de> Visitor<'de> for DateTimeVisitor {
+            type Value = Option<DateTime<Utc>>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("expected a date-time in RFC 3339 format")
+            }
+
+            fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                DateTime::parse_from_rfc3339(s)
+                    .map(|d| Some(d.with_timezone(&Utc)))
+                    .map_err(serde::de::Error::custom)
+            }
+
+            fn visit_none<E>(self) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                Ok(None)
+            }
+        }
+
+        deserializer.deserialize_any(DateTimeVisitor)
+    }
 }
 
 impl ExpectCtRaw {
@@ -260,24 +432,32 @@ impl ExpectCtRaw {
 
     fn into_protocol(self) -> ExpectCt {
         ExpectCt {
-            date_time: Annotated::from(self.date_time),
+            date_time: Annotated::from(self.date_time.map(|d| d.to_rfc3339())),
             host_name: Annotated::from(self.host_name),
             port: Annotated::from(self.port),
-            effective_expiration_date: Annotated::from(self.effective_expiration_date),
-            served_certificate_chain: Annotated::from(self.served_certificate_chain),
-            validated_certificate_chain: Annotated::from(self.validated_certificate_chain),
+            effective_expiration_date: Annotated::from(
+                self.effective_expiration_date.map(|d| d.to_rfc3339()),
+            ),
+            served_certificate_chain: Annotated::new(
+                self.served_certificate_chain
+                    .unwrap_or(vec![])
+                    .into_iter()
+                    .map(Annotated::from)
+                    .collect(),
+            ),
+
+            validated_certificate_chain: Annotated::new(
+                self.validated_certificate_chain
+                    .unwrap_or(vec![])
+                    .into_iter()
+                    .map(Annotated::from)
+                    .collect(),
+            ),
             scts: Annotated::from(self.scts.map(|scts| {
                 scts.into_iter()
                     .map(|elm| Annotated::from(elm.into_protocol()))
                     .collect()
             })),
-            failure_mode: Annotated::from(self.failure_mode),
-            test_report: Annotated::from(self.test_report),
-            other: self
-                .other
-                .into_iter()
-                .map(|(k, v)| (k, Annotated::from(v)))
-                .collect(),
         }
     }
 }
@@ -312,14 +492,9 @@ pub struct ExpectCt {
     pub port: Annotated<i64>,
     /// Date time in rfc3339 format
     pub effective_expiration_date: Annotated<String>,
-    pub served_certificate_chain: Annotated<String>,
-    pub validated_certificate_chain: Annotated<String>,
+    pub served_certificate_chain: Annotated<Array<String>>,
+    pub validated_certificate_chain: Annotated<Array<String>>,
     pub scts: Annotated<Array<SingleCertificateTimestamp>>,
-    pub failure_mode: Annotated<String>,
-    pub test_report: Annotated<String>,
-    /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(pii = "true", additional_properties)]
-    pub other: Object<Value>,
 }
 
 impl ExpectCt {
@@ -342,13 +517,13 @@ impl ExpectCt {
 #[serde(rename_all = "kebab-case")]
 struct HpkpRaw {
     #[serde(skip_serializing_if = "Option::is_none")]
-    date_time: Option<String>,
+    date_time: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hostname: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     port: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    effective_expiration_date: Option<String>,
+    effective_expiration_date: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     include_subdomains: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -373,10 +548,12 @@ impl HpkpRaw {
 
     fn into_protocol(self) -> Hpkp {
         Hpkp {
-            date_time: Annotated::from(self.date_time),
+            date_time: Annotated::from(self.date_time.map(|d| d.to_rfc3339())),
             hostname: Annotated::from(self.hostname),
             port: Annotated::from(self.port),
-            effective_expiration_date: Annotated::from(self.effective_expiration_date),
+            effective_expiration_date: Annotated::from(
+                self.effective_expiration_date.map(|d| d.to_rfc3339()),
+            ),
             include_subdomains: Annotated::from(self.include_subdomains),
             noted_hostname: Annotated::from(self.noted_hostname),
             served_certificate_chain: Annotated::from(
@@ -403,17 +580,13 @@ pub struct Hpkp {
     /// > Indicates the time the UA observed the Pin Validation failure.
     // TODO: Validate (RFC3339)
     pub date_time: Annotated<String>,
-
     /// > Hostname to which the UA made the original request that failed Pin Validation.
     pub hostname: Annotated<String>,
-
     /// > The port to which the UA made the original request that failed Pin Validation.
     pub port: Annotated<u64>,
-
     /// > Effective Expiration Date for the noted pins.
     // TODO: Validate (RFC3339)
     pub effective_expiration_date: Annotated<String>,
-
     /// > Indicates whether or not the UA has noted the includeSubDomains directive for the Known
     /// Pinned Host.
     pub include_subdomains: Annotated<bool>,
@@ -422,12 +595,10 @@ pub struct Hpkp {
     /// > allows operators to understand why Pin Validation was performed for, e.g., foo.example.com
     /// > when the noted Known Pinned Host was example.com with includeSubDomains set.
     pub noted_hostname: Annotated<String>,
-
     /// > The certificate chain, as served by the Known Pinned Host during TLS session setup.  It
     /// > is provided as an array of strings; each string pem1, ... pemN is the Privacy-Enhanced Mail
     /// > (PEM) representation of each X.509 certificate as described in [RFC7468].
     pub served_certificate_chain: Annotated<Array<String>>,
-
     /// > The certificate chain, as constructed by the UA during certificate chain verification.
     pub validated_certificate_chain: Annotated<Array<String>>,
 
@@ -461,18 +632,99 @@ struct ExpectStapleReportRaw {
     expect_staple_report: ExpectStapleRaw,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExpectStapleResponseStatus {
+    Missing,
+    Provided,
+    ErrorResponse,
+    BadProducedAt,
+    NoMatchingResponse,
+    InvalidDate,
+    ParseResponseError,
+    ParseResponseDataError,
+}
+
+impl fmt::Display for ExpectStapleResponseStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::Missing => write!(f, "MISSING"),
+            Self::Provided => write!(f, "PROVIDED"),
+            Self::ErrorResponse => write!(f, "ERROR_RESPONSE-response"),
+            Self::BadProducedAt => write!(f, "BAD_PRODUCED_AT"),
+            Self::NoMatchingResponse => write!(f, "NO_MATCHING_RESPONSE"),
+            Self::InvalidDate => write!(f, "INVALID_DATE"),
+            Self::ParseResponseError => write!(f, "PARSE_RESPONSE_ERROR"),
+            Self::ParseResponseDataError => write!(f, "PARSE_RESPONSE_DATA_ERROR"),
+        }
+    }
+}
+
+impl FromStr for ExpectStapleResponseStatus {
+    type Err = InvalidSecurityError;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Ok(match string {
+            "MISSING" => Self::Missing,
+            "PROVIDED" => Self::Provided,
+            "ERROR_RESPONSE" => Self::ErrorResponse,
+            "BAD_PRODUCED_AT" => Self::BadProducedAt,
+            "NO_MATCHING_RESPONSE" => Self::NoMatchingResponse,
+            "INVALID_DATE" => Self::InvalidDate,
+            "PARSE_RESPONSE_ERROR" => Self::ParseResponseError,
+            "PARSE_RESPONSE_DATA_ERROR" => Self::ParseResponseDataError,
+            _ => return Err(InvalidSecurityError),
+        })
+    }
+}
+impl_str_serde!(ExpectStapleResponseStatus);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExpectStapleCertStatus {
+    Good,
+    Revoked,
+    Unknown,
+}
+
+impl fmt::Display for ExpectStapleCertStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::Good => write!(f, "GOOD"),
+            Self::Revoked => write!(f, "REVOKED"),
+            Self::Unknown => write!(f, "UNKNOWN"),
+        }
+    }
+}
+
+impl FromStr for ExpectStapleCertStatus {
+    type Err = InvalidSecurityError;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Ok(match string {
+            "GOOD" => Self::Good,
+            "REVOKED" => Self::Revoked,
+            "UNKNOWN" => Self::Unknown,
+            _ => return Err(InvalidSecurityError),
+        })
+    }
+}
+
+impl_str_serde!(ExpectStapleCertStatus);
+
 /// Inner (useful) part of a Expect Stable report as sent by a user agent ( browser)
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 struct ExpectStapleRaw {
-    date_time: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    date_time: Option<DateTime<Utc>>,
     hostname: String,
-    port: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
-    effective_expiration_date: Option<String>,
-    response_status: String,
+    port: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    cert_status: Option<String>,
+    effective_expiration_date: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_status: Option<ExpectStapleResponseStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cert_status: Option<ExpectStapleCertStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     served_certificate_chain: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -489,12 +741,14 @@ impl ExpectStapleRaw {
 
     fn into_protocol(self) -> ExpectStaple {
         ExpectStaple {
-            date_time: Annotated::from(self.date_time),
+            date_time: Annotated::from(self.date_time.map(|d| d.to_rfc3339())),
             hostname: Annotated::from(self.hostname),
             port: Annotated::from(self.port),
-            effective_expiration_date: Annotated::from(self.effective_expiration_date),
-            response_status: Annotated::from(self.response_status),
-            cert_status: Annotated::from(self.cert_status),
+            effective_expiration_date: Annotated::from(
+                self.effective_expiration_date.map(|d| d.to_rfc3339()),
+            ),
+            response_status: Annotated::from(self.response_status.map(|rs| rs.to_string())),
+            cert_status: Annotated::from(self.cert_status.map(|cs| cs.to_string())),
             served_certificate_chain: Annotated::from(
                 self.served_certificate_chain
                     .map(|cert_chain| cert_chain.into_iter().map(Annotated::from).collect()),
@@ -602,8 +856,8 @@ mod tests {
 
         let report: CspReportRaw = serde_json::from_str(csp_report_text).unwrap();
 
-        ::insta::assert_snapshot!(serde_json::to_string_pretty(&report).unwrap(),
-        @r###"
+        ::insta::assert_snapshot!(serde_json::to_string_pretty( & report).unwrap(),
+@r###"
        ⋮{
        ⋮  "csp-report": {
        ⋮    "blocked-uri": "http://evilhackerscripts.com",
