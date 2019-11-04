@@ -907,7 +907,9 @@ impl ProjectCache {
                         slf.backoff.reset();
 
                         // count number of project states returned (via http requests)
-                        metric!(counter("project_state.received") += response.configs.len() as i64);
+                        metric!(
+                            histogram("project_state.received") = response.configs.len() as u64
+                        );
                         for (id, channel) in batch {
                             let state = response
                                 .configs
