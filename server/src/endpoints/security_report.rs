@@ -2,11 +2,13 @@
 
 use actix_web::actix::ResponseFuture;
 use actix_web::http::Method;
-use actix_web::{pred, HttpRequest, HttpResponse, Request};
+use actix_web::{pred, HttpRequest, HttpResponse, Query, Request};
 use bytes::Bytes;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-use semaphore_general::protocol::{Csp, EventId, ExpectCt, ExpectStaple, Hpkp, SecurityReportType};
+use semaphore_general::protocol::{
+    Csp, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString, SecurityReportType,
+};
 use semaphore_general::types::Annotated;
 
 use crate::actors::events::EventError;
@@ -14,17 +16,29 @@ use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
-fn process_security_report(data: Bytes) -> Result<Bytes, BadStoreRequest> {
+#[derive(Debug, Deserialize)]
+struct SecurityReportParams {
+    sentry_release: Option<String>,
+    sentry_environment: Option<String>,
+}
+
+fn process_security_report(
+    data: Bytes,
+    params: SecurityReportParams,
+) -> Result<Bytes, BadStoreRequest> {
     let security_report_type = SecurityReportType::from_json(&data)
         .map_err(|_| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReportType))?;
 
-    let event = match security_report_type {
+    let mut event = match security_report_type {
         SecurityReportType::Csp => Csp::parse_event(&data),
         SecurityReportType::ExpectCt => ExpectCt::parse_event(&data),
         SecurityReportType::ExpectStaple => ExpectStaple::parse_event(&data),
         SecurityReportType::Hpkp => Hpkp::parse_event(&data),
     }
     .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReport(e)))?;
+
+    event.release = Annotated::from(params.sentry_release.map(LenientString));
+    event.environment = Annotated::from(params.sentry_environment);
 
     let json_string = Annotated::new(event)
         .to_json()
@@ -67,11 +81,15 @@ fn store_security_report(
     meta: EventMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
+    params: Query<SecurityReportParams>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    let future =
-        handle_store_like_request(meta, start_time, request, process_security_report, |id| {
-            HttpResponse::Ok().json(SecurityReportResponse { id })
-        });
+    let future = handle_store_like_request(
+        meta,
+        start_time,
+        request,
+        move |data| process_security_report(data, params.into_inner()),
+        |id| HttpResponse::Ok().json(SecurityReportResponse { id }),
+    );
 
     Box::new(future)
 }
