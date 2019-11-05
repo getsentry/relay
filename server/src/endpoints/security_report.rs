@@ -21,39 +21,19 @@ fn event_to_bytes(event: Event) -> Result<Bytes, serde_json::Error> {
     Ok(Bytes::from(json_string))
 }
 
-#[derive(Debug)]
-enum SecurityReportError {
-    InvalidSecurityReport(serde_json::Error),
-    InvalidSecurityReportType(serde_json::Error),
-}
-
-fn security_report_to_event(data: Bytes) -> Result<Bytes, SecurityReportError> {
+fn process_security_report(data: Bytes) -> Result<Bytes, BadStoreRequest> {
     let event = match SecurityReportType::from_json(&data)
-        .map_err(SecurityReportError::InvalidSecurityReportType)?
+        .map_err(|_| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReportType))?
     {
         SecurityReportType::Csp => Csp::parse_event(&data),
         SecurityReportType::ExpectCt => ExpectCt::parse_event(&data),
         SecurityReportType::ExpectStaple => ExpectStaple::parse_event(&data),
         SecurityReportType::Hpkp => Hpkp::parse_event(&data),
     }
-    .map_err(SecurityReportError::InvalidSecurityReport)?;
+    .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReport(e)))?;
 
-    event_to_bytes(event).map_err(SecurityReportError::InvalidSecurityReport)
-}
-
-fn process_security_report(data: Bytes) -> Result<Bytes, BadStoreRequest> {
-    security_report_to_event(data)
-        // Return a ProcessingFailed error here to avoid introducing an `InvalidJson` error variant
-        // into BadStoreRequest. Eventually, this logic will be moved into `EventProcessor` and all
-        // these errors will happen during processing, rather than in the endpoint.
-        .map_err(|e| match e {
-            SecurityReportError::InvalidSecurityReport(e) => {
-                BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReport(e))
-            }
-            SecurityReportError::InvalidSecurityReportType(_) => {
-                BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReportType)
-            }
-        })
+    event_to_bytes(event)
+        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReport(e)))
 }
 
 #[derive(Serialize)]
