@@ -1158,8 +1158,99 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_deserialize_csp_report() {
-        let csp_report_text = r#"{
+    fn test_unsplit_uri() {
+        assert_eq!(unsplit_uri("", ""), "");
+        assert_eq!(unsplit_uri("data", ""), "data:");
+        assert_eq!(unsplit_uri("data", "foo"), "data://foo");
+        assert_eq!(unsplit_uri("http", ""), "http://");
+        assert_eq!(unsplit_uri("http", "foo"), "http://foo");
+    }
+
+    #[test]
+    fn test_csp_basic() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com",
+                "violated-directive": "style-src cdn.example.com",
+                "blocked-uri": "http://example.com/lol.css",
+                "effective-directive": "style-src"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+
+        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        {
+          "culprit": "style-src cdn.example.com",
+          "logentry": {
+            "formatted": "Blocked 'style' from 'example.com'"
+          },
+          "request": {
+            "url": "http://example.com"
+          },
+          "tags": [
+            [
+              "effective-directive",
+              "style-src"
+            ],
+            [
+              "blocked-uri",
+              "http://example.com/lol.css"
+            ]
+          ],
+          "csp": {
+            "effective_directive": "style-src",
+            "blocked_uri": "http://example.com/lol.css",
+            "document_uri": "http://example.com",
+            "violated_directive": "style-src cdn.example.com"
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_csp_coerce_blocked_uri_if_missing() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com",
+                "effective-directive": "script-src"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+
+        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        {
+          "culprit": "",
+          "logentry": {
+            "formatted": "Blocked unsafe (eval() or inline) 'script'"
+          },
+          "request": {
+            "url": "http://example.com"
+          },
+          "tags": [
+            [
+              "effective-directive",
+              "script-src"
+            ],
+            [
+              "blocked-uri",
+              "self"
+            ]
+          ],
+          "csp": {
+            "effective_directive": "script-src",
+            "blocked_uri": "self",
+            "document_uri": "http://example.com",
+            "violated_directive": ""
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_csp_msdn() {
+        let json = r#"{
             "csp-report": {
                 "document-uri": "https://example.com/foo/bar",
                 "referrer": "https://www.google.com/",
@@ -1169,20 +1260,361 @@ mod tests {
             }
         }"#;
 
-        let report: CspReportRaw = serde_json::from_str(csp_report_text).unwrap();
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
 
-        insta::assert_snapshot!(serde_json::to_string_pretty( & report).unwrap(),
-@r###"
-       ⋮{
-       ⋮  "csp-report": {
-       ⋮    "blocked-uri": "http://evilhackerscripts.com",
-       ⋮    "document-uri": "https://example.com/foo/bar",
-       ⋮    "original-policy": "default-src self; report-uri /csp-hotline.php",
-       ⋮    "referrer": "https://www.google.com/",
-       ⋮    "violated-directive": "default-src self"
-       ⋮  }
-       ⋮}
+        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        {
+          "culprit": "default-src self",
+          "logentry": {
+            "formatted": "Blocked default-src from evilhackerscripts.com "
+          },
+          "request": {
+            "url": "https://example.com/foo/bar",
+            "headers": [
+              [
+                "Referer",
+                "https://www.google.com/"
+              ]
+            ]
+          },
+          "tags": [
+            [
+              "effective-directive",
+              "default-src"
+            ],
+            [
+              "blocked-uri",
+              "http://evilhackerscripts.com"
+            ]
+          ],
+          "csp": {
+            "effective_directive": "default-src",
+            "blocked_uri": "http://evilhackerscripts.com",
+            "document_uri": "https://example.com/foo/bar",
+            "original_policy": "default-src self; report-uri /csp-hotline.php",
+            "referrer": "https://www.google.com/",
+            "violated_directive": "default-src self"
+          }
+        }
         "###);
+    }
+
+    #[test]
+    fn test_csp_real() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "https://sentry.io/sentry/csp/issues/88513416/",
+                "referrer": "https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/",
+                "violated-directive": "script-src",
+                "effective-directive": "script-src",
+                "original-policy": "default-src *; script-src 'make_csp_snapshot' 'unsafe-eval' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src 'make_csp_snapshot' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7",
+                "disposition": "enforce",
+                "blocked-uri": "http://baddomain.com/test.js?_=1515535030116",
+                "line-number": 24,
+                "column-number": 66270,
+                "source-file": "https://e90d271df3e973c7.global.ssl.fastly.net/_static/f0c7c026a4b2a3d2b287ae2d012c9924/sentry/dist/vendor.js",
+                "status-code": 0,
+                "script-sample": ""
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+
+        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        {
+          "culprit": "script-src",
+          "logentry": {
+            "formatted": "Blocked 'script' from 'baddomain.com'"
+          },
+          "request": {
+            "url": "https://sentry.io/sentry/csp/issues/88513416/",
+            "headers": [
+              [
+                "Referer",
+                "https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/"
+              ]
+            ]
+          },
+          "tags": [
+            [
+              "effective-directive",
+              "script-src"
+            ],
+            [
+              "blocked-uri",
+              "http://baddomain.com/test.js?_=1515535030116"
+            ]
+          ],
+          "csp": {
+            "effective_directive": "script-src",
+            "blocked_uri": "http://baddomain.com/test.js?_=1515535030116",
+            "document_uri": "https://sentry.io/sentry/csp/issues/88513416/",
+            "original_policy": "default-src *; script-src 'make_csp_snapshot' 'unsafe-eval' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src 'make_csp_snapshot' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7",
+            "referrer": "https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/",
+            "status_code": 0,
+            "violated_directive": "script-src",
+            "source_file": "https://e90d271df3e973c7.global.ssl.fastly.net/_static/f0c7c026a4b2a3d2b287ae2d012c9924/sentry/dist/vendor.js",
+            "line_number": 24,
+            "column_number": 66270,
+            "script_sample": "",
+            "disposition": "enforce"
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_csp_culprit_0() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "style-src http://cdn.example.com",
+                "effective-directive": "style-src"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(event.culprit, @r###""style-src http://cdn.example.com""###);
+    }
+
+    #[test]
+    fn test_csp_culprit_1() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "style-src cdn.example.com",
+                "effective-directive": "style-src"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(event.culprit, @r###""style-src cdn.example.com""###);
+    }
+
+    #[test]
+    fn test_csp_culprit_2() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "https://example.com/foo",
+                "violated-directive": "style-src cdn.example.com",
+                "effective-directive": "style-src"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(event.culprit, @r###""style-src cdn.example.com""###);
+    }
+
+    #[test]
+    fn test_csp_culprit_3() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "style-src https://cdn.example.com",
+                "effective-directive": "style-src"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(event.culprit, @r###""style-src https://cdn.example.com""###);
+    }
+
+    #[test]
+    fn test_csp_culprit_4() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "style-src http://example.com",
+                "effective-directive": "style-src"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(event.culprit, @r###""style-src \'self\'""###);
+    }
+
+    #[test]
+    fn test_csp_culprit_5() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "style-src http://example2.com example.com",
+                "effective-directive": "style-src"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(event.culprit, @r###""style-src http://example2.com \'self\'""###);
+    }
+
+    #[test]
+    fn test_csp_tags_stripe() {
+        // This is a regression test for potential PII in stripe URLs. PII stripping used to skip
+        // report interfaces, which is why there is special handling.
+
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "https://example.com",
+                "blocked-uri": "https://api.stripe.com/v1/tokens?card[number]=xxx",
+                "effective-directive": "script-src"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(event.tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "effective-directive",
+                        "script-src",
+                    ),
+                    TagEntry(
+                        "blocked-uri",
+                        "https://api.stripe.com/v1/tokens",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_csp_get_message_0() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "img-src",
+                "blocked-uri": "http://google.com/foo"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let message = &event.logentry.value().unwrap().formatted;
+        insta::assert_debug_snapshot!(message, @r###""Blocked \'image\' from \'google.com\'""###);
+    }
+
+    #[test]
+    fn test_csp_get_message_1() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "style-src",
+                "blocked-uri": ""
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let message = &event.logentry.value().unwrap().formatted;
+        insta::assert_debug_snapshot!(message, @r###""Blocked inline \'style\'""###);
+    }
+
+    #[test]
+    fn test_csp_get_message_2() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src",
+                "blocked-uri": "",
+                "violated-directive": "script-src 'unsafe-inline'"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let message = &event.logentry.value().unwrap().formatted;
+        insta::assert_debug_snapshot!(message, @r###""Blocked unsafe inline \'script\'""###);
+    }
+
+    #[test]
+    fn test_csp_get_message_3() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src",
+                "blocked-uri": "",
+                "violated-directive": "script-src 'unsafe-eval'"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let message = &event.logentry.value().unwrap().formatted;
+        insta::assert_debug_snapshot!(message, @r###""Blocked unsafe eval() \'script\'""###);
+    }
+
+    #[test]
+    fn test_csp_get_message_4() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src",
+                "blocked-uri": "",
+                "violated-directive": "script-src example.com"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let message = &event.logentry.value().unwrap().formatted;
+        insta::assert_debug_snapshot!(message, @r###""Blocked unsafe (eval() or inline) \'script\'""###);
+    }
+
+    #[test]
+    fn test_csp_get_message_5() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src",
+                "blocked-uri": "data:text/plain;base64,SGVsbG8sIFdvcmxkIQ%3D%3D"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let message = &event.logentry.value().unwrap().formatted;
+        insta::assert_debug_snapshot!(message, @r###""Blocked \'script\' from \'data:\'""###);
+    }
+
+    #[test]
+    fn test_csp_get_message_6() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src",
+                "blocked-uri": "data"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let message = &event.logentry.value().unwrap().formatted;
+        insta::assert_debug_snapshot!(message, @r###""Blocked \'script\' from \'data:\'""###);
+    }
+
+    #[test]
+    fn test_csp_get_message_7() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "style-src-elem",
+                "blocked-uri": "http://fonts.google.com/foo"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let message = &event.logentry.value().unwrap().formatted;
+        insta::assert_debug_snapshot!(message, @r###""Blocked \'style\' from \'fonts.google.com\'""###);
+    }
+
+    #[test]
+    fn test_csp_get_message_8() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src-elem",
+                "blocked-uri": "http://cdn.ajaxapis.com/foo"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let message = &event.logentry.value().unwrap().formatted;
+        insta::assert_debug_snapshot!(message, @r###""Blocked \'script\' from \'cdn.ajaxapis.com\'""###);
     }
 
     #[test]
