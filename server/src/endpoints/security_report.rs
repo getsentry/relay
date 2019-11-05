@@ -21,15 +21,24 @@ fn event_to_bytes(event: Event) -> Result<Bytes, serde_json::Error> {
     Ok(Bytes::from(json_string))
 }
 
-fn security_report_to_event(data: Bytes) -> Result<Bytes, serde_json::Error> {
-    let event = match SecurityReportType::from_json(&data)? {
-        SecurityReportType::Csp => Csp::parse_event(&data)?,
-        SecurityReportType::ExpectCt => ExpectCt::parse_event(&data)?,
-        SecurityReportType::ExpectStaple => ExpectStaple::parse_event(&data)?,
-        SecurityReportType::Hpkp => Hpkp::parse_event(&data)?,
-    };
+#[derive(Debug)]
+enum SecurityReportError {
+    InvalidSecurityReport(serde_json::Error),
+    InvalidSecurityReportType(serde_json::Error),
+}
 
-    event_to_bytes(event)
+fn security_report_to_event(data: Bytes) -> Result<Bytes, SecurityReportError> {
+    let event = match SecurityReportType::from_json(&data)
+        .map_err(SecurityReportError::InvalidSecurityReportType)?
+    {
+        SecurityReportType::Csp => Csp::parse_event(&data),
+        SecurityReportType::ExpectCt => ExpectCt::parse_event(&data),
+        SecurityReportType::ExpectStaple => ExpectStaple::parse_event(&data),
+        SecurityReportType::Hpkp => Hpkp::parse_event(&data),
+    }
+    .map_err(SecurityReportError::InvalidSecurityReport)?;
+
+    event_to_bytes(event).map_err(SecurityReportError::InvalidSecurityReport)
 }
 
 fn process_security_report(data: Bytes) -> Result<Bytes, BadStoreRequest> {
@@ -37,7 +46,14 @@ fn process_security_report(data: Bytes) -> Result<Bytes, BadStoreRequest> {
         // Return a ProcessingFailed error here to avoid introducing an `InvalidJson` error variant
         // into BadStoreRequest. Eventually, this logic will be moved into `EventProcessor` and all
         // these errors will happen during processing, rather than in the endpoint.
-        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidJson(e)))
+        .map_err(|e| match e {
+            SecurityReportError::InvalidSecurityReport(e) => {
+                BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReport(e))
+            }
+            SecurityReportError::InvalidSecurityReportType(_) => {
+                BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReportType)
+            }
+        })
 }
 
 #[derive(Serialize)]

@@ -49,6 +49,12 @@ pub enum EventError {
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] serde_json::Error),
 
+    #[fail(display = "invalid security report")]
+    InvalidSecurityReport(#[cause] serde_json::Error),
+
+    #[fail(display = "invalid security report type")]
+    InvalidSecurityReportType,
+
     #[fail(display = "Too many events (max_concurrent_events reached)")]
     TooManyEvents,
 }

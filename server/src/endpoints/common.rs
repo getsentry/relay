@@ -63,6 +63,12 @@ impl BadStoreRequest {
                 EventError::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
                 EventError::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
                 EventError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
+                EventError::InvalidSecurityReportType => {
+                    Outcome::Invalid(DiscardReason::SecurityReportType)
+                }
+                EventError::InvalidSecurityReport(_) => {
+                    Outcome::Invalid(DiscardReason::SecurityReport)
+                }
             },
 
             BadStoreRequest::ProjectFailed(project_error) => match project_error {
