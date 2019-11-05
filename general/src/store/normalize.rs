@@ -241,25 +241,20 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     fn is_security_report(&self, event: &Event) -> bool {
-        (event.csp.value().is_some()
+        event.csp.value().is_some()
             || event.expectct.value().is_some()
             || event.expectstaple.value().is_some()
-            || event.hpkp.value().is_some())
-            && event.logger.as_str() == Some("csp")
+            || event.hpkp.value().is_some()
     }
 
     /// Backfills common security report attributes.
     fn normalize_security_report(&self, event: &mut Event) {
         if !self.is_security_report(event) {
-            // The event was not a security report (as indicated by the missing logger), so remove
-            // all potential security report interfaces.
-            event.csp.set_value(None);
-            event.expectct.set_value(None);
-            event.expectstaple.set_value(None);
-            event.hpkp.set_value(None);
-
+            // This event is not a security report, exit here.
             return;
         }
+
+        event.logger.get_or_insert_with(|| "csp".to_string());
 
         if let Some(ref client_ip) = self.config.client_ip {
             let user = event.user.value_mut().get_or_insert_with(User::default);
