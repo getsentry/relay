@@ -6,9 +6,7 @@ use actix_web::{pred, HttpRequest, HttpResponse, Request};
 use bytes::Bytes;
 use serde::Serialize;
 
-use semaphore_general::protocol::{
-    Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, SecurityReportType,
-};
+use semaphore_general::protocol::{Csp, EventId, ExpectCt, ExpectStaple, Hpkp, SecurityReportType};
 use semaphore_general::types::Annotated;
 
 use crate::actors::events::EventError;
@@ -16,15 +14,11 @@ use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
-fn event_to_bytes(event: Event) -> Result<Bytes, serde_json::Error> {
-    let json_string = Annotated::new(event).to_json()?;
-    Ok(Bytes::from(json_string))
-}
-
 fn process_security_report(data: Bytes) -> Result<Bytes, BadStoreRequest> {
-    let event = match SecurityReportType::from_json(&data)
-        .map_err(|_| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReportType))?
-    {
+    let security_report_type = SecurityReportType::from_json(&data)
+        .map_err(|_| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReportType))?;
+
+    let event = match security_report_type {
         SecurityReportType::Csp => Csp::parse_event(&data),
         SecurityReportType::ExpectCt => ExpectCt::parse_event(&data),
         SecurityReportType::ExpectStaple => ExpectStaple::parse_event(&data),
@@ -32,8 +26,11 @@ fn process_security_report(data: Bytes) -> Result<Bytes, BadStoreRequest> {
     }
     .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReport(e)))?;
 
-    event_to_bytes(event)
-        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReport(e)))
+    let json_string = Annotated::new(event)
+        .to_json()
+        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidJson(e)))?;
+
+    Ok(Bytes::from(json_string))
 }
 
 #[derive(Serialize)]
