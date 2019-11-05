@@ -133,8 +133,8 @@ struct CspRaw {
     document_uri: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     original_policy: Option<String>,
-    #[serde(default = "String::new")]
-    referrer: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    referrer: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     status_code: Option<u64>,
     #[serde(default = "String::new")]
@@ -372,12 +372,17 @@ impl CspRaw {
     }
 
     fn get_request(&self) -> Request {
+        let headers = match self.referrer {
+            Some(ref referrer) => Annotated::new(Headers(PairList(vec![Annotated::new((
+                Annotated::new(HeaderName::new("Referer")),
+                Annotated::new(HeaderValue::new(referrer.clone())),
+            ))]))),
+            None => Annotated::empty(),
+        };
+
         Request {
             url: Annotated::from(self.document_uri.clone()),
-            headers: Annotated::new(Headers(PairList(vec![Annotated::new((
-                Annotated::new(HeaderName::new("Referer")),
-                Annotated::new(HeaderValue::new(self.referrer.clone())),
-            ))]))),
+            headers,
             ..Request::default()
         }
     }
