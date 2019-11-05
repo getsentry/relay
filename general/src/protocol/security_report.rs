@@ -286,7 +286,10 @@ impl CspRaw {
         }
 
         match Url::parse(value) {
-            Ok(url) => format!("{}://{}", url.scheme(), url.host_str().unwrap_or_default()).into(),
+            Ok(url) => match url.scheme() {
+                "http" | "https" => Cow::Owned(url.host_str().unwrap_or_default().to_owned()),
+                s => Cow::Owned(format!("{}://{}", s, url.host_str().unwrap_or_default())),
+            },
             Err(_) => Cow::Borrowed(value),
         }
     }
@@ -326,7 +329,7 @@ impl CspRaw {
 
         // Now we need to stitch on a scheme to the value, but let's not stitch on the boring
         // values.
-        match value.splitn(2, ':').next().unwrap_or_default() {
+        match document_uri.splitn(2, ':').next().unwrap_or_default() {
             "http" | "https" => Cow::Borrowed(value),
             scheme => Cow::Owned(format!("{}://{}", scheme, value)),
         }
