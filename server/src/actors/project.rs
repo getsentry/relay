@@ -792,7 +792,7 @@ pub struct ProjectCache {
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
     local_states: HashMap<ProjectId, Arc<ProjectState>>,
-    state_channels: HashMap<ProjectId, oneshot::Sender<ProjectState>>,
+    state_channels: HashMap<ProjectId, (oneshot::Sender<ProjectState>, usize)>,
     updates: VecDeque<ProjectUpdate>,
     shutdown: SyncHandle,
 }
@@ -847,7 +847,17 @@ impl ProjectCache {
 
         let batch: HashMap<_, _> = batch_ids
             .iter()
-            .map(|id| (*id, self.state_channels.remove(id).unwrap()))
+            .filter_map(|id| {
+                let (channel, retry_count) = self.state_channels.remove(id).unwrap();
+
+                if retry_count >= self.config.max_query_retry() {
+                    // If we already failed fetching this project multiple times, we drop the
+                    // channel's sender end. This is treated as the project being missing.
+                    None
+                } else {
+                    Some((*id, (channel, retry_count + 1)))
+                }
+            })
             .collect();
 
         // Remove outdated projects that are not being refreshed from the cache. If the project is
@@ -910,7 +920,7 @@ impl ProjectCache {
                         metric!(
                             histogram("project_state.received") = response.configs.len() as u64
                         );
-                        for (id, channel) in batch {
+                        for (id, (channel, _)) in batch {
                             let state = response
                                 .configs
                                 .remove(&id)
@@ -928,6 +938,7 @@ impl ProjectCache {
                             // Put the channels back into the queue, in addition to channels that
                             // have been pushed in the meanwhile. We will retry again shortly.
                             slf.state_channels.extend(batch);
+
                             metric!(
                                 histogram("project_state.pending") =
                                     slf.state_channels.len() as u64
@@ -1154,7 +1165,11 @@ impl Handler<FetchProjectState> for ProjectCache {
         }
 
         let (sender, receiver) = oneshot::channel();
-        if self.state_channels.insert(message.id, sender).is_some() {
+        if self
+            .state_channels
+            .insert(message.id, (sender, 0))
+            .is_some()
+        {
             log::error!("project {} state fetched multiple times", message.id);
         }
 

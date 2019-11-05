@@ -152,6 +152,11 @@ class OutcomesConsumer(ConsumerBase):
         outcome = self.get_outcome()
         assert outcome['outcome'] == 2, outcome
 
+    def assert_dropped_internal(self):
+        outcome = self.get_outcome()
+        assert outcome['outcome'] == 3
+        assert outcome['reason'] == 'internal'
+
 
 @pytest.fixture
 def events_consumer(kafka_consumer):

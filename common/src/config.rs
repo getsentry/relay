@@ -258,6 +258,8 @@ struct Limits {
     /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
     /// the number of logical CPU cores on the host.
     max_thread_count: usize,
+    /// The maximum number of times a project config fetch should be retried. Defaults to 10.
+    max_query_retry: usize,
 }
 
 impl Default for Limits {
@@ -269,6 +271,7 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::from_megabytes(40),
             max_api_chunk_upload_size: ByteSize::from_megabytes(100),
             max_thread_count: num_cpus::get(),
+            max_query_retry: 10,
         }
     }
 }
@@ -811,6 +814,11 @@ impl Config {
     /// Returns the maximum number of active requests
     pub fn max_concurrent_requests(&self) -> usize {
         self.values.limits.max_concurrent_requests
+    }
+
+    /// Returns the maximum number of times a project config should be retried fetching.
+    pub fn max_query_retry(&self) -> usize {
+        self.values.limits.max_query_retry
     }
 
     /// Returns the number of cores to use for thread pools.
