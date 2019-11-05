@@ -145,6 +145,9 @@ def scrub_event(config, data):
 def is_glob_match(
     value, pat, double_star=False, case_insensitive=False, path_normalize=False
 ):
+    if value is None:
+        return False
+
     flags = 0
     if double_star:
         flags |= lib.GLOB_FLAGS_DOUBLE_STAR
