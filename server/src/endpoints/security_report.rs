@@ -2,7 +2,7 @@
 
 use actix_web::actix::ResponseFuture;
 use actix_web::http::Method;
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{pred, HttpRequest, HttpResponse, Request};
 use bytes::Bytes;
 use serde::Serialize;
 
@@ -45,6 +45,28 @@ struct SecurityReportResponse {
     id: EventId,
 }
 
+#[derive(Debug)]
+struct SecurityReportFilter;
+
+impl pred::Predicate<ServiceState> for SecurityReportFilter {
+    fn check(&self, request: &Request, _: &ServiceState) -> bool {
+        let content_type = request
+            .headers()
+            .get("content-type")
+            .and_then(|h| h.to_str().ok())
+            .unwrap_or("");
+
+        match content_type {
+            "application/csp-report"
+            | "application/json"
+            | "application/expect-ct-report"
+            | "application/expect-ct-report+json"
+            | "application/expect-staple-report" => true,
+            _ => false,
+        }
+    }
+}
+
 /// This handles all messages coming on the Security endpoint.
 ///
 /// The security reports will be checked.
@@ -62,12 +84,16 @@ fn store_security_report(
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    //hook security endpoint
     app.resource(r"/api/{project:\d+}/security/", |r| {
-        r.method(Method::POST).with(store_security_report);
+        //hook security endpoint
+        r.method(Method::POST)
+            .filter(SecurityReportFilter)
+            .with(store_security_report);
     })
-    //legacy security endpoint
     .resource(r"/api/{project:\d+}/csp-report/", |r| {
-        r.method(Method::POST).with(store_security_report);
+        //legacy security endpoint
+        r.method(Method::POST)
+            .filter(SecurityReportFilter)
+            .with(store_security_report);
     })
 }
