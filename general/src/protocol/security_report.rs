@@ -337,7 +337,7 @@ impl CspRaw {
             return String::new();
         }
 
-        let mut bits = self.violated_directive.split(' ');
+        let mut bits = self.violated_directive.split_ascii_whitespace();
         let mut culprit = bits.next().unwrap_or_default().to_owned();
 
         let document_uri = self
