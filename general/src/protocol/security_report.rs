@@ -607,7 +607,7 @@ mod serde_date_time_3339 {
 
 impl ExpectCtRaw {
     fn get_message(&self) -> String {
-        format!("Expect-CT failed for '{}'", "TODO host_name")
+        format!("Expect-CT failed for '{}'", self.hostname)
     }
 
     fn into_protocol(self) -> ExpectCt {
@@ -745,10 +745,9 @@ struct HpkpRaw {
 
 impl HpkpRaw {
     fn get_message(&self) -> String {
-        //TODO get the host_name
         format!(
             "Public key pinning validation failed for '{}'",
-            "TODO get the host_name"
+            self.hostname
         )
     }
 
@@ -814,14 +813,12 @@ impl HpkpRaw {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct Hpkp {
     /// > Indicates the time the UA observed the Pin Validation failure.
-    // TODO: Validate (RFC3339)
     pub date_time: Annotated<String>,
     /// > Hostname to which the UA made the original request that failed Pin Validation.
     pub hostname: Annotated<String>,
     /// > The port to which the UA made the original request that failed Pin Validation.
     pub port: Annotated<u64>,
     /// > Effective Expiration Date for the noted pins.
-    // TODO: Validate (RFC3339)
     pub effective_expiration_date: Annotated<String>,
     /// > Indicates whether or not the UA has noted the includeSubDomains directive for the Known
     /// Pinned Host.
@@ -975,8 +972,7 @@ struct ExpectStapleRaw {
 
 impl ExpectStapleRaw {
     fn get_message(&self) -> String {
-        //TODO implement
-        format!("Expect-Staple failed for '{}'", "TODO self.hostname")
+        format!("Expect-Staple failed for '{}'", self.hostname)
     }
 
     fn into_protocol(self) -> ExpectStaple {
