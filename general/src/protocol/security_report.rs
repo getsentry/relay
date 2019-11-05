@@ -165,6 +165,10 @@ impl CspRaw {
         //
         // refs: https://bugzil.la/1192684#c8
 
+        if let Some(directive) = self.effective_directive {
+            return Ok(directive);
+        }
+
         self.violated_directive
             .splitn(2, ' ')
             .next()
