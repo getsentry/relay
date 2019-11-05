@@ -562,12 +562,11 @@ impl FromStr for ExpectCtSource {
 impl_str_serde!(ExpectCtSource);
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
 struct SingleCertificateTimestampRaw {
     version: Option<i64>,
     status: Option<ExpectCtStatus>,
     source: Option<ExpectCtSource>,
-    serialized_stc: Option<String>,
+    serialized_sct: Option<String>, // NOT kebab-case!
 }
 
 impl SingleCertificateTimestampRaw {
@@ -576,7 +575,7 @@ impl SingleCertificateTimestampRaw {
             version: Annotated::from(self.version),
             status: Annotated::from(self.status.map(|s| s.to_string())),
             source: Annotated::from(self.source.map(|s| s.to_string())),
-            serialized_stc: Annotated::from(self.serialized_stc),
+            serialized_sct: Annotated::from(self.serialized_sct),
         }
     }
 }
@@ -716,7 +715,7 @@ pub struct SingleCertificateTimestamp {
     pub version: Annotated<i64>,
     pub status: Annotated<String>,
     pub source: Annotated<String>,
-    pub serialized_stc: Annotated<String>,
+    pub serialized_sct: Annotated<String>,
 }
 
 /// Expect CT security report sent by user agent (browser).
@@ -1618,13 +1617,196 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_expect_ct_report() {}
+    fn test_expectct_basic() {
+        let json = r#"{
+            "expect-ct-report": {
+                "date-time": "2014-04-06T13:00:50Z",
+                "hostname": "www.example.com",
+                "port": 443,
+                "effective-expiration-date": "2014-05-01T12:40:50Z",
+                "served-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+                "validated-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+                "scts": [
+                    {
+                        "version": 1,
+                        "status": "invalid",
+                        "source": "embedded",
+                        "serialized_sct": "ABCD=="
+                    }
+                ]
+            }
+        }"#;
+
+        let event = ExpectCt::parse_event(json.as_bytes()).unwrap();
+        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        {
+          "culprit": "www.example.com",
+          "logentry": {
+            "formatted": "Expect-CT failed for 'www.example.com'"
+          },
+          "request": {
+            "url": "www.example.com"
+          },
+          "tags": [
+            [
+              "hostname",
+              "www.example.com"
+            ],
+            [
+              "port",
+              "443"
+            ]
+          ],
+          "expectct": {
+            "date_time": "2014-04-06T13:00:50+00:00",
+            "hostname": "www.example.com",
+            "port": 443,
+            "effective_expiration_date": "2014-05-01T12:40:50+00:00",
+            "served_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+            ],
+            "validated_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+            ],
+            "scts": [
+              {
+                "version": 1,
+                "status": "invalid",
+                "source": "embedded",
+                "serialized_sct": "ABCD=="
+              }
+            ]
+          }
+        }
+        "###);
+    }
 
     #[test]
-    fn test_deserialize_expect_staple_report() {}
+    fn test_expectct_invalid() {
+        let json = r#"{
+            "hostname": "www.example.com",
+            "date_time": "Not an RFC3339 datetime"
+        }"#;
+
+        ExpectCt::parse_event(json.as_bytes()).expect_err("date_time should fail to parse");
+    }
 
     #[test]
-    fn test_deserialize_hpkp_report() {}
+    fn test_expectstaple_basic() {
+        let json = r#"{
+            "expect-staple-report": {
+                "date-time": "2014-04-06T13:00:50Z",
+                "hostname": "www.example.com",
+                "port": 443,
+                "response-status": "ERROR_RESPONSE",
+                "cert-status": "REVOKED",
+                "effective-expiration-date": "2014-05-01T12:40:50Z",
+                "served-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+                "validated-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"]
+            }
+        }"#;
+
+        let event = ExpectStaple::parse_event(json.as_bytes()).unwrap();
+        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        {
+          "culprit": "www.example.com",
+          "logentry": {
+            "formatted": "Expect-Staple failed for 'www.example.com'"
+          },
+          "request": {
+            "url": "www.example.com"
+          },
+          "tags": [
+            [
+              "hostname",
+              "www.example.com"
+            ],
+            [
+              "port",
+              "443"
+            ],
+            [
+              "response_status",
+              "ERROR_RESPONSE"
+            ],
+            [
+              "cert_status",
+              "REVOKED"
+            ]
+          ],
+          "expectstaple": {
+            "date_time": "2014-04-06T13:00:50+00:00",
+            "hostname": "www.example.com",
+            "port": 443,
+            "effective_expiration_date": "2014-05-01T12:40:50+00:00",
+            "response_status": "ERROR_RESPONSE",
+            "cert_status": "REVOKED",
+            "served_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+            ],
+            "validated_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+            ]
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_hpkp_basic() {
+        let json = r#"{
+            "date-time": "2014-04-06T13:00:50Z",
+            "hostname": "example.com",
+            "port": 443,
+            "effective-expiration-date": "2014-05-01T12:40:50Z",
+            "include-subdomains": false,
+            "served-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+            "validated-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+            "known-pins": ["pin-sha256=\"E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\""]
+        }"#;
+
+        let event = Hpkp::parse_event(json.as_bytes()).unwrap();
+        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        {
+          "logentry": {
+            "formatted": "Public key pinning validation failed for 'example.com'"
+          },
+          "request": {
+            "url": "example.com"
+          },
+          "tags": [
+            [
+              "hostname",
+              "example.com"
+            ],
+            [
+              "port",
+              "443"
+            ],
+            [
+              "include-subdomains",
+              "false"
+            ]
+          ],
+          "hpkp": {
+            "date_time": "2014-04-06T13:00:50+00:00",
+            "hostname": "example.com",
+            "port": 443,
+            "effective_expiration_date": "2014-05-01T12:40:50+00:00",
+            "include_subdomains": false,
+            "served_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+            ],
+            "validated_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+            ],
+            "known_pins": [
+              "pin-sha256=\"E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\""
+            ]
+          }
+        }
+        "###);
+    }
 
     #[test]
     fn test_security_report_type_deserializer_recognizes_csp_reports() {
