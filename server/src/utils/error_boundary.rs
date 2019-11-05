@@ -1,23 +1,39 @@
+use std::fmt::Debug;
+
+use failure::Fail;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
-use semaphore_common::LogError;
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Debug)]
 pub enum ErrorBoundary<T> {
-    Err,
+    Err(Box<dyn Fail>),
     Ok(T),
 }
 
 impl<T> ErrorBoundary<T> {
     #[inline]
+    #[allow(unused)]
+    pub fn is_ok(&self) -> bool {
+        match *self {
+            Self::Ok(_) => true,
+            Self::Err(_) => false,
+        }
+    }
+
+    #[inline]
+    #[allow(unused)]
+    pub fn is_err(&self) -> bool {
+        !self.is_ok()
+    }
+
+    #[inline]
     pub fn unwrap_or_else<F>(self, op: F) -> T
     where
-        F: FnOnce() -> T,
+        F: FnOnce(&dyn Fail) -> T,
     {
         match self {
             Self::Ok(t) => t,
-            Self::Err => op(),
+            Self::Err(e) => op(e.as_ref()),
         }
     }
 }
@@ -33,10 +49,7 @@ where
         let value = Value::deserialize(deserializer)?;
         Ok(match T::deserialize(value) {
             Ok(t) => Self::Ok(t),
-            Err(error) => {
-                log::error!("error fetching project state: {}", LogError(&error));
-                Self::Err
-            }
+            Err(error) => Self::Err(Box::new(error)),
         })
     }
 }
@@ -51,7 +64,7 @@ where
     {
         let option = match *self {
             Self::Ok(ref t) => Some(t),
-            Self::Err => None,
+            Self::Err(_) => None,
         };
 
         option.serialize(serializer)
@@ -65,13 +78,13 @@ mod tests {
     #[test]
     fn test_deserialize_ok() {
         let boundary = serde_json::from_str::<ErrorBoundary<u32>>("42").unwrap();
-        assert_eq!(boundary, ErrorBoundary::Ok(42));
+        assert!(boundary.is_ok());
     }
 
     #[test]
     fn test_deserialize_err() {
         let boundary = serde_json::from_str::<ErrorBoundary<u32>>("-1").unwrap();
-        assert_eq!(boundary, ErrorBoundary::Err);
+        assert!(boundary.is_err());
     }
 
     #[test]
@@ -88,7 +101,7 @@ mod tests {
 
     #[test]
     fn test_serialize_err() {
-        let boundary = ErrorBoundary::<u32>::Err;
+        let boundary = ErrorBoundary::<u32>::Err(Box::new(std::fmt::Error));
         assert_eq!(serde_json::to_string(&boundary).unwrap(), "null");
     }
 }
