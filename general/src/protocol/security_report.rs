@@ -119,6 +119,60 @@ impl FromStr for CspDirective {
 
 impl_str_serde!(CspDirective);
 
+fn is_local(uri: &str) -> bool {
+    match uri {
+        "" | "self" | "'self'" => true,
+        _ => false,
+    }
+}
+
+fn schema_uses_host(schema: &str) -> bool {
+    // List of schemas with host (netloc) from Python's urlunsplit:
+    // see https://github.com/python/cpython/blob/1eac437e8da106a626efffe9fce1cb47dbf5be35/Lib/urllib/parse.py#L51
+    //
+    // Only modification: "" is set to false, since there is a separate check in the urlunsplit
+    // implementation that omits the leading "//" in that case.
+    match schema {
+        "ftp" | "http" | "gopher" | "nntp" | "telnet" | "imap" | "wais" | "file" | "mms"
+        | "https" | "shttp" | "snews" | "prospero" | "rtsp" | "rtspu" | "rsync" | "svn"
+        | "svn+ssh" | "sftp" | "nfs" | "git" | "git+ssh" | "ws" | "wss" => true,
+        _ => false,
+    }
+}
+
+/// Mimicks Python's urlunsplit with all its quirks.
+fn unsplit_uri(schema: &str, host: &str) -> String {
+    if !host.is_empty() || schema_uses_host(schema) {
+        format!("{}://{}", schema, host)
+    } else if !schema.is_empty() {
+        format!("{}:{}", schema, host)
+    } else {
+        String::new()
+    }
+}
+
+fn normalize_uri(value: &str) -> Cow<'_, str> {
+    if is_local(value) {
+        return Cow::Borrowed("'self'");
+    }
+
+    // A lot of these values get reported as literally just the scheme. So a value like 'data'
+    // or 'blob', which are valid schemes, just not a uri. So we want to normalize it into a
+    // URI.
+
+    if !value.contains(':') {
+        return Cow::Owned(unsplit_uri(value, ""));
+    }
+
+    match Url::parse(value) {
+        Ok(url) => match url.scheme() {
+            "http" | "https" => Cow::Owned(url.host_str().unwrap_or_default().to_owned()),
+            scheme => Cow::Owned(unsplit_uri(scheme, url.host_str().unwrap_or_default())),
+        },
+        Err(_) => Cow::Borrowed(value),
+    }
+}
+
 /// Inner (useful) part of a CSP report.
 ///
 /// See `Csp` for meaning of fields.
@@ -177,7 +231,7 @@ impl CspRaw {
     }
 
     fn get_message(&self, effective_directive: CspDirective) -> String {
-        if self.is_local(&self.blocked_uri) {
+        if is_local(&self.blocked_uri) {
             match effective_directive {
                 CspDirective::ChildSrc => "Blocked inline 'child'".to_string(),
                 CspDirective::ConnectSrc => "Blocked inline 'connect'".to_string(),
@@ -203,7 +257,7 @@ impl CspRaw {
                 directive => format!("Blocked inline {}", directive),
             }
         } else {
-            let uri = self.normalize_uri(&self.blocked_uri);
+            let uri = dbg!(normalize_uri(&self.blocked_uri));
 
             match effective_directive {
                 CspDirective::ChildSrc => format!("Blocked 'child' from '{}'", uri),
@@ -268,36 +322,6 @@ impl CspRaw {
         uri
     }
 
-    fn is_local(&self, uri: &str) -> bool {
-        match uri {
-            "" | "self" | "'self'" => true,
-            _ => false,
-        }
-    }
-
-    fn normalize_uri<'a>(&self, value: &'a str) -> Cow<'a, str> {
-        if self.is_local(value) {
-            return Cow::Borrowed("'self'");
-        }
-
-        // A lot of these values get reported as literally
-        // just the scheme. So a value like 'data' or 'blob', which
-        // are valid schemes, just not a uri. So we want to
-        // normalize it into a uri.
-
-        if !value.contains(':') {
-            return Cow::Owned(format!("{}://", value));
-        }
-
-        match Url::parse(value) {
-            Ok(url) => match url.scheme() {
-                "http" | "https" => Cow::Owned(url.host_str().unwrap_or_default().to_owned()),
-                s => Cow::Owned(format!("{}://{}", s, url.host_str().unwrap_or_default())),
-            },
-            Err(_) => Cow::Borrowed(value),
-        }
-    }
-
     fn normalize_value<'a>(&self, value: &'a str, document_uri: &str) -> Cow<'a, str> {
         // > If no scheme is specified, the same scheme as the one used to access the protected
         // > document is assumed.
@@ -317,7 +341,7 @@ impl CspRaw {
             || value.starts_with("https:")
             || value.starts_with("file:")
         {
-            if document_uri == self.normalize_uri(value) {
+            if document_uri == normalize_uri(value) {
                 return Cow::Borrowed("'self'");
             }
 
@@ -333,9 +357,14 @@ impl CspRaw {
 
         // Now we need to stitch on a scheme to the value, but let's not stitch on the boring
         // values.
-        match document_uri.splitn(2, ':').next().unwrap_or_default() {
+        let original_uri = match self.document_uri {
+            Some(ref u) => &u,
+            None => "",
+        };
+
+        match original_uri.splitn(2, ':').next().unwrap_or_default() {
             "http" | "https" => Cow::Borrowed(value),
-            scheme => Cow::Owned(format!("{}://{}", scheme, value)),
+            scheme => Cow::Owned(unsplit_uri(scheme, value)),
         }
     }
 
@@ -353,7 +382,7 @@ impl CspRaw {
             .map(String::as_str)
             .unwrap_or_default();
 
-        let normalized_uri = self.normalize_uri(document_uri);
+        let normalized_uri = normalize_uri(document_uri);
 
         for bit in bits {
             write!(culprit, " {}", self.normalize_value(bit, &normalized_uri)).ok();
