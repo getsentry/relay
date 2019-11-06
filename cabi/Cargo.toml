@@ -1,12 +1,12 @@
 [package]
 name = "semaphore-cabi"
 version = "0.4.59"
-license = "MIT"
-authors = ["Sentry <hello@sentry.io>"]
+authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://github.com/getsentry/semaphore"
 repository = "https://github.com/getsentry/semaphore"
 description = "Exposes some internals of the relay to C."
 edition = "2018"
+license-file = "../LICENSE"
 
 [lib]
 name = "semaphore"
