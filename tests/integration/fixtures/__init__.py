@@ -58,7 +58,14 @@ class SentryLike(object):
 
     def basic_project_config(self):
         return {
-            "publicKeys": [{"publicKey": self.dsn_public_key, "isEnabled": True, "numericId": 123, "quotas": []}],
+            "publicKeys": [
+                {
+                    "publicKey": self.dsn_public_key,
+                    "isEnabled": True,
+                    "numericId": 123,
+                    "quotas": [],
+                }
+            ],
             "rev": "5ceaea8c919811e8ae7daae9fe877901",
             "disabled": False,
             "lastFetch": datetime.datetime.utcnow().isoformat() + "Z",
@@ -84,19 +91,10 @@ class SentryLike(object):
             "config": {
                 "excludeFields": [],
                 "filterSettings": {
-                    "browser-extensions": {
-                        "isEnabled": True
-                    },
-                    "web-crawlers": {
-                        "isEnabled": True
-                    },
-                    "localhost": {
-                        "isEnabled": False
-                    },
-                    "legacy-browsers": {
-                        "isEnabled": True,
-                        "options": ["ie_pre_9"]
-                    }
+                    "browser-extensions": {"isEnabled": True},
+                    "web-crawlers": {"isEnabled": True},
+                    "localhost": {"isEnabled": False},
+                    "legacy-browsers": {"isEnabled": True, "options": ["ie_pre_9"]},
                 },
                 "scrubIpAddresses": False,
                 "sensitiveFields": [],
@@ -104,21 +102,17 @@ class SentryLike(object):
                 "scrubData": True,
                 "groupingConfig": {
                     "id": "legacy:2019-03-12",
-                    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC"
+                    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
                 },
-                "blacklistedIps": [
-                    "127.43.33.22"
-                ],
-                "trustedRelays": []
+                "blacklistedIps": ["127.43.33.22"],
+                "trustedRelays": [],
             },
         }
 
         return {
             **basic,
             **full,
-            'config': {
-                **basic['config'],
-                **full['config']},
+            "config": {**basic["config"], **full["config"]},
         }
 
     def send_event(self, project_id, payload=None):
@@ -142,7 +136,7 @@ class SentryLike(object):
                     "sentry_key={}".format(self.dsn_public_key)
                 ),
             },
-            **kwargs
+            **kwargs,
         )
         response.raise_for_status()
 
