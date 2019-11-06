@@ -47,11 +47,6 @@ fn process_security_report(
     Ok(Bytes::from(json_string))
 }
 
-#[derive(Serialize)]
-struct SecurityReportResponse {
-    id: EventId,
-}
-
 #[derive(Debug)]
 struct SecurityReportFilter;
 
@@ -88,7 +83,11 @@ fn store_security_report(
         start_time,
         request,
         move |data| process_security_report(data, params.into_inner()),
-        |id| HttpResponse::Ok().json(SecurityReportResponse { id }),
+        |_| {
+            HttpResponse::Created()
+                .content_type("application/javascript")
+                .finish()
+        },
     );
 
     Box::new(future)
