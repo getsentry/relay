@@ -1,0 +1,16 @@
+{
+  "expect-staple-report": {
+    "date-time": "2014-04-06T13:00:50Z",
+    "hostname": "www.example.com",
+    "port": 443,
+    "response-status": "ERROR_RESPONSE",
+    "cert-status": "REVOKED",
+    "effective-expiration-date": "2014-05-01T12:40:50Z",
+    "served-certificate-chain": [
+      "-----BEGIN CERTIFICATE-----\nABC\n-----END CERTIFICATE-----"
+    ],
+    "validated-certificate-chain": [
+      "-----BEGIN CERTIFICATE-----\nCDE\n-----END CERTIFICATE-----"
+    ]
+  }
+}

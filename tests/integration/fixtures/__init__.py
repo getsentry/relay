@@ -140,6 +140,23 @@ class SentryLike(object):
         )
         response.raise_for_status()
 
+    def send_security_report(
+        self, project_id, content_type, payload, release, environment
+    ):
+        response = None
+        try:
+            response = self.post(
+                "/api/{}/security/?sentry_key={}&sentry_release={}&sentry_environment={}".format(
+                    project_id, self.dsn_public_key, release, environment
+                ),
+                headers={"Content-Type": content_type,},
+                json=payload,
+            )
+        except:
+            print("some error happened")
+        print("Security report response ", response.content)
+        response.raise_for_status()
+
     def request(self, method, path, **kwargs):
         assert path.startswith("/")
         return session.request(method, self.url + path, **kwargs)

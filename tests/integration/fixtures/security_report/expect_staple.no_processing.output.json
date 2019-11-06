@@ -1,0 +1,43 @@
+{
+  "culprit": "www.example.com",
+  "logentry": {
+    "formatted": "Expect-Staple failed for 'www.example.com'"
+  },
+  "release": "01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+  "environment": "production",
+  "request": {
+    "url": "www.example.com"
+  },
+  "tags": [
+    [
+      "hostname",
+      "www.example.com"
+    ],
+    [
+      "port",
+      "443"
+    ],
+    [
+      "response_status",
+      "ERROR_RESPONSE"
+    ],
+    [
+      "cert_status",
+      "REVOKED"
+    ]
+  ],
+  "expectstaple": {
+    "date_time": "2014-04-06T13:00:50+00:00",
+    "hostname": "www.example.com",
+    "port": 443,
+    "effective_expiration_date": "2014-05-01T12:40:50+00:00",
+    "response_status": "ERROR_RESPONSE",
+    "cert_status": "REVOKED",
+    "served_certificate_chain": [
+      "-----BEGIN CERTIFICATE-----\nABC\n-----END CERTIFICATE-----"
+    ],
+    "validated_certificate_chain": [
+      "-----BEGIN CERTIFICATE-----\nCDE\n-----END CERTIFICATE-----"
+    ]
+  }
+}

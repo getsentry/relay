@@ -406,11 +406,13 @@ impl CspRaw {
 
     fn get_request(&self) -> Request {
         let headers = match self.referrer {
-            Some(ref referrer) => Annotated::new(Headers(PairList(vec![Annotated::new((
-                Annotated::new(HeaderName::new("Referer")),
-                Annotated::new(HeaderValue::new(referrer.clone())),
-            ))]))),
-            None => Annotated::empty(),
+            Some(ref referrer) if !referrer.is_empty() => {
+                Annotated::new(Headers(PairList(vec![Annotated::new((
+                    Annotated::new(HeaderName::new("Referer")),
+                    Annotated::new(HeaderValue::new(referrer.clone())),
+                ))])))
+            }
+            Some(_) | None => Annotated::empty(),
         };
 
         Request {

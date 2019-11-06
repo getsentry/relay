@@ -1,0 +1,22 @@
+{
+  "expect-ct-report": {
+    "date-time": "2014-04-06T13:00:50Z",
+    "hostname": "www.example.com",
+    "port": 443,
+    "effective-expiration-date": "2014-05-01T12:40:50Z",
+    "served-certificate-chain": [
+      "-----BEGIN CERTIFICATE-----\nABC\n-----END CERTIFICATE-----"
+    ],
+    "validated-certificate-chain": [
+      "-----BEGIN CERTIFICATE-----\nCDE\n-----END CERTIFICATE-----"
+    ],
+    "scts": [
+      {
+        "version": 1,
+        "status": "invalid",
+        "source": "embedded",
+        "serialized_sct": "ABCD=="
+      }
+    ]
+  }
+}
