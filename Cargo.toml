@@ -2,7 +2,7 @@
 authors = ["Sentry <hello@sentry.io>"]
 description = "An proxy service for Sentry."
 exclude = [".vscode/**/*", ".idea/**/*"]
-license = "MIT"
+license-file = "./LICENSE"
 name = "semaphore"
 readme = "README.md"
 version = "0.4.59"
