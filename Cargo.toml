@@ -1,5 +1,5 @@
 [package]
-authors = ["Sentry <hello@sentry.io>"]
+authors = ["Sentry <hoss@sentry.io>"]
 description = "An proxy service for Sentry."
 exclude = [".vscode/**/*", ".idea/**/*"]
 license-file = "./LICENSE"
