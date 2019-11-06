@@ -792,7 +792,7 @@ pub struct ProjectCache {
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
     local_states: HashMap<ProjectId, Arc<ProjectState>>,
-    state_channels: HashMap<ProjectId, (oneshot::Sender<ProjectState>, usize)>,
+    state_channels: HashMap<ProjectId, (oneshot::Sender<ProjectState>, Instant)>,
     updates: VecDeque<ProjectUpdate>,
     shutdown: SyncHandle,
 }
@@ -848,14 +848,14 @@ impl ProjectCache {
         let batch: HashMap<_, _> = batch_ids
             .iter()
             .filter_map(|id| {
-                let (channel, retry_count) = self.state_channels.remove(id).unwrap();
+                let (channel, deadline) = self.state_channels.remove(id).unwrap();
 
-                if retry_count >= self.config.max_query_retry() {
-                    // If we already failed fetching this project multiple times, we drop the
-                    // channel's sender end. This is treated as the project being missing.
+                if deadline < Instant::now() {
+                    // If we failed to fetch this project before `deadline`, we drop the channel's
+                    // sender end. This is treated as the project being missing.
                     None
                 } else {
-                    Some((*id, (channel, retry_count + 1)))
+                    Some((*id, (channel, deadline)))
                 }
             })
             .collect();
@@ -1167,7 +1167,10 @@ impl Handler<FetchProjectState> for ProjectCache {
         let (sender, receiver) = oneshot::channel();
         if self
             .state_channels
-            .insert(message.id, (sender, 0))
+            .insert(
+                message.id,
+                (sender, Instant::now() + self.config.query_deadline()),
+            )
             .is_some()
         {
             log::error!("project {} state fetched multiple times", message.id);

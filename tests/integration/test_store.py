@@ -3,6 +3,7 @@ import os
 import queue
 import datetime
 import uuid
+import time
 
 import flask
 import pytest
@@ -330,16 +331,17 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, outcomes_cons
     def get_project_config():
         nonlocal request_count
         request_count += 1
+        time.sleep(1)
         print("RETRY", request_count)
         return "no", 500
 
-    relay = relay_with_processing({"limits": {"max_query_retry": 2}})
+    relay = relay_with_processing({"limits": {"query_deadline": 10}})
     relay.wait_relay_healthcheck()
 
     relay.send_event(42)
 
     outcomes_consumer.assert_dropped_internal()
-    assert request_count == 3  # initial + 2 retries
+    assert request_count <= 30  # 30 secs to fetch, each request takes 1 second at least
 
     for (_, error) in mini_sentry.test_failures:
         assert isinstance(error, AssertionError)
