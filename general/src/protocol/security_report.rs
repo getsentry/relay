@@ -254,7 +254,7 @@ impl CspRaw {
                         "Blocked unsafe (eval() or inline) 'script'".to_string()
                     }
                 }
-                directive => format!("Blocked inline {}", directive),
+                directive => format!("Blocked inline '{}'", directive),
             }
         } else {
             let uri = dbg!(normalize_uri(&self.blocked_uri));
@@ -276,7 +276,7 @@ impl CspRaw {
                 CspDirective::StyleSrc => format!("Blocked 'style' from '{}'", uri),
                 CspDirective::StyleSrcElem => format!("Blocked 'style' from '{}'", uri),
                 CspDirective::StyleSrcAttr => format!("Blocked style attribute from '{}'", uri),
-                directive => format!("Blocked {} from {} ", directive, uri),
+                directive => format!("Blocked '{}' from '{}'", directive, uri),
             }
         }
     }
@@ -1264,39 +1264,39 @@ mod tests {
         let event = Csp::parse_event(json.as_bytes()).unwrap();
 
         assert_annotated_snapshot!(Annotated::new(event), @r###"
-        {
-          "culprit": "default-src self",
-          "logentry": {
-            "formatted": "Blocked default-src from evilhackerscripts.com "
-          },
-          "request": {
-            "url": "https://example.com/foo/bar",
-            "headers": [
-              [
-                "Referer",
-                "https://www.google.com/"
-              ]
-            ]
-          },
-          "tags": [
-            [
-              "effective-directive",
-              "default-src"
-            ],
-            [
-              "blocked-uri",
-              "http://evilhackerscripts.com"
-            ]
-          ],
-          "csp": {
-            "effective_directive": "default-src",
-            "blocked_uri": "http://evilhackerscripts.com",
-            "document_uri": "https://example.com/foo/bar",
-            "original_policy": "default-src self; report-uri /csp-hotline.php",
-            "referrer": "https://www.google.com/",
-            "violated_directive": "default-src self"
-          }
-        }
+       ⋮{
+       ⋮  "culprit": "default-src self",
+       ⋮  "logentry": {
+       ⋮    "formatted": "Blocked 'default-src' from 'evilhackerscripts.com'"
+       ⋮  },
+       ⋮  "request": {
+       ⋮    "url": "https://example.com/foo/bar",
+       ⋮    "headers": [
+       ⋮      [
+       ⋮        "Referer",
+       ⋮        "https://www.google.com/"
+       ⋮      ]
+       ⋮    ]
+       ⋮  },
+       ⋮  "tags": [
+       ⋮    [
+       ⋮      "effective-directive",
+       ⋮      "default-src"
+       ⋮    ],
+       ⋮    [
+       ⋮      "blocked-uri",
+       ⋮      "http://evilhackerscripts.com"
+       ⋮    ]
+       ⋮  ],
+       ⋮  "csp": {
+       ⋮    "effective_directive": "default-src",
+       ⋮    "blocked_uri": "http://evilhackerscripts.com",
+       ⋮    "document_uri": "https://example.com/foo/bar",
+       ⋮    "original_policy": "default-src self; report-uri /csp-hotline.php",
+       ⋮    "referrer": "https://www.google.com/",
+       ⋮    "violated_directive": "default-src self"
+       ⋮  }
+       ⋮}
         "###);
     }
 

@@ -4,7 +4,7 @@
   "type": "csp",
   "culprit": "default-src self",
   "logentry": {
-    "formatted": "Blocked default-src from evilhackerscripts.com "
+    "formatted": "Blocked 'default-src' from 'evilhackerscripts.com'"
   },
   "logger": "csp",
   "platform": "other",
@@ -19,6 +19,10 @@
       [
         "Referer",
         "https://www.google.com/"
+      ],
+      [
+        "USER AGENT",
+        "TODO Don't forget to fix it"
       ]
     ]
   },

@@ -10,7 +10,7 @@
   "culprit": "default-src self",
   "environment": "production",
   "logentry": {
-    "formatted": "Blocked default-src from evilhackerscripts.com "
+    "formatted": "Blocked 'default-src' from 'evilhackerscripts.com'"
   },
   "release": "01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
   "request": {
