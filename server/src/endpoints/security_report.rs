@@ -4,10 +4,10 @@ use actix_web::actix::ResponseFuture;
 use actix_web::http::Method;
 use actix_web::{pred, HttpRequest, HttpResponse, Query, Request};
 use bytes::Bytes;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use semaphore_general::protocol::{
-    Csp, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString, SecurityReportType,
+    Csp, ExpectCt, ExpectStaple, Hpkp, LenientString, SecurityReportType,
 };
 use semaphore_general::types::Annotated;
 
