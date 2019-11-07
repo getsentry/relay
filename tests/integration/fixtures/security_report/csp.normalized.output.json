@@ -1,0 +1,64 @@
+{
+  "level": "error",
+  "version": "7",
+  "type": "csp",
+  "culprit": "default-src self",
+  "logentry": {
+    "formatted": "Blocked 'default-src' from 'evilhackerscripts.com'"
+  },
+  "logger": "csp",
+  "platform": "other",
+  "release": "01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+  "environment": "production",
+  "user": {
+    "ip_address": "127.0.0.1"
+  },
+  "contexts": {
+    "browser": {
+      "name": "Chrome",
+      "type": "browser",
+      "version": "74.0.3729"
+    },
+    "client_os": {
+      "name": "Windows 10",
+      "type": "os"
+    }
+  },
+  "request": {
+    "url": "https://example.com/foo/bar",
+    "headers": [
+      [
+        "Referer",
+        "https://www.google.com/"
+      ],
+      [
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
+      ]
+    ]
+  },
+  "tags": [
+    [
+      "effective-directive",
+      "default-src"
+    ],
+    [
+      "blocked-uri",
+      "http://evilhackerscripts.com"
+    ]
+  ],
+  "key_id": "123",
+  "project": 42,
+  "grouping_config": {
+    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
+    "id": "legacy:2019-03-12"
+  },
+  "csp": {
+    "effective_directive": "default-src",
+    "blocked_uri": "http://evilhackerscripts.com",
+    "document_uri": "https://example.com/foo/bar",
+    "original_policy": "default-src self; report-uri /csp-hotline.php",
+    "referrer": "https://www.google.com/",
+    "violated_directive": "default-src self"
+  }
+}

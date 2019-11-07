@@ -8,7 +8,15 @@ from .fixtures.gobetween import gobetween  # noqa
 from .fixtures.haproxy import haproxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
 from .fixtures.relay import relay  # noqa
-from .fixtures.processing import kafka_consumer, get_topic_name, processing_config, relay_with_processing, events_consumer, outcomes_consumer  # noqa
+from .fixtures.processing import (
+    kafka_consumer,
+    get_topic_name,
+    processing_config,
+    relay_with_processing,
+    events_consumer,
+    outcomes_consumer,
+)  # noqa
+
 
 @pytest.fixture
 def random_port():

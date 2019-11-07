@@ -78,7 +78,7 @@ fn test_enums_processor_calls() {
 fn test_simple_newtype() {
     let mut processor = RecordingProcessor(vec![]);
 
-    let mut value = Annotated::new(HeaderName("hi".to_string()));
+    let mut value = Annotated::new(HeaderName::new("hi".to_string()));
     process_value(
         &mut value,
         &mut processor,

@@ -1,0 +1,17 @@
+{
+  "date-time": "2014-04-06T13:00:50Z",
+  "hostname": "www.example.com",
+  "port": 443,
+  "effective-expiration-date": "2014-05-01T12:40:50Z",
+  "include-subdomains": false,
+  "served-certificate-chain": [
+    "-----BEGIN CERTIFICATE-----\n MIIEBDCCAuygBQUAMEIxCzAJBgNVBAYTAlVT\n -----END CERTIFICATE-----"
+  ],
+  "validated-certificate-chain": [
+    "-----BEGIN CERTIFICATE-----\n MIIEBDCCAuygAwIBAgIDCzAJBgNVBAYTAlVT\n -----END CERTIFICATE-----"
+  ],
+  "known-pins": [
+    "pin-sha256=\"d6qzRu9zOECb90Uez27xWltNsj0e1Md7GkYYkVoZWmM=\"",
+    "pin-sha256=\"E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\""
+  ]
+}

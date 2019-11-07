@@ -1,0 +1,35 @@
+{
+  "csp": {
+    "blocked_uri": "http://evilhackerscripts.com",
+    "document_uri": "https://example.com/foo/bar",
+    "effective_directive": "default-src",
+    "original_policy": "default-src self; report-uri /csp-hotline.php",
+    "referrer": "https://www.google.com/",
+    "violated_directive": "default-src self"
+  },
+  "culprit": "default-src self",
+  "environment": "production",
+  "logentry": {
+    "formatted": "Blocked 'default-src' from 'evilhackerscripts.com'"
+  },
+  "release": "01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+  "request": {
+    "headers": [
+      [
+        "Referer",
+        "https://www.google.com/"
+      ]
+    ],
+    "url": "https://example.com/foo/bar"
+  },
+  "tags": [
+    [
+      "effective-directive",
+      "default-src"
+    ],
+    [
+      "blocked-uri",
+      "http://evilhackerscripts.com"
+    ]
+  ]
+}

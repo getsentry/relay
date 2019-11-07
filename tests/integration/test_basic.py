@@ -50,9 +50,9 @@ def test_forced_shutdown(mini_sentry, relay):
     relay.shutdown(sig=signal.SIGINT)
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
-    (route, error), = mini_sentry.test_failures
-    assert route == '/api/666/store/'
-    assert 'shutdown timer expired' in str(error)
+    ((route, error),) = mini_sentry.test_failures
+    assert route == "/api/666/store/"
+    assert "shutdown timer expired" in str(error)
     mini_sentry.test_failures.clear()
 
 
@@ -127,10 +127,13 @@ def test_local_project_config(mini_sentry, relay):
 
 
 @pytest.mark.parametrize("trailing_slash", [True, False])
-@pytest.mark.parametrize("input", [
-    '{"message": "im in ur query params"}',
-    "eF6rVspNLS5OTE9VslJQysxVyMxTKC1SKCxNLapUKEgsSswtVqoFAOKyDI4="
-])
+@pytest.mark.parametrize(
+    "input",
+    [
+        '{"message": "im in ur query params"}',
+        "eF6rVspNLS5OTE9VslJQysxVyMxTKC1SKCxNLapUKEgsSswtVqoFAOKyDI4=",
+    ],
+)
 def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
     mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
     relay = relay(mini_sentry)
@@ -142,11 +145,11 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
         "&sentry_key=%s" % ("/" if trailing_slash else "", input, relay.dsn_public_key,)
     )
     response.raise_for_status()
-    assert response.headers['content-type'] == 'image/gif'
+    assert response.headers["content-type"] == "image/gif"
 
     event = mini_sentry.captured_events.get(timeout=1)
 
-    assert event['logentry']['formatted'] == 'im in ur query params'
+    assert event["logentry"]["formatted"] == "im in ur query params"
 
 
 @pytest.mark.parametrize("trailing_slash", [True, False])
@@ -159,10 +162,10 @@ def test_store_post_trailing_slash(mini_sentry, relay, trailing_slash):
     response = relay.post(
         "/api/42/store%s"
         "?sentry_key=%s" % ("/" if trailing_slash else "", relay.dsn_public_key,),
-        json={"message": "hi"}
+        json={"message": "hi"},
     )
     response.raise_for_status()
 
     event = mini_sentry.captured_events.get(timeout=1)
 
-    assert event['logentry']['formatted'] == 'hi'
+    assert event["logentry"]["formatted"] == "hi"

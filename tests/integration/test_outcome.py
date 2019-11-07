@@ -11,7 +11,14 @@ def test_outcomes(relay_with_processing, kafka_consumer, mini_sentry):
 
     message_text = "some message {}".format(datetime.datetime.now())
     event_id = "11122233344455566677788899900011"
-    relay.send_event(42, {"event_id": event_id, "message": message_text, "extra": {"msg_text": message_text}})
+    relay.send_event(
+        42,
+        {
+            "event_id": event_id,
+            "message": message_text,
+            "extra": {"msg_text": message_text},
+        },
+    )
     start = datetime.datetime.utcnow()
     # polling first message can take a few good seconds
     outcome = outcomes.poll(timeout=20)
@@ -22,7 +29,7 @@ def test_outcomes(relay_with_processing, kafka_consumer, mini_sentry):
     outcome = json.loads(outcome)
     # deal with the timestamp separately ( we can't control it exactly)
     timestamp = outcome.get("timestamp")
-    del outcome['timestamp']
+    del outcome["timestamp"]
     assert timestamp is not None
     event_emission = datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
     assert start <= event_emission <= end
@@ -34,6 +41,6 @@ def test_outcomes(relay_with_processing, kafka_consumer, mini_sentry):
         "key_id": None,
         "outcome": 3,
         "reason": "project_id",
-        "remote_addr": "127.0.0.1"
+        "remote_addr": "127.0.0.1",
     }
     assert outcome == expected

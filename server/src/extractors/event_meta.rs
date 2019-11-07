@@ -35,6 +35,9 @@ pub struct EventMeta {
 
     /// The full chain of request forward addresses, including the `remote_addr`.
     forwarded_for: String,
+
+    /// The user agent that sent this event.
+    user_agent: Option<String>,
 }
 
 impl EventMeta {
@@ -65,6 +68,14 @@ impl EventMeta {
     /// Returns the value of the forwarded for header
     pub fn forwarded_for(&self) -> &str {
         &self.forwarded_for
+    }
+
+    /// The user agent that sent this event.
+    ///
+    /// This is the value of the `User-Agent` header. In contrast, `auth.client_agent()` identifies
+    /// the SDK that sent the event.
+    pub fn user_agent(&self) -> Option<&str> {
+        self.user_agent.as_ref().map(String::as_str)
     }
 
     /// Returns `true` if this client requires legacy python json support.
@@ -114,6 +125,11 @@ impl<S> FromRequest<S> for EventMeta {
                 .or_else(|| parse_header_url(request, header::REFERER)),
             remote_addr: request.peer_addr().map(|peer| peer.ip()),
             forwarded_for: ForwardedFor::from(request).into_inner(),
+            user_agent: request
+                .headers()
+                .get(header::USER_AGENT)
+                .and_then(|h| h.to_str().ok())
+                .map(str::to_owned),
         })
     }
 }

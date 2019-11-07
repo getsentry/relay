@@ -49,6 +49,12 @@ pub enum EventError {
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] serde_json::Error),
 
+    #[fail(display = "invalid security report")]
+    InvalidSecurityReport(#[cause] serde_json::Error),
+
+    #[fail(display = "invalid security report type")]
+    InvalidSecurityReportType,
+
     #[fail(display = "Too many events (max_concurrent_events reached)")]
     TooManyEvents,
 }
@@ -167,6 +173,7 @@ impl EventProcessor {
                     key_id,
                     protocol_version: Some(auth.version().to_string()),
                     grouping_config: message.project_state.config.grouping_config.clone(),
+                    user_agent: message.meta.user_agent().map(str::to_owned),
                     max_secs_in_future: Some(self.config.max_secs_in_future()),
                     max_secs_in_past: Some(self.config.max_secs_in_past()),
                     enable_trimming: Some(true),
@@ -629,6 +636,10 @@ impl Handler<HandleEvent> for EventManager {
                             .build(move |builder| {
                                 if let Some(origin) = meta.origin() {
                                     builder.header("Origin", origin.to_string());
+                                }
+
+                                if let Some(user_agent) = meta.user_agent() {
+                                    builder.header("User-Agent", user_agent);
                                 }
 
                                 builder

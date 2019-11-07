@@ -54,7 +54,10 @@ def mini_sentry(request):
     @app.route("/api/666/store/", methods=["POST"])
     def store_internal_error_event():
         sentry.test_failures.append(
-            ("/api/666/store/", AssertionError("Relay sent us event: {}".format(flask_request.data)))
+            (
+                "/api/666/store/",
+                AssertionError("Relay sent us event: {}".format(flask_request.data)),
+            )
         )
         return jsonify({"event_id": uuid.uuid4().hex})
 

@@ -8,6 +8,7 @@ import pytest
 
 from requests.exceptions import HTTPError
 
+
 def test_store(mini_sentry, relay_chain):
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
@@ -24,19 +25,21 @@ def test_store_node_base64(mini_sentry, relay_chain):
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    payload = b"eJytVctu2zAQ/BWDFzuAJYt6WVIfaAsE6KFBi6K3IjAoiXIYSyRLUm7cwP/eJaXEcZr0Bd" \
-              b"/E5e7OzJIc3aKOak3WFBXoXCmhislOTDqiNmiO6E1FpWGCo" \
-              b"+LrLTI7eZ8Fm1vS9nZ9SNeGVBujSAXhW9QoAq1dZcNaymEF2aUQRkOOXHFRU/9aQ13LOOUCFSkO56gSrf2O5qjpeTWAI963rf" \
-              b"+ScMF3nej1ayhifEWkREVDWk3nqBN13/4KgPbzv4bHOb6Hx+kRPihTppf" \
-              b"/DTukPVKbRwe44AjuYkhXPb8gjP8Gdfz4C7Q4Xz4z2xFs1QpSnwQqCZKDsPAIy6jdAPfhZGDpASwKnxJ2Ml1p" \
-              b"+qcDW9EbQ7mGmPaH2hOgJg8exdOolegkNPlnuIVUbEsMXZhOLuy19TRfMF7Tm0d3555AGB8R" \
-              b"+Fhe08o88zCN6h9ScH1hWyoKhLmBUYE3gIuoyWeypXzyaqLot54pOpsqG5ievYB0t+dDQcPWs" \
-              b"+mVMVIXi0WSZDQgASF108Q4xqSMaUmDKkuzrEzD5E29Vgx8jSpvWQZ5sizxMgqbKCMJDYPEp73P10psfCYWGE" \
-              b"/PfMbhibftzGGiSyvYUVzZGQD7kQaRplf0/M4WZ5x+nzg/nE1HG5yeuRZSaPNA5uX+cr+HrmAQXJO78bmRTIiZPDnHHtiDj" \
-              b"+6hiqz18AXdFLHm6kymQNvMx9iP4GBRqSipK9V3pc0d3Fk76Dmyg6XaDD2GE3FJbs7QJvRTaGJFiw2zfQM" \
-              b"/8jEEDOto7YkeSlHsBy7mXN4bbR4yIRpYuj2rYR3B2i67OnGNQ1dTqZ00Y3Zo11dEUV49iDDtlX3TWMkI" \
-              b"+9hPrSaYwJaq1Xhd35Mfb70LUr0Dlt4nJTycwOOuSGv/VCDErByDNE" \
-              b"/iZZLXQY3zOAnDvElpjJcJTXCUZSEZZYGMTlqKAc68IPPC5RccwQUvgsDdUmGPxJKx/GVLTCNUZ39Fzt5/AgZYWKw="  # noqa
+    payload = (
+        b"eJytVctu2zAQ/BWDFzuAJYt6WVIfaAsE6KFBi6K3IjAoiXIYSyRLUm7cwP/eJaXEcZr0Bd"
+        b"/E5e7OzJIc3aKOak3WFBXoXCmhislOTDqiNmiO6E1FpWGCo"
+        b"+LrLTI7eZ8Fm1vS9nZ9SNeGVBujSAXhW9QoAq1dZcNaymEF2aUQRkOOXHFRU/9aQ13LOOUCFSkO56gSrf2O5qjpeTWAI963rf"
+        b"+ScMF3nej1ayhifEWkREVDWk3nqBN13/4KgPbzv4bHOb6Hx+kRPihTppf"
+        b"/DTukPVKbRwe44AjuYkhXPb8gjP8Gdfz4C7Q4Xz4z2xFs1QpSnwQqCZKDsPAIy6jdAPfhZGDpASwKnxJ2Ml1p"
+        b"+qcDW9EbQ7mGmPaH2hOgJg8exdOolegkNPlnuIVUbEsMXZhOLuy19TRfMF7Tm0d3555AGB8R"
+        b"+Fhe08o88zCN6h9ScH1hWyoKhLmBUYE3gIuoyWeypXzyaqLot54pOpsqG5ievYB0t+dDQcPWs"
+        b"+mVMVIXi0WSZDQgASF108Q4xqSMaUmDKkuzrEzD5E29Vgx8jSpvWQZ5sizxMgqbKCMJDYPEp73P10psfCYWGE"
+        b"/PfMbhibftzGGiSyvYUVzZGQD7kQaRplf0/M4WZ5x+nzg/nE1HG5yeuRZSaPNA5uX+cr+HrmAQXJO78bmRTIiZPDnHHtiDj"
+        b"+6hiqz18AXdFLHm6kymQNvMx9iP4GBRqSipK9V3pc0d3Fk76Dmyg6XaDD2GE3FJbs7QJvRTaGJFiw2zfQM"
+        b"/8jEEDOto7YkeSlHsBy7mXN4bbR4yIRpYuj2rYR3B2i67OnGNQ1dTqZ00Y3Zo11dEUV49iDDtlX3TWMkI"
+        b"+9hPrSaYwJaq1Xhd35Mfb70LUr0Dlt4nJTycwOOuSGv/VCDErByDNE"
+        b"/iZZLXQY3zOAnDvElpjJcJTXCUZSEZZYGMTlqKAc68IPPC5RccwQUvgsDdUmGPxJKx/GVLTCNUZ39Fzt5/AgZYWKw="
+    )  # noqa
     relay.send_event(42, payload)
 
     event = mini_sentry.captured_events.get(timeout=1)
@@ -80,9 +83,9 @@ def test_event_timeout(mini_sentry, relay):
         "formatted": "correct"
     }
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
-    (route, error), = mini_sentry.test_failures
-    assert route == '/api/666/store/'
-    assert 'configured lifetime' in str(error)
+    ((route, error),) = mini_sentry.test_failures
+    assert route == "/api/666/store/"
+    assert "configured lifetime" in str(error)
     mini_sentry.test_failures.clear()
 
 
@@ -215,7 +218,9 @@ def test_max_concurrent_requests(mini_sentry, relay):
     store_count.acquire(timeout=4)
 
 
-def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kafka(mini_sentry, relay_with_processing, events_consumer):
+def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kafka(
+    mini_sentry, relay_with_processing, events_consumer
+):
     """
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
@@ -231,27 +236,29 @@ def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kaf
 
     event, v = events_consumer.get_event()
 
-    start_time = v.get('start_time')
+    start_time = v.get("start_time")
     assert start_time is not None  # we have some start time field
-    event_id = v.get('event_id')
+    event_id = v.get("event_id")
     assert event_id is not None
-    project_id = v.get('project_id')
+    project_id = v.get("project_id")
     assert project_id is not None
-    remote_addr = v.get('remote_addr')
+    remote_addr = v.get("remote_addr")
     assert remote_addr is not None
 
     # check that we are actually retrieving the message that we sent
-    assert event.get('extra') is not None
-    assert event.get('extra').get('msg_text') is not None
-    assert event['extra']['msg_text'] == message_text
+    assert event.get("extra") is not None
+    assert event.get("extra").get("msg_text") is not None
+    assert event["extra"]["msg_text"] == message_text
 
     # check that normalization ran
-    assert event.get('key_id') is not None
-    assert event.get('project') is not None
-    assert event.get('version') is not None
+    assert event.get("key_id") is not None
+    assert event.get("project") is not None
+    assert event.get("version") is not None
 
 
-def test_when_processing_is_not_enabled_relay_does_not_normalize_events(mini_sentry, relay):
+def test_when_processing_is_not_enabled_relay_does_not_normalize_events(
+    mini_sentry, relay
+):
     """
     Tests that relay does not normalize when processing is disabled
     """
@@ -260,9 +267,9 @@ def test_when_processing_is_not_enabled_relay_does_not_normalize_events(mini_sen
     mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
     relay.send_event(42, {"message": "some_message"})
     event = mini_sentry.captured_events.get(timeout=1)
-    assert event.get('key_id') is None
-    assert event.get('project') is None
-    assert event.get('version') is None
+    assert event.get("key_id") is None
+    assert event.get("project") is None
+    assert event.get("version") is None
 
 
 def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_consumer):
@@ -270,16 +277,23 @@ def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_co
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
-    public_keys = projectconfig['publicKeys']
-    limited_key, = public_keys
-    limited_key['quotas'] = [{
-        "prefix": "test_rate_limiting_{}".format(uuid.uuid4().hex),
-        "limit": 5,
-        "window": 3600,
-        "reason_code": "get_lost"
-    }]
+    public_keys = projectconfig["publicKeys"]
+    (limited_key,) = public_keys
+    limited_key["quotas"] = [
+        {
+            "prefix": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "limit": 5,
+            "window": 3600,
+            "reason_code": "get_lost",
+        }
+    ]
 
-    second_key = {"publicKey": "31a5a894b4524f74a9a8d0e27e21ba92", "isEnabled": True, "numericId": 1234, "quotas": []}
+    second_key = {
+        "publicKey": "31a5a894b4524f74a9a8d0e27e21ba92",
+        "isEnabled": True,
+        "numericId": 1234,
+        "quotas": [],
+    }
     public_keys.append(second_key)
 
     events_consumer = events_consumer()
@@ -289,7 +303,7 @@ def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_co
         relay.send_event(42, {"message": f"regular{i}"})
 
         event, _ = events_consumer.get_event()
-        assert event['logentry']['formatted'] == f"regular{i}"
+        assert event["logentry"]["formatted"] == f"regular{i}"
 
     # this one will not get a 429 but still get rate limited (silently) because
     # of our caching
@@ -309,4 +323,4 @@ def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_co
         relay.send_event(42, {"message": f"otherkey{i}"})
         event, _ = events_consumer.get_event()
 
-        assert event['logentry']['formatted'] == f"otherkey{i}"
+        assert event["logentry"]["formatted"] == f"otherkey{i}"

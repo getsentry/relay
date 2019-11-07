@@ -13,7 +13,8 @@ use uuid::Uuid;
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, LogEntry, Request, Stacktrace, Tags, User, VALID_PLATFORMS,
+    Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry, Request, Stacktrace, Tags,
+    User, VALID_PLATFORMS,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -239,6 +240,47 @@ impl<'a> NormalizeProcessor<'a> {
         }
     }
 
+    fn is_security_report(&self, event: &Event) -> bool {
+        event.csp.value().is_some()
+            || event.expectct.value().is_some()
+            || event.expectstaple.value().is_some()
+            || event.hpkp.value().is_some()
+    }
+
+    /// Backfills common security report attributes.
+    fn normalize_security_report(&self, event: &mut Event) {
+        if !self.is_security_report(event) {
+            // This event is not a security report, exit here.
+            return;
+        }
+
+        event.logger.get_or_insert_with(|| "csp".to_string());
+
+        if let Some(ref client_ip) = self.config.client_ip {
+            let user = event.user.value_mut().get_or_insert_with(User::default);
+            user.ip_address = Annotated::new(client_ip.clone());
+        }
+
+        if let Some(ref client) = self.config.user_agent {
+            let request = event
+                .request
+                .value_mut()
+                .get_or_insert_with(Request::default);
+
+            let headers = request
+                .headers
+                .value_mut()
+                .get_or_insert_with(Headers::default);
+
+            if !headers.contains("User-Agent") {
+                headers.insert(
+                    HeaderName::new("User-Agent".to_owned()),
+                    Annotated::new(HeaderValue::new(client.clone())),
+                );
+            }
+        }
+    }
+
     /// Backfills IP addresses in various places.
     fn normalize_ip_addresses(&self, event: &mut Event) {
         // NOTE: This is highly order dependent, in the sense that both the statements within this
@@ -351,7 +393,10 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // Insert IP addrs first, since geo lookup depends on it.
+        // Process security reports first to ensure all props.
+        self.normalize_security_report(event);
+
+        // Insert IP addrs before recursing, since geo lookup depends on it.
         self.normalize_ip_addresses(event);
 
         event.process_child_values(self, state)?;
