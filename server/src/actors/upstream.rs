@@ -166,7 +166,7 @@ impl UpstreamRelay {
 
         let (json, signature) = credentials.secret_key.pack(query);
 
-        let max_response_size = self.config.max_query_response_size();
+        let max_response_size = self.config.max_api_payload_size();
 
         let future = self
             .send_request(method, path, |builder| {

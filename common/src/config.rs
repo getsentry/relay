@@ -258,8 +258,6 @@ struct Limits {
     /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
     /// the number of logical CPU cores on the host.
     max_thread_count: usize,
-    /// The maximum size of a projectconfig query response. Defaults to 10MB
-    max_query_response_size: ByteSize,
 }
 
 impl Default for Limits {
@@ -271,7 +269,6 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::from_megabytes(40),
             max_api_chunk_upload_size: ByteSize::from_megabytes(100),
             max_thread_count: num_cpus::get(),
-            max_query_response_size: ByteSize::from_megabytes(10),
         }
     }
 }
@@ -824,11 +821,6 @@ impl Config {
     /// Returns the maximum size of a project config query.
     pub fn query_batch_size(&self) -> usize {
         self.values.cache.batch_size
-    }
-
-    /// Returns the maximum size of a project config query's response in MB.
-    pub fn max_query_response_size(&self) -> usize {
-        self.values.limits.max_query_response_size.as_bytes() as usize
     }
 
     /// Return the Sentry DSN if reporting to Sentry is enabled.
