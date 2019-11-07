@@ -185,6 +185,9 @@ fn make_app(state: ServiceState) -> ServiceApp {
     app = endpoints::project_configs::configure_app(app);
     app = endpoints::public_keys::configure_app(app);
     app = endpoints::store::configure_app(app);
+    app = endpoints::security_report::configure_app(app);
+
+    // `forward` must be last as it creates a wildcard proxy
     app = endpoints::forward::configure_app(app);
 
     app

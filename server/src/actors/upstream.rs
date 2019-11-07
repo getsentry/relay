@@ -166,6 +166,8 @@ impl UpstreamRelay {
 
         let (json, signature) = credentials.secret_key.pack(query);
 
+        let max_response_size = self.config.max_api_payload_size();
+
         let future = self
             .send_request(method, path, |builder| {
                 builder
@@ -174,7 +176,11 @@ impl UpstreamRelay {
                     .header(header::CONTENT_TYPE, "application/json")
                     .body(json)
             })
-            .and_then(|r| r.json().map_err(UpstreamRequestError::InvalidJson));
+            .and_then(move |r| {
+                r.json()
+                    .limit(max_response_size)
+                    .map_err(UpstreamRequestError::InvalidJson)
+            });
 
         Box::new(future)
     }

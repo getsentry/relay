@@ -1,0 +1,30 @@
+{
+  "csp": {
+    "blocked_uri": "http://notlocalhost:8000/lol.css",
+    "document_uri": "http://notlocalhost:8000/",
+    "effective_directive": "style-src",
+    "original_policy": "default-src 'none'; style-src cdn.example.com; report-uri http://requestb.in/1im8m061",
+    "referrer": "",
+    "status_code": 200,
+    "violated_directive": "style-src cdn.example.com"
+  },
+  "culprit": "style-src cdn.example.com",
+  "environment": "production",
+  "logentry": {
+    "formatted": "Blocked 'style' from 'notlocalhost:8000'"
+  },
+  "release": "01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+  "request": {
+    "url": "http://notlocalhost:8000/"
+  },
+  "tags": [
+    [
+      "effective-directive",
+      "style-src"
+    ],
+    [
+      "blocked-uri",
+      "http://notlocalhost:8000/lol.css"
+    ]
+  ]
+}

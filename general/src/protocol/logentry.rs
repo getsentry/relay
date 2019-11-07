@@ -25,6 +25,15 @@ pub struct LogEntry {
     pub other: Object<Value>,
 }
 
+impl From<String> for LogEntry {
+    fn from(formatted_msg: String) -> Self {
+        LogEntry {
+            formatted: Annotated::new(formatted_msg),
+            ..Self::default()
+        }
+    }
+}
+
 impl FromValue for LogEntry {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         // raw 'message' is coerced to the Message interface, as its used for pure index of

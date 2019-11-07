@@ -633,7 +633,7 @@ macro_rules! tuple_meta_structure {
                 let behavior = behavior.descend();
                 let mut s = s.serialize_seq(None)?;
                 let ($($name,)*) = self;
-                $(s.serialize_element(&SerializePayload($name, behavior))?;)*;
+                $(s.serialize_element(&SerializePayload($name, behavior))?;)*
                 s.end()
             }
 

@@ -23,33 +23,34 @@ def processing_config(get_topic_name):
     :param options: initial options to be merged
     :return: the altered options
     """
+
     def inner(options=None):
         # The Travis script sets the kafka bootstrap server into system environment variable.
-        bootstrap_servers = os.environ.get('KAFKA_BOOTSTRAP_SERVER', '127.0.0.1:9092')
+        bootstrap_servers = os.environ.get("KAFKA_BOOTSTRAP_SERVER", "127.0.0.1:9092")
 
         options = deepcopy(options)  # avoid lateral effects
 
         if options is None:
             options = {}
-        if options.get('processing') is None:
-            options['processing'] = {}
-        processing = options['processing']
-        processing['enabled'] = True
-        if processing.get('kafka_config') is None:
-            processing['kafka_config'] = [
-                {'name': 'bootstrap.servers', 'value': bootstrap_servers},
+        if options.get("processing") is None:
+            options["processing"] = {}
+        processing = options["processing"]
+        processing["enabled"] = True
+        if processing.get("kafka_config") is None:
+            processing["kafka_config"] = [
+                {"name": "bootstrap.servers", "value": bootstrap_servers},
                 # {'name': 'batch.size', 'value': '0'}  # do not batch messages
             ]
-        if processing.get('topics') is None:
-            processing['topics'] = {
-                'events': get_topic_name("events"),
-                'attachments': get_topic_name("attachments"),
-                'transactions': get_topic_name("transactions"),
-                'outcomes': get_topic_name("outcomes"),
+        if processing.get("topics") is None:
+            processing["topics"] = {
+                "events": get_topic_name("events"),
+                "attachments": get_topic_name("attachments"),
+                "transactions": get_topic_name("transactions"),
+                "outcomes": get_topic_name("outcomes"),
             }
 
-        if not processing.get('redis'):
-            processing['redis'] = 'redis://127.0.0.1'
+        if not processing.get("redis"):
+            processing["redis"] = "redis://127.0.0.1"
         return options
 
     return inner
@@ -76,13 +77,12 @@ def relay_with_processing(relay, mini_sentry, processing_config, get_topic_name)
         options = processing_config(options)
 
         kafka_config = {}
-        for elm in options['processing']['kafka_config']:
-            kafka_config[elm['name']] = elm['value']
+        for elm in options["processing"]["kafka_config"]:
+            kafka_config[elm["name"]] = elm["value"]
 
         return relay(mini_sentry, options=options)
 
     return inner
-
 
 
 @pytest.fixture
@@ -95,19 +95,25 @@ def kafka_consumer(request, get_topic_name, processing_config):
         topics = [get_topic_name(topic)]
         options = processing_config(options)
         # look for the servers (it is the only config we are interested in)
-        servers= [elm['value'] for elm in options['processing']['kafka_config'] if elm['name'] == 'bootstrap.servers']
+        servers = [
+            elm["value"]
+            for elm in options["processing"]["kafka_config"]
+            if elm["name"] == "bootstrap.servers"
+        ]
         if len(servers) < 1:
-            raise ValueError("Bad kafka_config, could not find 'bootstrap.servers'.\n"
-                             "The configuration should have an entry of the format \n"
-                             "{name:'bootstrap.servers', value:'127.0.0.1'} at path 'processing.kafka_config'")
+            raise ValueError(
+                "Bad kafka_config, could not find 'bootstrap.servers'.\n"
+                "The configuration should have an entry of the format \n"
+                "{name:'bootstrap.servers', value:'127.0.0.1'} at path 'processing.kafka_config'"
+            )
 
         servers = servers[0]
 
         settings = {
-            'bootstrap.servers': servers,
-            'group.id': 'test.consumer',
-            'enable.auto.commit': True,
-            'auto.offset.reset': 'earliest',
+            "bootstrap.servers": servers,
+            "group.id": "test.consumer",
+            "enable.auto.commit": True,
+            "auto.offset.reset": "earliest",
         }
 
         consumer = kafka.Consumer(settings)
@@ -116,7 +122,6 @@ def kafka_consumer(request, get_topic_name, processing_config):
 
         while consumer.poll(timeout=0.1) is not None:
             pass
-
 
         return consumer
 
@@ -150,12 +155,12 @@ class OutcomesConsumer(ConsumerBase):
 
     def assert_rate_limited(self):
         outcome = self.get_outcome()
-        assert outcome['outcome'] == 2, outcome
+        assert outcome["outcome"] == 2, outcome
 
     def assert_dropped_internal(self):
         outcome = self.get_outcome()
-        assert outcome['outcome'] == 3
-        assert outcome['reason'] == 'internal'
+        assert outcome["outcome"] == 3
+        assert outcome["reason"] == "internal"
 
 
 @pytest.fixture
@@ -173,5 +178,5 @@ class EventsConsumer(ConsumerBase):
         assert event.error() is None
 
         v = msgpack.unpackb(event.value(), raw=False, use_list=False)
-        assert v['ty'][0] == 0, v['ty']  # KafkaMessageType::Event
-        return json.loads(v['payload'].decode("utf8")), v
+        assert v["ty"][0] == 0, v["ty"]  # KafkaMessageType::Event
+        return json.loads(v["payload"].decode("utf8")), v
