@@ -1,13 +1,13 @@
 [package]
-authors = ["Sentry <hello@sentry.io>"]
+authors = ["Sentry <oss@sentry.io>"]
 description = "Common functionality for the sentry relay"
 documentation = "https://docs.rs/semaphore-common"
 homepage = "https://github.com/getsentry/semaphore"
-license = "MIT"
 name = "semaphore-common"
 repository = "https://github.com/getsentry/semaphore"
 version = "0.4.59"
 edition = "2018"
+license-file = "../LICENSE"
 
 [features]
 default = []

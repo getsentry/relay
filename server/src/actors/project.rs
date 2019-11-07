@@ -925,7 +925,11 @@ impl ProjectCache {
                                 .configs
                                 .remove(&id)
                                 .unwrap_or(ErrorBoundary::Ok(None))
-                                .unwrap_or_else(|| Some(ProjectState::err()))
+                                .unwrap_or_else(|error| {
+                                    let e = LogError(error);
+                                    log::error!("error fetching project state {}: {}", id, e);
+                                    Some(ProjectState::err())
+                                })
                                 .unwrap_or_else(ProjectState::missing);
 
                             channel.send(state).ok();

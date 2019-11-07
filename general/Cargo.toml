@@ -1,8 +1,9 @@
 [package]
 name = "semaphore-general"
 version = "0.4.59"
-authors = ["Armin Ronacher <armin.ronacher@active-4.com>"]
+authors = ["Sentry <oss@sentry.io>"]
 edition = "2018"
+license-file = "../LICENSE"
 
 [dependencies]
 bytecount = "0.5.1"
