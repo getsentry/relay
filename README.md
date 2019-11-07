@@ -72,7 +72,10 @@ in front of all metrics.
 
 ## License
 
-Semaphore is licensed under the MIT license.
+Like Sentry, Semaphore is licensed under the BSL. See the `LICENSE` file and
+[this forum
+post](https://forum.sentry.io/t/re-licensing-sentry-faq-discussion/8044) for
+more information.
 
 ## Development
 
