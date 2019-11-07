@@ -164,13 +164,20 @@ fn normalize_uri(value: &str) -> Cow<'_, str> {
         return Cow::Owned(unsplit_uri(value, ""));
     }
 
-    match Url::parse(value) {
-        Ok(url) => match url.scheme() {
-            "http" | "https" => Cow::Owned(url.host_str().unwrap_or_default().to_owned()),
-            scheme => Cow::Owned(unsplit_uri(scheme, url.host_str().unwrap_or_default())),
-        },
-        Err(_) => Cow::Borrowed(value),
-    }
+    let url = match Url::parse(value) {
+        Ok(url) => url,
+        Err(_) => return Cow::Borrowed(value),
+    };
+
+    let normalized = match url.scheme() {
+        "http" | "https" => Cow::Borrowed(url.host_str().unwrap_or_default()),
+        scheme => Cow::Owned(unsplit_uri(scheme, url.host_str().unwrap_or_default())),
+    };
+
+    Cow::Owned(match url.port() {
+        Some(port) => format!("{}:{}", normalized, port),
+        None => normalized.into_owned(),
+    })
 }
 
 /// Inner (useful) part of a CSP report.
@@ -1168,6 +1175,36 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_uri() {
+        // Special handling for self URIs
+        assert_eq!(normalize_uri(""), "'self'");
+        assert_eq!(normalize_uri("self"), "'self'");
+
+        // Special handling for schema-only URIs
+        assert_eq!(normalize_uri("data"), "data:");
+        assert_eq!(normalize_uri("http"), "http://");
+
+        // URIs without port
+        assert_eq!(normalize_uri("http://notlocalhost/"), "notlocalhost");
+        assert_eq!(normalize_uri("https://notlocalhost/"), "notlocalhost");
+        assert_eq!(normalize_uri("data://notlocalhost/"), "data://notlocalhost");
+        assert_eq!(normalize_uri("http://notlocalhost/lol.css"), "notlocalhost");
+
+        // URIs with port
+        assert_eq!(
+            normalize_uri("http://notlocalhost:8000/"),
+            "notlocalhost:8000"
+        );
+        assert_eq!(
+            normalize_uri("http://notlocalhost:8000/lol.css"),
+            "notlocalhost:8000"
+        );
+
+        // Invalid URIs
+        assert_eq!(normalize_uri("xyz://notlocalhost/"), "xyz://notlocalhost");
+    }
+
+    #[test]
     fn test_csp_basic() {
         let json = r#"{
             "csp-report": {
@@ -1616,6 +1653,21 @@ mod tests {
         let event = Csp::parse_event(json.as_bytes()).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message, @r###""Blocked \'script\' from \'cdn.ajaxapis.com\'""###);
+    }
+
+    #[test]
+    fn test_csp_get_message_9() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://notlocalhost:8000/",
+                "effective-directive": "style-src",
+                "blocked-uri": "http://notlocalhost:8000/lol.css"
+            }
+        }"#;
+
+        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let message = &event.logentry.value().unwrap().formatted;
+        insta::assert_debug_snapshot!(message, @r###""Blocked \'style\' from \'notlocalhost:8000\'""###);
     }
 
     #[test]
