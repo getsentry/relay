@@ -786,13 +786,15 @@ impl ProjectUpdate {
     }
 }
 
+type OneshotPair<T> = (oneshot::Sender<T>, Shared<oneshot::Receiver<T>>);
+
 pub struct ProjectCache {
     backoff: RetryBackoff,
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
     local_states: HashMap<ProjectId, Arc<ProjectState>>,
-    state_channels: HashMap<ProjectId, oneshot::Sender<ProjectState>>,
+    state_channels: HashMap<ProjectId, OneshotPair<Arc<ProjectState>>>,
     updates: VecDeque<ProjectUpdate>,
     shutdown: SyncHandle,
 }
@@ -910,7 +912,7 @@ impl ProjectCache {
                         metric!(
                             histogram("project_state.received") = response.configs.len() as u64
                         );
-                        for (id, channel) in batch {
+                        for (id, (sender, _)) in batch {
                             let state = response
                                 .configs
                                 .remove(&id)
@@ -922,7 +924,7 @@ impl ProjectCache {
                                 })
                                 .unwrap_or_else(ProjectState::missing);
 
-                            channel.send(state).ok();
+                            sender.send(Arc::new(state)).ok();
                         }
                     }
                     Err(error) => {
@@ -1107,9 +1109,9 @@ struct ProjectStateResponse {
 }
 
 impl ProjectStateResponse {
-    pub fn managed(state: ProjectState) -> Self {
+    pub fn managed(state: Arc<ProjectState>) -> Self {
         ProjectStateResponse {
-            state: Arc::new(state),
+            state,
             is_local: false,
         }
     }
@@ -1157,12 +1159,26 @@ impl Handler<FetchProjectState> for ProjectCache {
             self.schedule_fetch(context);
         }
 
-        let (sender, receiver) = oneshot::channel();
-        if self.state_channels.insert(message.id, sender).is_some() {
-            log::error!("project {} state fetched multiple times", message.id);
-        }
+        // There's an edgecase where a project is represented by two Project actors. This can
+        // happen if our projects eviction logic removes an actor from `project_cache.projects`
+        // while it is still being hold onto. This in turn happens because we have no efficient way
+        // of determining the refcount of an `Addr<Project>`.
+        //
+        // Instead of fixing the race condition let's just make sure we don't fetch project caches
+        // twice. If the cleanup/eviction logic were to be fixed to take the addr's refcount into
+        // account, there should never be an instance where `state_channels` already contains a
+        // channel for our current `message.id`.
+        let (_, receiver) = self.state_channels.entry(message.id).or_insert_with(|| {
+            let (sender, receiver) = oneshot::channel();
+            (sender, receiver.shared())
+        });
 
-        Response::r#async(receiver.map(ProjectStateResponse::managed).map_err(|_| ()))
+        Response::r#async(
+            receiver
+                .clone()
+                .map(|x| ProjectStateResponse::managed((*x).clone()))
+                .map_err(|_| ()),
+        )
     }
 }
 
