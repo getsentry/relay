@@ -29,6 +29,7 @@ pub struct StoreConfig {
     pub key_id: Option<String>,
     pub protocol_version: Option<String>,
     pub grouping_config: Option<Value>,
+    pub user_agent: Option<String>,
 
     pub max_secs_in_future: Option<i64>,
     pub max_secs_in_past: Option<i64>,

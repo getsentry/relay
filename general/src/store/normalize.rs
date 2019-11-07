@@ -261,7 +261,7 @@ impl<'a> NormalizeProcessor<'a> {
             user.ip_address = Annotated::new(client_ip.clone());
         }
 
-        if let Some(ref client) = self.config.client {
+        if let Some(ref client) = self.config.user_agent {
             let request = event
                 .request
                 .value_mut()

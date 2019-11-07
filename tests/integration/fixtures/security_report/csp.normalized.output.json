@@ -13,6 +13,17 @@
   "user": {
     "ip_address": "127.0.0.1"
   },
+  "contexts": {
+    "browser": {
+      "name": "Chrome",
+      "type": "browser",
+      "version": "74.0.3729"
+    },
+    "client_os": {
+      "name": "Windows 10",
+      "type": "os"
+    }
+  },
   "request": {
     "url": "https://example.com/foo/bar",
     "headers": [
@@ -21,8 +32,8 @@
         "https://www.google.com/"
       ],
       [
-        "USER AGENT",
-        "TODO Don't forget to fix it"
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
       ]
     ]
   },
