@@ -264,7 +264,7 @@ impl CspRaw {
                 directive => format!("Blocked inline '{}'", directive),
             }
         } else {
-            let uri = dbg!(normalize_uri(&self.blocked_uri));
+            let uri = normalize_uri(&self.blocked_uri);
 
             match effective_directive {
                 CspDirective::ChildSrc => format!("Blocked 'child' from '{}'", uri),
