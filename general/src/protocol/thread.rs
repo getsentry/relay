@@ -87,11 +87,14 @@ pub struct Thread {
     #[metastructure(skip_serialization = "empty")]
     pub raw_stacktrace: Annotated<RawStacktrace>,
 
-    /// Indicates that this thread requested the event (usually by crashing).
+    /// Indicates that this thread crashed the application.
     pub crashed: Annotated<bool>,
 
     /// Indicates that the thread was not suspended when the event was created.
     pub current: Annotated<bool>,
+
+    /// Indicates that this thread errored, which caused this event.
+    pub errored: Annotated<bool>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
@@ -130,6 +133,7 @@ fn test_thread_roundtrip() {
   "name": "myname",
   "crashed": true,
   "current": true,
+  "errored": true,
   "other": "value"
 }"#;
     let thread = Annotated::new(Thread {
@@ -139,6 +143,7 @@ fn test_thread_roundtrip() {
         raw_stacktrace: Annotated::empty(),
         crashed: Annotated::new(true),
         current: Annotated::new(true),
+        errored: Annotated::new(true),
         other: {
             let mut map = Map::new();
             map.insert(
