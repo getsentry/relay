@@ -3,11 +3,7 @@ python: "3.6"
 
 cache:
   directories:
-    - cabi/target
     - py/venv
-    - $HOME/.cargo
-    - $TRAVIS_BUILD_DIR/target
-  timeout: 1200
 
 git:
   depth: 1
