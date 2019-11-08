@@ -73,8 +73,8 @@ enum ProcessingError {
     #[fail(display = "failed to determine event action")]
     NoAction(#[cause] ProjectError),
 
-    #[fail(display = "failed to resolve PII config for project")]
-    PiiFailed(#[cause] ProjectError),
+    #[fail(display = "failed to resolve project information")]
+    ProjectFailed(#[cause] ProjectError),
 
     #[fail(display = "event submission rejected with reason: {:?}", _0)]
     EventRejected(DiscardReason),
@@ -570,7 +570,7 @@ impl Handler<HandleEvent> for EventManager {
                     .and_then(clone!(project, |_| project
                         .send(GetProjectState)
                         .map_err(ProcessingError::ScheduleFailed)
-                        .and_then(|result| result.map_err(ProcessingError::PiiFailed))))
+                        .and_then(|result| result.map_err(ProcessingError::ProjectFailed))))
                     .and_then(clone!(meta, |project_state| {
                         *org_id_for_err.lock() = project_state.organization_id;
                        processor
@@ -696,7 +696,7 @@ impl Handler<HandleEvent> for EventManager {
                 let outcome_params: Option<Outcome> = match error {
                     ProcessingError::SerializeFailed(_)
                     | ProcessingError::ScheduleFailed(_)
-                    | ProcessingError::PiiFailed(_)
+                    | ProcessingError::ProjectFailed(_)
                     | ProcessingError::InvalidEvent(_)
                     | ProcessingError::Timeout
                     | ProcessingError::Shutdown
