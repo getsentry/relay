@@ -786,7 +786,36 @@ impl ProjectUpdate {
     }
 }
 
-type OneshotPair<T> = (oneshot::Sender<T>, Shared<oneshot::Receiver<T>>);
+#[derive(Debug)]
+struct ProjectStateChannel {
+    sender: oneshot::Sender<Arc<ProjectState>>,
+    receiver: Shared<oneshot::Receiver<Arc<ProjectState>>>,
+    deadline: Instant,
+}
+
+impl ProjectStateChannel {
+    pub fn new(timeout: Duration) -> Self {
+        let (sender, receiver) = oneshot::channel();
+
+        Self {
+            sender,
+            receiver: receiver.shared(),
+            deadline: Instant::now() + timeout,
+        }
+    }
+
+    pub fn send(self, state: ProjectState) {
+        self.sender.send(Arc::new(state)).ok();
+    }
+
+    pub fn receiver(&self) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
+        self.receiver.clone()
+    }
+
+    pub fn expired(&self) -> bool {
+        Instant::now() > self.deadline
+    }
+}
 
 pub struct ProjectCache {
     backoff: RetryBackoff,
@@ -794,7 +823,7 @@ pub struct ProjectCache {
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
     local_states: HashMap<ProjectId, Arc<ProjectState>>,
-    state_channels: HashMap<ProjectId, (OneshotPair<Arc<ProjectState>>, Instant)>,
+    state_channels: HashMap<ProjectId, ProjectStateChannel>,
     updates: VecDeque<ProjectUpdate>,
     shutdown: SyncHandle,
 }
@@ -849,17 +878,8 @@ impl ProjectCache {
 
         let batch: HashMap<_, _> = batch_ids
             .iter()
-            .filter_map(|id| {
-                let (channel, deadline) = self.state_channels.remove(id).unwrap();
-
-                if deadline < Instant::now() {
-                    // If we failed to fetch this project before `deadline`, we drop the channel's
-                    // sender end. This is treated as the project being missing.
-                    None
-                } else {
-                    Some((*id, (channel, deadline)))
-                }
-            })
+            .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
+            .filter(|(_id, channel)| !channel.expired())
             .collect();
 
         // Remove outdated projects that are not being refreshed from the cache. If the project is
@@ -922,7 +942,7 @@ impl ProjectCache {
                         metric!(
                             histogram("project_state.received") = response.configs.len() as u64
                         );
-                        for (id, ((sender, _), _)) in batch {
+                        for (id, channel) in batch {
                             let state = response
                                 .configs
                                 .remove(&id)
@@ -934,7 +954,7 @@ impl ProjectCache {
                                 })
                                 .unwrap_or_else(ProjectState::missing);
 
-                            sender.send(Arc::new(state)).ok();
+                            channel.send(state);
                         }
                     }
                     Err(error) => {
@@ -1170,27 +1190,25 @@ impl Handler<FetchProjectState> for ProjectCache {
             self.schedule_fetch(context);
         }
 
-        // There's an edgecase where a project is represented by two Project actors. This can
-        // happen if our projects eviction logic removes an actor from `project_cache.projects`
-        // while it is still being hold onto. This in turn happens because we have no efficient way
+        // There's an edge case where a project is represented by two Project actors. This can
+        // happen if our project eviction logic removes an actor from `project_cache.projects`
+        // while it is still being held onto. This in turn happens because we have no efficient way
         // of determining the refcount of an `Addr<Project>`.
         //
-        // Instead of fixing the race condition let's just make sure we don't fetch project caches
+        // Instead of fixing the race condition, let's just make sure we don't fetch project caches
         // twice. If the cleanup/eviction logic were to be fixed to take the addr's refcount into
         // account, there should never be an instance where `state_channels` already contains a
         // channel for our current `message.id`.
-        let (_, receiver) = self.state_channels.entry(message.id).or_insert_with(|| {
-            let (sender, receiver) = oneshot::channel();
-            (
-                sender,
-                receiver.shared(),
-                Instant::now() + self.config.query_deadline(),
-            )
-        });
+        let query_timeout = self.config.query_timeout();
+
+        let channel = self
+            .state_channels
+            .entry(message.id)
+            .or_insert_with(|| ProjectStateChannel::new(query_timeout));
 
         Response::r#async(
-            receiver
-                .clone()
+            channel
+                .receiver()
                 .map(|x| ProjectStateResponse::managed((*x).clone()))
                 .map_err(|_| ()),
         )
