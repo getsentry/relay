@@ -27,13 +27,13 @@ num_cpus = "1.10.1"
 parking_lot = "0.9.0"
 rand = "0.6.5"
 regex = "1.2.0"
-sentry-types = "0.11.0"
+sentry-types = "0.12.0"
 sha2 = "0.8.0"
 serde = { version = "1.0.98", features = ["derive"] }
 serde_json = "1.0.40"
 serde_yaml = "0.8.9"
 url = "2.0.0"
-uuid = { version = "0.7.4", features = ["v4", "serde"] }
+uuid = { version = "0.8.1", features = ["v4", "serde"] }
 lru = "0.4.0"
 globset = "0.4.4"
 

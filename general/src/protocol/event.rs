@@ -32,7 +32,7 @@ impl fmt::Display for EventId {
 }
 
 impl FromStr for EventId {
-    type Err = uuid::parser::ParseError;
+    type Err = uuid::Error;
 
     fn from_str(uuid_str: &str) -> Result<Self, Self::Err> {
         uuid_str.parse().map(EventId)

@@ -9,7 +9,7 @@ license-file = "../LICENSE"
 bytecount = "0.5.1"
 chrono = "0.4.7"
 cookie = { version = "0.12.0", features = ["percent-encode"] }
-debugid = { version = "0.5.3", features = ["serde"] }
+debugid = { version = "0.7.0", features = ["serde"] }
 dynfmt = { version = "0.1.1", features = ["python", "curly"] }
 failure = "0.1.5"
 globset = "0.4.4"
@@ -30,7 +30,7 @@ serde_urlencoded = "0.5.5"
 smallvec = { version = "0.6.10", features = ["serde"] }
 uaparser = { version = "0.3.1", optional = true }
 url = "2.0.0"
-uuid = { version = "0.7.4", features = ["v4", "serde"] }
+uuid = { version = "0.8.1", features = ["v4", "serde"] }
 pest = "2.1.1"
 pest_derive = "2.1.0"
 
