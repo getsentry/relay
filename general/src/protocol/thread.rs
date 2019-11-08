@@ -87,7 +87,7 @@ pub struct Thread {
     #[metastructure(skip_serialization = "empty")]
     pub raw_stacktrace: Annotated<RawStacktrace>,
 
-    /// Indicates that this thread crashed the application.
+    /// Indicates that this thread crashed (likely also crashing the application).
     pub crashed: Annotated<bool>,
 
     /// Indicates that the thread was not suspended when the event was created.
