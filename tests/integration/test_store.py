@@ -3,7 +3,9 @@ import os
 import queue
 import datetime
 import uuid
+import time
 
+import flask
 import pytest
 
 from requests.exceptions import HTTPError
@@ -324,3 +326,41 @@ def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_co
         event, _ = events_consumer.get_event()
 
         assert event["logentry"]["formatted"] == f"otherkey{i}"
+
+
+def test_query_retry_maxed_out(
+    mini_sentry, relay_with_processing, outcomes_consumer, events_consumer
+):
+    """
+    Assert that a query is not retried an infinite amount of times.
+
+    This is not specific to processing or store, but here we have the outcomes
+    consumer which we can use to assert that an event has been dropped.
+    """
+
+    request_count = 0
+
+    outcomes_consumer = outcomes_consumer()
+    events_consumer = events_consumer()
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        nonlocal request_count
+        request_count += 1
+        time.sleep(1)
+        print("RETRY", request_count)
+        return "no", 500
+
+    relay = relay_with_processing({"limits": {"query_timeout": 10}})
+    relay.wait_relay_healthcheck()
+
+    relay.send_event(42)
+
+    outcomes_consumer.assert_dropped_internal()
+    assert request_count <= 30  # 30 secs to fetch, each request takes 1 second at least
+
+    for (_, error) in mini_sentry.test_failures:
+        assert isinstance(error, AssertionError)
+        assert "error fetching project states" in str(error)
+
+    mini_sentry.test_failures.clear()

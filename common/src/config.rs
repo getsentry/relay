@@ -258,6 +258,9 @@ struct Limits {
     /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
     /// the number of logical CPU cores on the host.
     max_thread_count: usize,
+    /// The maximum number of seconds a query is allowed to take across retries. Individual requests
+    /// have lower timeouts. Defaults to 30 seconds.
+    query_timeout: u64,
 }
 
 impl Default for Limits {
@@ -269,6 +272,7 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::from_megabytes(40),
             max_api_chunk_upload_size: ByteSize::from_megabytes(100),
             max_thread_count: num_cpus::get(),
+            query_timeout: 30,
         }
     }
 }
@@ -811,6 +815,11 @@ impl Config {
     /// Returns the maximum number of active requests
     pub fn max_concurrent_requests(&self) -> usize {
         self.values.limits.max_concurrent_requests
+    }
+
+    /// The maximum number of seconds a query is allowed to take across retries.
+    pub fn query_timeout(&self) -> Duration {
+        Duration::from_secs(self.values.limits.query_timeout)
     }
 
     /// Returns the number of cores to use for thread pools.

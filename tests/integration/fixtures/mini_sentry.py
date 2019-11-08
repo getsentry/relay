@@ -92,7 +92,7 @@ def mini_sentry(request):
 
         return jsonify(public_keys=rv)
 
-    @app.errorhandler(Exception)
+    @app.errorhandler(500)
     def fail(e):
         sentry.test_failures.append((flask_request.url, e))
         raise e
