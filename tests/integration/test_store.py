@@ -351,7 +351,7 @@ def test_query_retry_maxed_out(
         print("RETRY", request_count)
         return "no", 500
 
-    relay = relay_with_processing({"limits": {"query_deadline": 10}})
+    relay = relay_with_processing({"limits": {"query_timeout": 10}})
     relay.wait_relay_healthcheck()
 
     relay.send_event(42)
