@@ -4,8 +4,12 @@ expression: SerializableAnnotated(&event)
 ---
 event_id: ae3a2cc6e08741c5b09946c65c022469
 level: error
+type: error
 culprit: com.android.internal.os.ZygoteInit in main
+logger: ""
 platform: java
+timestamp: "[timestamp]"
+received: "[received]"
 release: io.sentry.sample-1.0
 dist: "1"
 user:
