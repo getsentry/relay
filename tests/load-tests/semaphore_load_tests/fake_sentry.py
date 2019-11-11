@@ -7,10 +7,12 @@ import time
 import os
 
 from yaml import load, dump
+
 try:
     from yaml import CLoader as Loader, CDumper as Dumper, CFullLoader as FullLoader
 except ImportError:
     from yaml import Loader, Dumper, FullLoader
+
 
 class Sentry(object):
     _healthcheck_passed = False
@@ -71,7 +73,14 @@ class Sentry(object):
 
     def basic_project_config(self):
         return {
-            "publicKeys": [{"publicKey": self.dsn_public_key, "isEnabled": True, "numericId": 123, "quotas": []}],
+            "publicKeys": [
+                {
+                    "publicKey": self.dsn_public_key,
+                    "isEnabled": True,
+                    "numericId": 123,
+                    "quotas": [],
+                }
+            ],
             "rev": "5ceaea8c919811e8ae7daae9fe877901",
             "disabled": False,
             "lastFetch": datetime.datetime.utcnow().isoformat() + "Z",
@@ -97,19 +106,10 @@ class Sentry(object):
             "config": {
                 "excludeFields": [],
                 "filterSettings": {
-                    "browser-extensions": {
-                        "isEnabled": True
-                    },
-                    "web-crawlers": {
-                        "isEnabled": True
-                    },
-                    "localhost": {
-                        "isEnabled": False
-                    },
-                    "legacy-browsers": {
-                        "isEnabled": True,
-                        "options": ["ie_pre_9"]
-                    }
+                    "browser-extensions": {"isEnabled": True},
+                    "web-crawlers": {"isEnabled": True},
+                    "localhost": {"isEnabled": False},
+                    "legacy-browsers": {"isEnabled": True, "options": ["ie_pre_9"]},
                 },
                 "scrubIpAddresses": False,
                 "sensitiveFields": [],
@@ -117,21 +117,17 @@ class Sentry(object):
                 "scrubData": True,
                 "groupingConfig": {
                     "id": "legacy:2019-03-12",
-                    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC"
+                    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
                 },
-                "blacklistedIps": [
-                    "127.43.33.22"
-                ],
-                "trustedRelays": []
+                "blacklistedIps": ["127.43.33.22"],
+                "trustedRelays": [],
             },
         }
 
         return {
             **basic,
             **full,
-            'config': {
-                **basic['config'],
-                **full['config']},
+            "config": {**basic["config"], **full["config"]},
         }
 
     @property
@@ -165,7 +161,7 @@ def _fake_sentry_thread(config):
     # sentry = None
     host = config.get("host")
     port = config.get("port")
-    dns_public_key = config.get('key')
+    dns_public_key = config.get("key")
     sentry = Sentry((host, port), dns_public_key, app)
 
     authenticated_relays = {}
@@ -204,18 +200,22 @@ def _fake_sentry_thread(config):
 
         return jsonify(public_keys=rv)
 
-    @app.route('/api/<project_id>/store', methods=["POST", "GET"])
+    @app.route("/api/<project_id>/store", methods=["POST", "GET"])
     def store_all(project_id):
         print("FAKE sentry store called for project:{}".format(repr(project_id)))
         return ""
 
-    @app.route('/<path:u_path>', methods=["POST", "GET"])
+    @app.route("/<path:u_path>", methods=["POST", "GET"])
     def catch_all(u_path):
         print("fake sentry called on:'{}'".format(repr(u_path)))
-        return ("<h1>Fake Sentry</h1>" +
-                "<div>You have called fake-sentry on: <nbsp/>" +
-                "<span style='font-family:monospace; background-color:#e8e8e8;'>{}</span></div>".format(u_path) +
-                "<h3><b>Note:</b> This is probably the wrong url to call !!!<h3/>")
+        return (
+            "<h1>Fake Sentry</h1>"
+            + "<div>You have called fake-sentry on: <nbsp/>"
+            + "<span style='font-family:monospace; background-color:#e8e8e8;'>{}</span></div>".format(
+                u_path
+            )
+            + "<h3><b>Note:</b> This is probably the wrong url to call !!!<h3/>"
+        )
 
     @app.route("/", methods=["GET"])
     def root():
@@ -229,14 +229,17 @@ def _fake_sentry_thread(config):
 
     app.run(host=host, port=port)
 
+
 def _get_config():
     """
     Returns the program settings located in the main directory (just above this file's directory)
     with the name config.yml
     """
-    file_name = os.path.realpath(os.path.join(__file__, "../..", "fake_sentry.config.yml"))
+    file_name = os.path.realpath(
+        os.path.join(__file__, "../..", "fake_sentry.config.yml")
+    )
     try:
-        with open(file_name, 'r') as file:
+        with open(file_name, "r") as file:
             return load(file, Loader=FullLoader)
     except Exception as err:
         print("Error while getting the configuration file:\n {}".format(err))
