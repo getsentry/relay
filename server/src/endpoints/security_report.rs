@@ -6,13 +6,15 @@ use actix_web::{pred, HttpRequest, HttpResponse, Query, Request};
 use bytes::Bytes;
 use serde::Deserialize;
 
-use semaphore_general::protocol::{
-    Csp, ExpectCt, ExpectStaple, Hpkp, LenientString, SecurityReportType,
-};
-use semaphore_general::types::Annotated;
+use semaphore_common::Uuid;
+use semaphore_general::protocol::EventId;
+// use semaphore_general::protocol::{
+//     Csp, ExpectCt, ExpectStaple, Hpkp, LenientString, SecurityReportType,
+// };
+// use semaphore_general::types::Annotated;
 
-use crate::actors::events::EventError;
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
+use crate::envelope::{ContentType, IncomingEnvelope, IncomingItem, IncomingItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
@@ -22,29 +24,54 @@ struct SecurityReportParams {
     sentry_environment: Option<String>,
 }
 
-fn process_security_report(
+// fn process_security_report(
+//     data: Bytes,
+//     params: SecurityReportParams,
+// ) -> Result<Bytes, BadStoreRequest> {
+//     let security_report_type = SecurityReportType::from_json(&data)
+//         .map_err(|_| BadStoreRequest::InvalidSecurityReportType)?;
+
+//     let mut event = match security_report_type {
+//         SecurityReportType::Csp => Csp::parse_event(&data),
+//         SecurityReportType::ExpectCt => ExpectCt::parse_event(&data),
+//         SecurityReportType::ExpectStaple => ExpectStaple::parse_event(&data),
+//         SecurityReportType::Hpkp => Hpkp::parse_event(&data),
+//     }
+//     .map_err(|e| BadStoreRequest::InvalidSecurityReport(e))?;
+
+//     event.release = Annotated::from(params.sentry_release.map(LenientString));
+//     event.environment = Annotated::from(params.sentry_environment);
+
+//     let json_string = Annotated::new(event)
+//         .to_json()
+//         .map_err(|e| BadStoreRequest::InvalidJson(e))?;
+
+//     Ok(Bytes::from(json_string))
+// }
+
+fn extract_envelope(
     data: Bytes,
     params: SecurityReportParams,
-) -> Result<Bytes, BadStoreRequest> {
-    let security_report_type = SecurityReportType::from_json(&data)
-        .map_err(|_| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReportType))?;
-
-    let mut event = match security_report_type {
-        SecurityReportType::Csp => Csp::parse_event(&data),
-        SecurityReportType::ExpectCt => ExpectCt::parse_event(&data),
-        SecurityReportType::ExpectStaple => ExpectStaple::parse_event(&data),
-        SecurityReportType::Hpkp => Hpkp::parse_event(&data),
+) -> Result<IncomingEnvelope, BadStoreRequest> {
+    if data.is_empty() {
+        return Err(BadStoreRequest::EmptyBody);
     }
-    .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReport(e)))?;
 
-    event.release = Annotated::from(params.sentry_release.map(LenientString));
-    event.environment = Annotated::from(params.sentry_environment);
+    let mut report_item = IncomingItem::new(IncomingItemType::SecurityReport);
+    report_item.set_payload(ContentType::Json, data);
 
-    let json_string = Annotated::new(event)
-        .to_json()
-        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidJson(e)))?;
+    // TODO(ja): Type these out?
+    if let Some(sentry_release) = params.sentry_release {
+        report_item.set_header("sentry_release", sentry_release);
+    }
+    if let Some(sentry_environment) = params.sentry_environment {
+        report_item.set_header("sentry_environment", sentry_environment);
+    }
 
-    Ok(Bytes::from(json_string))
+    let mut envelope = IncomingEnvelope::new(EventId(Uuid::new_v4()));
+    envelope.add_item(report_item);
+
+    Ok(envelope)
 }
 
 #[derive(Debug)]
@@ -82,7 +109,7 @@ fn store_security_report(
         meta,
         start_time,
         request,
-        move |data| process_security_report(data, params.into_inner()),
+        move |data| extract_envelope(data, params.into_inner()),
         |_| {
             HttpResponse::Created()
                 .content_type("application/javascript")

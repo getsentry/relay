@@ -61,6 +61,7 @@ pub enum Outcome {
     Accepted,
 
     /// The event has been filtered due to a configured filter.
+    #[allow(dead_code)]
     Filtered(FilterStatKey),
 
     /// The event has been rate limited.
@@ -143,6 +144,9 @@ pub enum DiscardReason {
 
     /// [Relay] A project state returned by the upstream could not be parsed.
     ProjectState,
+
+    /// [Relay] An envelope was submitted with two items that need to be unique.
+    DuplicateItem,
 
     /// [All] An error in Relay caused event ingestion to fail. This is the catch-all and usually
     /// indicates bugs in Relay, rather than an expected failure.
@@ -227,6 +231,7 @@ mod real_implementation {
                 DiscardReason::Payload => "payload",
                 DiscardReason::InvalidJson => "invalid_json",
                 DiscardReason::ProjectState => "project_state",
+                DiscardReason::DuplicateItem => "duplicate_item",
                 DiscardReason::Internal => "internal",
             }
         }

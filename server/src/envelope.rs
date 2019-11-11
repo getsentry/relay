@@ -1,5 +1,7 @@
 use std::borrow::{Borrow, Cow};
 use std::collections::BTreeMap;
+use std::fmt;
+use std::io::{self, Write};
 
 use bytes::Bytes;
 use failure::Fail;
@@ -8,6 +10,8 @@ use serde_json::Value;
 use smallvec::SmallVec;
 
 use semaphore_general::protocol::EventId;
+
+pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
 #[derive(Debug, Fail)]
 pub enum EnvelopeError {
@@ -41,6 +45,17 @@ pub enum IncomingItemType {
     Attachment,
     FormData,
     SecurityReport,
+}
+
+impl fmt::Display for IncomingItemType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::Event => write!(f, "event"),
+            Self::Attachment => write!(f, "attachment"),
+            Self::FormData => write!(f, "form data"),
+            Self::SecurityReport => write!(f, "security report"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -187,6 +202,9 @@ where
     }
 }
 
+pub type ItemIter<'a, T> = std::slice::Iter<'a, Item<T>>;
+pub type ItemIterMut<'a, T> = std::slice::IterMut<'a, Item<T>>;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnvelopeHeaders {
     event_id: EventId,
@@ -200,7 +218,10 @@ pub struct Envelope<T> {
     items: SmallVec<[Item<T>; 3]>,
 }
 
-impl<T> Envelope<T> {
+impl<T> Envelope<T>
+where
+    T: Copy + PartialEq,
+{
     pub fn new(event_id: EventId) -> Self {
         Self {
             headers: EnvelopeHeaders {
@@ -239,8 +260,13 @@ impl<T> Envelope<T> {
         self.headers.other.insert(name.into(), value.into())
     }
 
-    pub fn items(&self) -> &[Item<T>] {
-        &self.items
+    pub fn items(&self) -> ItemIter<'_, T> {
+        self.items.iter()
+    }
+
+    pub fn take_item(&mut self, ty: T) -> Option<Item<T>> {
+        let index = self.items.iter().position(|i| i.ty() == ty);
+        index.map(|index| self.items.swap_remove(index))
     }
 
     pub fn add_item(&mut self, item: Item<T>) {
@@ -263,7 +289,7 @@ where
         while offset < bytes.len() {
             let (item, item_size) = Self::parse_item(bytes.slice_from(offset))?;
             offset += item_size;
-            envelope.add_item(item);
+            envelope.items.push(item);
         }
 
         Ok(envelope)
@@ -322,13 +348,17 @@ where
     }
 }
 
-use std::io::{self, Write};
-
 impl<T> Envelope<T>
 where
     T: Serialize,
 {
-    fn serialize<W>(&self, mut writer: W) -> Result<(), EnvelopeError>
+    pub fn to_vec(&self) -> Result<Vec<u8>, EnvelopeError> {
+        let mut vec = Vec::new(); // TODO: Preallocate?
+        self.serialize(&mut vec)?;
+        Ok(vec)
+    }
+
+    pub fn serialize<W>(&self, mut writer: W) -> Result<(), EnvelopeError>
     where
         W: Write,
     {
@@ -357,11 +387,11 @@ where
     }
 }
 
-type IncomingEnvelope = Envelope<IncomingItemType>;
-type IncomingItem = Item<IncomingItemType>;
+pub type IncomingEnvelope = Envelope<IncomingItemType>;
+pub type IncomingItem = Item<IncomingItemType>;
 
-type OutgoingEnvelope = Envelope<OutgoingItemType>;
-type OutgoingItem = Item<OutgoingItemType>;
+pub type OutgoingEnvelope = Envelope<OutgoingItemType>;
+pub type OutgoingItem = Item<OutgoingItemType>;
 
 #[cfg(test)]
 mod tests {
@@ -414,7 +444,8 @@ mod tests {
         assert_eq!(envelope.len(), 0);
         assert!(envelope.is_empty());
 
-        assert!(envelope.items().is_empty());
+        let items: Vec<_> = envelope.items().collect();
+        assert!(items.is_empty());
     }
 
     #[test]
@@ -426,8 +457,9 @@ mod tests {
         assert_eq!(envelope.len(), 1);
         assert!(!envelope.is_empty());
 
-        assert_eq!(envelope.items().len(), 1);
-        assert_eq!(envelope.items()[0].ty(), OutgoingItemType::Attachment);
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].ty(), OutgoingItemType::Attachment);
     }
 
     #[test]
@@ -438,6 +470,28 @@ mod tests {
 
         assert_eq!(envelope.get_header("custom"), Some(&Value::from(42)));
         assert_eq!(envelope.get_header("anything"), None);
+    }
+
+    #[test]
+    fn test_envelope_take_item() {
+        let event_id = EventId(Uuid::new_v4());
+        let mut envelope = OutgoingEnvelope::new(event_id);
+
+        let mut item1 = Item::new(OutgoingItemType::Attachment);
+        item1.set_filename("item1");
+        envelope.add_item(item1);
+
+        let mut item2 = Item::new(OutgoingItemType::Attachment);
+        item2.set_filename("item2");
+        envelope.add_item(item2);
+
+        let taken = envelope
+            .take_item(OutgoingItemType::Attachment)
+            .expect("should return some item");
+
+        assert_eq!(taken.filename(), Some("item1"));
+
+        assert!(envelope.take_item(OutgoingItemType::Event).is_none());
     }
 
     #[test]
@@ -474,8 +528,9 @@ mod tests {
         let envelope = IncomingEnvelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 2);
 
-        assert_eq!(envelope.items()[0].len(), 0);
-        assert_eq!(envelope.items()[1].len(), 0);
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].len(), 0);
+        assert_eq!(items[1].len(), 0);
     }
 
     #[test]
@@ -492,22 +547,24 @@ mod tests {
         let envelope = IncomingEnvelope::parse_bytes(bytes).unwrap();
 
         assert_eq!(envelope.len(), 2);
+        let items: Vec<_> = envelope.items().collect();
 
-        let item = &envelope.items()[0];
-        assert_eq!(item.ty(), IncomingItemType::Attachment);
-        assert_eq!(item.len(), 10);
-        assert_eq!(item.payload(), Bytes::from(&b"\xef\xbb\xbfHello\r\n"[..]));
-        assert_eq!(item.content_type(), Some(&ContentType::Text));
-
-        let item = &envelope.items()[1];
-        assert_eq!(item.ty(), IncomingItemType::Event);
-        assert_eq!(item.len(), 41);
+        assert_eq!(items[0].ty(), IncomingItemType::Attachment);
+        assert_eq!(items[0].len(), 10);
         assert_eq!(
-            item.payload(),
+            items[0].payload(),
+            Bytes::from(&b"\xef\xbb\xbfHello\r\n"[..])
+        );
+        assert_eq!(items[0].content_type(), Some(&ContentType::Text));
+
+        assert_eq!(items[1].ty(), IncomingItemType::Event);
+        assert_eq!(items[1].len(), 41);
+        assert_eq!(
+            items[1].payload(),
             Bytes::from("{\"message\":\"hello world\",\"level\":\"error\"}")
         );
-        assert_eq!(item.content_type(), Some(&ContentType::Json));
-        assert_eq!(item.filename(), Some("application.log"));
+        assert_eq!(items[1].content_type(), Some(&ContentType::Json));
+        assert_eq!(items[1].filename(), Some("application.log"));
     }
 
     #[test]

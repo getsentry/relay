@@ -14,14 +14,14 @@ use sentry_actix::ActixWebHubExt;
 use semaphore_common::{metric, tryf, LogError, ProjectId, ProjectIdParseError};
 use semaphore_general::protocol::EventId;
 
-use crate::actors::events::{EventError, QueueEvent};
+use crate::actors::events::{QueueEvent, QueueEventError};
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
 use crate::body::{StoreBody, StorePayloadError};
+use crate::envelope::IncomingEnvelope;
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
-
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -37,8 +37,14 @@ pub enum BadStoreRequest {
     #[fail(display = "failed to fetch project information")]
     ProjectFailed(#[cause] ProjectError),
 
-    #[fail(display = "failed to process event")]
-    ProcessingFailed(#[cause] EventError),
+    #[fail(display = "empty event data")]
+    EmptyBody,
+
+    #[fail(display = "invalid JSON data")]
+    InvalidJson(#[cause] serde_json::Error),
+
+    #[fail(display = "failed to queue event")]
+    QueueFailed(#[cause] QueueEventError),
 
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
@@ -59,16 +65,11 @@ impl BadStoreRequest {
                 Outcome::Invalid(DiscardReason::AuthVersion)
             }
 
-            BadStoreRequest::ProcessingFailed(event_error) => match event_error {
-                EventError::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
-                EventError::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
-                EventError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
-                EventError::InvalidSecurityReportType => {
-                    Outcome::Invalid(DiscardReason::SecurityReportType)
-                }
-                EventError::InvalidSecurityReport(_) => {
-                    Outcome::Invalid(DiscardReason::SecurityReport)
-                }
+            BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
+            BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
+
+            BadStoreRequest::QueueFailed(event_error) => match event_error {
+                QueueEventError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
             },
 
             BadStoreRequest::ProjectFailed(project_error) => match project_error {
@@ -130,11 +131,11 @@ pub fn handle_store_like_request<F, R>(
     meta: EventMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
-    process_body: F,
+    extract_envelope: F,
     create_response: R,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
-    F: FnOnce(Bytes) -> Result<Bytes, BadStoreRequest> + 'static,
+    F: FnOnce(Bytes) -> Result<IncomingEnvelope, BadStoreRequest> + 'static,
     R: FnOnce(EventId) -> HttpResponse + 'static,
 {
     let start_time = start_time.into_inner();
@@ -193,22 +194,17 @@ where
                         .limit(config.max_event_payload_size())
                         .map_err(BadStoreRequest::PayloadError)
                 })
-                .and_then(move |data| {
-                    // Processing is done when the request does not directly represent an Sentry
-                    // event but rather something that can be converted into a sentry event (like a
-                    // security report).
-                    process_body(data)
-                })
-                .and_then(move |data| {
+                .and_then(move |data| extract_envelope(data))
+                .and_then(move |envelope| {
                     event_manager
                         .send(QueueEvent {
-                            data,
+                            envelope,
                             meta,
                             project,
                             start_time,
                         })
                         .map_err(BadStoreRequest::ScheduleFailed)
-                        .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
+                        .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
                         .map(create_response)
                 })
         })
