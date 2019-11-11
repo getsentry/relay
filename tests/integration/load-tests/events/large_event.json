@@ -1,0 +1,3074 @@
+{
+  "release": "semaphore@0.4.46",
+  "dist": null,
+  "platform": "native",
+  "message": "",
+  "datetime": "2019-10-02T23:13:30.000000Z",
+  "time_spent": null,
+  "tags": [
+    [
+      "browser",
+      "Chrome 77.0.3865"
+    ],
+    [
+      "browser.name",
+      "Chrome"
+    ],
+    [
+      "client_os.name",
+      "Windows 8.1"
+    ],
+    [
+      "environment",
+      "release"
+    ],
+    [
+      "level",
+      "error"
+    ],
+    [
+      "os",
+      "Linux 4.14.137+"
+    ],
+    [
+      "os.name",
+      "Linux"
+    ],
+    [
+      "rust",
+      "rustc 1.38.0"
+    ],
+    [
+      "rust.name",
+      "rustc"
+    ],
+    [
+      "release",
+      "semaphore@0.4.46"
+    ],
+    [
+      "server_name",
+      "relay-6bcd5dccbb-8fhsl"
+    ],
+    [
+      "transaction",
+      "/api"
+    ],
+    [
+      "url",
+      "https://ingest.sentry.io/api/222937/security/"
+    ]
+  ],
+  "breadcrumbs": {
+    "values": [
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056729.884,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056729.885,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056729.886,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056729.89,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056729.894,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056729.899,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056917.233,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056917.236,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056917.238,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056917.239,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056917.24,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056917.241,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056917.241,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056917.246,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056917.247,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056917.253,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570056917.255,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057030.598,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057030.601,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057030.601,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057030.602,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057030.604,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057030.605,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057030.606,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057030.611,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057030.616,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057030.621,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057218.218,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057218.22,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057218.223,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057218.223,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057218.224,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057218.225,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057218.226,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057218.227,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057218.232,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057218.233,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057218.238,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057331.608,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057331.61,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057331.611,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057331.612,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057331.613,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057331.614,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057331.615,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057331.621,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057331.628,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057331.633,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057519.089,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057519.091,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057519.092,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057519.094,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057519.094,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057519.095,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057519.096,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057519.098,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057519.103,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057519.104,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057519.111,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057627.28,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057627.283,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057627.284,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057627.286,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057627.287,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057627.288,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057627.289,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057627.295,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057627.3,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057627.306,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057632.463,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057632.464,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057632.465,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057632.466,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057632.466,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057632.467,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057632.468,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057632.474,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057632.48,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057632.485,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057819.659,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057819.663,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057819.664,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057819.664,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057819.667,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057819.668,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057819.668,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057819.674,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057819.676,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057819.68,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057819.686,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057932.623,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057932.625,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057932.627,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057932.628,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057932.628,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057932.63,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057932.631,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057932.635,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057932.64,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      },
+      {
+        "category": "trust_dns_proto::xfer::dns_exchange",
+        "timestamp": 1570057932.645,
+        "message": "sending message via: UDP(10.8.0.10:53)",
+        "type": "log",
+        "level": "info"
+      }
+    ]
+  },
+  "contexts": {
+    "device": {
+      "type": "device",
+      "arch": "x86_64"
+    },
+    "client_os": {
+      "type": "os",
+      "name": "Windows 8.1"
+    },
+    "os": {
+      "kernel_version": "#1 SMP Thu Aug 8 02:47:02 PDT 2019",
+      "version": "4.14.137+",
+      "type": "os",
+      "name": "Linux"
+    },
+    "rust": {
+      "version": "1.38.0",
+      "type": "runtime",
+      "name": "rustc",
+      "channel": "stable"
+    },
+    "browser": {
+      "version": "77.0.3865",
+      "type": "browser",
+      "name": "Chrome"
+    }
+  },
+  "culprit": "/api",
+  "debug_meta": {
+    "images": [
+      {
+        "code_file": "/bin/semaphore",
+        "arch": "x86_64",
+        "image_addr": "0x5556b3fef000",
+        "image_size": 46784267104256,
+        "type": "symbolic",
+        "debug_id": "1a23bef1-d93e-af77-f039-8d68c1ddd1c5"
+      },
+      {
+        "code_file": "/lib/x86_64-linux-gnu/libresolv.so.2",
+        "image_size": 4292608,
+        "type": "symbolic",
+        "image_addr": "0x7fe3839e2000",
+        "debug_id": "81fdd5ea-1277-3ce6-1212-d1ee7d7ee1b9"
+      },
+      {
+        "code_file": "/lib/x86_64-linux-gnu/libnss_dns.so.2",
+        "image_size": 475521024,
+        "type": "symbolic",
+        "image_addr": "0x7fe383dfa000",
+        "debug_id": "6fa55ab6-ec4c-41c4-fce7-f85f0b4aa0f2"
+      },
+      {
+        "code_file": "/lib/x86_64-linux-gnu/libnss_files.so.2",
+        "image_size": 42057728,
+        "type": "symbolic",
+        "image_addr": "0x7fe3a0378000",
+        "debug_id": "8c8cdb8a-e0dd-c3e4-c3ba-bb8874ae69dc"
+      },
+      {
+        "code_file": "/lib/x86_64-linux-gnu/libm.so.6",
+        "image_size": 3162112,
+        "type": "symbolic",
+        "image_addr": "0x7fe3a2b94000",
+        "debug_id": "4c71494e-7c55-47e0-2c79-8f39365ca10f"
+      },
+      {
+        "code_file": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+        "image_size": 2191360,
+        "type": "symbolic",
+        "image_addr": "0x7fe3a2e98000",
+        "debug_id": "d25fad51-cd94-816c-3bed-40717347a534"
+      },
+      {
+        "code_file": "/lib/x86_64-linux-gnu/libpthread.so.0",
+        "image_size": 2215936,
+        "type": "symbolic",
+        "image_addr": "0x7fe3a30af000",
+        "debug_id": "4809d616-cc7b-cb4a-ac29-a4eaa2dda0d2"
+      },
+      {
+        "code_file": "/lib/x86_64-linux-gnu/libdl.so.2",
+        "image_size": 2113536,
+        "type": "symbolic",
+        "image_addr": "0x7fe3a32cc000",
+        "debug_id": "eeae2cdb-74c3-a982-8ab1-416d0a9afe29"
+      },
+      {
+        "code_file": "/lib/x86_64-linux-gnu/libc.so.6",
+        "image_size": 3796992,
+        "type": "symbolic",
+        "image_addr": "0x7fe3a34d0000",
+        "debug_id": "e6435177-ff80-d40c-cd51-cce1ce8ca216"
+      },
+      {
+        "code_file": "/lib64/ld-linux-x86-64.so.2",
+        "image_size": 112974995456,
+        "type": "symbolic",
+        "image_addr": "0x7fe3a386f000",
+        "debug_id": "c3f96d60-1055-823e-140d-513bc7a25a63"
+      },
+      {
+        "code_file": "linux-vdso.so.1",
+        "image_size": 0,
+        "type": "symbolic",
+        "image_addr": "0x7ffdf15c9000",
+        "debug_id": "39b87271-e8b7-cc53-ec71-b4cf73115fa3"
+      }
+    ]
+  },
+  "environment": "release",
+  "exception": {
+    "values": [
+      {
+        "stacktrace": {
+          "frames": [
+            {
+              "function": "<unknown>",
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "unknown_image"
+              },
+              "instruction_addr": "0x0",
+              "in_app": false
+            },
+            {
+              "function": "__clone",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "missing"
+              },
+              "instruction_addr": "0x7fe3a35b8d0f",
+              "package": "/lib/x86_64-linux-gnu/libc.so.6"
+            },
+            {
+              "function": "start_thread",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "missing"
+              },
+              "instruction_addr": "0x7fe3a30b64a4",
+              "package": "/lib/x86_64-linux-gnu/libpthread.so.0"
+            },
+            {
+              "function": "std::sys::unix::thread::Thread::new::thread_start",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/sys/unix/thread.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std3sys4unix6thread6Thread3new12thread_start17h382c6ae14181d163E",
+              "filename": "src/libstd/sys/unix/thread.rs",
+              "lineno": 79,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b519522a"
+            },
+            {
+              "function": "std::sys_common::thread::start_thread",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/sys_common/thread.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std10sys_common6thread12start_thread17h562a7c4953cb1d31E",
+              "filename": "src/libstd/sys_common/thread.rs",
+              "lineno": 13,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b51952a4"
+            },
+            {
+              "function": "alloc::boxed::Box<T>::call_once",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/liballoc/boxed.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN83_$LT$alloc..boxed..Box$LT$F$GT$$u20$as$u20$core..ops..function..FnOnce$LT$A$GT$$GT$9call_once17h13f473dbcdaa0fefE",
+              "filename": "boxed.rs",
+              "raw_function": "<alloc::boxed::Box<F> as core::ops::function::FnOnce<A>>::call_once",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b51952af",
+              "lineno": 787
+            },
+            {
+              "function": "alloc::boxed::Box<T>::call_once",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/liballoc/boxed.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN83_$LT$alloc..boxed..Box$LT$F$GT$$u20$as$u20$core..ops..function..FnOnce$LT$A$GT$$GT$9call_once17h2877b2aefb0fd627E",
+              "filename": "boxed.rs",
+              "raw_function": "<alloc::boxed::Box<F> as core::ops::function::FnOnce<A>>::call_once",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b517f8ae",
+              "lineno": 787
+            },
+            {
+              "function": "core::ops::function::FnOnce::call_once{{vtable.shim}}",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libcore/ops/function.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN4core3ops8function6FnOnce40call_once$u7b$$u7b$vtable.shim$u7d$$u7d$17h9ecab8410727b176E",
+              "filename": "function.rs",
+              "lineno": 235,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b48227d3"
+            },
+            {
+              "function": "std::thread::Builder::spawn_unchecked::{{closure}}",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/mod.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread7Builder15spawn_unchecked28_$u7b$$u7b$closure$u7d$$u7d$17h9c9a680354663419E",
+              "filename": "mod.rs",
+              "lineno": 469,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b4822807"
+            },
+            {
+              "function": "std::panic::catch_unwind",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/panic.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std5panic12catch_unwind17he40f1d80680b4749E",
+              "filename": "panic.rs",
+              "lineno": 394,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b4822807"
+            },
+            {
+              "function": "std::panicking::try",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/panicking.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std9panicking3try17hcb444e3f5d56a342E",
+              "filename": "panicking.rs",
+              "lineno": 275,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b4822845"
+            },
+            {
+              "function": "__rust_maybe_catch_panic",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libpanic_unwind/lib.rs",
+              "package": "/bin/semaphore",
+              "symbol": "__rust_maybe_catch_panic",
+              "filename": "src/libpanic_unwind/lib.rs",
+              "lineno": 80,
+              "in_app": false,
+              "data": {
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b5195f89"
+            },
+            {
+              "function": "std::panicking::try::do_call",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/panicking.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std9panicking3try7do_call17h168574eca0a0fc4cE",
+              "filename": "panicking.rs",
+              "lineno": 296,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b48223c0"
+            },
+            {
+              "function": "std::panic::AssertUnwindSafe<T>::call_once",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/panic.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN101_$LT$std..panic..AssertUnwindSafe$LT$F$GT$$u20$as$u20$core..ops..function..FnOnce$LT$$LP$$RP$$GT$$GT$9call_once17h092871a699b4d6f1E",
+              "filename": "panic.rs",
+              "raw_function": "<std::panic::AssertUnwindSafe<F> as core::ops::function::FnOnce<()>>::call_once",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b48223c0",
+              "lineno": 315
+            },
+            {
+              "function": "std::thread::Builder::spawn_unchecked::{{closure}}::{{closure}}",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/mod.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread7Builder15spawn_unchecked28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h706b1ef6482f4666E",
+              "filename": "mod.rs",
+              "lineno": 470,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b48223d5"
+            },
+            {
+              "function": "std::sys_common::backtrace::__rust_begin_short_backtrace",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/sys_common/backtrace.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std10sys_common9backtrace28__rust_begin_short_backtrace17hbb7074f11bf43cf8E",
+              "filename": "backtrace.rs",
+              "lineno": 77,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b48215da"
+            },
+            {
+              "function": "actix::arbiter::Arbiter::new_with_builder::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-0.7.9/src/arbiter.rs",
+              "pre_context": [
+                "            if tx.send(addr).is_err() {",
+                "                error!(\"Can not start Arbiter, remote side is dead\");",
+                "            } else {",
+                "                // run loop"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4821baa",
+              "symbol": "_ZN5actix7arbiter7Arbiter16new_with_builder28_$u7b$$u7b$closure$u7d$$u7d$17h2572af4193a567e0E",
+              "post_context": [
+                "                    Ok(code) => code,",
+                "                    Err(_) => 1,",
+                "                };",
+                "            }",
+                ""
+              ],
+              "filename": "arbiter.rs",
+              "lineno": 116,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                let _ = match rt.block_on(stop_rx) {"
+            },
+            {
+              "function": "tokio::runtime::current_thread::runtime::Runtime::block_on",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-0.1.22/src/runtime/current_thread/runtime.rs",
+              "pre_context": [
+                "    /// complete execution by calling `block_on` or `run`.",
+                "    pub fn block_on<F>(&mut self, f: F) -> Result<F::Item, F::Error>",
+                "        where F: Future",
+                "    {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4832719",
+              "symbol": "_ZN5tokio7runtime14current_thread7runtime7Runtime8block_on17hbe74a9a51d92d1b6E",
+              "post_context": [
+                "            // Run the provided future",
+                "            let ret = executor.block_on(f);",
+                "            ret.map_err(|e| e.into_inner().expect(\"unexpected execution error\"))",
+                "        })",
+                "    }"
+              ],
+              "filename": "runtime.rs",
+              "lineno": 198,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        self.enter(|executor| {"
+            },
+            {
+              "function": "tokio::runtime::current_thread::runtime::Runtime::enter",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-0.1.22/src/runtime/current_thread/runtime.rs",
+              "pre_context": [
+                "            ..",
+                "        } = *self;",
+                "",
+                "        // Binds an executor to this thread"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b483273f",
+              "symbol": "_ZN5tokio7runtime14current_thread7runtime7Runtime5enter17hd237bc84d481f990E",
+              "post_context": [
+                "",
+                "        // This will set the default handle and timer to use inside the closure",
+                "        // and run the future.",
+                "        tokio_reactor::with_default(&reactor_handle, &mut enter, |enter| {",
+                "            clock::with_default(clock, enter, |enter| {"
+              ],
+              "filename": "runtime.rs",
+              "lineno": 226,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        let mut enter = tokio_executor::enter().expect(\"Multiple executors at once\");"
+            },
+            {
+              "function": "core::result::Result<T>::expect",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libcore/result.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN4core6result19Result$LT$T$C$E$GT$6expect17hd78286aa35e1d22cE",
+              "filename": "result.rs",
+              "raw_function": "core::result::Result<T,E>::expect",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b48327bf"
+            },
+            {
+              "function": "std::thread::local::LocalKey<T>::with",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$4with17h2af92493b8a111b3E",
+              "filename": "local.rs",
+              "lineno": 239,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b4804186"
+            },
+            {
+              "function": "std::thread::local::LocalKey<T>::try_with",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$8try_with17h4688cd9953ac9a65E",
+              "filename": "local.rs",
+              "lineno": 262,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b48041b2"
+            },
+            {
+              "function": "tokio_reactor::with_default::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-reactor-0.1.9/src/lib.rs",
+              "pre_context": [
+                "",
+                "            *current = Some(handle.clone());",
+                "        }",
+                ""
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4804227",
+              "symbol": "_ZN13tokio_reactor12with_default28_$u7b$$u7b$closure$u7d$$u7d$17h93f47c9d7e9904abE",
+              "post_context": [
+                "    })",
+                "}",
+                "",
+                "impl Reactor {",
+                "    /// Creates a new event loop, returning any error that happened during the"
+              ],
+              "filename": "lib.rs",
+              "lineno": 237,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        f(enter)"
+            },
+            {
+              "function": "tokio::runtime::current_thread::runtime::Runtime::enter::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-0.1.22/src/runtime/current_thread/runtime.rs",
+              "pre_context": [
+                "",
+                "        // This will set the default handle and timer to use inside the closure",
+                "        // and run the future.",
+                "        tokio_reactor::with_default(&reactor_handle, &mut enter, |enter| {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4804236",
+              "symbol": "_ZN5tokio7runtime14current_thread7runtime7Runtime5enter28_$u7b$$u7b$closure$u7d$$u7d$17hb64cdab7ffff2eb0E",
+              "post_context": [
+                "                timer::with_default(&timer_handle, enter, |enter| {",
+                "                    // The TaskExecutor is a fake executor that looks into the",
+                "                    // current single-threaded executor when used. This is a trick,",
+                "                    // because we need two mutable references to the executor (one",
+                "                    // to run the provided future, another to install as the default"
+              ],
+              "filename": "runtime.rs",
+              "lineno": 231,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            clock::with_default(clock, enter, |enter| {"
+            },
+            {
+              "function": "tokio_timer::clock::clock::with_default",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-timer-0.2.11/src/clock/clock.rs",
+              "pre_context": [
+                "pub fn with_default<F, R>(clock: &Clock, enter: &mut Enter, f: F) -> R",
+                "where",
+                "    F: FnOnce(&mut Enter) -> R,",
+                "{"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4804268",
+              "symbol": "_ZN11tokio_timer5clock5clock12with_default17h87c3a7576e13fecfE",
+              "post_context": [
+                "        assert!(",
+                "            cell.get().is_none(),",
+                "            \"default clock already set for execution context\"",
+                "        );",
+                ""
+              ],
+              "filename": "clock.rs",
+              "lineno": 117,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "    CLOCK.with(|cell| {"
+            },
+            {
+              "function": "std::thread::local::LocalKey<T>::with",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$4with17h367c83f3fb4ae95eE",
+              "filename": "local.rs",
+              "lineno": 239,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b48044f3"
+            },
+            {
+              "function": "std::thread::local::LocalKey<T>::try_with",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$8try_with17h83f86f4fd3bb3850E",
+              "filename": "local.rs",
+              "lineno": 262,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b480451c"
+            },
+            {
+              "function": "tokio_timer::clock::clock::with_default::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-timer-0.2.11/src/clock/clock.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b480451c",
+              "symbol": "_ZN11tokio_timer5clock5clock12with_default28_$u7b$$u7b$closure$u7d$$u7d$17h51f35b2bc88ca816E",
+              "filename": "clock.rs",
+              "lineno": 119,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            cell.get().is_none(),"
+            },
+            {
+              "function": "core::option::Option<T>::is_none",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-timer-0.2.11/src/clock/clock.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4804550",
+              "symbol": "_ZN4core6option15Option$LT$T$GT$7is_none17h75636cabbc757194E",
+              "filename": "clock.rs",
+              "lineno": 137,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        f(enter)"
+            },
+            {
+              "function": "tokio::runtime::current_thread::runtime::Runtime::enter::{{closure}}::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-0.1.22/src/runtime/current_thread/runtime.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4804562",
+              "symbol": "_ZN5tokio7runtime14current_thread7runtime7Runtime5enter28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h6b45ae6266dd7ecdE",
+              "filename": "runtime.rs",
+              "lineno": 232,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                timer::with_default(&timer_handle, enter, |enter| {"
+            },
+            {
+              "function": "tokio_timer::timer::handle::with_default",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-timer-0.2.11/src/timer/handle.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b480458c",
+              "symbol": "_ZN11tokio_timer5timer6handle12with_default17h7d592129a2f6fcebE",
+              "filename": "handle.rs",
+              "lineno": 84,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "    CURRENT_TIMER.with(|current| {"
+            },
+            {
+              "function": "std::thread::local::LocalKey<T>::with",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$4with17hcf917f82a24047faE",
+              "filename": "local.rs",
+              "lineno": 239,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b480614b"
+            },
+            {
+              "function": "std::thread::local::LocalKey<T>::try_with",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$8try_with17h39b1dfc68d79fc21E",
+              "filename": "local.rs",
+              "lineno": 262,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b480616d"
+            },
+            {
+              "function": "tokio_timer::timer::handle::with_default::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-timer-0.2.11/src/timer/handle.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b48061dd",
+              "symbol": "_ZN11tokio_timer5timer6handle12with_default28_$u7b$$u7b$closure$u7d$$u7d$17h77e2b741b92492b3E",
+              "filename": "handle.rs",
+              "lineno": 101,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        f(enter)"
+            },
+            {
+              "function": "tokio::runtime::current_thread::runtime::Runtime::enter::{{closure}}::{{closure}}::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-0.1.22/src/runtime/current_thread/runtime.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4806226",
+              "symbol": "_ZN5tokio7runtime14current_thread7runtime7Runtime5enter28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h5c074dfb0847c01eE",
+              "filename": "runtime.rs",
+              "lineno": 243,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                })"
+            },
+            {
+              "function": "std::thread::local::LocalKey<T>::with",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$4with17h47cce03afa984af0E",
+              "filename": "local.rs",
+              "lineno": 239,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b4804e89"
+            },
+            {
+              "function": "std::thread::local::LocalKey<T>::try_with",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$8try_with17hb6b9940a3fd06d05E",
+              "filename": "local.rs",
+              "lineno": 262,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b4804eab"
+            },
+            {
+              "function": "tokio_executor::global::with_default::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-executor-0.1.8/src/global.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4804eab",
+              "symbol": "_ZN14tokio_executor6global12with_default28_$u7b$$u7b$closure$u7d$$u7d$17h0aa7734a3eb5652bE",
+              "filename": "global.rs",
+              "lineno": 179,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        match cell.get() {"
+            },
+            {
+              "function": "core::cell::Cell<T>::get",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-executor-0.1.8/src/global.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4804efa",
+              "symbol": "_ZN4core4cell13Cell$LT$T$GT$3get17h43aff23117ad4875E",
+              "filename": "global.rs",
+              "lineno": 209,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        f(enter)"
+            },
+            {
+              "function": "tokio::runtime::current_thread::runtime::Runtime::enter::{{closure}}::{{closure}}::{{closure}}::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-0.1.22/src/runtime/current_thread/runtime.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4804f0e",
+              "symbol": "_ZN5tokio7runtime14current_thread7runtime7Runtime5enter28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9d2e5113c2c2b6fdE",
+              "filename": "runtime.rs",
+              "lineno": 241,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                        f(&mut executor)"
+            },
+            {
+              "function": "tokio::runtime::current_thread::runtime::Runtime::block_on::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-0.1.22/src/runtime/current_thread/runtime.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4804f12",
+              "symbol": "_ZN5tokio7runtime14current_thread7runtime7Runtime8block_on28_$u7b$$u7b$closure$u7d$$u7d$17h175990cf7e4a0bb0E",
+              "filename": "runtime.rs",
+              "lineno": 200,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            let ret = executor.block_on(f);"
+            },
+            {
+              "function": "tokio_current_thread::Entered<T>::block_on",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/lib.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b482b51d",
+              "symbol": "_ZN20tokio_current_thread16Entered$LT$P$GT$8block_on17h7114983b0bead837E",
+              "filename": "lib.rs",
+              "raw_function": "tokio_current_thread::Entered<P>::block_on",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            self.tick();",
+              "lineno": 502
+            },
+            {
+              "function": "tokio_current_thread::Entered<T>::tick",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/lib.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b482abcb",
+              "symbol": "_ZN20tokio_current_thread16Entered$LT$P$GT$4tick17had522439cb23c59eE",
+              "filename": "lib.rs",
+              "raw_function": "tokio_current_thread::Entered<P>::tick",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        borrow",
+              "lineno": 612
+            },
+            {
+              "function": "tokio_current_thread::scheduler::Scheduler<T>::tick",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/scheduler.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b481353b",
+              "symbol": "_ZN20tokio_current_thread9scheduler18Scheduler$LT$U$GT$4tick17hc8f08f5e3a97dc1cE",
+              "filename": "scheduler.rs",
+              "raw_function": "tokio_current_thread::scheduler::Scheduler<U>::tick",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        let tick = self.inner.tick_num.fetch_add(1, SeqCst).wrapping_add(1);",
+              "lineno": 214
+            },
+            {
+              "function": "core::num::<T>::wrapping_add",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/scheduler.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b48135d2",
+              "symbol": "_ZN4core3num23_$LT$impl$u20$usize$GT$12wrapping_add17hf404fad47796dd5cE",
+              "filename": "scheduler.rs",
+              "raw_function": "core::num::<impl usize>::wrapping_add",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                if (*(*node).item.get()).is_none() {",
+              "lineno": 237
+            },
+            {
+              "function": "core::option::Option<T>::is_none",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libcore/option.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN4core6option15Option$LT$T$GT$7is_none17h398b712ddd85a187E",
+              "filename": "option.rs",
+              "lineno": 209,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b48135d2"
+            },
+            {
+              "function": "core::option::Option<T>::is_some",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/scheduler.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4813647",
+              "symbol": "_ZN4core6option15Option$LT$T$GT$7is_some17h3f3a8eb543d35e9bE",
+              "filename": "scheduler.rs",
+              "lineno": 300,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                    let item = (*node.item.get()).as_mut().unwrap();"
+            },
+            {
+              "function": "core::option::Option<T>::unwrap",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/scheduler.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b481364d",
+              "symbol": "_ZN4core6option15Option$LT$T$GT$6unwrap17he4b22475a396edffE",
+              "filename": "scheduler.rs",
+              "lineno": 306,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                    let prev = (*node).queued.swap(false, SeqCst);"
+            },
+            {
+              "function": "core::sync::atomic::AtomicBool::swap",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libcore/sync/atomic.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN4core4sync6atomic10AtomicBool4swap17h7620d523ea903763E",
+              "filename": "atomic.rs",
+              "lineno": 464,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b481364d"
+            },
+            {
+              "function": "core::sync::atomic::atomic_swap",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/scheduler.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4813663",
+              "symbol": "_ZN4core4sync6atomic11atomic_swap17h30fb44b4d34611baE",
+              "filename": "scheduler.rs",
+              "lineno": 322,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                    let notify = Notify(bomb.node.as_ref().unwrap());"
+            },
+            {
+              "function": "core::option::Option<T>::unwrap",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/scheduler.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4813694",
+              "symbol": "_ZN4core6option15Option$LT$T$GT$6unwrap17h17bd252d96ce99d8E",
+              "filename": "scheduler.rs",
+              "lineno": 330,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                    if borrow.enter(enter, || scheduled.tick()) {"
+            },
+            {
+              "function": "tokio_current_thread::Borrow<T>::enter",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/lib.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4813694",
+              "symbol": "_ZN20tokio_current_thread15Borrow$LT$U$GT$5enter17h2e3c15b74608c9ddE",
+              "filename": "lib.rs",
+              "raw_function": "tokio_current_thread::Borrow<U>::enter",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        CURRENT.with(|current| {",
+              "lineno": 786
+            },
+            {
+              "function": "std::thread::local::LocalKey<T>::with",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$4with17he8be2e36b36a672cE",
+              "filename": "local.rs",
+              "lineno": 239,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b4813694"
+            },
+            {
+              "function": "std::thread::local::LocalKey<T>::try_with",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$8try_with17ha685a02da86dc48bE",
+              "filename": "local.rs",
+              "lineno": 262,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b48136a3"
+            },
+            {
+              "function": "tokio_current_thread::Borrow<T>::enter::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/lib.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b48136c8",
+              "symbol": "_ZN20tokio_current_thread15Borrow$LT$U$GT$5enter28_$u7b$$u7b$closure$u7d$$u7d$17heb6edf5aef4c5affE",
+              "filename": "lib.rs",
+              "raw_function": "tokio_current_thread::Borrow<U>::enter::{{closure}}",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            current.set_spawn(self, || f())",
+              "lineno": 788
+            },
+            {
+              "function": "tokio_current_thread::CurrentRunner::set_spawn",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/lib.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b482a6d6",
+              "symbol": "_ZN20tokio_current_thread13CurrentRunner9set_spawn17hfd3586b73117eb6cE",
+              "filename": "lib.rs",
+              "lineno": 825,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        f()"
+            },
+            {
+              "function": "tokio_current_thread::Borrow<T>::enter::{{closure}}::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/lib.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b482a6d6",
+              "symbol": "_ZN20tokio_current_thread15Borrow$LT$U$GT$5enter28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h41cb5ccdf34315c2E",
+              "filename": "lib.rs",
+              "raw_function": "tokio_current_thread::Borrow<U>::enter::{{closure}}::{{closure}}",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            current.set_spawn(self, || f())",
+              "lineno": 788
+            },
+            {
+              "function": "tokio_current_thread::scheduler::Scheduler<T>::tick::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/scheduler.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b482a6d6",
+              "symbol": "_ZN20tokio_current_thread9scheduler18Scheduler$LT$U$GT$4tick28_$u7b$$u7b$closure$u7d$$u7d$17h540a3dbbf68aac7bE",
+              "filename": "scheduler.rs",
+              "raw_function": "tokio_current_thread::scheduler::Scheduler<U>::tick::{{closure}}",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                    if borrow.enter(enter, || scheduled.tick()) {",
+              "lineno": 330
+            },
+            {
+              "function": "tokio_current_thread::scheduler::Scheduled<T>::tick",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/tokio-current-thread-0.1.6/src/scheduler.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b482a6e3",
+              "symbol": "_ZN20tokio_current_thread9scheduler18Scheduled$LT$U$GT$4tick17hf1d1162a9e486404E",
+              "filename": "scheduler.rs",
+              "raw_function": "tokio_current_thread::scheduler::Scheduled<U>::tick",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        let ret = match self.task.0.poll_future_notify(self.notify, 0) {",
+              "lineno": 351
+            },
+            {
+              "function": "futures::task_impl::Spawn<T>::poll_future_notify",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/task_impl/mod.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b481b8db",
+              "symbol": "_ZN7futures9task_impl14Spawn$LT$T$GT$18poll_future_notify17h33361ee83d19ed58E",
+              "filename": "mod.rs",
+              "lineno": 329,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        self.poll_fn_notify(notify, id, |f| f.poll())"
+            },
+            {
+              "function": "futures::task_impl::Spawn<T>::poll_fn_notify",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/task_impl/mod.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b481b8e0",
+              "symbol": "_ZN7futures9task_impl14Spawn$LT$T$GT$14poll_fn_notify17hde25c00599bb3c79E",
+              "filename": "mod.rs",
+              "lineno": 291,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        self.enter(BorrowedUnpark::new(&mk, id), f)"
+            },
+            {
+              "function": "futures::task_impl::Spawn<T>::enter",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/task_impl/mod.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b481b935",
+              "symbol": "_ZN7futures9task_impl14Spawn$LT$T$GT$5enter17h1f54d610f2ab41bcE",
+              "filename": "mod.rs",
+              "lineno": 399,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        set(&borrowed, || f(obj))"
+            },
+            {
+              "function": "futures::task_impl::std::set",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/task_impl/std/mod.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b47f501c",
+              "symbol": "_ZN7futures9task_impl3std3set17h2a875bd057e3b5c9E",
+              "filename": "mod.rs",
+              "lineno": 67,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "    if core::is_get_ptr(0x1) {"
+            },
+            {
+              "function": "futures::task_impl::core::is_get_ptr",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/task_impl/core.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b47f501c",
+              "symbol": "_ZN7futures9task_impl4core10is_get_ptr17h73f607b70f876606E",
+              "filename": "core.rs",
+              "lineno": 163,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "    GET.load(Relaxed) == f"
+            },
+            {
+              "function": "core::sync::atomic::AtomicUsize::load",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/task_impl/std/mod.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b47f5045",
+              "symbol": "_ZN4core4sync6atomic11AtomicUsize4load17h5916c10b2dc1298cE",
+              "filename": "mod.rs",
+              "lineno": 83,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            f()"
+            },
+            {
+              "function": "futures::task_impl::Spawn<T>::enter::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/task_impl/mod.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b47f5048",
+              "symbol": "_ZN7futures9task_impl14Spawn$LT$T$GT$5enter28_$u7b$$u7b$closure$u7d$$u7d$17h97cce50636e3939dE",
+              "filename": "mod.rs",
+              "lineno": 399,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        set(&borrowed, || f(obj))"
+            },
+            {
+              "function": "futures::task_impl::Spawn<T>::poll_future_notify::{{closure}}",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/task_impl/mod.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b47f5048",
+              "symbol": "_ZN7futures9task_impl14Spawn$LT$T$GT$18poll_future_notify28_$u7b$$u7b$closure$u7d$$u7d$17h925f72da2ff1a2e5E",
+              "filename": "mod.rs",
+              "lineno": 329,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        self.poll_fn_notify(notify, id, |f| f.poll())"
+            },
+            {
+              "function": "alloc::boxed::Box<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/mod.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b47f5051",
+              "symbol": "_ZN70_$LT$alloc..boxed..Box$LT$F$GT$$u20$as$u20$futures..future..Future$GT$4poll17h07374fe252583c52E",
+              "filename": "mod.rs",
+              "raw_function": "<alloc::boxed::Box<F> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            (**self).poll()",
+              "lineno": 113
+            },
+            {
+              "function": "futures::future::chain::Chain<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/chain.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b456fb4c",
+              "symbol": "_ZN7futures6future5chain22Chain$LT$A$C$B$C$C$GT$4poll17he4941eebe7f19f04E",
+              "filename": "chain.rs",
+              "raw_function": "futures::future::chain::Chain<A,B,C>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                match a.poll() {",
+              "lineno": 26
+            },
+            {
+              "function": "futures::future::either::Either<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/either.rs",
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b456fb81",
+              "symbol": "_ZN88_$LT$futures..future..either..Either$LT$A$C$B$GT$$u20$as$u20$futures..future..Future$GT$4poll17h76219e19fd039479E",
+              "post_context": [
+                "",
+                "/// Combines two different futures yielding the same item and error",
+                "/// types into a single type.",
+                "#[derive(Debug)]",
+                "pub enum Either<A, B> {"
+              ],
+              "filename": "either.rs",
+              "raw_function": "<futures::future::either::Either<A,B> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "use {Future, Poll, Stream};"
+            },
+            {
+              "function": "futures::future::either::Either<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/either.rs",
+              "pre_context": [
+                "    type Error = A::Error;",
+                "",
+                "    fn poll(&mut self) -> Poll<A::Item, A::Error> {",
+                "        match *self {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b456fd2f",
+              "symbol": "_ZN88_$LT$futures..future..either..Either$LT$A$C$B$GT$$u20$as$u20$futures..future..Future$GT$4poll17h6cc88841bd59cd7eE",
+              "post_context": [
+                "            Either::B(ref mut b) => b.poll(),",
+                "        }",
+                "    }",
+                "}",
+                ""
+              ],
+              "filename": "either.rs",
+              "raw_function": "<futures::future::either::Either<A,B> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            Either::A(ref mut a) => a.poll(),",
+              "lineno": 35
+            },
+            {
+              "function": "actix_web::server::acceptor::ServerMessageAcceptorServiceFut<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-web-0.7.19/src/server/acceptor.rs",
+              "pre_context": [
+                "    type Item = ();",
+                "    type Error = T::Error;",
+                "",
+                "    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b456fd33",
+              "symbol": "_ZN113_$LT$actix_web..server..acceptor..ServerMessageAcceptorServiceFut$LT$T$GT$$u20$as$u20$futures..future..Future$GT$4poll17h1ddc39a4de7b5de7E",
+              "post_context": [
+                "            Async::NotReady => Ok(Async::NotReady),",
+                "            Async::Ready(_) => Ok(Async::Ready(())),",
+                "        }",
+                "    }",
+                "}"
+              ],
+              "filename": "acceptor.rs",
+              "raw_function": "<actix_web::server::acceptor::ServerMessageAcceptorServiceFut<T> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        match self.fut.poll()? {",
+              "lineno": 378
+            },
+            {
+              "function": "actix_net::service::and_then::AndThenFuture<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-net-0.2.6/src/service/and_then.rs",
+              "pre_context": [
+                "        if let Some(ref mut fut) = self.fut_b {",
+                "            return fut.poll();",
+                "        }",
+                ""
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b45846f6",
+              "symbol": "_ZN100_$LT$actix_net..service..and_then..AndThenFuture$LT$A$C$B$GT$$u20$as$u20$futures..future..Future$GT$4poll17h7dc0ef7632f49826E",
+              "post_context": [
+                "            Ok(Async::Ready(resp)) => {",
+                "                let _ = self.fut_a.take();",
+                "                self.fut_b = Some(self.b.borrow_mut().call(resp));",
+                "                self.poll()",
+                "            }"
+              ],
+              "filename": "and_then.rs",
+              "raw_function": "<actix_net::service::and_then::AndThenFuture<A,B> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        match self.fut_a.as_mut().expect(\"actix-net bug\").poll() {",
+              "lineno": 97
+            },
+            {
+              "function": "core::option::Option<T>::expect",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-net-0.2.6/src/service/and_then.rs",
+              "pre_context": [
+                "    type Error = A::Error;",
+                "",
+                "    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {",
+                "        if let Some(ref mut fut) = self.fut_b {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b45848d6",
+              "symbol": "_ZN4core6option15Option$LT$T$GT$6expect17h17cadc8695353312E",
+              "post_context": [
+                "        }",
+                "",
+                "        match self.fut_a.as_mut().expect(\"actix-net bug\").poll() {",
+                "            Ok(Async::Ready(resp)) => {",
+                "                let _ = self.fut_a.take();"
+              ],
+              "filename": "and_then.rs",
+              "lineno": 94,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            return fut.poll();"
+            },
+            {
+              "function": "actix_net::service::map_err::MapErrFuture<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-net-0.2.6/src/service/map_err.rs",
+              "pre_context": [
+                "    type Item = A::Response;",
+                "    type Error = E;",
+                "",
+                "    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b45848dd",
+              "symbol": "_ZN102_$LT$actix_net..service..map_err..MapErrFuture$LT$A$C$F$C$E$GT$$u20$as$u20$futures..future..Future$GT$4poll17h6448010787056432E",
+              "post_context": [
+                "    }",
+                "}",
+                "",
+                "/// NewService for the `map_err` combinator, changing the type of a new",
+                "/// service's error."
+              ],
+              "filename": "map_err.rs",
+              "raw_function": "<actix_net::service::map_err::MapErrFuture<A,F,E> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        self.fut.poll().map_err(&self.f)",
+              "lineno": 92
+            },
+            {
+              "function": "actix_web::server::channel::HttpChannel<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-web-0.7.19/src/server/channel.rs",
+              "pre_context": [
+                "        }",
+                "",
+                "        let mut is_eof = false;",
+                "        let kind = match self.proto {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b448f7d4",
+              "symbol": "_ZN96_$LT$actix_web..server..channel..HttpChannel$LT$T$C$H$GT$$u20$as$u20$futures..future..Future$GT$4poll17h6db7ef6cace3e21eE",
+              "post_context": [
+                "            HttpProtocol::H2(ref mut h2) => return h2.poll(),",
+                "            HttpProtocol::Unknown(_, ref mut io, ref mut buf) => {",
+                "                let mut err = None;",
+                "                let mut disconnect = false;",
+                "                match io.read_available(buf) {"
+              ],
+              "filename": "channel.rs",
+              "raw_function": "<actix_web::server::channel::HttpChannel<T,H> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            HttpProtocol::H1(ref mut h1) => return h1.poll(),",
+              "lineno": 105
+            },
+            {
+              "function": "actix_web::server::h1::Http1Dispatcher<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-web-0.7.19/src/server/h1.rs",
+              "pre_context": [
+                "        }",
+                "",
+                "        // process incoming requests",
+                "        if !self.flags.contains(Flags::WRITE_DISCONNECTED) {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4490c10",
+              "symbol": "_ZN9actix_web6server2h128Http1Dispatcher$LT$T$C$H$GT$4poll17h3519772ecd547309E",
+              "post_context": [
+                "",
+                "            // flush stream",
+                "            self.poll_flush(false)?;",
+                "",
+                "            // deal with keep-alive and stream eof (client-side write shutdown)"
+              ],
+              "filename": "h1.rs",
+              "raw_function": "actix_web::server::h1::Http1Dispatcher<T,H>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            self.poll_handler()?;",
+              "lineno": 223
+            },
+            {
+              "function": "actix_web::server::h1::Http1Dispatcher<T>::poll_handler",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-web-0.7.19/src/server/h1.rs",
+              "pre_context": [
+                "        let mut retry = self.can_read();",
+                "",
+                "        // process first pipelined response, only first task can do io operation in http/1",
+                "        while !self.tasks.is_empty() {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b442b73d",
+              "symbol": "_ZN9actix_web6server2h128Http1Dispatcher$LT$T$C$H$GT$12poll_handler17h1653fe1ad8490dfcE",
+              "post_context": [
+                "                Ok(Async::Ready(ready)) => {",
+                "                    // override keep-alive state",
+                "                    if self.stream.keepalive() {",
+                "                        self.flags.insert(Flags::KEEPALIVE);",
+                "                    } else {"
+              ],
+              "filename": "h1.rs",
+              "raw_function": "actix_web::server::h1::Http1Dispatcher<T,H>::poll_handler",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            match self.tasks[0].poll_io(&mut self.stream) {",
+              "lineno": 381
+            },
+            {
+              "function": "actix_web::server::h1::Entry<T>::poll_io",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-web-0.7.19/src/server/h1.rs",
+              "pre_context": [
+                "                        let _ = io.write(&Binary::from(\"HTTP/1.1 100 Continue\\r\\n\\r\\n\"));",
+                "                    }",
+                "                    _ => (),",
+                "                };"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b442b222",
+              "symbol": "_ZN9actix_web6server2h114Entry$LT$H$GT$7poll_io17hd6c87bf5dc7d0894E",
+              "post_context": [
+                "            }",
+                "            Entry::Error(ref mut task) => task.poll_io(io),",
+                "        }",
+                "    }",
+                "    fn poll_completed(&mut self) -> Poll<(), Error> {"
+              ],
+              "filename": "h1.rs",
+              "raw_function": "actix_web::server::h1::Entry<H>::poll_io",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                task.poll_io(io)",
+              "lineno": 80
+            },
+            {
+              "function": "actix_web::pipeline::Pipeline<T>::poll_io",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-web-0.7.19/src/pipeline.rs",
+              "pre_context": [
+                "        self.0.disconnected = Some(true);",
+                "    }",
+                "",
+                "    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b42b3a5a",
+              "symbol": "_ZN106_$LT$actix_web..pipeline..Pipeline$LT$S$C$H$GT$$u20$as$u20$actix_web..server..handler..HttpHandlerTask$GT$7poll_io17h863db857aa6bf35bE",
+              "post_context": [
+                "",
+                "        loop {",
+                "            if let PipelineState::Response(st) = state {",
+                "                match st.poll_io(io, &mut self.0, &self.2) {",
+                "                    Ok(state) => {"
+              ],
+              "filename": "pipeline.rs",
+              "raw_function": "<actix_web::pipeline::Pipeline<S,H> as actix_web::server::handler::HttpHandlerTask>::poll_io",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        let mut state = mem::replace(&mut self.1, PipelineState::None);",
+              "lineno": 122
+            },
+            {
+              "function": "core::mem::replace",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-web-0.7.19/src/pipeline.rs",
+              "pre_context": [
+                "                }",
+                "                _ => (),",
+                "            }",
+                ""
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b42b3b02",
+              "symbol": "_ZN4core3mem7replace17h52f4b828830c30a6E",
+              "post_context": [
+                "                Some(st) => state = st,",
+                "                None => {",
+                "                    return {",
+                "                        self.1 = state;",
+                "                        Ok(Async::NotReady)"
+              ],
+              "filename": "pipeline.rs",
+              "lineno": 151,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            match state.poll(&mut self.0, &self.2) {"
+            },
+            {
+              "function": "actix_web::pipeline::PipelineState<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-web-0.7.19/src/pipeline.rs",
+              "pre_context": [
+                "        &mut self, info: &mut PipelineInfo<S>, mws: &[Box<Middleware<S>>],",
+                "    ) -> Option<PipelineState<S, H>> {",
+                "        match *self {",
+                "            PipelineState::Starting(ref mut state) => state.poll(info, mws),"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4304862",
+              "symbol": "_ZN9actix_web8pipeline26PipelineState$LT$S$C$H$GT$4poll17h254b5db960259c34E",
+              "post_context": [
+                "            PipelineState::RunMiddlewares(ref mut state) => state.poll(info, mws),",
+                "            PipelineState::Finishing(ref mut state) => state.poll(info, mws),",
+                "            PipelineState::Completed(ref mut state) => state.poll(info),",
+                "            PipelineState::Response(ref mut state) => state.poll(info, mws),",
+                "            PipelineState::None | PipelineState::Error => None,"
+              ],
+              "filename": "pipeline.rs",
+              "raw_function": "actix_web::pipeline::PipelineState<S,H>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            PipelineState::Handler(ref mut state) => state.poll(info, mws),",
+              "lineno": 50
+            },
+            {
+              "function": "actix_web::pipeline::WaitingResponse<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-web-0.7.19/src/pipeline.rs",
+              "pre_context": [
+                "",
+                "    fn poll(",
+                "        &mut self, info: &mut PipelineInfo<S>, mws: &[Box<Middleware<S>>],",
+                "    ) -> Option<PipelineState<S, H>> {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4304862",
+              "symbol": "_ZN9actix_web8pipeline28WaitingResponse$LT$S$C$H$GT$4poll17h556509a946596b4aE",
+              "post_context": [
+                "            Ok(Async::NotReady) => None,",
+                "            Ok(Async::Ready(resp)) => Some(RunMiddlewares::init(info, mws, resp)),",
+                "            Err(err) => Some(RunMiddlewares::init(info, mws, err.into())),",
+                "        }",
+                "    }"
+              ],
+              "filename": "pipeline.rs",
+              "raw_function": "actix_web::pipeline::WaitingResponse<S,H>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        match self.fut.poll() {",
+              "lineno": 301
+            },
+            {
+              "function": "alloc::boxed::Box<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/mod.rs",
+              "pre_context": [
+                "        type Item = F::Item;",
+                "        type Error = F::Error;",
+                "",
+                "        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4304871",
+              "symbol": "_ZN70_$LT$alloc..boxed..Box$LT$F$GT$$u20$as$u20$futures..future..Future$GT$4poll17hb9cb0e167d898c89E",
+              "post_context": [
+                "        }",
+                "    }",
+                "}",
+                "",
+                "use {Poll, stream};"
+              ],
+              "filename": "mod.rs",
+              "raw_function": "<alloc::boxed::Box<F> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            (**self).poll()",
+              "lineno": 113
+            },
+            {
+              "function": "futures::future::then::Then<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/then.rs",
+              "pre_context": [
+                "    type Item = B::Item;",
+                "    type Error = B::Error;",
+                "",
+                "    fn poll(&mut self) -> Poll<B::Item, B::Error> {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b42f8a78",
+              "symbol": "_ZN88_$LT$futures..future..then..Then$LT$A$C$B$C$F$GT$$u20$as$u20$futures..future..Future$GT$4poll17h3661a6a5e3efedd8E",
+              "post_context": [
+                "            Ok(Err(f(a).into_future()))",
+                "        })",
+                "    }",
+                "}"
+              ],
+              "filename": "then.rs",
+              "raw_function": "<futures::future::then::Then<A,B,F> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        self.state.poll(|a, f| {",
+              "lineno": 32
+            },
+            {
+              "function": "futures::future::chain::Chain<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/chain.rs",
+              "pre_context": [
+                "            Chain::First(ref mut a, _) => {",
+                "                match a.poll() {",
+                "                    Ok(Async::NotReady) => return Ok(Async::NotReady),",
+                "                    Ok(Async::Ready(t)) => Ok(t),"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4560451",
+              "symbol": "_ZN7futures6future5chain22Chain$LT$A$C$B$C$C$GT$4poll17h843c4b1fdcd08fd4E",
+              "post_context": [
+                "                }",
+                "            }",
+                "            Chain::Second(ref mut b) => return b.poll(),",
+                "            Chain::Done => panic!(\"cannot poll a chained future twice\"),",
+                "        };"
+              ],
+              "filename": "chain.rs",
+              "raw_function": "futures::future::chain::Chain<A,B,C>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                    Err(e) => Err(e),",
+              "lineno": 29
+            },
+            {
+              "function": "futures::future::and_then::AndThen<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/and_then.rs",
+              "pre_context": [
+                "    type Item = B::Item;",
+                "    type Error = B::Error;",
+                "",
+                "    fn poll(&mut self) -> Poll<B::Item, B::Error> {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b42fae48",
+              "symbol": "_ZN95_$LT$futures..future..and_then..AndThen$LT$A$C$B$C$F$GT$$u20$as$u20$futures..future..Future$GT$4poll17h68ed58664b65e445E",
+              "post_context": [
+                "            result.map(|e| {",
+                "                Err(f(e).into_future())",
+                "            })",
+                "        })",
+                "    }"
+              ],
+              "filename": "and_then.rs",
+              "raw_function": "<futures::future::and_then::AndThen<A,B,F> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        self.state.poll(|result, f| {",
+              "lineno": 32
+            },
+            {
+              "function": "futures::future::chain::Chain<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/chain.rs",
+              "pre_context": [
+                "                        -> Result<Result<B::Item, B>, B::Error>,",
+                "    {",
+                "        let a_result = match *self {",
+                "            Chain::First(ref mut a, _) => {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b456d69e",
+              "symbol": "_ZN7futures6future5chain22Chain$LT$A$C$B$C$C$GT$4poll17hd0b126a97cfd7bb4E",
+              "post_context": [
+                "                    Ok(Async::NotReady) => return Ok(Async::NotReady),",
+                "                    Ok(Async::Ready(t)) => Ok(t),",
+                "                    Err(e) => Err(e),",
+                "                }",
+                "            }"
+              ],
+              "filename": "chain.rs",
+              "raw_function": "futures::future::chain::Chain<A,B,C>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "                match a.poll() {",
+              "lineno": 26
+            },
+            {
+              "function": "futures::future::and_then::AndThen<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/and_then.rs",
+              "pre_context": [
+                "    type Item = B::Item;",
+                "    type Error = B::Error;",
+                "",
+                "    fn poll(&mut self) -> Poll<B::Item, B::Error> {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b456d6a2",
+              "symbol": "_ZN95_$LT$futures..future..and_then..AndThen$LT$A$C$B$C$F$GT$$u20$as$u20$futures..future..Future$GT$4poll17h971ffcd29465347dE",
+              "post_context": [
+                "            result.map(|e| {",
+                "                Err(f(e).into_future())",
+                "            })",
+                "        })",
+                "    }"
+              ],
+              "filename": "and_then.rs",
+              "raw_function": "<futures::future::and_then::AndThen<A,B,F> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        self.state.poll(|result, f| {",
+              "lineno": 32
+            },
+            {
+              "function": "futures::future::chain::Chain<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/chain.rs",
+              "pre_context": [
+                "                    Ok(Async::Ready(t)) => Ok(t),",
+                "                    Err(e) => Err(e),",
+                "                }",
+                "            }"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b4564f06",
+              "symbol": "_ZN7futures6future5chain22Chain$LT$A$C$B$C$C$GT$4poll17ha245554eb9b9c958E",
+              "post_context": [
+                "            Chain::Done => panic!(\"cannot poll a chained future twice\"),",
+                "        };",
+                "        let data = match mem::replace(self, Chain::Done) {",
+                "            Chain::First(_, c) => c,",
+                "            _ => panic!(),"
+              ],
+              "filename": "chain.rs",
+              "raw_function": "futures::future::chain::Chain<A,B,C>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            Chain::Second(ref mut b) => return b.poll(),",
+              "lineno": 32
+            },
+            {
+              "function": "futures::future::map_err::MapErr<T>::poll",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.28/src/future/map_err.rs",
+              "pre_context": [
+                "        let e = match self.future.poll() {",
+                "            Ok(Async::NotReady) => return Ok(Async::NotReady),",
+                "            other => other,",
+                "        };"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b444cb1e",
+              "symbol": "_ZN89_$LT$futures..future..map_err..MapErr$LT$A$C$F$GT$$u20$as$u20$futures..future..Future$GT$4poll17h9810bcbd1ff8867dE",
+              "post_context": [
+                "    }",
+                "}"
+              ],
+              "filename": "map_err.rs",
+              "raw_function": "<futures::future::map_err::MapErr<A,F> as futures::future::Future>::poll",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "        e.map_err(self.f.take().expect(\"cannot poll MapErr twice\"))",
+              "lineno": 34
+            },
+            {
+              "function": "core::result::Result<T>::map_err",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libcore/result.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN4core6result19Result$LT$T$C$E$GT$7map_err17ha774d0cb7afefa43E",
+              "filename": "result.rs",
+              "raw_function": "core::result::Result<T,E>::map_err",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b444cb6c",
+              "lineno": 574
+            },
+            {
+              "function": "core::ops::function::FnOnce::call_once",
+              "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libcore/ops/function.rs",
+              "package": "/bin/semaphore",
+              "symbol": "_ZN4core3ops8function6FnOnce9call_once17h09cdd51d675bb807E",
+              "filename": "function.rs",
+              "lineno": 235,
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "instruction_addr": "0x5556b444cb6c"
+            },
+            {
+              "function": "actix_web::error::Error::from",
+              "abs_path": "/usr/local/cargo/registry/src/github.com-1ecc6299db9ec823/actix-web-0.7.19/src/error.rs",
+              "pre_context": [
+                "/// `Error` for any error that implements `ResponseError`",
+                "impl<T: ResponseError> From<T> for Error {",
+                "    fn from(err: T) -> Error {",
+                "        let backtrace = if err.backtrace().is_none() {"
+              ],
+              "package": "/bin/semaphore",
+              "instruction_addr": "0x5556b444cb84",
+              "symbol": "_ZN72_$LT$actix_web..error..Error$u20$as$u20$core..convert..From$LT$T$GT$$GT$4from17h24d1bff95861bc2dE",
+              "post_context": [
+                "        } else {",
+                "            None",
+                "        };",
+                "        Error {",
+                "            cause: Box::new(err),"
+              ],
+              "filename": "error.rs",
+              "raw_function": "<actix_web::error::Error as core::convert::From<T>>::from",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1,
+                "symbolicator_status": "symbolicated"
+              },
+              "context_line": "            Some(Backtrace::new())",
+              "lineno": 175
+            }
+          ]
+        },
+        "raw_stacktrace": {
+          "frames": [
+            {
+              "function": "<unknown>",
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x0",
+              "in_app": false
+            },
+            {
+              "function": "__clone",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x7fe3a35b8d0f",
+              "package": "/lib/x86_64-linux-gnu/libc.so.6"
+            },
+            {
+              "function": "start_thread",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x7fe3a30b64a4",
+              "package": "/lib/x86_64-linux-gnu/libpthread.so.0"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b51952b0",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b517f8af",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b4822846",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "__rust_maybe_catch_panic",
+              "in_app": false,
+              "instruction_addr": "0x5556b5195f8a",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b48223d6",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b4821bab",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b48327c0",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b4804269",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b480458d",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b4806227",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b4804f13",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b482b51e",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b482abcc",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b48136c9",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b482a6e4",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b481b936",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b47f5052",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b456fd34",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b45848de",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b448f7d5",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b4490c11",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b442b73e",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b442b223",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b42b3b03",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b4304872",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b42f8a79",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b4560452",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b42fae49",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b456d6a3",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b4564f07",
+              "package": "/bin/semaphore"
+            },
+            {
+              "function": "<unknown>",
+              "in_app": false,
+              "data": {
+                "orig_in_app": 1
+              },
+              "instruction_addr": "0x5556b444cb84",
+              "package": "/bin/semaphore"
+            }
+          ]
+        },
+        "type": "SendRequestError",
+        "module": "actix_web::client::pipeline",
+        "value": "Timeout while waiting for response"
+      }
+    ]
+  },
+  "hashes": [
+    "d71a813d43ee77a77963f5695d61ce4c"
+  ],
+  "key_id": "643163",
+  "level": "error",
+  "location": "error.rs",
+  "logger": "",
+  "metadata": {
+    "function": "actix_web::error::Error::from",
+    "type": "SendRequestError",
+    "value": "Timeout while waiting for response",
+    "filename": "error.rs"
+  },
+  "received": 1570058012.466,
+  "request": {
+    "url": "https://ingest.sentry.io/api/222937/security/",
+    "query_string": [
+      [
+        "sentry_key",
+        "c0aca07be25b47d29583c8cec0b26fbd"
+      ]
+    ],
+    "inferred_content_type": "application/csp-report",
+    "method": "POST",
+    "headers": [
+      [
+        "Accept",
+        "*/*"
+      ],
+      [
+        "Accept-Encoding",
+        "gzip, deflate, br"
+      ],
+      [
+        "Accept-Language",
+        "en-US,en;q=0.9"
+      ],
+      [
+        "Content-Length",
+        "786"
+      ],
+      [
+        "Content-Type",
+        "application/csp-report"
+      ],
+      [
+        "Date",
+        "Wed, 02 Oct 2019 23:13:25 GMT"
+      ],
+      [
+        "Host",
+        "ingest.sentry.io"
+      ],
+      [
+        "Origin",
+        "https://app.scaleft.com"
+      ],
+      [
+        "Sec-Fetch-Mode",
+        "no-cors"
+      ],
+      [
+        "Sec-Fetch-Site",
+        "same-origin"
+      ],
+      [
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36"
+      ],
+      [
+        "X-Amzn-Trace-Id",
+        "Root=1-5d952f14-d3b9a7d3fb936f328f620e01"
+      ],
+      [
+        "X-Forwarded-For",
+        "52.25.253.78"
+      ],
+      [
+        "X-Forwarded-Port",
+        "443"
+      ],
+      [
+        "X-Forwarded-Proto",
+        "https"
+      ]
+    ]
+  },
+  "sdk": {
+    "version": "0.17.0",
+    "name": "sentry.rust",
+    "packages": [
+      {
+        "version": "0.17.0",
+        "name": "cargo:sentry"
+      },
+      {
+        "version": "0.17.0",
+        "name": "sentry-actix"
+      }
+    ],
+    "integrations": [
+      "failure",
+      "panic",
+      "log"
+    ]
+  },
+  "timestamp": 1570058010.195,
+  "title": "SendRequestError: Timeout while waiting for response",
+  "transaction": "/api",
+  "type": "error",
+  "version": "7"
+}
