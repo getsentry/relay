@@ -161,7 +161,7 @@ def _get_config_file_path():
 
 
 class ProjectApp(TaskSet):
-    num_projects = 10
+    num_projects = 1
     tasks = {
         small_event_task: 10,
         medium_event_task: 10,

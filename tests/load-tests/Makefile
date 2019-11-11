@@ -21,10 +21,10 @@ about:
 config: setup-deps setup-brew
 .PHONY: config
 
-fake-sentry:
+fake-sentry: setup-deps
 	.venv/bin/python -m semaphore_load_tests.fake_sentry
 
-load-test:
+load-test: setup-deps
 	.venv/bin/locust -f locustfile.py
 
 setup-brew:
