@@ -288,6 +288,9 @@ pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, Serve
     server = server
         .workers(config.cpu_concurrency())
         .shutdown_timeout(SHUTDOWN_TIMEOUT)
+        .maxconn(config.max_connections())
+        .maxconnrate(config.max_connection_rate())
+        .backlog(config.max_pending_connections())
         .disable_signals();
 
     let connector = ClientConnector::default()
