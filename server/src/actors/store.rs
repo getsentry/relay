@@ -16,6 +16,7 @@ use serde::Serialize;
 use rmp_serde::encode::Error as SerdeError;
 
 use semaphore_common::{metric, tryf, Config, KafkaTopic};
+use semaphore_general::protocol::EventId;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::envelope::{Envelope, ItemType};
@@ -34,11 +35,39 @@ pub enum StoreError {
     Shutdown,
 }
 
+fn produce<T>(
+    producer: &FutureProducer,
+    config: &Config,
+    topic: KafkaTopic,
+    event_id: EventId,
+    message: T,
+) -> ResponseFuture<(), StoreError>
+where
+    T: Serialize,
+{
+    // Use the event id as partition routing key.
+    let key = event_id.0.as_bytes().as_ref();
+
+    let serialized = tryf!(rmp_serde::to_vec_named(&message).map_err(StoreError::SerializeFailed));
+
+    let record = FutureRecord::to(config.kafka_topic_name(topic))
+        .payload(&serialized)
+        .key(key);
+
+    let future = producer.send(record, 0).then(|result| match result {
+        Ok(Ok(_)) => Ok(()),
+        Ok(Err((kafka_error, _message))) => Err(StoreError::SendFailed(kafka_error)),
+        Err(_) => Err(StoreError::Canceled),
+    });
+
+    Box::new(future)
+}
+
 /// Actor for publishing events to Sentry through kafka topics.
 pub struct StoreForwarder {
     config: Arc<Config>,
     shutdown: SyncHandle,
-    producer: FutureProducer,
+    producer: Arc<FutureProducer>,
 }
 
 impl StoreForwarder {
@@ -47,14 +76,15 @@ impl StoreForwarder {
         for config_p in config.kafka_config() {
             client_config.set(config_p.name.as_str(), config_p.value.as_str());
         }
-        let client_config = client_config
+
+        let producer = client_config
             .create()
             .context(ServerErrorKind::KafkaError)?;
 
         Ok(StoreForwarder {
             config,
             shutdown: SyncHandle::new(),
-            producer: client_config,
+            producer: Arc::new(producer),
         })
     }
 }
@@ -81,14 +111,13 @@ enum KafkaMessageType {
     /// The serialized payload of an event with some meta data.
     Event,
     /// The binary chunk of an event attachment.
-    #[allow(unused)] // future use
     AttachmentChunk,
     /// The serialized payload of a transaction event with some meta data.
     #[allow(unused)] // future use
     Transaction,
 }
 
-/// Message pack container payload for messages sent to Kafka.
+/// Container payload for event messages.
 #[derive(Debug, Serialize)]
 struct EventKafkaMessage {
     /// The type discriminator of the message.
@@ -103,6 +132,25 @@ struct EventKafkaMessage {
     project_id: u64,
     /// The client ip address.
     remote_addr: Option<String>,
+}
+
+/// Container payload for chunks of attachments.
+#[derive(Debug, Serialize)]
+struct AttachmentKafkaMessage {
+    /// The type discriminator of the message.
+    ty: KafkaMessageType,
+    /// Chunk payload of the attachment.
+    payload: Bytes,
+    /// The event id.
+    event_id: String,
+    /// The project id for the current event.
+    project_id: u64,
+    /// Index of this attachment in the list of attachments.
+    index: usize,
+    /// Total attachment size in bytes.
+    size: usize,
+    /// Offset of the current chunk in bytes.
+    offset: usize,
 }
 
 /// Message sent to the StoreForwarder containing an event
@@ -121,6 +169,9 @@ impl Handler<StoreEvent> for StoreForwarder {
     type Result = ResponseFuture<(), StoreError>;
 
     fn handle(&mut self, message: StoreEvent, _ctx: &mut Self::Context) -> Self::Result {
+        let producer = self.producer.clone();
+        let config = self.config.clone();
+
         let StoreEvent {
             envelope,
             start_time,
@@ -128,43 +179,75 @@ impl Handler<StoreEvent> for StoreForwarder {
         } = message;
 
         let event_id = envelope.event_id();
-        let event_item = match envelope.get_item(ItemType::Event) {
-            Some(item) => item,
-            None => return Box::new(future::ok(())),
+
+        let topic = if envelope.get_item(ItemType::Attachment).is_some() {
+            KafkaTopic::Attachments
+        // } else if is_transaction {
+        //     KafkaTopic::Transactions
+        } else {
+            KafkaTopic::Events
         };
 
-        let kafka_message = EventKafkaMessage {
-            payload: event_item.payload(),
-            start_time: instant_to_unix_timestamp(start_time),
-            ty: KafkaMessageType::Event,
-            event_id: event_id.to_string(),
-            project_id,
-            remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
+        let max_chunk_size = self.config.attachment_chunk_size();
+        let mut attachment_futures = Vec::with_capacity(envelope.len());
+
+        for (index, item) in envelope.items().enumerate() {
+            // Only upload items first.
+            if item.ty() != ItemType::Attachment {
+                continue;
+            }
+
+            let mut offset = 0;
+            let payload = item.payload();
+            let size = item.len();
+
+            while offset == 0 || offset < size {
+                let chunk_size = std::cmp::min(max_chunk_size, size - offset);
+                let attachment_message = AttachmentKafkaMessage {
+                    ty: KafkaMessageType::AttachmentChunk,
+                    payload: payload.slice(offset, offset + chunk_size),
+                    event_id: event_id.to_string(),
+                    project_id,
+                    index,
+                    offset,
+                    size,
+                };
+
+                attachment_futures.push(produce(
+                    &producer,
+                    &config,
+                    topic,
+                    event_id,
+                    attachment_message,
+                ));
+
+                offset += chunk_size;
+            }
+        }
+
+        let mut response: ResponseFuture<(), StoreError> = match attachment_futures.len() {
+            0 => Box::new(future::ok(())),
+            _ => Box::new(future::join_all(attachment_futures).map(|_| ())),
         };
 
-        let serialized_message =
-            tryf!(rmp_serde::to_vec_named(&kafka_message).map_err(StoreError::SerializeFailed));
+        if let Some(event_item) = envelope.get_item(ItemType::Event) {
+            let event_message = EventKafkaMessage {
+                payload: event_item.payload(),
+                start_time: instant_to_unix_timestamp(start_time),
+                ty: KafkaMessageType::Event,
+                event_id: event_id.to_string(),
+                project_id,
+                remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
+            };
 
-        let record = FutureRecord::to(self.config.kafka_topic_name(KafkaTopic::Events))
-            .payload(&serialized_message)
-            .key(event_id.0.as_bytes().as_ref());
+            let chained_future = response
+                .and_then(move |_| produce(&producer, &config, topic, event_id, event_message))
+                .map(|_| metric!(counter("processing.event.produced") += 1, "type" => "event"));
 
-        // TODO: Send attachments, if any, before the event.
+            response = Box::new(chained_future);
+        }
 
-        let future = self
-            .producer
-            .send(record, 0)
-            .then(|result| match result {
-                Ok(Ok(_)) => {
-                    metric!(counter("processing.event.produced") += 1, "type" => "event");
-                    Ok(())
-                }
-                Ok(Err((kafka_error, _message))) => Err(StoreError::SendFailed(kafka_error)),
-                Err(_) => Err(StoreError::Canceled),
-            })
-            .sync(&self.shutdown, StoreError::Shutdown);
-
-        Box::new(future)
+        Box::new(response.sync(&self.shutdown, StoreError::Shutdown))
     }
 }
 

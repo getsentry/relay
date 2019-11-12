@@ -362,6 +362,7 @@ mod processing {
     use super::*;
 
     /// Define the topics over which Relay communicates with Sentry.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     pub enum KafkaTopic {
         /// Simple events (without attachments) topic.
         Events,
@@ -423,6 +424,8 @@ mod processing {
         pub(super) topics: TopicNames,
         /// Redis hosts to connect to for storing state for rate limits.
         pub(super) redis: Redis,
+        /// Maximum chunk size of attachments for Kafka.
+        pub(super) attachment_chunk_size: ByteSize,
     }
 
     impl Default for Processing {
@@ -441,6 +444,7 @@ mod processing {
                     outcomes: String::new(),
                 },
                 redis: Redis::default(),
+                attachment_chunk_size: ByteSize::from_megabytes(1),
             }
         }
     }
@@ -892,6 +896,11 @@ impl Config {
     /// Redis servers to connect to, for rate limiting.
     pub fn redis(&self) -> &Redis {
         &self.values.processing.redis
+    }
+
+    /// Chunk size of attachments in bytes.
+    pub fn attachment_chunk_size(&self) -> usize {
+        self.values.processing.attachment_chunk_size.as_bytes() as usize
     }
 }
 
