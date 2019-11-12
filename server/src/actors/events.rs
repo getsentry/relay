@@ -31,7 +31,9 @@ use crate::utils::{One, SyncActorFuture, SyncHandle};
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
     semaphore_general::filter::{should_filter, FilterStatKey},
-    semaphore_general::protocol::{Csp, ExpectCt, ExpectStaple, Hpkp, IpAddr, SecurityReportType},
+    semaphore_general::protocol::{
+        Csp, ExpectCt, ExpectStaple, Hpkp, IpAddr, LenientString, SecurityReportType,
+    },
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     semaphore_general::types::Value,
 };
@@ -178,6 +180,20 @@ impl EventProcessor {
                     SecurityReportType::ExpectStaple => ExpectStaple::apply_to_event(data, event),
                     SecurityReportType::Hpkp => Hpkp::apply_to_event(data, event),
                 };
+
+                if let Some(release) = security
+                    .get_header("sentry_release")
+                    .and_then(Value::as_str)
+                {
+                    event.release = Annotated::from(LenientString(release.to_owned()));
+                }
+
+                if let Some(env) = security
+                    .get_header("sentry_release")
+                    .and_then(Value::as_str)
+                {
+                    event.environment = Annotated::from(env.to_owned());
+                }
 
                 apply_result.map_err(ProcessingError::InvalidSecurityReport)?;
             }

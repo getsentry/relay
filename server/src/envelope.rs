@@ -6,10 +6,10 @@ use std::io::{self, Write};
 use bytes::Bytes;
 use failure::Fail;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use smallvec::SmallVec;
 
 use semaphore_general::protocol::EventId;
+use semaphore_general::types::Value;
 
 use crate::extractors::EventMeta;
 
@@ -195,7 +195,6 @@ impl Item {
 }
 
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
-pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnvelopeHeaders {
@@ -411,9 +410,9 @@ mod tests {
     #[test]
     fn test_item_set_header() {
         let mut item = Item::new(ItemType::Event);
-        item.set_header("custom", 42);
+        item.set_header("custom", 42u64);
 
-        assert_eq!(item.get_header("custom"), Some(&Value::from(42)));
+        assert_eq!(item.get_header("custom"), Some(&Value::from(42u64)));
         assert_eq!(item.get_header("anything"), None);
     }
 
