@@ -77,17 +77,6 @@ impl EventMeta {
     pub fn user_agent(&self) -> Option<&str> {
         self.user_agent.as_ref().map(String::as_str)
     }
-
-    /// Returns `true` if this client requires legacy python json support.
-    ///
-    /// For old Python clients we need to preprocess the JSON payload to make it
-    /// parsable.  This destroys some values (converts `NaN` to `0.0`) but makes the
-    /// request otherwise parsable.
-    pub fn needs_legacy_python_json_support(&self) -> bool {
-        self.auth().client_agent().map_or(false, |agent| {
-            agent.starts_with("raven-python/") || agent.starts_with("sentry-python/")
-        })
-    }
 }
 
 fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {

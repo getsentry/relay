@@ -26,12 +26,23 @@ struct EventIdHelper {
     id: Option<EventId>,
 }
 
+/// Returns `true` if this client requires legacy python json support.
+///
+/// For old Python clients we need to preprocess the JSON payload to make it
+/// parsable.  This destroys some values (converts `NaN` to `0.0`) but makes the
+/// request otherwise parsable.
+fn needs_legacy_python_json_support(meta: &EventMeta) -> bool {
+    meta.auth().client_agent().map_or(false, |agent| {
+        agent.starts_with("raven-python/") || agent.starts_with("sentry-python/")
+    })
+}
+
 fn extract_envelope(mut data: Bytes) -> Result<IncomingEnvelope, BadStoreRequest> {
     if data.is_empty() {
         return Err(BadStoreRequest::EmptyBody);
     }
 
-    let meta: EventMeta = unimplemented!();
+    let meta: &EventMeta = unimplemented!();
 
     // python clients are well known to send crappy JSON in the Sentry world.  The reason
     // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
@@ -39,7 +50,7 @@ fn extract_envelope(mut data: Bytes) -> Result<IncomingEnvelope, BadStoreRequest
     // character substitution on the input stream but only if we detect a Python agent.
     //
     // this is done here so that the rest of the code can assume valid JSON.
-    if meta.needs_legacy_python_json_support() {
+    if needs_legacy_python_json_support(meta) {
         let mut data_mut = BytesMut::from(data);
         json_forensics::translate_slice(&mut data_mut[..]);
         data = data_mut.freeze();
