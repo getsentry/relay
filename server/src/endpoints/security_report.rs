@@ -7,10 +7,6 @@ use bytes::Bytes;
 use serde::Deserialize;
 
 use semaphore_general::protocol::EventId;
-// use semaphore_general::protocol::{
-//     Csp, ExpectCt, ExpectStaple, Hpkp, LenientString, SecurityReportType,
-// };
-// use semaphore_general::types::Annotated;
 
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
@@ -22,31 +18,6 @@ struct SecurityReportParams {
     sentry_release: Option<String>,
     sentry_environment: Option<String>,
 }
-
-// fn process_security_report(
-//     data: Bytes,
-//     params: SecurityReportParams,
-// ) -> Result<Bytes, BadStoreRequest> {
-//     let security_report_type = SecurityReportType::from_json(&data)
-//         .map_err(|_| BadStoreRequest::InvalidSecurityReportType)?;
-
-//     let mut event = match security_report_type {
-//         SecurityReportType::Csp => Csp::parse_event(&data),
-//         SecurityReportType::ExpectCt => ExpectCt::parse_event(&data),
-//         SecurityReportType::ExpectStaple => ExpectStaple::parse_event(&data),
-//         SecurityReportType::Hpkp => Hpkp::parse_event(&data),
-//     }
-//     .map_err(|e| BadStoreRequest::InvalidSecurityReport(e))?;
-
-//     event.release = Annotated::from(params.sentry_release.map(LenientString));
-//     event.environment = Annotated::from(params.sentry_environment);
-
-//     let json_string = Annotated::new(event)
-//         .to_json()
-//         .map_err(|e| BadStoreRequest::InvalidJson(e))?;
-
-//     Ok(Bytes::from(json_string))
-// }
 
 fn extract_envelope(
     data: Bytes,

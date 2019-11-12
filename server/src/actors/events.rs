@@ -31,7 +31,7 @@ use crate::utils::{One, SyncActorFuture, SyncHandle};
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
     semaphore_general::filter::{should_filter, FilterStatKey},
-    semaphore_general::protocol::IpAddr,
+    semaphore_general::protocol::{Csp, ExpectCt, ExpectStaple, Hpkp, IpAddr, SecurityReportType},
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     semaphore_general::types::Value,
 };
@@ -61,6 +61,12 @@ enum ProcessingError {
 
     #[fail(display = "failed to resolve project information")]
     ProjectFailed(#[cause] ProjectError),
+
+    #[fail(display = "invalid security report type")]
+    InvalidSecurityReportType,
+
+    #[fail(display = "invalid security report")]
+    InvalidSecurityReport(#[cause] serde_json::Error),
 
     #[fail(display = "event submission rejected with reason: {:?}", _0)]
     EventRejected(DiscardReason),
@@ -159,21 +165,22 @@ impl EventProcessor {
             // TODO: merge into event
         }
 
-        if let Some(_security) = security_item {
-            // TODO: merge into event
+        if let Some(event) = event.value_mut() {
+            if let Some(security) = security_item {
+                let data = &security.payload();
+                let report_type = SecurityReportType::from_json(data)
+                    .map_err(ProcessingError::InvalidJson)?
+                    .ok_or(ProcessingError::InvalidSecurityReportType)?;
 
-            // #[fail(display = "invalid security report type")]
-            // InvalidSecurityReportType,
+                let apply_result = match report_type {
+                    SecurityReportType::Csp => Csp::apply_to_event(data, event),
+                    SecurityReportType::ExpectCt => ExpectCt::apply_to_event(data, event),
+                    SecurityReportType::ExpectStaple => ExpectStaple::apply_to_event(data, event),
+                    SecurityReportType::Hpkp => Hpkp::apply_to_event(data, event),
+                };
 
-            // #[fail(display = "invalid security report")]
-            // InvalidSecurityReport(#[cause] serde_json::Error),
-
-            // BadStoreRequest::InvalidSecurityReportType => {
-            //     Outcome::Invalid(DiscardReason::SecurityReportType)
-            // }
-            // BadStoreRequest::InvalidSecurityReport(_) => {
-            //     Outcome::Invalid(DiscardReason::SecurityReport)
-            // }
+                apply_result.map_err(ProcessingError::InvalidSecurityReport)?;
+            }
         }
 
         #[cfg(feature = "processing")]
@@ -659,6 +666,12 @@ impl Handler<HandleEvent> for EventManager {
                     }
                     ProcessingError::EventRejected(outcome_reason) => {
                         Some(Outcome::Invalid(outcome_reason))
+                    }
+                    ProcessingError::InvalidSecurityReportType => {
+                        Some(Outcome::Invalid(DiscardReason::SecurityReportType))
+                    }
+                    ProcessingError::InvalidSecurityReport(_) => {
+                        Some(Outcome::Invalid(DiscardReason::SecurityReport))
                     }
                     // if we have an upstream, we don't emit outcomes. the upstream should deal with
                     // this
