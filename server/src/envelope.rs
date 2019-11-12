@@ -31,14 +31,7 @@ pub enum EnvelopeError {
     PayloadIoFailed(#[cause] io::Error),
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum OutgoingItemType {
-    Event,
-    Attachment,
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IncomingItemType {
     Event,
@@ -56,6 +49,13 @@ impl fmt::Display for IncomingItemType {
             Self::SecurityReport => write!(f, "security report"),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OutgoingItemType {
+    Event,
+    Attachment,
 }
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
