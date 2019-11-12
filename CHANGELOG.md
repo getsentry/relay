@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.60
+
+* License is now BSL instead of MIT.
+
+**Store**:
+
+* Transaction events with negative duration are now rejected.
+* Various performance fixes to Relay.
+
+
 ## 0.4.59
 
 * Fix: Normalize legacy stacktrace attributes (#292)
