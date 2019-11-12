@@ -6,7 +6,6 @@ use actix_web::{pred, HttpRequest, HttpResponse, Query, Request};
 use bytes::Bytes;
 use serde::Deserialize;
 
-use semaphore_common::Uuid;
 use semaphore_general::protocol::EventId;
 // use semaphore_general::protocol::{
 //     Csp, ExpectCt, ExpectStaple, Hpkp, LenientString, SecurityReportType,
@@ -14,7 +13,7 @@ use semaphore_general::protocol::EventId;
 // use semaphore_general::types::Annotated;
 
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
-use crate::envelope::{ContentType, IncomingEnvelope, IncomingItem, IncomingItemType};
+use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
@@ -52,12 +51,12 @@ struct SecurityReportParams {
 fn extract_envelope(
     data: Bytes,
     params: SecurityReportParams,
-) -> Result<IncomingEnvelope, BadStoreRequest> {
+) -> Result<Envelope, BadStoreRequest> {
     if data.is_empty() {
         return Err(BadStoreRequest::EmptyBody);
     }
 
-    let mut report_item = IncomingItem::new(IncomingItemType::SecurityReport);
+    let mut report_item = Item::new(ItemType::SecurityReport);
     report_item.set_payload(ContentType::Json, data);
 
     // TODO(ja): Type these out?
@@ -68,7 +67,7 @@ fn extract_envelope(
         report_item.set_header("sentry_environment", sentry_environment);
     }
 
-    let mut envelope = IncomingEnvelope::new(EventId::new());
+    let mut envelope = Envelope::new(EventId::new());
     envelope.add_item(report_item);
 
     Ok(envelope)

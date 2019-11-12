@@ -18,7 +18,7 @@ use crate::actors::events::{QueueEvent, QueueEventError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
 use crate::body::{StoreBody, StorePayloadError};
-use crate::envelope::IncomingEnvelope;
+use crate::envelope::Envelope;
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
@@ -135,7 +135,7 @@ pub fn handle_store_like_request<F, R>(
     create_response: R,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
-    F: FnOnce(Bytes) -> Result<IncomingEnvelope, BadStoreRequest> + 'static,
+    F: FnOnce(Bytes) -> Result<Envelope, BadStoreRequest> + 'static,
     R: FnOnce(EventId) -> HttpResponse + 'static,
 {
     let start_time = start_time.into_inner();

@@ -8,7 +8,6 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use smallvec::SmallVec;
-use uuid::Uuid;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{

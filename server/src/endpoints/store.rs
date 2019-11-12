@@ -11,7 +11,7 @@ use semaphore_common::Uuid;
 use semaphore_general::protocol::EventId;
 
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
-use crate::envelope::{ContentType, IncomingEnvelope, IncomingItem, IncomingItemType};
+use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
@@ -37,7 +37,7 @@ fn needs_legacy_python_json_support(meta: &EventMeta) -> bool {
     })
 }
 
-fn extract_envelope(mut data: Bytes) -> Result<IncomingEnvelope, BadStoreRequest> {
+fn extract_envelope(mut data: Bytes) -> Result<Envelope, BadStoreRequest> {
     if data.is_empty() {
         return Err(BadStoreRequest::EmptyBody);
     }
@@ -65,10 +65,10 @@ fn extract_envelope(mut data: Bytes) -> Result<IncomingEnvelope, BadStoreRequest
         .map_err(BadStoreRequest::InvalidJson)?
         .unwrap_or_else(EventId::new);
 
-    let mut event_item = IncomingItem::new(IncomingItemType::Event);
+    let mut event_item = Item::new(ItemType::Event);
     event_item.set_payload(ContentType::Json, data);
 
-    let mut envelope = IncomingEnvelope::new(event_id);
+    let mut envelope = Envelope::new(event_id);
     envelope.add_item(event_item);
 
     Ok(envelope)

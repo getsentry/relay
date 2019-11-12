@@ -22,9 +22,7 @@ use crate::actors::project::{
     ProjectState, RateLimit, RateLimitScope, RetryAfter,
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
-use crate::envelope::{
-    self, ContentType, IncomingEnvelope, IncomingItemType, Item, OutgoingEnvelope, OutgoingItemType,
-};
+use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
 use crate::extractors::EventMeta;
 use crate::quotas::{QuotasError, RateLimiter};
 use crate::service::{ServerError, ServerErrorKind};
@@ -54,7 +52,7 @@ enum ProcessingError {
     InvalidEvent(#[cause] ProcessingAction),
 
     #[fail(display = "duplicate {} in event", _0)]
-    DuplicateItem(IncomingItemType),
+    DuplicateItem(ItemType),
 
     #[fail(display = "could not schedule project fetch")]
     ScheduleFailed(#[cause] MailboxError),
@@ -129,14 +127,14 @@ impl EventProcessor {
         // TODO: What about envelope headers?
         // TODO: Move or copy headers
 
-        let event_item = envelope.take_item(IncomingItemType::Event);
-        let security_item = envelope.take_item(IncomingItemType::SecurityReport);
-        let form_item = envelope.take_item(IncomingItemType::FormData);
+        let event_item = envelope.take_item(ItemType::Event);
+        let security_item = envelope.take_item(ItemType::SecurityReport);
+        let form_item = envelope.take_item(ItemType::FormData);
 
         // TODO: describe validation
         let duplicate_item = envelope
             .items()
-            .find(|item| item.ty() != IncomingItemType::Attachment);
+            .find(|item| item.ty() != ItemType::Attachment);
 
         if let Some(duplicate_item) = duplicate_item {
             return Err(ProcessingError::DuplicateItem(duplicate_item.ty()));
@@ -280,10 +278,10 @@ impl EventProcessor {
             event.to_json().map_err(ProcessingError::SerializeFailed)?
         });
 
-        let mut event_item = Item::new(OutgoingItemType::Event);
+        let mut event_item = Item::new(ItemType::Event);
         event_item.set_payload(ContentType::Json, data);
 
-        let mut envelope = OutgoingEnvelope::new(event_id);
+        let mut envelope = Envelope::new(event_id);
         envelope.add_item(event_item);
 
         Ok(ProcessEventResponse { envelope })
@@ -295,7 +293,7 @@ impl Actor for EventProcessor {
 }
 
 struct ProcessEvent {
-    pub envelope: IncomingEnvelope,
+    pub envelope: Envelope,
     pub meta: Arc<EventMeta>,
     pub project_id: ProjectId,
     pub project_state: Arc<ProjectState>,
@@ -304,7 +302,7 @@ struct ProcessEvent {
 
 #[cfg_attr(not(feature = "processing"), allow(dead_code))]
 struct ProcessEventResponse {
-    envelope: OutgoingEnvelope,
+    envelope: Envelope,
 }
 
 impl Message for ProcessEvent {
@@ -320,7 +318,7 @@ impl Handler<ProcessEvent> for EventProcessor {
     }
 }
 
-pub type CapturedEvent = Result<OutgoingEnvelope, String>;
+pub type CapturedEvent = Result<Envelope, String>;
 
 pub struct EventManager {
     config: Arc<Config>,
@@ -409,7 +407,7 @@ impl Actor for EventManager {
 }
 
 pub struct QueueEvent {
-    pub envelope: IncomingEnvelope,
+    pub envelope: Envelope,
     pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
     pub start_time: Instant,
@@ -456,7 +454,7 @@ impl Handler<QueueEvent> for EventManager {
 }
 
 struct HandleEvent {
-    pub envelope: IncomingEnvelope,
+    pub envelope: Envelope,
     pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
     pub start_time: Instant,

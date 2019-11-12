@@ -5,7 +5,7 @@ use std::io::{self, Write};
 
 use bytes::Bytes;
 use failure::Fail;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smallvec::SmallVec;
 
@@ -33,14 +33,14 @@ pub enum EnvelopeError {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum IncomingItemType {
+pub enum ItemType {
     Event,
     Attachment,
     FormData,
     SecurityReport,
 }
 
-impl fmt::Display for IncomingItemType {
+impl fmt::Display for ItemType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Event => write!(f, "event"),
@@ -49,13 +49,6 @@ impl fmt::Display for IncomingItemType {
             Self::SecurityReport => write!(f, "security report"),
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum OutgoingItemType {
-    Event,
-    Attachment,
 }
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -101,9 +94,9 @@ impl<'de> Deserialize<'de> for ContentType {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ItemHeaders<T> {
+pub struct ItemHeaders {
     #[serde(rename = "type")]
-    ty: T,
+    ty: ItemType,
 
     length: u32,
 
@@ -118,16 +111,13 @@ pub struct ItemHeaders<T> {
 }
 
 #[derive(Clone, Debug)]
-pub struct Item<T> {
-    headers: ItemHeaders<T>,
+pub struct Item {
+    headers: ItemHeaders,
     payload: Bytes,
 }
 
-impl<T> Item<T>
-where
-    T: Copy,
-{
-    pub fn new(ty: T) -> Self {
+impl Item {
+    pub fn new(ty: ItemType) -> Self {
         Self {
             headers: ItemHeaders {
                 ty,
@@ -140,7 +130,7 @@ where
         }
     }
 
-    pub fn ty(&self) -> T {
+    pub fn ty(&self) -> ItemType {
         self.headers.ty
     }
 
@@ -202,8 +192,8 @@ where
     }
 }
 
-pub type ItemIter<'a, T> = std::slice::Iter<'a, Item<T>>;
-pub type ItemIterMut<'a, T> = std::slice::IterMut<'a, Item<T>>;
+pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
+pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnvelopeHeaders {
@@ -213,15 +203,12 @@ pub struct EnvelopeHeaders {
 }
 
 #[derive(Clone, Debug)]
-pub struct Envelope<T> {
+pub struct Envelope {
     headers: EnvelopeHeaders,
-    items: SmallVec<[Item<T>; 3]>,
+    items: SmallVec<[Item; 3]>,
 }
 
-impl<T> Envelope<T>
-where
-    T: Copy + PartialEq,
-{
+impl Envelope {
     pub fn new(event_id: EventId) -> Self {
         Self {
             headers: EnvelopeHeaders {
@@ -230,6 +217,23 @@ where
             },
             items: SmallVec::new(),
         }
+    }
+
+    pub fn parse_bytes(bytes: Bytes) -> Result<Self, EnvelopeError> {
+        let (headers, mut offset) = Self::parse_headers(&bytes)?;
+
+        let mut envelope = Envelope {
+            headers,
+            items: SmallVec::new(),
+        };
+
+        while offset < bytes.len() {
+            let (item, item_size) = Self::parse_item(bytes.slice_from(offset))?;
+            offset += item_size;
+            envelope.items.push(item);
+        }
+
+        Ok(envelope)
     }
 
     pub fn len(&self) -> usize {
@@ -260,39 +264,42 @@ where
         self.headers.other.insert(name.into(), value.into())
     }
 
-    pub fn items(&self) -> ItemIter<'_, T> {
+    pub fn items(&self) -> ItemIter<'_> {
         self.items.iter()
     }
 
-    pub fn take_item(&mut self, ty: T) -> Option<Item<T>> {
+    pub fn take_item(&mut self, ty: ItemType) -> Option<Item> {
         let index = self.items.iter().position(|i| i.ty() == ty);
         index.map(|index| self.items.swap_remove(index))
     }
 
-    pub fn add_item(&mut self, item: Item<T>) {
+    pub fn add_item(&mut self, item: Item) {
         self.items.push(item)
     }
-}
 
-impl<T> Envelope<T>
-where
-    T: DeserializeOwned,
-{
-    pub fn parse_bytes(bytes: Bytes) -> Result<Self, EnvelopeError> {
-        let (headers, mut offset) = Self::parse_headers(&bytes)?;
+    pub fn serialize<W>(&self, mut writer: W) -> Result<(), EnvelopeError>
+    where
+        W: Write,
+    {
+        serde_json::to_writer(&mut writer, &self.headers).map_err(EnvelopeError::HeaderIoFailed)?;
+        self.write(&mut writer, b"\n")?;
 
-        let mut envelope = Envelope {
-            headers,
-            items: SmallVec::new(),
-        };
+        for item in &self.items {
+            serde_json::to_writer(&mut writer, &item.headers)
+                .map_err(EnvelopeError::HeaderIoFailed)?;
+            self.write(&mut writer, b"\n")?;
 
-        while offset < bytes.len() {
-            let (item, item_size) = Self::parse_item(bytes.slice_from(offset))?;
-            offset += item_size;
-            envelope.items.push(item);
+            self.write(&mut writer, &item.payload)?;
+            self.write(&mut writer, b"\n")?;
         }
 
-        Ok(envelope)
+        Ok(())
+    }
+
+    pub fn to_vec(&self) -> Result<Vec<u8>, EnvelopeError> {
+        let mut vec = Vec::new(); // TODO: Preallocate?
+        self.serialize(&mut vec)?;
+        Ok(vec)
     }
 
     fn parse_headers(slice: &[u8]) -> Result<(EnvelopeHeaders, usize), EnvelopeError> {
@@ -310,11 +317,11 @@ where
         Ok((headers, stream.byte_offset() + 1))
     }
 
-    fn parse_item(bytes: Bytes) -> Result<(Item<T>, usize), EnvelopeError> {
+    fn parse_item(bytes: Bytes) -> Result<(Item, usize), EnvelopeError> {
         let slice = bytes.as_ref();
         let mut stream = serde_json::Deserializer::from_slice(slice).into_iter();
 
-        let headers: ItemHeaders<T> = match stream.next() {
+        let headers: ItemHeaders = match stream.next() {
             None => return Err(EnvelopeError::UnexpectedEof),
             Some(Err(error)) => return Err(EnvelopeError::InvalidItemHeader(error)),
             Some(Ok(headers)) => headers,
@@ -346,36 +353,6 @@ where
             _ => Err(EnvelopeError::MissingNewline),
         }
     }
-}
-
-impl<T> Envelope<T>
-where
-    T: Serialize,
-{
-    pub fn to_vec(&self) -> Result<Vec<u8>, EnvelopeError> {
-        let mut vec = Vec::new(); // TODO: Preallocate?
-        self.serialize(&mut vec)?;
-        Ok(vec)
-    }
-
-    pub fn serialize<W>(&self, mut writer: W) -> Result<(), EnvelopeError>
-    where
-        W: Write,
-    {
-        serde_json::to_writer(&mut writer, &self.headers).map_err(EnvelopeError::HeaderIoFailed)?;
-        self.write(&mut writer, b"\n")?;
-
-        for item in &self.items {
-            serde_json::to_writer(&mut writer, &item.headers)
-                .map_err(EnvelopeError::HeaderIoFailed)?;
-            self.write(&mut writer, b"\n")?;
-
-            self.write(&mut writer, &item.payload)?;
-            self.write(&mut writer, b"\n")?;
-        }
-
-        Ok(())
-    }
 
     fn write<W>(&self, mut writer: W, buf: &[u8]) -> Result<(), EnvelopeError>
     where
@@ -387,21 +364,13 @@ where
     }
 }
 
-pub type IncomingEnvelope = Envelope<IncomingItemType>;
-pub type IncomingItem = Item<IncomingItemType>;
-
-pub type OutgoingEnvelope = Envelope<OutgoingItemType>;
-pub type OutgoingItem = Item<OutgoingItemType>;
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use semaphore_common::Uuid;
-
     #[test]
     fn test_item_empty() {
-        let item = Item::new(OutgoingItemType::Attachment);
+        let item = Item::new(ItemType::Attachment);
 
         assert_eq!(item.payload(), Bytes::new());
         assert_eq!(item.len(), 0);
@@ -412,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_item_set_payload() {
-        let mut item = Item::new(OutgoingItemType::Event);
+        let mut item = Item::new(ItemType::Event);
 
         let payload = Bytes::from(&br#"{"event_id":"3adcb99a1be84a5d8057f2eb9a0161ce"}"#[..]);
         item.set_payload(ContentType::Json, payload.clone());
@@ -428,7 +397,7 @@ mod tests {
 
     #[test]
     fn test_item_set_header() {
-        let mut item = Item::new(OutgoingItemType::Event);
+        let mut item = Item::new(ItemType::Event);
         item.set_header("custom", 42);
 
         assert_eq!(item.get_header("custom"), Some(&Value::from(42)));
@@ -438,7 +407,7 @@ mod tests {
     #[test]
     fn test_envelope_empty() {
         let event_id = EventId::new();
-        let envelope = OutgoingEnvelope::new(event_id);
+        let envelope = Envelope::new(event_id);
 
         assert_eq!(envelope.event_id(), event_id);
         assert_eq!(envelope.len(), 0);
@@ -451,21 +420,21 @@ mod tests {
     #[test]
     fn test_envelope_add_item() {
         let event_id = EventId::new();
-        let mut envelope = OutgoingEnvelope::new(event_id);
-        envelope.add_item(Item::new(OutgoingItemType::Attachment));
+        let mut envelope = Envelope::new(event_id);
+        envelope.add_item(Item::new(ItemType::Attachment));
 
         assert_eq!(envelope.len(), 1);
         assert!(!envelope.is_empty());
 
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items.len(), 1);
-        assert_eq!(items[0].ty(), OutgoingItemType::Attachment);
+        assert_eq!(items[0].ty(), ItemType::Attachment);
     }
 
     #[test]
     fn test_envelope_set_header() {
         let event_id = EventId::new();
-        let mut envelope = OutgoingEnvelope::new(event_id);
+        let mut envelope = Envelope::new(event_id);
         envelope.set_header("custom", 42);
 
         assert_eq!(envelope.get_header("custom"), Some(&Value::from(42)));
@@ -475,30 +444,30 @@ mod tests {
     #[test]
     fn test_envelope_take_item() {
         let event_id = EventId::new();
-        let mut envelope = OutgoingEnvelope::new(event_id);
+        let mut envelope = Envelope::new(event_id);
 
-        let mut item1 = Item::new(OutgoingItemType::Attachment);
+        let mut item1 = Item::new(ItemType::Attachment);
         item1.set_filename("item1");
         envelope.add_item(item1);
 
-        let mut item2 = Item::new(OutgoingItemType::Attachment);
+        let mut item2 = Item::new(ItemType::Attachment);
         item2.set_filename("item2");
         envelope.add_item(item2);
 
         let taken = envelope
-            .take_item(OutgoingItemType::Attachment)
+            .take_item(ItemType::Attachment)
             .expect("should return some item");
 
         assert_eq!(taken.filename(), Some("item1"));
 
-        assert!(envelope.take_item(OutgoingItemType::Event).is_none());
+        assert!(envelope.take_item(ItemType::Event).is_none());
     }
 
     #[test]
     fn test_deserialize_envelope_empty() {
         // Without terminating newline after header
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}");
-        let envelope = IncomingEnvelope::parse_bytes(bytes).unwrap();
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
 
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
         assert_eq!(envelope.event_id(), event_id);
@@ -509,7 +478,7 @@ mod tests {
     fn test_deserialize_envelope_empty_newline() {
         // With terminating newline after header
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}\n");
-        let envelope = IncomingEnvelope::parse_bytes(bytes).unwrap();
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 0);
     }
 
@@ -525,7 +494,7 @@ mod tests {
              ",
         );
 
-        let envelope = IncomingEnvelope::parse_bytes(bytes).unwrap();
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 2);
 
         let items: Vec<_> = envelope.items().collect();
@@ -544,12 +513,12 @@ mod tests {
             {\"message\":\"hello world\",\"level\":\"error\"}\n\
         "[..]);
 
-        let envelope = IncomingEnvelope::parse_bytes(bytes).unwrap();
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
 
         assert_eq!(envelope.len(), 2);
         let items: Vec<_> = envelope.items().collect();
 
-        assert_eq!(items[0].ty(), IncomingItemType::Attachment);
+        assert_eq!(items[0].ty(), ItemType::Attachment);
         assert_eq!(items[0].len(), 10);
         assert_eq!(
             items[0].payload(),
@@ -557,7 +526,7 @@ mod tests {
         );
         assert_eq!(items[0].content_type(), Some(&ContentType::Text));
 
-        assert_eq!(items[1].ty(), IncomingItemType::Event);
+        assert_eq!(items[1].ty(), ItemType::Event);
         assert_eq!(items[1].len(), 41);
         assert_eq!(
             items[1].payload(),
@@ -570,7 +539,7 @@ mod tests {
     #[test]
     fn test_serialize_envelope_empty() {
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
-        let envelope = OutgoingEnvelope::new(event_id);
+        let envelope = Envelope::new(event_id);
 
         let mut buffer = Vec::new();
         envelope.serialize(&mut buffer).unwrap();
@@ -583,16 +552,16 @@ mod tests {
     #[test]
     fn test_serialize_envelope_attachments() {
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
-        let mut envelope = OutgoingEnvelope::new(event_id);
+        let mut envelope = Envelope::new(event_id);
 
-        let mut item = Item::new(OutgoingItemType::Event);
+        let mut item = Item::new(ItemType::Event);
         item.set_payload(
             ContentType::Json,
             "{\"message\":\"hello world\",\"level\":\"error\"}",
         );
         envelope.add_item(item);
 
-        let mut item = Item::new(OutgoingItemType::Attachment);
+        let mut item = Item::new(ItemType::Attachment);
         item.set_payload(ContentType::Text, &b"Hello\r\n"[..]);
         item.set_filename("application.log");
         envelope.add_item(item);
