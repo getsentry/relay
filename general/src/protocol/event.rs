@@ -23,8 +23,17 @@ use crate::types::{
 pub struct EventId(pub uuid::Uuid);
 
 impl EventId {
+    /// Creates a new event id using a UUID v4.
+    #[inline]
     pub fn new() -> Self {
         Self(uuid::Uuid::new_v4())
+    }
+}
+
+impl Default for EventId {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
     }
 }
 
