@@ -362,10 +362,7 @@ mod real_implementation {
             // Here we create a fake EventId, when we don't have the real one, so that we can
             // create a kafka message key that spreads the events nicely over all the
             // kafka consumer groups.
-            let key = message
-                .event_id
-                .unwrap_or_else(|| EventId(Uuid::new_v4()))
-                .0;
+            let key = message.event_id.unwrap_or_else(EventId::new).0;
 
             let record = FutureRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
                 .payload(&payload)

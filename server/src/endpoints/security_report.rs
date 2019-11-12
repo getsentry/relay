@@ -68,7 +68,7 @@ fn extract_envelope(
         report_item.set_header("sentry_environment", sentry_environment);
     }
 
-    let mut envelope = IncomingEnvelope::new(EventId(Uuid::new_v4()));
+    let mut envelope = IncomingEnvelope::new(EventId::new());
     envelope.add_item(report_item);
 
     Ok(envelope)

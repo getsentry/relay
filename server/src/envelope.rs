@@ -437,7 +437,7 @@ mod tests {
 
     #[test]
     fn test_envelope_empty() {
-        let event_id = EventId(Uuid::new_v4());
+        let event_id = EventId::new();
         let envelope = OutgoingEnvelope::new(event_id);
 
         assert_eq!(envelope.event_id(), event_id);
@@ -450,7 +450,7 @@ mod tests {
 
     #[test]
     fn test_envelope_add_item() {
-        let event_id = EventId(Uuid::new_v4());
+        let event_id = EventId::new();
         let mut envelope = OutgoingEnvelope::new(event_id);
         envelope.add_item(Item::new(OutgoingItemType::Attachment));
 
@@ -464,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_envelope_set_header() {
-        let event_id = EventId(Uuid::new_v4());
+        let event_id = EventId::new();
         let mut envelope = OutgoingEnvelope::new(event_id);
         envelope.set_header("custom", 42);
 
@@ -474,7 +474,7 @@ mod tests {
 
     #[test]
     fn test_envelope_take_item() {
-        let event_id = EventId(Uuid::new_v4());
+        let event_id = EventId::new();
         let mut envelope = OutgoingEnvelope::new(event_id);
 
         let mut item1 = Item::new(OutgoingItemType::Attachment);

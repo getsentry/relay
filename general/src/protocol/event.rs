@@ -21,6 +21,13 @@ use crate::types::{
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EventId(pub uuid::Uuid);
+
+impl EventId {
+    pub fn new() -> Self {
+        Self(uuid::Uuid::new_v4())
+    }
+}
+
 derive_string_meta_structure!(EventId, "event id");
 
 impl ProcessValue for EventId {}

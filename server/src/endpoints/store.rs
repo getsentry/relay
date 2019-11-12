@@ -52,7 +52,7 @@ fn extract_envelope(mut data: Bytes) -> Result<IncomingEnvelope, BadStoreRequest
     let event_id = serde_json::from_slice::<EventIdHelper>(&data)
         .map(|event| event.id)
         .map_err(BadStoreRequest::InvalidJson)?
-        .unwrap_or_else(|| EventId(Uuid::new_v4()));
+        .unwrap_or_else(EventId::new);
 
     let mut event_item = IncomingItem::new(IncomingItemType::Event);
     event_item.set_payload(ContentType::Json, data);
