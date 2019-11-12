@@ -50,6 +50,7 @@ struct SecurityReportParams {
 
 fn extract_envelope(
     data: Bytes,
+    meta: EventMeta,
     params: SecurityReportParams,
 ) -> Result<Envelope, BadStoreRequest> {
     if data.is_empty() {
@@ -67,7 +68,7 @@ fn extract_envelope(
         report_item.set_header("sentry_environment", sentry_environment);
     }
 
-    let mut envelope = Envelope::new(EventId::new());
+    let mut envelope = Envelope::from_request(EventId::new(), meta);
     envelope.add_item(report_item);
 
     Ok(envelope)
@@ -108,7 +109,7 @@ fn store_security_report(
         meta,
         start_time,
         request,
-        move |data| extract_envelope(data, params.into_inner()),
+        move |data, meta| extract_envelope(data, meta, params.into_inner()),
         |_| {
             HttpResponse::Created()
                 .content_type("application/javascript")

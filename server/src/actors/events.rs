@@ -23,7 +23,6 @@ use crate::actors::project::{
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
-use crate::extractors::EventMeta;
 use crate::quotas::{QuotasError, RateLimiter};
 use crate::service::{ServerError, ServerErrorKind};
 use crate::utils::{One, SyncActorFuture, SyncHandle};
@@ -181,7 +180,7 @@ impl EventProcessor {
         {
             if self.config.processing_enabled() {
                 let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
-                let auth = message.meta.auth();
+                let auth = envelope.meta().auth();
                 let key_id = message
                     .project_state
                     .get_public_key_config(&auth.public_key())
@@ -195,12 +194,12 @@ impl EventProcessor {
 
                 let store_config = StoreConfig {
                     project_id: Some(message.project_id),
-                    client_ip: message.meta.client_addr().map(IpAddr::from),
+                    client_ip: envelope.meta().client_addr().map(IpAddr::from),
                     client: auth.client_agent().map(str::to_owned),
                     key_id,
                     protocol_version: Some(auth.version().to_string()),
                     grouping_config: message.project_state.config.grouping_config.clone(),
-                    user_agent: message.meta.user_agent().map(str::to_owned),
+                    user_agent: envelope.meta().user_agent().map(str::to_owned),
                     max_secs_in_future: Some(self.config.max_secs_in_future()),
                     max_secs_in_past: Some(self.config.max_secs_in_past()),
                     enable_trimming: Some(true),
@@ -218,7 +217,7 @@ impl EventProcessor {
                 // Event filters assume a normalized event. Unfortunately, this requires us to run
                 // expensive normalization first.
                 if let Some(event) = event.value_mut() {
-                    let client_ip = message.meta.client_addr();
+                    let client_ip = envelope.meta().client_addr();
                     let filter_settings = &message.project_state.config.filter_settings;
                     let filter_result = metric!(timer("event_processing.filtering"), {
                         should_filter(event, client_ip, filter_settings)
@@ -226,7 +225,7 @@ impl EventProcessor {
 
                     if let Err(reason) = filter_result {
                         // If the event should be filtered, no more processing is needed
-                        return Err(ProcessEventError::Filtered(reason));
+                        return Err(ProcessingError::EventFiltered(reason));
                     }
 
                     // TODO: Remove this once cutover is complete.
@@ -245,7 +244,7 @@ impl EventProcessor {
         if let Some(organization_id) = message.project_state.organization_id {
             let key_config = message
                 .project_state
-                .get_public_key_config(&message.meta.auth().public_key());
+                .get_public_key_config(&envelope.meta().auth().public_key());
 
             if let Some(key_config) = key_config {
                 let rate_limit = metric!(timer("event_processing.rate_limiting"), {
@@ -278,10 +277,9 @@ impl EventProcessor {
             event.to_json().map_err(ProcessingError::SerializeFailed)?
         });
 
+        // Add the normalized event back to the envelope. All the other items are attachments.
         let mut event_item = Item::new(ItemType::Event);
         event_item.set_payload(ContentType::Json, data);
-
-        let mut envelope = Envelope::new(event_id);
         envelope.add_item(event_item);
 
         Ok(ProcessEventResponse { envelope })
@@ -294,7 +292,6 @@ impl Actor for EventProcessor {
 
 struct ProcessEvent {
     pub envelope: Envelope,
-    pub meta: Arc<EventMeta>,
     pub project_id: ProjectId,
     pub project_state: Arc<ProjectState>,
     pub start_time: Instant,
@@ -408,7 +405,6 @@ impl Actor for EventManager {
 
 pub struct QueueEvent {
     pub envelope: Envelope,
-    pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
     pub start_time: Instant,
 }
@@ -443,7 +439,6 @@ impl Handler<QueueEvent> for EventManager {
         // actor alive even if it is cleaned up in the ProjectManager.
         context.notify(HandleEvent {
             envelope: message.envelope,
-            meta: message.meta,
             project: message.project,
             start_time: message.start_time,
         });
@@ -455,7 +450,6 @@ impl Handler<QueueEvent> for EventManager {
 
 struct HandleEvent {
     pub envelope: Envelope,
-    pub meta: Arc<EventMeta>,
     pub project: Addr<Project>,
     pub start_time: Instant,
 }
@@ -487,24 +481,24 @@ impl Handler<HandleEvent> for EventManager {
         let upstream = self.upstream.clone();
         let processor = self.processor.clone();
         let outcome_producer = self.outcome_producer.clone();
+        let captured_events = self.captured_events.clone();
+        let capture = self.config.relay_mode() == RelayMode::Capture;
 
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
 
-        let capture = self.config.relay_mode() == RelayMode::Capture;
-        let captured_events = self.captured_events.clone();
-
         let HandleEvent {
             envelope,
-            meta,
             project,
             start_time,
         } = message;
 
         let event_id = envelope.event_id();
+        let remote_addr = envelope.meta().client_addr();
+        let meta_clone = Arc::new(envelope.meta().clone());
+
         let project_id_for_err = Arc::new(Mutex::new(None::<u64>));
         let org_id_for_err = Arc::new(Mutex::new(None::<u64>));
-        let remote_addr = meta.client_addr();
 
         let future = project
             .send(GetProjectId)
@@ -518,7 +512,7 @@ impl Handler<HandleEvent> for EventManager {
                 |project_id| {
                     *project_id_for_err.lock() = Some(project_id);
                     project
-                        .send(GetEventAction::fetched(meta.clone()))
+                        .send(GetEventAction::fetched(meta_clone))
                         .map_err(ProcessingError::ScheduleFailed)
                         .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                             EventAction::Accept => Ok(()),
@@ -533,19 +527,18 @@ impl Handler<HandleEvent> for EventManager {
                                 .map_err(ProcessingError::ScheduleFailed)
                                 .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
                         }))
-                        .and_then(clone!(meta, |project_state| {
+                        .and_then(move |project_state| {
                             *org_id_for_err.lock() = project_state.organization_id;
                             processor
                                 .send(ProcessEvent {
                                     envelope,
-                                    meta,
                                     project_id,
                                     project_state,
                                     start_time,
                                 })
                                 .map_err(ProcessingError::ScheduleFailed)
                                 .flatten()
-                        }))
+                        })
                         .and_then(move |processed| {
                             let envelope = processed.envelope;
 
@@ -555,11 +548,9 @@ impl Handler<HandleEvent> for EventManager {
                                     log::trace!("sending event to kafka {}", event_id);
                                     let future = store_forwarder
                                         .send(StoreEvent {
-                                            payload: envelope,
-                                            event_id,
+                                            envelope,
                                             start_time,
                                             project_id,
-                                            remote_addr,
                                         })
                                         .map_err(ProcessingError::ScheduleFailed)
                                         .and_then(move |result| {
@@ -580,11 +571,13 @@ impl Handler<HandleEvent> for EventManager {
                                 return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
                             }
 
-                            let public_key = meta.auth().public_key().to_string();
+                            let public_key = envelope.meta().auth().public_key().to_string();
 
                             log::trace!("sending event to sentry endpoint {}", event_id);
                             let request = SendRequest::post(format!("/api/{}/store/", project_id))
                                 .build(move |builder| {
+                                    let meta = envelope.meta(); // TODO(ja): Inline?
+
                                     if let Some(origin) = meta.origin() {
                                         builder.header("Origin", origin.to_string());
                                     }

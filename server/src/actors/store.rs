@@ -1,14 +1,13 @@
 //! This module contains the actor that forwards events and attachments to the Sentry store.
 //! The actor uses kafka topics to forward data to Sentry
 
-use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
 use actix::prelude::*;
 use bytes::Bytes;
 use failure::{Fail, ResultExt};
-use futures::Future;
+use futures::{future, Future};
 use rdkafka::error::KafkaError;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::ClientConfig;
@@ -17,9 +16,9 @@ use serde::Serialize;
 use rmp_serde::encode::Error as SerdeError;
 
 use semaphore_common::{metric, tryf, Config, KafkaTopic};
-use semaphore_general::protocol::EventId;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
+use crate::envelope::{Envelope, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
 use crate::utils::{instant_to_unix_timestamp, SyncFuture, SyncHandle};
 
@@ -109,11 +108,9 @@ struct EventKafkaMessage {
 /// Message sent to the StoreForwarder containing an event
 #[derive(Clone, Debug)]
 pub struct StoreEvent {
-    pub event_id: EventId,
-    pub payload: Bytes,
+    pub envelope: Envelope,
     pub start_time: Instant,
     pub project_id: u64,
-    pub remote_addr: Option<IpAddr>,
 }
 
 impl Message for StoreEvent {
@@ -124,15 +121,25 @@ impl Handler<StoreEvent> for StoreForwarder {
     type Result = ResponseFuture<(), StoreError>;
 
     fn handle(&mut self, message: StoreEvent, _ctx: &mut Self::Context) -> Self::Result {
-        let start_timestamp = instant_to_unix_timestamp(message.start_time);
+        let StoreEvent {
+            envelope,
+            start_time,
+            project_id,
+        } = message;
+
+        let event_id = envelope.event_id();
+        let event_item = match envelope.get_item(ItemType::Event) {
+            Some(item) => item,
+            None => return Box::new(future::ok(())),
+        };
 
         let kafka_message = EventKafkaMessage {
-            payload: message.payload,
-            start_time: start_timestamp,
+            payload: event_item.payload(),
+            start_time: instant_to_unix_timestamp(start_time),
             ty: KafkaMessageType::Event,
-            event_id: message.event_id.to_string(),
-            project_id: message.project_id,
-            remote_addr: message.remote_addr.map(|addr| addr.to_string()),
+            event_id: event_id.to_string(),
+            project_id,
+            remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
         };
 
         let serialized_message =
@@ -140,7 +147,9 @@ impl Handler<StoreEvent> for StoreForwarder {
 
         let record = FutureRecord::to(self.config.kafka_topic_name(KafkaTopic::Events))
             .payload(&serialized_message)
-            .key(message.event_id.0.as_bytes().as_ref());
+            .key(event_id.0.as_bytes().as_ref());
+
+        // TODO: Send attachments, if any, before the event.
 
         let future = self
             .producer

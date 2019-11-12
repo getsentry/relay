@@ -7,7 +7,6 @@ use actix_web::{HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
 use serde::{Deserialize, Serialize};
 
-use semaphore_common::Uuid;
 use semaphore_general::protocol::EventId;
 
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
@@ -26,31 +25,22 @@ struct EventIdHelper {
     id: Option<EventId>,
 }
 
-/// Returns `true` if this client requires legacy python json support.
-///
-/// For old Python clients we need to preprocess the JSON payload to make it
-/// parsable.  This destroys some values (converts `NaN` to `0.0`) but makes the
-/// request otherwise parsable.
-fn needs_legacy_python_json_support(meta: &EventMeta) -> bool {
-    meta.auth().client_agent().map_or(false, |agent| {
-        agent.starts_with("raven-python/") || agent.starts_with("sentry-python/")
-    })
-}
-
-fn extract_envelope(mut data: Bytes) -> Result<Envelope, BadStoreRequest> {
+fn extract_envelope(mut data: Bytes, meta: EventMeta) -> Result<Envelope, BadStoreRequest> {
     if data.is_empty() {
         return Err(BadStoreRequest::EmptyBody);
     }
 
-    let meta: &EventMeta = unimplemented!();
-
-    // python clients are well known to send crappy JSON in the Sentry world.  The reason
+    // Python clients are well known to send crappy JSON in the Sentry world.  The reason
     // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
-    // server could deal with this but we cannot.  To work around this issue we run a basic
+    // server could deal with this but we cannot.  To work around this issue, we run a basic
     // character substitution on the input stream but only if we detect a Python agent.
     //
-    // this is done here so that the rest of the code can assume valid JSON.
-    if needs_legacy_python_json_support(meta) {
+    // This is done here so that the rest of the code can assume valid JSON.
+    let is_legacy_python_json = meta.auth().client_agent().map_or(false, |agent| {
+        agent.starts_with("raven-python/") || agent.starts_with("sentry-python/")
+    });
+
+    if is_legacy_python_json {
         let mut data_mut = BytesMut::from(data);
         json_forensics::translate_slice(&mut data_mut[..]);
         data = data_mut.freeze();
@@ -68,7 +58,7 @@ fn extract_envelope(mut data: Bytes) -> Result<Envelope, BadStoreRequest> {
     let mut event_item = Item::new(ItemType::Event);
     event_item.set_payload(ContentType::Json, data);
 
-    let mut envelope = Envelope::new(event_id);
+    let mut envelope = Envelope::from_request(event_id, meta);
     envelope.add_item(event_item);
 
     Ok(envelope)

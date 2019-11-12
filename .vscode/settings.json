@@ -25,5 +25,6 @@
   "[markdown]": {
     "editor.rulers": [80],
     "editor.tabSize": 2
-  }
+  },
+  "rust.all_features": true
 }

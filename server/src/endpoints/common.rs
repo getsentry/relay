@@ -135,17 +135,16 @@ pub fn handle_store_like_request<F, R>(
     create_response: R,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
-    F: FnOnce(Bytes) -> Result<Envelope, BadStoreRequest> + 'static,
+    F: FnOnce(Bytes, EventMeta) -> Result<Envelope, BadStoreRequest> + 'static,
     R: FnOnce(EventId) -> HttpResponse + 'static,
 {
     let start_time = start_time.into_inner();
 
     // For now, we only handle <= v8 and drop everything else
-    if meta.auth().version() > 8 {
+    let version = meta.auth().version();
+    if version > 8 {
         // TODO: Delegate to forward_upstream here
-        tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(
-            meta.auth().version()
-        )));
+        tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(version)));
     }
 
     // Make sure we have a project ID. Does not check if the project exists yet
@@ -164,21 +163,22 @@ where
         }));
     });
 
-    metric!(counter(&format!("event.protocol.v{}", meta.auth().version())) += 1);
+    metric!(counter(&format!("event.protocol.v{}", version)) += 1);
 
-    let meta = Arc::new(meta);
     let config = request.state().config();
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
     let outcome_producer = request.state().outcome_producer().clone();
     let remote_addr = meta.client_addr();
 
+    let cloned_meta = Arc::new(meta.clone());
+
     let future = project_manager
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(move |project| {
             project
-                .send(GetEventAction::cached(meta.clone()))
+                .send(GetEventAction::cached(cloned_meta))
                 .map_err(BadStoreRequest::ScheduleFailed)
                 .and_then(
                     move |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
@@ -194,12 +194,11 @@ where
                         .limit(config.max_event_payload_size())
                         .map_err(BadStoreRequest::PayloadError)
                 })
-                .and_then(move |data| extract_envelope(data))
+                .and_then(move |data| extract_envelope(data, meta))
                 .and_then(move |envelope| {
                     event_manager
                         .send(QueueEvent {
                             envelope,
-                            meta,
                             project,
                             start_time,
                         })

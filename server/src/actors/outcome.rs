@@ -170,7 +170,7 @@ mod real_implementation {
     use serde_json::Error as SerdeSerializationError;
 
     use semaphore_common::tryf;
-    use semaphore_common::{metric, KafkaTopic, Uuid};
+    use semaphore_common::{metric, KafkaTopic};
 
     use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
     use crate::service::ServerErrorKind;

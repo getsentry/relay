@@ -11,6 +11,8 @@ use smallvec::SmallVec;
 
 use semaphore_general::protocol::EventId;
 
+use crate::extractors::EventMeta;
+
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
 #[derive(Debug, Fail)]
@@ -197,7 +199,12 @@ pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnvelopeHeaders {
+    /// Unique identifier of the event associated to this envelope.
     event_id: EventId,
+
+    #[serde(flatten)]
+    meta: EventMeta,
+
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
 }
@@ -209,10 +216,11 @@ pub struct Envelope {
 }
 
 impl Envelope {
-    pub fn new(event_id: EventId) -> Self {
+    pub fn from_request(event_id: EventId, meta: EventMeta) -> Self {
         Self {
             headers: EnvelopeHeaders {
                 event_id,
+                meta,
                 other: BTreeMap::new(),
             },
             items: SmallVec::new(),
@@ -244,32 +252,29 @@ impl Envelope {
         self.items.is_empty()
     }
 
+    /// Unique identifier of the event associated to this envelope.
+    ///
+    /// The envelope may directly contain an event which has this id. Alternatively, it can contain
+    /// payloads that can be transformed into events (such as security reports). Lastly, there can
+    /// be additional information to an event, such as attachments.
     pub fn event_id(&self) -> EventId {
         self.headers.event_id
     }
 
-    pub fn get_header<K>(&self, name: &K) -> Option<&Value>
-    where
-        String: Borrow<K>,
-        K: Ord + ?Sized,
-    {
-        self.headers.other.get(name)
-    }
-
-    pub fn set_header<S, V>(&mut self, name: S, value: V) -> Option<Value>
-    where
-        S: Into<String>,
-        V: Into<Value>,
-    {
-        self.headers.other.insert(name.into(), value.into())
+    pub fn meta(&self) -> &EventMeta {
+        &self.headers.meta
     }
 
     pub fn items(&self) -> ItemIter<'_> {
         self.items.iter()
     }
 
+    pub fn get_item(&self, ty: ItemType) -> Option<&Item> {
+        self.items().find(|item| item.ty() == ty)
+    }
+
     pub fn take_item(&mut self, ty: ItemType) -> Option<Item> {
-        let index = self.items.iter().position(|i| i.ty() == ty);
+        let index = self.items.iter().position(|item| item.ty() == ty);
         index.map(|index| self.items.swap_remove(index))
     }
 
@@ -368,6 +373,14 @@ impl Envelope {
 mod tests {
     use super::*;
 
+    fn event_meta() -> EventMeta {
+        let auth = "Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b"
+            .parse()
+            .unwrap();
+
+        EventMeta::new(auth)
+    }
+
     #[test]
     fn test_item_empty() {
         let item = Item::new(ItemType::Attachment);
@@ -407,7 +420,7 @@ mod tests {
     #[test]
     fn test_envelope_empty() {
         let event_id = EventId::new();
-        let envelope = Envelope::new(event_id);
+        let envelope = Envelope::from_request(event_id, event_meta());
 
         assert_eq!(envelope.event_id(), event_id);
         assert_eq!(envelope.len(), 0);
@@ -420,7 +433,7 @@ mod tests {
     #[test]
     fn test_envelope_add_item() {
         let event_id = EventId::new();
-        let mut envelope = Envelope::new(event_id);
+        let mut envelope = Envelope::from_request(event_id, event_meta());
         envelope.add_item(Item::new(ItemType::Attachment));
 
         assert_eq!(envelope.len(), 1);
@@ -432,19 +445,9 @@ mod tests {
     }
 
     #[test]
-    fn test_envelope_set_header() {
-        let event_id = EventId::new();
-        let mut envelope = Envelope::new(event_id);
-        envelope.set_header("custom", 42);
-
-        assert_eq!(envelope.get_header("custom"), Some(&Value::from(42)));
-        assert_eq!(envelope.get_header("anything"), None);
-    }
-
-    #[test]
     fn test_envelope_take_item() {
         let event_id = EventId::new();
-        let mut envelope = Envelope::new(event_id);
+        let mut envelope = Envelope::from_request(event_id, event_meta());
 
         let mut item1 = Item::new(ItemType::Attachment);
         item1.set_filename("item1");
@@ -466,7 +469,7 @@ mod tests {
     #[test]
     fn test_deserialize_envelope_empty() {
         // Without terminating newline after header
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}");
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}");
         let envelope = Envelope::parse_bytes(bytes).unwrap();
 
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
@@ -477,7 +480,7 @@ mod tests {
     #[test]
     fn test_deserialize_envelope_empty_newline() {
         // With terminating newline after header
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}\n");
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}\n");
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 0);
     }
@@ -487,7 +490,7 @@ mod tests {
         // With terminating newline after item payload
         let bytes = Bytes::from(
             "\
-             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}\n\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}\n\
              {\"type\":\"attachment\",\"length\":0}\n\
              \n\
              {\"type\":\"attachment\",\"length\":0}\n\
@@ -506,7 +509,7 @@ mod tests {
     fn test_deserialize_envelope_multiple_items() {
         // With terminating newline
         let bytes = Bytes::from(&b"\
-            {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}\n\
+            {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}\n\
             {\"type\":\"attachment\",\"length\":10,\"content_type\":\"text/plain\",\"filename\":\"hello.txt\"}\n\
             \xef\xbb\xbfHello\r\n\n\
             {\"type\":\"event\",\"length\":41,\"content_type\":\"application/json\",\"filename\":\"application.log\"}\n\
@@ -539,20 +542,20 @@ mod tests {
     #[test]
     fn test_serialize_envelope_empty() {
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
-        let envelope = Envelope::new(event_id);
+        let envelope = Envelope::from_request(event_id, event_meta());
 
         let mut buffer = Vec::new();
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc"}
+        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","auth":"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b, sentry_version=7"}
 "###);
     }
 
     #[test]
     fn test_serialize_envelope_attachments() {
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
-        let mut envelope = Envelope::new(event_id);
+        let mut envelope = Envelope::from_request(event_id, event_meta());
 
         let mut item = Item::new(ItemType::Event);
         item.set_payload(
@@ -571,7 +574,7 @@ mod tests {
 
         let stringified = String::from_utf8_lossy(&buffer);
         insta::assert_snapshot!(stringified, @r###"
-        {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc"}
+        {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","auth":"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b, sentry_version=7"}
         {"type":"event","length":41,"content_type":"application/json"}
         {"message":"hello world","level":"error"}
         {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
