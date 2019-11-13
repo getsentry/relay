@@ -1,6 +1,6 @@
 [package]
 name = "semaphore-general"
-version = "0.4.59"
+version = "0.4.60"
 authors = ["Sentry <oss@sentry.io>"]
 edition = "2018"
 license-file = "../LICENSE"
