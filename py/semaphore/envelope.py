@@ -133,11 +133,11 @@ class Item(object):
         else:
             payload = payload
 
-        if 'mimetype' not in headers:
+        if 'content_type' not in headers:
             if payload.event is not None:
-                headers['mimetype'] = 'application/json'
+                headers['content_type'] = 'application/json'
             else:
-                headers['mimetype'] = 'application/octet-stream'
+                headers['content_type'] = 'application/octet-stream'
         if 'type' not in headers:
             if payload.event is not None:
                 headers['type'] = 'event'
