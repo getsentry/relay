@@ -125,12 +125,6 @@ impl ServiceState {
         .context(ServerErrorKind::ConfigError)?
         .start();
 
-        let connector = ClientConnector::default()
-            .limit(config.max_concurrent_requests())
-            .start();
-
-        System::current().registry().set(connector);
-
         Ok(ServiceState {
             config: config.clone(),
             upstream_relay: upstream_relay.clone(),
@@ -298,6 +292,12 @@ pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, Serve
         .maxconnrate(config.max_connection_rate())
         .backlog(config.max_pending_connections())
         .disable_signals();
+
+    let connector = ClientConnector::default()
+        .limit(config.max_concurrent_requests())
+        .start();
+
+    System::current().registry().set(connector);
 
     server = listen(server, &config)?;
     server = listen_ssl(server, &config)?;
