@@ -13,7 +13,7 @@ else:
 
 class Envelope(object):
     def __init__(self, headers=None, items=None):
-        if headers is None:
+        if headers is not None:
             headers = dict(headers)
         self.headers = headers
         if items is None:

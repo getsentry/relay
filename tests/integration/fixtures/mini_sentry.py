@@ -15,16 +15,16 @@ from . import SentryLike
 
 
 # HACK: import the envelope module from libsemaphore without requiring to build the cabi
-__envelope = types.ModuleType("envelope")
 with open(
     os.path.abspath(os.path.dirname(__file__)) + "/../../../py/semaphore/envelope.py"
 ) as f:
-    eval(compile(f.read(), "envelope.py", "exec"), __envelope.__dict__)
+    envelope_namespace = {}
+    eval(compile(f.read(), "envelope.py", "exec"), envelope_namespace)
 
 
-Envelope = __envelope.Envelope
-Item = __envelope.Item
-PayloadRef = __envelope.PayloadRef
+Envelope = envelope_namespace["Envelope"]
+Item = envelope_namespace["Item"]
+PayloadRef = envelope_namespace["PayloadRef"]
 
 
 class Sentry(SentryLike):
