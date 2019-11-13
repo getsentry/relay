@@ -187,7 +187,6 @@ def test_event_buffer_size(mini_sentry, relay):
     mini_sentry.test_failures.clear()
 
 
-
 def test_max_concurrent_requests(mini_sentry, relay):
     from time import sleep
     from threading import Semaphore
