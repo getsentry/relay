@@ -115,7 +115,7 @@ def test_security_reports_no_processing(mini_sentry, relay, test_case):
         environment="production",
     )
 
-    event = mini_sentry.captured_events.get(timeout=1)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
     for x in ignored_properties:
         event.pop(x, None)
 
