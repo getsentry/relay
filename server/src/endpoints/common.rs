@@ -18,7 +18,7 @@ use crate::actors::events::{QueueEvent, QueueEventError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
 use crate::body::{StoreBody, StorePayloadError};
-use crate::envelope::Envelope;
+use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
@@ -42,6 +42,9 @@ pub enum BadStoreRequest {
 
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] serde_json::Error),
+
+    #[fail(display = "invalid event envelope")]
+    InvalidEnvelope(#[cause] EnvelopeError),
 
     #[fail(display = "failed to queue event")]
     QueueFailed(#[cause] QueueEventError),
@@ -67,6 +70,7 @@ impl BadStoreRequest {
 
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
             BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
+            BadStoreRequest::InvalidEnvelope(_) => Outcome::Invalid(DiscardReason::InvalidEnvelope),
 
             BadStoreRequest::QueueFailed(event_error) => match event_error {
                 QueueEventError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
@@ -103,7 +107,9 @@ impl ResponseError for BadStoreRequest {
                     .header("Retry-After", retry_after.remaining_seconds().to_string())
                     .json(&body)
             }
-            BadStoreRequest::ScheduleFailed(_) | BadStoreRequest::ProjectFailed(_) => {
+            BadStoreRequest::ScheduleFailed(_)
+            | BadStoreRequest::ProjectFailed(_)
+            | BadStoreRequest::QueueFailed(_) => {
                 // These errors indicate that something's wrong with our actor system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.

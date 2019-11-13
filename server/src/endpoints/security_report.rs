@@ -45,6 +45,30 @@ fn extract_envelope(
     Ok(envelope)
 }
 
+fn create_response() -> HttpResponse {
+    HttpResponse::Created()
+        .content_type("application/javascript")
+        .finish()
+}
+
+/// This handles all messages coming on the Security endpoint.
+///
+/// The security reports will be checked.
+fn store_security_report(
+    meta: EventMeta,
+    start_time: StartTime,
+    request: HttpRequest<ServiceState>,
+    params: Query<SecurityReportParams>,
+) -> ResponseFuture<HttpResponse, BadStoreRequest> {
+    Box::new(handle_store_like_request(
+        meta,
+        start_time,
+        request,
+        move |data, meta| extract_envelope(data, meta, params.into_inner()),
+        |_| create_response(),
+    ))
+}
+
 #[derive(Debug)]
 struct SecurityReportFilter;
 
@@ -65,30 +89,6 @@ impl pred::Predicate<ServiceState> for SecurityReportFilter {
             _ => false,
         }
     }
-}
-
-/// This handles all messages coming on the Security endpoint.
-///
-/// The security reports will be checked.
-fn store_security_report(
-    meta: EventMeta,
-    start_time: StartTime,
-    request: HttpRequest<ServiceState>,
-    params: Query<SecurityReportParams>,
-) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    let future = handle_store_like_request(
-        meta,
-        start_time,
-        request,
-        move |data, meta| extract_envelope(data, meta, params.into_inner()),
-        |_| {
-            HttpResponse::Created()
-                .content_type("application/javascript")
-                .finish()
-        },
-    );
-
-    Box::new(future)
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

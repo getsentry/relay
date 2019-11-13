@@ -99,6 +99,25 @@ impl EventMeta {
         }
     }
 
+    /// Completes this event meta instance with information from another.
+    ///
+    /// All fields that are set in this instance will remain. Only missing fields will be updated if
+    /// they are defined in the other EvenMeta instance.
+    pub fn default_to(&mut self, other: EventMeta) {
+        if self.origin.is_none() {
+            self.origin = other.origin;
+        }
+        if self.remote_addr.is_none() {
+            self.remote_addr = other.remote_addr;
+        }
+        if self.forwarded_for.is_empty() {
+            self.forwarded_for = other.forwarded_for;
+        }
+        if self.user_agent.is_none() {
+            self.user_agent = other.user_agent;
+        }
+    }
+
     /// Returns a reference to the auth info
     pub fn auth(&self) -> &Auth {
         &self.auth

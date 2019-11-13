@@ -3,14 +3,14 @@
 use actix::prelude::*;
 use actix_web::http::Method;
 use actix_web::middleware::cors::Cors;
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
 use serde::{Deserialize, Serialize};
 
 use semaphore_general::protocol::EventId;
 
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
+use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
@@ -25,9 +25,20 @@ struct EventIdHelper {
     id: Option<EventId>,
 }
 
-fn extract_envelope(mut data: Bytes, meta: EventMeta) -> Result<Envelope, BadStoreRequest> {
+fn extract_envelope(
+    mut data: Bytes,
+    meta: EventMeta,
+    content_type: String,
+) -> Result<Envelope, BadStoreRequest> {
     if data.is_empty() {
         return Err(BadStoreRequest::EmptyBody);
+    }
+
+    // Clients may send full envelopes to /store. In this case, just parse the envelope and assume
+    // that it has sufficient headers. However, we're using `parse_request` here to ensure that
+    // we're merging available request headers into the envelope's headers.
+    if content_type == envelope::CONTENT_TYPE {
+        return Envelope::parse_request(data, meta).map_err(BadStoreRequest::InvalidEnvelope);
     }
 
     // Python clients are well known to send crappy JSON in the Sentry world.  The reason
@@ -55,8 +66,14 @@ fn extract_envelope(mut data: Bytes, meta: EventMeta) -> Result<Envelope, BadSto
         .map_err(BadStoreRequest::InvalidJson)?
         .unwrap_or_else(EventId::new);
 
+    // Use the request's content type. If the content type is missing, assume "application/json".
+    let content_type = match content_type {
+        ct if ct.is_empty() => ContentType::Json,
+        ct => ContentType::from(ct),
+    };
+
     let mut event_item = Item::new(ItemType::Event);
-    event_item.set_payload(ContentType::Json, data);
+    event_item.set_payload(content_type, data);
 
     let mut envelope = Envelope::from_request(event_id, meta);
     envelope.add_item(event_item);
@@ -67,6 +84,14 @@ fn extract_envelope(mut data: Bytes, meta: EventMeta) -> Result<Envelope, BadSto
 #[derive(Serialize)]
 struct StoreResponse {
     id: EventId,
+}
+
+fn create_response(id: EventId, is_get_request: bool) -> HttpResponse {
+    if is_get_request {
+        HttpResponse::Ok().content_type("image/gif").body(PIXEL)
+    } else {
+        HttpResponse::Ok().json(StoreResponse { id })
+    }
 }
 
 /// Handler for the event store endpoint.
@@ -81,17 +106,15 @@ fn store_event(
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let is_get_request = request.method() == "GET";
+    let content_type = request.content_type().to_owned();
 
-    let future =
-        handle_store_like_request(meta, start_time, request, extract_envelope, move |id| {
-            if is_get_request {
-                HttpResponse::Ok().content_type("image/gif").body(PIXEL)
-            } else {
-                HttpResponse::Ok().json(StoreResponse { id })
-            }
-        });
-
-    Box::new(future)
+    Box::new(handle_store_like_request(
+        meta,
+        start_time,
+        request,
+        move |data, meta| extract_envelope(data, meta, content_type),
+        move |id| create_response(id, is_get_request),
+    ))
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

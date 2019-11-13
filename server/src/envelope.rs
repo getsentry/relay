@@ -62,6 +62,30 @@ pub enum ContentType {
     Other(String),
 }
 
+impl ContentType {
+    fn from_str(content_type: &str) -> Option<Self> {
+        match content_type {
+            "text/plain" => Some(Self::Text),
+            "application/json" => Some(Self::Json),
+            "application/x-msgpack" => Some(Self::MsgPack),
+            "application/octet-stream" => Some(Self::OctetStream),
+            _ => None,
+        }
+    }
+}
+
+impl From<String> for ContentType {
+    fn from(content_type: String) -> Self {
+        Self::from_str(&content_type).unwrap_or_else(|| ContentType::Other(content_type))
+    }
+}
+
+impl From<&'_ str> for ContentType {
+    fn from(content_type: &str) -> Self {
+        Self::from_str(&content_type).unwrap_or_else(|| ContentType::Other(content_type.to_owned()))
+    }
+}
+
 impl Serialize for ContentType {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -85,13 +109,8 @@ impl<'de> Deserialize<'de> for ContentType {
         D: serde::Deserializer<'de>,
     {
         let content_type = Cow::<'_, str>::deserialize(deserializer)?;
-        Ok(match content_type.as_ref() {
-            "text/plain" => Self::Text,
-            "application/json" => Self::Json,
-            "application/x-msgpack" => Self::MsgPack,
-            "application/octet-stream" => Self::OctetStream,
-            _ => Self::Other(content_type.into_owned()),
-        })
+        Ok(Self::from_str(&content_type)
+            .unwrap_or_else(|| ContentType::Other(content_type.into_owned())))
     }
 }
 
@@ -240,6 +259,12 @@ impl Envelope {
             envelope.items.push(item);
         }
 
+        Ok(envelope)
+    }
+
+    pub fn parse_request(bytes: Bytes, meta: EventMeta) -> Result<Self, EnvelopeError> {
+        let mut envelope = Self::parse_bytes(bytes)?;
+        envelope.headers.meta.default_to(meta);
         Ok(envelope)
     }
 

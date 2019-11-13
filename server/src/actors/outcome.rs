@@ -142,6 +142,9 @@ pub enum DiscardReason {
     /// [Relay] Parsing the event JSON payload failed due to a syntax error.
     InvalidJson,
 
+    /// [Relay] Parsing an event envelope failed (likely missing a required header).
+    InvalidEnvelope,
+
     /// [Relay] A project state returned by the upstream could not be parsed.
     ProjectState,
 
@@ -230,6 +233,7 @@ mod real_implementation {
                 // Relay specific reasons (not present in Sentry)
                 DiscardReason::Payload => "payload",
                 DiscardReason::InvalidJson => "invalid_json",
+                DiscardReason::InvalidEnvelope => "invalid_envelope",
                 DiscardReason::ProjectState => "project_state",
                 DiscardReason::DuplicateItem => "duplicate_item",
                 DiscardReason::Internal => "internal",
