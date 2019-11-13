@@ -12,7 +12,6 @@ else:
 
 
 class Envelope(object):
-
     def __init__(self, headers=None, items=None):
         if headers is None:
             headers = dict(headers)
@@ -37,7 +36,7 @@ class Envelope(object):
 
     def serialize_into(self, f):
         f.write(json.dumps(self.headers))
-        f.write(b'\n')
+        f.write(b"\n")
         for item in self.items:
             item.serialize_into(f)
 
@@ -62,14 +61,10 @@ class Envelope(object):
         return cls.deserialize_from(io.BytesIO(bytes))
 
     def __repr__(self):
-        return '<Envelope headers=%r items=%r>' % (
-            self.headers,
-            self.items,
-        )
+        return "<Envelope headers=%r items=%r>" % (self.headers, self.items,)
 
 
 class PayloadRef(object):
-
     def __init__(self, bytes=None, path=None, event=None):
         self.bytes = bytes
         self.path = path
@@ -78,25 +73,27 @@ class PayloadRef(object):
     def get_bytes(self):
         if self.bytes is None:
             if self.path is not None:
-                with open(self.path, 'rb') as f:
+                with open(self.path, "rb") as f:
                     self.bytes = f.read()
             elif self.event is not None:
                 self.bytes = json.dumps(self.event)
             else:
-                self.bytes = b''
+                self.bytes = b""
         return self.bytes
 
     def prepare_serialize(self):
         if self.path is not None and self.bytes is None:
-            f = open(self.path, 'rb')
+            f = open(self.path, "rb")
             f.seek(0, 2)
             length = f.tell()
             f.seek(0, 0)
+
             def writer(out):
                 try:
                     shutil.copyfileobj(f, out)
                 finally:
                     f.close()
+
             return length, writer
 
         bytes = self.get_bytes()
@@ -105,19 +102,18 @@ class PayloadRef(object):
     @property
     def _type(self):
         if self.event is not None:
-            return 'event'
+            return "event"
         elif self.bytes is not None:
-            return 'bytes'
+            return "bytes"
         elif self.path is not None:
-            return 'path'
-        return 'empty'
+            return "path"
+        return "empty"
 
     def __repr__(self):
-        return '<Payload %r>' % (self._type,)
+        return "<Payload %r>" % (self._type,)
 
 
 class Item(object):
-
     def __init__(self, payload, headers=None):
         if headers is not None:
             headers = dict(headers)
@@ -127,29 +123,26 @@ class Item(object):
         if isinstance(payload, bytes):
             payload = PayloadRef(bytes=payload)
         elif isinstance(payload, text_type):
-            payload = PayloadRef(bytes=payload.encode('utf-8'))
+            payload = PayloadRef(bytes=payload.encode("utf-8"))
         elif isinstance(payload, dict):
             payload = PayloadRef(event=payload)
         else:
             payload = payload
 
-        if 'content_type' not in headers:
+        if "content_type" not in headers:
             if payload.event is not None:
-                headers['content_type'] = 'application/json'
+                headers["content_type"] = "application/json"
             else:
-                headers['content_type'] = 'application/octet-stream'
-        if 'type' not in headers:
+                headers["content_type"] = "application/octet-stream"
+        if "type" not in headers:
             if payload.event is not None:
-                headers['type'] = 'event'
+                headers["type"] = "event"
             else:
-                headers['type'] = 'attachment'
+                headers["type"] = "attachment"
         self.payload = payload
 
     def __repr__(self):
-        return '<Item headers=%r payload=%r>' % (
-            self.headers,
-            self.payload,
-        )
+        return "<Item headers=%r payload=%r>" % (self.headers, self.payload,)
 
     def get_bytes(self):
         return self.payload.get_bytes()
@@ -161,11 +154,11 @@ class Item(object):
     def serialize_into(self, f):
         headers = dict(self.headers)
         length, writer = self.payload.prepare_serialize()
-        headers['length'] = length
+        headers["length"] = length
         f.write(json.dumps(headers))
-        f.write(b'\n')
+        f.write(b"\n")
         writer(f)
-        f.write(b'\n')
+        f.write(b"\n")
 
     def serialize(self):
         out = io.BytesIO()
@@ -178,9 +171,9 @@ class Item(object):
         if not line:
             return
         headers = json.loads(line)
-        length = headers['length']
+        length = headers["length"]
         payload = f.read(length)
-        if headers.get('type') == 'event':
+        if headers.get("type") == "event":
             rv = cls(headers=headers, payload=PayloadRef(event=json.loads(payload)))
         else:
             rv = cls(headers=headers, payload=payload)
