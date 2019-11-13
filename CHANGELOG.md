@@ -1,14 +1,24 @@
 # Changelog
 
+## 0.4.61
+
+* Add `thread.errored` attribute (#306).
+
 ## 0.4.60
 
-* License is now BSL instead of MIT.
+* License is now BSL instead of MIT (#301).
 
 **Store**:
 
-* Transaction events with negative duration are now rejected.
-* Various performance fixes to Relay.
+* Transaction events with negative duration are now rejected (#291).
+* Fix a panic when normalizing certain dates.
 
+**Relay**:
+
+* Improve internal metrics and logging (#296, #297, #298).
+* Fix unbounded requests to Sentry for project configs (#295, #300).
+* Fix rejected responses from Sentry due to size limit (#303).
+* Expose more options for configuring request concurrency limits (#311).
 
 ## 0.4.59
 
