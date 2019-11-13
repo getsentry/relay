@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::borrow::{Borrow, Cow};
 use std::collections::BTreeMap;
 use std::fmt;

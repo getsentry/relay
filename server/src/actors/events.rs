@@ -11,9 +11,10 @@ use parking_lot::{Mutex, RwLock};
 use semaphore_common::{clone, metric, Config, LogError, ProjectId, RelayMode};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
-use semaphore_general::protocol::{Event, EventId};
-use semaphore_general::types::{Annotated, ProcessingAction};
-use serde_json;
+use semaphore_general::protocol::{
+    Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString, SecurityReportType,
+};
+use semaphore_general::types::{Annotated, ProcessingAction, Value};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
@@ -31,11 +32,8 @@ use crate::utils::{One, SyncActorFuture, SyncHandle};
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
     semaphore_general::filter::{should_filter, FilterStatKey},
-    semaphore_general::protocol::{
-        Csp, ExpectCt, ExpectStaple, Hpkp, IpAddr, LenientString, SecurityReportType,
-    },
+    semaphore_general::protocol::IpAddr,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    semaphore_general::types::Value,
 };
 
 #[derive(Debug, Fail)]
