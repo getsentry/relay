@@ -16,14 +16,8 @@ pub struct Server {
 impl Server {
     pub fn start(config: Config) -> Result<Addr<Self>, ServerError> {
         metric!(counter("server.starting") += 1);
-        // spawn our own services into the default arbiter
-        let service_state = ServiceState::start(config)?;
-
-        // spawn the HTTP server into a separate arbiter to make connects faster
-        Ok(Arbiter::start(|_ctx| {
-            let http_server = service::start(service_state).unwrap();
-            Server { http_server }
-        }))
+        let http_server = service::start(ServiceState::start(config)?)?;
+        Ok(Server { http_server }.start())
     }
 }
 
