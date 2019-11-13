@@ -571,6 +571,7 @@ mod __quota_serialization {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RedisQuota {
     /// How many events should be accepted within the window.
     ///
@@ -597,6 +598,7 @@ pub struct RedisQuota {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RejectAllQuota {
     /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
     /// comes to that.
