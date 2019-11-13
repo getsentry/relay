@@ -286,7 +286,7 @@ def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_co
             "prefix": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "limit": 5,
             "window": 3600,
-            "reason_code": "get_lost",
+            "reasonCode": "get_lost",
         }
     ]
 
