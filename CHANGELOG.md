@@ -1,5 +1,121 @@
 # Changelog
 
+## 0.4.61
+
+* Add `thread.errored` attribute (#306).
+
+## 0.4.60
+
+* License is now BSL instead of MIT (#301).
+
+**Store**:
+
+* Transaction events with negative duration are now rejected (#291).
+* Fix a panic when normalizing certain dates.
+
+**Relay**:
+
+* Improve internal metrics and logging (#296, #297, #298).
+* Fix unbounded requests to Sentry for project configs (#295, #300).
+* Fix rejected responses from Sentry due to size limit (#303).
+* Expose more options for configuring request concurrency limits (#311).
+
+## 0.4.59
+
+* Fix: Normalize legacy stacktrace attributes (#292)
+* Fix: Validate platform attributes in Relay (#294)
+* Flip the flag that indicates Relay processing (#293)
+
+## 0.4.58
+
+* Expose globbing code from Semaphore to Python (#288)
+* Normalize before datascrubbing (#290)
+* Evict project caches after some time (#287)
+* Add event size metrics (#286)
+* Selectively log internal errors to stderr (#285)
+* Do not ignore `process_value` result in `scrub_event` (#284)
+* Add a config value for thread counts (#283)
+* Refactor outcomes for parity with Sentry (#282)
+* Add an error boundary to parsing project states (#281)
+* Remove warning and add comment for temporary attribute
+* Add flag that relay processed an event (#279)
+
+## 0.4.57
+
+**Store**:
+
+- Stricter validation of transaction events.
+
+## 0.4.56
+
+**Store**:
+
+- Fix a panic in trimming.
+
+## 0.4.55
+
+**Store**:
+
+- Fix more bugs in datascrubbing converter.
+
+## 0.4.54
+
+**Store**:
+
+- Fix more bugs in datascrubbing converter.
+
+## 0.4.53
+
+**Store**:
+
+- Fix more bugs in datascrubbing converter.
+
+## 0.4.52
+
+**Store**:
+
+- Fix more bugs in datascrubbing converter.
+
+## 0.4.51
+
+**Store**:
+
+- Fix a few bugs in datascrubbing converter.
+- Accept trailing slashes.
+
+**Normalization**:
+
+- Fix a panic on overflowing timestamps.
+
+## 0.4.50
+
+**Store**:
+
+- Fix bug where IP scrubbers were applied even when not enabled.
+
+## 0.4.49
+
+**Python**
+
+- Fix handling of panics in CABI/Python bindings.
+
+## 0.4.48
+
+**Store**:
+
+- Fix various bugs in the datascrubber and PII processing code to get closer to behavior of the Python implementation.
+
+## 0.4.47
+
+**Normalization**:
+
+- Fix encoding issue in the Python layer of event normalization.
+
+**Store**:
+
+- Various work on re-implementing Sentry's `/api/X/store` endpoint in Relay.
+  Relay can now apply rate limits based on Redis and emit the correct outcomes.
+
 ## 0.4.46
 
 **Normalization**:

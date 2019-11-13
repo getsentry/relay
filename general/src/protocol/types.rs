@@ -10,8 +10,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{
-    Annotated, Array, Empty, Error, ErrorKind, FromValue, Meta, Object, SkipSerialization, ToValue,
-    Value, ValueAction,
+    Annotated, Array, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingResult,
+    SkipSerialization, ToValue, Value,
 };
 
 /// A array like wrapper used in various places.
@@ -55,7 +55,7 @@ impl<T: FromValue> FromValue for Values<T> {
                         Some(items.into_iter().map(FromValue::from_value).collect()),
                         meta,
                     ),
-                    other: Default::default(),
+                    other: Object::new(),
                 }),
                 Meta::default(),
             ),
@@ -85,9 +85,9 @@ impl<T: FromValue> FromValue for Values<T> {
                                     Some(Value::Object(obj)),
                                     meta,
                                 ))]),
-                                Default::default(),
+                                Meta::default(),
                             ),
-                            other: Default::default(),
+                            other: Object::new(),
                         }),
                         Meta::default(),
                     )
@@ -176,6 +176,14 @@ where
             .iter()
             .filter_map(Annotated::value)
             .position(|entry| entry.as_pair().0.as_str() == Some(key))
+    }
+
+    /// Returns `true` if the pair list contains a value for the specified key.
+    pub fn contains<Q>(&self, key: Q) -> bool
+    where
+        Q: AsRef<str>,
+    {
+        self.position(key).is_some()
     }
 
     /// Removes an entry matching the given key and returns its value, if found.
@@ -272,21 +280,27 @@ where
         meta: &mut Meta,
         processor: &mut P,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         P: Processor,
     {
         processor.process_pairlist(self, meta, state)
     }
 
-    fn process_child_values<P>(&mut self, processor: &mut P, state: &ProcessingState<'_>)
+    fn process_child_values<P>(
+        &mut self,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
     where
         P: Processor,
     {
         for (idx, pair) in self.0.iter_mut().enumerate() {
             let state = state.enter_index(idx, state.inner_attrs(), ValueType::for_field(pair));
-            process_value(pair, processor, &state);
+            process_value(pair, processor, &state)?;
         }
+
+        Ok(())
     }
 }
 

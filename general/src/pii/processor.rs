@@ -16,7 +16,7 @@ use crate::processor::{
     SelectorSpec, ValueType,
 };
 use crate::protocol::{AsPair, PairList};
-use crate::types::{Meta, Remark, RemarkType, ValueAction};
+use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
@@ -32,6 +32,11 @@ macro_rules! ip {
 
 #[rustfmt::skip]
 lazy_static! {
+    static ref GROUP_0: BTreeSet<u8> = {
+        let mut set = BTreeSet::new();
+        set.insert(0);
+        set
+    };
     static ref GROUP_1: BTreeSet<u8> = {
         let mut set = BTreeSet::new();
         set.insert(1);
@@ -241,20 +246,20 @@ impl<'a> Processor for PiiProcessor<'a> {
         _value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         // booleans cannot be PII, and strings are handled in process_string
         if let Some(ValueType::Boolean) | Some(ValueType::String) = state.value_type() {
-            return ValueAction::Keep;
+            return Ok(());
         }
 
         // apply rules based on key/path
         for rule in self.iter_rules(state) {
-            match apply_rule_to_value(meta, rule, state.path().key()) {
-                ValueAction::Keep => continue,
+            match apply_rule_to_value(meta, rule, state.path().key(), None) {
+                Ok(()) => continue,
                 other => return other,
             }
         }
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_string(
@@ -262,9 +267,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         value: &mut String,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
-        if let "true" | "false" | "null" | "undefined" = value.as_str() {
-            return ValueAction::Keep;
+    ) -> ProcessingResult {
+        if let "" | "true" | "false" | "null" | "undefined" = value.as_str() {
+            return Ok(());
         }
 
         let mut rules = self.iter_rules(state).peekable();
@@ -274,8 +279,8 @@ impl<'a> Processor for PiiProcessor<'a> {
             // same as before_process. duplicated here because we can only check for "true",
             // "false" etc in process_string.
             for rule in &rules {
-                match apply_rule_to_value(meta, *rule, state.path().key()) {
-                    ValueAction::Keep => continue,
+                match apply_rule_to_value(meta, *rule, state.path().key(), Some(value)) {
+                    Ok(()) => continue,
                     other => return other,
                 }
             }
@@ -288,7 +293,7 @@ impl<'a> Processor for PiiProcessor<'a> {
                 chunks
             });
         }
-        ValueAction::Keep
+        Ok(())
     }
 
     fn process_pairlist<T: ProcessValue + AsPair>(
@@ -296,7 +301,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         value: &mut PairList<T>,
         _meta: &mut Meta,
         state: &ProcessingState,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         // View pairlists as objects just for the purpose of PII stripping (e.g. `event.tags.mykey`
         // instead of `event.tags.42.0`). For other purposes such as trimming we would run into
         // problems:
@@ -318,18 +323,18 @@ impl<'a> Processor for PiiProcessor<'a> {
                             state.inner_attrs(),
                             ValueType::for_field(value),
                         ),
-                    );
+                    )?;
                 } else {
                     process_value(
                         value,
                         self,
                         &state.enter_index(idx, state.inner_attrs(), ValueType::for_field(value)),
-                    );
+                    )?;
                 }
             }
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 }
 
@@ -370,20 +375,44 @@ fn collect_rules<'a, 'b>(
     }
 }
 
-fn apply_rule_to_value(meta: &mut Meta, rule: RuleRef<'_>, key: Option<&str>) -> ValueAction {
+fn apply_rule_to_value(
+    meta: &mut Meta,
+    rule: RuleRef<'_>,
+    key: Option<&str>,
+    value: Option<&mut String>,
+) -> ProcessingResult {
     match rule.ty {
         RuleType::RedactPair(ref redact_pair) => {
             if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
-                meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
-                ValueAction::DeleteHard
+                // The rule might specify to remove or to redact. If redaction is chosen, we need to
+                // chunk up the value, otherwise we need to simply mark the value for deletion.
+                let should_redact_chunks = match *rule.redaction {
+                    Redaction::Default | Redaction::Remove => false,
+                    _ => true,
+                };
+
+                if let (Some(value), true) = (value, should_redact_chunks) {
+                    // If we're given a string value here, redact the value. However, we need to
+                    // replace the rule's type with "Anything" so that it matches no matter what the
+                    // value is. Then, we keep the redacted value.
+                    let mut value_rule = rule;
+                    value_rule.ty = &RuleType::Anything;
+                    process_chunked_value(value, meta, |chunks| {
+                        apply_rule_to_chunks(chunks, value_rule)
+                    });
+                    Ok(())
+                } else {
+                    meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
+                    Err(ProcessingAction::DeleteValueHard)
+                }
             } else {
-                ValueAction::Keep
+                Ok(())
             }
         }
-        RuleType::Never => ValueAction::Keep,
+        RuleType::Never => Ok(()),
         RuleType::Anything => {
             meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
-            ValueAction::DeleteHard
+            Err(ProcessingAction::DeleteValueHard)
         }
 
         // These are not handled by the container code but will be independently picked
@@ -398,10 +427,10 @@ fn apply_rule_to_value(meta: &mut Meta, rule: RuleRef<'_>, key: Option<&str>) ->
         | RuleType::Pemkey
         | RuleType::UrlAuth
         | RuleType::UsSsn
-        | RuleType::Userpath => ValueAction::Keep,
+        | RuleType::Userpath => Ok(()),
 
         // These have been resolved by `collect_applications` and will never occur here.
-        RuleType::Alias(_) | RuleType::Multiple(_) => ValueAction::Keep,
+        RuleType::Alias(_) | RuleType::Multiple(_) => Ok(()),
     }
 }
 
@@ -414,20 +443,20 @@ fn apply_rule_to_chunks<'a>(mut chunks: Vec<Chunk<'a>>, rule: RuleRef<'_>) -> Ve
 
     match rule.ty {
         RuleType::Never => {}
-        RuleType::Anything => apply_regex!(&ANYTHING_REGEX, None),
+        RuleType::Anything => apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0)),
         RuleType::Pattern(r) => apply_regex!(&r.pattern.0, r.replace_groups.as_ref()),
-        RuleType::Imei => apply_regex!(&IMEI_REGEX, None),
-        RuleType::Mac => apply_regex!(&MAC_REGEX, None),
-        RuleType::Uuid => apply_regex!(&UUID_REGEX, None),
-        RuleType::Email => apply_regex!(&EMAIL_REGEX, None),
+        RuleType::Imei => apply_regex!(&IMEI_REGEX, Some(&*GROUP_0)),
+        RuleType::Mac => apply_regex!(&MAC_REGEX, Some(&*GROUP_0)),
+        RuleType::Uuid => apply_regex!(&UUID_REGEX, Some(&*GROUP_0)),
+        RuleType::Email => apply_regex!(&EMAIL_REGEX, Some(&*GROUP_0)),
         RuleType::Ip => {
-            apply_regex!(&IPV4_REGEX, None);
+            apply_regex!(&IPV4_REGEX, Some(&*GROUP_0));
             apply_regex!(&IPV6_REGEX, Some(&*GROUP_1));
         }
-        RuleType::Creditcard => apply_regex!(&CREDITCARD_REGEX, None),
+        RuleType::Creditcard => apply_regex!(&CREDITCARD_REGEX, Some(&*GROUP_0)),
         RuleType::Pemkey => apply_regex!(&PEM_KEY_REGEX, Some(&*GROUP_1)),
         RuleType::UrlAuth => apply_regex!(&URL_AUTH_REGEX, Some(&*GROUP_1)),
-        RuleType::UsSsn => apply_regex!(&US_SSN_REGEX, None),
+        RuleType::UsSsn => apply_regex!(&US_SSN_REGEX, Some(&*GROUP_0)),
         RuleType::Userpath => apply_regex!(&PATH_REGEX, Some(&*GROUP_1)),
         RuleType::RedactPair(ref redact_pair) => apply_regex!(&redact_pair.key_pattern, None),
         // does not apply here
@@ -497,15 +526,9 @@ fn apply_regex_to_chunks<'a>(
     let mut rv = Vec::with_capacity(replacement_chunks.len());
 
     for m in captures_iter {
-        let g0 = m.get(0).unwrap();
-
         match replace_groups {
             Some(groups) => {
                 for (idx, g) in m.iter().enumerate() {
-                    if idx == 0 {
-                        continue;
-                    }
-
                     if let Some(g) = g {
                         if groups.contains(&(idx as u8)) {
                             process_text(
@@ -520,13 +543,10 @@ fn apply_regex_to_chunks<'a>(
                 }
             }
             None => {
-                process_text(
-                    &search_string[pos..g0.start()],
-                    &mut rv,
-                    &mut replacement_chunks,
-                );
-                insert_replacement_chunks(rule, g0.as_str(), &mut rv);
-                pos = g0.end();
+                process_text(&"", &mut rv, &mut replacement_chunks);
+                insert_replacement_chunks(rule, &search_string, &mut rv);
+                pos = search_string.len();
+                break;
             }
         }
     }
@@ -656,7 +676,7 @@ fn test_basic_stripping() {
 
     let mut event = Annotated::new(Event {
         logentry: Annotated::new(LogEntry {
-            formatted: Annotated::new("Hello from 127.0.0.1!".to_string()),
+            formatted: Annotated::new("Hello world!".to_string()),
             ..Default::default()
         }),
         request: Annotated::new(Request {
@@ -693,7 +713,7 @@ fn test_basic_stripping() {
     });
 
     let mut processor = PiiProcessor::new(&config);
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
 
@@ -723,6 +743,6 @@ fn test_redact_containers() {
     });
 
     let mut processor = PiiProcessor::new(&config);
-    process_value(&mut event, &mut processor, ProcessingState::root());
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }

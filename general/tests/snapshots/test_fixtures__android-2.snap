@@ -1,0 +1,346 @@
+---
+source: general/tests/test_fixtures.rs
+expression: SerializableAnnotated(&event)
+---
+event_id: ae3a2cc6e08741c5b09946c65c022469
+level: error
+type: error
+culprit: com.android.internal.os.ZygoteInit in main
+logger: ""
+platform: java
+timestamp: "[timestamp]"
+received: "[received]"
+release: io.sentry.sample-1.0
+dist: "1"
+user:
+  id: 1761a9fcb6836d4c
+contexts:
+  app:
+    app_start_time: "2019-11-08T08:40:05Z"
+    app_identifier: io.sentry.sample
+    app_name: Sentry sample
+    app_version: "1.0"
+    app_build: "1"
+    type: app
+  device:
+    name: Redmi 7
+    family: Redmi
+    model: Redmi 7
+    model_id: PKQ1.181021.001
+    arch: arm64-v8a
+    battery_level: 97.0
+    orientation: portrait
+    manufacturer: Xiaomi
+    brand: xiaomi
+    screen_resolution: 1369x720
+    screen_density: 2.0
+    screen_dpi: 320
+    online: true
+    charging: true
+    low_memory: false
+    simulator: false
+    memory_size: 2955337728
+    free_memory: 1435279360
+    storage_size: 23785328640
+    free_storage: 20191956992
+    external_storage_size: 23785328640
+    external_free_storage: 20191956992
+    boot_time: "2019-11-02T02:10:23Z"
+    timezone: Europe/Vienna
+    archs:
+      - arm64-v8a
+      - armeabi-v7a
+      - armeabi
+    screen_height_pixels: 1369
+    screen_width_pixels: 720
+    type: device
+  os:
+    name: Android
+    version: "9"
+    build: PKQ1.181021.001
+    kernel_version: 4.9.112-perf+
+    rooted: false
+    type: os
+exception:
+  values:
+    - type: Exception
+      value: Some exception.
+      module: java.lang
+      stacktrace:
+        frames:
+          - function: lambda$onCreate$2
+            module: io.sentry.sample.MainActivity
+            filename: MainActivity.java
+            abs_path: MainActivity.java
+            lineno: 36
+            in_app: false
+          - function: onClick
+            module: io.sentry.sample.-$$Lambda$MainActivity$tVGPRGxxb8SivUa5SKhzp6BuXOI
+            lineno: 0
+            in_app: false
+          - function: performClick
+            module: android.view.View
+            filename: View.java
+            abs_path: View.java
+            lineno: 6608
+            in_app: false
+          - function: performClickInternal
+            module: android.view.View
+            filename: View.java
+            abs_path: View.java
+            lineno: 6585
+            in_app: false
+          - function: access$3100
+            module: android.view.View
+            filename: View.java
+            abs_path: View.java
+            lineno: 785
+            in_app: false
+          - function: run
+            module: android.view.View$PerformClick
+            filename: View.java
+            abs_path: View.java
+            lineno: 25919
+            in_app: false
+          - function: handleCallback
+            module: android.os.Handler
+            filename: Handler.java
+            abs_path: Handler.java
+            lineno: 873
+            in_app: false
+          - function: dispatchMessage
+            module: android.os.Handler
+            filename: Handler.java
+            abs_path: Handler.java
+            lineno: 99
+            in_app: false
+          - function: loop
+            module: android.os.Looper
+            filename: Looper.java
+            abs_path: Looper.java
+            lineno: 201
+            in_app: false
+          - function: main
+            module: android.app.ActivityThread
+            filename: ActivityThread.java
+            abs_path: ActivityThread.java
+            lineno: 6810
+            in_app: false
+          - function: invoke
+            module: java.lang.reflect.Method
+            filename: Method.java
+            abs_path: Method.java
+            in_app: false
+          - function: run
+            module: com.android.internal.os.RuntimeInit$MethodAndArgsCaller
+            filename: RuntimeInit.java
+            abs_path: RuntimeInit.java
+            lineno: 547
+            in_app: false
+          - function: main
+            module: com.android.internal.os.ZygoteInit
+            filename: ZygoteInit.java
+            abs_path: ZygoteInit.java
+            lineno: 873
+            in_app: false
+threads:
+  values:
+    - id: 5273
+      name: FileObserver
+      stacktrace:
+        frames:
+          - function: observe
+            module: android.os.FileObserver$ObserverThread
+            filename: FileObserver.java
+            abs_path: FileObserver.java
+            in_app: false
+          - function: run
+            module: android.os.FileObserver$ObserverThread
+            filename: FileObserver.java
+            abs_path: FileObserver.java
+            lineno: 86
+            in_app: false
+    - id: 2
+      name: main
+      stacktrace:
+        frames:
+          - function: getThreadStackTrace
+            module: dalvik.system.VMStack
+            filename: VMStack.java
+            abs_path: VMStack.java
+            in_app: true
+          - function: getStackTrace
+            module: java.lang.Thread
+            filename: Thread.java
+            abs_path: Thread.java
+            lineno: 1538
+            in_app: false
+          - function: getAllStackTraces
+            module: java.lang.Thread
+            filename: Thread.java
+            abs_path: Thread.java
+            lineno: 1588
+            in_app: false
+          - function: getCurrentThreads
+            module: io.sentry.core.SentryThreadFactory
+            filename: SentryThreadFactory.java
+            abs_path: SentryThreadFactory.java
+            lineno: 32
+            in_app: false
+          - function: process
+            module: io.sentry.core.MainEventProcessor
+            filename: MainEventProcessor.java
+            abs_path: MainEventProcessor.java
+            lineno: 64
+            in_app: false
+          - function: captureEvent
+            module: io.sentry.core.SentryClient
+            filename: SentryClient.java
+            abs_path: SentryClient.java
+            lineno: 105
+            in_app: false
+          - function: $default$captureException
+            module: io.sentry.core.ISentryClient$-CC
+            filename: ISentryClient.java
+            abs_path: ISentryClient.java
+            lineno: 48
+            in_app: false
+          - function: captureException
+            module: io.sentry.core.SentryClient
+            lineno: 0
+            in_app: false
+          - function: $default$captureException
+            module: io.sentry.core.ISentryClient$-CC
+            filename: ISentryClient.java
+            abs_path: ISentryClient.java
+            lineno: 56
+            in_app: false
+          - function: captureException
+            module: io.sentry.core.SentryClient
+            lineno: 0
+            in_app: false
+          - function: captureException
+            module: io.sentry.core.Hub
+            filename: Hub.java
+            abs_path: Hub.java
+            lineno: 145
+            in_app: false
+          - function: $default$captureException
+            module: io.sentry.core.IHub$-CC
+            filename: IHub.java
+            abs_path: IHub.java
+            lineno: 21
+            in_app: false
+          - function: captureException
+            module: io.sentry.core.Hub
+            lineno: 0
+            in_app: false
+          - function: captureException
+            module: io.sentry.core.Sentry
+            filename: Sentry.java
+            abs_path: Sentry.java
+            lineno: 87
+            in_app: false
+          - function: lambda$onCreate$2
+            module: io.sentry.sample.MainActivity
+            filename: MainActivity.java
+            abs_path: MainActivity.java
+            lineno: 36
+            in_app: false
+          - function: onClick
+            module: io.sentry.sample.-$$Lambda$MainActivity$tVGPRGxxb8SivUa5SKhzp6BuXOI
+            lineno: 0
+            in_app: false
+          - function: performClick
+            module: android.view.View
+            filename: View.java
+            abs_path: View.java
+            lineno: 6608
+            in_app: false
+          - function: performClickInternal
+            module: android.view.View
+            filename: View.java
+            abs_path: View.java
+            lineno: 6585
+            in_app: false
+          - function: access$3100
+            module: android.view.View
+            filename: View.java
+            abs_path: View.java
+            lineno: 785
+            in_app: false
+          - function: run
+            module: android.view.View$PerformClick
+            filename: View.java
+            abs_path: View.java
+            lineno: 25919
+            in_app: false
+          - function: handleCallback
+            module: android.os.Handler
+            filename: Handler.java
+            abs_path: Handler.java
+            lineno: 873
+            in_app: false
+          - function: dispatchMessage
+            module: android.os.Handler
+            filename: Handler.java
+            abs_path: Handler.java
+            lineno: 99
+            in_app: false
+          - function: loop
+            module: android.os.Looper
+            filename: Looper.java
+            abs_path: Looper.java
+            lineno: 201
+            in_app: false
+          - function: main
+            module: android.app.ActivityThread
+            filename: ActivityThread.java
+            abs_path: ActivityThread.java
+            lineno: 6810
+            in_app: false
+          - function: invoke
+            module: java.lang.reflect.Method
+            filename: Method.java
+            abs_path: Method.java
+            in_app: false
+          - function: run
+            module: com.android.internal.os.RuntimeInit$MethodAndArgsCaller
+            filename: RuntimeInit.java
+            abs_path: RuntimeInit.java
+            lineno: 547
+            in_app: false
+          - function: main
+            module: com.android.internal.os.ZygoteInit
+            filename: ZygoteInit.java
+            abs_path: ZygoteInit.java
+            lineno: 873
+            in_app: false
+      errored: true
+    - id: 5274
+      name: "|ANR-WatchDog|"
+      stacktrace:
+        frames:
+          - function: sleep
+            module: java.lang.Thread
+            filename: Thread.java
+            abs_path: Thread.java
+            in_app: false
+          - function: sleep
+            module: java.lang.Thread
+            filename: Thread.java
+            abs_path: Thread.java
+            lineno: 373
+            in_app: false
+          - function: sleep
+            module: java.lang.Thread
+            filename: Thread.java
+            abs_path: Thread.java
+            lineno: 314
+            in_app: false
+          - function: run
+            module: io.sentry.android.core.ANRWatchDog
+            filename: ANRWatchDog.java
+            abs_path: ANRWatchDog.java
+            lineno: 77
+            in_app: false

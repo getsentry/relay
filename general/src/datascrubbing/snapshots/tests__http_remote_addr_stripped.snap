@@ -1,0 +1,27 @@
+---
+source: general/src/datascrubbing/convert.rs
+expression: data
+---
+{
+  "request": {
+    "env": {
+      "REMOTE_ADDR": null
+    }
+  },
+  "_meta": {
+    "request": {
+      "env": {
+        "REMOTE_ADDR": {
+          "": {
+            "rem": [
+              [
+                "@anything:remove",
+                "x"
+              ]
+            ]
+          }
+        }
+      }
+    }
+  }
+}

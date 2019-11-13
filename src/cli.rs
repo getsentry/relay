@@ -11,7 +11,7 @@ use semaphore_common::{Config, Credentials, LogError, MinimalConfig, RelayMode, 
 use semaphore_general::pii::{PiiConfig, PiiProcessor};
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::Event;
-use semaphore_general::store::StoreProcessor;
+use semaphore_general::store::{StoreConfig, StoreProcessor};
 use semaphore_general::types::Annotated;
 
 use crate::cliapp::make_app;
@@ -207,7 +207,7 @@ pub fn init_config<'a, P: AsRef<Path>>(
             _ => unreachable!(),
         };
 
-        let mut mincfg: MinimalConfig = Default::default();
+        let mut mincfg = MinimalConfig::default();
         if with_prompts {
             let mode = Select::with_theme(get_theme())
                 .with_prompt("How should this relay operate?")
@@ -319,12 +319,12 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
     let mut event = EventV8::from_json_bytes(&event_json[..])?;
     if let Some(ref pii_config) = pii_config {
         let mut processor = PiiProcessor::new(pii_config);
-        process_value(&mut event, &mut processor, ProcessingState::root());
+        process_value(&mut event, &mut processor, ProcessingState::root())?;
     };
 
     if matches.is_present("store") {
-        let mut processor = StoreProcessor::new(Default::default(), None);
-        process_value(&mut event, &mut processor, ProcessingState::root());
+        let mut processor = StoreProcessor::new(StoreConfig::default(), None);
+        process_value(&mut event, &mut processor, ProcessingState::root())?;
     }
 
     if matches.is_present("debug") {

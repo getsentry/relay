@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "s": "***-**-****"
+    "s": "[Filtered]"
   },
   "_meta": {
     "extra": {
@@ -12,10 +12,10 @@ expression: data
         "": {
           "rem": [
             [
-              "@usssn",
-              "m",
+              "@usssn:filter",
+              "s",
               0,
-              11
+              10
             ]
           ],
           "len": 11

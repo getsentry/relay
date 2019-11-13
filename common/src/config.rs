@@ -243,7 +243,7 @@ impl Default for Metrics {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Limits {
-    /// How many requests can be sent concurrently before Relay starts buffering.
+    /// How many requests can be sent concurrently from Relay to the upstream before Relay starts buffering.
     max_concurrent_requests: usize,
     /// The maximum payload size for events.
     max_event_payload_size: ByteSize,
@@ -253,6 +253,21 @@ struct Limits {
     max_api_file_upload_size: ByteSize,
     /// The maximum payload size for chunks
     max_api_chunk_upload_size: ByteSize,
+    /// The maximum number of threads to spawn for CPU and web work, each.
+    ///
+    /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
+    /// the number of logical CPU cores on the host.
+    max_thread_count: usize,
+    /// The maximum number of seconds a query is allowed to take across retries. Individual requests
+    /// have lower timeouts. Defaults to 30 seconds.
+    query_timeout: u64,
+    /// The maximum number of connections to Relay that can be created at once.
+    max_connection_rate: usize,
+    /// The maximum number of pending connects to Relay. This corresponds to the backlog param of
+    /// `listen(2)` in POSIX.
+    max_pending_connections: i32,
+    /// The maximum number of open connections to Relay.
+    max_connections: usize,
 }
 
 impl Default for Limits {
@@ -263,6 +278,11 @@ impl Default for Limits {
             max_api_payload_size: ByteSize::from_megabytes(20),
             max_api_file_upload_size: ByteSize::from_megabytes(40),
             max_api_chunk_upload_size: ByteSize::from_megabytes(100),
+            max_thread_count: num_cpus::get(),
+            query_timeout: 30,
+            max_connection_rate: 256,
+            max_pending_connections: 2048,
+            max_connections: 25_000,
         }
     }
 }
@@ -305,6 +325,10 @@ struct Cache {
     miss_expiry: u32,
     /// The buffer timeout for batched queries before sending them upstream in ms.
     batch_interval: u32,
+    /// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
+    ///
+    /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
+    batch_size: usize,
     /// Interval for watching local cache override files in seconds.
     file_interval: u32,
 }
@@ -318,7 +342,8 @@ impl Default for Cache {
             event_buffer_size: 1000,
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
-            file_interval: 10,   // 10 seconds
+            batch_size: 500,
+            file_interval: 10, // 10 seconds
         }
     }
 }
@@ -347,6 +372,7 @@ mod processing {
     use super::*;
 
     /// Define the topics over which Relay communicates with Sentry.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     pub enum KafkaTopic {
         /// Simple events (without attachments) topic.
         Events,
@@ -388,6 +414,10 @@ mod processing {
         30 * 24 * 3600 // 30 days
     }
 
+    fn default_chunk_size() -> ByteSize {
+        ByteSize::from_megabytes(1)
+    }
+
     /// Controls Sentry-internal event processing.
     #[derive(Serialize, Deserialize, Debug)]
     pub(super) struct Processing {
@@ -408,6 +438,9 @@ mod processing {
         pub(super) topics: TopicNames,
         /// Redis hosts to connect to for storing state for rate limits.
         pub(super) redis: Redis,
+        /// Maximum chunk size of attachments for Kafka.
+        #[serde(default = "default_chunk_size")]
+        pub(super) attachment_chunk_size: ByteSize,
     }
 
     impl Default for Processing {
@@ -425,7 +458,8 @@ mod processing {
                     transactions: String::new(),
                     outcomes: String::new(),
                 },
-                redis: Default::default(),
+                redis: Redis::default(),
+                attachment_chunk_size: default_chunk_size(),
             }
         }
     }
@@ -802,6 +836,36 @@ impl Config {
         self.values.limits.max_concurrent_requests
     }
 
+    /// The maximum number of seconds a query is allowed to take across retries.
+    pub fn query_timeout(&self) -> Duration {
+        Duration::from_secs(self.values.limits.query_timeout)
+    }
+
+    /// The maximum number of open connections to Relay.
+    pub fn max_connections(&self) -> usize {
+        self.values.limits.max_connections
+    }
+
+    /// The maximum number of connections to Relay that can be created at once.
+    pub fn max_connection_rate(&self) -> usize {
+        self.values.limits.max_connection_rate
+    }
+
+    /// The maximum number of pending connects to Relay.
+    pub fn max_pending_connections(&self) -> i32 {
+        self.values.limits.max_pending_connections
+    }
+
+    /// Returns the number of cores to use for thread pools.
+    pub fn cpu_concurrency(&self) -> usize {
+        self.values.limits.max_thread_count
+    }
+
+    /// Returns the maximum size of a project config query.
+    pub fn query_batch_size(&self) -> usize {
+        self.values.cache.batch_size
+    }
+
     /// Return the Sentry DSN if reporting to Sentry is enabled.
     pub fn sentry_dsn(&self) -> Option<&Dsn> {
         if self.values.sentry.enabled {
@@ -862,6 +926,11 @@ impl Config {
     /// Redis servers to connect to, for rate limiting.
     pub fn redis(&self) -> &Redis {
         &self.values.processing.redis
+    }
+
+    /// Chunk size of attachments in bytes.
+    pub fn attachment_chunk_size(&self) -> usize {
+        self.values.processing.attachment_chunk_size.as_bytes() as usize
     }
 }
 

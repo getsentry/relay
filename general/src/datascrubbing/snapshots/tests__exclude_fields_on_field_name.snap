@@ -4,7 +4,7 @@ expression: data
 ---
 {
   "extra": {
-    "password": null
+    "password": "[Filtered]"
   },
   "_meta": {
     "extra": {
@@ -12,10 +12,13 @@ expression: data
         "": {
           "rem": [
             [
-              "@password",
-              "x"
+              "@password:filter",
+              "s",
+              0,
+              10
             ]
-          ]
+          ],
+          "len": 11
         }
       }
     }

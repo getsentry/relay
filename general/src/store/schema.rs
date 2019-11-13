@@ -1,5 +1,7 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::types::{Array, Empty, Error, ErrorKind, Meta, Object, ValueAction};
+use crate::types::{
+    Array, Empty, Error, ErrorKind, Meta, Object, ProcessingAction, ProcessingResult,
+};
 
 pub struct SchemaProcessor;
 
@@ -9,10 +11,11 @@ impl Processor for SchemaProcessor {
         value: &mut String,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
-        value_trim_whitespace(value, meta, &state)
-            .and_then(|| verify_value_nonempty(value, meta, &state))
-            .and_then(|| verify_value_pattern(value, meta, &state))
+    ) -> ProcessingResult {
+        value_trim_whitespace(value, meta, &state)?;
+        verify_value_nonempty(value, meta, &state)?;
+        verify_value_pattern(value, meta, &state)?;
+        Ok(())
     }
 
     fn process_array<T>(
@@ -20,12 +23,13 @@ impl Processor for SchemaProcessor {
         value: &mut Array<T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         T: ProcessValue,
     {
-        value.process_child_values(self, state);
-        verify_value_nonempty(value, meta, state)
+        value.process_child_values(self, state)?;
+        verify_value_nonempty(value, meta, state)?;
+        Ok(())
     }
 
     fn process_object<T>(
@@ -33,12 +37,13 @@ impl Processor for SchemaProcessor {
         value: &mut Object<T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction
+    ) -> ProcessingResult
     where
         T: ProcessValue,
     {
-        value.process_child_values(self, state);
-        verify_value_nonempty(value, meta, state)
+        value.process_child_values(self, state)?;
+        verify_value_nonempty(value, meta, state)?;
+        Ok(())
     }
 
     fn before_process<T: ProcessValue>(
@@ -46,12 +51,12 @@ impl Processor for SchemaProcessor {
         value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         if value.is_none() && state.attrs().required && !meta.has_errors() {
             meta.add_error(ErrorKind::MissingAttribute);
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 }
 
@@ -59,29 +64,29 @@ fn value_trim_whitespace(
     value: &mut String,
     _meta: &mut Meta,
     state: &ProcessingState<'_>,
-) -> ValueAction {
+) -> ProcessingResult {
     if state.attrs().trim_whitespace {
         let new_value = value.trim().to_owned();
         value.clear();
         value.push_str(&new_value);
     }
 
-    ValueAction::Keep
+    Ok(())
 }
 
 fn verify_value_nonempty<T>(
     value: &mut T,
     meta: &mut Meta,
     state: &ProcessingState<'_>,
-) -> ValueAction
+) -> ProcessingResult
 where
     T: Empty,
 {
     if state.attrs().nonempty && value.is_empty() {
         meta.add_error(Error::nonempty());
-        ValueAction::DeleteHard
+        Err(ProcessingAction::DeleteValueHard)
     } else {
-        ValueAction::Keep
+        Ok(())
     }
 }
 
@@ -89,15 +94,15 @@ fn verify_value_pattern(
     value: &mut String,
     meta: &mut Meta,
     state: &ProcessingState<'_>,
-) -> ValueAction {
+) -> ProcessingResult {
     if let Some(ref regex) = state.attrs().match_regex {
         if !regex.is_match(value) {
             meta.add_error(Error::invalid("invalid characters in string"));
-            return ValueAction::DeleteSoft;
+            return Err(ProcessingAction::DeleteValueSoft);
         }
     }
 
-    ValueAction::Keep
+    Ok(())
 }
 
 #[cfg(test)]
@@ -121,7 +126,7 @@ mod tests {
             bar: Annotated::new(T::default()),
             bar2: Annotated::new(T::default()),
         });
-        process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root());
+        process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
         assert_eq_dbg!(
             wrapper,
@@ -156,7 +161,7 @@ mod tests {
             ..Default::default()
         });
 
-        process_value(&mut event, &mut SchemaProcessor, ProcessingState::root());
+        process_value(&mut event, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
         assert_eq_dbg!(
             event,
@@ -180,7 +185,7 @@ mod tests {
         });
 
         let expected = user.clone();
-        process_value(&mut user, &mut SchemaProcessor, ProcessingState::root());
+        process_value(&mut user, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
         assert_eq_dbg!(user, expected);
     }
@@ -195,7 +200,7 @@ mod tests {
             ..Default::default()
         });
 
-        process_value(&mut info, &mut SchemaProcessor, ProcessingState::root());
+        process_value(&mut info, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
         let expected = Annotated::new(ClientSdkInfo {
             name: Annotated::new("sentry.rust".to_string()),
@@ -235,7 +240,8 @@ mod tests {
             &mut mechanism,
             &mut SchemaProcessor,
             ProcessingState::root(),
-        );
+        )
+        .unwrap();
 
         let expected = Annotated::new(Mechanism {
             ty: Annotated::new("mytype".to_string()),
@@ -271,7 +277,7 @@ mod tests {
 
         let mut stack = Annotated::new(RawStacktrace::default());
 
-        process_value(&mut stack, &mut SchemaProcessor, ProcessingState::root());
+        process_value(&mut stack, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
         let expected = Annotated::new(RawStacktrace {
             frames: Annotated::from_error(ErrorKind::MissingAttribute, None),
@@ -289,7 +295,7 @@ mod tests {
             ..Default::default()
         });
 
-        process_value(&mut event, &mut SchemaProcessor, ProcessingState::root());
+        process_value(&mut event, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
         let expected = Annotated::new(Event {
             release: Annotated::new("42".to_string().into()),

@@ -3,11 +3,7 @@ python: "3.6"
 
 cache:
   directories:
-    - cabi/target
     - py/venv
-    - $HOME/.cargo
-    - $TRAVIS_BUILD_DIR/target
-  timeout: 1200
 
 git:
   depth: 1
@@ -56,9 +52,11 @@ matrix:
       script: make -e test-rust-all
 
     - name: "test: semaphore[macos]"
+      if: branch ~= /^release\/[\d.]+$/
       os: osx
       language: generic
       install:
+        - brew update-reset
         - brew install redis
         - brew services start redis
       script: make -e test-rust-all
@@ -70,6 +68,11 @@ matrix:
     - name: "test: libsemaphore"
       os: linux
       script: make -e test-python
+
+    - name: "test: libsemaphore[py2]"
+      python: "2.7"
+      os: linux
+      script: make -e SEMAPHORE_PYTHON_VERSION=python2 test-python
 
     # -------------------------------------
     # EXECUTALE INTEGRATION TESTS
@@ -100,6 +103,7 @@ matrix:
     # -------------------------------------
 
     - name: "release: semaphore[linux]"
+      if: branch ~= /^release\/[\d.]+$/
       os: linux
       language: generic
       before_install: skip
@@ -126,6 +130,7 @@ matrix:
     #                   target/i686-unknown-linux-gnu/release/semaphore
 
     - name: "release: semaphore[macos]"
+      if: branch ~= /^release\/[\d.]+$/
       os: osx
       language: generic
       script:
@@ -140,6 +145,7 @@ matrix:
     # -------------------------------------
 
     - name: "release: libsemaphore[linux-x86]"
+      if: branch ~= /^release\/[\d.]+$/
       os: linux
       sudo: required
       env: BUILD_ARCH=i686
@@ -150,6 +156,7 @@ matrix:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: libsemaphore[linux-x86_64]"
+      if: branch ~= /^release\/[\d.]+$/
       sudo: required
       env: BUILD_ARCH=x86_64
       language: generic
@@ -159,6 +166,7 @@ matrix:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: libsemaphore[macos]"
+      if: branch ~= /^release\/[\d.]+$/
       os: osx
       language: generic
       osx_image: xcode7.3
@@ -169,6 +177,7 @@ matrix:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: libsemaphore[sdist]"
+      if: branch ~= /^release\/[\d.]+$/
       os: linux
       sudo: required
       language: generic
@@ -176,6 +185,10 @@ matrix:
         - make -e sdist
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+
+    - name: "docs"
+      before_script: npm install -g @zeus-ci/cli
+      script: make -e travis-upload-prose-docs
 
 notifications:
   webhooks:

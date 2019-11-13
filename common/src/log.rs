@@ -11,9 +11,9 @@ pub fn backtrace_enabled() -> bool {
 }
 
 /// A wrapper around a `Fail` that prints its causes.
-pub struct LogError<'a, E: AsFail>(pub &'a E);
+pub struct LogError<'a, E: AsFail + ?Sized>(pub &'a E);
 
-impl<'a, E: AsFail> fmt::Display for LogError<'a, E> {
+impl<'a, E: AsFail + ?Sized> fmt::Display for LogError<'a, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let fail = self.0.as_fail();
 

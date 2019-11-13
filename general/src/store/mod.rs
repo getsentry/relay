@@ -1,5 +1,4 @@
 //! Utility code for sentry's internal store.
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -7,7 +6,7 @@ use serde_json::Value;
 
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{Event, IpAddr};
-use crate::types::{Meta, ValueAction};
+use crate::types::{Meta, ProcessingResult};
 
 mod event_error;
 mod geo;
@@ -15,6 +14,7 @@ mod legacy;
 mod normalize;
 mod remove_other;
 mod schema;
+mod transactions;
 mod trimming;
 
 pub use crate::store::geo::GeoIpLookup;
@@ -29,8 +29,8 @@ pub struct StoreConfig {
     pub key_id: Option<String>,
     pub protocol_version: Option<String>,
     pub grouping_config: Option<Value>,
+    pub user_agent: Option<String>,
 
-    pub valid_platforms: BTreeSet<String>, // TODO(ja): Pending removal
     pub max_secs_in_future: Option<i64>,
     pub max_secs_in_past: Option<i64>,
     pub enable_trimming: Option<bool>,
@@ -74,38 +74,39 @@ impl<'a> Processor for StoreProcessor<'a> {
         event: &mut Event,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ValueAction {
-        let mut action = ValueAction::Keep
-            // Convert legacy data structures to current format
-            .and_then(|| legacy::LegacyProcessor.process_event(event, meta, state));
+    ) -> ProcessingResult {
+        // Convert legacy data structures to current format
+        legacy::LegacyProcessor.process_event(event, meta, state)?;
 
         let is_renormalize = self.config.is_renormalize.unwrap_or(false);
+        if !is_renormalize {
+            // Check for required and non-empty values
+            schema::SchemaProcessor.process_event(event, meta, state)?;
+
+            // Normalize data in all interfaces
+            self.normalize.process_event(event, meta, state)?;
+        }
+
         let remove_other = self.config.remove_other.unwrap_or(!is_renormalize);
-
-        if !is_renormalize {
-            action = action
-                // Check for required and non-empty values
-                .and_then(|| schema::SchemaProcessor.process_event(event, meta, state))
-                // Normalize data in all interfaces
-                .and_then(|| self.normalize.process_event(event, meta, state));
-        }
-
         if remove_other {
-            action = action
-                // Remove unknown attributes at every level
-                .and_then(|| remove_other::RemoveOtherProcessor.process_event(event, meta, state));
+            // Remove unknown attributes at every level
+            remove_other::RemoveOtherProcessor.process_event(event, meta, state)?;
         }
 
         if !is_renormalize {
-            action = action
-                // Add event errors for top-level keys
-                .and_then(|| event_error::EmitEventErrors::new().process_event(event, meta, state));
+            // Add event errors for top-level keys
+            event_error::EmitEventErrors::new().process_event(event, meta, state)?;
         }
 
-        // Trim large strings and databags down
-        action.and_then(|| match self.config.enable_trimming {
-            Some(false) => ValueAction::Keep,
-            _ => trimming::TrimmingProcessor::new().process_event(event, meta, state),
-        })
+        let enable_trimming = self.config.enable_trimming.unwrap_or(true);
+        if enable_trimming {
+            // Trim large strings and databags down
+            trimming::TrimmingProcessor::new().process_event(event, meta, state)?;
+        }
+
+        // internally noops for non-transaction events
+        transactions::TransactionsProcessor.process_event(event, meta, state)?;
+
+        Ok(())
     }
 }

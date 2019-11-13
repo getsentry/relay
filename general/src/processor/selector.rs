@@ -86,20 +86,24 @@ impl fmt::Display for SelectorSpec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             SelectorSpec::And(ref xs) => {
+                write!(f, "(")?;
                 for (idx, x) in xs.iter().enumerate() {
                     if idx > 0 {
                         write!(f, "&")?;
                     }
                     write!(f, "{}", x)?;
                 }
+                write!(f, ")")?;
             }
             SelectorSpec::Or(ref xs) => {
+                write!(f, "(")?;
                 for (idx, x) in xs.iter().enumerate() {
                     if idx > 0 {
                         write!(f, "|")?;
                     }
                     write!(f, "{}", x)?;
                 }
+                write!(f, ")")?;
             }
             SelectorSpec::Not(ref x) => write!(f, "(~{})", x)?,
             SelectorSpec::Path(ref path) => {

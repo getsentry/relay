@@ -31,23 +31,20 @@ impl GeoIpLookup {
         };
 
         Ok(Some(Geo {
-            country_code: Annotated(
+            country_code: Annotated::from(
                 city.country
                     .as_ref()
                     .and_then(|country| Some(country.iso_code.as_ref()?.to_string())),
-                Default::default(),
             ),
-            city: Annotated(
+            city: Annotated::from(
                 city.city
                     .as_ref()
                     .and_then(|city| Some(city.names.as_ref()?.get("en")?.to_owned())),
-                Default::default(),
             ),
-            region: Annotated(
+            region: Annotated::from(
                 city.country
                     .as_ref()
                     .and_then(|country| Some(country.names.as_ref()?.get("en")?.to_owned())),
-                Default::default(),
             ),
             ..Default::default()
         }))

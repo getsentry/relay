@@ -1,20 +1,29 @@
 // TODO: Fix casts between SemaphoreGeoIpLookup and GeoIpLookup
 #![allow(clippy::cast_ptr_alignment)]
+#![deny(unused_must_use)]
 
 use std::ffi::CStr;
-use std::slice;
 use std::os::raw::c_char;
+use std::slice;
 
+use json_forensics;
+use semaphore_common::{glob_match_bytes, GlobOptions};
+use semaphore_general::datascrubbing::DataScrubbingConfig;
+use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, split_chunks, ProcessingState};
-use semaphore_general::protocol::Event;
+use semaphore_general::protocol::{Event, VALID_PLATFORMS};
 use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use semaphore_general::types::{Annotated, Remark};
-use json_forensics;
 
-use crate::core::SemaphoreStr;
+use crate::core::{SemaphoreBuf, SemaphoreStr};
 
 pub struct SemaphoreGeoIpLookup;
 pub struct SemaphoreStoreNormalizer;
+
+lazy_static::lazy_static! {
+    static ref VALID_PLATFORM_STRS: Vec<SemaphoreStr> =
+        VALID_PLATFORMS.iter().map(|s| SemaphoreStr::new(s)).collect();
+}
 
 ffi_fn! {
     unsafe fn semaphore_split_chunks(
@@ -50,6 +59,19 @@ ffi_fn! {
 }
 
 ffi_fn! {
+    /// Returns a list of all valid platform identifiers.
+    unsafe fn semaphore_valid_platforms(
+        size_out: *mut usize,
+    ) -> Result<*const SemaphoreStr> {
+        if let Some(size_out) = size_out.as_mut() {
+            *size_out = VALID_PLATFORM_STRS.len();
+        }
+
+        Ok(VALID_PLATFORM_STRS.as_ptr())
+    }
+}
+
+ffi_fn! {
     unsafe fn semaphore_store_normalizer_new(
         config: *const SemaphoreStr,
         geoip_lookup: *const SemaphoreGeoIpLookup,
@@ -79,7 +101,7 @@ ffi_fn! {
     ) -> Result<SemaphoreStr> {
         let processor = normalizer as *mut StoreProcessor;
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
-        process_value(&mut event, &mut *processor, ProcessingState::root());
+        process_value(&mut event, &mut *processor, ProcessingState::root())?;
         Ok(SemaphoreStr::from_string(event.to_json()?))
     }
 }
@@ -91,5 +113,58 @@ ffi_fn! {
         let data = slice::from_raw_parts_mut((*event).data as *mut u8, (*event).len);
         json_forensics::translate_slice(data);
         Ok(true)
+    }
+}
+
+ffi_fn! {
+    unsafe fn semaphore_scrub_event(
+        config: *const SemaphoreStr,
+        event: *const SemaphoreStr,
+    ) -> Result<SemaphoreStr> {
+        let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
+        let mut processor = match config.pii_config() {
+            Some(pii_config) => PiiProcessor::new(pii_config),
+            None => return Ok(SemaphoreStr::new((*event).as_str())),
+        };
+
+        let mut event = Annotated::<Event>::from_json((*event).as_str())?;
+        process_value(&mut event, &mut processor, ProcessingState::root())?;
+
+        Ok(SemaphoreStr::from_string(event.to_json()?))
+    }
+}
+
+ffi_fn! {
+    unsafe fn semaphore_test_panic() -> Result<()> {
+        panic!("this is a test panic")
+    }
+}
+
+/// Controls the globbing behaviors.
+#[repr(u32)]
+pub enum GlobFlags {
+    DoubleStar = 1,
+    CaseInsensitive = 2,
+    PathNormalize = 4,
+}
+
+ffi_fn! {
+    unsafe fn semaphore_is_glob_match(
+        value: *const SemaphoreBuf,
+        pat: *const SemaphoreStr,
+        flags: GlobFlags,
+    ) -> Result<bool> {
+        let mut options = GlobOptions::default();
+        let flags = flags as u32;
+        if (flags & GlobFlags::DoubleStar as u32) != 0 {
+            options.double_star = true;
+        }
+        if (flags & GlobFlags::CaseInsensitive as u32) != 0 {
+            options.case_insensitive = true;
+        }
+        if (flags & GlobFlags::PathNormalize as u32) != 0 {
+            options.path_normalize = true;
+        }
+        Ok(glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options))
     }
 }

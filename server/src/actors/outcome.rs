@@ -14,7 +14,7 @@ use semaphore_common::Config;
 use semaphore_general::filter::FilterStatKey;
 use semaphore_general::protocol::EventId;
 
-use crate::actors::project::RetryAfter;
+use crate::actors::project::RateLimit;
 use crate::ServerError;
 
 // Choose the outcome module implementation (either the real one or the fake, no-op one).
@@ -61,10 +61,11 @@ pub enum Outcome {
     Accepted,
 
     /// The event has been filtered due to a configured filter.
+    #[allow(dead_code)]
     Filtered(FilterStatKey),
 
     /// The event has been rate limited.
-    RateLimited(RetryAfter),
+    RateLimited(RateLimit),
 
     /// The event has been discarded because of invalid data.
     Invalid(DiscardReason),
@@ -80,28 +81,75 @@ pub enum Outcome {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[allow(dead_code)]
 pub enum DiscardReason {
-    // Outcomes also defined in Sentry:
+    /// [Post Processing] An event with the same id has already been processed for this project.
+    /// Sentry does not allow duplicate events and only stores the first one.
     Duplicate,
+
+    /// [Relay] There was no valid project id in the request or the required project does not exist.
     ProjectId,
+
+    /// [Relay] The protocol version sent by the SDK is not supported and parts of the payload may
+    /// be invalid.
     AuthVersion,
+
+    /// [Legacy] The SDK did not send a client identifier.
+    ///
+    /// In Relay, this is no longer required.
     AuthClient,
+
+    /// [Relay] The store request was missing an event payload.
     NoData,
+
+    /// [Relay] The event payload exceeds the maximum size limit for the respective endpoint.
     TooLarge,
+
+    /// [Legacy] A store request was received with an invalid method.
+    ///
+    /// This outcome is no longer emitted by Relay, as HTTP method validation occurs before an event
+    /// id or project id are extracted for a request.
     DisallowedMethod,
+
+    /// [Relay] The content type for a specific endpoint did not match the whitelist.
+    ///
+    /// While the standard store endpoint allows all content types, other endpoints may have
+    /// stricter requirements.
     ContentType,
+
+    /// [Legacy] The project id in the URL does not match the one specified for the public key.
+    ///
+    /// This outcome is no longer emitted by Relay. Instead, Relay will emit a standard `ProjectId`
+    /// since it resolves the project first, and then checks for the valid project key.
     MultiProjectId,
+
+    /// [Relay] A minidump file was missing for the minidump endpoint.
     MissingMinidumpUpload,
+
+    /// [Relay] The file submitted as minidump is not a valid minidump file.
     InvalidMinidump,
+
+    /// [Relay] The security report was not recognized due to missing data.
     SecurityReportType,
+
+    /// [Relay] The security report did not pass schema validation.
     SecurityReport,
+
+    /// [Relay] The request origin is not allowed for the project.
     Cors,
 
-    // Outcomes only emitted by Relay, not in Sentry:
-    PayloadTooLarge,
-    UnknownPayloadLength,
-    InvalidPayloadFormat,
-    InvalidPayloadJsonError,
-    UnsupportedProtocolVersion,
+    /// [Relay] Reading or decoding the payload from the socket failed for any reason.
+    Payload,
+
+    /// [Relay] Parsing the event JSON payload failed due to a syntax error.
+    InvalidJson,
+
+    /// [Relay] A project state returned by the upstream could not be parsed.
+    ProjectState,
+
+    /// [Relay] An envelope was submitted with two items that need to be unique.
+    DuplicateItem,
+
+    /// [All] An error in Relay caused event ingestion to fail. This is the catch-all and usually
+    /// indicates bugs in Relay, rather than an expected failure.
     Internal,
 }
 
@@ -122,7 +170,7 @@ mod real_implementation {
     use serde_json::Error as SerdeSerializationError;
 
     use semaphore_common::tryf;
-    use semaphore_common::{metric, KafkaTopic, Uuid};
+    use semaphore_common::{metric, KafkaTopic};
 
     use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
     use crate::service::ServerErrorKind;
@@ -155,9 +203,7 @@ mod real_implementation {
                 Outcome::Accepted => None,
                 Outcome::Invalid(discard_reason) => Some(discard_reason.name()),
                 Outcome::Filtered(filter_key) => Some(filter_key.name()),
-                Outcome::RateLimited(retry_after) => {
-                    retry_after.reason_code.as_ref().map(String::as_str)
-                }
+                Outcome::RateLimited(rate_limit) => rate_limit.reason_code(),
                 Outcome::Abuse => None,
             }
         }
@@ -182,11 +228,10 @@ mod real_implementation {
                 DiscardReason::Cors => "cors",
 
                 // Relay specific reasons (not present in Sentry)
-                DiscardReason::PayloadTooLarge => "payload_too_large",
-                DiscardReason::UnknownPayloadLength => "unknown_payload_length",
-                DiscardReason::InvalidPayloadFormat => "invalid_payload_format",
-                DiscardReason::InvalidPayloadJsonError => "invalid_payload_json_error",
-                DiscardReason::UnsupportedProtocolVersion => "unsupported_protocol_version",
+                DiscardReason::Payload => "payload",
+                DiscardReason::InvalidJson => "invalid_json",
+                DiscardReason::ProjectState => "project_state",
+                DiscardReason::DuplicateItem => "duplicate_item",
                 DiscardReason::Internal => "internal",
             }
         }
@@ -317,10 +362,7 @@ mod real_implementation {
             // Here we create a fake EventId, when we don't have the real one, so that we can
             // create a kafka message key that spreads the events nicely over all the
             // kafka consumer groups.
-            let key = message
-                .event_id
-                .unwrap_or_else(|| EventId(Uuid::new_v4()))
-                .0;
+            let key = message.event_id.unwrap_or_else(EventId::new).0;
 
             let record = FutureRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
                 .payload(&payload)

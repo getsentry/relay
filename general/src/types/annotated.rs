@@ -1,5 +1,7 @@
 use std::fmt;
 
+use failure::Fail;
+
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -54,55 +56,23 @@ impl MetaTree {
 /// Meta for children.
 pub type MetaMap = Map<String, MetaTree>;
 
-/// Used to indicate how to handle an annotated value in a callback.
-#[must_use = "This `ValueAction` must be handled by `Annotated::apply`"]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ValueAction {
-    /// Keeps the value as is.
-    Keep,
+pub type ProcessingResult = Result<(), ProcessingAction>;
 
+/// Used to indicate how to handle an annotated value in a callback.
+#[must_use = "This `ProcessingAction` must be handled by `Annotated::apply`"]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Fail)]
+pub enum ProcessingAction {
     /// Discards the value entirely.
-    DeleteHard,
+    #[fail(display = "value should be hard-deleted (unreachable, should not surface as error!)")]
+    DeleteValueHard,
 
     /// Discards the value and moves it into meta's `original_value`.
-    DeleteSoft,
-}
+    #[fail(display = "value should be hard-deleted (unreachable, should not surface as error!)")]
+    DeleteValueSoft,
 
-impl ValueAction {
-    /// Returns the result of `f` if the current action is `ValueAction::Keep`.
-    #[inline]
-    pub fn and_then<F>(self, f: F) -> Self
-    where
-        F: FnOnce() -> Self,
-    {
-        match self {
-            ValueAction::Keep => f(),
-            ValueAction::DeleteHard | ValueAction::DeleteSoft => self,
-        }
-    }
-}
-
-impl Default for ValueAction {
-    #[inline]
-    fn default() -> Self {
-        ValueAction::Keep
-    }
-}
-
-impl From<()> for ValueAction {
-    fn from(_: ()) -> Self {
-        ValueAction::Keep
-    }
-}
-
-impl From<bool> for ValueAction {
-    fn from(b: bool) -> Self {
-        if b {
-            ValueAction::Keep
-        } else {
-            ValueAction::DeleteHard
-        }
-    }
+    /// The event is invalid (needs to bubble up)
+    #[fail(display = "invalid event: {}", _0)]
+    InvalidEvent(&'static str),
 }
 
 /// Wrapper for data fields with optional meta data.
@@ -308,7 +278,11 @@ where
 
         if let Some(value) = self.value() {
             use serde::private::ser::FlatMapSerializer;
-            ToValue::serialize_payload(value, FlatMapSerializer(&mut map_ser), Default::default())?;
+            ToValue::serialize_payload(
+                value,
+                FlatMapSerializer(&mut map_ser),
+                SkipSerialization::default(),
+            )?;
         }
 
         if !meta_tree.is_empty() {
@@ -338,7 +312,9 @@ where
         let mut ser = serde_json::Serializer::new(Vec::with_capacity(128));
 
         match self.value() {
-            Some(value) => ToValue::serialize_payload(value, &mut ser, Default::default())?,
+            Some(value) => {
+                ToValue::serialize_payload(value, &mut ser, SkipSerialization::default())?
+            }
             None => ser.serialize_unit()?,
         }
 
@@ -350,7 +326,9 @@ where
         let mut ser = serde_json::Serializer::pretty(Vec::with_capacity(128));
 
         match self.value() {
-            Some(value) => ToValue::serialize_payload(value, &mut ser, Default::default())?,
+            Some(value) => {
+                ToValue::serialize_payload(value, &mut ser, SkipSerialization::default())?
+            }
             None => ser.serialize_unit()?,
         }
 
@@ -359,23 +337,26 @@ where
 
     /// Modifies this value based on the action returned by `f`.
     #[inline]
-    pub fn apply<F, R>(&mut self, f: F)
+    pub fn apply<F, R>(&mut self, f: F) -> ProcessingResult
     where
         F: FnOnce(&mut T, &mut Meta) -> R,
-        R: Into<ValueAction>,
+        R: Into<ProcessingResult>,
     {
         let result = match (self.0.as_mut(), &mut self.1) {
             (Some(value), meta) => f(value, meta).into(),
-            (None, _) => Default::default(),
+            (None, _) => Ok(()),
         };
 
         match result {
-            ValueAction::DeleteHard => self.0 = None,
-            ValueAction::Keep => (),
-            ValueAction::DeleteSoft => {
+            Ok(()) => (),
+            Err(ProcessingAction::DeleteValueHard) => self.0 = None,
+            Err(ProcessingAction::DeleteValueSoft) => {
                 self.1.set_original_value(self.0.take());
             }
+            x @ Err(ProcessingAction::InvalidEvent(_)) => return x,
         }
+
+        Ok(())
     }
 }
 

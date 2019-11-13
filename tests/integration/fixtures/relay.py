@@ -57,14 +57,14 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
             "processing": {
                 "enabled": False,
                 "kafka_config": [],
-                "topics":{
+                "topics": {
                     "events": "",
                     "attachments": "",
                     "transactions": "",
-                    "outcomes":"",
+                    "outcomes": "",
                 },
                 "redis": "",
-            }
+            },
         }
 
         if options is not None:

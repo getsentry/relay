@@ -1,6 +1,7 @@
 //! Implements the sentry event protocol.
 mod breadcrumb;
 mod clientsdk;
+mod constants;
 mod contexts;
 mod debugmeta;
 mod event;
@@ -20,6 +21,7 @@ mod user;
 
 pub use self::breadcrumb::Breadcrumb;
 pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
+pub use self::constants::VALID_PLATFORMS;
 pub use self::contexts::{
     AppContext, BrowserContext, Context, ContextInner, Contexts, DeviceContext, OperationType,
     OsContext, RuntimeContext, SpanId, TraceContext, TraceId,
@@ -35,8 +37,8 @@ pub use self::exception::Exception;
 pub use self::fingerprint::Fingerprint;
 pub use self::logentry::LogEntry;
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
-pub use self::request::{Cookies, HeaderName, Headers, Query, Request};
-pub use self::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp};
+pub use self::request::{Cookies, HeaderName, HeaderValue, Headers, Query, Request};
+pub use self::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp, SecurityReportType};
 pub use self::span::Span;
 pub use self::stacktrace::{Frame, FrameData, FrameVars, RawStacktrace, Stacktrace};
 pub use self::tags::{TagEntry, Tags};

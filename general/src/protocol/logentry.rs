@@ -1,5 +1,5 @@
 use crate::protocol::JsonLenientString;
-use crate::types::{Annotated, Error, FromValue, Object, Value};
+use crate::types::{Annotated, Error, FromValue, Meta, Object, Value};
 
 /// A log entry message.
 ///
@@ -9,20 +9,29 @@ use crate::types::{Annotated, Error, FromValue, Object, Value};
 #[metastructure(process_func = "process_logentry", value_type = "LogEntry")]
 pub struct LogEntry {
     /// The log message with parameter placeholders.
-    #[metastructure(pii = "true", max_chars = "message")]
+    #[metastructure(max_chars = "message")]
     pub message: Annotated<String>,
 
     /// The formatted message
-    #[metastructure(pii = "true", max_chars = "message")]
+    #[metastructure(max_chars = "message")]
     pub formatted: Annotated<String>,
 
     /// Positional parameters to be interpolated into the log message.
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(bag_size = "medium")]
     pub params: Annotated<Value>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
+}
+
+impl From<String> for LogEntry {
+    fn from(formatted_msg: String) -> Self {
+        LogEntry {
+            formatted: Annotated::new(formatted_msg),
+            ..Self::default()
+        }
+    }
 }
 
 impl FromValue for LogEntry {
@@ -65,7 +74,7 @@ impl FromValue for LogEntry {
             // The next two cases handle the legacy top-level `message` attribute, which was sent as
             // literal string, false (which should be ignored) or even as deep JSON object. Sentry
             // historically JSONified this field.
-            Annotated(Some(Value::Bool(false)), _) => Annotated(None, Default::default()),
+            Annotated(Some(Value::Bool(false)), _) => Annotated(None, Meta::default()),
             x => Annotated::new(LogEntry {
                 formatted: JsonLenientString::from_value(x)
                     .map_value(JsonLenientString::into_inner),

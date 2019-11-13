@@ -76,6 +76,11 @@ impl SemaphoreErrorCode {
     }
 }
 
+// SemaphoreStr is immutable, thus it can be Send + Sync
+
+unsafe impl Sync for SemaphoreStr {}
+unsafe impl Send for SemaphoreStr {}
+
 impl Default for SemaphoreStr {
     fn default() -> SemaphoreStr {
         SemaphoreStr {
@@ -227,7 +232,7 @@ pub unsafe extern "C" fn semaphore_err_get_last_message() -> SemaphoreStr {
             }
             SemaphoreStr::from_string(msg)
         } else {
-            Default::default()
+            SemaphoreStr::default()
         }
     })
 }
@@ -244,10 +249,10 @@ pub unsafe extern "C" fn semaphore_err_get_backtrace() -> SemaphoreStr {
                 write!(&mut out, "stacktrace: {}", backtrace).ok();
                 SemaphoreStr::from_string(out)
             } else {
-                Default::default()
+                SemaphoreStr::default()
             }
         } else {
-            Default::default()
+            SemaphoreStr::default()
         }
     })
 }

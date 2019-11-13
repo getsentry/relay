@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 
 use crate::types::{Annotated, MetaMap, MetaTree, Value};
@@ -96,7 +97,7 @@ pub trait ToValue: Debug + Empty {
     where
         Self: Sized,
     {
-        Default::default()
+        MetaMap::new()
     }
 
     /// Efficiently serializes the payload directly.
@@ -117,7 +118,7 @@ pub trait ToValue: Debug + Empty {
             meta: value.1.clone(),
             children: match value.0 {
                 Some(ref value) => ToValue::extract_child_meta(value),
-                None => Default::default(),
+                None => BTreeMap::default(),
             },
         }
     }

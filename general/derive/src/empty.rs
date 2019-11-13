@@ -4,7 +4,7 @@ use quote::quote;
 use crate::{is_newtype, parse_field_attributes};
 
 pub fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
-    s.add_bounds(synstructure::AddBounds::Generics);
+    let _ = s.add_bounds(synstructure::AddBounds::Generics);
 
     let is_empty_arms = s.each_variant(|variant| {
         let mut is_tuple_struct = false;

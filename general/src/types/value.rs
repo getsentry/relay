@@ -5,7 +5,7 @@ use std::str;
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
-use crate::types::Annotated;
+use crate::types::{Annotated, Meta};
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
@@ -84,11 +84,14 @@ impl Value {
             }
             serde_json::Value::String(val) => Value::String(val),
             serde_json::Value::Array(items) => {
-                Value::Array(items.into_iter().map(From::from).collect())
+                Value::Array(items.into_iter().map(Annotated::<Value>::from).collect())
             }
-            serde_json::Value::Object(items) => {
-                Value::Object(items.into_iter().map(|(k, v)| (k, From::from(v))).collect())
-            }
+            serde_json::Value::Object(items) => Value::Object(
+                items
+                    .into_iter()
+                    .map(|(k, v)| (k, Annotated::<Value>::from(v)))
+                    .collect(),
+            ),
         })
     }
 }
@@ -146,10 +149,13 @@ impl From<Value> for serde_json::Value {
                 .unwrap_or(serde_json::Value::Null),
             Value::String(val) => serde_json::Value::String(val),
             Value::Array(items) => {
-                serde_json::Value::Array(items.into_iter().map(From::from).collect())
+                serde_json::Value::Array(items.into_iter().map(serde_json::Value::from).collect())
             }
             Value::Object(items) => serde_json::Value::Object(
-                items.into_iter().map(|(k, v)| (k, From::from(v))).collect(),
+                items
+                    .into_iter()
+                    .map(|(k, v)| (k, serde_json::Value::from(v)))
+                    .collect(),
             ),
         }
     }
@@ -157,7 +163,10 @@ impl From<Value> for serde_json::Value {
 
 impl From<Annotated<Value>> for serde_json::Value {
     fn from(value: Annotated<Value>) -> serde_json::Value {
-        value.0.map(From::from).unwrap_or(serde_json::Value::Null)
+        value
+            .0
+            .map(serde_json::Value::from)
+            .unwrap_or(serde_json::Value::Null)
     }
 }
 
@@ -277,7 +286,7 @@ impl<'de> Deserialize<'de> for Value {
             {
                 let mut vec = Vec::new();
                 while let Some(elem) = visitor.next_element()? {
-                    vec.push(Annotated(elem, Default::default()));
+                    vec.push(Annotated(elem, Meta::default()));
                 }
                 Ok(Value::Array(vec))
             }
@@ -288,7 +297,7 @@ impl<'de> Deserialize<'de> for Value {
             {
                 let mut values = Map::new();
                 while let Some((key, value)) = visitor.next_entry()? {
-                    values.insert(key, Annotated(value, Default::default()));
+                    values.insert(key, Annotated(value, Meta::default()));
                 }
                 Ok(Value::Object(values))
             }

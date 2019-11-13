@@ -1,13 +1,13 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap, VecDeque};
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
-use std::mem;
+use std::iter;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use actix::fut;
 use actix::prelude::*;
@@ -19,7 +19,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;
 
-use semaphore_common::{Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
+use semaphore_common::{
+    metric, Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid,
+};
 use semaphore_general::{
     datascrubbing::DataScrubbingConfig, filter::FiltersConfig, pii::PiiConfig,
 };
@@ -28,7 +30,7 @@ use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
-use crate::utils::{self, One, Response, SyncActorFuture, SyncHandle};
+use crate::utils::{self, ErrorBoundary, One, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -44,13 +46,24 @@ pub enum ProjectError {
 
 impl ResponseError for ProjectError {}
 
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum RateLimitScope {
+    Key(String),
+}
+
+impl RateLimitScope {
+    fn iter_variants(meta: &EventMeta) -> impl Iterator<Item = RateLimitScope> {
+        iter::once(RateLimitScope::Key(meta.auth().public_key().to_owned()))
+    }
+}
+
 pub struct Project {
     id: ProjectId,
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
-    retry_after: Option<RetryAfter>,
+    rate_limits: HashMap<RateLimitScope, RetryAfter>,
     is_local: bool,
 }
 
@@ -62,7 +75,7 @@ impl Project {
             manager,
             state: None,
             state_channel: None,
-            retry_after: None,
+            rate_limits: HashMap::new(),
             is_local: false,
         }
     }
@@ -75,10 +88,12 @@ impl Project {
         &mut self,
         context: &mut Context<Self>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
+        // count number of times we are looking for the project state
+        metric!(counter("project_state.get") += 1);
         if let Some(ref state) = self.state {
             // In case the state is fetched from a local file, don't use own caching logic. Rely on
             // `ProjectCache#local_states` for caching.
-            if !self.is_local && !state.outdated(&self.config) {
+            if !self.is_local && !state.outdated(self.id, &self.config) {
                 return Response::ok(state.clone());
             }
         }
@@ -157,6 +172,7 @@ impl Handler<GetProjectId> for Project {
     type Result = One<ProjectId>;
 
     fn handle(&mut self, _message: GetProjectId, _context: &mut Context<Self>) -> Self::Result {
+        metric!(set("unique_projects") = self.id as i64);
         One(self.id)
     }
 }
@@ -259,6 +275,10 @@ pub struct ProjectState {
     /// The organization id.
     #[serde(default)]
     pub organization_id: Option<u64>,
+
+    /// True if this project state was fetched but incompatible with this Relay.
+    #[serde(skip, default)]
+    pub invalid: bool,
 }
 
 impl ProjectState {
@@ -270,9 +290,10 @@ impl ProjectState {
             disabled: true,
             public_keys: Vec::new(),
             slug: None,
-            config: Default::default(),
+            config: ProjectConfig::default(),
             rev: None,
             organization_id: None,
+            invalid: false,
         }
     }
 
@@ -282,6 +303,13 @@ impl ProjectState {
     pub fn allowed() -> Self {
         let mut state = ProjectState::missing();
         state.disabled = false;
+        state
+    }
+
+    /// Project state for a deserialization error.
+    pub fn err() -> Self {
+        let mut state = ProjectState::missing();
+        state.invalid = true;
         state
     }
 
@@ -314,15 +342,43 @@ impl ProjectState {
         self.disabled
     }
 
+    /// Returns `true` if the project state obtained from the upstream could not be parsed. This
+    /// results in events being dropped similar to disabled states, but can provide separate
+    /// metrics.
+    pub fn invalid(&self) -> bool {
+        self.invalid
+    }
+
     /// Returns whether this state is outdated and needs to be refetched.
-    pub fn outdated(&self, config: &Config) -> bool {
-        SystemTime::from(self.last_fetch)
-            .elapsed()
-            .map(|e| match self.slug {
-                Some(_) => e > config.project_cache_expiry(),
-                None => e > config.cache_miss_expiry(),
-            })
-            .unwrap_or(false)
+    pub fn outdated(&self, project_id: ProjectId, config: &Config) -> bool {
+        let expiry = match self.slug {
+            Some(_) => config.project_cache_expiry(),
+            None => config.cache_miss_expiry(),
+        };
+
+        // Project state updates are aligned to a fixed grid based on the expiry interval. By
+        // default, that's a grid of 1 minute intervals for invalid projects, and a grid of 5
+        // minutes for existing projects (cache hits). The exception to this is when a project is
+        // seen for the first time, where it is fetched immediately.
+        let window = expiry.as_secs();
+
+        // To spread out project state updates more evenly, they are shifted deterministically
+        // within the grid window. A 5 minute interval results in 300 theoretical slots that can be
+        // chosen for each project based on its project id.
+        let project_shift = project_id % window;
+
+        // Based on the last fetch, compute the timestamp of the next fetch. The time stamp is
+        // shifted by the project shift to move the grid accordingly. Note that if the remainder is
+        // zero, the next fetch is one full window ahead to avoid instant reloading.
+        let last_fetch = self.last_fetch.timestamp() as u64;
+        let remainder = (last_fetch - project_shift) % window;
+        let next_fetch = last_fetch + (window - remainder);
+
+        // See the below assertion for constraints on the next fetch time.
+        debug_assert!(next_fetch > last_fetch && next_fetch <= last_fetch + window);
+
+        // A project state counts as outdated when the time of the next fetch has passed.
+        Utc::now().timestamp() as u64 >= next_fetch
     }
 
     /// Returns the project config.
@@ -348,13 +404,18 @@ impl ProjectState {
     }
 
     /// Determines whether the given event should be accepted or dropped.
-    pub fn get_event_action(&self, meta: &EventMeta, config: &Config) -> EventAction {
+    pub fn get_event_action(
+        &self,
+        project_id: ProjectId,
+        meta: &EventMeta,
+        config: &Config,
+    ) -> EventAction {
         // Try to verify the request origin with the project config.
         if !self.is_valid_origin(meta.origin()) {
-            return EventAction::Discard(DiscardReason::ProjectId);
+            return EventAction::Discard(DiscardReason::Cors);
         }
 
-        if self.outdated(config) {
+        if self.outdated(project_id, config) {
             // if the state is out of date, we proceed as if it was still up to date. The
             // upstream relay (or sentry) will still filter events.
 
@@ -364,10 +425,16 @@ impl ProjectState {
             // available in the meanwhile.
             match self.get_public_key_status(meta.auth().public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
-                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::AuthClient),
+                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::ProjectId),
                 PublicKeyStatus::Unknown => EventAction::Accept,
             }
         } else {
+            // if we recorded an invalid project state response from the upstream (i.e. parsing
+            // failed), discard the event with a s
+            if self.invalid() {
+                return EventAction::Discard(DiscardReason::ProjectState);
+            }
+
             // only drop events if we know for sure the project is disabled.
             if self.disabled() {
                 return EventAction::Discard(DiscardReason::ProjectId);
@@ -379,10 +446,10 @@ impl ProjectState {
             // events are sent to the upstream.
             match self.get_public_key_status(meta.auth().public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
-                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::AuthClient),
+                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::ProjectId),
                 PublicKeyStatus::Unknown => match config.relay_mode() {
                     RelayMode::Proxy => EventAction::Accept,
-                    _ => EventAction::Discard(DiscardReason::AuthClient),
+                    _ => EventAction::Discard(DiscardReason::ProjectId),
                 },
             }
         }
@@ -571,7 +638,7 @@ pub enum EventAction {
     /// The event should be discarded.
     Discard(DiscardReason),
     /// The event should be discarded and the client should back off for some time.
-    RetryAfter(RetryAfter),
+    RetryAfter(RateLimit),
     /// The event should be processed and sent to upstream.
     Accept,
 }
@@ -584,26 +651,39 @@ impl Handler<GetEventAction> for Project {
     type Result = Response<EventAction, ProjectError>;
 
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
-        // Check for an eventual rate limit. Note that we have to ensure that the computation of the
-        // backoff duration must yield a positive number or it would otherwise panic.
-        if let Some(ref retry_after) = self.retry_after {
-            if !retry_after.can_retry() {
-                return Response::ok(EventAction::RetryAfter(retry_after.clone()));
-            }
-        }
+        let project_id = self.id;
 
-        if message.fetch {
+        // Check for an eventual rate limit. Note that we need to check for all variants of
+        // RateLimitScope, otherwise we might miss a rate limit.
+        let rate_limit = RateLimitScope::iter_variants(&message.meta)
+            .filter_map(|scope| {
+                if let Entry::Occupied(entry) = self.rate_limits.entry(scope.clone()) {
+                    if entry.get().can_retry() {
+                        entry.remove_entry();
+                        None
+                    } else {
+                        Some(RateLimit(scope, entry.get().clone()))
+                    }
+                } else {
+                    None
+                }
+            })
+            .max_by_key(|rate_limit| rate_limit.remaining_seconds());
+
+        if let Some(rate_limit) = rate_limit {
+            Response::ok(EventAction::RetryAfter(rate_limit))
+        } else if message.fetch {
             // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
             // This will return synchronously if the state is still cached.
             let config = self.config.clone();
             self.get_or_fetch_state(context)
-                .map(move |state| state.get_event_action(&message.meta, &config))
+                .map(move |state| state.get_event_action(project_id, &message.meta, &config))
         } else {
             // Fetching is not permitted (as part of the store request). In case the state is not
             // cached, assume that the event can be accepted. The EventManager will later fetch the
             // project state and reevaluate the event action.
             Response::ok(self.state().map_or(EventAction::Accept, |state| {
-                state.get_event_action(&message.meta, &self.config)
+                state.get_event_action(project_id, &message.meta, &self.config)
             }))
         }
     }
@@ -631,21 +711,37 @@ impl RetryAfter {
     }
 }
 
-impl Message for RetryAfter {
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct RateLimit(pub RateLimitScope, pub RetryAfter);
+
+impl RateLimit {
+    #[cfg(feature = "processing")]
+    pub fn reason_code(&self) -> Option<&str> {
+        Some(&self.1.reason_code.as_ref()?)
+    }
+
+    pub fn remaining_seconds(&self) -> u64 {
+        self.1.remaining_seconds()
+    }
+}
+
+impl Message for RateLimit {
     type Result = ();
 }
 
-impl Handler<RetryAfter> for Project {
+impl Handler<RateLimit> for Project {
     type Result = ();
 
-    fn handle(&mut self, message: RetryAfter, _context: &mut Self::Context) -> Self::Result {
-        if let Some(ref old_value) = self.retry_after {
-            if old_value.when > message.when {
+    fn handle(&mut self, message: RateLimit, _context: &mut Self::Context) -> Self::Result {
+        let RateLimit(scope, value) = message;
+
+        if let Some(ref old_value) = self.rate_limits.get(&scope) {
+            if old_value.when > value.when {
                 return;
             }
         }
 
-        self.retry_after = Some(message);
+        self.rate_limits.insert(scope, value);
     }
 }
 
@@ -660,7 +756,7 @@ pub struct GetProjectStates {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetProjectStatesResponse {
-    pub configs: HashMap<ProjectId, Option<ProjectState>>,
+    pub configs: HashMap<ProjectId, ErrorBoundary<Option<ProjectState>>>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -675,13 +771,60 @@ impl UpstreamQuery for GetProjectStates {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+struct ProjectUpdate {
+    project_id: ProjectId,
+    instant: Instant,
+}
+
+impl ProjectUpdate {
+    pub fn new(project_id: ProjectId) -> Self {
+        ProjectUpdate {
+            project_id,
+            instant: Instant::now(),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ProjectStateChannel {
+    sender: oneshot::Sender<Arc<ProjectState>>,
+    receiver: Shared<oneshot::Receiver<Arc<ProjectState>>>,
+    deadline: Instant,
+}
+
+impl ProjectStateChannel {
+    pub fn new(timeout: Duration) -> Self {
+        let (sender, receiver) = oneshot::channel();
+
+        Self {
+            sender,
+            receiver: receiver.shared(),
+            deadline: Instant::now() + timeout,
+        }
+    }
+
+    pub fn send(self, state: ProjectState) {
+        self.sender.send(Arc::new(state)).ok();
+    }
+
+    pub fn receiver(&self) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
+        self.receiver.clone()
+    }
+
+    pub fn expired(&self) -> bool {
+        Instant::now() > self.deadline
+    }
+}
+
 pub struct ProjectCache {
     backoff: RetryBackoff,
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
     local_states: HashMap<ProjectId, Arc<ProjectState>>,
-    state_channels: HashMap<ProjectId, oneshot::Sender<ProjectState>>,
+    state_channels: HashMap<ProjectId, ProjectStateChannel>,
+    updates: VecDeque<ProjectUpdate>,
     shutdown: SyncHandle,
 }
 
@@ -694,6 +837,7 @@ impl ProjectCache {
             projects: HashMap::new(),
             local_states: HashMap::new(),
             state_channels: HashMap::new(),
+            updates: VecDeque::new(),
             shutdown: SyncHandle::new(),
         }
     }
@@ -723,36 +867,94 @@ impl ProjectCache {
             return;
         }
 
-        let channels = mem::replace(&mut self.state_channels, HashMap::new());
+        let eviction_start = Instant::now();
+
+        let batch_ids: Vec<_> = self
+            .state_channels
+            .keys()
+            .copied()
+            .take(self.config.query_batch_size())
+            .collect();
+
+        let batch: HashMap<_, _> = batch_ids
+            .iter()
+            .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
+            .filter(|(_id, channel)| !channel.expired())
+            .collect();
+
+        // Remove outdated projects that are not being refreshed from the cache. If the project is
+        // being updated now, also remove its update entry from the queue, since we will be
+        // inserting a new timestamp at the end (see `extend`).
+        let eviction_threshold = eviction_start - 2 * self.config.project_cache_expiry();
+        while let Some(update) = self.updates.get(0) {
+            if update.instant > eviction_threshold {
+                break;
+            }
+
+            if !batch.contains_key(&update.project_id) {
+                self.projects.remove(&update.project_id);
+            }
+
+            self.updates.pop_front();
+        }
+
+        // The remaining projects are not outdated anymore. Still, clean them from the queue to
+        // reinsert them at the end, as they are now receiving an updated timestamp. Then,
+        // batch-insert all new projects with the new timestamp.
+        self.updates
+            .retain(|update| !batch.contains_key(&update.project_id));
+        self.updates
+            .extend(batch_ids.iter().copied().map(ProjectUpdate::new));
+
+        metric!(timer("project_state.eviction.duration") = eviction_start.elapsed());
+        metric!(histogram("project_state.request") = batch.len() as u64);
+        metric!(histogram("project_state.pending") = self.state_channels.len() as u64);
+
         log::debug!(
-            "updating project states for {} projects (attempt {})",
-            channels.len(),
+            "updating project states for {}/{} projects (attempt {})",
+            batch.len(),
+            batch.len() + self.state_channels.len(),
             self.backoff.attempt(),
         );
 
         let request = GetProjectStates {
-            projects: channels.keys().cloned().collect(),
+            projects: batch_ids,
             #[cfg(feature = "processing")]
             full_config: self.config.processing_enabled(),
         };
+
+        // count number of http requests for project states
+        metric!(counter("project_state.request") += 1);
+        let request_start = Instant::now();
 
         self.upstream
             .send(SendQuery(request))
             .map_err(ProjectError::ScheduleFailed)
             .into_actor(self)
-            .and_then(|response, slf, ctx| {
+            .and_then(move |response, slf, ctx| {
+                metric!(timer("project_state.request.duration") = request_start.elapsed());
+
                 match response {
                     Ok(mut response) => {
                         slf.backoff.reset();
 
-                        for (id, channel) in channels {
+                        // count number of project states returned (via http requests)
+                        metric!(
+                            histogram("project_state.received") = response.configs.len() as u64
+                        );
+                        for (id, channel) in batch {
                             let state = response
                                 .configs
                                 .remove(&id)
-                                .unwrap_or(None)
+                                .unwrap_or(ErrorBoundary::Ok(None))
+                                .unwrap_or_else(|error| {
+                                    let e = LogError(error);
+                                    log::error!("error fetching project state {}: {}", id, e);
+                                    Some(ProjectState::err())
+                                })
                                 .unwrap_or_else(ProjectState::missing);
 
-                            channel.send(state).ok();
+                            channel.send(state);
                         }
                     }
                     Err(error) => {
@@ -761,7 +963,12 @@ impl ProjectCache {
                         if !slf.shutdown.requested() {
                             // Put the channels back into the queue, in addition to channels that
                             // have been pushed in the meanwhile. We will retry again shortly.
-                            slf.state_channels.extend(channels);
+                            slf.state_channels.extend(batch);
+
+                            metric!(
+                                histogram("project_state.pending") =
+                                    slf.state_channels.len() as u64
+                            );
                         }
                     }
                 }
@@ -907,10 +1114,19 @@ impl Handler<GetProject> for ProjectCache {
 
     fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
         let config = self.config.clone();
-        self.projects
-            .entry(message.id)
-            .or_insert_with(|| Project::new(message.id, config, context.address()).start())
-            .clone()
+        metric!(histogram("project_cache.size") = self.projects.len() as u64);
+        match self.projects.entry(message.id) {
+            Entry::Occupied(entry) => {
+                metric!(counter("project_cache.hit") += 1);
+                entry.get().clone()
+            }
+            Entry::Vacant(entry) => {
+                metric!(counter("project_cache.miss") += 1);
+                let project = Project::new(message.id, config, context.address()).start();
+                entry.insert(project.clone());
+                project
+            }
+        }
     }
 }
 
@@ -924,9 +1140,9 @@ struct ProjectStateResponse {
 }
 
 impl ProjectStateResponse {
-    pub fn managed(state: ProjectState) -> Self {
+    pub fn managed(state: Arc<ProjectState>) -> Self {
         ProjectStateResponse {
-            state: Arc::new(state),
+            state,
             is_local: false,
         }
     }
@@ -974,12 +1190,28 @@ impl Handler<FetchProjectState> for ProjectCache {
             self.schedule_fetch(context);
         }
 
-        let (sender, receiver) = oneshot::channel();
-        if self.state_channels.insert(message.id, sender).is_some() {
-            log::error!("project {} state fetched multiple times", message.id);
-        }
+        // There's an edge case where a project is represented by two Project actors. This can
+        // happen if our project eviction logic removes an actor from `project_cache.projects`
+        // while it is still being held onto. This in turn happens because we have no efficient way
+        // of determining the refcount of an `Addr<Project>`.
+        //
+        // Instead of fixing the race condition, let's just make sure we don't fetch project caches
+        // twice. If the cleanup/eviction logic were to be fixed to take the addr's refcount into
+        // account, there should never be an instance where `state_channels` already contains a
+        // channel for our current `message.id`.
+        let query_timeout = self.config.query_timeout();
 
-        Response::r#async(receiver.map(ProjectStateResponse::managed).map_err(|_| ()))
+        let channel = self
+            .state_channels
+            .entry(message.id)
+            .or_insert_with(|| ProjectStateChannel::new(query_timeout));
+
+        Response::r#async(
+            channel
+                .receiver()
+                .map(|x| ProjectStateResponse::managed((*x).clone()))
+                .map_err(|_| ()),
+        )
     }
 }
 

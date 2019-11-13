@@ -4,7 +4,7 @@ use debugid::DebugId;
 
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{DebugImage, NativeDebugImage};
-use crate::types::{Annotated, Meta, Object, ValueAction};
+use crate::types::{Annotated, Meta, Object, ProcessingResult};
 
 /// Converts legacy data structures to current format.
 pub struct LegacyProcessor;
@@ -15,7 +15,7 @@ impl Processor for LegacyProcessor {
         image: &mut DebugImage,
         _meta: &mut Meta,
         _state: &ProcessingState<'_>,
-    ) -> ValueAction {
+    ) -> ProcessingResult {
         if let DebugImage::Apple(ref mut apple) = image {
             let native = NativeDebugImage {
                 code_id: Annotated::empty(),
@@ -33,6 +33,6 @@ impl Processor for LegacyProcessor {
             *image = DebugImage::MachO(Box::new(native));
         }
 
-        ValueAction::Keep
+        Ok(())
     }
 }

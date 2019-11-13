@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 use lazy_static::lazy_static;
 
 use crate::pii::{
-    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, RedactPairRule,
-    Redaction, ReplaceRedaction, RuleSpec, RuleType,
+    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, PatternRule,
+    RedactPairRule, Redaction, ReplaceRedaction, RuleSpec, RuleType,
 };
 
 pub static BUILTIN_SELECTORS: &[&str] = &["text", "container"];
@@ -55,6 +55,22 @@ declare_builtin_rules! {
                 "@userpath".into(),
                 "@password".into(),
                 "@usssn".into(),
+            ],
+            hide_inner: false,
+        }),
+        redaction: Redaction::Default,
+        ..Default::default()
+    };
+    // legacy data scrubbing equivalent. Note
+    "@common:filter" => RuleSpec {
+        ty: RuleType::Multiple(MultipleRule {
+            rules: vec![
+                "@creditcard:filter".into(),
+                "@pemkey:filter".into(),
+                "@urlauth:legacy".into(),
+                "@userpath:filter".into(),
+                "@password:filter".into(),
+                "@usssn:filter".into(),
             ],
             hide_inner: false,
         }),
@@ -220,6 +236,13 @@ declare_builtin_rules! {
         }),
         ..Default::default()
     };
+    "@creditcard:filter" => RuleSpec {
+        ty: RuleType::Creditcard,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
+        }),
+        ..Default::default()
+    };
     "@creditcard:hash" => RuleSpec {
         ty: RuleType::Creditcard,
         redaction: Redaction::Hash(HashRedaction {
@@ -235,6 +258,13 @@ declare_builtin_rules! {
         ty: RuleType::Pemkey,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[pemkey]".into(),
+        }),
+        ..Default::default()
+    };
+    "@pemkey:filter" => RuleSpec {
+        ty: RuleType::Pemkey,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };
@@ -256,6 +286,17 @@ declare_builtin_rules! {
         }),
         ..Default::default()
     };
+    "@urlauth:legacy" => RuleSpec {
+        ty: RuleType::Pattern(PatternRule {
+            // Regex copied from legacy Sentry `URL_PASSWORD_RE`
+            pattern: r"\b((?:[a-z0-9]+:)?//[a-zA-Z0-9%_.-]+:)([a-zA-Z0-9%_.-]+)@".into(),
+            replace_groups: Some([2].iter().copied().collect()),
+        }),
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
+        }),
+        ..Default::default()
+    };
     "@urlauth:hash" => RuleSpec {
         ty: RuleType::UrlAuth,
         redaction: Redaction::Hash(HashRedaction {
@@ -271,6 +312,13 @@ declare_builtin_rules! {
         ty: RuleType::UsSsn,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[us-ssn]".into(),
+        }),
+        ..Default::default()
+    };
+    "@usssn:filter" => RuleSpec {
+        ty: RuleType::UsSsn,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
         }),
         ..Default::default()
     };
@@ -312,6 +360,15 @@ declare_builtin_rules! {
 
     // password field removal
     "@password" => rule_alias!("@password:remove");
+    "@password:filter" => RuleSpec {
+        ty: RuleType::RedactPair(RedactPairRule {
+            key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),
+        }),
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
+        }),
+        ..Default::default()
+    };
     "@password:remove" => RuleSpec {
         ty: RuleType::RedactPair(RedactPairRule {
             key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),
@@ -324,11 +381,12 @@ declare_builtin_rules! {
 // TODO: Move these tests to /tests
 #[cfg(test)]
 mod tests {
-    use crate::pii::config::PiiConfig;
+    use std::collections::BTreeMap;
+
+    use crate::pii::config::{PiiConfig, Vars};
     use crate::pii::processor::PiiProcessor;
     use crate::processor::{process_value, ProcessingState, ValueType};
     use crate::types::{Annotated, Remark, RemarkType};
-    use std::collections::BTreeMap;
 
     #[derive(Clone, Debug, PartialEq, Empty, FromValue, ProcessValue, ToValue)]
     struct FreeformRoot {
@@ -341,8 +399,8 @@ mod tests {
             rule = $rule:expr; input = $input:expr; output = $output:expr; remarks = $remarks:expr;
         ) => {{
             let config = PiiConfig {
-                rules: Default::default(),
-                vars: Default::default(),
+                rules: BTreeMap::new(),
+                vars: Vars::default(),
                 applications: {
                     let mut map = BTreeMap::new();
                     map.insert(ValueType::String.into(), vec![$rule.to_string()]);
@@ -354,7 +412,7 @@ mod tests {
             let mut root = Annotated::new(FreeformRoot {
                 value: Annotated::new(input),
             });
-            process_value(&mut root, &mut processor, ProcessingState::root());
+            process_value(&mut root, &mut processor, ProcessingState::root()).unwrap();
             let root = root.0.unwrap();
             assert_eq_str!(root.value.value().unwrap(), $output);
             let remarks: Vec<Remark> = $remarks;

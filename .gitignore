@@ -8,5 +8,6 @@ Cargo.lock
 GeoLite2-City.mmdb
 GeoLiteCity.dat
 target
-/.venv/
+.venv/
 /.idea/
+/site

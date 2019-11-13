@@ -11,19 +11,19 @@ expression: data
       ],
       [
         "password",
-        null
+        "[Filtered]"
       ],
       [
         "the_secret",
-        null
+        "[Filtered]"
       ],
       [
         "a_password_here",
-        null
+        "[Filtered]"
       ],
       [
         "api_key",
-        null
+        "[Filtered]"
       ]
     ]
   },
@@ -35,10 +35,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 5
             }
           }
         },
@@ -47,10 +50,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 5
             }
           }
         },
@@ -59,10 +65,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 5
             }
           }
         },
@@ -71,10 +80,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@password",
-                  "x"
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
                 ]
-              ]
+              ],
+              "len": 10
             }
           }
         }

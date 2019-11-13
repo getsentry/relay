@@ -34,6 +34,7 @@ pub enum ValueType {
     Thread,
     Breadcrumb,
     Span,
+    ClientSdkInfo,
 }
 
 impl ValueType {
@@ -59,6 +60,7 @@ impl ValueType {
             ValueType::Thread => "thread",
             ValueType::Breadcrumb => "breadcrumb",
             ValueType::Span => "span",
+            ValueType::ClientSdkInfo => "sdk",
         }
     }
 }
@@ -89,6 +91,7 @@ impl FromStr for ValueType {
             "logentry" => ValueType::LogEntry,
             "thread" => ValueType::Thread,
             "breadcrumb" => ValueType::Breadcrumb,
+            "sdk" => ValueType::ClientSdkInfo,
             _ => return Err(UnknownValueTypeError),
         })
     }
@@ -541,7 +544,7 @@ impl<'a> Path<'a> {
                 }
 
                 // fast path: we do not have any deep matches
-                let mut state_iter = self.0.iter();
+                let mut state_iter = self.0.iter().filter(|state| state.entered_anything());
                 let mut selector_iter = path.iter().rev();
                 let mut depth_match = false;
                 for state in &mut state_iter {

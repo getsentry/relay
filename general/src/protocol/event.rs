@@ -21,6 +21,22 @@ use crate::types::{
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EventId(pub uuid::Uuid);
+
+impl EventId {
+    /// Creates a new event id using a UUID v4.
+    #[inline]
+    pub fn new() -> Self {
+        Self(uuid::Uuid::new_v4())
+    }
+}
+
+impl Default for EventId {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 derive_string_meta_structure!(EventId, "event id");
 
 impl ProcessValue for EventId {}
@@ -32,7 +48,7 @@ impl fmt::Display for EventId {
 }
 
 impl FromStr for EventId {
-    type Err = uuid::parser::ParseError;
+    type Err = uuid::Error;
 
     fn from_str(uuid_str: &str) -> Result<Self, Self::Err> {
         uuid_str.parse().map(EventId)
@@ -302,6 +318,7 @@ pub struct Event {
 
     /// Deprecated event stacktrace.
     #[metastructure(skip_serialization = "empty")]
+    #[metastructure(legacy_alias = "sentry.interfaces.Stacktrace")]
     pub stacktrace: Annotated<Stacktrace>,
 
     /// Simplified template error location information.

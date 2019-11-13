@@ -95,7 +95,7 @@ fn test_geo_default_values() {
         country_code: Annotated::empty(),
         city: Annotated::empty(),
         region: Annotated::empty(),
-        other: Default::default(),
+        other: Object::default(),
     });
 
     assert_eq_dbg!(geo, Annotated::from_json(json).unwrap());

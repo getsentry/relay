@@ -11,30 +11,12 @@ expression: data
       ],
       [
         "password",
-        null
+        ""
       ],
       [
         "baz",
         "bar"
       ]
     ]
-  },
-  "_meta": {
-    "request": {
-      "query_string": {
-        "1": {
-          "1": {
-            "": {
-              "rem": [
-                [
-                  "@password",
-                  "x"
-                ]
-              ]
-            }
-          }
-        }
-      }
-    }
   }
 }

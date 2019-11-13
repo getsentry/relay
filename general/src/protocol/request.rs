@@ -85,7 +85,7 @@ impl FromValue for Cookies {
 /// A "into-string" type that normalizes header names.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
 #[metastructure(process_func = "process_header_name")]
-pub struct HeaderName(pub String);
+pub struct HeaderName(String);
 
 impl HeaderName {
     /// Creates a normalized header name.
@@ -346,7 +346,7 @@ impl FromValue for Query {
 #[metastructure(process_func = "process_request", value_type = "Request")]
 pub struct Request {
     /// URL of the request.
-    #[metastructure(pii = "true", max_chars = "path")]
+    #[metastructure(max_chars = "path")]
     pub url: Annotated<String>,
 
     /// HTTP request method.

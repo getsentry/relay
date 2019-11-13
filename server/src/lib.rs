@@ -13,6 +13,7 @@ mod actors;
 mod body;
 mod constants;
 mod endpoints;
+mod envelope;
 mod extractors;
 mod middlewares;
 mod quotas;

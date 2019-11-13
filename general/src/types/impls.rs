@@ -1,4 +1,4 @@
-use chrono::{DateTime, Datelike, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, LocalResult, NaiveDateTime, TimeZone, Utc};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
@@ -407,6 +407,26 @@ fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
     ((dt.timestamp() as f64 + micros) * 1000f64).round() / 1000f64
 }
 
+fn utc_result_to_annotated<V: ToValue>(
+    result: LocalResult<DateTime<Utc>>,
+    original_value: V,
+    mut meta: Meta,
+) -> Annotated<DateTime<Utc>> {
+    match result {
+        LocalResult::Single(value) => Annotated(Some(value), meta),
+        LocalResult::Ambiguous(_, _) => {
+            meta.add_error(Error::expected("ambiguous timestamp"));
+            meta.set_original_value(Some(original_value));
+            Annotated(None, meta)
+        }
+        LocalResult::None => {
+            meta.add_error(Error::invalid("timestamp out of range"));
+            meta.set_original_value(Some(original_value));
+            Annotated(None, meta)
+        }
+    }
+}
+
 impl FromValue for DateTime<Utc> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         let rv = match value {
@@ -425,15 +445,15 @@ impl FromValue for DateTime<Utc> {
                 }
             }
             Annotated(Some(Value::U64(ts)), meta) => {
-                Annotated(Some(Utc.timestamp_opt(ts as i64, 0).unwrap()), meta)
+                utc_result_to_annotated(Utc.timestamp_opt(ts as i64, 0), ts, meta)
             }
             Annotated(Some(Value::I64(ts)), meta) => {
-                Annotated(Some(Utc.timestamp_opt(ts, 0).unwrap()), meta)
+                utc_result_to_annotated(Utc.timestamp_opt(ts, 0), ts, meta)
             }
             Annotated(Some(Value::F64(ts)), meta) => {
                 let secs = ts as i64;
                 let micros = (ts.fract() * 1_000_000f64) as u32;
-                Annotated(Some(Utc.timestamp_opt(secs, micros * 1000).unwrap()), meta)
+                utc_result_to_annotated(Utc.timestamp_opt(secs, micros * 1000), ts, meta)
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
@@ -449,7 +469,7 @@ impl FromValue for DateTime<Utc> {
                     // We need to enforce this because Python has a max value for year and
                     // otherwise crashes. Also this is probably nicer UX than silently showing the
                     // wrong value.
-                    meta.add_error(Error::invalid("Year out of range. Maybe you accidentally sent milliseconds instead of seconds?"));
+                    meta.add_error(Error::invalid("timestamp out of range"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 } else {
@@ -613,7 +633,7 @@ macro_rules! tuple_meta_structure {
                 let behavior = behavior.descend();
                 let mut s = s.serialize_seq(None)?;
                 let ($($name,)*) = self;
-                $(s.serialize_element(&SerializePayload($name, behavior))?;)*;
+                $(s.serialize_element(&SerializePayload($name, behavior))?;)*
                 s.end()
             }
 
@@ -1129,7 +1149,9 @@ fn test_timestamp_year_out_of_range() {
     }
 
     let x: Annotated<Helper> = Annotated::from_json(r#"{"foo": 1562770897893}"#).unwrap();
-    assert_eq_str!(x.to_json_pretty().unwrap(), r#"{
+    assert_eq_str!(
+        x.to_json_pretty().unwrap(),
+        r#"{
   "foo": null,
   "_meta": {
     "foo": {
@@ -1138,7 +1160,7 @@ fn test_timestamp_year_out_of_range() {
           [
             "invalid_data",
             {
-              "reason": "Year out of range. Maybe you accidentally sent milliseconds instead of seconds?"
+              "reason": "timestamp out of range"
             }
           ]
         ],
@@ -1146,5 +1168,37 @@ fn test_timestamp_year_out_of_range() {
       }
     }
   }
-}"#);
+}"#
+    );
+}
+
+#[test]
+fn test_timestamp_completely_out_of_range() {
+    #[derive(Debug, FromValue, Default, Empty, ToValue)]
+    struct Helper {
+        foo: Annotated<DateTime<Utc>>,
+    }
+
+    let x: Annotated<Helper> = Annotated::from_json(r#"{"foo": -10000000000000000.0}"#).unwrap();
+    assert_eq_str!(
+        x.to_json_pretty().unwrap(),
+        r#"{
+  "foo": null,
+  "_meta": {
+    "foo": {
+      "": {
+        "err": [
+          [
+            "invalid_data",
+            {
+              "reason": "timestamp out of range"
+            }
+          ]
+        ],
+        "val": -1e16
+      }
+    }
+  }
+}"#
+    );
 }

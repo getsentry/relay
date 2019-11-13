@@ -1,3 +1,4 @@
+use std::any::type_name;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -132,7 +133,12 @@ impl<F, E> SyncedFuture<F, E> {
             Ok(Async::Ready(v)) => Ok(Async::Ready(v)),
             Ok(Async::NotReady) => match timeout.poll() {
                 Err(_) => {
-                    log::error!("synced future spawned after timeout expired");
+                    log::error!(
+                        "synced future spawned after timeout expired (Item = {}, Error = {})",
+                        type_name::<R>(),
+                        type_name::<E>()
+                    );
+
                     Err(self.error.take().unwrap())
                 }
                 Ok(Async::Ready(_)) => Err(self.error.take().unwrap()),

@@ -185,6 +185,9 @@ fn make_app(state: ServiceState) -> ServiceApp {
     app = endpoints::project_configs::configure_app(app);
     app = endpoints::public_keys::configure_app(app);
     app = endpoints::store::configure_app(app);
+    app = endpoints::security_report::configure_app(app);
+
+    // `forward` must be last as it creates a wildcard proxy
     app = endpoints::forward::configure_app(app);
 
     app
@@ -282,7 +285,13 @@ where
 pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, ServerError> {
     let config = state.config();
     let mut server = server::new(move || make_app(state.clone()));
-    server = server.shutdown_timeout(SHUTDOWN_TIMEOUT).disable_signals();
+    server = server
+        .workers(config.cpu_concurrency())
+        .shutdown_timeout(SHUTDOWN_TIMEOUT)
+        .maxconn(config.max_connections())
+        .maxconnrate(config.max_connection_rate())
+        .backlog(config.max_pending_connections())
+        .disable_signals();
 
     let connector = ClientConnector::default()
         .limit(config.max_concurrent_requests())

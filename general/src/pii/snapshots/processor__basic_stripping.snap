@@ -4,7 +4,7 @@ expression: event
 ---
 {
   "logentry": {
-    "formatted": "Hello from [ip]!"
+    "formatted": "Hello world!"
   },
   "request": {
     "headers": [
@@ -24,25 +24,10 @@ expression: event
   "tags": [
     [
       "forwarded_for",
-      "[ip]"
+      "127.0.0.1"
     ]
   ],
   "_meta": {
-    "logentry": {
-      "formatted": {
-        "": {
-          "rem": [
-            [
-              "@ip",
-              "s",
-              11,
-              15
-            ]
-          ],
-          "len": 21
-        }
-      }
-    },
     "request": {
       "env": {
         "SECRET_KEY": {
@@ -82,23 +67,6 @@ expression: event
               ],
               "len": 9
             }
-          }
-        }
-      }
-    },
-    "tags": {
-      "0": {
-        "1": {
-          "": {
-            "rem": [
-              [
-                "@ip",
-                "s",
-                0,
-                4
-              ]
-            ],
-            "len": 9
           }
         }
       }

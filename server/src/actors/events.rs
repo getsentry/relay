@@ -4,30 +4,25 @@ use std::time::{Duration, Instant};
 
 use actix::fut::result;
 use actix::prelude::*;
-use bytes::{Bytes, BytesMut};
 use failure::{Fail, ResultExt};
 use futures::prelude::*;
-use json_forensics;
 use parking_lot::{Mutex, RwLock};
-use sentry::integrations::failure::event_from_fail;
-use serde::{Deserialize, Serialize};
 
-use semaphore_common::{clone, metric, Config, LogError, ProjectId, RelayMode, Uuid};
-use semaphore_general::filter::FilterStatKey;
+use semaphore_common::{clone, metric, Config, LogError, ProjectId, RelayMode};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{Event, EventId};
-use semaphore_general::types::Annotated;
+use semaphore_general::types::{Annotated, ProcessingAction};
 use serde_json;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
     EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
-    ProjectState, RetryAfter,
+    ProjectState, RateLimit, RateLimitScope, RetryAfter,
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
-use crate::extractors::EventMeta;
+use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
 use crate::quotas::{QuotasError, RateLimiter};
 use crate::service::{ServerError, ServerErrorKind};
 use crate::utils::{One, SyncActorFuture, SyncHandle};
@@ -35,23 +30,30 @@ use crate::utils::{One, SyncActorFuture, SyncHandle};
 #[cfg(feature = "processing")]
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
-    semaphore_general::filter::should_filter,
+    semaphore_general::filter::{should_filter, FilterStatKey},
+    semaphore_general::protocol::{
+        Csp, ExpectCt, ExpectStaple, Hpkp, IpAddr, LenientString, SecurityReportType,
+    },
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    semaphore_general::types::Value,
 };
 
 #[derive(Debug, Fail)]
-pub enum EventError {
-    #[fail(display = "invalid JSON data")]
-    InvalidJson(#[cause] serde_json::Error),
-
+pub enum QueueEventError {
     #[fail(display = "Too many events (max_concurrent_events reached)")]
     TooManyEvents,
 }
 
 #[derive(Debug, Fail)]
 enum ProcessingError {
-    #[fail(display = "invalid event data")]
+    #[fail(display = "invalid json in event")]
     InvalidJson(#[cause] serde_json::Error),
+
+    #[fail(display = "invalid event")]
+    InvalidEvent(#[cause] ProcessingAction),
+
+    #[fail(display = "duplicate {} in event", _0)]
+    DuplicateItem(ItemType),
 
     #[fail(display = "could not schedule project fetch")]
     ScheduleFailed(#[cause] MailboxError),
@@ -59,12 +61,19 @@ enum ProcessingError {
     #[fail(display = "failed to determine event action")]
     NoAction(#[cause] ProjectError),
 
-    #[fail(display = "failed to resolve PII config for project")]
-    PiiFailed(#[cause] ProjectError),
+    #[fail(display = "failed to resolve project information")]
+    ProjectFailed(#[cause] ProjectError),
+
+    #[fail(display = "invalid security report type")]
+    InvalidSecurityReportType,
+
+    #[fail(display = "invalid security report")]
+    InvalidSecurityReport(#[cause] serde_json::Error),
 
     #[fail(display = "event submission rejected with reason: {:?}", _0)]
     EventRejected(DiscardReason),
 
+    #[cfg(feature = "processing")]
     #[fail(display = "event filtered with reason: {:?}", _0)]
     EventFiltered(FilterStatKey),
 
@@ -79,7 +88,7 @@ enum ProcessingError {
     StoreFailed(#[cause] StoreError),
 
     #[fail(display = "sending failed due to rate limit: {:?}", _0)]
-    RateLimited(RetryAfter),
+    RateLimited(RateLimit),
 
     #[fail(display = "failed to apply quotas")]
     QuotasFailed(#[cause] QuotasError),
@@ -118,32 +127,83 @@ impl EventProcessor {
         Self { rate_limiter }
     }
 
-    fn process(&self, message: &ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
-        log::trace!("processing event {}", message.event_id);
-        let mut event = Annotated::<Event>::from_json_bytes(&message.data).map_err(|error| {
-            if message.log_failed_payloads {
-                let mut event = event_from_fail(&error);
-                message.add_to_sentry_event(&mut event);
-                sentry::capture_event(event);
-            }
+    fn process(&self, message: ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
+        let mut envelope = message.envelope;
+        let event_id = envelope.event_id();
 
-            ProcessingError::InvalidJson(error)
-        })?;
+        // TODO: What about envelope headers?
+        // TODO: Move or copy headers
 
-        if let Some(event) = event.value_mut() {
-            event.id = Annotated::new(message.event_id);
+        let event_item = envelope.take_item(ItemType::Event);
+        let security_item = envelope.take_item(ItemType::SecurityReport);
+        let form_item = envelope.take_item(ItemType::FormData);
+
+        // TODO: describe validation
+        let duplicate_item = envelope
+            .items()
+            .find(|item| item.ty() != ItemType::Attachment);
+
+        if let Some(duplicate_item) = duplicate_item {
+            return Err(ProcessingError::DuplicateItem(duplicate_item.ty()));
         }
 
-        for pii_config in message.project_state.config.pii_configs() {
-            let mut processor = PiiProcessor::new(pii_config);
-            process_value(&mut event, &mut processor, ProcessingState::root());
+        let mut event = match event_item {
+            Some(item) => metric!(timer("event_processing.deserialize"), {
+                log::trace!("processing event {}", event_id);
+                Annotated::<Event>::from_json_bytes(&item.payload())
+                    .map_err(ProcessingError::InvalidJson)?
+            }),
+            None => {
+                log::trace!("creating empty event {}", event_id);
+                Annotated::new(Event::default())
+            }
+        };
+
+        if let Some(event) = event.value_mut() {
+            event.id = Annotated::new(event_id);
+        }
+
+        if let Some(_form) = form_item {
+            // TODO: merge into event
+        }
+
+        if let Some(event) = event.value_mut() {
+            if let Some(security) = security_item {
+                let data = &security.payload();
+                let report_type = SecurityReportType::from_json(data)
+                    .map_err(ProcessingError::InvalidJson)?
+                    .ok_or(ProcessingError::InvalidSecurityReportType)?;
+
+                let apply_result = match report_type {
+                    SecurityReportType::Csp => Csp::apply_to_event(data, event),
+                    SecurityReportType::ExpectCt => ExpectCt::apply_to_event(data, event),
+                    SecurityReportType::ExpectStaple => ExpectStaple::apply_to_event(data, event),
+                    SecurityReportType::Hpkp => Hpkp::apply_to_event(data, event),
+                };
+
+                if let Some(release) = security
+                    .get_header("sentry_release")
+                    .and_then(Value::as_str)
+                {
+                    event.release = Annotated::from(LenientString(release.to_owned()));
+                }
+
+                if let Some(env) = security
+                    .get_header("sentry_release")
+                    .and_then(Value::as_str)
+                {
+                    event.environment = Annotated::from(env.to_owned());
+                }
+
+                apply_result.map_err(ProcessingError::InvalidSecurityReport)?;
+            }
         }
 
         #[cfg(feature = "processing")]
         {
             if self.config.processing_enabled() {
                 let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
-                let auth = message.meta.auth();
+                let auth = envelope.meta().auth();
                 let key_id = message
                     .project_state
                     .get_public_key_config(&auth.public_key())
@@ -157,12 +217,12 @@ impl EventProcessor {
 
                 let store_config = StoreConfig {
                     project_id: Some(message.project_id),
-                    client_ip: message.meta.client_addr().map(From::from),
+                    client_ip: envelope.meta().client_addr().map(IpAddr::from),
                     client: auth.client_agent().map(str::to_owned),
                     key_id,
                     protocol_version: Some(auth.version().to_string()),
                     grouping_config: message.project_state.config.grouping_config.clone(),
-                    valid_platforms: Default::default(), // TODO(ja): Pending removal
+                    user_agent: envelope.meta().user_agent().map(str::to_owned),
                     max_secs_in_future: Some(self.config.max_secs_in_future()),
                     max_secs_in_past: Some(self.config.max_secs_in_past()),
                     enable_trimming: Some(true),
@@ -172,42 +232,80 @@ impl EventProcessor {
                 };
 
                 let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
-                process_value(&mut event, &mut store_processor, ProcessingState::root());
+                metric!(timer("event_processing.process"), {
+                    process_value(&mut event, &mut store_processor, ProcessingState::root())
+                        .map_err(ProcessingError::InvalidEvent)?;
+                });
 
-                if let Some(event) = event.value() {
-                    let client_ip = message.meta.client_addr();
+                // Event filters assume a normalized event. Unfortunately, this requires us to run
+                // expensive normalization first.
+                if let Some(event) = event.value_mut() {
+                    let client_ip = envelope.meta().client_addr();
                     let filter_settings = &message.project_state.config.filter_settings;
-                    if let Err(reason) = should_filter(event, client_ip, filter_settings) {
+                    let filter_result = metric!(timer("event_processing.filtering"), {
+                        should_filter(event, client_ip, filter_settings)
+                    });
+
+                    if let Err(reason) = filter_result {
                         // If the event should be filtered, no more processing is needed
-                        return Ok(ProcessEventResponse::Filtered { reason });
+                        return Err(ProcessingError::EventFiltered(reason));
                     }
+
+                    // TODO: Remove this once cutover is complete.
+                    event.other.insert(
+                        "_relay_processed".to_owned(),
+                        Annotated::new(Value::Bool(true)),
+                    );
                 }
             }
         }
 
+        // Run rate limiting after normalizing the event and running all filters. If the event is
+        // dropped or filtered for a different reason before that, it should not count against
+        // quotas. Also, this allows to reduce the number of requests to the rate limiter (currently
+        // implemented in Redis).
         if let Some(organization_id) = message.project_state.organization_id {
             let key_config = message
                 .project_state
-                .get_public_key_config(&message.meta.auth().public_key());
+                .get_public_key_config(&envelope.meta().auth().public_key());
 
             if let Some(key_config) = key_config {
-                let rate_limit = self
-                    .rate_limiter
-                    .is_rate_limited(&key_config.quotas, organization_id)
-                    .map_err(ProcessingError::QuotasFailed)?;
+                let rate_limit = metric!(timer("event_processing.rate_limiting"), {
+                    self.rate_limiter
+                        .is_rate_limited(&key_config.quotas, organization_id)
+                        .map_err(ProcessingError::QuotasFailed)?
+                });
 
                 if let Some(retry_after) = rate_limit {
-                    return Err(ProcessingError::RateLimited(retry_after));
+                    // TODO: Use quota prefix to determine scope
+                    let scope = RateLimitScope::Key(key_config.public_key.clone());
+                    return Err(ProcessingError::RateLimited(RateLimit(scope, retry_after)));
                 }
             }
         }
 
-        let data = event
-            .to_json()
-            .map_err(ProcessingError::SerializeFailed)?
-            .into();
+        // Run PII stripping after normalization because normalization adds IP addresses to the
+        // event.
+        metric!(timer("event_processing.pii"), {
+            for pii_config in message.project_state.config.pii_configs() {
+                let mut processor = PiiProcessor::new(pii_config);
+                process_value(&mut event, &mut processor, ProcessingState::root())
+                    .map_err(ProcessingError::InvalidEvent)?;
+            }
+        });
 
-        Ok(ProcessEventResponse::Valid { data })
+        // We're done now. Serialize the event back into JSON and put it in an envelope so that it
+        // can be sent to the upstream or processing queue.
+        let data = metric!(timer("event_processing.serialization"), {
+            event.to_json().map_err(ProcessingError::SerializeFailed)?
+        });
+
+        // Add the normalized event back to the envelope. All the other items are attachments.
+        let mut event_item = Item::new(ItemType::Event);
+        event_item.set_payload(ContentType::Json, data);
+        envelope.add_item(event_item);
+
+        Ok(ProcessEventResponse { envelope })
     }
 }
 
@@ -216,60 +314,15 @@ impl Actor for EventProcessor {
 }
 
 struct ProcessEvent {
-    pub data: Bytes,
-    pub meta: Arc<EventMeta>,
-    pub event_id: EventId,
+    pub envelope: Envelope,
     pub project_id: ProjectId,
     pub project_state: Arc<ProjectState>,
-    pub log_failed_payloads: bool,
     pub start_time: Instant,
 }
 
-impl ProcessEvent {
-    fn add_to_sentry_event(&self, event: &mut sentry::protocol::Event<'_>) {
-        // Inject the body payload for debugging purposes and identify the exception
-        event.message = Some(format!("body: {}", String::from_utf8_lossy(&self.data)));
-        if let Some(exception) = event.exception.last_mut() {
-            exception.ty = "BadEventPayload".into();
-        }
-
-        // Identify the project as user to make payload errors indexable by customer
-        event.user = Some(sentry::User {
-            id: Some(self.project_id.to_string()),
-            ..Default::default()
-        });
-
-        // Inject all available meta as extra
-        event.extra.insert(
-            "sentry_auth".to_string(),
-            self.meta.auth().to_string().into(),
-        );
-        event.extra.insert(
-            "forwarded_for".to_string(),
-            self.meta.forwarded_for().into(),
-        );
-        if let Some(origin) = self.meta.origin() {
-            event
-                .extra
-                .insert("origin".to_string(), origin.to_string().into());
-        }
-        if let Some(remote_addr) = self.meta.remote_addr() {
-            event
-                .extra
-                .insert("remote_addr".to_string(), remote_addr.to_string().into());
-        }
-        if let Some(client_addr) = self.meta.client_addr() {
-            event
-                .extra
-                .insert("client_addr".to_string(), client_addr.to_string().into());
-        }
-    }
-}
-
 #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-enum ProcessEventResponse {
-    Valid { data: Bytes },
-    Filtered { reason: FilterStatKey },
+struct ProcessEventResponse {
+    envelope: Envelope,
 }
 
 impl Message for ProcessEvent {
@@ -281,16 +334,11 @@ impl Handler<ProcessEvent> for EventProcessor {
 
     fn handle(&mut self, message: ProcessEvent, _context: &mut Self::Context) -> Self::Result {
         metric!(timer("event.wait_time") = message.start_time.elapsed());
-        metric!(timer("event.processing_time"), { self.process(&message) })
+        metric!(timer("event.processing_time"), { self.process(message) })
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct CapturedEvent {
-    pub event_id: EventId,
-    pub payload: Option<Bytes>,
-    pub error: Option<String>,
-}
+pub type CapturedEvent = Result<Envelope, String>;
 
 pub struct EventManager {
     config: Arc<Config>,
@@ -315,7 +363,7 @@ impl EventManager {
         let rate_limiter = RateLimiter::new(&config).context(ServerErrorKind::RedisError)?;
 
         // TODO: Make the number configurable via config file
-        let thread_count = num_cpus::get();
+        let thread_count = config.cpu_concurrency();
         log::info!("starting {} event processing workers", thread_count);
 
         #[cfg(feature = "processing")]
@@ -355,7 +403,7 @@ impl EventManager {
             processor,
             current_active_events: 0,
             shutdown: SyncHandle::new(),
-            captured_events: Default::default(),
+            captured_events: Arc::default(),
 
             #[cfg(feature = "processing")]
             store_forwarder,
@@ -378,62 +426,43 @@ impl Actor for EventManager {
     }
 }
 
-#[derive(Deserialize)]
-struct EventIdHelper {
-    #[serde(default, rename = "event_id")]
-    id: Option<EventId>,
-}
-
 pub struct QueueEvent {
-    pub data: Bytes,
-    pub meta: Arc<EventMeta>,
+    pub envelope: Envelope,
     pub project: Addr<Project>,
     pub start_time: Instant,
 }
 
 impl Message for QueueEvent {
-    type Result = Result<EventId, EventError>;
+    type Result = Result<EventId, QueueEventError>;
 }
 
 impl Handler<QueueEvent> for EventManager {
-    type Result = Result<EventId, EventError>;
+    type Result = Result<EventId, QueueEventError>;
 
     fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
-        let mut data: BytesMut = message.data.into();
+        metric!(histogram("event.queue_size") = u64::from(self.current_active_events));
 
-        // python clients are well known to send crappy JSON in the Sentry world.  The reason
-        // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
-        // server could deal with this but we cannot.  To work around this issue we run a basic
-        // character substitution on the input stream but only if we detect a Python agent.
-        //
-        // this is done here so that the rest of the code can assume valid JSON.
-        if message.meta.needs_legacy_python_json_support() {
-            json_forensics::translate_slice(&mut data[..]);
-        }
-
-        // Ensure that the event has a UUID. It will be returned from this message and from the
-        // incoming store request. To uncouple it from the workload on the processing workers, this
-        // requires to synchronously parse a minimal part of the JSON payload. If the JSON payload
-        // is invalid, processing can be skipped altogether.
-        let event_id = serde_json::from_slice::<EventIdHelper>(&data)
-            .map(|event| event.id)
-            .map_err(EventError::InvalidJson)?
-            .unwrap_or_else(|| EventId(Uuid::new_v4()));
+        metric!(
+            histogram("event.queue_size.pct") = {
+                let queue_size_pct = self.current_active_events as f32 * 100.0
+                    / self.config.event_buffer_size() as f32;
+                queue_size_pct.floor() as u64
+            }
+        );
 
         if self.config.event_buffer_size() <= self.current_active_events {
-            return Err(EventError::TooManyEvents);
+            return Err(QueueEventError::TooManyEvents);
         }
 
         self.current_active_events += 1;
+        let event_id = message.envelope.event_id();
 
         // Actual event handling is performed asynchronously in a separate future. The lifetime of
         // that future will be tied to the EventManager's context. This allows to keep the Project
         // actor alive even if it is cleaned up in the ProjectManager.
         context.notify(HandleEvent {
-            data: data.into(),
-            meta: message.meta,
+            envelope: message.envelope,
             project: message.project,
-            event_id,
             start_time: message.start_time,
         });
 
@@ -443,10 +472,8 @@ impl Handler<QueueEvent> for EventManager {
 }
 
 struct HandleEvent {
-    pub data: Bytes,
-    pub meta: Arc<EventMeta>,
+    pub envelope: Envelope,
     pub project: Addr<Project>,
-    pub event_id: EventId,
     pub start_time: Instant,
 }
 
@@ -476,160 +503,166 @@ impl Handler<HandleEvent> for EventManager {
 
         let upstream = self.upstream.clone();
         let processor = self.processor.clone();
-        let log_failed_payloads = self.config.log_failed_payloads();
         let outcome_producer = self.outcome_producer.clone();
+        let captured_events = self.captured_events.clone();
+        let capture = self.config.relay_mode() == RelayMode::Capture;
 
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
 
-        let capture = self.config.relay_mode() == RelayMode::Capture;
-        let captured_events = self.captured_events.clone();
-
         let HandleEvent {
-            data,
-            meta,
+            envelope,
             project,
-            event_id,
             start_time,
         } = message;
 
+        let event_id = envelope.event_id();
+        let remote_addr = envelope.meta().client_addr();
+        let meta_clone = Arc::new(envelope.meta().clone());
+
         let project_id_for_err = Arc::new(Mutex::new(None::<u64>));
         let org_id_for_err = Arc::new(Mutex::new(None::<u64>));
-        let remote_addr = meta.client_addr();
 
         let future = project
             .send(GetProjectId)
             .map(One::into_inner)
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(clone! {project, captured_events, project_id_for_err, org_id_for_err, |project_id| {
-                *project_id_for_err.lock() = Some(project_id);
-                project
-                    .send(GetEventAction::fetched(meta.clone()))
-                    .map_err(ProcessingError::ScheduleFailed)
-                    .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
-                        EventAction::Accept => Ok(()),
-                        EventAction::RetryAfter(r) => Err(ProcessingError::RateLimited(r)),
-                        EventAction::Discard(reason) => Err(ProcessingError::EventRejected(reason)),
-                    })
-                    .and_then(clone!(project, |_| project
-                        .send(GetProjectState)
+            .and_then(clone!(
+                project,
+                captured_events,
+                project_id_for_err,
+                org_id_for_err,
+                |project_id| {
+                    *project_id_for_err.lock() = Some(project_id);
+                    project
+                        .send(GetEventAction::fetched(meta_clone))
                         .map_err(ProcessingError::ScheduleFailed)
-                        .and_then(|result| result.map_err(ProcessingError::PiiFailed))))
-                    .and_then(clone!(meta, |project_state| {
-                        *org_id_for_err.lock() = project_state.organization_id;
-                       processor
-                        .send(ProcessEvent {
-                            data,
-                            meta,
-                            event_id,
-                            project_id,
-                            project_state,
-                            log_failed_payloads,
-                            start_time,
-                        })
-                        .map_err(ProcessingError::ScheduleFailed)
-                        .flatten()
-                        }))
-                    .and_then(|response| match response {
-                        ProcessEventResponse::Valid { data } => Ok(data),
-                        ProcessEventResponse::Filtered { reason } => {
-                            Err(ProcessingError::EventFiltered(reason))
-                        }
-                    })
-                    .and_then(move |processed| {
-                        #[cfg(feature = "processing")]
-                        {
-                            if let Some(store_forwarder) = store_forwarder {
-                                log::trace!("sending event to kafka {}", event_id);
-                                let future = store_forwarder
-                                    .send(StoreEvent {
-                                        payload: processed,
-                                        event_id,
-                                        start_time,
-                                        project_id,
-                                        remote_addr,
-                                    })
-                                    .map_err(ProcessingError::ScheduleFailed)
-                                    .and_then(move |result| {
-                                        result.map_err(ProcessingError::StoreFailed)
-                                    });
-
-                                return Box::new(future) as ResponseFuture<_, _>;
+                        .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
+                            EventAction::Accept => Ok(()),
+                            EventAction::RetryAfter(r) => Err(ProcessingError::RateLimited(r)),
+                            EventAction::Discard(reason) => {
+                                Err(ProcessingError::EventRejected(reason))
                             }
-                        }
-
-                        // if we are in capture mode, we stash away the event instead of
-                        // forwarding it.
-                        if capture {
-                            log::debug!("capturing event {}", event_id);
-                            captured_events.write().insert(
-                                event_id,
-                                CapturedEvent {
-                                    payload: Some(processed),
-                                    error: None,
-                                    event_id,
-                                },
-                            );
-                            return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
-                        }
-
-                        log::trace!("sending event to sentry endpoint {}", event_id);
-                        let request = SendRequest::post(format!("/api/{}/store/", project_id))
-                            .build(move |builder| {
-                                if let Some(origin) = meta.origin() {
-                                    builder.header("Origin", origin.to_string());
-                                }
-
-                                builder
-                                    .header("X-Sentry-Auth", meta.auth().to_string())
-                                    .header("X-Forwarded-For", meta.forwarded_for())
-                                    .header("Content-Type", "application/json")
-                                    .body(processed)
-                            });
-
-                        let future = upstream
-                            .send(request)
-                            .map_err(ProcessingError::ScheduleFailed)
-                            .and_then(move |result| {
-                                result.map_err(move |error| match error {
-                                    UpstreamRequestError::RateLimited(secs) => {
-                                        ProcessingError::RateLimited(RetryAfter {
-                                            when: Instant::now() + Duration::from_secs(secs),
-                                            reason_code: None,
-                                        })
-                                    }
-                                    other => ProcessingError::SendFailed(other),
+                        })
+                        .and_then(clone!(project, |_| {
+                            project
+                                .send(GetProjectState)
+                                .map_err(ProcessingError::ScheduleFailed)
+                                .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
+                        }))
+                        .and_then(move |project_state| {
+                            *org_id_for_err.lock() = project_state.organization_id;
+                            processor
+                                .send(ProcessEvent {
+                                    envelope,
+                                    project_id,
+                                    project_state,
+                                    start_time,
                                 })
-                            });
+                                .map_err(ProcessingError::ScheduleFailed)
+                                .flatten()
+                        })
+                        .and_then(move |processed| {
+                            let envelope = processed.envelope;
 
-                        Box::new(future) as ResponseFuture<_, _>
-                    })
-            }})
+                            #[cfg(feature = "processing")]
+                            {
+                                if let Some(store_forwarder) = store_forwarder {
+                                    log::trace!("sending event to kafka {}", event_id);
+                                    let future = store_forwarder
+                                        .send(StoreEvent {
+                                            envelope,
+                                            start_time,
+                                            project_id,
+                                        })
+                                        .map_err(ProcessingError::ScheduleFailed)
+                                        .and_then(move |result| {
+                                            result.map_err(ProcessingError::StoreFailed)
+                                        });
+
+                                    return Box::new(future) as ResponseFuture<_, _>;
+                                }
+                            }
+
+                            // if we are in capture mode, we stash away the event instead of
+                            // forwarding it.
+                            if capture {
+                                log::debug!("capturing event {}", event_id);
+                                captured_events
+                                    .write()
+                                    .insert(event_id, CapturedEvent::Ok(envelope));
+                                return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
+                            }
+
+                            let public_key = envelope.meta().auth().public_key().to_string();
+
+                            log::trace!("sending event to sentry endpoint {}", event_id);
+                            let request = SendRequest::post(format!("/api/{}/store/", project_id))
+                                .build(move |builder| {
+                                    let meta = envelope.meta(); // TODO(ja): Inline?
+
+                                    if let Some(origin) = meta.origin() {
+                                        builder.header("Origin", origin.to_string());
+                                    }
+
+                                    if let Some(user_agent) = meta.user_agent() {
+                                        builder.header("User-Agent", user_agent);
+                                    }
+
+                                    builder
+                                        .header("X-Sentry-Auth", meta.auth().to_string())
+                                        .header("X-Forwarded-For", meta.forwarded_for())
+                                        .header("Content-Type", envelope::CONTENT_TYPE)
+                                        .body(envelope.to_vec().map_err(failure::Error::from)?)
+                                });
+
+                            let future = upstream
+                                .send(request)
+                                .map_err(ProcessingError::ScheduleFailed)
+                                .and_then(move |result| {
+                                    result.map_err(move |error| match error {
+                                        UpstreamRequestError::RateLimited(secs) => {
+                                            ProcessingError::RateLimited(RateLimit(
+                                                // TODO: Maybe add a header that tells us the value for
+                                                // RateLimitScope?
+                                                RateLimitScope::Key(public_key),
+                                                RetryAfter {
+                                                    when: Instant::now()
+                                                        + Duration::from_secs(secs),
+                                                    reason_code: None,
+                                                },
+                                            ))
+                                        }
+                                        other => ProcessingError::SendFailed(other),
+                                    })
+                                });
+
+                            Box::new(future) as ResponseFuture<_, _>
+                        })
+                }
+            ))
             .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(clone!(project, captured_events, |error, _, _| {
-                log::warn!("error processing event {}: {}", event_id, LogError(&error));
                 // if we are in capture mode, we stash away the event instead of
                 // forwarding it.
                 if capture {
                     log::debug!("capturing failed event {}", event_id);
-                    captured_events.write().insert(
-                        event_id,
-                        CapturedEvent {
-                            payload: None,
-                            error: Some(LogError(&error).to_string()),
-                            event_id,
-                        },
-                    );
+                    let msg = LogError(&error).to_string();
+                    captured_events
+                        .write()
+                        .insert(event_id, CapturedEvent::Err(msg));
                 }
+
                 metric!(counter("event.rejected") += 1);
                 let outcome_params: Option<Outcome> = match error {
                     ProcessingError::SerializeFailed(_)
                     | ProcessingError::ScheduleFailed(_)
-                    | ProcessingError::PiiFailed(_)
+                    | ProcessingError::ProjectFailed(_)
+                    | ProcessingError::InvalidEvent(_)
                     | ProcessingError::Timeout
                     | ProcessingError::Shutdown
                     | ProcessingError::NoAction(_)
@@ -637,26 +670,48 @@ impl Handler<HandleEvent> for EventManager {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
                     ProcessingError::InvalidJson(_) => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidPayloadJsonError))
+                        Some(Outcome::Invalid(DiscardReason::InvalidJson))
                     }
                     #[cfg(feature = "processing")]
-                    ProcessingError::StoreFailed(_store_error) => {
+                    ProcessingError::StoreFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
+                    }
+                    #[cfg(feature = "processing")]
+                    ProcessingError::EventFiltered(ref filter_stat_key) => {
+                        Some(Outcome::Filtered(*filter_stat_key))
                     }
                     ProcessingError::EventRejected(outcome_reason) => {
                         Some(Outcome::Invalid(outcome_reason))
                     }
-                    ProcessingError::EventFiltered(filter_stat_key) => {
-                        Some(Outcome::Filtered(filter_stat_key))
+                    ProcessingError::InvalidSecurityReportType => {
+                        Some(Outcome::Invalid(DiscardReason::SecurityReportType))
                     }
-                    // if we have upstream then we don't emit outcomes (the upstream should deal with this)
+                    ProcessingError::InvalidSecurityReport(_) => {
+                        Some(Outcome::Invalid(DiscardReason::SecurityReport))
+                    }
+                    // if we have an upstream, we don't emit outcomes. the upstream should deal with
+                    // this
                     ProcessingError::SendFailed(_) => None,
 
-                    ProcessingError::RateLimited(rate_limit) => {
+                    ProcessingError::RateLimited(ref rate_limit) => {
                         project.do_send(rate_limit.clone());
-                        Some(Outcome::RateLimited(rate_limit))
+                        Some(Outcome::RateLimited(rate_limit.clone()))
+                    }
+
+                    ProcessingError::DuplicateItem(_) => {
+                        Some(Outcome::Invalid(DiscardReason::DuplicateItem))
                     }
                 };
+
+                if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome_params {
+                    // Errors are only logged for what we consider an internal discard reason. These
+                    // indicate errors in the infrastructure or implementation bugs. In other cases,
+                    // we "expect" errors and log them as info level.
+                    log::error!("error processing event {}: {}", event_id, LogError(&error));
+                } else {
+                    log::info!("dropped event {}: {}", event_id, LogError(&error));
+                }
+
                 if let Some(outcome) = outcome_params {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),

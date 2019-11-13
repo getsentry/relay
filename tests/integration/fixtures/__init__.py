@@ -2,13 +2,14 @@ import datetime
 import time
 
 import requests
-import sentry_sdk
 
 session = requests.session()
 
 
 class SentryLike(object):
     _healthcheck_passed = False
+
+    dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
 
     @property
     def url(self):
@@ -37,10 +38,6 @@ class SentryLike(object):
         return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
 
     @property
-    def dsn_public_key(self):
-        return "31a5a894b4524f74a9a8d0e27e21ba91"
-
-    @property
     def dsn(self):
         """DSN for which you will find the events in self.captured_events"""
         # bogus, we never check the DSN
@@ -61,7 +58,14 @@ class SentryLike(object):
 
     def basic_project_config(self):
         return {
-            "publicKeys": [{"publicKey": self.dsn_public_key, "isEnabled": True, "numericId": 123, "quotas": []}],
+            "publicKeys": [
+                {
+                    "publicKey": self.dsn_public_key,
+                    "isEnabled": True,
+                    "numericId": 123,
+                    "quotas": [],
+                }
+            ],
             "rev": "5ceaea8c919811e8ae7daae9fe877901",
             "disabled": False,
             "lastFetch": datetime.datetime.utcnow().isoformat() + "Z",
@@ -87,19 +91,10 @@ class SentryLike(object):
             "config": {
                 "excludeFields": [],
                 "filterSettings": {
-                    "browser-extensions": {
-                        "isEnabled": True
-                    },
-                    "web-crawlers": {
-                        "isEnabled": True
-                    },
-                    "localhost": {
-                        "isEnabled": False
-                    },
-                    "legacy-browsers": {
-                        "isEnabled": True,
-                        "options": ["ie_pre_9"]
-                    }
+                    "browser-extensions": {"isEnabled": True},
+                    "web-crawlers": {"isEnabled": True},
+                    "localhost": {"isEnabled": False},
+                    "legacy-browsers": {"isEnabled": True, "options": ["ie_pre_9"]},
                 },
                 "scrubIpAddresses": False,
                 "sensitiveFields": [],
@@ -107,21 +102,17 @@ class SentryLike(object):
                 "scrubData": True,
                 "groupingConfig": {
                     "id": "legacy:2019-03-12",
-                    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC"
+                    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
                 },
-                "blacklistedIps": [
-                    "127.43.33.22"
-                ],
-                "trustedRelays": []
+                "blacklistedIps": ["127.43.33.22"],
+                "trustedRelays": [],
             },
         }
 
         return {
             **basic,
             **full,
-            'config': {
-                **basic['config'],
-                **full['config']},
+            "config": {**basic["config"], **full["config"]},
         }
 
     def send_event(self, project_id, payload=None):
@@ -129,25 +120,41 @@ class SentryLike(object):
             payload = {"message": "Hello, World!"}
 
         if isinstance(payload, dict):
-            client = sentry_sdk.Client(self.dsn, default_integrations=False)
-            client.capture_event(payload)
-            client.close()
+            kwargs = {"json": payload}
         elif isinstance(payload, bytes):
-            response = self.post(
-                "/api/%s/store/" % project_id,
-                data=payload,
-                headers={
-                    "Content-Type": "application/octet-stream",
-                    "X-Sentry-Auth": (
-                        "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
-                        "sentry_client=raven-node/2.6.3, "
-                        "sentry_key={}".format(self.dsn_public_key)
-                    ),
-                },
-            )
-            response.raise_for_status()
+            kwargs = {"data": payload}
         else:
             raise ValueError(f"Invalid type {type(payload)} for payload.")
+
+        response = self.post(
+            "/api/%s/store/" % project_id,
+            headers={
+                "Content-Type": "application/octet-stream",
+                "X-Sentry-Auth": (
+                    "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
+                    "sentry_client=raven-node/2.6.3, "
+                    "sentry_key={}".format(self.dsn_public_key)
+                ),
+            },
+            **kwargs,
+        )
+        response.raise_for_status()
+
+    def send_security_report(
+        self, project_id, content_type, payload, release, environment
+    ):
+        response = self.post(
+            "/api/{}/security/?sentry_key={}&sentry_release={}&sentry_environment={}".format(
+                project_id, self.dsn_public_key, release, environment
+            ),
+            headers={
+                "Content-Type": content_type,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+            },
+            json=payload,
+        )
+        response.raise_for_status()
 
     def request(self, method, path, **kwargs):
         assert path.startswith("/")
