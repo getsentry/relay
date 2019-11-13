@@ -1,3 +1,35 @@
+//! Implementation of event envelopes.
+//!
+//! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
+//! requests, each envelope has global headers and a set of items, such as the event payload, an
+//! attachment, or intermediate payloads.
+//!
+//! During event ingestion, envelope items are normalized. While incoming envelopes may contain
+//! items like security reports or raw form data, outgoing envelopes can only contain events and
+//! attachments. All other items have to be transformed into one or the other (usually merged into
+//! the event).
+//!
+//! Envelopes have a well-defined serialization format. It is roughly:
+//!
+//! ```plain
+//! <json headers>\n
+//! <item headers>\n
+//! payload\n
+//! ...
+//! ```
+//!
+//! JSON headers and item headers must not contain line breaks. Payloads can be any binary encoding.
+//! This is enabled by declaring an explicit length in the item headers. Example:
+//!
+//! ```plain
+//! {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","auth":"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b, sentry_version=7"}
+//! {"type":"event","length":41,"content_type":"application/json"}
+//! {"message":"hello world","level":"error"}
+//! {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
+//! Hello
+//!
+//! ```
+
 #![allow(unused)]
 
 use std::borrow::{Borrow, Cow};
