@@ -404,6 +404,10 @@ mod processing {
         30 * 24 * 3600 // 30 days
     }
 
+    fn default_chunk_size() -> ByteSize {
+        ByteSize::from_megabytes(1)
+    }
+
     /// Controls Sentry-internal event processing.
     #[derive(Serialize, Deserialize, Debug)]
     pub(super) struct Processing {
@@ -425,6 +429,7 @@ mod processing {
         /// Redis hosts to connect to for storing state for rate limits.
         pub(super) redis: Redis,
         /// Maximum chunk size of attachments for Kafka.
+        #[serde(default = "default_chunk_size")]
         pub(super) attachment_chunk_size: ByteSize,
     }
 
@@ -444,7 +449,7 @@ mod processing {
                     outcomes: String::new(),
                 },
                 redis: Redis::default(),
-                attachment_chunk_size: ByteSize::from_megabytes(1),
+                attachment_chunk_size: default_chunk_size(),
             }
         }
     }
