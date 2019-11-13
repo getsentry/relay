@@ -189,7 +189,7 @@ impl EventProcessor {
                 }
 
                 if let Some(env) = security
-                    .get_header("sentry_release")
+                    .get_header("sentry_environment")
                     .and_then(Value::as_str)
                 {
                     event.environment = Annotated::from(env.to_owned());
