@@ -190,17 +190,3 @@ class Item(object):
     @classmethod
     def deserialize(cls, bytes):
         return cls.deserialize_from(io.BytesIO(bytes))
-
-
-
-def test():
-    e = Envelope(headers={
-        'event_id': '7ca76a900db548f2a37561ecefe5061a',
-    }, items=[
-        Item(payload={'message': 'foo'}),
-        Item(headers={
-            'filename': 'hello.txt',
-            'mimetype': 'text/plain',
-        }, payload='Hello World!'),
-    ])
-    print(e.serialize())
