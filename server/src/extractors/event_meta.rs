@@ -23,8 +23,10 @@ impl ResponseError for BadEventMeta {
     }
 }
 
-/// TODO(ja): Document this serialization format.
-/// TODO(ja): Clarify with SDKs.
+/// Serializes SDK client authentication information in the X-Sentry-Auth header format.
+///
+/// The default `Serialize` and `Deserialize` implementations for `Auth` create maps/objects.
+/// This format is intended for the use in envelope headers specifically.
 mod auth_serde {
     use super::*;
 

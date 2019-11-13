@@ -61,7 +61,7 @@ pub enum Outcome {
     Accepted,
 
     /// The event has been filtered due to a configured filter.
-    #[allow(dead_code)]
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     Filtered(FilterStatKey),
 
     /// The event has been rate limited.

@@ -599,7 +599,7 @@ impl Handler<HandleEvent> for EventManager {
                             log::trace!("sending event to sentry endpoint {}", event_id);
                             let request = SendRequest::post(format!("/api/{}/store/", project_id))
                                 .build(move |builder| {
-                                    let meta = envelope.meta(); // TODO(ja): Inline?
+                                    let meta = envelope.meta();
 
                                     if let Some(origin) = meta.origin() {
                                         builder.header("Origin", origin.to_string());
