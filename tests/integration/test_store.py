@@ -181,6 +181,12 @@ def test_event_buffer_size(mini_sentry, relay):
         relay.send_event(42, {"message": "pls ignore"})
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=5))
 
+    for (_, error) in mini_sentry.test_failures:
+        assert isinstance(error, AssertionError)
+        assert "Too many events (max_concurrent_events reached)" in str(error)
+    mini_sentry.test_failures.clear()
+
+
 
 def test_max_concurrent_requests(mini_sentry, relay):
     from time import sleep
