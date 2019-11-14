@@ -17,7 +17,7 @@ def test_store(mini_sentry, relay_chain):
     relay.wait_relay_healthcheck()
 
     relay.send_event(42)
-    event = mini_sentry.captured_events.get(timeout=1)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
@@ -44,7 +44,7 @@ def test_store_node_base64(mini_sentry, relay_chain):
     )  # noqa
     relay.send_event(42, payload)
 
-    event = mini_sentry.captured_events.get(timeout=1)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
 
     assert event["logentry"] == {"formatted": "Error: yo mark"}
 
@@ -56,7 +56,7 @@ def test_store_pii_stripping(mini_sentry, relay):
     mini_sentry.project_configs[42] = relay.basic_project_config()
     relay.send_event(42, {"message": "hi", "extra": {"foo": "test@mail.org"}})
 
-    event = mini_sentry.captured_events.get(timeout=2)
+    event = mini_sentry.captured_events.get(timeout=2).get_event()
 
     # Email should be stripped:
     assert event["extra"]["foo"] == "[email]"
@@ -81,9 +81,8 @@ def test_event_timeout(mini_sentry, relay):
     sleep(1)  # Sleep so that the second event also has to wait but succeeds
     relay.send_event(42, {"message": "correct"})
 
-    assert mini_sentry.captured_events.get(timeout=1)["logentry"] == {
-        "formatted": "correct"
-    }
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "correct"}
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
     ((route, error),) = mini_sentry.test_failures
     assert route == "/api/666/store/"
@@ -125,9 +124,8 @@ def test_rate_limit(mini_sentry, relay):
     sleep(2)
     relay.send_event(42, {"message": "correct"})
 
-    assert mini_sentry.captured_events.get(timeout=1)["logentry"] == {
-        "formatted": "correct"
-    }
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "correct"}
 
 
 def test_static_config(mini_sentry, relay):
@@ -146,7 +144,7 @@ def test_static_config(mini_sentry, relay):
     sleep(1)  # There is no upstream auth, so just wait for relay to initialize
 
     relay.send_event(42)
-    event = mini_sentry.captured_events.get(timeout=1)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
     sleep(1)  # Regression test: Relay tried to issue a request for 0 states
@@ -170,7 +168,7 @@ def test_proxy_config(mini_sentry, relay):
     sleep(1)  # There is no upstream auth, so just wait for relay to initialize
 
     relay.send_event(42)
-    event = mini_sentry.captured_events.get(timeout=1)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
@@ -182,6 +180,11 @@ def test_event_buffer_size(mini_sentry, relay):
     with pytest.raises(HTTPError):
         relay.send_event(42, {"message": "pls ignore"})
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=5))
+
+    for (_, error) in mini_sentry.test_failures:
+        assert isinstance(error, AssertionError)
+        assert "Too many events (max_concurrent_events reached)" in str(error)
+    mini_sentry.test_failures.clear()
 
 
 def test_max_concurrent_requests(mini_sentry, relay):
@@ -268,7 +271,7 @@ def test_when_processing_is_not_enabled_relay_does_not_normalize_events(
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
     relay.send_event(42, {"message": "some_message"})
-    event = mini_sentry.captured_events.get(timeout=1)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event.get("key_id") is None
     assert event.get("project") is None
     assert event.get("version") is None

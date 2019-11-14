@@ -3,6 +3,7 @@ use std::net::IpAddr;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 use semaphore_common::{Auth, AuthParseError};
@@ -22,25 +23,103 @@ impl ResponseError for BadEventMeta {
     }
 }
 
-#[derive(Debug, Clone)]
+/// Serializes SDK client authentication information in the X-Sentry-Auth header format.
+///
+/// The default `Serialize` and `Deserialize` implementations for `Auth` create maps/objects.
+/// This format is intended for the use in envelope headers specifically.
+mod auth_serde {
+    use super::*;
+
+    use std::fmt;
+
+    pub fn serialize<S>(auth: &Auth, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&auth.to_string())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Auth, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct V;
+
+        impl<'de> ::serde::de::Visitor<'de> for V {
+            type Value = Auth;
+
+            fn expecting(&self, formatter: &mut ::std::fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("auth")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Auth, E>
+            where
+                E: ::serde::de::Error,
+            {
+                value.parse().map_err(|_| {
+                    serde::de::Error::invalid_value(serde::de::Unexpected::Str(value), &self)
+                })
+            }
+        }
+
+        deserializer.deserialize_str(V)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventMeta {
-    /// Authentication information (DSN and client)..
+    /// Authentication information (DSN and client).
+    #[serde(with = "auth_serde")]
     auth: Auth,
 
     /// Value of the origin header in the incoming request, if present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     origin: Option<Url>,
 
     /// IP address of the submitting remote.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     remote_addr: Option<IpAddr>,
 
     /// The full chain of request forward addresses, including the `remote_addr`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     forwarded_for: String,
 
     /// The user agent that sent this event.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     user_agent: Option<String>,
 }
 
 impl EventMeta {
+    #[cfg(test)]
+    pub fn new(auth: Auth) -> Self {
+        EventMeta {
+            auth,
+            origin: None,
+            remote_addr: None,
+            forwarded_for: String::new(),
+            user_agent: None,
+        }
+    }
+
+    /// Completes this event meta instance with information from another.
+    ///
+    /// All fields that are set in this instance will remain. Only missing fields will be updated if
+    /// they are defined in the other EvenMeta instance.
+    pub fn default_to(&mut self, other: EventMeta) {
+        if self.origin.is_none() {
+            self.origin = other.origin;
+        }
+        if self.remote_addr.is_none() {
+            self.remote_addr = other.remote_addr;
+        }
+        if self.forwarded_for.is_empty() {
+            self.forwarded_for = other.forwarded_for;
+        }
+        if self.user_agent.is_none() {
+            self.user_agent = other.user_agent;
+        }
+    }
+
     /// Returns a reference to the auth info
     pub fn auth(&self) -> &Auth {
         &self.auth
@@ -52,6 +131,7 @@ impl EventMeta {
     }
 
     /// The IP address of the Relay or client that ingested the event.
+    #[allow(unused)]
     pub fn remote_addr(&self) -> Option<IpAddr> {
         self.remote_addr
     }
@@ -76,17 +156,6 @@ impl EventMeta {
     /// the SDK that sent the event.
     pub fn user_agent(&self) -> Option<&str> {
         self.user_agent.as_ref().map(String::as_str)
-    }
-
-    /// Returns `true` if this client requires legacy python json support.
-    ///
-    /// For old Python clients we need to preprocess the JSON payload to make it
-    /// parsable.  This destroys some values (converts `NaN` to `0.0`) but makes the
-    /// request otherwise parsable.
-    pub fn needs_legacy_python_json_support(&self) -> bool {
-        self.auth().client_agent().map_or(false, |agent| {
-            agent.starts_with("raven-python/") || agent.starts_with("sentry-python/")
-        })
     }
 }
 

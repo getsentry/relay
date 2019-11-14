@@ -26,9 +26,8 @@ def test_graceful_shutdown(mini_sentry, relay):
     relay.send_event(42)
 
     relay.shutdown(sig=signal.SIGTERM)
-    assert mini_sentry.captured_events.get(timeout=0)["logentry"] == {
-        "formatted": "Hello, World!"
-    }
+    event = mini_sentry.captured_events.get(timeout=0).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
 def test_forced_shutdown(mini_sentry, relay):
@@ -85,7 +84,7 @@ def test_query_retry(failure_type, mini_sentry, relay):
 
     # Wait way longer than necessary because of the lack of dedicated resources
     # in Travis
-    event = mini_sentry.captured_events.get(timeout=8)
+    event = mini_sentry.captured_events.get(timeout=8).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
     assert retry_count == 2
 
@@ -114,7 +113,7 @@ def test_local_project_config(mini_sentry, relay):
 
     relay.wait_relay_healthcheck()
     relay.send_event(42)
-    event = mini_sentry.captured_events.get(timeout=1)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
     relay.config_dir.join("projects").join("42.json").write(
@@ -147,8 +146,7 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
     response.raise_for_status()
     assert response.headers["content-type"] == "image/gif"
 
-    event = mini_sentry.captured_events.get(timeout=1)
-
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"]["formatted"] == "im in ur query params"
 
 
@@ -166,6 +164,5 @@ def test_store_post_trailing_slash(mini_sentry, relay, trailing_slash):
     )
     response.raise_for_status()
 
-    event = mini_sentry.captured_events.get(timeout=1)
-
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"]["formatted"] == "hi"

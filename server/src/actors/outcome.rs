@@ -61,6 +61,7 @@ pub enum Outcome {
     Accepted,
 
     /// The event has been filtered due to a configured filter.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     Filtered(FilterStatKey),
 
     /// The event has been rate limited.
@@ -141,8 +142,14 @@ pub enum DiscardReason {
     /// [Relay] Parsing the event JSON payload failed due to a syntax error.
     InvalidJson,
 
+    /// [Relay] Parsing an event envelope failed (likely missing a required header).
+    InvalidEnvelope,
+
     /// [Relay] A project state returned by the upstream could not be parsed.
     ProjectState,
+
+    /// [Relay] An envelope was submitted with two items that need to be unique.
+    DuplicateItem,
 
     /// [All] An error in Relay caused event ingestion to fail. This is the catch-all and usually
     /// indicates bugs in Relay, rather than an expected failure.
@@ -166,7 +173,7 @@ mod real_implementation {
     use serde_json::Error as SerdeSerializationError;
 
     use semaphore_common::tryf;
-    use semaphore_common::{metric, KafkaTopic, Uuid};
+    use semaphore_common::{metric, KafkaTopic};
 
     use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
     use crate::service::ServerErrorKind;
@@ -226,7 +233,9 @@ mod real_implementation {
                 // Relay specific reasons (not present in Sentry)
                 DiscardReason::Payload => "payload",
                 DiscardReason::InvalidJson => "invalid_json",
+                DiscardReason::InvalidEnvelope => "invalid_envelope",
                 DiscardReason::ProjectState => "project_state",
+                DiscardReason::DuplicateItem => "duplicate_item",
                 DiscardReason::Internal => "internal",
             }
         }
@@ -357,10 +366,7 @@ mod real_implementation {
             // Here we create a fake EventId, when we don't have the real one, so that we can
             // create a kafka message key that spreads the events nicely over all the
             // kafka consumer groups.
-            let key = message
-                .event_id
-                .unwrap_or_else(|| EventId(Uuid::new_v4()))
-                .0;
+            let key = message.event_id.unwrap_or_else(EventId::new).0;
 
             let record = FutureRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
                 .payload(&payload)

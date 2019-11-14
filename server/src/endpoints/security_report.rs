@@ -6,13 +6,10 @@ use actix_web::{pred, HttpRequest, HttpResponse, Query, Request};
 use bytes::Bytes;
 use serde::Deserialize;
 
-use semaphore_general::protocol::{
-    Csp, ExpectCt, ExpectStaple, Hpkp, LenientString, SecurityReportType,
-};
-use semaphore_general::types::Annotated;
+use semaphore_general::protocol::EventId;
 
-use crate::actors::events::EventError;
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
+use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
@@ -22,29 +19,54 @@ struct SecurityReportParams {
     sentry_environment: Option<String>,
 }
 
-fn process_security_report(
+fn extract_envelope(
     data: Bytes,
+    meta: EventMeta,
     params: SecurityReportParams,
-) -> Result<Bytes, BadStoreRequest> {
-    let security_report_type = SecurityReportType::from_json(&data)
-        .map_err(|_| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReportType))?;
-
-    let mut event = match security_report_type {
-        SecurityReportType::Csp => Csp::parse_event(&data),
-        SecurityReportType::ExpectCt => ExpectCt::parse_event(&data),
-        SecurityReportType::ExpectStaple => ExpectStaple::parse_event(&data),
-        SecurityReportType::Hpkp => Hpkp::parse_event(&data),
+) -> Result<Envelope, BadStoreRequest> {
+    if data.is_empty() {
+        return Err(BadStoreRequest::EmptyBody);
     }
-    .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidSecurityReport(e)))?;
 
-    event.release = Annotated::from(params.sentry_release.map(LenientString));
-    event.environment = Annotated::from(params.sentry_environment);
+    let mut report_item = Item::new(ItemType::SecurityReport);
+    report_item.set_payload(ContentType::Json, data);
 
-    let json_string = Annotated::new(event)
-        .to_json()
-        .map_err(|e| BadStoreRequest::ProcessingFailed(EventError::InvalidJson(e)))?;
+    if let Some(sentry_release) = params.sentry_release {
+        report_item.set_header("sentry_release", sentry_release);
+    }
 
-    Ok(Bytes::from(json_string))
+    if let Some(sentry_environment) = params.sentry_environment {
+        report_item.set_header("sentry_environment", sentry_environment);
+    }
+
+    let mut envelope = Envelope::from_request(EventId::new(), meta);
+    envelope.add_item(report_item);
+
+    Ok(envelope)
+}
+
+fn create_response() -> HttpResponse {
+    HttpResponse::Created()
+        .content_type("application/javascript")
+        .finish()
+}
+
+/// This handles all messages coming on the Security endpoint.
+///
+/// The security reports will be checked.
+fn store_security_report(
+    meta: EventMeta,
+    start_time: StartTime,
+    request: HttpRequest<ServiceState>,
+    params: Query<SecurityReportParams>,
+) -> ResponseFuture<HttpResponse, BadStoreRequest> {
+    Box::new(handle_store_like_request(
+        meta,
+        start_time,
+        request,
+        move |data, meta| extract_envelope(data, meta, params.into_inner()),
+        |_| create_response(),
+    ))
 }
 
 #[derive(Debug)]
@@ -67,30 +89,6 @@ impl pred::Predicate<ServiceState> for SecurityReportFilter {
             _ => false,
         }
     }
-}
-
-/// This handles all messages coming on the Security endpoint.
-///
-/// The security reports will be checked.
-fn store_security_report(
-    meta: EventMeta,
-    start_time: StartTime,
-    request: HttpRequest<ServiceState>,
-    params: Query<SecurityReportParams>,
-) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    let future = handle_store_like_request(
-        meta,
-        start_time,
-        request,
-        move |data| process_security_report(data, params.into_inner()),
-        |_| {
-            HttpResponse::Created()
-                .content_type("application/javascript")
-                .finish()
-        },
-    );
-
-    Box::new(future)
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

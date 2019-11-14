@@ -14,14 +14,14 @@ use sentry_actix::ActixWebHubExt;
 use semaphore_common::{metric, tryf, LogError, ProjectId, ProjectIdParseError};
 use semaphore_general::protocol::EventId;
 
-use crate::actors::events::{EventError, QueueEvent};
+use crate::actors::events::{QueueEvent, QueueEventError};
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
 use crate::body::{StoreBody, StorePayloadError};
+use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
-
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -37,8 +37,17 @@ pub enum BadStoreRequest {
     #[fail(display = "failed to fetch project information")]
     ProjectFailed(#[cause] ProjectError),
 
-    #[fail(display = "failed to process event")]
-    ProcessingFailed(#[cause] EventError),
+    #[fail(display = "empty event data")]
+    EmptyBody,
+
+    #[fail(display = "invalid JSON data")]
+    InvalidJson(#[cause] serde_json::Error),
+
+    #[fail(display = "invalid event envelope")]
+    InvalidEnvelope(#[cause] EnvelopeError),
+
+    #[fail(display = "failed to queue event")]
+    QueueFailed(#[cause] QueueEventError),
 
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
@@ -59,16 +68,12 @@ impl BadStoreRequest {
                 Outcome::Invalid(DiscardReason::AuthVersion)
             }
 
-            BadStoreRequest::ProcessingFailed(event_error) => match event_error {
-                EventError::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
-                EventError::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
-                EventError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
-                EventError::InvalidSecurityReportType => {
-                    Outcome::Invalid(DiscardReason::SecurityReportType)
-                }
-                EventError::InvalidSecurityReport(_) => {
-                    Outcome::Invalid(DiscardReason::SecurityReport)
-                }
+            BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
+            BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
+            BadStoreRequest::InvalidEnvelope(_) => Outcome::Invalid(DiscardReason::InvalidEnvelope),
+
+            BadStoreRequest::QueueFailed(event_error) => match event_error {
+                QueueEventError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
             },
 
             BadStoreRequest::ProjectFailed(project_error) => match project_error {
@@ -102,7 +107,9 @@ impl ResponseError for BadStoreRequest {
                     .header("Retry-After", retry_after.remaining_seconds().to_string())
                     .json(&body)
             }
-            BadStoreRequest::ScheduleFailed(_) | BadStoreRequest::ProjectFailed(_) => {
+            BadStoreRequest::ScheduleFailed(_)
+            | BadStoreRequest::ProjectFailed(_)
+            | BadStoreRequest::QueueFailed(_) => {
                 // These errors indicate that something's wrong with our actor system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -130,21 +137,20 @@ pub fn handle_store_like_request<F, R>(
     meta: EventMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
-    process_body: F,
+    extract_envelope: F,
     create_response: R,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
-    F: FnOnce(Bytes) -> Result<Bytes, BadStoreRequest> + 'static,
+    F: FnOnce(Bytes, EventMeta) -> Result<Envelope, BadStoreRequest> + 'static,
     R: FnOnce(EventId) -> HttpResponse + 'static,
 {
     let start_time = start_time.into_inner();
 
     // For now, we only handle <= v8 and drop everything else
-    if meta.auth().version() > 8 {
+    let version = meta.auth().version();
+    if version > 8 {
         // TODO: Delegate to forward_upstream here
-        tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(
-            meta.auth().version()
-        )));
+        tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(version)));
     }
 
     // Make sure we have a project ID. Does not check if the project exists yet
@@ -163,21 +169,22 @@ where
         }));
     });
 
-    metric!(counter(&format!("event.protocol.v{}", meta.auth().version())) += 1);
+    metric!(counter(&format!("event.protocol.v{}", version)) += 1);
 
-    let meta = Arc::new(meta);
     let config = request.state().config();
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
     let outcome_producer = request.state().outcome_producer().clone();
     let remote_addr = meta.client_addr();
 
+    let cloned_meta = Arc::new(meta.clone());
+
     let future = project_manager
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(move |project| {
             project
-                .send(GetEventAction::cached(meta.clone()))
+                .send(GetEventAction::cached(cloned_meta))
                 .map_err(BadStoreRequest::ScheduleFailed)
                 .and_then(
                     move |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
@@ -193,22 +200,16 @@ where
                         .limit(config.max_event_payload_size())
                         .map_err(BadStoreRequest::PayloadError)
                 })
-                .and_then(move |data| {
-                    // Processing is done when the request does not directly represent an Sentry
-                    // event but rather something that can be converted into a sentry event (like a
-                    // security report).
-                    process_body(data)
-                })
-                .and_then(move |data| {
+                .and_then(move |data| extract_envelope(data, meta))
+                .and_then(move |envelope| {
                     event_manager
                         .send(QueueEvent {
-                            data,
-                            meta,
+                            envelope,
                             project,
                             start_time,
                         })
                         .map_err(BadStoreRequest::ScheduleFailed)
-                        .and_then(|result| result.map_err(BadStoreRequest::ProcessingFailed))
+                        .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
                         .map(create_response)
                 })
         })

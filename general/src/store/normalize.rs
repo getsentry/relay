@@ -8,7 +8,6 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use smallvec::SmallVec;
-use uuid::Uuid;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
@@ -426,7 +425,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         // Default required attributes, even if they have errors
         event.errors.get_or_insert_with(Vec::new);
         event.level.get_or_insert_with(|| Level::Error);
-        event.id.get_or_insert_with(|| EventId(Uuid::new_v4()));
+        event.id.get_or_insert_with(EventId::new);
         event.platform.get_or_insert_with(|| "other".to_string());
         event.logger.get_or_insert_with(String::new);
         event.extra.get_or_insert_with(Object::new);

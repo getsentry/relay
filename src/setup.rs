@@ -158,12 +158,6 @@ pub fn init_logging(config: &Config) {
     let log = Box::new(log_builder.build());
     let global_filter = log.filter();
 
-    println!(
-        "global filter: {} {}",
-        global_filter,
-        log::Level::Error < global_filter
-    );
-
     sentry::integrations::log::init(
         Some(log),
         sentry::integrations::log::LoggerOptions {
@@ -171,6 +165,7 @@ pub fn init_logging(config: &Config) {
             ..Default::default()
         },
     );
+
     sentry::integrations::panic::register_panic_handler();
 }
 

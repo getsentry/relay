@@ -9,7 +9,7 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use serde::de::{Error, IgnoredAny};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::protocol::{
@@ -487,7 +487,7 @@ pub struct Csp {
 }
 
 impl Csp {
-    pub fn parse_event(data: &[u8]) -> Result<Event, serde_json::Error> {
+    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
         let raw_report = serde_json::from_slice::<CspReportRaw>(data)?;
         let raw_csp = raw_report.csp_report;
 
@@ -495,14 +495,13 @@ impl Csp {
             .effective_directive()
             .map_err(serde::de::Error::custom)?;
 
-        Ok(Event {
-            logentry: Annotated::new(LogEntry::from(raw_csp.get_message(effective_directive))),
-            culprit: Annotated::new(raw_csp.get_culprit()),
-            tags: Annotated::new(raw_csp.get_tags(effective_directive)),
-            request: Annotated::new(raw_csp.get_request()),
-            csp: Annotated::new(raw_csp.into_protocol(effective_directive)),
-            ..Event::default()
-        })
+        event.logentry = Annotated::new(LogEntry::from(raw_csp.get_message(effective_directive)));
+        event.culprit = Annotated::new(raw_csp.get_culprit());
+        event.tags = Annotated::new(raw_csp.get_tags(effective_directive));
+        event.request = Annotated::new(raw_csp.get_request());
+        event.csp = Annotated::new(raw_csp.into_protocol(effective_directive));
+
+        Ok(())
     }
 }
 
@@ -746,18 +745,17 @@ pub struct ExpectCt {
 }
 
 impl ExpectCt {
-    pub fn parse_event(data: &[u8]) -> Result<Event, serde_json::Error> {
+    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
         let raw_report = serde_json::from_slice::<ExpectCtReportRaw>(data)?;
         let raw_expect_ct = raw_report.expect_ct_report;
 
-        Ok(Event {
-            logentry: Annotated::new(LogEntry::from(raw_expect_ct.get_message())),
-            culprit: Annotated::new(raw_expect_ct.get_culprit()),
-            tags: Annotated::new(raw_expect_ct.get_tags()),
-            request: Annotated::new(raw_expect_ct.get_request()),
-            expectct: Annotated::new(raw_expect_ct.into_protocol()),
-            ..Event::default()
-        })
+        event.logentry = Annotated::new(LogEntry::from(raw_expect_ct.get_message()));
+        event.culprit = Annotated::new(raw_expect_ct.get_culprit());
+        event.tags = Annotated::new(raw_expect_ct.get_tags());
+        event.request = Annotated::new(raw_expect_ct.get_request());
+        event.expectct = Annotated::new(raw_expect_ct.into_protocol());
+
+        Ok(())
     }
 }
 
@@ -889,16 +887,15 @@ pub struct Hpkp {
 }
 
 impl Hpkp {
-    pub fn parse_event(data: &[u8]) -> Result<Event, serde_json::Error> {
+    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
         let raw_hpkp = serde_json::from_slice::<HpkpRaw>(data)?;
 
-        Ok(Event {
-            logentry: Annotated::new(LogEntry::from(raw_hpkp.get_message())),
-            tags: Annotated::new(raw_hpkp.get_tags()),
-            request: Annotated::new(raw_hpkp.get_request()),
-            hpkp: Annotated::new(raw_hpkp.into_protocol()),
-            ..Event::default()
-        })
+        event.logentry = Annotated::new(LogEntry::from(raw_hpkp.get_message()));
+        event.tags = Annotated::new(raw_hpkp.get_tags());
+        event.request = Annotated::new(raw_hpkp.get_request());
+        event.hpkp = Annotated::new(raw_hpkp.into_protocol());
+
+        Ok(())
     }
 }
 
@@ -1098,18 +1095,17 @@ pub struct ExpectStaple {
 }
 
 impl ExpectStaple {
-    pub fn parse_event(data: &[u8]) -> Result<Event, serde_json::Error> {
+    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
         let raw_report = serde_json::from_slice::<ExpectStapleReportRaw>(data)?;
         let raw_expect_staple = raw_report.expect_staple_report;
 
-        Ok(Event {
-            logentry: Annotated::new(LogEntry::from(raw_expect_staple.get_message())),
-            culprit: Annotated::new(raw_expect_staple.get_culprit()),
-            tags: Annotated::new(raw_expect_staple.get_tags()),
-            request: Annotated::new(raw_expect_staple.get_request()),
-            expectstaple: Annotated::new(raw_expect_staple.into_protocol()),
-            ..Event::default()
-        })
+        event.logentry = Annotated::new(LogEntry::from(raw_expect_staple.get_message()));
+        event.culprit = Annotated::new(raw_expect_staple.get_culprit());
+        event.tags = Annotated::new(raw_expect_staple.get_tags());
+        event.request = Annotated::new(raw_expect_staple.get_request());
+        event.expectstaple = Annotated::new(raw_expect_staple.into_protocol());
+
+        Ok(())
     }
 }
 
@@ -1126,16 +1122,7 @@ impl SecurityReportType {
     ///
     /// This looks into the JSON payload and tries to infer the type from keys. If no report
     /// matches, an error is returned.
-    pub fn from_json(data: &[u8]) -> Result<Self, serde_json::Error> {
-        serde_json::from_slice(data)
-    }
-}
-
-impl<'de> Deserialize<'de> for SecurityReportType {
-    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
-    where
-        D: Deserializer<'de>,
-    {
+    pub fn from_json(data: &[u8]) -> Result<Option<Self>, serde_json::Error> {
         #[derive(Deserialize)]
         #[serde(rename_all = "kebab-case")]
         struct SecurityReport {
@@ -1145,19 +1132,19 @@ impl<'de> Deserialize<'de> for SecurityReportType {
             expect_ct_report: Option<IgnoredAny>,
         }
 
-        let helper = SecurityReport::deserialize(deserializer)?;
+        let helper: SecurityReport = serde_json::from_slice(data)?;
 
-        if helper.csp_report.is_some() {
-            Ok(SecurityReportType::Csp)
+        Ok(if helper.csp_report.is_some() {
+            Some(SecurityReportType::Csp)
         } else if helper.known_pins.is_some() {
-            Ok(SecurityReportType::Hpkp)
+            Some(SecurityReportType::Hpkp)
         } else if helper.expect_staple_report.is_some() {
-            Ok(SecurityReportType::ExpectStaple)
+            Some(SecurityReportType::ExpectStaple)
         } else if helper.expect_ct_report.is_some() {
-            Ok(SecurityReportType::ExpectCt)
+            Some(SecurityReportType::ExpectCt)
         } else {
-            Err(D::Error::custom("Invalid security message type"))
-        }
+            None
+        })
     }
 }
 
@@ -1215,7 +1202,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
@@ -1255,7 +1243,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
@@ -1298,7 +1287,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
         assert_annotated_snapshot!(Annotated::new(event), @r###"
        ⋮{
@@ -1356,7 +1346,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
@@ -1411,7 +1402,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         insta::assert_debug_snapshot!(event.culprit, @r###""style-src http://cdn.example.com""###);
     }
 
@@ -1425,7 +1417,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         insta::assert_debug_snapshot!(event.culprit, @r###""style-src cdn.example.com""###);
     }
 
@@ -1439,7 +1432,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         insta::assert_debug_snapshot!(event.culprit, @r###""style-src cdn.example.com""###);
     }
 
@@ -1453,7 +1447,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         insta::assert_debug_snapshot!(event.culprit, @r###""style-src https://cdn.example.com""###);
     }
 
@@ -1467,7 +1462,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         insta::assert_debug_snapshot!(event.culprit, @r###""style-src \'self\'""###);
     }
 
@@ -1481,7 +1477,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         insta::assert_debug_snapshot!(event.culprit, @r###""style-src http://example2.com \'self\'""###);
     }
 
@@ -1498,7 +1495,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         insta::assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
@@ -1527,7 +1525,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message, @r###""Blocked \'image\' from \'google.com\'""###);
     }
@@ -1542,7 +1541,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message, @r###""Blocked inline \'style\'""###);
     }
@@ -1558,7 +1558,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message, @r###""Blocked unsafe inline \'script\'""###);
     }
@@ -1574,7 +1575,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message, @r###""Blocked unsafe eval() \'script\'""###);
     }
@@ -1590,7 +1592,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message, @r###""Blocked unsafe (eval() or inline) \'script\'""###);
     }
@@ -1605,7 +1608,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message, @r###""Blocked \'script\' from \'data:\'""###);
     }
@@ -1620,7 +1624,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message, @r###""Blocked \'script\' from \'data:\'""###);
     }
@@ -1635,7 +1640,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message, @r###""Blocked \'style\' from \'fonts.google.com\'""###);
     }
@@ -1650,7 +1656,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message, @r###""Blocked \'script\' from \'cdn.ajaxapis.com\'""###);
     }
@@ -1665,7 +1672,8 @@ mod tests {
             }
         }"#;
 
-        let event = Csp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message, @r###""Blocked \'style\' from \'notlocalhost:8000\'""###);
     }
@@ -1691,7 +1699,8 @@ mod tests {
             }
         }"#;
 
-        let event = ExpectCt::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        ExpectCt::apply_to_event(json.as_bytes(), &mut event).unwrap();
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
           "culprit": "www.example.com",
@@ -1742,7 +1751,9 @@ mod tests {
             "date_time": "Not an RFC3339 datetime"
         }"#;
 
-        ExpectCt::parse_event(json.as_bytes()).expect_err("date_time should fail to parse");
+        let mut event = Event::default();
+        ExpectCt::apply_to_event(json.as_bytes(), &mut event)
+            .expect_err("date_time should fail to parse");
     }
 
     #[test]
@@ -1760,7 +1771,8 @@ mod tests {
             }
         }"#;
 
-        let event = ExpectStaple::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        ExpectStaple::apply_to_event(json.as_bytes(), &mut event).unwrap();
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
           "culprit": "www.example.com",
@@ -1819,7 +1831,8 @@ mod tests {
             "known-pins": ["pin-sha256=\"E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\""]
         }"#;
 
-        let event = Hpkp::parse_event(json.as_bytes()).unwrap();
+        let mut event = Event::default();
+        Hpkp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
           "logentry": {
@@ -1874,8 +1887,8 @@ mod tests {
             }
         }"#;
 
-        let report_type: SecurityReportType = serde_json::from_str(csp_report_text).unwrap();
-        assert_eq!(report_type, SecurityReportType::Csp);
+        let report_type = SecurityReportType::from_json(csp_report_text.as_bytes()).unwrap();
+        assert_eq!(report_type, Some(SecurityReportType::Csp));
     }
 
     #[test]
@@ -1903,8 +1916,8 @@ mod tests {
             }
         }"#;
 
-        let report_type: SecurityReportType = serde_json::from_str(expect_ct_report_text).unwrap();
-        assert_eq!(report_type, SecurityReportType::ExpectCt);
+        let report_type = SecurityReportType::from_json(expect_ct_report_text.as_bytes()).unwrap();
+        assert_eq!(report_type, Some(SecurityReportType::ExpectCt));
     }
 
     #[test]
@@ -1921,9 +1934,9 @@ mod tests {
                 "validated-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"]
             }
         }"#;
-        let report_type: SecurityReportType =
-            serde_json::from_str(expect_staple_report_text).unwrap();
-        assert_eq!(report_type, SecurityReportType::ExpectStaple);
+        let report_type =
+            SecurityReportType::from_json(expect_staple_report_text.as_bytes()).unwrap();
+        assert_eq!(report_type, Some(SecurityReportType::ExpectStaple));
     }
 
     #[test]
@@ -1946,7 +1959,7 @@ mod tests {
             ]
           }"#;
 
-        let report_type: SecurityReportType = serde_json::from_str(hpkp_report_text).unwrap();
-        assert_eq!(report_type, SecurityReportType::Hpkp);
+        let report_type = SecurityReportType::from_json(hpkp_report_text.as_bytes()).unwrap();
+        assert_eq!(report_type, Some(SecurityReportType::Hpkp));
     }
 }

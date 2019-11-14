@@ -1,6 +1,8 @@
+import os
 import gzip
 import json
 import uuid
+import types
 
 from queue import Queue
 
@@ -10,6 +12,19 @@ from flask import Flask, request as flask_request, jsonify
 from pytest_localserver.http import WSGIServer
 
 from . import SentryLike
+
+
+# HACK: import the envelope module from libsemaphore without requiring to build the cabi
+with open(
+    os.path.abspath(os.path.dirname(__file__)) + "/../../../py/semaphore/envelope.py"
+) as f:
+    envelope_namespace = {}
+    eval(compile(f.read(), "envelope.py", "exec"), envelope_namespace)
+
+
+Envelope = envelope_namespace["Envelope"]
+Item = envelope_namespace["Item"]
+PayloadRef = envelope_namespace["PayloadRef"]
 
 
 class Sentry(SentryLike):
@@ -68,7 +83,13 @@ def mini_sentry(request):
         else:
             data = flask_request.data
 
-        sentry.captured_events.put(json.loads(data))
+        if flask_request.headers.get("Content-Type") == "application/x-sentry-envelope":
+            envelope = Envelope.deserialize(data)
+        else:
+            envelope = Envelope()
+            envelope.add_item(Item(payload=json.loads(data)))
+
+        sentry.captured_events.put(envelope)
         return jsonify({"event_id": uuid.uuid4().hex})
 
     @app.route("/api/<project>/store/", methods=["POST"])
