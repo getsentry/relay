@@ -5,7 +5,6 @@ use std::sync::Arc;
 use actix::prelude::*;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, ResponseError};
-use bytes::Bytes;
 use failure::Fail;
 use futures::prelude::*;
 use sentry::Hub;
@@ -17,7 +16,7 @@ use semaphore_general::protocol::EventId;
 use crate::actors::events::{QueueEvent, QueueEventError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
-use crate::body::{StoreBody, StorePayloadError};
+use crate::body::StorePayloadError;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::ServiceState;
@@ -46,6 +45,9 @@ pub enum BadStoreRequest {
     #[fail(display = "invalid event envelope")]
     InvalidEnvelope(#[cause] EnvelopeError),
 
+    #[fail(display = "invalid multipart data")]
+    InvalidMultipart,
+
     #[fail(display = "failed to queue event")]
     QueueFailed(#[cause] QueueEventError),
 
@@ -70,6 +72,7 @@ impl BadStoreRequest {
 
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
             BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
+            BadStoreRequest::InvalidMultipart => Outcome::Invalid(DiscardReason::InvalidMinidump),
             BadStoreRequest::InvalidEnvelope(_) => Outcome::Invalid(DiscardReason::InvalidEnvelope),
 
             BadStoreRequest::QueueFailed(event_error) => match event_error {
@@ -133,7 +136,7 @@ impl ResponseError for BadStoreRequest {
 /// If store_event receives a non empty store_body it will use it as the body of the
 /// event otherwise it will try to create a store_body from the request.
 ///
-pub fn handle_store_like_request<F, R>(
+pub fn handle_store_like_request<F, R, I>(
     meta: EventMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
@@ -141,7 +144,8 @@ pub fn handle_store_like_request<F, R>(
     create_response: R,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
-    F: FnOnce(Bytes, EventMeta) -> Result<Envelope, BadStoreRequest> + 'static,
+    F: FnOnce(&HttpRequest<ServiceState>, EventMeta, usize) -> I + 'static,
+    I: IntoFuture<Item = Envelope, Error = BadStoreRequest> + 'static,
     R: FnOnce(EventId) -> HttpResponse + 'static,
 {
     let start_time = start_time.into_inner();
@@ -196,11 +200,8 @@ where
                     },
                 )
                 .and_then(move |_| {
-                    StoreBody::new(&request)
-                        .limit(config.max_event_payload_size())
-                        .map_err(BadStoreRequest::PayloadError)
+                    extract_envelope(&request, meta, config.max_event_payload_size())
                 })
-                .and_then(move |data| extract_envelope(data, meta))
                 .and_then(move |envelope| {
                     event_manager
                         .send(QueueEvent {
