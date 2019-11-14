@@ -29,7 +29,7 @@ fn extract_envelope(
     }
 
     let mut report_item = Item::new(ItemType::SecurityReport);
-    report_item.set_payload(ContentType::Json, None, data);
+    report_item.set_payload(ContentType::Json, data);
 
     if let Some(sentry_release) = params.sentry_release {
         report_item.set_header("sentry_release", sentry_release);

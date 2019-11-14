@@ -155,7 +155,7 @@ pub struct ItemHeaders {
 
     length: u32,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     event_type: Option<EventType>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -205,20 +205,20 @@ impl Item {
         self.headers.content_type.as_ref()
     }
 
-    pub fn event_type(&self) -> Option<&EventType> {
-        self.headers.event_type.as_ref()
+    pub fn event_type(&self) -> Option<EventType> {
+        self.headers.event_type
+    }
+
+    pub fn set_event_type(&mut self, event_type: EventType) {
+        self.headers.event_type = Some(event_type);
     }
 
     pub fn payload(&self) -> Bytes {
         self.payload.clone()
     }
 
-    pub fn set_payload<B>(
-        &mut self,
-        content_type: ContentType,
-        event_type: Option<EventType>,
-        payload: B,
-    ) where
+    pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
+    where
         B: Into<Bytes>,
     {
         let mut payload = payload.into();
@@ -228,7 +228,6 @@ impl Item {
 
         self.headers.length = length as u32;
         self.headers.content_type = Some(content_type);
-        self.headers.event_type = event_type;
         self.payload = payload;
     }
 

@@ -73,7 +73,7 @@ fn extract_envelope(
     };
 
     let mut event_item = Item::new(ItemType::Event);
-    event_item.set_payload(content_type, None, data);
+    event_item.set_payload(content_type, data);
 
     let mut envelope = Envelope::from_request(event_id, meta);
     envelope.add_item(event_item);
