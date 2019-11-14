@@ -205,6 +205,7 @@ where
                     event_manager
                         .send(QueueEvent {
                             envelope,
+                            project_id,
                             project,
                             start_time,
                         })
@@ -218,7 +219,7 @@ where
 
             outcome_producer.do_send(TrackOutcome {
                 timestamp: start_time,
-                project_id: Some(project_id),
+                project_id,
                 org_id: None,
                 key_id: None,
                 outcome: error.to_outcome(),
