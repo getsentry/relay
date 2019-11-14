@@ -30,7 +30,7 @@ use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
-use crate::utils::{self, ErrorBoundary, One, Response, SyncActorFuture, SyncHandle};
+use crate::utils::{self, ErrorBoundary, Response, SyncActorFuture, SyncHandle};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -159,21 +159,6 @@ impl Actor for Project {
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         log::debug!("project {} removed from cache", self.id);
-    }
-}
-
-pub struct GetProjectId;
-
-impl Message for GetProjectId {
-    type Result = One<ProjectId>;
-}
-
-impl Handler<GetProjectId> for Project {
-    type Result = One<ProjectId>;
-
-    fn handle(&mut self, _message: GetProjectId, _context: &mut Context<Self>) -> Self::Result {
-        metric!(set("unique_projects") = self.id as i64);
-        One(self.id)
     }
 }
 

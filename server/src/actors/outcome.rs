@@ -35,7 +35,7 @@ pub struct TrackOutcome {
     /// Organization id.
     pub org_id: Option<u64>,
     /// Project id.
-    pub project_id: Option<u64>,
+    pub project_id: u64,
     /// The DSN project key id.
     pub key_id: Option<u64>,
     /// The outcome.
@@ -249,7 +249,7 @@ mod real_implementation {
         /// Organization id.
         org_id: Option<u64>,
         /// Project id.
-        project_id: Option<u64>,
+        project_id: u64,
         /// The DSN project key id.
         key_id: Option<u64>,
         /// The outcome.
