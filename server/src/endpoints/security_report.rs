@@ -10,7 +10,7 @@ use semaphore_general::protocol::EventId;
 
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::{EventMeta, StartTime};
+use crate::extractors::EventMeta;
 use crate::service::{ServiceApp, ServiceState};
 
 #[derive(Debug, Deserialize)]
@@ -56,13 +56,11 @@ fn create_response() -> HttpResponse {
 /// The security reports will be checked.
 fn store_security_report(
     meta: EventMeta,
-    start_time: StartTime,
     request: HttpRequest<ServiceState>,
     params: Query<SecurityReportParams>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     Box::new(handle_store_like_request(
         meta,
-        start_time,
         request,
         move |data, meta| extract_envelope(data, meta, params.into_inner()),
         |_| create_response(),

@@ -1,6 +1,7 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use actix::prelude::*;
 use actix_web::http::StatusCode;
@@ -19,7 +20,7 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
 use crate::body::{StoreBody, StorePayloadError};
 use crate::envelope::{Envelope, EnvelopeError};
-use crate::extractors::{EventMeta, StartTime};
+use crate::extractors::EventMeta;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
@@ -135,7 +136,6 @@ impl ResponseError for BadStoreRequest {
 ///
 pub fn handle_store_like_request<F, R>(
     meta: EventMeta,
-    start_time: StartTime,
     request: HttpRequest<ServiceState>,
     extract_envelope: F,
     create_response: R,
@@ -144,7 +144,7 @@ where
     F: FnOnce(Bytes, EventMeta) -> Result<Envelope, BadStoreRequest> + 'static,
     R: FnOnce(EventId) -> HttpResponse + 'static,
 {
-    let start_time = start_time.into_inner();
+    let start_time = Instant::now();
 
     // For now, we only handle <= v8 and drop everything else
     let version = meta.auth().version();

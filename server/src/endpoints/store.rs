@@ -11,7 +11,7 @@ use semaphore_general::protocol::EventId;
 
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
-use crate::extractors::{EventMeta, StartTime};
+use crate::extractors::EventMeta;
 use crate::service::{ServiceApp, ServiceState};
 
 // Transparent 1x1 gif
@@ -102,7 +102,6 @@ fn create_response(id: EventId, is_get_request: bool) -> HttpResponse {
 /// implement the FromRequest trait.
 fn store_event(
     meta: EventMeta,
-    start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let is_get_request = request.method() == "GET";
@@ -110,7 +109,6 @@ fn store_event(
 
     Box::new(handle_store_like_request(
         meta,
-        start_time,
         request,
         move |data, meta| extract_envelope(data, meta, content_type),
         move |id| create_response(id, is_get_request),
