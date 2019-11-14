@@ -168,6 +168,11 @@ def events_consumer(kafka_consumer):
     return lambda: EventsConsumer(kafka_consumer("events"))
 
 
+@pytest.fixture
+def transactions_consumer(kafka_consumer):
+    return lambda: EventsConsumer(kafka_consumer("transactions"))
+
+
 class EventsConsumer(ConsumerBase):
     def __init__(self, consumer):
         self.consumer = consumer
