@@ -107,9 +107,18 @@ impl ResponseError for BadStoreRequest {
                     .header("Retry-After", retry_after.remaining_seconds().to_string())
                     .json(&body)
             }
-            BadStoreRequest::ScheduleFailed(_)
-            | BadStoreRequest::ProjectFailed(_)
-            | BadStoreRequest::QueueFailed(_) => {
+            BadStoreRequest::ProjectFailed(project_error) => match project_error {
+                ProjectError::FetchFailed => {
+                    // This particular project is somehow broken. We could treat this as 503 but it's
+                    // more likely that the error is local to this project.
+                    HttpResponse::InternalServerError().json(&body)
+                }
+                ProjectError::ScheduleFailed(_) | ProjectError::Shutdown => {
+                    HttpResponse::ServiceUnavailable().json(&body)
+                }
+            },
+
+            BadStoreRequest::ScheduleFailed(_) | BadStoreRequest::QueueFailed(_) => {
                 // These errors indicate that something's wrong with our actor system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
