@@ -16,7 +16,7 @@ use serde::Serialize;
 use rmp_serde::encode::Error as SerdeError;
 
 use semaphore_common::{metric, tryf, Config, KafkaTopic};
-use semaphore_general::protocol::EventId;
+use semaphore_general::protocol::{EventId, EventType};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::envelope::{Envelope, ItemType};
@@ -179,11 +179,12 @@ impl Handler<StoreEvent> for StoreForwarder {
         } = message;
 
         let event_id = envelope.event_id();
+        let event_item = envelope.get_item(ItemType::Event);
 
         let topic = if envelope.get_item(ItemType::Attachment).is_some() {
             KafkaTopic::Attachments
-        // } else if is_transaction {
-        //     KafkaTopic::Transactions
+        } else if event_item.and_then(|x| x.event_type()) == Some(EventType::Transaction) {
+            KafkaTopic::Transactions
         } else {
             KafkaTopic::Events
         };
@@ -230,7 +231,7 @@ impl Handler<StoreEvent> for StoreForwarder {
             _ => Box::new(future::join_all(attachment_futures).map(|_| ())),
         };
 
-        if let Some(event_item) = envelope.get_item(ItemType::Event) {
+        if let Some(event_item) = event_item {
             let event_message = EventKafkaMessage {
                 payload: event_item.payload(),
                 start_time: instant_to_unix_timestamp(start_time),

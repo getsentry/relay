@@ -301,6 +301,9 @@ impl EventProcessor {
         // Add the normalized event back to the envelope. All the other items are attachments.
         let mut event_item = Item::new(ItemType::Event);
         event_item.set_payload(ContentType::Json, data);
+        if let Some(ty) = event.value().and_then(|e| e.ty.value()) {
+            event_item.set_event_type(*ty);
+        }
         envelope.add_item(event_item);
 
         Ok(ProcessEventResponse { envelope })
