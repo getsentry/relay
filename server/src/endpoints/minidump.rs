@@ -1,35 +1,55 @@
-use actix_web::dev::Payload;
+use std::str::from_utf8;
+
 use actix_web::{
-    actix::ResponseFuture, http::Method, multipart, pred, HttpMessage, HttpRequest, HttpResponse,
+    actix::ResponseFuture, error::PayloadError, http::Method, multipart, pred, HttpMessage,
+    HttpRequest, HttpResponse,
 };
+use bytes::Bytes;
 use futures::{
-    future::{self, Future},
+    future::{ok, Future},
     Stream,
 };
 
-use future::ok;
+use semaphore_general::protocol::EventId;
 
 use crate::body::StorePayloadError;
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
-use semaphore_general::protocol::EventId;
-use std::str::from_utf8;
 
 const MULTIPART_DATA_INITIAL_CHUNK_SIZE: usize = 512;
 
 /// Internal structure used when constructing Envelopes to maintain a cap on the content size
 struct SizeLimitedEnvelope {
+    // the envelope under construction
     pub envelope: Envelope,
-    pub remaining_size: usize, // how much bigger is this envelope allowed to grow
+    // keeps track of how much bigger is this envelope allowed to grow
+    pub remaining_size: usize,
+    // collect all form data in here
+    pub form_data: Vec<(String, String)>,
+}
+
+impl SizeLimitedEnvelope {
+    pub fn into_envelope(mut self) -> Result<Envelope, serde_json::Error> {
+        if !self.form_data.is_empty() {
+            let data = serde_json::to_string(&self.form_data)?;
+            let mut item = Item::new(ItemType::FormData);
+            item.set_payload(ContentType::Json, data);
+            self.envelope.add_item(item);
+        }
+        Ok(self.envelope)
+    }
 }
 
 /// Reads data from a multipart field (coming from a HttpRequest)
-fn read_multipart_data(
-    field: multipart::Field<Payload>,
+fn read_multipart_data<T>(
+    field: multipart::Field<T>,
     max_size: usize,
-) -> ResponseFuture<Vec<u8>, BadStoreRequest> {
+) -> ResponseFuture<Vec<u8>, BadStoreRequest>
+where
+    T: Stream<Item = Bytes, Error = PayloadError> + 'static,
+{
     let future = field.map_err(|_| BadStoreRequest::InvalidMultipart).fold(
         Vec::with_capacity(MULTIPART_DATA_INITIAL_CHUNK_SIZE),
         move |mut body, chunk| {
@@ -44,10 +64,13 @@ fn read_multipart_data(
     Box::new(future)
 }
 
-fn handle_multipart_stream(
+fn handle_multipart_stream<T>(
     content: SizeLimitedEnvelope,
-    stream: multipart::Multipart<Payload>,
-) -> ResponseFuture<SizeLimitedEnvelope, BadStoreRequest> {
+    stream: multipart::Multipart<T>,
+) -> ResponseFuture<SizeLimitedEnvelope, BadStoreRequest>
+where
+    T: Stream<Item = Bytes, Error = PayloadError> + 'static,
+{
     let future = stream
         .map_err(|_| BadStoreRequest::InvalidMultipart)
         .fold(content, move |content, item| {
@@ -56,10 +79,13 @@ fn handle_multipart_stream(
     Box::new(future)
 }
 
-fn handle_multipart_item(
+fn handle_multipart_item<T>(
     mut content: SizeLimitedEnvelope,
-    item: multipart::MultipartItem<Payload>,
-) -> ResponseFuture<SizeLimitedEnvelope, BadStoreRequest> {
+    item: multipart::MultipartItem<T>,
+) -> ResponseFuture<SizeLimitedEnvelope, BadStoreRequest>
+where
+    T: Stream<Item = Bytes, Error = PayloadError> + 'static,
+{
     let field = match item {
         multipart::MultipartItem::Field(field) => field,
         multipart::MultipartItem::Nested(nested) => {
@@ -94,11 +120,8 @@ fn handle_multipart_item(
                 (Some(name), None) => {
                     let value = from_utf8(&data);
                     match value {
-                        Ok(_value) => {
-                            let mut item = Item::new(ItemType::FormData);
-                            item.set_header("name", name);
-                            item.set_payload(ContentType::Text, data);
-                            content.envelope.add_item(item);
+                        Ok(value) => {
+                            content.form_data.push((name, value.to_string()));
                         }
                         Err(_failure) => {
 
@@ -107,6 +130,7 @@ fn handle_multipart_item(
                     }
                 }
                 (None, None) => {
+                    //already checked on the if branch
                     unreachable!();
                 }
             }
@@ -116,22 +140,32 @@ fn handle_multipart_item(
     }
 }
 
-fn extract_envelope_from_multipart_request(
-    request: &HttpRequest<ServiceState>,
+fn extract_envelope_from_multipart_request<T, S>(
+    request: &T,
     meta: EventMeta,
     max_payload_size: usize,
-) -> ResponseFuture<Envelope, BadStoreRequest> {
+) -> ResponseFuture<Envelope, BadStoreRequest>
+where
+    T: HttpMessage<Stream = S>,
+    S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+{
     let size_limited_envelope = SizeLimitedEnvelope {
         envelope: Envelope::from_request(EventId::new(), meta),
         remaining_size: max_payload_size,
+        form_data: Vec::new(),
     };
     Box::new(
-        handle_multipart_stream(size_limited_envelope, request.multipart())
-            .map(|size_limited_envelope| size_limited_envelope.envelope),
+        handle_multipart_stream(size_limited_envelope, request.multipart()).and_then(
+            |size_limited_envelope| {
+                SizeLimitedEnvelope::into_envelope(size_limited_envelope)
+                    //TODO RaduW check if this is the error we want
+                    .map_err(|_| BadStoreRequest::InvalidMultipart)
+            },
+        ),
     )
 }
 
-fn mini_dump_handler(
+fn store_minidump(
     meta: EventMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
@@ -156,6 +190,6 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         //hook security endpoint
         r.method(Method::POST)
             .filter(pred::Header("content-type", "multipart/form-data"))
-            .with(mini_dump_handler);
+            .with(store_minidump);
     })
 }
