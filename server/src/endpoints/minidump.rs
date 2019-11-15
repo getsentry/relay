@@ -19,6 +19,7 @@ use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
 const MULTIPART_DATA_INITIAL_CHUNK_SIZE: usize = 512;
+const COLLECTOR_NAME: &'static str = "data_collector";
 
 /// Internal structure used when constructing Envelopes to maintain a cap on the content size
 struct SizeLimitedEnvelope {
@@ -35,6 +36,7 @@ impl SizeLimitedEnvelope {
         if !self.form_data.is_empty() {
             let data = serde_json::to_string(&self.form_data)?;
             let mut item = Item::new(ItemType::FormData);
+            item.set_header("name", COLLECTOR_NAME);
             item.set_payload(ContentType::Json, data);
             self.envelope.add_item(item);
         }
