@@ -19,3 +19,5 @@ pub const VALID_PLATFORMS: &[&str] = &[
     "python",
     "ruby",
 ];
+
+pub const INVALID_ENVIRONMENTS: &[&str] = &["none"];

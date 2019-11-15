@@ -14,7 +14,7 @@ use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
     Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry, Request, Stacktrace, Tags,
-    User, VALID_PLATFORMS,
+    User, INVALID_ENVIRONMENTS, VALID_PLATFORMS,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -63,6 +63,10 @@ impl DedupCache {
 
 pub fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
+}
+
+pub fn is_valid_environment(environment: &str) -> bool {
+    !INVALID_ENVIRONMENTS.contains(&environment)
 }
 
 /// The processor that normalizes events for store.
@@ -419,6 +423,15 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             if is_valid_platform(&platform) {
                 Ok(())
             } else {
+                Err(ProcessingAction::DeleteValueSoft)
+            }
+        })?;
+
+        event.environment.apply(|environment, meta| {
+            if is_valid_environment(&environment) {
+                Ok(())
+            } else {
+                meta.add_error(ErrorKind::InvalidData);
                 Err(ProcessingAction::DeleteValueSoft)
             }
         })?;
@@ -914,6 +927,30 @@ fn test_empty_environment_is_removed() {
 
     let event = event.value().unwrap();
     assert_eq_dbg!(event.environment.value(), None);
+}
+
+#[test]
+fn test_none_environment_errors() {
+    let mut event = Annotated::new(Event {
+        environment: Annotated::new("none".to_string()),
+        ..Event::default()
+    });
+
+    let mut processor = NormalizeProcessor::default();
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+    let environment = &event.value().unwrap().environment;
+    let expected_original = &Value::String("none".to_string());
+
+    assert_eq_dbg!(
+        environment.meta().iter_errors().collect::<Vec<&Error>>(),
+        vec![&Error::new(ErrorKind::InvalidData)],
+    );
+    assert_eq_dbg!(
+        environment.meta().original_value().unwrap(),
+        expected_original
+    );
+    assert_eq_dbg!(environment.value(), None);
 }
 
 #[test]
