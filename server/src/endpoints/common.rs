@@ -55,7 +55,7 @@ pub enum BadStoreRequest {
     #[fail(display = "event rejected due to rate limit: {:?}", _0)]
     RateLimited(RateLimit),
 
-    #[fail(display = "event submission rejected with_reason:{:?}", _0)]
+    #[fail(display = "event submission rejected with_reason: {:?}", _0)]
     EventRejected(DiscardReason),
 }
 
