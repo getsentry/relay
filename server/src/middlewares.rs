@@ -78,7 +78,7 @@ impl<S> Middleware<S> for ErrorHandlers {
 ///
 /// * a lot of clients are not able to deal with unread request payloads
 /// * in HTTP over unix domain sockets, not reading the request payload might cause the client's
-///   write() to block forever due to a filled up socket buffer.
+///   write() to block forever due to a filled up socket buffer
 pub struct ReadRequestMiddleware;
 
 impl<S> Middleware<S> for ReadRequestMiddleware {
