@@ -2,7 +2,8 @@ use std::time::Instant;
 
 use actix_web::error::Error;
 use actix_web::middleware::{Finished, Middleware, Response, Started};
-use actix_web::{http::header, Body, HttpRequest, HttpResponse};
+use actix_web::{http::header, Body, HttpMessage, HttpRequest, HttpResponse};
+use futures::prelude::*;
 
 use semaphore_common::metric;
 
@@ -70,5 +71,22 @@ impl<S> Middleware<S> for ErrorHandlers {
         } else {
             Ok(Response::Done(resp))
         }
+    }
+}
+
+/// Read request before returning response. This is not required for RFC compliance, however:
+///
+/// * a lot of clients are not able to deal with unread request payloads
+/// * in HTTP over unix domain sockets, not reading the request payload might cause the client's
+///   write() to block forever due to a filled up socket buffer.
+pub struct ReadRequestMiddleware;
+
+impl<S> Middleware<S> for ReadRequestMiddleware {
+    fn response(&self, req: &HttpRequest<S>, resp: HttpResponse) -> Result<Response, Error> {
+        let consume_request = req.payload().for_each(|_| Ok(()));
+
+        Ok(Response::Future(Box::new(
+            consume_request.map(|_| resp).map_err(Error::from),
+        )))
     }
 }
