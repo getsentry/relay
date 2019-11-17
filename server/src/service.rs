@@ -18,7 +18,7 @@ use crate::actors::project::ProjectCache;
 use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
-use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics};
+use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware};
 
 /// Common error type for the relay server.
 #[derive(Debug)]
@@ -173,7 +173,8 @@ fn make_app(state: ServiceState) -> ServiceApp {
         .middleware(SentryMiddleware::new())
         .middleware(Metrics)
         .middleware(AddCommonHeaders)
-        .middleware(ErrorHandlers);
+        .middleware(ErrorHandlers)
+        .middleware(ReadRequestMiddleware);
 
     app = app.scope("/api/relay", |mut scope| {
         scope = endpoints::healthcheck::configure_scope(scope);
