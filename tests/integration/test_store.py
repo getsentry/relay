@@ -346,13 +346,13 @@ def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_co
     # of our caching
     relay.send_event(42, {"message": "some_message"})
 
-    outcomes_consumer.assert_rate_limited()
+    outcomes_consumer.assert_rate_limited("get_lost")
 
     for _ in range(5):
         with pytest.raises(HTTPError):
             relay.send_event(42, {"message": "rate_limited"})
 
-        outcomes_consumer.assert_rate_limited()
+        outcomes_consumer.assert_rate_limited("get_lost")
 
     relay.dsn_public_key = second_key["publicKey"]
 
