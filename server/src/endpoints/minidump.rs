@@ -1,8 +1,11 @@
 use std::str::from_utf8;
 
 use actix_web::{
-    actix::ResponseFuture, error::PayloadError, http::Method, multipart, pred, HttpMessage,
-    HttpRequest, HttpResponse,
+    actix::ResponseFuture,
+    error::{MultipartError, PayloadError},
+    http::Method,
+    multipart::{self, MultipartItem},
+    pred, HttpMessage, HttpRequest, HttpResponse,
 };
 use bytes::Bytes;
 use futures::{
@@ -19,7 +22,7 @@ use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
 const MULTIPART_DATA_INITIAL_CHUNK_SIZE: usize = 512;
-const COLLECTOR_NAME: &'static str = "data_collector";
+const COLLECTOR_NAME: &str = "data_collector";
 
 /// Internal structure used when constructing Envelopes to maintain a cap on the content size
 struct SizeLimitedEnvelope {
@@ -45,12 +48,9 @@ impl SizeLimitedEnvelope {
 }
 
 /// Reads data from a multipart field (coming from a HttpRequest)
-fn read_multipart_data<T>(
-    field: multipart::Field<T>,
-    max_size: usize,
-) -> ResponseFuture<Vec<u8>, BadStoreRequest>
+fn read_multipart_data<S>(field: S, max_size: usize) -> ResponseFuture<Vec<u8>, BadStoreRequest>
 where
-    T: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    S: Stream<Item = Bytes, Error = MultipartError> + 'static,
 {
     let future = field.map_err(|_| BadStoreRequest::InvalidMultipart).fold(
         Vec::with_capacity(MULTIPART_DATA_INITIAL_CHUNK_SIZE),
@@ -66,12 +66,12 @@ where
     Box::new(future)
 }
 
-fn handle_multipart_stream<T>(
+fn handle_multipart_stream<S>(
     content: SizeLimitedEnvelope,
-    stream: multipart::Multipart<T>,
+    stream: multipart::Multipart<S>,
 ) -> ResponseFuture<SizeLimitedEnvelope, BadStoreRequest>
 where
-    T: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    S: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     let future = stream
         .map_err(|_| BadStoreRequest::InvalidMultipart)
@@ -81,16 +81,16 @@ where
     Box::new(future)
 }
 
-fn handle_multipart_item<T>(
+fn handle_multipart_item<S>(
     mut content: SizeLimitedEnvelope,
-    item: multipart::MultipartItem<T>,
+    item: MultipartItem<S>,
 ) -> ResponseFuture<SizeLimitedEnvelope, BadStoreRequest>
 where
-    T: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    S: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     let field = match item {
-        multipart::MultipartItem::Field(field) => field,
-        multipart::MultipartItem::Nested(nested) => {
+        MultipartItem::Field(field) => field,
+        MultipartItem::Nested(nested) => {
             return handle_multipart_stream(content, nested);
         }
     };
@@ -107,7 +107,7 @@ where
 
     if name.is_none() && file_name.is_none() {
         // log::trace!("multipart content without name or file_name");
-        return Box::new(ok(content));
+        Box::new(ok(content))
     } else {
         let result = read_multipart_data(field, content.remaining_size).map(|data| {
             content.remaining_size -= data.len();
@@ -194,4 +194,25 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
             .filter(pred::Header("content-type", "multipart/form-data"))
             .with(store_minidump);
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::stream;
+
+    #[test]
+    fn test_read_multipart_data_does_not_read_more_that_specified() {
+        let y = vec![Bytes::from("12345"), Bytes::from("123456")];
+        let input = stream::iter_ok::<_, ()>(y.into_iter()).map_err(|_| MultipartError::Incomplete);
+        let result = read_multipart_data(input, 10).wait();
+        assert!(result.is_err())
+    }
+    #[test]
+    fn test_read_multipart_data_does_read_the_body() {
+        let y = vec![Bytes::from("12345"), Bytes::from("123456")];
+        let input = stream::iter_ok::<_, ()>(y.into_iter()).map_err(|_| MultipartError::Incomplete);
+        let result = read_multipart_data(input, 20).wait();
+        assert_eq!(result.unwrap(), b"12345123456");
+    }
 }
