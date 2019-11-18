@@ -478,7 +478,7 @@ mod __quota_serialization {
     use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
     #[derive(Serialize, Deserialize, Default)]
-    #[serde(default)]
+    #[serde(default, rename_all = "camelCase")]
     struct QuotaSerdeHelper<'a> {
         #[serde(skip_serializing_if = "Option::is_none")]
         limit: Option<u64>,
@@ -555,8 +555,7 @@ mod __quota_serialization {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct RedisQuota {
     /// How many events should be accepted within the window.
     ///
@@ -582,8 +581,7 @@ pub struct RedisQuota {
     pub window: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct RejectAllQuota {
     /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
     /// comes to that.
