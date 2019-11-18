@@ -156,6 +156,37 @@ class SentryLike(object):
         )
         response.raise_for_status()
 
+    def send_minidump(self, project_id, params=None, files=None):
+        """
+
+        :param project_id: the project id
+        :param params: a list of tuples (param_name, param_value)
+        :param files: a list of triples (param_name, file_name, file_content)
+        """
+
+        if files is not None:
+            all_files = {
+                name: (file_name, file_content)
+                for (name, file_name, file_content) in files
+            }
+        else:
+            all_files = {}
+
+        if params is not None:
+            for param in params:
+                all_files[param[0]] = (None, param[1])
+
+        response = self.post(
+            "/api/{}/minidump/?sentry_key={}".format(project_id, self.dsn_public_key),
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+            },
+            files=all_files,
+        )
+
+        response.raise_for_status()
+
     def request(self, method, path, **kwargs):
         assert path.startswith("/")
         return session.request(method, self.url + path, **kwargs)

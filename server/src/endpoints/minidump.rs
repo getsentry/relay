@@ -189,10 +189,7 @@ fn store_minidump(
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.resource(r"/api/{project:\d+}/minidump/", |r| {
-        //hook security endpoint
-        r.method(Method::POST)
-            .filter(pred::Header("content-type", "multipart/form-data"))
-            .with(store_minidump);
+        r.method(Method::POST).with(store_minidump);
     })
 }
 
