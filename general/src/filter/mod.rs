@@ -32,6 +32,7 @@ mod test_utils;
 
 pub use common::*;
 pub use config::*;
+pub use csp::matches_any_origin;
 
 /// Checks whether an event should be filtered for a particular configuration.
 ///

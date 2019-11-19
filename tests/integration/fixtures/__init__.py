@@ -115,7 +115,7 @@ class SentryLike(object):
             "config": {**basic["config"], **full["config"]},
         }
 
-    def send_event(self, project_id, payload=None):
+    def send_event(self, project_id, payload=None, headers=None):
         if payload is None:
             payload = {"message": "Hello, World!"}
 
@@ -126,18 +126,17 @@ class SentryLike(object):
         else:
             raise ValueError(f"Invalid type {type(payload)} for payload.")
 
-        response = self.post(
-            "/api/%s/store/" % project_id,
-            headers={
-                "Content-Type": "application/octet-stream",
-                "X-Sentry-Auth": (
-                    "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
-                    "sentry_client=raven-node/2.6.3, "
-                    "sentry_key={}".format(self.dsn_public_key)
-                ),
-            },
-            **kwargs,
-        )
+        headers = {
+            "Content-Type": "application/octet-stream",
+            "X-Sentry-Auth": (
+                "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
+                "sentry_client=raven-node/2.6.3, "
+                "sentry_key={}".format(self.dsn_public_key)
+            ),
+            **(headers or {}),
+        }
+
+        response = self.post("/api/%s/store/" % project_id, headers=headers, **kwargs,)
         response.raise_for_status()
 
     def send_security_report(

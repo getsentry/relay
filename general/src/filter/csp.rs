@@ -15,14 +15,20 @@ pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), Filt
     // parse the sources for easy processing
     let disallowed_sources: Vec<SchemeDomainPort> = disallowed_sources
         .iter()
-        .map(|origin| -> SchemeDomainPort { origin.to_lowercase().as_str().into() })
+        .map(|origin| -> SchemeDomainPort { origin.as_str().into() })
         .collect();
 
     if let Some(csp) = event.csp.value() {
-        if matches_any_origin(csp.blocked_uri.value(), &disallowed_sources) {
+        if matches_any_origin(
+            csp.blocked_uri.value().map(String::as_str),
+            &disallowed_sources,
+        ) {
             return Err(FilterStatKey::InvalidCsp);
         }
-        if matches_any_origin(csp.source_file.value(), &disallowed_sources) {
+        if matches_any_origin(
+            csp.source_file.value().map(String::as_str),
+            &disallowed_sources,
+        ) {
             return Err(FilterStatKey::InvalidCsp);
         }
     }
@@ -36,10 +42,10 @@ pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), Filt
 /// they may be either a string (to be matched exactly, case insensitive)
 /// or None (matches anything in the respective position)
 #[derive(Hash, PartialEq, Eq)]
-struct SchemeDomainPort {
-    pub scheme: Option<String>,
-    pub domain: Option<String>,
-    pub port: Option<String>,
+pub struct SchemeDomainPort {
+    pub(self) scheme: Option<String>,
+    pub(self) domain: Option<String>,
+    pub(self) port: Option<String>,
 }
 
 impl From<&str> for SchemeDomainPort {
@@ -100,7 +106,7 @@ impl From<&str> for SchemeDomainPort {
 ///  - * : anything goes
 ///  - *.domain.com : matches domain.com and any subdomains
 ///  - *:port : matches any hostname as long as the port matches
-fn matches_any_origin(url: Option<&String>, origins: &[SchemeDomainPort]) -> bool {
+pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bool {
     // if we have a "*" (Any) option, anything matches so don't bother going forward
     if origins
         .iter()
@@ -110,7 +116,7 @@ fn matches_any_origin(url: Option<&String>, origins: &[SchemeDomainPort]) -> boo
     }
 
     if let Some(url) = url {
-        let url = SchemeDomainPort::from(url.as_str());
+        let url = SchemeDomainPort::from(url);
 
         for origin in origins {
             if origin.scheme != None && url.scheme != origin.scheme {
