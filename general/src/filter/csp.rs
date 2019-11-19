@@ -19,16 +19,10 @@ pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), Filt
         .collect();
 
     if let Some(csp) = event.csp.value() {
-        if matches_any_origin(
-            csp.blocked_uri.value().map(String::as_str),
-            &disallowed_sources,
-        ) {
+        if matches_any_origin(csp.blocked_uri.as_str(), &disallowed_sources) {
             return Err(FilterStatKey::InvalidCsp);
         }
-        if matches_any_origin(
-            csp.source_file.value().map(String::as_str),
-            &disallowed_sources,
-        ) {
+        if matches_any_origin(csp.source_file.as_str(), &disallowed_sources) {
             return Err(FilterStatKey::InvalidCsp);
         }
     }
@@ -43,9 +37,9 @@ pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), Filt
 /// or None (matches anything in the respective position)
 #[derive(Hash, PartialEq, Eq)]
 pub struct SchemeDomainPort {
-    pub(self) scheme: Option<String>,
-    pub(self) domain: Option<String>,
-    pub(self) port: Option<String>,
+    pub scheme: Option<String>,
+    pub domain: Option<String>,
+    pub port: Option<String>,
 }
 
 impl From<&str> for SchemeDomainPort {

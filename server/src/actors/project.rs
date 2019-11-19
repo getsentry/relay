@@ -381,11 +381,10 @@ impl ProjectState {
             None => return true,
         };
 
-        // If the list of allowed domains is empty, we accept any origin. Otherwise, we have to
-        // match with the whitelist.
+        // Match against list of allowed origins. If the list is empty we always reject.
         let allowed = &self.config().allowed_domains;
         if allowed.is_empty() {
-            return true;
+            return false;
         }
 
         let allowed: Vec<_> = allowed
