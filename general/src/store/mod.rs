@@ -104,8 +104,11 @@ impl<'a> Processor for StoreProcessor<'a> {
             trimming::TrimmingProcessor::new().process_event(event, meta, state)?;
         }
 
-        // internally noops for non-transaction events
-        transactions::TransactionsProcessor.process_event(event, meta, state)?;
+        if !is_renormalize {
+            // internally noops for non-transaction events
+            // TODO: This should probably be a filter once Relay is store.
+            transactions::TransactionsProcessor.process_event(event, meta, state)?;
+        }
 
         Ok(())
     }
