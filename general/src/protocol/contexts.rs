@@ -481,7 +481,7 @@ impl FromStr for TraceStatus {
             "aborted" => TraceStatus::Aborted,
             "out_of_range" => TraceStatus::OutOfRange,
             "data_loss" => TraceStatus::DataLoss,
-            _ => Err(ParseTraceStatusError)?,
+            _ => return Err(ParseTraceStatusError),
         })
     }
 }
