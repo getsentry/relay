@@ -363,6 +363,8 @@ pub struct TraceContext {
 }
 
 /// Trace status
+///
+/// https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TraceStatus {
     /// The trace/transaction/span succeeded.
