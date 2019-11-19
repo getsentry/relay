@@ -23,7 +23,9 @@ use semaphore_common::{
     metric, Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid,
 };
 use semaphore_general::{
-    datascrubbing::DataScrubbingConfig, filter::FiltersConfig, pii::PiiConfig,
+    datascrubbing::DataScrubbingConfig,
+    filter::{matches_any_origin, FiltersConfig},
+    pii::PiiConfig,
 };
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
@@ -379,13 +381,18 @@ impl ProjectState {
             None => return true,
         };
 
-        // If the list of allowed domains is empty, we accept any origin. Otherwise, we have to
-        // match with the whitelist.
+        // Match against list of allowed origins. If the list is empty we always reject.
         let allowed = &self.config().allowed_domains;
-        !allowed.is_empty()
-            && allowed
-                .iter()
-                .any(|x| x.as_str() == "*" || Some(x.as_str()) == origin.host_str())
+        if allowed.is_empty() {
+            return false;
+        }
+
+        let allowed: Vec<_> = allowed
+            .iter()
+            .map(|origin| origin.as_str().into())
+            .collect();
+
+        matches_any_origin(Some(origin.as_str()), &allowed)
     }
 
     /// Determines whether the given event should be accepted or dropped.
