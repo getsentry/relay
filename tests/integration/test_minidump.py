@@ -1,4 +1,9 @@
+
 import pytest
+from requests import HTTPError
+
+MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
+
 
 
 def _get_item_file_name(item):
@@ -25,7 +30,8 @@ def test_minidump_attachments_are_added_to_the_envelope(mini_sentry, relay):
         project_id=proj_id,
         params=(("sentry[a][b]", "val1"), ("sentry[x][y]", "val2"),),
         files=(
-            ("minidump", "minidump.txt", "minidump content"),
+            # add the minidump attachment with the magic header MDMP
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.txt", "MDMPminidump content"),
             ("attachment1", "attach1.txt", "attachment 1 content"),
         ),
     )
@@ -33,10 +39,41 @@ def test_minidump_attachments_are_added_to_the_envelope(mini_sentry, relay):
 
     mini_dump = _get_item_by_file_name(items, "minidump.txt")
     assert mini_dump is not None
-    assert mini_dump.headers.get("name") == "minidump"
+    assert mini_dump.headers.get("name") == MINIDUMP_ATTACHMENT_NAME
     payload = mini_dump.payload.get_bytes()
     assert payload is not None
-    assert payload.decode("utf-8") == "minidump content"
+    assert payload.decode("utf-8") == "MDMPminidump content"
     attachment = _get_item_by_file_name(items, "attach1.txt")
     assert attachment is not None
     assert attachment.headers.get("name") == "attachment1"
+
+
+def test_minidump_endpoint_checks_minidump_header(mini_sentry, relay):
+    proj_id = 42
+    relay = relay(mini_sentry)
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
+
+    with pytest.raises(HTTPError):
+        relay.send_minidump(
+            project_id=proj_id,
+            files=(
+                # add content without magic header 'MDMP'
+                (MINIDUMP_ATTACHMENT_NAME, "minidump.txt", "minidump content"),
+            ),
+        )
+
+def test_minidump_enpoit_checks_minidump_is_attached(mini_sentry, relay):
+    proj_id = 42
+    relay = relay(mini_sentry)
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
+
+    with pytest.raises(HTTPError):
+        relay.send_minidump(
+            project_id=proj_id,
+            files=(
+                # add content without magic header 'MDMP'
+                ("some_unknown_attachment_name", "minidump.txt", "minidump content"),
+            ),
+        )

@@ -48,6 +48,12 @@ pub enum BadStoreRequest {
     #[fail(display = "invalid multipart data")]
     InvalidMultipart,
 
+    #[fail(display = "invalid minidump")]
+    InvalidMinidump,
+
+    #[fail(display = "missing minidump")]
+    MissingMinidump,
+
     #[fail(display = "failed to queue event")]
     QueueFailed(#[cause] QueueEventError),
 
@@ -72,7 +78,12 @@ impl BadStoreRequest {
 
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
             BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
-            BadStoreRequest::InvalidMultipart => Outcome::Invalid(DiscardReason::InvalidMinidump),
+            BadStoreRequest::InvalidMultipart | BadStoreRequest::InvalidMinidump => {
+                Outcome::Invalid(DiscardReason::InvalidMinidump)
+            }
+            BadStoreRequest::MissingMinidump => {
+                Outcome::Invalid(DiscardReason::MissingMinidumpUpload)
+            }
             BadStoreRequest::InvalidEnvelope(_) => Outcome::Invalid(DiscardReason::InvalidEnvelope),
 
             BadStoreRequest::QueueFailed(event_error) => match event_error {

@@ -5,7 +5,7 @@ use actix_web::{
     error::{MultipartError, PayloadError},
     http::Method,
     multipart::{self, MultipartItem},
-    pred, HttpMessage, HttpRequest, HttpResponse,
+    HttpMessage, HttpRequest, HttpResponse,
 };
 use bytes::Bytes;
 use futures::{
@@ -13,7 +13,7 @@ use futures::{
     Stream,
 };
 
-use semaphore_general::protocol::EventId;
+use semaphore_general::{protocol::EventId, types::Value};
 
 use crate::body::StorePayloadError;
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
@@ -23,6 +23,9 @@ use crate::service::{ServiceApp, ServiceState};
 
 const MULTIPART_DATA_INITIAL_CHUNK_SIZE: usize = 512;
 const COLLECTOR_NAME: &str = "data_collector";
+const MINIDUMP_ENTRY_NAME: &str = "upload_file_minidump";
+// minidump attachments should have this name
+const MINIDUMP_MAGIC_HEADER: &[u8; 4] = b"MDMP"; // all minidumps start with this header
 
 /// Internal structure used when constructing Envelopes to maintain a cap on the content size
 struct SizeLimitedEnvelope {
@@ -109,9 +112,25 @@ where
         // log::trace!("multipart content without name or file_name");
         Box::new(ok(content))
     } else {
-        let result = read_multipart_data(field, content.remaining_size).map(|data| {
+        let result = read_multipart_data(field, content.remaining_size).and_then(|data| {
             content.remaining_size -= data.len();
+
             match (name, file_name) {
+                (Some(ref name), ref file_name) if name.as_str() == MINIDUMP_ENTRY_NAME => {
+                    // special handling for the upload_file_minidump entry
+                    // we now that it is a minidump so we do not require a file_name for this item
+                    if !data.starts_with(MINIDUMP_MAGIC_HEADER) {
+                        return Err(BadStoreRequest::InvalidMinidump);
+                    }
+                    let mut item = Item::new(ItemType::Attachment);
+                    item.set_payload(ContentType::OctetStream, data);
+                    match file_name {
+                        Some(file_name) => item.set_filename(file_name), // if we find a file name keep it
+                        None => item.set_filename(MINIDUMP_ENTRY_NAME),  // add a default file name
+                    }
+                    item.set_header("name", MINIDUMP_ENTRY_NAME);
+                    content.envelope.add_item(item)
+                }
                 (name, Some(file_name)) => {
                     let mut item = Item::new(ItemType::Attachment);
                     item.set_payload(ContentType::OctetStream, data);
@@ -136,7 +155,7 @@ where
                     unreachable!();
                 }
             }
-            content
+            Ok(content)
         });
         Box::new(result)
     }
@@ -157,13 +176,24 @@ where
         form_data: Vec::new(),
     };
     Box::new(
-        handle_multipart_stream(size_limited_envelope, request.multipart()).and_then(
-            |size_limited_envelope| {
+        handle_multipart_stream(size_limited_envelope, request.multipart())
+            .and_then(|size_limited_envelope| {
                 SizeLimitedEnvelope::into_envelope(size_limited_envelope)
                     //TODO RaduW check if this is the error we want
                     .map_err(|_| BadStoreRequest::InvalidMultipart)
-            },
-        ),
+            })
+            .and_then(|envelope| {
+                //check that the envelope contains a minidump item
+                for item in envelope.items() {
+                    let name = item.get_header("name").unwrap_or(&Value::Bool(false));
+                    if let Value::String(name) = name {
+                        if name.as_str() == MINIDUMP_ENTRY_NAME {
+                            return Ok(envelope);
+                        }
+                    }
+                }
+                Err(BadStoreRequest::MissingMinidump)
+            }),
     )
 }
 
@@ -205,6 +235,7 @@ mod tests {
         let result = read_multipart_data(input, 10).wait();
         assert!(result.is_err())
     }
+
     #[test]
     fn test_read_multipart_data_does_read_the_body() {
         let y = vec![Bytes::from("12345"), Bytes::from("123456")];
