@@ -1,9 +1,7 @@
-
 import pytest
 from requests import HTTPError
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
-
 
 
 def _get_item_file_name(item):
@@ -63,6 +61,7 @@ def test_minidump_endpoint_checks_minidump_header(mini_sentry, relay):
             ),
         )
 
+
 def test_minidump_endpoint_checks_minidump_is_attached(mini_sentry, relay):
     proj_id = 42
     relay = relay(mini_sentry)
@@ -77,3 +76,22 @@ def test_minidump_endpoint_checks_minidump_is_attached(mini_sentry, relay):
                 ("some_unknown_attachment_name", "minidump.txt", "minidump content"),
             ),
         )
+
+
+@pytest.mark.parametrize(
+    "content_type", ("application/octet-stream", "application/x-dmp")
+)
+def test_minidump_endpoint_accepts_raw_minidump(mini_sentry, relay, content_type):
+    proj_id = 42
+    relay = relay(mini_sentry)
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
+
+    relay.request(
+        "post",
+        "/api/42/minidump?sentry_key={}".format(relay.dsn_public_key),
+        headers={"Content-Type": content_type},
+        data="MDMPminidump content",
+    )
+
+    items = mini_sentry.captured_events.get(timeout=1).items

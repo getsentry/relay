@@ -25,7 +25,9 @@ const MULTIPART_DATA_INITIAL_CHUNK_SIZE: usize = 512;
 const COLLECTOR_NAME: &str = "data_collector";
 const MINIDUMP_ENTRY_NAME: &str = "upload_file_minidump";
 // minidump attachments should have this name
-const MINIDUMP_MAGIC_HEADER: &[u8; 4] = b"MDMP"; // all minidumps start with this header
+const MINIDUMP_MAGIC_HEADER: &[u8] = b"MDMP"; // all minidumps start with this header
+
+const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "application/x-dmp"];
 
 /// Internal structure used when constructing Envelopes to maintain a cap on the content size
 struct SizeLimitedEnvelope {
@@ -67,6 +69,24 @@ where
         },
     );
     Box::new(future)
+}
+
+fn add_minidump_to_envelope(
+    envelope: &mut SizeLimitedEnvelope,
+    data: Vec<u8>,
+    file_name: Option<&str>,
+) -> Result<(), BadStoreRequest> {
+    if !data.starts_with(MINIDUMP_MAGIC_HEADER) {
+        log::trace!("Did not find magic minidump header");
+        return Err(BadStoreRequest::InvalidMinidump);
+    }
+
+    let mut item = Item::new(ItemType::Attachment);
+    item.set_payload(ContentType::OctetStream, data);
+    item.set_filename(file_name.unwrap_or(MINIDUMP_ENTRY_NAME)); // add a default file name
+    item.set_header("name", MINIDUMP_ENTRY_NAME);
+    envelope.envelope.add_item(item);
+    Ok(())
 }
 
 fn handle_multipart_stream<S>(
@@ -117,19 +137,11 @@ where
 
             match (name, file_name) {
                 (Some(ref name), ref file_name) if name.as_str() == MINIDUMP_ENTRY_NAME => {
-                    // special handling for the upload_file_minidump entry
-                    // we now that it is a minidump so we do not require a file_name for this item
-                    if !data.starts_with(MINIDUMP_MAGIC_HEADER) {
-                        return Err(BadStoreRequest::InvalidMinidump);
-                    }
-                    let mut item = Item::new(ItemType::Attachment);
-                    item.set_payload(ContentType::OctetStream, data);
-                    match file_name {
-                        Some(file_name) => item.set_filename(file_name), // if we find a file name keep it
-                        None => item.set_filename(MINIDUMP_ENTRY_NAME),  // add a default file name
-                    }
-                    item.set_header("name", MINIDUMP_ENTRY_NAME);
-                    content.envelope.add_item(item)
+                    add_minidump_to_envelope(
+                        &mut content,
+                        data,
+                        file_name.as_ref().map(String::as_str), // if we find a file name keep it
+                    )?;
                 }
                 (name, Some(file_name)) => {
                     let mut item = Item::new(ItemType::Attachment);
@@ -161,40 +173,56 @@ where
     }
 }
 
-fn extract_envelope_from_multipart_request<T, S>(
+fn extract_envelope_from_minidump_request<T, S>(
     request: &T,
     meta: EventMeta,
     max_payload_size: usize,
-) -> ResponseFuture<Envelope, BadStoreRequest>
+) -> impl Future<Item = Envelope, Error = BadStoreRequest>
 where
-    T: HttpMessage<Stream = S>,
+    T: HttpMessage<Stream = S> + 'static,
     S: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
-    let size_limited_envelope = SizeLimitedEnvelope {
+    let mut size_limited_envelope = SizeLimitedEnvelope {
         envelope: Envelope::from_request(EventId::new(), meta),
         remaining_size: max_payload_size,
         form_data: Vec::new(),
     };
-    Box::new(
-        handle_multipart_stream(size_limited_envelope, request.multipart())
-            .and_then(|size_limited_envelope| {
-                SizeLimitedEnvelope::into_envelope(size_limited_envelope)
-                    //TODO RaduW check if this is the error we want
-                    .map_err(|_| BadStoreRequest::InvalidMultipart)
-            })
-            .and_then(|envelope| {
-                //check that the envelope contains a minidump item
-                for item in envelope.items() {
-                    let name = item.get_header("name").unwrap_or(&Value::Bool(false));
-                    if let Value::String(name) = name {
-                        if name.as_str() == MINIDUMP_ENTRY_NAME {
-                            return Ok(envelope);
-                        }
-                    }
+
+    let size_limited_envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&request.content_type()) {
+        Box::new(
+            request
+                .body()
+                .limit(max_payload_size)
+                .map_err(|_| BadStoreRequest::InvalidMinidump)
+                .and_then(move |data| {
+                    add_minidump_to_envelope(&mut size_limited_envelope, data.to_vec(), None)?;
+                    Ok(size_limited_envelope)
+                }),
+        ) as ResponseFuture<_, _>
+    } else {
+        Box::new(handle_multipart_stream(
+            size_limited_envelope,
+            request.multipart(),
+        ))
+    };
+
+    size_limited_envelope.and_then(|size_limited_envelope| {
+        //TODO RaduW check if this is the error we want
+        let envelope = size_limited_envelope
+            .into_envelope()
+            .map_err(|_| BadStoreRequest::InvalidMultipart)?;
+
+        //check that the envelope contains a minidump item
+        for item in envelope.items() {
+            let name = item.get_header("name").unwrap_or(&Value::Bool(false));
+            if let Value::String(name) = name {
+                if name.as_str() == MINIDUMP_ENTRY_NAME {
+                    return Ok(envelope);
                 }
-                Err(BadStoreRequest::MissingMinidump)
-            }),
-    )
+            }
+        }
+        Err(BadStoreRequest::MissingMinidump)
+    })
 }
 
 fn store_minidump(
@@ -207,7 +235,7 @@ fn store_minidump(
         start_time,
         request,
         move |data, meta, max_event_payload_size| {
-            extract_envelope_from_multipart_request(data, meta, max_event_payload_size)
+            extract_envelope_from_minidump_request(data, meta, max_event_payload_size)
         },
         move |id| {
             HttpResponse::Ok()
@@ -218,7 +246,7 @@ fn store_minidump(
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource(r"/api/{project:\d+}/minidump/", |r| {
+    app.resource(r"/api/{project:\d+}/minidump{trailing_slash:/?}", |r| {
         r.method(Method::POST).with(store_minidump);
     })
 }
