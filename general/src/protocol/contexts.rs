@@ -364,35 +364,84 @@ pub struct TraceContext {
 
 /// Trace status
 ///
-/// https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status
+/// Values from https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status
+/// Mapping to HTTP from https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TraceStatus {
-    /// The trace/transaction/span succeeded.
+    /// The operation completed successfully.
     ///
     /// HTTP status 100..299 + successful redirects from the 3xx range.
     Ok,
-    /// HTTP redirect loops and 504 Gateway Timeout
-    DeadlineExceeded,
-    /// 401 Unauthorized (actually does mean unauthenticated according to RFC 7235)
-    Unauthenticated,
-    /// 403 Forbidden
-    PermissionDenied,
-    /// 404 Not Found
-    NotFound,
-    /// 429 Too Many Requests
-    ResourceExhausted,
-    /// 4xx
-    InvalidArgument,
-    /// 501 Not Implemented
-    Unimplemented,
-    /// 503 Service Unavailable
-    Unavailable,
-    /// Other/generic 5xx.
-    InternalError,
-    /// Any non-standard HTTP status code.
+
+    /// The operation was cancelled (typically by the user).
+    Cancelled,
+
+    /// Unknown. Any non-standard HTTP status code.
     ///
     /// "We do not know whether the transaction failed or succeeded"
     UnknownError,
+
+    /// Client specified an invalid argument. 4xx.
+    ///
+    /// Note that this differs from FailedPrecondition. InvalidArgument indicates arguments that
+    /// are problematic regardless of the state of the system.
+    InvalidArgument,
+
+    /// Deadline expired before operation could complete.
+    ///
+    /// For operations that change the state of the system, this error may be returned even if the
+    /// operation has been completed successfully.
+    ///
+    /// HTTP redirect loops and 504 Gateway Timeout
+    DeadlineExceeded,
+
+    /// 404 Not Found. Some requested entity (file or directory) was not found.
+    NotFound,
+
+    /// Already exists (409)
+    ///
+    /// Some entity that we attempted to create already exists.
+    AlreadyExists,
+
+    /// 403 Forbidden
+    ///
+    /// The caller does not have permission to execute the specified operation.
+    PermissionDenied,
+
+    /// 429 Too Many Requests
+    ///
+    /// Some resource has been exhausted, perhaps a per-user quota or perhaps the entire file
+    /// system is out of space.
+    ResourceExhausted,
+
+    /// Operation was rejected because the system is not in a state required for the operation's
+    /// execution
+    FailedPrecondition,
+
+    /// The operation was aborted, typically due to a concurrency issue.
+    Aborted,
+
+    /// Operation was attempted past the valid range.
+    OutOfRange,
+
+    /// 501 Not Implemented
+    ///
+    /// Operation is not implemented or not enabled.
+    Unimplemented,
+
+    /// Other/generic 5xx.
+    InternalError,
+
+    /// 503 Service Unavailable
+    Unavailable,
+
+    /// Unrecoverable data loss or corruption
+    DataLoss,
+
+    /// 401 Unauthorized (actually does mean unauthenticated according to RFC 7235)
+    ///
+    /// Prefer PermissionDenied if a user is logged in.
+    Unauthenticated,
 }
 
 impl ProcessValue for TraceStatus {}
@@ -426,6 +475,12 @@ impl FromStr for TraceStatus {
             "internal_error" => TraceStatus::InternalError,
             "failure" => TraceStatus::InternalError, // Backwards compat with initial schema
             "unknown_error" => TraceStatus::UnknownError,
+            "cancelled" => TraceStatus::Cancelled,
+            "already_exists" => TraceStatus::AlreadyExists,
+            "failed_precondition" => TraceStatus::FailedPrecondition,
+            "aborted" => TraceStatus::Aborted,
+            "out_of_range" => TraceStatus::OutOfRange,
+            "data_loss" => TraceStatus::DataLoss,
             _ => Err(ParseTraceStatusError)?,
         })
     }
@@ -445,6 +500,12 @@ impl fmt::Display for TraceStatus {
             TraceStatus::Unavailable => write!(f, "unavailable"),
             TraceStatus::InternalError => write!(f, "internal_error"),
             TraceStatus::UnknownError => write!(f, "unknown_error"),
+            TraceStatus::Cancelled => write!(f, "cancelled"),
+            TraceStatus::AlreadyExists => write!(f, "already_exists"),
+            TraceStatus::FailedPrecondition => write!(f, "failed_precondition"),
+            TraceStatus::Aborted => write!(f, "aborted"),
+            TraceStatus::OutOfRange => write!(f, "out_of_range"),
+            TraceStatus::DataLoss => write!(f, "data_loss"),
         }
     }
 }
