@@ -1,7 +1,13 @@
-use regex::Regex;
+use std::fmt;
+use std::str::FromStr;
 
+use failure::Fail;
+use regex::Regex;
+use serde::{Serialize, Serializer};
+
+use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
-use crate::types::{Annotated, Error, FromValue, Object, Value};
+use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value};
 
 /// Device information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
@@ -347,9 +353,133 @@ pub struct TraceContext {
     #[metastructure(max_chars = "enumlike")]
     pub op: Annotated<OperationType>,
 
+    /// Whether the trace failed or succeeded. Currently only used to indicate status of individual
+    /// transactions.
+    pub status: Annotated<TraceStatus>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
+}
+
+/// Trace status
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TraceStatus {
+    /// The trace/transaction/span succeeded.
+    ///
+    /// HTTP status 100..299 + successful redirects from the 3xx range.
+    Ok,
+    /// HTTP redirect loops and 504 Gateway Timeout
+    DeadlineExceeded,
+    /// 401 Unauthorized (actually does mean unauthenticated according to RFC 7235)
+    Unauthenticated,
+    /// 403 Forbidden
+    PermissionDenied,
+    /// 404 Not Found
+    NotFound,
+    /// 429 Too Many Requests
+    ResourceExhausted,
+    /// 4xx
+    InvalidArgument,
+    /// 501 Not Implemented
+    Unimplemented,
+    /// 503 Service Unavailable
+    Unavailable,
+    /// Other/generic 5xx.
+    InternalError,
+    /// Any non-standard HTTP status code.
+    ///
+    /// "We do not know whether the transaction failed or succeeded"
+    UnknownError,
+}
+
+impl ProcessValue for TraceStatus {}
+
+impl Empty for TraceStatus {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Fail)]
+#[fail(display = "invalid trace status")]
+pub struct ParseTraceStatusError;
+
+impl FromStr for TraceStatus {
+    type Err = ParseTraceStatusError;
+
+    fn from_str(string: &str) -> Result<TraceStatus, Self::Err> {
+        Ok(match string {
+            "ok" => TraceStatus::Ok,
+            "success" => TraceStatus::Ok, // Backwards compat with initial schema
+            "deadline_exceeded" => TraceStatus::DeadlineExceeded,
+            "unauthenticated" => TraceStatus::Unauthenticated,
+            "permission_denied" => TraceStatus::PermissionDenied,
+            "not_found" => TraceStatus::NotFound,
+            "resource_exhausted" => TraceStatus::ResourceExhausted,
+            "invalid_argument" => TraceStatus::InvalidArgument,
+            "unimplemented" => TraceStatus::Unimplemented,
+            "unavailable" => TraceStatus::Unavailable,
+            "internal_error" => TraceStatus::InternalError,
+            "failure" => TraceStatus::InternalError, // Backwards compat with initial schema
+            "unknown_error" => TraceStatus::UnknownError,
+            _ => Err(ParseTraceStatusError)?,
+        })
+    }
+}
+
+impl fmt::Display for TraceStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            TraceStatus::Ok => write!(f, "ok"),
+            TraceStatus::DeadlineExceeded => write!(f, "deadline_exceeded"),
+            TraceStatus::Unauthenticated => write!(f, "unauthenticated"),
+            TraceStatus::PermissionDenied => write!(f, "permission_denied"),
+            TraceStatus::NotFound => write!(f, "not_found"),
+            TraceStatus::ResourceExhausted => write!(f, "resource_exhausted"),
+            TraceStatus::InvalidArgument => write!(f, "invalid_argument"),
+            TraceStatus::Unimplemented => write!(f, "unimplemented"),
+            TraceStatus::Unavailable => write!(f, "unavailable"),
+            TraceStatus::InternalError => write!(f, "internal_error"),
+            TraceStatus::UnknownError => write!(f, "unknown_error"),
+        }
+    }
+}
+
+impl FromValue for TraceStatus {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+                Ok(status) => Annotated(Some(status), meta),
+                Err(_) => {
+                    meta.add_error(Error::expected("a trace status"));
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(Error::expected("a string"));
+                meta.set_original_value(Some(value));
+                Annotated(None, meta)
+            }
+        }
+    }
+}
+
+impl ToValue for TraceStatus {
+    fn to_value(self) -> Value {
+        Value::String(self.to_string())
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        Serialize::serialize(&self.to_string(), s)
+    }
 }
 
 impl TraceContext {
@@ -675,6 +805,7 @@ fn test_trace_context_roundtrip() {
   "span_id": "fa90fdead5f74052",
   "parent_span_id": "fa90fdead5f74053",
   "op": "http",
+  "status": "ok",
   "other": "value",
   "type": "trace"
 }"#;
@@ -683,6 +814,7 @@ fn test_trace_context_roundtrip() {
         span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
         parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
         op: Annotated::new("http".into()),
+        status: Annotated::new(TraceStatus::Ok),
         other: {
             let mut map = Object::new();
             map.insert(

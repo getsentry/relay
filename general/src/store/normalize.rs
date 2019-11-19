@@ -13,7 +13,7 @@ use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
     Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry, Request, Stacktrace, Tags,
-    User, INVALID_ENVIRONMENTS, VALID_PLATFORMS,
+    TraceContext, TraceStatus, User, INVALID_ENVIRONMENTS, VALID_PLATFORMS,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -628,6 +628,19 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         contexts::normalize_context(context);
+        Ok(())
+    }
+
+    fn process_trace_context(
+        &mut self,
+        context: &mut TraceContext,
+        _meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        context
+            .status
+            .value_mut()
+            .get_or_insert(TraceStatus::UnknownError);
         Ok(())
     }
 }

@@ -87,6 +87,7 @@ pub trait Processor: Sized {
     process_method!(process_template_info, crate::protocol::TemplateInfo);
     process_method!(process_header_name, crate::protocol::HeaderName);
     process_method!(process_span, crate::protocol::Span);
+    process_method!(process_trace_context, crate::protocol::TraceContext);
 
     fn process_other(
         &mut self,

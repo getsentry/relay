@@ -24,7 +24,7 @@ pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
 pub use self::constants::{INVALID_ENVIRONMENTS, VALID_PLATFORMS};
 pub use self::contexts::{
     AppContext, BrowserContext, Context, ContextInner, Contexts, DeviceContext, OperationType,
-    OsContext, RuntimeContext, SpanId, TraceContext, TraceId,
+    OsContext, RuntimeContext, SpanId, TraceContext, TraceId, TraceStatus,
 };
 pub use self::debugmeta::{
     AppleDebugImage, DebugImage, DebugMeta, NativeDebugImage, SystemSdkInfo,
