@@ -651,12 +651,14 @@ impl Handler<HandleEvent> for EventManager {
                     ProcessingError::SerializeFailed(_)
                     | ProcessingError::ScheduleFailed(_)
                     | ProcessingError::ProjectFailed(_)
-                    | ProcessingError::InvalidEvent(_)
                     | ProcessingError::Timeout
                     | ProcessingError::Shutdown
                     | ProcessingError::NoAction(_)
                     | ProcessingError::QuotasFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
+                    }
+                    ProcessingError::InvalidEvent(_) => {
+                        Some(Outcome::Invalid(DiscardReason::InvalidEvent))
                     }
                     ProcessingError::InvalidJson(_) => {
                         Some(Outcome::Invalid(DiscardReason::InvalidJson))
