@@ -63,7 +63,7 @@ def test_minidump_endpoint_checks_minidump_header(mini_sentry, relay):
             ),
         )
 
-def test_minidump_enpoit_checks_minidump_is_attached(mini_sentry, relay):
+def test_minidump_endpoint_checks_minidump_is_attached(mini_sentry, relay):
     proj_id = 42
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
