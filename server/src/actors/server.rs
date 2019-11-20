@@ -5,7 +5,7 @@ use futures::prelude::*;
 use semaphore_common::{metric, Config};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
-use crate::service::{self, ServiceState};
+use crate::service;
 
 pub use crate::service::ServerError;
 
@@ -16,7 +16,7 @@ pub struct Server {
 impl Server {
     pub fn start(config: Config) -> Result<Addr<Self>, ServerError> {
         metric!(counter("server.starting") += 1);
-        let http_server = service::start(ServiceState::start(config)?)?;
+        let http_server = service::start(config)?;
         Ok(Server { http_server }.start())
     }
 }

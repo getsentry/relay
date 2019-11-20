@@ -63,6 +63,12 @@ where
     Box::new(future)
 }
 
+/// A config for the store fowarder that can be sent across threads.
+pub struct StoreForwarderConfig {
+    config: Arc<Config>,
+    producer: Arc<FutureProducer>,
+}
+
 /// Actor for publishing events to Sentry through kafka topics.
 pub struct StoreForwarder {
     config: Arc<Config>,
@@ -71,7 +77,7 @@ pub struct StoreForwarder {
 }
 
 impl StoreForwarder {
-    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+    pub fn configure(config: Arc<Config>) -> Result<StoreForwarderConfig, ServerError> {
         let mut client_config = ClientConfig::new();
         for config_p in config.kafka_config() {
             client_config.set(config_p.name.as_str(), config_p.value.as_str());
@@ -81,11 +87,18 @@ impl StoreForwarder {
             .create()
             .context(ServerErrorKind::KafkaError)?;
 
-        Ok(StoreForwarder {
+        Ok(StoreForwarderConfig {
             config,
-            shutdown: SyncHandle::new(),
             producer: Arc::new(producer),
         })
+    }
+
+    pub fn new(config: StoreForwarderConfig) -> Self {
+        Self {
+            config: config.config,
+            producer: config.producer,
+            shutdown: SyncHandle::new(),
+        }
     }
 }
 

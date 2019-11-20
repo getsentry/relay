@@ -393,7 +393,8 @@ impl EventManager {
 
         #[cfg(feature = "processing")]
         let store_forwarder = if config.processing_enabled() {
-            Some(StoreForwarder::create(config.clone())?.start())
+            let store_config = StoreForwarder::configure(config.clone())?;
+            Some(Arbiter::start(move |_| StoreForwarder::new(store_config)))
         } else {
             None
         };

@@ -301,6 +301,12 @@ mod real_implementation {
         SerializationError(SerdeSerializationError),
     }
 
+    /// A config for the outcome producer that can be sent across threads.
+    pub struct OutcomeProducerConfig {
+        config: Arc<Config>,
+        producer: Option<FutureProducer>,
+    }
+
     pub struct OutcomeProducer {
         config: Arc<Config>,
         shutdown: SyncHandle,
@@ -308,7 +314,7 @@ mod real_implementation {
     }
 
     impl OutcomeProducer {
-        pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+        pub fn configure(config: Arc<Config>) -> Result<OutcomeProducerConfig, ServerError> {
             let future_producer = if config.processing_enabled() {
                 let mut client_config = ClientConfig::new();
                 for config_p in config.kafka_config() {
@@ -322,11 +328,18 @@ mod real_implementation {
                 None
             };
 
-            Ok(OutcomeProducer {
+            Ok(OutcomeProducerConfig {
                 config,
-                shutdown: SyncHandle::new(),
                 producer: future_producer,
             })
+        }
+
+        pub fn new(config: OutcomeProducerConfig) -> Self {
+            Self {
+                config: config.config,
+                producer: config.producer,
+                shutdown: SyncHandle::new(),
+            }
         }
     }
 
@@ -418,11 +431,17 @@ mod no_op_implementation {
     #[derive(Debug)]
     pub enum OutcomeError {}
 
-    pub struct OutcomeProducer {}
+    pub struct OutcomeProducerConfig;
+
+    pub struct OutcomeProducer;
 
     impl OutcomeProducer {
-        pub fn create(_config: Arc<Config>) -> Result<Self, ServerError> {
-            Ok(OutcomeProducer {})
+        pub fn configure(_config: Arc<Config>) -> Result<OutcomeProducerConfig, ServerError> {
+            Ok(OutcomeProducerConfig)
+        }
+
+        pub fn new(_config: OutcomeProducerConfig) -> Self {
+            Self
         }
     }
 
