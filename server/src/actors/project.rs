@@ -917,6 +917,8 @@ impl ProjectCache {
             self.backoff.attempt(),
         );
 
+        let request_start = Instant::now();
+
         let requests: Vec<_> = channels
             .into_iter()
             .chunks(batch_size)
@@ -934,21 +936,22 @@ impl ProjectCache {
 
                 // count number of http requests for project states
                 metric!(counter("project_state.request") += 1);
-                let request_start = Instant::now();
 
                 self.upstream
                     .send(SendQuery(request))
                     .map_err(ProjectError::ScheduleFailed)
-                    .map(move |response| (channels_batch, request_start, response))
+                    .map(move |response| (channels_batch, response))
             })
             .collect();
 
+        // Wait on results of all fanouts. We fail everything if a single one fails with a
+        // MailboxError, but errors of a single fanout don't propagate like that.
         future::join_all(requests)
             .into_actor(self)
             .and_then(move |responses, slf, ctx| {
-                for (channels_batch, request_start, response) in responses {
-                    metric!(timer("project_state.request.duration") = request_start.elapsed());
+                metric!(timer("project_state.request.duration") = request_start.elapsed());
 
+                for (channels_batch, response) in responses {
                     match response {
                         Ok(mut response) => {
                             // If a single request succeeded we reset the backoff. We decided to
