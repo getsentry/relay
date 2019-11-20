@@ -9,7 +9,7 @@ use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
 use sentry_actix::SentryMiddleware;
 
-use semaphore_common::Config;
+use semaphore_common::{clone, Config};
 
 use crate::actors::events::EventManager;
 use crate::actors::keys::KeyCache;
@@ -112,10 +112,11 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Config) -> Result<Self, ServerError> {
-        let config = Arc::new(config);
-        let upstream_relay = UpstreamRelay::new(config.clone()).start();
-        let outcome_producer = OutcomeProducer::create(config.clone())?.start();
+    pub fn start(config: Arc<Config>) -> Result<Self, ServerError> {
+        let upstream_relay = Arbiter::start(clone!(config, |_| UpstreamRelay::new(config)));
+
+        let outcome_producer = OutcomeProducer::create(config.clone())?;
+        let outcome_producer = Arbiter::start(move |_| outcome_producer);
 
         let event_manager = EventManager::create(
             config.clone(),
@@ -283,8 +284,18 @@ where
 /// Given a relay config spawns the server together with all actors and lets them run forever.
 ///
 /// Effectively this boots the server.
-pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, ServerError> {
-    let config = state.config();
+pub fn start(config: Config) -> Result<Recipient<server::StopServer>, ServerError> {
+    let config = Arc::new(config);
+
+    // Start the connector before creating the ServiceState. The service state will spawn Arbiters
+    // that immediately start the authentication process. The connector must be available before.
+    let connector = ClientConnector::default()
+        .limit(config.max_concurrent_requests())
+        .start();
+
+    System::current().registry().set(connector);
+
+    let state = ServiceState::start(config.clone())?;
     let mut server = server::new(move || make_app(state.clone()));
     server = server
         .workers(config.cpu_concurrency())
@@ -293,12 +304,6 @@ pub fn start(state: ServiceState) -> Result<Recipient<server::StopServer>, Serve
         .maxconnrate(config.max_connection_rate())
         .backlog(config.max_pending_connections())
         .disable_signals();
-
-    let connector = ClientConnector::default()
-        .limit(config.max_concurrent_requests())
-        .start();
-
-    System::current().registry().set(connector);
 
     server = listen(server, &config)?;
     server = listen_ssl(server, &config)?;
