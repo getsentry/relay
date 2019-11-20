@@ -243,8 +243,14 @@ impl Default for Metrics {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Limits {
-    /// How many requests can be sent concurrently from Relay to the upstream before Relay starts buffering.
+    /// How many requests can be sent concurrently from Relay to the upstream before Relay starts
+    /// buffering.
     max_concurrent_requests: usize,
+    /// How many queries can be sent concurrently from Relay to the upstream before Relay starts
+    /// buffering.
+    ///
+    /// The concurrency of queries is additionally constrained by `max_concurrent_requests`.
+    max_concurrent_queries: usize,
     /// The maximum payload size for events.
     max_event_payload_size: ByteSize,
     /// The maximum payload size for general API requests.
@@ -274,6 +280,7 @@ impl Default for Limits {
     fn default() -> Self {
         Limits {
             max_concurrent_requests: 100,
+            max_concurrent_queries: 5,
             max_event_payload_size: ByteSize::from_kilobytes(256),
             max_api_payload_size: ByteSize::from_megabytes(20),
             max_api_file_upload_size: ByteSize::from_megabytes(40),
@@ -834,6 +841,11 @@ impl Config {
     /// Returns the maximum number of active requests
     pub fn max_concurrent_requests(&self) -> usize {
         self.values.limits.max_concurrent_requests
+    }
+
+    /// Returns the maximum number of active queries
+    pub fn max_concurrent_queries(&self) -> usize {
+        self.values.limits.max_concurrent_queries
     }
 
     /// The maximum number of seconds a query is allowed to take across retries.

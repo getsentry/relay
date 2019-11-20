@@ -14,7 +14,8 @@ use actix::prelude::*;
 use actix_web::{http::Method, ResponseError};
 use chrono::{DateTime, Utc};
 use failure::Fail;
-use futures::{future::Shared, sync::oneshot, Future};
+use futures::{future, future::Shared, sync::oneshot, Future};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;
@@ -860,15 +861,23 @@ impl ProjectCache {
         }
 
         let eviction_start = Instant::now();
+        let batch_size = self.config.query_batch_size();
+        let num_batches = self.config.max_concurrent_queries();
 
-        let batch_ids: Vec<_> = self
+        // Pop n items from state_channels. Intuitively we would use
+        // `self.state_channels.drain().take(n)`, but that clears the entire hashmap regardless how
+        // much of the iterator is consumed.
+        //
+        // Instead we have to collect the keys we want into a separate vector and pop them
+        // one-by-one.
+        let projects: Vec<_> = self
             .state_channels
             .keys()
             .copied()
-            .take(self.config.query_batch_size())
+            .take(batch_size * num_batches)
             .collect();
 
-        let batch: HashMap<_, _> = batch_ids
+        let channels: HashMap<_, _> = projects
             .iter()
             .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
             .filter(|(_id, channel)| !channel.expired())
@@ -883,7 +892,7 @@ impl ProjectCache {
                 break;
             }
 
-            if !batch.contains_key(&update.project_id) {
+            if !channels.contains_key(&update.project_id) {
                 self.projects.remove(&update.project_id);
             }
 
@@ -894,73 +903,94 @@ impl ProjectCache {
         // reinsert them at the end, as they are now receiving an updated timestamp. Then,
         // batch-insert all new projects with the new timestamp.
         self.updates
-            .retain(|update| !batch.contains_key(&update.project_id));
+            .retain(|update| !channels.contains_key(&update.project_id));
         self.updates
-            .extend(batch_ids.iter().copied().map(ProjectUpdate::new));
+            .extend(projects.iter().copied().map(ProjectUpdate::new));
 
         metric!(timer("project_state.eviction.duration") = eviction_start.elapsed());
-        metric!(histogram("project_state.request") = batch.len() as u64);
         metric!(histogram("project_state.pending") = self.state_channels.len() as u64);
 
         log::debug!(
             "updating project states for {}/{} projects (attempt {})",
-            batch.len(),
-            batch.len() + self.state_channels.len(),
+            channels.len(),
+            channels.len() + self.state_channels.len(),
             self.backoff.attempt(),
         );
 
-        let request = GetProjectStates {
-            projects: batch_ids,
-            #[cfg(feature = "processing")]
-            full_config: self.config.processing_enabled(),
-        };
+        let requests: Vec<_> = channels
+            .into_iter()
+            .chunks(batch_size)
+            .into_iter()
+            .map(|channels_batch| {
+                let channels_batch: HashMap<_, _> = channels_batch.collect();
+                log::debug!("sending request of size {}", channels_batch.len());
+                metric!(histogram("project_state.request") = channels_batch.len() as u64);
 
-        // count number of http requests for project states
-        metric!(counter("project_state.request") += 1);
-        let request_start = Instant::now();
+                let request = GetProjectStates {
+                    projects: channels_batch.keys().copied().collect(),
+                    #[cfg(feature = "processing")]
+                    full_config: self.config.processing_enabled(),
+                };
 
-        self.upstream
-            .send(SendQuery(request))
-            .map_err(ProjectError::ScheduleFailed)
+                // count number of http requests for project states
+                metric!(counter("project_state.request") += 1);
+                let request_start = Instant::now();
+
+                self.upstream
+                    .send(SendQuery(request))
+                    .map_err(ProjectError::ScheduleFailed)
+                    .map(move |response| (channels_batch, request_start, response))
+            })
+            .collect();
+
+        future::join_all(requests)
             .into_actor(self)
-            .and_then(move |response, slf, ctx| {
-                metric!(timer("project_state.request.duration") = request_start.elapsed());
+            .and_then(move |responses, slf, ctx| {
+                for (channels_batch, request_start, response) in responses {
+                    metric!(timer("project_state.request.duration") = request_start.elapsed());
 
-                match response {
-                    Ok(mut response) => {
-                        slf.backoff.reset();
+                    match response {
+                        Ok(mut response) => {
+                            // If a single request succeeded we reset the backoff. We decided to
+                            // only backoff if we see that the project config endpoint is
+                            // completely down and did not answer a single request successfully.
+                            //
+                            // Otherwise we might refuse to fetch any project configs because of a
+                            // single, reproducible 500 we observed for a particular project.
+                            slf.backoff.reset();
 
-                        // count number of project states returned (via http requests)
-                        metric!(
-                            histogram("project_state.received") = response.configs.len() as u64
-                        );
-                        for (id, channel) in batch {
-                            let state = response
-                                .configs
-                                .remove(&id)
-                                .unwrap_or(ErrorBoundary::Ok(None))
-                                .unwrap_or_else(|error| {
-                                    let e = LogError(error);
-                                    log::error!("error fetching project state {}: {}", id, e);
-                                    Some(ProjectState::err())
-                                })
-                                .unwrap_or_else(ProjectState::missing);
-
-                            channel.send(state);
-                        }
-                    }
-                    Err(error) => {
-                        log::error!("error fetching project states: {}", LogError(&error));
-
-                        if !slf.shutdown.requested() {
-                            // Put the channels back into the queue, in addition to channels that
-                            // have been pushed in the meanwhile. We will retry again shortly.
-                            slf.state_channels.extend(batch);
-
+                            // count number of project states returned (via http requests)
                             metric!(
-                                histogram("project_state.pending") =
-                                    slf.state_channels.len() as u64
+                                histogram("project_state.received") = response.configs.len() as u64
                             );
+                            for (id, channel) in channels_batch {
+                                let state = response
+                                    .configs
+                                    .remove(&id)
+                                    .unwrap_or(ErrorBoundary::Ok(None))
+                                    .unwrap_or_else(|error| {
+                                        let e = LogError(error);
+                                        log::error!("error fetching project state {}: {}", id, e);
+                                        Some(ProjectState::err())
+                                    })
+                                    .unwrap_or_else(ProjectState::missing);
+
+                                channel.send(state);
+                            }
+                        }
+                        Err(error) => {
+                            log::error!("error fetching project states: {}", LogError(&error));
+
+                            if !slf.shutdown.requested() {
+                                // Put the channels back into the queue, in addition to channels that
+                                // have been pushed in the meanwhile. We will retry again shortly.
+                                slf.state_channels.extend(channels_batch);
+
+                                metric!(
+                                    histogram("project_state.pending") =
+                                        slf.state_channels.len() as u64
+                                );
+                            }
                         }
                     }
                 }
