@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{hash_map::Entry, HashMap, VecDeque};
+use std::collections::{hash_map::Entry, BTreeMap, HashMap, VecDeque};
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -877,7 +877,7 @@ impl ProjectCache {
             .take(batch_size * num_batches)
             .collect();
 
-        let channels: HashMap<_, _> = projects
+        let channels: BTreeMap<_, _> = projects
             .iter()
             .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
             .filter(|(_id, channel)| !channel.expired())
@@ -924,7 +924,7 @@ impl ProjectCache {
             .chunks(batch_size)
             .into_iter()
             .map(|channels_batch| {
-                let channels_batch: HashMap<_, _> = channels_batch.collect();
+                let channels_batch: BTreeMap<_, _> = channels_batch.collect();
                 log::debug!("sending request of size {}", channels_batch.len());
                 metric!(histogram("project_state.request") = channels_batch.len() as u64);
 
