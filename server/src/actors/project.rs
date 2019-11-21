@@ -926,7 +926,9 @@ impl ProjectCache {
             .map(|channels_batch| {
                 let channels_batch: BTreeMap<_, _> = channels_batch.collect();
                 log::debug!("sending request of size {}", channels_batch.len());
-                metric!(histogram("project_state.request") = channels_batch.len() as u64);
+                metric!(
+                    histogram("project_state.request.batch_size") = channels_batch.len() as u64
+                );
 
                 let request = GetProjectStates {
                     projects: channels_batch.keys().copied().collect(),
