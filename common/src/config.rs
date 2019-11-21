@@ -427,27 +427,27 @@ fn default_chunk_size() -> ByteSize {
 
 /// Controls Sentry-internal event processing.
 #[derive(Serialize, Deserialize, Debug)]
-pub(super) struct Processing {
+pub struct Processing {
     /// True if the Relay should do processing. Defaults to `false`.
-    pub(super) enabled: bool,
+    pub enabled: bool,
     /// GeoIp DB file location.
     #[serde(default)]
-    pub(super) geoip_path: Option<PathBuf>,
+    pub geoip_path: Option<PathBuf>,
     /// Maximum future timestamp of ingested events.
     #[serde(default = "default_max_secs_in_future")]
-    pub(super) max_secs_in_future: u32,
+    pub max_secs_in_future: u32,
     /// Maximum age of ingested events. Older events will be adjusted to `now()`.
     #[serde(default = "default_max_secs_in_past")]
-    pub(super) max_secs_in_past: u32,
+    pub max_secs_in_past: u32,
     /// Kafka producer configurations.
-    pub(super) kafka_config: Vec<KafkaConfigParam>,
+    pub kafka_config: Vec<KafkaConfigParam>,
     /// Kafka topic names.
-    pub(super) topics: TopicNames,
+    pub topics: TopicNames,
     /// Redis hosts to connect to for storing state for rate limits.
-    pub(super) redis: Redis,
+    pub redis: Redis,
     /// Maximum chunk size of attachments for Kafka.
     #[serde(default = "default_chunk_size")]
-    pub(super) attachment_chunk_size: ByteSize,
+    pub attachment_chunk_size: ByteSize,
 }
 
 impl Default for Processing {
