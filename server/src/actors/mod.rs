@@ -43,6 +43,7 @@
 
 pub mod controller;
 pub mod events;
+pub mod healthcheck;
 pub mod keys;
 pub mod outcome;
 pub mod project;

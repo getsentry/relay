@@ -81,6 +81,10 @@ pub enum ConfigErrorKind {
     /// Invalid config value
     #[fail(display = "invalid config value")]
     InvalidValue,
+    /// The user attempted to run Relay with processing enabled, but uses a binary that was
+    /// compiled without the processing feature.
+    #[fail(display = "was not compiled with processing, cannot enable processing")]
+    ProcessingNotAvailable,
 }
 
 /// The relay credentials
@@ -374,125 +378,117 @@ impl Default for Sentry {
     }
 }
 
-#[cfg(feature = "processing")]
-mod processing {
-    use super::*;
+/// Define the topics over which Relay communicates with Sentry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KafkaTopic {
+    /// Simple events (without attachments) topic.
+    Events,
+    /// Complex events (with attachments) topic.
+    Attachments,
+    /// Transaction events topic.
+    Transactions,
+    /// All outcomes are sent through this channel.
+    Outcomes,
+}
 
-    /// Define the topics over which Relay communicates with Sentry.
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-    pub enum KafkaTopic {
-        /// Simple events (without attachments) topic.
-        Events,
-        /// Complex events (with attachments) topic.
-        Attachments,
-        /// Transaction events topic.
-        Transactions,
-        /// All outcomes are sent through this channel.
-        Outcomes,
-    }
+/// Configuration for topics.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TopicNames {
+    /// Simple events topic name.
+    pub events: String,
+    /// Events with attachments topic name.
+    pub attachments: String,
+    /// Transaction events topic name.
+    pub transactions: String,
+    /// Event outcomes topic name.
+    pub outcomes: String,
+}
 
-    /// Configuration for topics.
-    #[derive(Serialize, Deserialize, Debug)]
-    pub struct TopicNames {
-        /// Simple events topic name.
-        pub events: String,
-        /// Events with attachments topic name.
-        pub attachments: String,
-        /// Transaction events topic name.
-        pub transactions: String,
-        /// Event outcomes topic name.
-        pub outcomes: String,
-    }
+/// A name value pair of Kafka config parameter.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct KafkaConfigParam {
+    /// Name of the Kafka config parameter.
+    pub name: String,
+    /// Value of the Kafka config parameter.
+    pub value: String,
+}
 
-    /// A name value pair of Kafka config parameter.
-    #[derive(Serialize, Deserialize, Debug)]
-    pub struct KafkaConfigParam {
-        /// Name of the Kafka config parameter.
-        pub name: String,
-        /// Value of the Kafka config parameter.
-        pub value: String,
-    }
+fn default_max_secs_in_future() -> u32 {
+    60 // 1 minute
+}
 
-    fn default_max_secs_in_future() -> u32 {
-        60 // 1 minute
-    }
+fn default_max_secs_in_past() -> u32 {
+    30 * 24 * 3600 // 30 days
+}
 
-    fn default_max_secs_in_past() -> u32 {
-        30 * 24 * 3600 // 30 days
-    }
+fn default_chunk_size() -> ByteSize {
+    ByteSize::from_megabytes(1)
+}
 
-    fn default_chunk_size() -> ByteSize {
-        ByteSize::from_megabytes(1)
-    }
-
-    /// Controls Sentry-internal event processing.
-    #[derive(Serialize, Deserialize, Debug)]
-    pub(super) struct Processing {
-        /// True if the Relay should do processing. Defaults to `false`.
-        pub(super) enabled: bool,
-        /// GeoIp DB file location.
-        #[serde(default)]
-        pub(super) geoip_path: Option<PathBuf>,
-        /// Maximum future timestamp of ingested events.
-        #[serde(default = "default_max_secs_in_future")]
-        pub(super) max_secs_in_future: u32,
-        /// Maximum age of ingested events. Older events will be adjusted to `now()`.
-        #[serde(default = "default_max_secs_in_past")]
-        pub(super) max_secs_in_past: u32,
-        /// Kafka producer configurations.
-        pub(super) kafka_config: Vec<KafkaConfigParam>,
-        /// Kafka topic names.
-        pub(super) topics: TopicNames,
-        /// Redis hosts to connect to for storing state for rate limits.
-        pub(super) redis: Redis,
-        /// Maximum chunk size of attachments for Kafka.
-        #[serde(default = "default_chunk_size")]
-        pub(super) attachment_chunk_size: ByteSize,
-    }
-
-    impl Default for Processing {
-        /// Constructs a disabled processing configuration.
-        fn default() -> Self {
-            Self {
-                enabled: false,
-                geoip_path: None,
-                max_secs_in_future: 0,
-                max_secs_in_past: 0,
-                kafka_config: Vec::new(),
-                topics: TopicNames {
-                    events: String::new(),
-                    attachments: String::new(),
-                    transactions: String::new(),
-                    outcomes: String::new(),
-                },
-                redis: Redis::default(),
-                attachment_chunk_size: default_chunk_size(),
-            }
-        }
-    }
-
+/// Controls Sentry-internal event processing.
+#[derive(Serialize, Deserialize, Debug)]
+pub(super) struct Processing {
+    /// True if the Relay should do processing. Defaults to `false`.
+    pub(super) enabled: bool,
+    /// GeoIp DB file location.
+    #[serde(default)]
+    pub(super) geoip_path: Option<PathBuf>,
+    /// Maximum future timestamp of ingested events.
+    #[serde(default = "default_max_secs_in_future")]
+    pub(super) max_secs_in_future: u32,
+    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
+    #[serde(default = "default_max_secs_in_past")]
+    pub(super) max_secs_in_past: u32,
+    /// Kafka producer configurations.
+    pub(super) kafka_config: Vec<KafkaConfigParam>,
+    /// Kafka topic names.
+    pub(super) topics: TopicNames,
     /// Redis hosts to connect to for storing state for rate limits.
-    #[derive(Serialize, Deserialize, Debug)]
-    #[serde(untagged)]
-    pub enum Redis {
-        /// Connect to a redis cluster
-        Cluster {
-            /// List of `redis://` urls to use in cluster mode
-            cluster_nodes: Vec<String>,
-        },
-        /// Connect to a single redis instance
-        Single(String),
-    }
+    pub(super) redis: Redis,
+    /// Maximum chunk size of attachments for Kafka.
+    #[serde(default = "default_chunk_size")]
+    pub(super) attachment_chunk_size: ByteSize,
+}
 
-    impl Default for Redis {
-        fn default() -> Self {
-            Redis::Single("redis://127.0.0.1".to_owned())
+impl Default for Processing {
+    /// Constructs a disabled processing configuration.
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            geoip_path: None,
+            max_secs_in_future: 0,
+            max_secs_in_past: 0,
+            kafka_config: Vec::new(),
+            topics: TopicNames {
+                events: String::new(),
+                attachments: String::new(),
+                transactions: String::new(),
+                outcomes: String::new(),
+            },
+            redis: Redis::default(),
+            attachment_chunk_size: default_chunk_size(),
         }
     }
 }
 
-#[cfg(feature = "processing")]
-pub use self::processing::*;
+/// Redis hosts to connect to for storing state for rate limits.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum Redis {
+    /// Connect to a redis cluster
+    Cluster {
+        /// List of `redis://` urls to use in cluster mode
+        cluster_nodes: Vec<String>,
+    },
+    /// Connect to a single redis instance
+    Single(String),
+}
+
+impl Default for Redis {
+    fn default() -> Self {
+        Redis::Single("redis://127.0.0.1".to_owned())
+    }
+}
 
 /// Controls interal reporting to Sentry.
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -549,7 +545,6 @@ struct ConfigValues {
     metrics: Metrics,
     #[serde(default)]
     sentry: Sentry,
-    #[cfg(feature = "processing")]
     #[serde(default)]
     processing: Processing,
 }
@@ -585,15 +580,24 @@ impl Config {
         let path = env::current_dir()
             .map(|x| x.join(path.as_ref()))
             .unwrap_or_else(|_| path.as_ref().to_path_buf());
-        Ok(Config {
+        let config = Config {
             values: ConfigValues::load(&path)?,
             credentials: if fs::metadata(Credentials::path(&path)).is_ok() {
                 Some(Credentials::load(&path)?)
             } else {
                 None
             },
-            path,
-        })
+            path: path.clone(),
+        };
+
+        if cfg!(not(feature = "processing")) && config.processing_enabled() {
+            return Err(ConfigError::new(
+                &path,
+                ConfigErrorKind::ProcessingNotAvailable.into(),
+            ));
+        }
+
+        Ok(config)
     }
 
     /// Checks if the config is already initialized.
@@ -891,10 +895,7 @@ impl Config {
     pub fn project_configs_path(&self) -> PathBuf {
         self.path.join("projects")
     }
-}
 
-#[cfg(feature = "processing")]
-impl Config {
     /// True if the Relay should do processing.
     pub fn processing_enabled(&self) -> bool {
         self.values.processing.enabled

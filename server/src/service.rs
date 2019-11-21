@@ -12,6 +12,7 @@ use sentry_actix::SentryMiddleware;
 use semaphore_common::{clone, Config};
 
 use crate::actors::events::EventManager;
+use crate::actors::healthcheck::Healthcheck;
 use crate::actors::keys::KeyCache;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::ProjectCache;
@@ -108,6 +109,7 @@ pub struct ServiceState {
     upstream_relay: Addr<UpstreamRelay>,
     event_manager: Addr<EventManager>,
     outcome_producer: Addr<OutcomeProducer>,
+    healthcheck: Addr<Healthcheck>,
 }
 
 impl ServiceState {
@@ -131,6 +133,7 @@ impl ServiceState {
             upstream_relay: upstream_relay.clone(),
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
+            healthcheck: Healthcheck::new(upstream_relay.clone()).start(),
             event_manager,
             outcome_producer,
         })
@@ -146,11 +149,6 @@ impl ServiceState {
         self.key_cache.clone()
     }
 
-    /// Returns the actor for upstream relay.
-    pub fn upstream_relay(&self) -> Addr<UpstreamRelay> {
-        self.upstream_relay.clone()
-    }
-
     /// Returns the current project cache.
     pub fn project_cache(&self) -> Addr<ProjectCache> {
         self.project_cache.clone()
@@ -163,6 +161,11 @@ impl ServiceState {
 
     pub fn outcome_producer(&self) -> Addr<OutcomeProducer> {
         self.outcome_producer.clone()
+    }
+
+    /// Returns the actor for healthchecks.
+    pub fn healthcheck(&self) -> Addr<Healthcheck> {
+        self.healthcheck.clone()
     }
 }
 
