@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.62
+
+**Event schema**
+
+* Spec out values of `event.contexts.trace.status`.
+* `none` is now no longer a valid environment name.
+* Do no longer drop transaction events in renormalization.
+
+**Store**
+
+* Various performance improvements.
+
 ## 0.4.61
 
 * Add `thread.errored` attribute (#306).
