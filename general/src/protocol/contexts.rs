@@ -366,7 +366,11 @@ pub struct TraceContext {
 ///
 /// Values from https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status
 /// Mapping to HTTP from https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status
+///
+/// Note: This type is represented as a u8 in Snuba/Clickhouse, with Unknown being the default
+/// value. We use repr(u8) to statically validate that the trace status has 255 variants at most.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(u8)] // size limit in clickhouse
 pub enum TraceStatus {
     /// The operation completed successfully.
     ///
