@@ -1,7 +1,13 @@
-use regex::Regex;
+use std::fmt;
+use std::str::FromStr;
 
+use failure::Fail;
+use regex::Regex;
+use serde::{Serialize, Serializer};
+
+use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
-use crate::types::{Annotated, Error, FromValue, Object, Value};
+use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value};
 
 /// Device information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
@@ -347,9 +353,200 @@ pub struct TraceContext {
     #[metastructure(max_chars = "enumlike")]
     pub op: Annotated<OperationType>,
 
+    /// Whether the trace failed or succeeded. Currently only used to indicate status of individual
+    /// transactions.
+    pub status: Annotated<TraceStatus>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
+}
+
+/// Trace status
+///
+/// Values from https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status
+/// Mapping to HTTP from https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status
+///
+/// Note: This type is represented as a u8 in Snuba/Clickhouse, with Unknown being the default
+/// value. We use repr(u8) to statically validate that the trace status has 255 variants at most.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(u8)] // size limit in clickhouse
+pub enum TraceStatus {
+    /// The operation completed successfully.
+    ///
+    /// HTTP status 100..299 + successful redirects from the 3xx range.
+    Ok,
+
+    /// The operation was cancelled (typically by the user).
+    Cancelled,
+
+    /// Unknown. Any non-standard HTTP status code.
+    ///
+    /// "We do not know whether the transaction failed or succeeded"
+    UnknownError,
+
+    /// Client specified an invalid argument. 4xx.
+    ///
+    /// Note that this differs from FailedPrecondition. InvalidArgument indicates arguments that
+    /// are problematic regardless of the state of the system.
+    InvalidArgument,
+
+    /// Deadline expired before operation could complete.
+    ///
+    /// For operations that change the state of the system, this error may be returned even if the
+    /// operation has been completed successfully.
+    ///
+    /// HTTP redirect loops and 504 Gateway Timeout
+    DeadlineExceeded,
+
+    /// 404 Not Found. Some requested entity (file or directory) was not found.
+    NotFound,
+
+    /// Already exists (409)
+    ///
+    /// Some entity that we attempted to create already exists.
+    AlreadyExists,
+
+    /// 403 Forbidden
+    ///
+    /// The caller does not have permission to execute the specified operation.
+    PermissionDenied,
+
+    /// 429 Too Many Requests
+    ///
+    /// Some resource has been exhausted, perhaps a per-user quota or perhaps the entire file
+    /// system is out of space.
+    ResourceExhausted,
+
+    /// Operation was rejected because the system is not in a state required for the operation's
+    /// execution
+    FailedPrecondition,
+
+    /// The operation was aborted, typically due to a concurrency issue.
+    Aborted,
+
+    /// Operation was attempted past the valid range.
+    OutOfRange,
+
+    /// 501 Not Implemented
+    ///
+    /// Operation is not implemented or not enabled.
+    Unimplemented,
+
+    /// Other/generic 5xx.
+    InternalError,
+
+    /// 503 Service Unavailable
+    Unavailable,
+
+    /// Unrecoverable data loss or corruption
+    DataLoss,
+
+    /// 401 Unauthorized (actually does mean unauthenticated according to RFC 7235)
+    ///
+    /// Prefer PermissionDenied if a user is logged in.
+    Unauthenticated,
+}
+
+impl ProcessValue for TraceStatus {}
+
+impl Empty for TraceStatus {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Fail)]
+#[fail(display = "invalid trace status")]
+pub struct ParseTraceStatusError;
+
+impl FromStr for TraceStatus {
+    type Err = ParseTraceStatusError;
+
+    fn from_str(string: &str) -> Result<TraceStatus, Self::Err> {
+        Ok(match string {
+            "ok" => TraceStatus::Ok,
+            "success" => TraceStatus::Ok, // Backwards compat with initial schema
+            "deadline_exceeded" => TraceStatus::DeadlineExceeded,
+            "unauthenticated" => TraceStatus::Unauthenticated,
+            "permission_denied" => TraceStatus::PermissionDenied,
+            "not_found" => TraceStatus::NotFound,
+            "resource_exhausted" => TraceStatus::ResourceExhausted,
+            "invalid_argument" => TraceStatus::InvalidArgument,
+            "unimplemented" => TraceStatus::Unimplemented,
+            "unavailable" => TraceStatus::Unavailable,
+            "internal_error" => TraceStatus::InternalError,
+            "failure" => TraceStatus::InternalError, // Backwards compat with initial schema
+            "unknown_error" => TraceStatus::UnknownError,
+            "cancelled" => TraceStatus::Cancelled,
+            "already_exists" => TraceStatus::AlreadyExists,
+            "failed_precondition" => TraceStatus::FailedPrecondition,
+            "aborted" => TraceStatus::Aborted,
+            "out_of_range" => TraceStatus::OutOfRange,
+            "data_loss" => TraceStatus::DataLoss,
+            _ => return Err(ParseTraceStatusError),
+        })
+    }
+}
+
+impl fmt::Display for TraceStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            TraceStatus::Ok => write!(f, "ok"),
+            TraceStatus::DeadlineExceeded => write!(f, "deadline_exceeded"),
+            TraceStatus::Unauthenticated => write!(f, "unauthenticated"),
+            TraceStatus::PermissionDenied => write!(f, "permission_denied"),
+            TraceStatus::NotFound => write!(f, "not_found"),
+            TraceStatus::ResourceExhausted => write!(f, "resource_exhausted"),
+            TraceStatus::InvalidArgument => write!(f, "invalid_argument"),
+            TraceStatus::Unimplemented => write!(f, "unimplemented"),
+            TraceStatus::Unavailable => write!(f, "unavailable"),
+            TraceStatus::InternalError => write!(f, "internal_error"),
+            TraceStatus::UnknownError => write!(f, "unknown_error"),
+            TraceStatus::Cancelled => write!(f, "cancelled"),
+            TraceStatus::AlreadyExists => write!(f, "already_exists"),
+            TraceStatus::FailedPrecondition => write!(f, "failed_precondition"),
+            TraceStatus::Aborted => write!(f, "aborted"),
+            TraceStatus::OutOfRange => write!(f, "out_of_range"),
+            TraceStatus::DataLoss => write!(f, "data_loss"),
+        }
+    }
+}
+
+impl FromValue for TraceStatus {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+                Ok(status) => Annotated(Some(status), meta),
+                Err(_) => {
+                    meta.add_error(Error::expected("a trace status"));
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(Error::expected("a string"));
+                meta.set_original_value(Some(value));
+                Annotated(None, meta)
+            }
+        }
+    }
+}
+
+impl ToValue for TraceStatus {
+    fn to_value(self) -> Value {
+        Value::String(self.to_string())
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        Serialize::serialize(&self.to_string(), s)
+    }
 }
 
 impl TraceContext {
@@ -675,6 +872,7 @@ fn test_trace_context_roundtrip() {
   "span_id": "fa90fdead5f74052",
   "parent_span_id": "fa90fdead5f74053",
   "op": "http",
+  "status": "ok",
   "other": "value",
   "type": "trace"
 }"#;
@@ -683,6 +881,7 @@ fn test_trace_context_roundtrip() {
         span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
         parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
         op: Annotated::new("http".into()),
+        status: Annotated::new(TraceStatus::Ok),
         other: {
             let mut map = Object::new();
             map.insert(
