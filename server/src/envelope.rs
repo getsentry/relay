@@ -42,7 +42,7 @@ use failure::Fail;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use semaphore_general::protocol::EventId;
+use semaphore_general::protocol::{EventId, EventType};
 use semaphore_general::types::Value;
 
 use crate::extractors::EventMeta;
@@ -156,6 +156,9 @@ pub struct ItemHeaders {
     length: u32,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    event_type: Option<EventType>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     content_type: Option<ContentType>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -177,6 +180,7 @@ impl Item {
             headers: ItemHeaders {
                 ty,
                 length: 0,
+                event_type: None,
                 content_type: None,
                 filename: None,
                 other: BTreeMap::new(),
@@ -199,6 +203,14 @@ impl Item {
 
     pub fn content_type(&self) -> Option<&ContentType> {
         self.headers.content_type.as_ref()
+    }
+
+    pub fn event_type(&self) -> Option<EventType> {
+        self.headers.event_type
+    }
+
+    pub fn set_event_type(&mut self, event_type: EventType) {
+        self.headers.event_type = Some(event_type);
     }
 
     pub fn payload(&self) -> Bytes {

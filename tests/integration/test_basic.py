@@ -166,3 +166,24 @@ def test_store_post_trailing_slash(mini_sentry, relay, trailing_slash):
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"]["formatted"] == "hi"
+
+
+@pytest.mark.parametrize(
+    "allowed_origins", [["*"], ["http://valid.com"], ["http://*"], ["valid.com"], [],]
+)
+def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
+    config = mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    config["config"]["allowedDomains"] = allowed_origins
+
+    relay = relay(mini_sentry)
+    relay.wait_relay_healthcheck()
+
+    relay.send_event(42)
+
+    response = relay.post(
+        "/api/42/store/",
+        headers={"Origin": "http://valid.com"},
+        json={"message": "hi"},
+    )
+
+    mini_sentry.captured_events.get(timeout=1).get_event()

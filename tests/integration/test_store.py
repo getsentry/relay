@@ -223,8 +223,13 @@ def test_max_concurrent_requests(mini_sentry, relay):
     store_count.acquire(timeout=4)
 
 
+@pytest.mark.parametrize("event_type", ["default", "transaction"])
 def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kafka(
-    mini_sentry, relay_with_processing, events_consumer
+    mini_sentry,
+    relay_with_processing,
+    events_consumer,
+    transactions_consumer,
+    event_type,
 ):
     """
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
@@ -233,11 +238,38 @@ def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kaf
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = mini_sentry.full_project_config()
 
-    events_consumer = events_consumer()
+    if event_type == "default":
+        events_consumer = events_consumer()
+    else:
+        events_consumer = transactions_consumer()
 
     # create a unique message so we can make sure we don't test with stale data
-    message_text = "some message {}".format(datetime.datetime.now())
-    relay.send_event(42, {"message": message_text, "extra": {"msg_text": message_text}})
+    now = datetime.datetime.utcnow()
+    message_text = "some message {}".format(now.isoformat())
+    event = {
+        "message": message_text,
+        "extra": {"msg_text": message_text},
+        "type": event_type,
+        "timestamp": now.isoformat(),
+    }
+
+    if event_type == "transaction":
+        event.update(
+            {
+                "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
+                "spans": [],
+                "contexts": {
+                    "trace": {
+                        "op": "hi",
+                        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                        "span_id": "968cff94913ebb07",
+                    }
+                },
+                "transaction": "hi",
+            }
+        )
+
+    relay.send_event(42, event)
 
     event, v = events_consumer.get_event()
 
@@ -314,13 +346,13 @@ def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_co
     # of our caching
     relay.send_event(42, {"message": "some_message"})
 
-    outcomes_consumer.assert_rate_limited()
+    outcomes_consumer.assert_rate_limited("get_lost")
 
     for _ in range(5):
         with pytest.raises(HTTPError):
             relay.send_event(42, {"message": "rate_limited"})
 
-        outcomes_consumer.assert_rate_limited()
+        outcomes_consumer.assert_rate_limited("get_lost")
 
     relay.dsn_public_key = second_key["publicKey"]
 

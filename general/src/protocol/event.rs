@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use failure::Fail;
-use serde::ser::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 
 #[cfg(test)]
 use chrono::TimeZone;
@@ -58,7 +58,8 @@ impl FromStr for EventId {
 impl_str_serde!(EventId);
 
 /// The type of event we're dealing with.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EventType {
     Default,
     Error,

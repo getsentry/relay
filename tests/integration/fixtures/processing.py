@@ -153,9 +153,10 @@ class OutcomesConsumer(ConsumerBase):
         assert outcome.error() is None
         return json.loads(outcome.value())
 
-    def assert_rate_limited(self):
+    def assert_rate_limited(self, reason):
         outcome = self.get_outcome()
         assert outcome["outcome"] == 2, outcome
+        assert outcome["reason"] == reason
 
     def assert_dropped_internal(self):
         outcome = self.get_outcome()
@@ -166,6 +167,11 @@ class OutcomesConsumer(ConsumerBase):
 @pytest.fixture
 def events_consumer(kafka_consumer):
     return lambda: EventsConsumer(kafka_consumer("events"))
+
+
+@pytest.fixture
+def transactions_consumer(kafka_consumer):
+    return lambda: EventsConsumer(kafka_consumer("transactions"))
 
 
 class EventsConsumer(ConsumerBase):

@@ -7,67 +7,34 @@ use std::time::Instant;
 use actix::prelude::*;
 use bytes::Bytes;
 use failure::{Fail, ResultExt};
-use futures::{future, Future};
 use rdkafka::error::KafkaError;
-use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::producer::{BaseRecord, DefaultProducerContext};
 use rdkafka::ClientConfig;
 use serde::Serialize;
 
 use rmp_serde::encode::Error as SerdeError;
 
-use semaphore_common::{metric, tryf, Config, KafkaTopic};
-use semaphore_general::protocol::EventId;
+use semaphore_common::{metric, Config, KafkaTopic};
+use semaphore_general::protocol::{EventId, EventType};
 
-use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::envelope::{Envelope, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
-use crate::utils::{instant_to_unix_timestamp, SyncFuture, SyncHandle};
+use crate::utils::instant_to_unix_timestamp;
+
+type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
 
 #[derive(Fail, Debug)]
 pub enum StoreError {
-    #[fail(display = "kafka message send canceled")]
-    Canceled,
     #[fail(display = "failed to send kafka message")]
     SendFailed(KafkaError),
     #[fail(display = "failed to serialize message")]
     SerializeFailed(SerdeError),
-    #[fail(display = "shutdown timer expired")]
-    Shutdown,
-}
-
-fn produce<T>(
-    producer: &FutureProducer,
-    config: &Config,
-    topic: KafkaTopic,
-    event_id: EventId,
-    message: T,
-) -> ResponseFuture<(), StoreError>
-where
-    T: Serialize,
-{
-    // Use the event id as partition routing key.
-    let key = event_id.0.as_bytes().as_ref();
-
-    let serialized = tryf!(rmp_serde::to_vec_named(&message).map_err(StoreError::SerializeFailed));
-
-    let record = FutureRecord::to(config.kafka_topic_name(topic))
-        .payload(&serialized)
-        .key(key);
-
-    let future = producer.send(record, 0).then(|result| match result {
-        Ok(Ok(_)) => Ok(()),
-        Ok(Err((kafka_error, _message))) => Err(StoreError::SendFailed(kafka_error)),
-        Err(_) => Err(StoreError::Canceled),
-    });
-
-    Box::new(future)
 }
 
 /// Actor for publishing events to Sentry through kafka topics.
 pub struct StoreForwarder {
     config: Arc<Config>,
-    shutdown: SyncHandle,
-    producer: Arc<FutureProducer>,
+    producer: Arc<ThreadedProducer>,
 }
 
 impl StoreForwarder {
@@ -81,11 +48,28 @@ impl StoreForwarder {
             .create()
             .context(ServerErrorKind::KafkaError)?;
 
-        Ok(StoreForwarder {
+        Ok(Self {
             config,
-            shutdown: SyncHandle::new(),
             producer: Arc::new(producer),
         })
+    }
+
+    fn produce<T>(&self, topic: KafkaTopic, event_id: EventId, message: T) -> Result<(), StoreError>
+    where
+        T: Serialize,
+    {
+        // Use the event id as partition routing key.
+        let key = event_id.0.as_bytes().as_ref();
+
+        let serialized = rmp_serde::to_vec_named(&message).map_err(StoreError::SerializeFailed)?;
+        let record = BaseRecord::to(self.config.kafka_topic_name(topic))
+            .payload(&serialized)
+            .key(key);
+
+        match self.producer.send(record) {
+            Ok(_) => Ok(()),
+            Err((kafka_error, _message)) => Err(StoreError::SendFailed(kafka_error)),
+        }
     }
 }
 
@@ -95,8 +79,12 @@ impl Actor for StoreForwarder {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
+        // Set the mailbox size to the size of the event buffer. This is a rough estimate but
+        // should ensure that we're not dropping events unintentionally after we've accepted them.
+        let mailbox_size = self.config.event_buffer_size() as usize;
+        context.set_mailbox_capacity(mailbox_size);
+
         log::info!("store forwarder started");
-        Controller::from_registry().do_send(Subscribe(context.address().recipient()));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -166,12 +154,9 @@ impl Message for StoreEvent {
 }
 
 impl Handler<StoreEvent> for StoreForwarder {
-    type Result = ResponseFuture<(), StoreError>;
+    type Result = Result<(), StoreError>;
 
     fn handle(&mut self, message: StoreEvent, _ctx: &mut Self::Context) -> Self::Result {
-        let producer = self.producer.clone();
-        let config = self.config.clone();
-
         let StoreEvent {
             envelope,
             start_time,
@@ -179,17 +164,15 @@ impl Handler<StoreEvent> for StoreForwarder {
         } = message;
 
         let event_id = envelope.event_id();
+        let event_item = envelope.get_item(ItemType::Event);
 
         let topic = if envelope.get_item(ItemType::Attachment).is_some() {
             KafkaTopic::Attachments
-        // } else if is_transaction {
-        //     KafkaTopic::Transactions
+        } else if event_item.and_then(|x| x.event_type()) == Some(EventType::Transaction) {
+            KafkaTopic::Transactions
         } else {
             KafkaTopic::Events
         };
-
-        let max_chunk_size = self.config.attachment_chunk_size();
-        let mut attachment_futures = Vec::with_capacity(envelope.len());
 
         for (index, item) in envelope.items().enumerate() {
             // Only upload items first.
@@ -202,7 +185,9 @@ impl Handler<StoreEvent> for StoreForwarder {
             let size = item.len();
 
             while offset == 0 || offset < size {
+                let max_chunk_size = self.config.attachment_chunk_size();
                 let chunk_size = std::cmp::min(max_chunk_size, size - offset);
+
                 let attachment_message = AttachmentKafkaMessage {
                     ty: KafkaMessageType::AttachmentChunk,
                     payload: payload.slice(offset, offset + chunk_size),
@@ -213,24 +198,12 @@ impl Handler<StoreEvent> for StoreForwarder {
                     size,
                 };
 
-                attachment_futures.push(produce(
-                    &producer,
-                    &config,
-                    topic,
-                    event_id,
-                    attachment_message,
-                ));
-
+                self.produce(topic, event_id, attachment_message)?;
                 offset += chunk_size;
             }
         }
 
-        let mut response: ResponseFuture<(), StoreError> = match attachment_futures.len() {
-            0 => Box::new(future::ok(())),
-            _ => Box::new(future::join_all(attachment_futures).map(|_| ())),
-        };
-
-        if let Some(event_item) = envelope.get_item(ItemType::Event) {
+        if let Some(event_item) = event_item {
             let event_message = EventKafkaMessage {
                 payload: event_item.payload(),
                 start_time: instant_to_unix_timestamp(start_time),
@@ -240,31 +213,10 @@ impl Handler<StoreEvent> for StoreForwarder {
                 remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
             };
 
-            let chained_future = response
-                .and_then(move |_| produce(&producer, &config, topic, event_id, event_message))
-                .map(|_| metric!(counter("processing.event.produced") += 1, "type" => "event"));
-
-            response = Box::new(chained_future);
+            self.produce(topic, event_id, event_message)?;
+            metric!(counter("processing.event.produced") += 1, "type" => "event");
         }
 
-        Box::new(response.sync(&self.shutdown, StoreError::Shutdown))
-    }
-}
-
-impl Handler<Shutdown> for StoreForwarder {
-    type Result = ResponseActFuture<Self, (), TimeoutError>;
-
-    fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
-        let shutdown = match message.timeout {
-            Some(timeout) => self.shutdown.timeout(timeout),
-            None => self.shutdown.now(),
-        };
-
-        let future = shutdown.into_actor(self).and_then(move |_, slf, _ctx| {
-            slf.producer.flush(message.timeout);
-            actix::fut::ok(())
-        });
-
-        Box::new(future)
+        Ok(())
     }
 }

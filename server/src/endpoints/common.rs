@@ -63,7 +63,7 @@ pub enum BadStoreRequest {
     #[fail(display = "event rejected due to rate limit: {:?}", _0)]
     RateLimited(RateLimit),
 
-    #[fail(display = "event submission rejected with_reason:{:?}", _0)]
+    #[fail(display = "event submission rejected with_reason: {:?}", _0)]
     EventRejected(DiscardReason),
 }
 
@@ -121,9 +121,18 @@ impl ResponseError for BadStoreRequest {
                     .header("Retry-After", retry_after.remaining_seconds().to_string())
                     .json(&body)
             }
-            BadStoreRequest::ScheduleFailed(_)
-            | BadStoreRequest::ProjectFailed(_)
-            | BadStoreRequest::QueueFailed(_) => {
+            BadStoreRequest::ProjectFailed(project_error) => match project_error {
+                ProjectError::FetchFailed => {
+                    // This particular project is somehow broken. We could treat this as 503 but it's
+                    // more likely that the error is local to this project.
+                    HttpResponse::InternalServerError().json(&body)
+                }
+                ProjectError::ScheduleFailed(_) | ProjectError::Shutdown => {
+                    HttpResponse::ServiceUnavailable().json(&body)
+                }
+            },
+
+            BadStoreRequest::ScheduleFailed(_) | BadStoreRequest::QueueFailed(_) => {
                 // These errors indicate that something's wrong with our actor system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -217,6 +226,7 @@ where
                     event_manager
                         .send(QueueEvent {
                             envelope,
+                            project_id,
                             project,
                             start_time,
                         })
@@ -230,7 +240,7 @@ where
 
             outcome_producer.do_send(TrackOutcome {
                 timestamp: start_time,
-                project_id: Some(project_id),
+                project_id,
                 org_id: None,
                 key_id: None,
                 outcome: error.to_outcome(),

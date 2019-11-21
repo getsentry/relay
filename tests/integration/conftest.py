@@ -15,6 +15,7 @@ from .fixtures.processing import (
     relay_with_processing,
     events_consumer,
     outcomes_consumer,
+    transactions_consumer,
 )  # noqa
 
 

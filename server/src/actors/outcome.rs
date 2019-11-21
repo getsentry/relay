@@ -35,7 +35,7 @@ pub struct TrackOutcome {
     /// Organization id.
     pub org_id: Option<u64>,
     /// Project id.
-    pub project_id: Option<u64>,
+    pub project_id: u64,
     /// The DSN project key id.
     pub key_id: Option<u64>,
     /// The outcome.
@@ -163,21 +163,18 @@ mod real_implementation {
 
     use chrono::{DateTime, SecondsFormat, Utc};
     use failure::{Fail, ResultExt};
-    use futures::Future;
-    use rdkafka::{
-        error::KafkaError,
-        producer::{FutureProducer, FutureRecord},
-        ClientConfig,
-    };
+    use rdkafka::error::KafkaError;
+    use rdkafka::producer::{BaseRecord, DefaultProducerContext};
+    use rdkafka::ClientConfig;
     use serde::Serialize;
     use serde_json::Error as SerdeSerializationError;
 
-    use semaphore_common::tryf;
     use semaphore_common::{metric, KafkaTopic};
 
-    use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
     use crate::service::ServerErrorKind;
-    use crate::utils::{self, SyncFuture, SyncHandle};
+    use crate::utils;
+
+    type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
 
     impl Outcome {
         /// Returns the name of the outcome as recognized by Sentry.
@@ -249,7 +246,7 @@ mod real_implementation {
         /// Organization id.
         org_id: Option<u64>,
         /// Project id.
-        project_id: Option<u64>,
+        project_id: u64,
         /// The DSN project key id.
         key_id: Option<u64>,
         /// The outcome.
@@ -291,20 +288,15 @@ mod real_implementation {
 
     #[derive(Fail, Debug)]
     pub enum OutcomeError {
-        #[fail(display = "kafka message send canceled")]
-        Canceled,
         #[fail(display = "failed to send kafka message")]
         SendFailed(KafkaError),
-        #[fail(display = "shutdown timer expired")]
-        Shutdown,
         #[fail(display = "json serialization error")]
         SerializationError(SerdeSerializationError),
     }
 
     pub struct OutcomeProducer {
         config: Arc<Config>,
-        shutdown: SyncHandle,
-        producer: Option<FutureProducer>,
+        producer: Option<ThreadedProducer>,
     }
 
     impl OutcomeProducer {
@@ -322,9 +314,8 @@ mod real_implementation {
                 None
             };
 
-            Ok(OutcomeProducer {
+            Ok(Self {
                 config,
-                shutdown: SyncHandle::new(),
                 producer: future_producer,
             })
         }
@@ -334,9 +325,12 @@ mod real_implementation {
         type Context = Context<Self>;
 
         fn started(&mut self, context: &mut Self::Context) {
+            // Set the mailbox size to the size of the event buffer. This is a rough estimate but
+            // should ensure that we're not dropping outcomes unintentionally.
+            let mailbox_size = self.config.event_buffer_size() as usize;
+            context.set_mailbox_capacity(mailbox_size);
+
             log::info!("OutcomeProducer started.");
-            //register with the controller for shutdown notifications
-            Controller::from_registry().do_send(Subscribe(context.address().recipient()));
         }
 
         fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -345,22 +339,24 @@ mod real_implementation {
     }
 
     impl Handler<TrackOutcome> for OutcomeProducer {
-        type Result = ResponseFuture<(), OutcomeError>;
+        type Result = Result<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
             log::trace!("Tracking outcome: {:?}", message);
 
             let producer = match self.producer {
                 Some(ref producer) => producer,
-                None => return Box::new(futures::future::ok(())),
+                None => return Ok(()),
             };
 
-            let payload = tryf![serde_json::to_string(&OutcomePayload::from(&message))
-                .map_err(OutcomeError::SerializationError)];
+            let payload = serde_json::to_string(&OutcomePayload::from(&message))
+                .map_err(OutcomeError::SerializationError)?;
 
-            metric!(counter("events.outcomes") +=1,
-                    "reason"=>message.outcome.to_reason().unwrap_or(""),
-                    "outcome"=>message.outcome.name());
+            metric!(
+                counter("events.outcomes") +=1,
+                "reason" => message.outcome.to_reason().unwrap_or(""),
+                "outcome" => message.outcome.name()
+            );
 
             // At the moment, we support outcomes with optional EventId.
             // Here we create a fake EventId, when we don't have the real one, so that we can
@@ -368,40 +364,14 @@ mod real_implementation {
             // kafka consumer groups.
             let key = message.event_id.unwrap_or_else(EventId::new).0;
 
-            let record = FutureRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
+            let record = BaseRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
                 .payload(&payload)
                 .key(key.as_bytes().as_ref());
 
-            let future = producer
-                .send(record, 0)
-                .then(|result| match result {
-                    Ok(Ok(_)) => Ok(()),
-                    Ok(Err((kafka_error, _message))) => Err(OutcomeError::SendFailed(kafka_error)),
-                    Err(_) => Err(OutcomeError::Canceled),
-                })
-                .sync(&self.shutdown, OutcomeError::Shutdown);
-
-            Box::new(future)
-        }
-    }
-
-    impl Handler<Shutdown> for OutcomeProducer {
-        type Result = ResponseActFuture<Self, (), TimeoutError>;
-
-        fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
-            let shutdown = match message.timeout {
-                Some(timeout) => self.shutdown.timeout(timeout),
-                None => self.shutdown.now(),
-            };
-
-            let future = shutdown.into_actor(self).and_then(move |_, slf, _ctx| {
-                if let Some(ref producer) = slf.producer {
-                    producer.flush(message.timeout);
-                }
-                actix::fut::ok(())
-            });
-
-            Box::new(future)
+            match producer.send(record) {
+                Ok(_) => Ok(()),
+                Err((kafka_error, _message)) => Err(OutcomeError::SendFailed(kafka_error)),
+            }
         }
     }
 }
@@ -418,11 +388,11 @@ mod no_op_implementation {
     #[derive(Debug)]
     pub enum OutcomeError {}
 
-    pub struct OutcomeProducer {}
+    pub struct OutcomeProducer;
 
     impl OutcomeProducer {
         pub fn create(_config: Arc<Config>) -> Result<Self, ServerError> {
-            Ok(OutcomeProducer {})
+            Ok(Self)
         }
     }
 

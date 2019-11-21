@@ -19,14 +19,14 @@ use semaphore_general::types::{Annotated, ProcessingAction, Value};
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
-    EventAction, GetEventAction, GetProjectId, GetProjectState, Project, ProjectError,
-    ProjectState, RateLimit, RateLimitScope, RetryAfter,
+    EventAction, GetEventAction, GetProjectState, Project, ProjectError, ProjectState, RateLimit,
+    RateLimitScope, RetryAfter,
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
 use crate::quotas::{QuotasError, RateLimiter};
 use crate::service::{ServerError, ServerErrorKind};
-use crate::utils::{One, SyncActorFuture, SyncHandle};
+use crate::utils::{SyncActorFuture, SyncHandle};
 
 #[cfg(feature = "processing")]
 use {
@@ -301,6 +301,9 @@ impl EventProcessor {
         // Add the normalized event back to the envelope. All the other items are attachments.
         let mut event_item = Item::new(ItemType::Event);
         event_item.set_payload(ContentType::Json, data);
+        if let Some(ty) = event.value().and_then(|e| e.ty.value()) {
+            event_item.set_event_type(*ty);
+        }
         envelope.add_item(event_item);
 
         Ok(ProcessEventResponse { envelope })
@@ -390,7 +393,8 @@ impl EventManager {
 
         #[cfg(feature = "processing")]
         let store_forwarder = if config.processing_enabled() {
-            Some(StoreForwarder::create(config.clone())?.start())
+            let actor = StoreForwarder::create(config.clone())?;
+            Some(Arbiter::start(move |_| actor))
         } else {
             None
         };
@@ -426,6 +430,7 @@ impl Actor for EventManager {
 
 pub struct QueueEvent {
     pub envelope: Envelope,
+    pub project_id: ProjectId,
     pub project: Addr<Project>,
     pub start_time: Instant,
 }
@@ -460,6 +465,7 @@ impl Handler<QueueEvent> for EventManager {
         // actor alive even if it is cleaned up in the ProjectManager.
         context.notify(HandleEvent {
             envelope: message.envelope,
+            project_id: message.project_id,
             project: message.project,
             start_time: message.start_time,
         });
@@ -471,6 +477,7 @@ impl Handler<QueueEvent> for EventManager {
 
 struct HandleEvent {
     pub envelope: Envelope,
+    pub project_id: ProjectId,
     pub project: Addr<Project>,
     pub start_time: Instant,
 }
@@ -511,6 +518,7 @@ impl Handler<HandleEvent> for EventManager {
         let HandleEvent {
             envelope,
             project,
+            project_id,
             start_time,
         } = message;
 
@@ -518,127 +526,111 @@ impl Handler<HandleEvent> for EventManager {
         let remote_addr = envelope.meta().client_addr();
         let meta_clone = Arc::new(envelope.meta().clone());
 
-        let project_id_for_err = Arc::new(Mutex::new(None::<u64>));
         let org_id_for_err = Arc::new(Mutex::new(None::<u64>));
 
+        metric!(set("unique_projects") = project_id as i64);
+
         let future = project
-            .send(GetProjectId)
-            .map(One::into_inner)
+            .send(GetEventAction::fetched(meta_clone))
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(clone!(
-                project,
-                captured_events,
-                project_id_for_err,
-                org_id_for_err,
-                |project_id| {
-                    *project_id_for_err.lock() = Some(project_id);
-                    project
-                        .send(GetEventAction::fetched(meta_clone))
-                        .map_err(ProcessingError::ScheduleFailed)
-                        .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
-                            EventAction::Accept => Ok(()),
-                            EventAction::RetryAfter(r) => Err(ProcessingError::RateLimited(r)),
-                            EventAction::Discard(reason) => {
-                                Err(ProcessingError::EventRejected(reason))
-                            }
-                        })
-                        .and_then(clone!(project, |_| {
-                            project
-                                .send(GetProjectState)
-                                .map_err(ProcessingError::ScheduleFailed)
-                                .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-                        }))
-                        .and_then(move |project_state| {
-                            *org_id_for_err.lock() = project_state.organization_id;
-                            processor
-                                .send(ProcessEvent {
-                                    envelope,
-                                    project_id,
-                                    project_state,
-                                    start_time,
-                                })
-                                .map_err(ProcessingError::ScheduleFailed)
-                                .flatten()
-                        })
-                        .and_then(move |processed| {
-                            let envelope = processed.envelope;
+            .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
+                EventAction::Accept => Ok(()),
+                EventAction::RetryAfter(r) => Err(ProcessingError::RateLimited(r)),
+                EventAction::Discard(reason) => Err(ProcessingError::EventRejected(reason)),
+            })
+            .and_then(clone!(project, |_| {
+                project
+                    .send(GetProjectState)
+                    .map_err(ProcessingError::ScheduleFailed)
+                    .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
+            }))
+            .and_then(clone!(org_id_for_err, |project_state| {
+                *org_id_for_err.lock() = project_state.organization_id;
+                processor
+                    .send(ProcessEvent {
+                        envelope,
+                        project_id,
+                        project_state,
+                        start_time,
+                    })
+                    .map_err(ProcessingError::ScheduleFailed)
+                    .flatten()
+            }))
+            .and_then(clone!(captured_events, |processed| {
+                let envelope = processed.envelope;
 
-                            #[cfg(feature = "processing")]
-                            {
-                                if let Some(store_forwarder) = store_forwarder {
-                                    log::trace!("sending event to kafka {}", event_id);
-                                    let future = store_forwarder
-                                        .send(StoreEvent {
-                                            envelope,
-                                            start_time,
-                                            project_id,
-                                        })
-                                        .map_err(ProcessingError::ScheduleFailed)
-                                        .and_then(move |result| {
-                                            result.map_err(ProcessingError::StoreFailed)
-                                        });
+                #[cfg(feature = "processing")]
+                {
+                    if let Some(store_forwarder) = store_forwarder {
+                        log::trace!("sending event to kafka {}", event_id);
+                        let future = store_forwarder
+                            .send(StoreEvent {
+                                envelope,
+                                start_time,
+                                project_id,
+                            })
+                            .map_err(ProcessingError::ScheduleFailed)
+                            .and_then(move |result| result.map_err(ProcessingError::StoreFailed));
 
-                                    return Box::new(future) as ResponseFuture<_, _>;
-                                }
-                            }
-
-                            // if we are in capture mode, we stash away the event instead of
-                            // forwarding it.
-                            if capture {
-                                log::debug!("capturing event {}", event_id);
-                                captured_events
-                                    .write()
-                                    .insert(event_id, CapturedEvent::Ok(envelope));
-                                return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
-                            }
-
-                            let public_key = envelope.meta().auth().public_key().to_string();
-
-                            log::trace!("sending event to sentry endpoint {}", event_id);
-                            let request = SendRequest::post(format!("/api/{}/store/", project_id))
-                                .build(move |builder| {
-                                    let meta = envelope.meta();
-
-                                    if let Some(origin) = meta.origin() {
-                                        builder.header("Origin", origin.to_string());
-                                    }
-
-                                    if let Some(user_agent) = meta.user_agent() {
-                                        builder.header("User-Agent", user_agent);
-                                    }
-
-                                    builder
-                                        .header("X-Sentry-Auth", meta.auth().to_string())
-                                        .header("X-Forwarded-For", meta.forwarded_for())
-                                        .header("Content-Type", envelope::CONTENT_TYPE)
-                                        .body(envelope.to_vec().map_err(failure::Error::from)?)
-                                });
-
-                            let future = upstream
-                                .send(request)
-                                .map_err(ProcessingError::ScheduleFailed)
-                                .and_then(move |result| {
-                                    result.map_err(move |error| match error {
-                                        UpstreamRequestError::RateLimited(secs) => {
-                                            ProcessingError::RateLimited(RateLimit(
-                                                // TODO: Maybe add a header that tells us the value for
-                                                // RateLimitScope?
-                                                RateLimitScope::Key(public_key),
-                                                RetryAfter {
-                                                    when: Instant::now()
-                                                        + Duration::from_secs(secs),
-                                                    reason_code: None,
-                                                },
-                                            ))
-                                        }
-                                        other => ProcessingError::SendFailed(other),
-                                    })
-                                });
-
-                            Box::new(future) as ResponseFuture<_, _>
-                        })
+                        return Box::new(future) as ResponseFuture<_, _>;
+                    }
                 }
-            ))
+
+                // if we are in capture mode, we stash away the event instead of
+                // forwarding it.
+                if capture {
+                    log::debug!("capturing event {}", event_id);
+                    captured_events
+                        .write()
+                        .insert(event_id, CapturedEvent::Ok(envelope));
+                    return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
+                }
+
+                let public_key = envelope.meta().auth().public_key().to_string();
+
+                log::trace!("sending event to sentry endpoint {}", event_id);
+                let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
+                    move |builder| {
+                        let meta = envelope.meta();
+
+                        if let Some(origin) = meta.origin() {
+                            builder.header("Origin", origin.to_string());
+                        }
+
+                        if let Some(user_agent) = meta.user_agent() {
+                            builder.header("User-Agent", user_agent);
+                        }
+
+                        builder
+                            .header("X-Sentry-Auth", meta.auth().to_string())
+                            .header("X-Forwarded-For", meta.forwarded_for())
+                            .header("Content-Type", envelope::CONTENT_TYPE)
+                            .body(envelope.to_vec().map_err(failure::Error::from)?)
+                    },
+                );
+
+                let future = upstream
+                    .send(request)
+                    .map_err(ProcessingError::ScheduleFailed)
+                    .and_then(move |result| {
+                        result.map_err(move |error| match error {
+                            UpstreamRequestError::RateLimited(secs) => {
+                                ProcessingError::RateLimited(RateLimit(
+                                    // TODO: Maybe add a header that tells us the value for
+                                    // RateLimitScope?
+                                    RateLimitScope::Key(public_key),
+                                    RetryAfter {
+                                        when: Instant::now() + Duration::from_secs(secs),
+                                        reason_code: None,
+                                    },
+                                ))
+                            }
+                            other => ProcessingError::SendFailed(other),
+                        })
+                    });
+
+                Box::new(future) as ResponseFuture<_, _>
+            }))
             .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
@@ -713,7 +705,7 @@ impl Handler<HandleEvent> for EventManager {
                 if let Some(outcome) = outcome_params {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),
-                        project_id: *(project_id_for_err.lock()),
+                        project_id: project_id,
                         org_id: *(org_id_for_err.lock()),
                         key_id: None,
                         outcome,
