@@ -111,6 +111,7 @@ mod tests {
                 false,
             ),
             (None, None, "This is a filtered exception.", false),
+            (None, None, "This is a filtered exception.\n", false),
             (
                 Some("FilteredException"),
                 Some("This is a filtered exception."),
