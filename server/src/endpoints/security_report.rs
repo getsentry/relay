@@ -92,13 +92,13 @@ impl pred::Predicate<ServiceState> for SecurityReportFilter {
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource(r"/api/{project:\d+}/security/", |r| {
+    app.resource(r"/api/{project:\d+}/security{trailing_slash:/*}", |r| {
         //hook security endpoint
         r.method(Method::POST)
             .filter(SecurityReportFilter)
             .with(store_security_report);
     })
-    .resource(r"/api/{project:\d+}/csp-report/", |r| {
+    .resource(r"/api/{project:\d+}/csp-report{trailing_slash:/*}", |r| {
         //legacy security endpoint
         r.method(Method::POST)
             .filter(SecurityReportFilter)

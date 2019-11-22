@@ -150,8 +150,8 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
     assert event["logentry"]["formatted"] == "im in ur query params"
 
 
-@pytest.mark.parametrize("trailing_slash", [True, False])
-def test_store_post_trailing_slash(mini_sentry, relay, trailing_slash):
+@pytest.mark.parametrize("trailing_slashes", list(range(4)))
+def test_store_post_trailing_slash(mini_sentry, relay, trailing_slashes):
     mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
     relay = relay(mini_sentry)
 
@@ -159,7 +159,7 @@ def test_store_post_trailing_slash(mini_sentry, relay, trailing_slash):
 
     response = relay.post(
         "/api/42/store%s"
-        "?sentry_key=%s" % ("/" if trailing_slash else "", relay.dsn_public_key,),
+        "?sentry_key=%s" % ("/" * trailing_slashes, relay.dsn_public_key,),
         json={"message": "hi"},
     )
     response.raise_for_status()
