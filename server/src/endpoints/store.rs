@@ -146,7 +146,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         ])
         .expose_headers(vec!["X-Sentry-Error", "Retry-After"])
         .max_age(3600)
-        .resource(r"/api/{project:\d+}/store{trailing_slash:/?}", |r| {
+        .resource(r"/api/{project:\d+}/store{trailing_slash:/*}", |r| {
             r.method(Method::POST).with(store_event);
             r.method(Method::GET).with(store_event);
         })
