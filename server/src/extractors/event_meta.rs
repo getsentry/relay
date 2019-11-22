@@ -69,12 +69,12 @@ impl EventMeta {
     pub fn new(dsn: Dsn) -> Self {
         EventMeta {
             dsn,
-            client: None,
-            version: default_version(),
-            origin: None,
-            remote_addr: None,
+            client: Some("sentry/client".to_string()),
+            version: 7,
+            origin: Some("http://origin/".parse().unwrap()),
+            remote_addr: Some("192.168.0.1".parse().unwrap()),
             forwarded_for: String::new(),
-            user_agent: None,
+            user_agent: Some("sentry/agent".to_string()),
         }
     }
 

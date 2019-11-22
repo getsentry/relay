@@ -327,7 +327,7 @@ impl Envelope {
             return Err(EnvelopeError::HeaderMismatch("project id"));
         } else if meta.dsn().public_key() != request_meta.dsn().public_key() {
             return Err(EnvelopeError::HeaderMismatch("public key"));
-        } else if meta.origin() != request_meta.origin() {
+        } else if meta.origin().is_some() && meta.origin() != request_meta.origin() {
             return Err(EnvelopeError::HeaderMismatch("origin"));
         }
 
@@ -573,7 +573,28 @@ mod tests {
 
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
         assert_eq!(envelope.event_id(), event_id);
+        assert_eq!(envelope.project_id(), 42);
         assert_eq!(envelope.len(), 0);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_meta() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42\",\"client\":\"sentry/javascript\",\"version\":6,\"origin\":\"http://localhost/\",\"remote_addr\":\"127.0.0.1\",\"forwarded_for\":\"8.8.8.8\",\"user_agent\":\"sentry-cli/1.0\"}");
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        let meta = envelope.meta();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42"
+            .parse()
+            .unwrap();
+        assert_eq!(*meta.dsn(), dsn);
+        assert_eq!(meta.project_id(), 42);
+        assert_eq!(meta.public_key(), "e12d836b15bb49d7bbf99e64295d995b");
+        assert_eq!(meta.client(), Some("sentry/javascript"));
+        assert_eq!(meta.version(), 6);
+        assert_eq!(meta.origin(), Some(&"http://localhost/".parse().unwrap()));
+        assert_eq!(meta.remote_addr(), Some("127.0.0.1".parse().unwrap()));
+        assert_eq!(meta.forwarded_for(), "8.8.8.8");
+        assert_eq!(meta.user_agent(), Some("sentry-cli/1.0"));
     }
 
     #[test]
@@ -639,6 +660,61 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_request_envelope() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42\",\"client\":\"sentry/javascript\",\"version\":6,\"origin\":\"http://origin/\",\"remote_addr\":\"127.0.0.1\",\"forwarded_for\":\"8.8.8.8\",\"user_agent\":\"sentry-cli/1.0\"}");
+        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+        let meta = envelope.meta();
+
+        // This test asserts that all information from the envelope is overwritten with request
+        // information. Note that the envelope's DSN points to "other.sentry.io", but all other
+        // information matches the DSN.
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        assert_eq!(*meta.dsn(), dsn);
+        assert_eq!(meta.project_id(), 42);
+        assert_eq!(meta.public_key(), "e12d836b15bb49d7bbf99e64295d995b");
+        assert_eq!(meta.client(), Some("sentry/client"));
+        assert_eq!(meta.version(), 7);
+        assert_eq!(meta.origin(), Some(&"http://origin/".parse().unwrap()));
+        assert_eq!(meta.remote_addr(), Some("192.168.0.1".parse().unwrap()));
+        assert_eq!(meta.forwarded_for(), "");
+        assert_eq!(meta.user_agent(), Some("sentry/agent"));
+    }
+
+    #[test]
+    fn test_parse_request_no_origin() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}");
+        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+        let meta = envelope.meta();
+
+        // Origin validation should skip a missing origin.
+        assert_eq!(meta.origin(), Some(&"http://origin/".parse().unwrap()));
+    }
+
+    #[test]
+    #[should_panic(expected = "project id")]
+    fn test_parse_request_validate_project() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/99\"}");
+        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "public key")]
+    fn test_parse_request_validate_key() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:@sentry.io/42\"}");
+        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "origin")]
+    fn test_parse_request_validate_origin() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\",\"origin\":\"http://localhost/\"}");
+        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+    }
+
+    #[test]
     fn test_serialize_envelope_empty() {
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
         let envelope = Envelope::from_request(event_id, event_meta());
@@ -647,7 +723,7 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","version":7}
+        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
 "###);
     }
 
@@ -673,12 +749,12 @@ mod tests {
 
         let stringified = String::from_utf8_lossy(&buffer);
         insta::assert_snapshot!(stringified, @r###"
-        {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","version":7}
+        {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
         {"type":"event","length":41,"content_type":"application/json"}
         {"message":"hello world","level":"error"}
         {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
         Hello
-        
+
         "###);
     }
 }
