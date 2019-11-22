@@ -22,7 +22,7 @@
 //! This is enabled by declaring an explicit length in the item headers. Example:
 //!
 //! ```plain
-//! {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","auth":"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b, sentry_version=7"}
+//! {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn": "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
 //! {"type":"event","length":41,"content_type":"application/json"}
 //! {"message":"hello world","level":"error"}
 //! {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
@@ -473,11 +473,11 @@ mod tests {
     use super::*;
 
     fn event_meta() -> EventMeta {
-        let auth = "Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b"
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
 
-        EventMeta::new(auth)
+        EventMeta::new(dsn)
     }
 
     #[test]
@@ -568,7 +568,7 @@ mod tests {
     #[test]
     fn test_deserialize_envelope_empty() {
         // Without terminating newline after header
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}");
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}");
         let envelope = Envelope::parse_bytes(bytes).unwrap();
 
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
@@ -579,7 +579,7 @@ mod tests {
     #[test]
     fn test_deserialize_envelope_empty_newline() {
         // With terminating newline after header
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}\n");
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n");
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 0);
     }
@@ -589,7 +589,7 @@ mod tests {
         // With terminating newline after item payload
         let bytes = Bytes::from(
             "\
-             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}\n\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
              {\"type\":\"attachment\",\"length\":0}\n\
              \n\
              {\"type\":\"attachment\",\"length\":0}\n\
@@ -608,7 +608,7 @@ mod tests {
     fn test_deserialize_envelope_multiple_items() {
         // With terminating newline
         let bytes = Bytes::from(&b"\
-            {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}\n\
+            {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
             {\"type\":\"attachment\",\"length\":10,\"content_type\":\"text/plain\",\"filename\":\"hello.txt\"}\n\
             \xef\xbb\xbfHello\r\n\n\
             {\"type\":\"event\",\"length\":41,\"content_type\":\"application/json\",\"filename\":\"application.log\"}\n\
@@ -647,7 +647,7 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","auth":"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b, sentry_version=7"}
+        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","version":7}
 "###);
     }
 
@@ -673,12 +673,12 @@ mod tests {
 
         let stringified = String::from_utf8_lossy(&buffer);
         insta::assert_snapshot!(stringified, @r###"
-        {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","auth":"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b, sentry_version=7"}
+        {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","version":7}
         {"type":"event","length":41,"content_type":"application/json"}
         {"message":"hello world","level":"error"}
         {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
         Hello
-
+        
         "###);
     }
 }
