@@ -6,7 +6,7 @@ use failure::Fail;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use semaphore_common::{Auth, AuthParseError};
+use semaphore_common::{Auth, AuthParseError, Dsn, DsnParseError, ProjectId};
 
 use crate::extractors::ForwardedFor;
 use crate::utils::ApiErrorResponse;
@@ -15,6 +15,9 @@ use crate::utils::ApiErrorResponse;
 pub enum BadEventMeta {
     #[fail(display = "bad x-sentry-auth header")]
     BadAuth(#[fail(cause)] AuthParseError),
+
+    #[fail(display = "bad sentry DSN")]
+    BadDsn(#[fail(cause)] DsnParseError),
 }
 
 impl ResponseError for BadEventMeta {
@@ -23,54 +26,22 @@ impl ResponseError for BadEventMeta {
     }
 }
 
-/// Serializes SDK client authentication information in the X-Sentry-Auth header format.
-///
-/// The default `Serialize` and `Deserialize` implementations for `Auth` create maps/objects.
-/// This format is intended for the use in envelope headers specifically.
-mod auth_serde {
-    use super::*;
-
-    use std::fmt;
-
-    pub fn serialize<S>(auth: &Auth, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&auth.to_string())
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Auth, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct V;
-
-        impl<'de> ::serde::de::Visitor<'de> for V {
-            type Value = Auth;
-
-            fn expecting(&self, formatter: &mut ::std::fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("auth")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<Auth, E>
-            where
-                E: ::serde::de::Error,
-            {
-                value.parse().map_err(|_| {
-                    serde::de::Error::invalid_value(serde::de::Unexpected::Str(value), &self)
-                })
-            }
-        }
-
-        deserializer.deserialize_str(V)
-    }
+fn default_version() -> u16 {
+    semaphore_common::PROTOCOL_VERSION
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventMeta {
-    /// Authentication information (DSN and client).
-    #[serde(with = "auth_serde")]
-    auth: Auth,
+    /// The DSN describing the target of this envelope.
+    dsn: Dsn,
+
+    /// The client SDK that sent this event.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    client: Option<String>,
+
+    /// The protocol version that the client speaks.
+    #[serde(default = "default_version")]
+    version: u16,
 
     /// Value of the origin header in the incoming request, if present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -91,9 +62,11 @@ pub struct EventMeta {
 
 impl EventMeta {
     #[cfg(test)]
-    pub fn new(auth: Auth) -> Self {
+    pub fn new(dsn: Dsn) -> Self {
         EventMeta {
-            auth,
+            dsn,
+            client: None,
+            version: default_version(),
             origin: None,
             remote_addr: None,
             forwarded_for: String::new(),
@@ -121,8 +94,28 @@ impl EventMeta {
     }
 
     /// Returns a reference to the auth info
-    pub fn auth(&self) -> &Auth {
-        &self.auth
+    pub fn dsn(&self) -> &Dsn {
+        &self.dsn
+    }
+
+    /// TODO(ja): Describe
+    pub fn project_id(&self) -> ProjectId {
+        // TODO(ja): Fix this in sentry-types
+        unsafe { std::mem::transmute(self.dsn.project_id()) }
+    }
+
+    /// TODO(ja): Describe
+    pub fn public_key(&self) -> &str {
+        &self.dsn.public_key()
+    }
+
+    /// TODO(ja): Describe
+    pub fn client(&self) -> Option<&str> {
+        self.client.as_ref().map(String::as_str)
+    }
+
+    pub fn version(&self) -> u16 {
+        self.version
     }
 
     /// Returns a reference to the origin URL
@@ -157,6 +150,22 @@ impl EventMeta {
     pub fn user_agent(&self) -> Option<&str> {
         self.user_agent.as_ref().map(String::as_str)
     }
+
+    /// TODO(ja): Describe
+    pub fn auth_header(&self) -> String {
+        let mut auth = format!(
+            "Sentry sentry_key={}, sentry_version={}",
+            self.public_key(),
+            self.version
+        );
+
+        if let Some(ref client) = self.client {
+            use std::fmt::Write;
+            write!(auth, ", sentry_client={}", client).ok();
+        }
+
+        auth
+    }
 }
 
 fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
@@ -188,8 +197,13 @@ impl<S> FromRequest<S> for EventMeta {
     type Result = Result<Self, BadEventMeta>;
 
     fn from_request(request: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
+        let auth = auth_from_request(request)?;
+        let dsn = format!("").parse().map_err(BadEventMeta::BadDsn)?;
+
         Ok(EventMeta {
-            auth: auth_from_request(request)?,
+            dsn,
+            version: auth.version(),
+            client: auth.client_agent().map(str::to_owned),
             origin: parse_header_url(request, header::ORIGIN)
                 .or_else(|| parse_header_url(request, header::REFERER)),
             remote_addr: request.peer_addr().map(|peer| peer.ip()),

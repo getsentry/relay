@@ -156,7 +156,7 @@ where
     let start_time = start_time.into_inner();
 
     // For now, we only handle <= v8 and drop everything else
-    let version = meta.auth().version();
+    let version = meta.version();
     if version > 8 {
         // TODO: Delegate to forward_upstream here
         tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(version)));

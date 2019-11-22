@@ -201,10 +201,9 @@ impl EventProcessor {
         {
             if self.config.processing_enabled() {
                 let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
-                let auth = envelope.meta().auth();
                 let key_id = message
                     .project_state
-                    .get_public_key_config(&auth.public_key())
+                    .get_public_key_config(&envelope.meta().public_key())
                     .and_then(|k| Some(k.numeric_id?.to_string()));
 
                 if key_id.is_none() {
@@ -216,9 +215,9 @@ impl EventProcessor {
                 let store_config = StoreConfig {
                     project_id: Some(message.project_id),
                     client_ip: envelope.meta().client_addr().map(IpAddr::from),
-                    client: auth.client_agent().map(str::to_owned),
+                    client: envelope.meta().client().map(str::to_owned),
                     key_id,
-                    protocol_version: Some(auth.version().to_string()),
+                    protocol_version: Some(envelope.meta().version().to_string()),
                     grouping_config: message.project_state.config.grouping_config.clone(),
                     user_agent: envelope.meta().user_agent().map(str::to_owned),
                     max_secs_in_future: Some(self.config.max_secs_in_future()),
@@ -265,7 +264,7 @@ impl EventProcessor {
         if let Some(organization_id) = message.project_state.organization_id {
             let key_config = message
                 .project_state
-                .get_public_key_config(&envelope.meta().auth().public_key());
+                .get_public_key_config(&envelope.meta().public_key());
 
             if let Some(key_config) = key_config {
                 let rate_limit = metric!(timer("event_processing.rate_limiting"), {
@@ -586,7 +585,7 @@ impl Handler<HandleEvent> for EventManager {
                     return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
                 }
 
-                let public_key = envelope.meta().auth().public_key().to_string();
+                let public_key = envelope.meta().public_key().to_string();
 
                 log::trace!("sending event to sentry endpoint {}", event_id);
                 let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
@@ -602,7 +601,7 @@ impl Handler<HandleEvent> for EventManager {
                         }
 
                         builder
-                            .header("X-Sentry-Auth", meta.auth().to_string())
+                            .header("X-Sentry-Auth", meta.auth_header())
                             .header("X-Forwarded-For", meta.forwarded_for())
                             .header("Content-Type", envelope::CONTENT_TYPE)
                             .body(envelope.to_vec().map_err(failure::Error::from)?)

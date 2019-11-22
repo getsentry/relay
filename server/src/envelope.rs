@@ -308,6 +308,7 @@ impl Envelope {
         Ok(envelope)
     }
 
+    /// TODO(ja): Write that envelope data wins over request meta.
     pub fn parse_request(bytes: Bytes, meta: EventMeta) -> Result<Self, EnvelopeError> {
         let mut envelope = Self::parse_bytes(bytes)?;
         envelope.headers.meta.default_to(meta);
