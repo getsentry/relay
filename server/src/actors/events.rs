@@ -48,7 +48,7 @@ enum ProcessingError {
     InvalidJson(#[cause] serde_json::Error),
 
     #[fail(display = "invalid transaction event")]
-    InvalidTransactionEvent,
+    InvalidTransaction,
 
     #[fail(display = "event processor failed")]
     ProcessingFailed(#[cause] ProcessingAction),
@@ -235,7 +235,7 @@ impl EventProcessor {
                 let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
                 metric!(timer("event_processing.process"), {
                     process_value(&mut event, &mut store_processor, ProcessingState::root())
-                        .map_err(|_| ProcessingError::InvalidTransactionEvent)?;
+                        .map_err(|_| ProcessingError::InvalidTransaction)?;
                 });
 
                 // Event filters assume a normalized event. Unfortunately, this requires us to run
@@ -661,8 +661,8 @@ impl Handler<HandleEvent> for EventManager {
                     | ProcessingError::QuotasFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
-                    ProcessingError::InvalidTransactionEvent => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidTransactionEvent))
+                    ProcessingError::InvalidTransaction => {
+                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
                     }
                     ProcessingError::InvalidJson(_) => {
                         Some(Outcome::Invalid(DiscardReason::InvalidJson))

@@ -72,7 +72,7 @@ pub enum ProcessingAction {
 
     /// The event is invalid (needs to bubble up)
     #[fail(display = "invalid transaction event: {}", _0)]
-    InvalidTransactionEvent(&'static str),
+    InvalidTransaction(&'static str),
 }
 
 /// Wrapper for data fields with optional meta data.
@@ -353,7 +353,7 @@ where
             Err(ProcessingAction::DeleteValueSoft) => {
                 self.1.set_original_value(self.0.take());
             }
-            x @ Err(ProcessingAction::InvalidTransactionEvent(_)) => return x,
+            x @ Err(ProcessingAction::InvalidTransaction(_)) => return x,
         }
 
         Ok(())

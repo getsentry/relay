@@ -144,7 +144,7 @@ pub enum DiscardReason {
 
     /// [Relay] The event is parseable but semantically invalid. This should only happen with
     /// transaction events.
-    InvalidTransactionEvent,
+    InvalidTransaction,
 
     /// [Relay] Parsing an event envelope failed (likely missing a required header).
     InvalidEnvelope,
@@ -237,7 +237,7 @@ mod real_implementation {
                 // Relay specific reasons (not present in Sentry)
                 DiscardReason::Payload => "payload",
                 DiscardReason::InvalidJson => "invalid_json",
-                DiscardReason::InvalidTransactionEvent => "invalid_event",
+                DiscardReason::InvalidTransaction => "invalid_event",
                 DiscardReason::InvalidEnvelope => "invalid_envelope",
                 DiscardReason::ProjectState => "project_state",
                 DiscardReason::DuplicateItem => "duplicate_item",

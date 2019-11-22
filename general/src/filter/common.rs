@@ -120,11 +120,6 @@ pub enum FilterStatKey {
     // that is why it was commented here and moved to OutcomeInvalidReason enum
     /// note: Not returned by any filters implemented in Rust.
     DiscardedHash,
-
-    /// Event has been discarded due to containing invalid data. This happens very rarely and only
-    /// for events that we really would not know how to process after store (e.g. invalid
-    /// transaction events)
-    InvalidTransactionEvent,
 }
 
 impl FilterStatKey {
@@ -139,7 +134,6 @@ impl FilterStatKey {
             FilterStatKey::WebCrawlers => "web-crawlers",
             FilterStatKey::InvalidCsp => "invalid-csp",
             FilterStatKey::DiscardedHash => "discarded-hash",
-            FilterStatKey::InvalidTransactionEvent => "invalid-event",
         }
     }
 }

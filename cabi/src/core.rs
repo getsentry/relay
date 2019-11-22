@@ -7,6 +7,7 @@ use std::str;
 
 use failure::Error;
 use semaphore_common::{KeyParseError, UnpackError, Uuid};
+use semaphore_general::types::ProcessingAction;
 
 use crate::utils::{set_panic_hook, Panic, LAST_ERROR};
 
@@ -47,6 +48,9 @@ pub enum SemaphoreErrorCode {
     UnpackErrorBadSignature = 1003,
     UnpackErrorBadPayload = 1004,
     UnpackErrorSignatureExpired = 1005,
+
+    // semaphore_general::types::annotated::ProcessingAction
+    ProcessingActionInvalidTransaction = 1006,
 }
 
 impl SemaphoreErrorCode {
@@ -69,6 +73,14 @@ impl SemaphoreErrorCode {
                     UnpackError::SignatureExpired => {
                         SemaphoreErrorCode::UnpackErrorSignatureExpired
                     }
+                };
+            }
+            if let Some(err) = cause.downcast_ref::<ProcessingAction>() {
+                return match err {
+                    ProcessingAction::InvalidTransaction(_) => {
+                        SemaphoreErrorCode::ProcessingActionInvalidTransaction
+                    }
+                    _ => SemaphoreErrorCode::Unknown,
                 };
             }
         }
