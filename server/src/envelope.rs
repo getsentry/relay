@@ -60,6 +60,8 @@ pub enum EnvelopeError {
     MissingNewline,
     #[fail(display = "invalid envelope header")]
     InvalidHeader(#[cause] serde_json::Error),
+    #[fail(display = "{} header mismatch between envelope and request", _0)]
+    HeaderMismatch(&'static str),
     #[fail(display = "invalid item header")]
     InvalidItemHeader(#[cause] serde_json::Error),
     #[fail(display = "failed to write header")]
@@ -310,9 +312,30 @@ impl Envelope {
     }
 
     /// TODO(ja): Write that envelope data wins over request meta.
-    pub fn parse_request(bytes: Bytes, meta: EventMeta) -> Result<Self, EnvelopeError> {
+    pub fn parse_request(bytes: Bytes, request_meta: EventMeta) -> Result<Self, EnvelopeError> {
         let mut envelope = Self::parse_bytes(bytes)?;
-        envelope.headers.meta.default_to(meta);
+
+        // Validate certain key attributes between the envelope and request meta. Envelopes may only
+        // be submitted to endpoints that match their interior header information.
+        //
+        // Relay does not read the envelope's headers before running initial validation and fully
+        // relies on request headers at the moment. Technically, the envelope's meta is checked
+        // again once the event goes into the EventManager, but we want to be as accurate as
+        // possible in the endpoint already.
+        let meta = &mut envelope.headers.meta;
+        if meta.dsn().project_id() != request_meta.dsn().project_id() {
+            return Err(EnvelopeError::HeaderMismatch("project id"));
+        } else if meta.dsn().public_key() != request_meta.dsn().public_key() {
+            return Err(EnvelopeError::HeaderMismatch("public key"));
+        } else if meta.origin() != request_meta.origin() {
+            return Err(EnvelopeError::HeaderMismatch("origin"));
+        }
+
+        // TODO(ja): EventMeta's `forwarded` for is extracted from the header as well as the remote
+        // address. There is currently no straight-forward way to merge it with the envelope's
+        // `forwarded`. This requires us to always send appropriate headers.
+
+        envelope.headers.meta.merge(request_meta);
         Ok(envelope)
     }
 

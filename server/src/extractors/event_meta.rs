@@ -78,22 +78,24 @@ impl EventMeta {
         }
     }
 
-    /// Completes this event meta instance with information from another.
+    /// Overwrites this event meta instance with information from another.
     ///
-    /// All fields that are set in this instance will remain. Only missing fields will be updated if
-    /// they are defined in the other EvenMeta instance.
-    pub fn default_to(&mut self, other: EventMeta) {
-        if self.origin.is_none() {
-            self.origin = other.origin;
+    /// All fields that are not set in the other instance will remain.
+    pub fn merge(&mut self, other: EventMeta) {
+        self.dsn = other.dsn;
+        if let Some(client) = other.client {
+            self.client = Some(client);
         }
-        if self.remote_addr.is_none() {
-            self.remote_addr = other.remote_addr;
+        self.version = other.version;
+        if let Some(origin) = other.origin {
+            self.origin = Some(origin);
         }
-        if self.forwarded_for.is_empty() {
-            self.forwarded_for = other.forwarded_for;
+        if let Some(remote_addr) = other.remote_addr {
+            self.remote_addr = Some(remote_addr);
         }
-        if self.user_agent.is_none() {
-            self.user_agent = other.user_agent;
+        self.forwarded_for = other.forwarded_for;
+        if let Some(user_agent) = other.user_agent {
+            self.user_agent = Some(user_agent);
         }
     }
 
