@@ -13,7 +13,7 @@ use futures::{
     Stream,
 };
 
-use semaphore_general::{protocol::EventId, types::Value};
+use semaphore_general::protocol::EventId;
 
 use crate::body::StorePayloadError;
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
@@ -44,7 +44,7 @@ impl SizeLimitedEnvelope {
         if !self.form_data.is_empty() {
             let data = serde_json::to_string(&self.form_data)?;
             let mut item = Item::new(ItemType::FormData);
-            item.set_header("name", COLLECTOR_NAME);
+            item.set_name(COLLECTOR_NAME);
             item.set_payload(ContentType::Json, data);
             self.envelope.add_item(item);
         }
@@ -84,7 +84,7 @@ fn add_minidump_to_envelope(
     let mut item = Item::new(ItemType::Attachment);
     item.set_payload(ContentType::OctetStream, data);
     item.set_filename(file_name.unwrap_or(MINIDUMP_ENTRY_NAME)); // add a default file name
-    item.set_header("name", MINIDUMP_ENTRY_NAME);
+    item.set_name(MINIDUMP_ENTRY_NAME);
     envelope.envelope.add_item(item);
     Ok(())
 }
@@ -136,18 +136,11 @@ where
             content.remaining_size -= data.len();
 
             match (name, file_name) {
-                (Some(ref name), ref file_name) if name.as_str() == MINIDUMP_ENTRY_NAME => {
-                    add_minidump_to_envelope(
-                        &mut content,
-                        data,
-                        file_name.as_ref().map(String::as_str), // if we find a file name keep it
-                    )?;
-                }
                 (name, Some(file_name)) => {
                     let mut item = Item::new(ItemType::Attachment);
                     item.set_payload(ContentType::OctetStream, data);
                     item.set_filename(file_name);
-                    name.map(|name| item.set_header("name", name));
+                    name.map(|name| item.set_name(name));
                     content.envelope.add_item(item)
                 }
                 (Some(name), None) => {
@@ -157,7 +150,6 @@ where
                             content.form_data.push((name, value.to_string()));
                         }
                         Err(_failure) => {
-
                             // log::trace!("invalid text value in multipart item");
                         }
                     }
@@ -214,9 +206,8 @@ where
 
         //check that the envelope contains a minidump item
         for item in envelope.items() {
-            let name = item.get_header("name").unwrap_or(&Value::Bool(false));
-            if let Value::String(name) = name {
-                if name.as_str() == MINIDUMP_ENTRY_NAME {
+            if let Some(name) = item.name() {
+                if name == MINIDUMP_ENTRY_NAME {
                     return Ok(envelope);
                 }
             }
@@ -240,6 +231,7 @@ fn store_minidump(
         move |id| {
             HttpResponse::Ok()
                 .content_type("text/plain")
+                //TODO RaduW 21.11.2019 check that we mach the python implementation (with dashes ? )
                 .body(format!("{}", id))
         },
     ))

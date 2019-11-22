@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -7,14 +8,17 @@ use actix::prelude::*;
 use failure::{Fail, ResultExt};
 use futures::prelude::*;
 use parking_lot::{Mutex, RwLock};
+use rmp_serde as mps;
+use serde_json::{Error as SerdeError, Map as SerdeMap, Value as SerdeValue};
 
 use semaphore_common::{clone, metric, Config, LogError, ProjectId, RelayMode};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{
-    Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString, SecurityReportType,
+    Breadcrumb, Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString,
+    SecurityReportType, Values,
 };
-use semaphore_general::types::{Annotated, ProcessingAction, Value};
+use semaphore_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
@@ -26,7 +30,12 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
 use crate::quotas::{QuotasError, RateLimiter};
 use crate::service::{ServerError, ServerErrorKind};
-use crate::utils::{SyncActorFuture, SyncHandle};
+use crate::utils::{
+    get_sentry_entry_indexes, merge_vals, update_json_object, SyncActorFuture, SyncHandle,
+};
+
+const MAX_MSGPACK_BREADCRUMB_SIZE_BYTES: usize = 50_000;
+const MAX_MSGPACK_EVENT_SIZE_BYTES: usize = 100_000;
 
 #[cfg(feature = "processing")]
 use {
@@ -125,6 +134,129 @@ impl EventProcessor {
         Self { rate_limiter }
     }
 
+    fn message_pack_to_annotated_breadcrumbs(item: &Item) -> Option<Array<Breadcrumb>> {
+        let payload = item.payload();
+        let des = &mut mps::Deserializer::from_slice(&payload);
+
+        Annotated::<Array<Breadcrumb>>::deserialize_with_meta(des)
+            .ok()
+            .and_then(Annotated::into_value)
+    }
+
+    fn add_message_pack_breadcrumbs(
+        evt: &mut Annotated<Event>,
+        breadcrumbs1: Option<Item>,
+        breadcrumbs2: Option<Item>,
+    ) {
+        let mut breadcrumbs1 = breadcrumbs1
+            .as_ref()
+            .and_then(Self::message_pack_to_annotated_breadcrumbs)
+            .unwrap_or_default();
+
+        let mut breadcrumbs2 = breadcrumbs2
+            .as_ref()
+            .and_then(Self::message_pack_to_annotated_breadcrumbs)
+            .unwrap_or_default();
+
+        let timestamp1 = breadcrumbs1
+            .iter()
+            .rev()
+            .find_map(|breadcrumb| breadcrumb.value().and_then(|b| b.timestamp.value()));
+
+        let timestamp2 = breadcrumbs2
+            .iter()
+            .rev()
+            .find_map(|breadcrumb| breadcrumb.value().and_then(|b| b.timestamp.value()));
+
+        if timestamp1 > timestamp2 {
+            std::mem::swap(&mut breadcrumbs1, &mut breadcrumbs2);
+        }
+
+        let max_length = std::cmp::max(breadcrumbs1.len(), breadcrumbs2.len());
+        breadcrumbs1.extend(breadcrumbs2);
+        breadcrumbs1.truncate(max_length);
+
+        if let Some(evt) = evt.value_mut() {
+            evt.breadcrumbs = Annotated::new(Values {
+                values: Annotated::new(breadcrumbs1.into()),
+                other: Object::default(),
+            });
+        }
+    }
+
+    /// merge form data (from a multipart request into the event
+    fn event_from_form_data(
+        form_data: Item,
+        event_data_mps: Option<Item>,
+        breadcrumbs1: Option<Item>,
+        breadcrumbs2: Option<Item>,
+    ) -> Annotated<Event> {
+        // if we have a "sentry" entry it should be a straight json.. merge this into
+        if form_data.ty() != ItemType::FormData
+            || form_data.content_type() != Some(&ContentType::Json)
+        {
+            //this should never happen caller called it with
+            log::error!("merge_form_data called without a proper FormaData item");
+            return Annotated::new(Event::default());
+        }
+
+        let consolidated_data: Result<SerdeValue, SerdeError> =
+            serde_json::from_slice(form_data.payload().deref());
+
+        if let Ok(SerdeValue::Object(consolidated_data)) = consolidated_data {
+            let mut event_data = SerdeValue::Object(SerdeMap::new());
+
+            for (key, val) in consolidated_data {
+                if let SerdeValue::String(val) = val {
+                    if let Some(keys) = get_sentry_entry_indexes(key.as_str()) {
+                        //iterate through all 'sentry[...' params
+                        update_json_object(&mut event_data, &keys, val);
+                    } else if key.as_str() == "sentry" {
+                        //this should be a json string representing the event, merge it into what
+                        //we have already created
+                        let evt_from_json = serde_json::from_str(val.as_str());
+                        if let Ok(evt_from_json) = evt_from_json {
+                            merge_vals(&mut event_data, evt_from_json)
+                        }
+                    } else {
+                        //an unknown entry, just add it to extra
+                        update_json_object(&mut event_data, &["extra", key.as_str()], val);
+                    }
+                }
+            }
+            if let Some(event_data_mps) = event_data_mps {
+                if event_data_mps.len() < MAX_MSGPACK_EVENT_SIZE_BYTES {
+                    if let Ok(evt) = mps::from_slice(event_data_mps.payload().as_ref()) {
+                        merge_vals(&mut event_data, evt);
+                    } else {
+                        log::debug!("Invalid message pack event data in form data");
+                    }
+                }
+            }
+
+            let mut annotated_event =
+                Annotated::deserialize_with_meta(event_data).unwrap_or_default();
+
+            Self::add_message_pack_breadcrumbs(&mut annotated_event, breadcrumbs1, breadcrumbs2);
+
+            return annotated_event;
+        } else {
+            log::error!("Error deserializing FormData item")
+        }
+
+        Annotated::new(Event::default())
+    }
+
+    fn get_item_by_name(envelope: &mut Envelope, name: &str) -> Option<Item> {
+        envelope.take_item_cond(|item| {
+            if let Some(item_name) = item.name() {
+                name == item_name
+            } else {
+                false
+            }
+        })
+    }
+
     fn process(&self, message: ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
         let mut envelope = message.envelope;
         let event_id = envelope.event_id();
@@ -135,6 +267,21 @@ impl EventProcessor {
         let event_item = envelope.take_item(ItemType::Event);
         let security_item = envelope.take_item(ItemType::SecurityReport);
         let form_item = envelope.take_item(ItemType::FormData);
+        let mps_event = Self::get_item_by_name(&mut envelope, "__sentry-event");
+
+        fn small_enough_or_none(item: Item) -> Option<Item> {
+            if item.payload().len() < MAX_MSGPACK_BREADCRUMB_SIZE_BYTES {
+                Some(item)
+            } else {
+                None
+            }
+        }
+
+        let mps_breadcrumbs1 = Self::get_item_by_name(&mut envelope, "__sentry-breadcrumb1")
+            .and_then(small_enough_or_none);
+
+        let mps_breadcrumbs2 = Self::get_item_by_name(&mut envelope, "__sentry-breadcrumb2")
+            .and_then(small_enough_or_none);
 
         // TODO: describe validation
         let duplicate_item = envelope
@@ -145,13 +292,16 @@ impl EventProcessor {
             return Err(ProcessingError::DuplicateItem(duplicate_item.ty()));
         }
 
-        let mut event = match event_item {
-            Some(item) => metric!(timer("event_processing.deserialize"), {
+        let mut event = match (event_item, form_item) {
+            (Some(item), _) => metric!(timer("event_processing.deserialize"), {
                 log::trace!("processing event {}", event_id);
                 Annotated::<Event>::from_json_bytes(&item.payload())
                     .map_err(ProcessingError::InvalidJson)?
             }),
-            None => {
+            (None, Some(item)) => {
+                Self::event_from_form_data(item, mps_event, mps_breadcrumbs1, mps_breadcrumbs2)
+            }
+            (None, None) => {
                 log::trace!("creating empty event {}", event_id);
                 Annotated::new(Event::default())
             }
@@ -159,10 +309,6 @@ impl EventProcessor {
 
         if let Some(event) = event.value_mut() {
             event.id = Annotated::new(event_id);
-        }
-
-        if let Some(_form) = form_item {
-            // TODO: merge into event
         }
 
         if let Some(event) = event.value_mut() {

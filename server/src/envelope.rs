@@ -164,6 +164,9 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
 }
@@ -183,6 +186,7 @@ impl Item {
                 event_type: None,
                 content_type: None,
                 filename: None,
+                name: None,
                 other: BTreeMap::new(),
             },
             payload: Bytes::new(),
@@ -240,6 +244,17 @@ impl Item {
         S: Into<String>,
     {
         self.headers.filename = Some(filename.into());
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        self.headers.name.as_ref().map(String::as_str)
+    }
+
+    pub fn set_name<S>(&mut self, name: S)
+    where
+        S: Into<String>,
+    {
+        self.headers.name = Some(name.into());
     }
 
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
@@ -345,6 +360,14 @@ impl Envelope {
 
     pub fn take_item(&mut self, ty: ItemType) -> Option<Item> {
         let index = self.items.iter().position(|item| item.ty() == ty);
+        index.map(|index| self.items.swap_remove(index))
+    }
+
+    pub fn take_item_cond<F>(&mut self, cond: F) -> Option<Item>
+    where
+        F: Fn(&Item) -> bool,
+    {
+        let index = self.items.iter().position(cond);
         index.map(|index| self.items.swap_remove(index))
     }
 
