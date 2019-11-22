@@ -213,7 +213,7 @@ impl EventProcessor {
                 }
 
                 let store_config = StoreConfig {
-                    project_id: Some(envelope.project_id()),
+                    project_id: Some(envelope.meta().project_id()),
                     client_ip: envelope.meta().client_addr().map(IpAddr::from),
                     client: envelope.meta().client().map(str::to_owned),
                     key_id,
@@ -517,7 +517,7 @@ impl Handler<HandleEvent> for EventManager {
         } = message;
 
         let event_id = envelope.event_id();
-        let project_id = envelope.project_id();
+        let project_id = envelope.meta().project_id();
         let remote_addr = envelope.meta().client_addr();
         let meta_clone = Arc::new(envelope.meta().clone());
 

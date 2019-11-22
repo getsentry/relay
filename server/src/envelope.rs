@@ -178,6 +178,7 @@ pub struct Item {
 }
 
 impl Item {
+    /// Creates a new item with the given type.
     pub fn new(ty: ItemType) -> Self {
         Self {
             headers: ItemHeaders {
@@ -192,34 +193,46 @@ impl Item {
         }
     }
 
+    /// Returns the `ItemType` of this item.
     pub fn ty(&self) -> ItemType {
         self.headers.ty
     }
 
+    /// Returns the length of this item's payload.
     pub fn len(&self) -> usize {
         self.payload.len()
     }
 
+    /// Returns `true` if this item's payload is empty.
     pub fn is_empty(&self) -> bool {
         self.payload.is_empty()
     }
 
+    /// Returns the content type of this item's payload.
     pub fn content_type(&self) -> Option<&ContentType> {
         self.headers.content_type.as_ref()
     }
 
+    /// Returns the event type if this item is an event.
     pub fn event_type(&self) -> Option<EventType> {
+        // TODO: consider to replace this with an ItemType?
         self.headers.event_type
     }
 
+    /// Sets the event type of this item.
     pub fn set_event_type(&mut self, event_type: EventType) {
         self.headers.event_type = Some(event_type);
     }
 
+    /// Returns the payload of this item.
+    ///
+    /// Envelope payloads are ref-counted. The bytes object is a reference to the original data, but
+    /// cannot be used to mutate data in this envelope. In order to change data, use `set_payload`.
     pub fn payload(&self) -> Bytes {
         self.payload.clone()
     }
 
+    /// Sets the payload and content-type of this envelope.
     pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
     where
         B: Into<Bytes>,
@@ -234,10 +247,12 @@ impl Item {
         self.payload = payload;
     }
 
+    /// Returns the file name of this item, if it is an attachment.
     pub fn filename(&self) -> Option<&str> {
         self.headers.filename.as_ref().map(String::as_str)
     }
 
+    /// Sets the file name of this item.
     pub fn set_filename<S>(&mut self, filename: S)
     where
         S: Into<String>,
@@ -245,6 +260,7 @@ impl Item {
         self.headers.filename = Some(filename.into());
     }
 
+    /// Returns the specified header value, if present.
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
     where
         String: Borrow<K>,
@@ -253,6 +269,7 @@ impl Item {
         self.headers.other.get(name)
     }
 
+    /// Sets the specified header value, returning the previous one if present.
     pub fn set_header<S, V>(&mut self, name: S, value: V) -> Option<Value>
     where
         S: Into<String>,
@@ -269,9 +286,11 @@ pub struct EnvelopeHeaders {
     /// Unique identifier of the event associated to this envelope.
     event_id: EventId,
 
+    /// Further event information derived from a store request.
     #[serde(flatten)]
     meta: EventMeta,
 
+    /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
 }
@@ -283,6 +302,7 @@ pub struct Envelope {
 }
 
 impl Envelope {
+    /// Creates an envelope from request information.
     pub fn from_request(event_id: EventId, meta: EventMeta) -> Self {
         Self {
             headers: EnvelopeHeaders {
@@ -294,6 +314,7 @@ impl Envelope {
         }
     }
 
+    /// Parses an envelope from bytes.
     pub fn parse_bytes(bytes: Bytes) -> Result<Self, EnvelopeError> {
         let (headers, mut offset) = Self::parse_headers(&bytes)?;
 
@@ -311,7 +332,16 @@ impl Envelope {
         Ok(envelope)
     }
 
-    /// TODO(ja): Write that envelope data wins over request meta.
+    /// Parses an envelope taking into account a request.
+    ///
+    /// This method is intended to be used when parsing an envelope that was sent as part of a web
+    /// request. It validates that request headers are in line with the envelope's headers. If there
+    /// is a mismatch, `EnvelopeError::HeaderMismatch` is returned.
+    ///
+    /// This method validates the following headers:
+    ///  - DSN project (required)
+    ///  - DSN public key (required)
+    ///  - Origin (if present)
     pub fn parse_request(bytes: Bytes, request_meta: EventMeta) -> Result<Self, EnvelopeError> {
         let mut envelope = Self::parse_bytes(bytes)?;
 
@@ -339,16 +369,14 @@ impl Envelope {
         Ok(envelope)
     }
 
+    /// Returns the number of items in this envelope.
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
+    /// Returns `true` if this envelope does not contain any items.
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
-    }
-
-    pub fn project_id(&self) -> ProjectId {
-        self.headers.meta.project_id()
     }
 
     /// Unique identifier of the event associated to this envelope.
@@ -360,27 +388,37 @@ impl Envelope {
         self.headers.event_id
     }
 
+    /// Returns event metadata information.
     pub fn meta(&self) -> &EventMeta {
         &self.headers.meta
     }
 
+    /// Returns an iterator over items in this envelope.
+    ///
+    /// Note that iteration order may change when using `take_item`.
     pub fn items(&self) -> ItemIter<'_> {
         self.items.iter()
     }
 
+    /// Returns the first item that matches the given `ItemType`.
     pub fn get_item(&self, ty: ItemType) -> Option<&Item> {
         self.items().find(|item| item.ty() == ty)
     }
 
+    /// Removes and returns the first item that matches the given `ItemType`.
+    ///
+    /// This swaps the last item with the item being removed.
     pub fn take_item(&mut self, ty: ItemType) -> Option<Item> {
         let index = self.items.iter().position(|item| item.ty() == ty);
         index.map(|index| self.items.swap_remove(index))
     }
 
+    /// Adds a new item to this envelope.
     pub fn add_item(&mut self, item: Item) {
         self.items.push(item)
     }
 
+    /// Serializes this envelope into the given writer.
     pub fn serialize<W>(&self, mut writer: W) -> Result<(), EnvelopeError>
     where
         W: Write,
@@ -400,6 +438,7 @@ impl Envelope {
         Ok(())
     }
 
+    /// Serializes this envelope into a buffer.
     pub fn to_vec(&self) -> Result<Vec<u8>, EnvelopeError> {
         let mut vec = Vec::new(); // TODO: Preallocate?
         self.serialize(&mut vec)?;
@@ -573,7 +612,6 @@ mod tests {
 
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
         assert_eq!(envelope.event_id(), event_id);
-        assert_eq!(envelope.project_id(), 42);
         assert_eq!(envelope.len(), 0);
     }
 

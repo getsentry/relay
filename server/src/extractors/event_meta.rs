@@ -99,27 +99,31 @@ impl EventMeta {
         }
     }
 
-    /// Returns a reference to the auth info
+    /// Returns a reference to the DSN.
+    ///
+    /// The DSN declares the project and auth information and upstream address. When EventMeta is
+    /// constructed from a web request, the DSN is set to point to the upstream host.
     pub fn dsn(&self) -> &Dsn {
         &self.dsn
     }
 
-    /// TODO(ja): Describe
+    /// Returns the project identifier that the DSN points to.
     pub fn project_id(&self) -> ProjectId {
-        // TODO(ja): Fix this in sentry-types
+        // TODO(ja): sentry-types does not expose the DSN at the moment.
         unsafe { std::mem::transmute(self.dsn().project_id()) }
     }
 
-    /// TODO(ja): Describe
+    /// Returns the public key part of the DSN for authentication.
     pub fn public_key(&self) -> &str {
         &self.dsn.public_key()
     }
 
-    /// TODO(ja): Describe
+    /// Returns the client that sent this event (Sentry SDK identifier).
     pub fn client(&self) -> Option<&str> {
         self.client.as_ref().map(String::as_str)
     }
 
+    /// Returns the protocol version of the event payload.
     pub fn version(&self) -> u16 {
         self.version
     }
@@ -157,7 +161,9 @@ impl EventMeta {
         self.user_agent.as_ref().map(String::as_str)
     }
 
-    /// TODO(ja): Describe
+    /// Formats the Sentry authentication header.
+    ///
+    /// This header must be included in store requests.
     pub fn auth_header(&self) -> String {
         let mut auth = format!(
             "Sentry sentry_key={}, sentry_version={}",
