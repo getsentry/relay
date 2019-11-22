@@ -1,5 +1,4 @@
 //! A simple healthcheck endpoint for the relay.
-
 use ::actix::prelude::*;
 use actix_web::{http::Method, Error, HttpResponse, Scope};
 use futures::prelude::*;
@@ -8,7 +7,7 @@ use serde::Serialize;
 use crate::extractors::CurrentServiceState;
 use crate::service::ServiceState;
 
-use crate::actors::upstream::IsAuthenticated;
+use crate::actors::healthcheck::IsHealthy;
 
 #[derive(Serialize)]
 struct HealthcheckResponse {
@@ -33,50 +32,41 @@ impl HealthcheckResponse {
     }
 }
 
-#[allow(clippy::needless_pass_by_value)]
-fn healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error> {
+fn healthcheck_impl(
+    state: CurrentServiceState,
+    message: IsHealthy,
+) -> ResponseFuture<HttpResponse, Error> {
     Box::new(
         state
-            .upstream_relay()
-            .send(IsAuthenticated)
+            .healthcheck()
+            .send(message)
             .map_err(|_| ())
-            .and_then(move |is_authenticated| {
-                if is_authenticated {
-                    Ok(HealthcheckResponse::healthy().into_response())
-                } else {
+            .flatten()
+            .and_then(move |is_healthy| {
+                if !is_healthy {
                     Err(())
+                } else {
+                    Ok(HealthcheckResponse::healthy().into_response())
                 }
             })
-            .or_else(|_| Ok(HealthcheckResponse::unhealthy().into_response())),
+            .or_else(|()| Ok(HealthcheckResponse::unhealthy().into_response())),
     )
 }
 
-#[cfg(feature = "processing")]
-#[allow(clippy::needless_pass_by_value)]
-fn healthcheck_processing(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error> {
-    if state.config().processing_enabled() {
-        healthcheck(state)
-    } else {
-        Box::new(futures::future::ok(
-            HealthcheckResponse::unhealthy().into_response(),
-        ))
-    }
+fn readiness_healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error> {
+    healthcheck_impl(state, IsHealthy::Readiness)
 }
 
-fn configure_scope_common(scope: Scope<ServiceState>) -> Scope<ServiceState> {
-    scope.resource("/healthcheck/", |r| {
-        r.method(Method::GET).with(healthcheck);
-    })
+fn liveness_healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error> {
+    healthcheck_impl(state, IsHealthy::Liveness)
 }
 
-#[cfg(feature = "processing")]
 pub fn configure_scope(scope: Scope<ServiceState>) -> Scope<ServiceState> {
-    configure_scope_common(scope).resource("/healthcheck_processing/", |r| {
-        r.method(Method::GET).with(healthcheck_processing);
-    })
-}
-
-#[cfg(not(feature = "processing"))]
-pub fn configure_scope(scope: Scope<ServiceState>) -> Scope<ServiceState> {
-    configure_scope_common(scope)
+    scope
+        .resource("/healthcheck/ready/", |r| {
+            r.method(Method::GET).with(readiness_healthcheck);
+        })
+        .resource("/healthcheck/live/", |r| {
+            r.method(Method::GET).with(liveness_healthcheck)
+        })
 }
