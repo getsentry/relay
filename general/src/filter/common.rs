@@ -124,7 +124,7 @@ pub enum FilterStatKey {
     /// Event has been discarded due to containing invalid data. This happens very rarely and only
     /// for events that we really would not know how to process after store (e.g. invalid
     /// transaction events)
-    InvalidEvent,
+    InvalidTransactionEvent,
 }
 
 impl FilterStatKey {
@@ -139,7 +139,7 @@ impl FilterStatKey {
             FilterStatKey::WebCrawlers => "web-crawlers",
             FilterStatKey::InvalidCsp => "invalid-csp",
             FilterStatKey::DiscardedHash => "discarded-hash",
-            FilterStatKey::InvalidEvent => "invalid-event",
+            FilterStatKey::InvalidTransactionEvent => "invalid-event",
         }
     }
 }

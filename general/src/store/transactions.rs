@@ -18,20 +18,20 @@ impl Processor for TransactionsProcessor {
         match (event.start_timestamp.value(), event.timestamp.value_mut()) {
             (Some(start), Some(end)) => {
                 if *end < *start {
-                    return Err(ProcessingAction::InvalidEvent(
+                    return Err(ProcessingAction::InvalidTransactionEvent(
                         "end timestamp is smaller than start timestamp",
                     ));
                 }
             }
             (_, None) => {
                 // This invariant should be already guaranteed for regular error events.
-                return Err(ProcessingAction::InvalidEvent(
+                return Err(ProcessingAction::InvalidTransactionEvent(
                     "timestamp hard-required for transaction events",
                 ));
             }
             (None, _) => {
                 // XXX: Maybe copy timestamp over?
-                return Err(ProcessingAction::InvalidEvent(
+                return Err(ProcessingAction::InvalidTransactionEvent(
                     "start_timestamp hard-required for transaction events",
                 ));
             }
@@ -41,36 +41,36 @@ impl Processor for TransactionsProcessor {
             match contexts.get("trace").and_then(Annotated::value) {
                 Some(ContextInner(Context::Trace(ref trace_context))) => {
                     if trace_context.trace_id.value().is_none() {
-                        return Err(ProcessingAction::InvalidEvent(
+                        return Err(ProcessingAction::InvalidTransactionEvent(
                             "trace context is missing trace_id",
                         ));
                     }
 
                     if trace_context.span_id.value().is_none() {
-                        return Err(ProcessingAction::InvalidEvent(
+                        return Err(ProcessingAction::InvalidTransactionEvent(
                             "trace context is missing span_id",
                         ));
                     }
 
                     if trace_context.op.value().is_none() {
-                        return Err(ProcessingAction::InvalidEvent(
+                        return Err(ProcessingAction::InvalidTransactionEvent(
                             "trace context is missing op",
                         ));
                     }
                 }
                 Some(_) => {
-                    return Err(ProcessingAction::InvalidEvent(
+                    return Err(ProcessingAction::InvalidTransactionEvent(
                         "context at event.contexts.trace must be of type trace.",
                     ));
                 }
                 None => {
-                    return Err(ProcessingAction::InvalidEvent(
+                    return Err(ProcessingAction::InvalidTransactionEvent(
                         "trace context hard-required for transaction events",
                     ));
                 }
             }
         } else {
-            return Err(ProcessingAction::InvalidEvent(
+            return Err(ProcessingAction::InvalidTransactionEvent(
                 "trace context hard-required for transaction events",
             ));
         }
@@ -78,7 +78,7 @@ impl Processor for TransactionsProcessor {
         if let Some(spans) = event.spans.value() {
             for span in spans {
                 if span.value().is_none() {
-                    return Err(ProcessingAction::InvalidEvent(
+                    return Err(ProcessingAction::InvalidTransactionEvent(
                         "spans must be valid in transaction event",
                     ));
                 }
@@ -99,33 +99,41 @@ impl Processor for TransactionsProcessor {
         match (span.start_timestamp.value(), span.timestamp.value()) {
             (Some(start), Some(end)) => {
                 if end < start {
-                    return Err(ProcessingAction::InvalidEvent(
+                    return Err(ProcessingAction::InvalidTransactionEvent(
                         "end timestamp in span is smaller than start timestamp",
                     ));
                 }
             }
             (_, None) => {
                 // XXX: Maybe do the same as event.timestamp?
-                return Err(ProcessingAction::InvalidEvent("span is missing timestamp"));
+                return Err(ProcessingAction::InvalidTransactionEvent(
+                    "span is missing timestamp",
+                ));
             }
             (None, _) => {
                 // XXX: Maybe copy timestamp over?
-                return Err(ProcessingAction::InvalidEvent(
+                return Err(ProcessingAction::InvalidTransactionEvent(
                     "span is missing start_timestamp",
                 ));
             }
         }
 
         if span.trace_id.value().is_none() {
-            return Err(ProcessingAction::InvalidEvent("span is missing trace_id"));
+            return Err(ProcessingAction::InvalidTransactionEvent(
+                "span is missing trace_id",
+            ));
         }
 
         if span.span_id.value().is_none() {
-            return Err(ProcessingAction::InvalidEvent("span is missing span_id"));
+            return Err(ProcessingAction::InvalidTransactionEvent(
+                "span is missing span_id",
+            ));
         }
 
         if span.op.value().is_none() {
-            return Err(ProcessingAction::InvalidEvent("span is missing op"));
+            return Err(ProcessingAction::InvalidTransactionEvent(
+                "span is missing op",
+            ));
         }
 
         span.process_child_values(self, state)?;
@@ -168,7 +176,7 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent(
+            Err(ProcessingAction::InvalidTransactionEvent(
                 "timestamp hard-required for transaction events"
             ))
         );
@@ -188,7 +196,7 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent(
+            Err(ProcessingAction::InvalidTransactionEvent(
                 "start_timestamp hard-required for transaction events"
             ))
         );
@@ -209,7 +217,7 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent(
+            Err(ProcessingAction::InvalidTransactionEvent(
                 "trace context hard-required for transaction events"
             ))
         );
@@ -231,7 +239,7 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent(
+            Err(ProcessingAction::InvalidTransactionEvent(
                 "trace context hard-required for transaction events"
             ))
         );
@@ -257,7 +265,7 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent(
+            Err(ProcessingAction::InvalidTransactionEvent(
                 "trace context hard-required for transaction events"
             ))
         );
@@ -288,7 +296,7 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent(
+            Err(ProcessingAction::InvalidTransactionEvent(
                 "trace context is missing trace_id"
             ))
         );
@@ -322,7 +330,7 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent(
+            Err(ProcessingAction::InvalidTransactionEvent(
                 "trace context is missing span_id"
             ))
         );
@@ -357,7 +365,7 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent(
+            Err(ProcessingAction::InvalidTransactionEvent(
                 "trace context is missing op"
             ))
         );
@@ -461,7 +469,7 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent(
+            Err(ProcessingAction::InvalidTransactionEvent(
                 "spans must be valid in transaction event"
             ))
         );
@@ -500,7 +508,9 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent("span is missing timestamp"))
+            Err(ProcessingAction::InvalidTransactionEvent(
+                "span is missing timestamp"
+            ))
         );
     }
 
@@ -538,7 +548,7 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent(
+            Err(ProcessingAction::InvalidTransactionEvent(
                 "span is missing start_timestamp"
             ))
         );
@@ -579,7 +589,9 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent("span is missing trace_id"))
+            Err(ProcessingAction::InvalidTransactionEvent(
+                "span is missing trace_id"
+            ))
         );
     }
 
@@ -619,7 +631,9 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent("span is missing span_id"))
+            Err(ProcessingAction::InvalidTransactionEvent(
+                "span is missing span_id"
+            ))
         );
     }
 
@@ -661,7 +675,9 @@ mod tests {
                 &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
-            Err(ProcessingAction::InvalidEvent("span is missing op"))
+            Err(ProcessingAction::InvalidTransactionEvent(
+                "span is missing op"
+            ))
         );
     }
 
