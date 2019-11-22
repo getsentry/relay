@@ -42,6 +42,7 @@ use failure::Fail;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use semaphore_common::ProjectId;
 use semaphore_general::protocol::{EventId, EventType};
 use semaphore_general::types::Value;
 
@@ -321,6 +322,10 @@ impl Envelope {
 
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    pub fn project_id(&self) -> ProjectId {
+        self.headers.meta.project_id()
     }
 
     /// Unique identifier of the event associated to this envelope.

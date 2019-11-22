@@ -6,13 +6,17 @@ use failure::Fail;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use semaphore_common::{Auth, AuthParseError, Dsn, DsnParseError, ProjectId};
+use semaphore_common::{Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError};
 
 use crate::extractors::ForwardedFor;
+use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, Fail)]
 pub enum BadEventMeta {
+    #[fail(display = "bad project path parameter")]
+    BadProject(#[cause] ProjectIdParseError),
+
     #[fail(display = "bad x-sentry-auth header")]
     BadAuth(#[fail(cause)] AuthParseError),
 
@@ -101,7 +105,7 @@ impl EventMeta {
     /// TODO(ja): Describe
     pub fn project_id(&self) -> ProjectId {
         // TODO(ja): Fix this in sentry-types
-        unsafe { std::mem::transmute(self.dsn.project_id()) }
+        unsafe { std::mem::transmute(self.dsn().project_id()) }
     }
 
     /// TODO(ja): Describe
@@ -192,16 +196,33 @@ fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Opti
         })
 }
 
-impl<S> FromRequest<S> for EventMeta {
+impl FromRequest<ServiceState> for EventMeta {
     type Config = ();
     type Result = Result<Self, BadEventMeta>;
 
-    fn from_request(request: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
+    fn from_request(request: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
+        let project_id = request
+            .match_info()
+            .get("project")
+            .unwrap_or_default()
+            .parse::<ProjectId>()
+            .map_err(BadEventMeta::BadProject)?;
+
         let auth = auth_from_request(request)?;
-        let dsn = format!("").parse().map_err(BadEventMeta::BadDsn)?;
+
+        let config = request.state().config();
+        let upstream = config.upstream_descriptor();
+
+        let dsn_string = format!(
+            "{}://{}:@{}/{}",
+            upstream.scheme(),
+            auth.public_key(),
+            upstream.host(),
+            project_id,
+        );
 
         Ok(EventMeta {
-            dsn,
+            dsn: dsn_string.parse().map_err(BadEventMeta::BadDsn)?,
             version: auth.version(),
             client: auth.client_agent().map(str::to_owned),
             origin: parse_header_url(request, header::ORIGIN)
