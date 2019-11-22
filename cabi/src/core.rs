@@ -50,7 +50,7 @@ pub enum SemaphoreErrorCode {
     UnpackErrorSignatureExpired = 1005,
 
     // semaphore_general::types::annotated::ProcessingAction
-    ProcessingActionInvalidTransaction = 1006,
+    ProcessingActionInvalidTransaction = 2000,
 }
 
 impl SemaphoreErrorCode {
