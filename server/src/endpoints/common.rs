@@ -11,7 +11,7 @@ use futures::prelude::*;
 use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 
-use semaphore_common::{metric, tryf, LogError, ProjectId, ProjectIdParseError};
+use semaphore_common::{metric, tryf, LogError};
 use semaphore_general::protocol::EventId;
 
 use crate::actors::events::{QueueEvent, QueueEventError};
@@ -25,9 +25,6 @@ use crate::utils::ApiErrorResponse;
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
-    #[fail(display = "invalid project path parameter")]
-    BadProject(#[cause] ProjectIdParseError),
-
     #[fail(display = "unsupported protocol version ({})", _0)]
     UnsupportedProtocolVersion(u16),
 
@@ -62,8 +59,6 @@ pub enum BadStoreRequest {
 impl BadStoreRequest {
     fn to_outcome(&self) -> Outcome {
         match self {
-            BadStoreRequest::BadProject(_) => Outcome::Invalid(DiscardReason::ProjectId),
-
             BadStoreRequest::UnsupportedProtocolVersion(_) => {
                 Outcome::Invalid(DiscardReason::AuthVersion)
             }
@@ -156,20 +151,13 @@ where
     let start_time = start_time.into_inner();
 
     // For now, we only handle <= v8 and drop everything else
-    let version = meta.auth().version();
-    if version > 8 {
+    let version = meta.version();
+    if version > semaphore_common::PROTOCOL_VERSION {
         // TODO: Delegate to forward_upstream here
         tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(version)));
     }
 
-    // Make sure we have a project ID. Does not check if the project exists yet
-    let project_id = tryf!(request
-        .match_info()
-        .get("project")
-        .unwrap_or_default()
-        .parse::<ProjectId>()
-        .map_err(BadStoreRequest::BadProject));
-
+    let project_id = meta.project_id();
     let hub = Hub::from_request(&request);
     hub.configure_scope(|scope| {
         scope.set_user(Some(sentry::User {
@@ -214,7 +202,6 @@ where
                     event_manager
                         .send(QueueEvent {
                             envelope,
-                            project_id,
                             project,
                             start_time,
                         })

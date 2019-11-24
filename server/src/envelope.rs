@@ -22,7 +22,7 @@
 //! This is enabled by declaring an explicit length in the item headers. Example:
 //!
 //! ```plain
-//! {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","auth":"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b, sentry_version=7"}
+//! {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn": "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
 //! {"type":"event","length":41,"content_type":"application/json"}
 //! {"message":"hello world","level":"error"}
 //! {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
@@ -42,6 +42,7 @@ use failure::Fail;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use semaphore_common::ProjectId;
 use semaphore_general::protocol::{EventId, EventType};
 use semaphore_general::types::Value;
 
@@ -59,6 +60,8 @@ pub enum EnvelopeError {
     MissingNewline,
     #[fail(display = "invalid envelope header")]
     InvalidHeader(#[cause] serde_json::Error),
+    #[fail(display = "{} header mismatch between envelope and request", _0)]
+    HeaderMismatch(&'static str),
     #[fail(display = "invalid item header")]
     InvalidItemHeader(#[cause] serde_json::Error),
     #[fail(display = "failed to write header")]
@@ -175,6 +178,7 @@ pub struct Item {
 }
 
 impl Item {
+    /// Creates a new item with the given type.
     pub fn new(ty: ItemType) -> Self {
         Self {
             headers: ItemHeaders {
@@ -189,34 +193,46 @@ impl Item {
         }
     }
 
+    /// Returns the `ItemType` of this item.
     pub fn ty(&self) -> ItemType {
         self.headers.ty
     }
 
+    /// Returns the length of this item's payload.
     pub fn len(&self) -> usize {
         self.payload.len()
     }
 
+    /// Returns `true` if this item's payload is empty.
     pub fn is_empty(&self) -> bool {
         self.payload.is_empty()
     }
 
+    /// Returns the content type of this item's payload.
     pub fn content_type(&self) -> Option<&ContentType> {
         self.headers.content_type.as_ref()
     }
 
+    /// Returns the event type if this item is an event.
     pub fn event_type(&self) -> Option<EventType> {
+        // TODO: consider to replace this with an ItemType?
         self.headers.event_type
     }
 
+    /// Sets the event type of this item.
     pub fn set_event_type(&mut self, event_type: EventType) {
         self.headers.event_type = Some(event_type);
     }
 
+    /// Returns the payload of this item.
+    ///
+    /// Envelope payloads are ref-counted. The bytes object is a reference to the original data, but
+    /// cannot be used to mutate data in this envelope. In order to change data, use `set_payload`.
     pub fn payload(&self) -> Bytes {
         self.payload.clone()
     }
 
+    /// Sets the payload and content-type of this envelope.
     pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
     where
         B: Into<Bytes>,
@@ -231,10 +247,12 @@ impl Item {
         self.payload = payload;
     }
 
+    /// Returns the file name of this item, if it is an attachment.
     pub fn filename(&self) -> Option<&str> {
         self.headers.filename.as_ref().map(String::as_str)
     }
 
+    /// Sets the file name of this item.
     pub fn set_filename<S>(&mut self, filename: S)
     where
         S: Into<String>,
@@ -242,6 +260,7 @@ impl Item {
         self.headers.filename = Some(filename.into());
     }
 
+    /// Returns the specified header value, if present.
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
     where
         String: Borrow<K>,
@@ -250,6 +269,7 @@ impl Item {
         self.headers.other.get(name)
     }
 
+    /// Sets the specified header value, returning the previous one if present.
     pub fn set_header<S, V>(&mut self, name: S, value: V) -> Option<Value>
     where
         S: Into<String>,
@@ -266,9 +286,11 @@ pub struct EnvelopeHeaders {
     /// Unique identifier of the event associated to this envelope.
     event_id: EventId,
 
+    /// Further event information derived from a store request.
     #[serde(flatten)]
     meta: EventMeta,
 
+    /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
 }
@@ -280,6 +302,7 @@ pub struct Envelope {
 }
 
 impl Envelope {
+    /// Creates an envelope from request information.
     pub fn from_request(event_id: EventId, meta: EventMeta) -> Self {
         Self {
             headers: EnvelopeHeaders {
@@ -291,6 +314,7 @@ impl Envelope {
         }
     }
 
+    /// Parses an envelope from bytes.
     pub fn parse_bytes(bytes: Bytes) -> Result<Self, EnvelopeError> {
         let (headers, mut offset) = Self::parse_headers(&bytes)?;
 
@@ -308,16 +332,49 @@ impl Envelope {
         Ok(envelope)
     }
 
-    pub fn parse_request(bytes: Bytes, meta: EventMeta) -> Result<Self, EnvelopeError> {
+    /// Parses an envelope taking into account a request.
+    ///
+    /// This method is intended to be used when parsing an envelope that was sent as part of a web
+    /// request. It validates that request headers are in line with the envelope's headers. If there
+    /// is a mismatch, `EnvelopeError::HeaderMismatch` is returned.
+    ///
+    /// This method validates the following headers:
+    ///  - DSN project (required)
+    ///  - DSN public key (required)
+    ///  - Origin (if present)
+    pub fn parse_request(bytes: Bytes, request_meta: EventMeta) -> Result<Self, EnvelopeError> {
         let mut envelope = Self::parse_bytes(bytes)?;
-        envelope.headers.meta.default_to(meta);
+
+        // Validate certain key attributes between the envelope and request meta. Envelopes may only
+        // be submitted to endpoints that match their interior header information.
+        //
+        // Relay does not read the envelope's headers before running initial validation and fully
+        // relies on request headers at the moment. Technically, the envelope's meta is checked
+        // again once the event goes into the EventManager, but we want to be as accurate as
+        // possible in the endpoint already.
+        let meta = &mut envelope.headers.meta;
+        if meta.dsn().project_id() != request_meta.dsn().project_id() {
+            return Err(EnvelopeError::HeaderMismatch("project id"));
+        } else if meta.dsn().public_key() != request_meta.dsn().public_key() {
+            return Err(EnvelopeError::HeaderMismatch("public key"));
+        } else if meta.origin().is_some() && meta.origin() != request_meta.origin() {
+            return Err(EnvelopeError::HeaderMismatch("origin"));
+        }
+
+        // TODO(ja): EventMeta's `forwarded` for is extracted from the header as well as the remote
+        // address. There is currently no straight-forward way to merge it with the envelope's
+        // `forwarded`. This requires us to always send appropriate headers.
+
+        envelope.headers.meta.merge(request_meta);
         Ok(envelope)
     }
 
+    /// Returns the number of items in this envelope.
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
+    /// Returns `true` if this envelope does not contain any items.
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
@@ -331,27 +388,37 @@ impl Envelope {
         self.headers.event_id
     }
 
+    /// Returns event metadata information.
     pub fn meta(&self) -> &EventMeta {
         &self.headers.meta
     }
 
+    /// Returns an iterator over items in this envelope.
+    ///
+    /// Note that iteration order may change when using `take_item`.
     pub fn items(&self) -> ItemIter<'_> {
         self.items.iter()
     }
 
+    /// Returns the first item that matches the given `ItemType`.
     pub fn get_item(&self, ty: ItemType) -> Option<&Item> {
         self.items().find(|item| item.ty() == ty)
     }
 
+    /// Removes and returns the first item that matches the given `ItemType`.
+    ///
+    /// This swaps the last item with the item being removed.
     pub fn take_item(&mut self, ty: ItemType) -> Option<Item> {
         let index = self.items.iter().position(|item| item.ty() == ty);
         index.map(|index| self.items.swap_remove(index))
     }
 
+    /// Adds a new item to this envelope.
     pub fn add_item(&mut self, item: Item) {
         self.items.push(item)
     }
 
+    /// Serializes this envelope into the given writer.
     pub fn serialize<W>(&self, mut writer: W) -> Result<(), EnvelopeError>
     where
         W: Write,
@@ -371,6 +438,7 @@ impl Envelope {
         Ok(())
     }
 
+    /// Serializes this envelope into a buffer.
     pub fn to_vec(&self) -> Result<Vec<u8>, EnvelopeError> {
         let mut vec = Vec::new(); // TODO: Preallocate?
         self.serialize(&mut vec)?;
@@ -444,11 +512,11 @@ mod tests {
     use super::*;
 
     fn event_meta() -> EventMeta {
-        let auth = "Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b"
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
 
-        EventMeta::new(auth)
+        EventMeta::new(dsn)
     }
 
     #[test]
@@ -539,7 +607,7 @@ mod tests {
     #[test]
     fn test_deserialize_envelope_empty() {
         // Without terminating newline after header
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}");
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}");
         let envelope = Envelope::parse_bytes(bytes).unwrap();
 
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
@@ -548,9 +616,29 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_envelope_meta() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42\",\"client\":\"sentry/javascript\",\"version\":6,\"origin\":\"http://localhost/\",\"remote_addr\":\"127.0.0.1\",\"forwarded_for\":\"8.8.8.8\",\"user_agent\":\"sentry-cli/1.0\"}");
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        let meta = envelope.meta();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42"
+            .parse()
+            .unwrap();
+        assert_eq!(*meta.dsn(), dsn);
+        assert_eq!(meta.project_id(), 42);
+        assert_eq!(meta.public_key(), "e12d836b15bb49d7bbf99e64295d995b");
+        assert_eq!(meta.client(), Some("sentry/javascript"));
+        assert_eq!(meta.version(), 6);
+        assert_eq!(meta.origin(), Some(&"http://localhost/".parse().unwrap()));
+        assert_eq!(meta.remote_addr(), Some("127.0.0.1".parse().unwrap()));
+        assert_eq!(meta.forwarded_for(), "8.8.8.8");
+        assert_eq!(meta.user_agent(), Some("sentry-cli/1.0"));
+    }
+
+    #[test]
     fn test_deserialize_envelope_empty_newline() {
         // With terminating newline after header
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}\n");
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n");
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 0);
     }
@@ -560,7 +648,7 @@ mod tests {
         // With terminating newline after item payload
         let bytes = Bytes::from(
             "\
-             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}\n\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
              {\"type\":\"attachment\",\"length\":0}\n\
              \n\
              {\"type\":\"attachment\",\"length\":0}\n\
@@ -579,7 +667,7 @@ mod tests {
     fn test_deserialize_envelope_multiple_items() {
         // With terminating newline
         let bytes = Bytes::from(&b"\
-            {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"auth\":\"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b\"}\n\
+            {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
             {\"type\":\"attachment\",\"length\":10,\"content_type\":\"text/plain\",\"filename\":\"hello.txt\"}\n\
             \xef\xbb\xbfHello\r\n\n\
             {\"type\":\"event\",\"length\":41,\"content_type\":\"application/json\",\"filename\":\"application.log\"}\n\
@@ -610,6 +698,61 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_request_envelope() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42\",\"client\":\"sentry/javascript\",\"version\":6,\"origin\":\"http://origin/\",\"remote_addr\":\"127.0.0.1\",\"forwarded_for\":\"8.8.8.8\",\"user_agent\":\"sentry-cli/1.0\"}");
+        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+        let meta = envelope.meta();
+
+        // This test asserts that all information from the envelope is overwritten with request
+        // information. Note that the envelope's DSN points to "other.sentry.io", but all other
+        // information matches the DSN.
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        assert_eq!(*meta.dsn(), dsn);
+        assert_eq!(meta.project_id(), 42);
+        assert_eq!(meta.public_key(), "e12d836b15bb49d7bbf99e64295d995b");
+        assert_eq!(meta.client(), Some("sentry/client"));
+        assert_eq!(meta.version(), 7);
+        assert_eq!(meta.origin(), Some(&"http://origin/".parse().unwrap()));
+        assert_eq!(meta.remote_addr(), Some("192.168.0.1".parse().unwrap()));
+        assert_eq!(meta.forwarded_for(), "");
+        assert_eq!(meta.user_agent(), Some("sentry/agent"));
+    }
+
+    #[test]
+    fn test_parse_request_no_origin() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}");
+        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+        let meta = envelope.meta();
+
+        // Origin validation should skip a missing origin.
+        assert_eq!(meta.origin(), Some(&"http://origin/".parse().unwrap()));
+    }
+
+    #[test]
+    #[should_panic(expected = "project id")]
+    fn test_parse_request_validate_project() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/99\"}");
+        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "public key")]
+    fn test_parse_request_validate_key() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:@sentry.io/42\"}");
+        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "origin")]
+    fn test_parse_request_validate_origin() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\",\"origin\":\"http://localhost/\"}");
+        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+    }
+
+    #[test]
     fn test_serialize_envelope_empty() {
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
         let envelope = Envelope::from_request(event_id, event_meta());
@@ -618,7 +761,7 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","auth":"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b, sentry_version=7"}
+        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
 "###);
     }
 
@@ -644,7 +787,7 @@ mod tests {
 
         let stringified = String::from_utf8_lossy(&buffer);
         insta::assert_snapshot!(stringified, @r###"
-        {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","auth":"Sentry sentry_key=e12d836b15bb49d7bbf99e64295d995b, sentry_version=7"}
+        {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
         {"type":"event","length":41,"content_type":"application/json"}
         {"message":"hello world","level":"error"}
         {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}

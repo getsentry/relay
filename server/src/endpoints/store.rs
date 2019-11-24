@@ -47,7 +47,7 @@ fn extract_envelope(
     // character substitution on the input stream but only if we detect a Python agent.
     //
     // This is done here so that the rest of the code can assume valid JSON.
-    let is_legacy_python_json = meta.auth().client_agent().map_or(false, |agent| {
+    let is_legacy_python_json = meta.client().map_or(false, |agent| {
         agent.starts_with("raven-python/") || agent.starts_with("sentry-python/")
     });
 

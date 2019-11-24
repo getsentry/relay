@@ -25,6 +25,7 @@ pub use crate::types::*;
 pub use crate::upstream::*;
 pub use crate::utils::*;
 
+pub use sentry_types::protocol::LATEST as PROTOCOL_VERSION;
 pub use sentry_types::{Auth, AuthParseError, Dsn, DsnParseError, Scheme, Uuid};
 
 /// Represents a project ID.
