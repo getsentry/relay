@@ -47,8 +47,11 @@ enum ProcessingError {
     #[fail(display = "invalid json in event")]
     InvalidJson(#[cause] serde_json::Error),
 
-    #[fail(display = "invalid event")]
-    InvalidEvent(#[cause] ProcessingAction),
+    #[fail(display = "invalid transaction event")]
+    InvalidTransaction,
+
+    #[fail(display = "event processor failed")]
+    ProcessingFailed(#[cause] ProcessingAction),
 
     #[fail(display = "duplicate {} in event", _0)]
     DuplicateItem(ItemType),
@@ -231,7 +234,7 @@ impl EventProcessor {
                 let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
                 metric!(timer("event_processing.process"), {
                     process_value(&mut event, &mut store_processor, ProcessingState::root())
-                        .map_err(ProcessingError::InvalidEvent)?;
+                        .map_err(|_| ProcessingError::InvalidTransaction)?;
                 });
 
                 // Event filters assume a normalized event. Unfortunately, this requires us to run
@@ -287,7 +290,7 @@ impl EventProcessor {
             for pii_config in message.project_state.config.pii_configs() {
                 let mut processor = PiiProcessor::new(pii_config);
                 process_value(&mut event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::InvalidEvent)?;
+                    .map_err(ProcessingError::ProcessingFailed)?;
             }
         });
 
@@ -646,12 +649,15 @@ impl Handler<HandleEvent> for EventManager {
                     ProcessingError::SerializeFailed(_)
                     | ProcessingError::ScheduleFailed(_)
                     | ProcessingError::ProjectFailed(_)
-                    | ProcessingError::InvalidEvent(_)
                     | ProcessingError::Timeout
                     | ProcessingError::Shutdown
+                    | ProcessingError::ProcessingFailed(_)
                     | ProcessingError::NoAction(_)
                     | ProcessingError::QuotasFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
+                    }
+                    ProcessingError::InvalidTransaction => {
+                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
                     }
                     ProcessingError::InvalidJson(_) => {
                         Some(Outcome::Invalid(DiscardReason::InvalidJson))
