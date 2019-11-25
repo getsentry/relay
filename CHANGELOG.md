@@ -1,14 +1,28 @@
 # Changelog
 
+## 0.4.63
+
+**Store**:
+
+* Fix a bug where glob-matching in filters did not behave correctly when the to-be-matched string contained newlines.
+* Add `moz-extension:` as scheme for browser extensions (filtering out Firefox addons).
+* Raise a dedicated Python exception type for invalid transaction events. Also do not report that error to Sentry from Relay.
+
+**Relay**:
+
+* Refactor healthchecks into two: Liveness and readiness (see code comments for explanation for now).
+* Allow multiple trailing slashes on store endpoint, e.g. `/api/42/store///`.
+* Internal refactor to prepare for envelopes format.
+
 ## 0.4.62
 
-**Event schema**
+**Event schema**:
 
 * Spec out values of `event.contexts.trace.status`.
 * `none` is now no longer a valid environment name.
 * Do no longer drop transaction events in renormalization.
 
-**Store**
+**Store**:
 
 * Various performance improvements.
 
