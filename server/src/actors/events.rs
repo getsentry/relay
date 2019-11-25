@@ -173,8 +173,13 @@ impl EventProcessor {
         }
 
         let max_length = std::cmp::max(breadcrumbs1.len(), breadcrumbs2.len());
+
         breadcrumbs1.extend(breadcrumbs2);
-        breadcrumbs1.truncate(max_length);
+
+        if breadcrumbs1.len() > max_length {
+            // keep only the last max_length elements from the vectors
+            breadcrumbs1.drain(0..(breadcrumbs1.len() - max_length));
+        }
 
         if let Some(evt) = evt.value_mut() {
             evt.breadcrumbs = Annotated::new(Values {
@@ -893,5 +898,120 @@ impl Handler<GetCapturedEvent> for EventManager {
 
     fn handle(&mut self, message: GetCapturedEvent, _context: &mut Self::Context) -> Self::Result {
         self.captured_events.read().get(&message.event_id).cloned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{
+        naive::{NaiveDate, NaiveDateTime, NaiveTime},
+        DateTime, Utc,
+    };
+    use std::iter::Iterator;
+
+    fn create_breadcrumbs_envelope(breadcrumbs: &[(Option<NaiveDateTime>, &str)]) -> Item {
+        let breadcrumbs: Vec<SerdeValue> = breadcrumbs
+            .iter()
+            .map(|(ndt, msg)| {
+                let mut m = SerdeMap::new();
+                ndt.map(|ndt| {
+                    m.insert(
+                        "timestamp".into(),
+                        SerdeValue::from(DateTime::<Utc>::from_utc(ndt, Utc).to_rfc3339()),
+                    )
+                });
+                m.insert("message".into(), SerdeValue::from(*msg));
+                m.into()
+            })
+            .collect();
+
+        let v = mps::to_vec(&breadcrumbs).unwrap();
+        let mut ret_val = Item::new(ItemType::Attachment);
+        ret_val.set_payload(ContentType::OctetStream, v);
+        ret_val
+    }
+
+    fn breadcrumbs_from_event(event: &Annotated<Event>) -> &Vec<Annotated<Breadcrumb>> {
+        event
+            .value()
+            .unwrap()
+            .breadcrumbs
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()
+    }
+
+    #[test]
+    fn message_pack_breadcrumbs_replace_the_existing_bread_crumbs() {
+        //let ndt: NaiveDateTime = NaiveDate::from_ymd(2000, 10, 12).and_hms(12, 10, 10);
+
+        let mut evt = Annotated::<Event>::new(Event {
+            breadcrumbs: Annotated::new(Values::new(vec![Annotated::new(Breadcrumb {
+                message: Annotated::new("old".into()),
+                ..Breadcrumb::default()
+            })])),
+            ..Event::default()
+        });
+        let item = create_breadcrumbs_envelope(&[(None, "new1")]);
+
+        EventProcessor::add_message_pack_breadcrumbs(&mut evt, Some(item), None);
+
+        let breadcrumbs = breadcrumbs_from_event(&evt);
+
+        assert_eq!(breadcrumbs.len(), 1);
+        let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
+        assert_eq!("new1", first_breadcrumb_message);
+
+        let item = create_breadcrumbs_envelope(&[(None, "new2")]);
+
+        EventProcessor::add_message_pack_breadcrumbs(&mut evt, None, Some(item));
+
+        let breadcrumbs = breadcrumbs_from_event(&evt);
+
+        assert_eq!(breadcrumbs.len(), 1);
+        let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
+        assert_eq!("new2", first_breadcrumb_message);
+    }
+
+    #[test]
+    fn message_pack_breadcrumbs_are_ordered_by_date_and_capped() {
+        let d1 = NaiveDate::from_ymd(2019, 10, 10).and_hms(12, 10, 10);
+        let d2 = NaiveDate::from_ymd(2019, 10, 11).and_hms(12, 10, 10);
+        let item1 = create_breadcrumbs_envelope(&[(None, "old1"), (Some(d1), "old2")]);
+        let item2 = create_breadcrumbs_envelope(&[(Some(d2), "new")]);
+
+        //let mut evt = Annotated::<Event>::default();
+        let mut evt = Annotated::<Event>::new(Event {
+            breadcrumbs: Annotated::new(Values::new(vec![Annotated::new(Breadcrumb {
+                message: Annotated::new("old".into()),
+                ..Breadcrumb::default()
+            })])),
+            ..Event::default()
+        });
+        EventProcessor::add_message_pack_breadcrumbs(&mut evt, Some(item1), Some(item2));
+
+        let breadcrumbs = breadcrumbs_from_event(&evt);
+
+        assert_eq!(breadcrumbs.len(), 2);
+        let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
+        let second_breadcrumb_message = breadcrumbs[1].value().unwrap().message.value().unwrap();
+        assert_eq!("old2", first_breadcrumb_message);
+        assert_eq!("new", second_breadcrumb_message);
+
+        // now try new/old
+        let item1 = create_breadcrumbs_envelope(&[(Some(d2), "new")]);
+        let item2 = create_breadcrumbs_envelope(&[(None, "old1"), (Some(d1), "old2")]);
+        EventProcessor::add_message_pack_breadcrumbs(&mut evt, Some(item2), Some(item1));
+
+        let breadcrumbs = breadcrumbs_from_event(&evt);
+
+        assert_eq!(breadcrumbs.len(), 2);
+        let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
+        let second_breadcrumb_message = breadcrumbs[1].value().unwrap().message.value().unwrap();
+        assert_eq!("old2", first_breadcrumb_message);
+        assert_eq!("new", second_breadcrumb_message);
     }
 }
