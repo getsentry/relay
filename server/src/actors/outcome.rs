@@ -234,7 +234,7 @@ mod real_implementation {
                 // Relay specific reasons (not present in Sentry)
                 DiscardReason::Payload => "payload",
                 DiscardReason::InvalidJson => "invalid_json",
-                DiscardReason::InvalidTransaction => "invalid_event",
+                DiscardReason::InvalidTransaction => "invalid_transaction",
                 DiscardReason::InvalidEnvelope => "invalid_envelope",
                 DiscardReason::ProjectState => "project_state",
                 DiscardReason::DuplicateItem => "duplicate_item",
