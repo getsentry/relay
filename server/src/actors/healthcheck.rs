@@ -7,7 +7,7 @@ use futures::prelude::*;
 
 use semaphore_common::{Config, RelayMode};
 
-use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
+use crate::actors::controller::{Controller, Shutdown, Subscribe};
 use crate::actors::upstream::{IsAuthenticated, UpstreamRelay};
 
 pub struct Healthcheck {
@@ -35,7 +35,7 @@ impl Actor for Healthcheck {
 }
 
 impl Handler<Shutdown> for Healthcheck {
-    type Result = Result<(), TimeoutError>;
+    type Result = Result<(), ()>;
 
     fn handle(&mut self, _message: Shutdown, _context: &mut Self::Context) -> Self::Result {
         self.is_shutting_down = true;

@@ -51,7 +51,7 @@ def test_forced_shutdown(mini_sentry, relay):
 
     ((route, error),) = mini_sentry.test_failures
     assert route == "/api/666/store/"
-    assert "shutdown timer expired" in str(error)
+    assert "Dropped unfinished future" in str(error)
     mini_sentry.test_failures.clear()
 
 
