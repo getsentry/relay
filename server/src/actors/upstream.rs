@@ -193,10 +193,7 @@ impl Actor for UpstreamRelay {
         log::info!("upstream relay started");
 
         self.backoff.reset();
-
-        if self.config.relay_mode() == RelayMode::Managed {
-            context.notify(Authenticate);
-        }
+        context.notify(Authenticate);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -214,6 +211,10 @@ impl Handler<Authenticate> for UpstreamRelay {
     type Result = ResponseActFuture<Self, (), ()>;
 
     fn handle(&mut self, _msg: Authenticate, _ctx: &mut Self::Context) -> Self::Result {
+        if self.config.relay_mode() != RelayMode::Managed {
+            self.auth_state = AuthState::Registered;
+            return Box::new(fut::ok(()));
+        }
         let credentials = match self.config.credentials() {
             Some(x) => x,
             None => return Box::new(fut::err(())),
