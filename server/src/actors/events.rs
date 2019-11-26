@@ -648,6 +648,7 @@ impl Handler<HandleEvent> for EventManager {
                     | ProcessingError::QuotasFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
+                    #[cfg(feature = "processing")]
                     ProcessingError::InvalidTransaction => {
                         Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
                     }
