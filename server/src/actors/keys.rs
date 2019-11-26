@@ -14,9 +14,8 @@ use serde::{Deserialize, Serialize};
 
 use semaphore_common::{Config, LogError, PublicKey, RelayId, RetryBackoff};
 
-use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
-use crate::utils::{self, ApiErrorResponse, Response, SyncActorFuture, SyncHandle};
+use crate::utils::{self, ApiErrorResponse, Response};
 
 #[derive(Fail, Debug)]
 #[fail(display = "failed to fetch keys")]
@@ -26,9 +25,6 @@ pub enum KeyError {
 
     #[fail(display = "could not schedule key fetching")]
     ScheduleFailed(#[cause] MailboxError),
-
-    #[fail(display = "shutdown timer expired")]
-    Shutdown,
 }
 
 impl ResponseError for KeyError {
@@ -110,7 +106,6 @@ pub struct KeyCache {
     upstream: Addr<UpstreamRelay>,
     keys: HashMap<RelayId, KeyState>,
     key_channels: HashMap<RelayId, KeyChannel>,
-    shutdown: SyncHandle,
 }
 
 impl KeyCache {
@@ -121,7 +116,6 @@ impl KeyCache {
             upstream,
             keys: HashMap::new(),
             key_channels: HashMap::new(),
-            shutdown: SyncHandle::new(),
         }
     }
 
@@ -135,9 +129,7 @@ impl KeyCache {
 
     /// Schedules a batched upstream query with exponential backoff.
     fn schedule_fetch(&mut self, context: &mut Context<Self>) {
-        utils::run_later(self.next_backoff(), Self::fetch_keys)
-            .sync(&self.shutdown, ())
-            .spawn(context)
+        utils::run_later(self.next_backoff(), Self::fetch_keys).spawn(context)
     }
 
     /// Executes an upstream request to fetch public keys.
@@ -175,11 +167,9 @@ impl KeyCache {
                     Err(error) => {
                         log::error!("error fetching public keys: {}", LogError(&error));
 
-                        if !slf.shutdown.requested() {
-                            // Put the channels back into the queue, in addition to channels that have
-                            // been pushed in the meanwhile. We will retry again shortly.
-                            slf.key_channels.extend(channels);
-                        }
+                        // Put the channels back into the queue, in addition to channels that have
+                        // been pushed in the meanwhile. We will retry again shortly.
+                        slf.key_channels.extend(channels);
                     }
                 }
 
@@ -189,7 +179,6 @@ impl KeyCache {
 
                 fut::ok(())
             })
-            .sync(&self.shutdown, KeyError::Shutdown)
             .drop_err()
             .spawn(context);
     }
@@ -234,9 +223,8 @@ impl KeyCache {
 impl Actor for KeyCache {
     type Context = Context<Self>;
 
-    fn started(&mut self, context: &mut Self::Context) {
+    fn started(&mut self, _ctx: &mut Self::Context) {
         log::info!("key cache started");
-        Controller::from_registry().do_send(Subscribe(context.address().recipient()));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -324,16 +312,5 @@ impl Handler<GetPublicKeys> for KeyCache {
         });
 
         Response::r#async(future)
-    }
-}
-
-impl Handler<Shutdown> for KeyCache {
-    type Result = ResponseFuture<(), TimeoutError>;
-
-    fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
-        match message.timeout {
-            Some(timeout) => self.shutdown.timeout(timeout),
-            None => self.shutdown.now(),
-        }
     }
 }
