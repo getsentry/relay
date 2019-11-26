@@ -244,24 +244,30 @@ impl EventProcessor {
         let consolidated_data: Result<SerdeValue, SerdeError> =
             serde_json::from_slice(form_data.payload().deref());
 
-        if let Ok(SerdeValue::Object(consolidated_data)) = consolidated_data {
+        if let Ok(SerdeValue::Array(consolidated_data)) = consolidated_data {
             let mut event_data = SerdeValue::Object(SerdeMap::new());
 
-            for (key, val) in consolidated_data {
-                if let SerdeValue::String(val) = val {
-                    if let Some(keys) = get_sentry_entry_indexes(key.as_str()) {
-                        //iterate through all 'sentry[...' params
-                        update_json_object(&mut event_data, &keys, val);
-                    } else if key.as_str() == "sentry" {
-                        //this should be a json string representing the event, merge it into what
-                        //we have already created
-                        let evt_from_json = serde_json::from_str(val.as_str());
-                        if let Ok(evt_from_json) = evt_from_json {
-                            merge_vals(&mut event_data, evt_from_json)
+            for key_val in consolidated_data {
+                if let SerdeValue::Array(vec) = key_val {
+                    if vec.len() == 2 {
+                        if let (SerdeValue::String(key), SerdeValue::String(val)) =
+                            (&vec[0], &vec[1])
+                        {
+                            if let Some(keys) = get_sentry_entry_indexes(key.as_str()) {
+                                //iterate through all 'sentry[...' params
+                                update_json_object(&mut event_data, &keys, val);
+                            } else if key.as_str() == "sentry" {
+                                //this should be a json string representing the event, merge it into what
+                                //we have already created
+                                let evt_from_json = serde_json::from_str(val.as_str());
+                                if let Ok(evt_from_json) = evt_from_json {
+                                    merge_vals(&mut event_data, evt_from_json)
+                                }
+                            } else {
+                                //an unknown entry, just add it to extra
+                                update_json_object(&mut event_data, &["extra", key.as_str()], val);
+                            }
                         }
-                    } else {
-                        //an unknown entry, just add it to extra
-                        update_json_object(&mut event_data, &["extra", key.as_str()], val);
                     }
                 }
             }
