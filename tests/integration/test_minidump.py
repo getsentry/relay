@@ -26,13 +26,13 @@ def test_minidump_attachments_are_added_to_the_envelope(mini_sentry, relay):
 
     relay.send_minidump(
         project_id=proj_id,
-        params=(("sentry[a][b]", "val1"), ("sentry[x][y]", "val2"),),
+        params=(("sentry[a][b]", "val1"), ("sentry[x][y]", "val2")),
         files=(
             # add the minidump attachment with the magic header MDMP
             (MINIDUMP_ATTACHMENT_NAME, "minidump.txt", "MDMPminidump content"),
             ("attachment1", "attach1.txt", "attachment 1 content"),
         ),
-    )
+    ),
     items = mini_sentry.captured_events.get(timeout=1).items
 
     mini_dump = _get_item_by_file_name(items, "minidump.txt")

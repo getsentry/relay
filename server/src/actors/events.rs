@@ -15,8 +15,8 @@ use semaphore_common::{clone, metric, Config, LogError, ProjectId, RelayMode};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{
-    Breadcrumb, Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    SecurityReportType, Values,
+    Breadcrumb, Csp, Event, EventId, Exception, ExpectCt, ExpectStaple, Hpkp, JsonLenientString,
+    LenientString, Level, Mechanism, SecurityReportType, Values,
 };
 use semaphore_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 
@@ -34,9 +34,6 @@ use crate::utils::{
     get_sentry_entry_indexes, merge_vals, update_json_object, SyncActorFuture, SyncHandle,
 };
 
-const MAX_MSGPACK_BREADCRUMB_SIZE_BYTES: usize = 50_000;
-const MAX_MSGPACK_EVENT_SIZE_BYTES: usize = 100_000;
-
 #[cfg(feature = "processing")]
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
@@ -44,6 +41,9 @@ use {
     semaphore_general::protocol::IpAddr,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
+
+const MAX_MSGPACK_BREADCRUMB_SIZE_BYTES: usize = 50_000;
+const MAX_MSGPACK_EVENT_SIZE_BYTES: usize = 100_000;
 
 #[derive(Debug, Fail)]
 pub enum QueueEventError {
@@ -189,8 +189,41 @@ impl EventProcessor {
         }
     }
 
+    /// Writes a placeholder to indicate that this event has an associated minidump.
+    fn write_minidump_placeholder(evt: &mut Annotated<Event>) {
+        let evt = evt.get_or_insert_with(Event::default);
+
+        let platform = evt.platform.value_mut();
+        *platform = Some("native".to_string());
+
+        let level = evt.level.value_mut();
+        *level = Some(Level::Fatal);
+
+        let exceptions = evt
+            .exceptions
+            .value_mut()
+            .get_or_insert_with(Values::<Exception>::default)
+            .values
+            .value_mut()
+            .get_or_insert_with(|| vec![]);
+
+        exceptions.clear(); // clear previous errors if any
+
+        exceptions.push(Annotated::new(Exception {
+            ty: Annotated::new("Minidump".to_string()),
+            value: Annotated::new(JsonLenientString("Invalid Minidump".to_string())),
+            mechanism: Annotated::new(Mechanism {
+                ty: Annotated::from("minidump".to_string()),
+                handled: Annotated::from(false),
+                synthetic: Annotated::from(true),
+                ..Mechanism::default()
+            }),
+            ..Exception::default()
+        }));
+    }
+
     /// merge form data (from a multipart request into the event
-    fn event_from_form_data(
+    fn event_from_minidump_data(
         form_data: Item,
         event_data_mps: Option<Item>,
         breadcrumbs1: Option<Item>,
@@ -201,7 +234,7 @@ impl EventProcessor {
             || form_data.content_type() != Some(&ContentType::Json)
         {
             //this should never happen caller called it with
-            log::error!("merge_form_data called without a proper FormaData item");
+            log::error!("merge_form_data called without a proper FormData item");
             return Annotated::new(Event::default());
         }
 
@@ -243,6 +276,8 @@ impl EventProcessor {
                 Annotated::deserialize_with_meta(event_data).unwrap_or_default();
 
             Self::add_message_pack_breadcrumbs(&mut annotated_event, breadcrumbs1, breadcrumbs2);
+
+            Self::write_minidump_placeholder(&mut annotated_event);
 
             return annotated_event;
         } else {
@@ -304,7 +339,7 @@ impl EventProcessor {
                     .map_err(ProcessingError::InvalidJson)?
             }),
             (None, Some(item)) => {
-                Self::event_from_form_data(item, mps_event, mps_breadcrumbs1, mps_breadcrumbs2)
+                Self::event_from_minidump_data(item, mps_event, mps_breadcrumbs1, mps_breadcrumbs2)
             }
             (None, None) => {
                 log::trace!("creating empty event {}", event_id);
@@ -905,7 +940,7 @@ impl Handler<GetCapturedEvent> for EventManager {
 mod tests {
     use super::*;
     use chrono::{
-        naive::{NaiveDate, NaiveDateTime, NaiveTime},
+        naive::{NaiveDate, NaiveDateTime},
         DateTime, Utc,
     };
     use std::iter::Iterator;
