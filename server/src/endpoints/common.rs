@@ -5,12 +5,14 @@ use std::sync::Arc;
 use actix::prelude::*;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, ResponseError};
+use bytes::Bytes;
 use failure::Fail;
 use futures::prelude::*;
+use parking_lot::Mutex;
 use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 
-use semaphore_common::{metric, tryf, LogError, ProjectId, ProjectIdParseError};
+use semaphore_common::{clone, metric, tryf, LogError};
 use semaphore_general::protocol::EventId;
 
 use crate::actors::events::{QueueEvent, QueueEventError};
@@ -24,9 +26,6 @@ use crate::utils::ApiErrorResponse;
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
-    #[fail(display = "invalid project path parameter")]
-    BadProject(#[cause] ProjectIdParseError),
-
     #[fail(display = "unsupported protocol version ({})", _0)]
     UnsupportedProtocolVersion(u16),
 
@@ -70,8 +69,6 @@ pub enum BadStoreRequest {
 impl BadStoreRequest {
     fn to_outcome(&self) -> Outcome {
         match self {
-            BadStoreRequest::BadProject(_) => Outcome::Invalid(DiscardReason::ProjectId),
-
             BadStoreRequest::UnsupportedProtocolVersion(_) => {
                 Outcome::Invalid(DiscardReason::AuthVersion)
             }
@@ -171,20 +168,13 @@ where
     let start_time = start_time.into_inner();
 
     // For now, we only handle <= v8 and drop everything else
-    let version = meta.auth().version();
-    if version > 8 {
+    let version = meta.version();
+    if version > semaphore_common::PROTOCOL_VERSION {
         // TODO: Delegate to forward_upstream here
         tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(version)));
     }
 
-    // Make sure we have a project ID. Does not check if the project exists yet
-    let project_id = tryf!(request
-        .match_info()
-        .get("project")
-        .unwrap_or_default()
-        .parse::<ProjectId>()
-        .map_err(BadStoreRequest::BadProject));
-
+    let project_id = meta.project_id();
     let hub = Hub::from_request(&request);
     hub.configure_scope(|scope| {
         scope.set_user(Some(sentry::User {
@@ -202,31 +192,38 @@ where
     let remote_addr = meta.client_addr();
 
     let cloned_meta = Arc::new(meta.clone());
+    let event_id = Arc::new(Mutex::new(None));
 
     let future = project_manager
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
-        .and_then(move |project| {
-            project
-                .send(GetEventAction::cached(cloned_meta))
-                .map_err(BadStoreRequest::ScheduleFailed)
-                .and_then(
-                    move |action| match action.map_err(BadStoreRequest::ProjectFailed)? {
-                        EventAction::Accept => Ok(()),
-                        EventAction::RetryAfter(retry_after) => {
-                            Err(BadStoreRequest::RateLimited(retry_after))
-                        }
-                        EventAction::Discard(reason) => Err(BadStoreRequest::EventRejected(reason)),
-                    },
-                )
-                .and_then(move |_| {
-                    extract_envelope(&request, meta, config.max_event_payload_size())
-                })
+        .and_then(clone!(event_id, |project| {
+            StoreBody::new(&request)
+                .limit(config.max_event_payload_size())
+                .map_err(BadStoreRequest::PayloadError)
+                .and_then(move |data| extract_envelope(data, meta,config.max_event_payload_size()))
+                .and_then(clone!(project, |envelope| {
+                    *event_id.lock() = Some(envelope.event_id());
+
+                    project
+                        .send(GetEventAction::cached(cloned_meta))
+                        .map_err(BadStoreRequest::ScheduleFailed)
+                        .and_then(move |action| {
+                            match action.map_err(BadStoreRequest::ProjectFailed)? {
+                                EventAction::Accept => Ok(envelope),
+                                EventAction::RetryAfter(retry_after) => {
+                                    Err(BadStoreRequest::RateLimited(retry_after))
+                                }
+                                EventAction::Discard(reason) => {
+                                    Err(BadStoreRequest::EventRejected(reason))
+                                }
+                            }
+                        })
+                }))
                 .and_then(move |envelope| {
                     event_manager
                         .send(QueueEvent {
                             envelope,
-                            project_id,
                             project,
                             start_time,
                         })
@@ -234,7 +231,7 @@ where
                         .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
                         .map(create_response)
                 })
-        })
+        }))
         .or_else(move |error: BadStoreRequest| {
             metric!(counter("event.rejected") += 1);
 
@@ -244,7 +241,7 @@ where
                 org_id: None,
                 key_id: None,
                 outcome: error.to_outcome(),
-                event_id: None,
+                event_id: *event_id.lock(),
                 remote_addr,
             });
 

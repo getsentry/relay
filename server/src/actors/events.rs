@@ -11,7 +11,7 @@ use parking_lot::{Mutex, RwLock};
 use rmp_serde as mps;
 use serde_json::{Error as SerdeError, Map as SerdeMap, Value as SerdeValue};
 
-use semaphore_common::{clone, metric, Config, LogError, ProjectId, RelayMode};
+use semaphore_common::{clone, metric, Config, LogError, RelayMode};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{
@@ -56,8 +56,11 @@ enum ProcessingError {
     #[fail(display = "invalid json in event")]
     InvalidJson(#[cause] serde_json::Error),
 
-    #[fail(display = "invalid event")]
-    InvalidEvent(#[cause] ProcessingAction),
+    #[fail(display = "invalid transaction event")]
+    InvalidTransaction,
+
+    #[fail(display = "event processor failed")]
+    ProcessingFailed(#[cause] ProcessingAction),
 
     #[fail(display = "duplicate {} in event", _0)]
     DuplicateItem(ItemType),
@@ -387,10 +390,9 @@ impl EventProcessor {
         {
             if self.config.processing_enabled() {
                 let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
-                let auth = envelope.meta().auth();
                 let key_id = message
                     .project_state
-                    .get_public_key_config(&auth.public_key())
+                    .get_public_key_config(&envelope.meta().public_key())
                     .and_then(|k| Some(k.numeric_id?.to_string()));
 
                 if key_id.is_none() {
@@ -400,11 +402,11 @@ impl EventProcessor {
                 }
 
                 let store_config = StoreConfig {
-                    project_id: Some(message.project_id),
+                    project_id: Some(envelope.meta().project_id()),
                     client_ip: envelope.meta().client_addr().map(IpAddr::from),
-                    client: auth.client_agent().map(str::to_owned),
+                    client: envelope.meta().client().map(str::to_owned),
                     key_id,
-                    protocol_version: Some(auth.version().to_string()),
+                    protocol_version: Some(envelope.meta().version().to_string()),
                     grouping_config: message.project_state.config.grouping_config.clone(),
                     user_agent: envelope.meta().user_agent().map(str::to_owned),
                     max_secs_in_future: Some(self.config.max_secs_in_future()),
@@ -418,7 +420,7 @@ impl EventProcessor {
                 let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
                 metric!(timer("event_processing.process"), {
                     process_value(&mut event, &mut store_processor, ProcessingState::root())
-                        .map_err(ProcessingError::InvalidEvent)?;
+                        .map_err(|_| ProcessingError::InvalidTransaction)?;
                 });
 
                 // Event filters assume a normalized event. Unfortunately, this requires us to run
@@ -451,7 +453,7 @@ impl EventProcessor {
         if let Some(organization_id) = message.project_state.organization_id {
             let key_config = message
                 .project_state
-                .get_public_key_config(&envelope.meta().auth().public_key());
+                .get_public_key_config(&envelope.meta().public_key());
 
             if let Some(key_config) = key_config {
                 let rate_limit = metric!(timer("event_processing.rate_limiting"), {
@@ -474,7 +476,7 @@ impl EventProcessor {
             for pii_config in message.project_state.config.pii_configs() {
                 let mut processor = PiiProcessor::new(pii_config);
                 process_value(&mut event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::InvalidEvent)?;
+                    .map_err(ProcessingError::ProcessingFailed)?;
             }
         });
 
@@ -502,7 +504,6 @@ impl Actor for EventProcessor {
 
 struct ProcessEvent {
     pub envelope: Envelope,
-    pub project_id: ProjectId,
     pub project_state: Arc<ProjectState>,
     pub start_time: Instant,
 }
@@ -616,7 +617,6 @@ impl Actor for EventManager {
 
 pub struct QueueEvent {
     pub envelope: Envelope,
-    pub project_id: ProjectId,
     pub project: Addr<Project>,
     pub start_time: Instant,
 }
@@ -651,7 +651,6 @@ impl Handler<QueueEvent> for EventManager {
         // actor alive even if it is cleaned up in the ProjectManager.
         context.notify(HandleEvent {
             envelope: message.envelope,
-            project_id: message.project_id,
             project: message.project,
             start_time: message.start_time,
         });
@@ -663,7 +662,6 @@ impl Handler<QueueEvent> for EventManager {
 
 struct HandleEvent {
     pub envelope: Envelope,
-    pub project_id: ProjectId,
     pub project: Addr<Project>,
     pub start_time: Instant,
 }
@@ -704,11 +702,11 @@ impl Handler<HandleEvent> for EventManager {
         let HandleEvent {
             envelope,
             project,
-            project_id,
             start_time,
         } = message;
 
         let event_id = envelope.event_id();
+        let project_id = envelope.meta().project_id();
         let remote_addr = envelope.meta().client_addr();
         let meta_clone = Arc::new(envelope.meta().clone());
 
@@ -735,7 +733,6 @@ impl Handler<HandleEvent> for EventManager {
                 processor
                     .send(ProcessEvent {
                         envelope,
-                        project_id,
                         project_state,
                         start_time,
                     })
@@ -772,7 +769,7 @@ impl Handler<HandleEvent> for EventManager {
                     return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
                 }
 
-                let public_key = envelope.meta().auth().public_key().to_string();
+                let public_key = envelope.meta().public_key().to_string();
 
                 log::trace!("sending event to sentry endpoint {}", event_id);
                 let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
@@ -788,7 +785,7 @@ impl Handler<HandleEvent> for EventManager {
                         }
 
                         builder
-                            .header("X-Sentry-Auth", meta.auth().to_string())
+                            .header("X-Sentry-Auth", meta.auth_header())
                             .header("X-Forwarded-For", meta.forwarded_for())
                             .header("Content-Type", envelope::CONTENT_TYPE)
                             .body(envelope.to_vec().map_err(failure::Error::from)?)
@@ -838,12 +835,15 @@ impl Handler<HandleEvent> for EventManager {
                     ProcessingError::SerializeFailed(_)
                     | ProcessingError::ScheduleFailed(_)
                     | ProcessingError::ProjectFailed(_)
-                    | ProcessingError::InvalidEvent(_)
                     | ProcessingError::Timeout
                     | ProcessingError::Shutdown
+                    | ProcessingError::ProcessingFailed(_)
                     | ProcessingError::NoAction(_)
                     | ProcessingError::QuotasFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
+                    }
+                    ProcessingError::InvalidTransaction => {
+                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
                     }
                     ProcessingError::InvalidJson(_) => {
                         Some(Outcome::Invalid(DiscardReason::InvalidJson))

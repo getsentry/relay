@@ -71,8 +71,8 @@ pub enum ProcessingAction {
     DeleteValueSoft,
 
     /// The event is invalid (needs to bubble up)
-    #[fail(display = "invalid event: {}", _0)]
-    InvalidEvent(&'static str),
+    #[fail(display = "invalid transaction event: {}", _0)]
+    InvalidTransaction(&'static str),
 }
 
 /// Wrapper for data fields with optional meta data.
@@ -353,7 +353,7 @@ where
             Err(ProcessingAction::DeleteValueSoft) => {
                 self.1.set_original_value(self.0.take());
             }
-            x @ Err(ProcessingAction::InvalidEvent(_)) => return x,
+            x @ Err(ProcessingAction::InvalidTransaction(_)) => return x,
         }
 
         Ok(())

@@ -6,15 +6,22 @@ use failure::Fail;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use semaphore_common::{Auth, AuthParseError};
+use semaphore_common::{Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError};
 
 use crate::extractors::ForwardedFor;
+use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, Fail)]
 pub enum BadEventMeta {
+    #[fail(display = "bad project path parameter")]
+    BadProject(#[cause] ProjectIdParseError),
+
     #[fail(display = "bad x-sentry-auth header")]
     BadAuth(#[fail(cause)] AuthParseError),
+
+    #[fail(display = "bad sentry DSN")]
+    BadDsn(#[fail(cause)] DsnParseError),
 }
 
 impl ResponseError for BadEventMeta {
@@ -23,54 +30,22 @@ impl ResponseError for BadEventMeta {
     }
 }
 
-/// Serializes SDK client authentication information in the X-Sentry-Auth header format.
-///
-/// The default `Serialize` and `Deserialize` implementations for `Auth` create maps/objects.
-/// This format is intended for the use in envelope headers specifically.
-mod auth_serde {
-    use super::*;
-
-    use std::fmt;
-
-    pub fn serialize<S>(auth: &Auth, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&auth.to_string())
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Auth, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct V;
-
-        impl<'de> ::serde::de::Visitor<'de> for V {
-            type Value = Auth;
-
-            fn expecting(&self, formatter: &mut ::std::fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("auth")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<Auth, E>
-            where
-                E: ::serde::de::Error,
-            {
-                value.parse().map_err(|_| {
-                    serde::de::Error::invalid_value(serde::de::Unexpected::Str(value), &self)
-                })
-            }
-        }
-
-        deserializer.deserialize_str(V)
-    }
+fn default_version() -> u16 {
+    semaphore_common::PROTOCOL_VERSION
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventMeta {
-    /// Authentication information (DSN and client).
-    #[serde(with = "auth_serde")]
-    auth: Auth,
+    /// The DSN describing the target of this envelope.
+    dsn: Dsn,
+
+    /// The client SDK that sent this event.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    client: Option<String>,
+
+    /// The protocol version that the client speaks.
+    #[serde(default = "default_version")]
+    version: u16,
 
     /// Value of the origin header in the incoming request, if present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -91,38 +66,66 @@ pub struct EventMeta {
 
 impl EventMeta {
     #[cfg(test)]
-    pub fn new(auth: Auth) -> Self {
+    pub fn new(dsn: Dsn) -> Self {
         EventMeta {
-            auth,
-            origin: None,
-            remote_addr: None,
+            dsn,
+            client: Some("sentry/client".to_string()),
+            version: 7,
+            origin: Some("http://origin/".parse().unwrap()),
+            remote_addr: Some("192.168.0.1".parse().unwrap()),
             forwarded_for: String::new(),
-            user_agent: None,
+            user_agent: Some("sentry/agent".to_string()),
         }
     }
 
-    /// Completes this event meta instance with information from another.
+    /// Overwrites this event meta instance with information from another.
     ///
-    /// All fields that are set in this instance will remain. Only missing fields will be updated if
-    /// they are defined in the other EvenMeta instance.
-    pub fn default_to(&mut self, other: EventMeta) {
-        if self.origin.is_none() {
-            self.origin = other.origin;
+    /// All fields that are not set in the other instance will remain.
+    pub fn merge(&mut self, other: EventMeta) {
+        self.dsn = other.dsn;
+        if let Some(client) = other.client {
+            self.client = Some(client);
         }
-        if self.remote_addr.is_none() {
-            self.remote_addr = other.remote_addr;
+        self.version = other.version;
+        if let Some(origin) = other.origin {
+            self.origin = Some(origin);
         }
-        if self.forwarded_for.is_empty() {
-            self.forwarded_for = other.forwarded_for;
+        if let Some(remote_addr) = other.remote_addr {
+            self.remote_addr = Some(remote_addr);
         }
-        if self.user_agent.is_none() {
-            self.user_agent = other.user_agent;
+        self.forwarded_for = other.forwarded_for;
+        if let Some(user_agent) = other.user_agent {
+            self.user_agent = Some(user_agent);
         }
     }
 
-    /// Returns a reference to the auth info
-    pub fn auth(&self) -> &Auth {
-        &self.auth
+    /// Returns a reference to the DSN.
+    ///
+    /// The DSN declares the project and auth information and upstream address. When EventMeta is
+    /// constructed from a web request, the DSN is set to point to the upstream host.
+    pub fn dsn(&self) -> &Dsn {
+        &self.dsn
+    }
+
+    /// Returns the project identifier that the DSN points to.
+    pub fn project_id(&self) -> ProjectId {
+        // TODO(ja): sentry-types does not expose the DSN at the moment.
+        unsafe { std::mem::transmute(self.dsn().project_id()) }
+    }
+
+    /// Returns the public key part of the DSN for authentication.
+    pub fn public_key(&self) -> &str {
+        &self.dsn.public_key()
+    }
+
+    /// Returns the client that sent this event (Sentry SDK identifier).
+    pub fn client(&self) -> Option<&str> {
+        self.client.as_ref().map(String::as_str)
+    }
+
+    /// Returns the protocol version of the event payload.
+    pub fn version(&self) -> u16 {
+        self.version
     }
 
     /// Returns a reference to the origin URL
@@ -157,6 +160,24 @@ impl EventMeta {
     pub fn user_agent(&self) -> Option<&str> {
         self.user_agent.as_ref().map(String::as_str)
     }
+
+    /// Formats the Sentry authentication header.
+    ///
+    /// This header must be included in store requests.
+    pub fn auth_header(&self) -> String {
+        let mut auth = format!(
+            "Sentry sentry_key={}, sentry_version={}",
+            self.public_key(),
+            self.version
+        );
+
+        if let Some(ref client) = self.client {
+            use std::fmt::Write;
+            write!(auth, ", sentry_client={}", client).ok();
+        }
+
+        auth
+    }
 }
 
 fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
@@ -183,13 +204,35 @@ fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Opti
         })
 }
 
-impl<S> FromRequest<S> for EventMeta {
+impl FromRequest<ServiceState> for EventMeta {
     type Config = ();
     type Result = Result<Self, BadEventMeta>;
 
-    fn from_request(request: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
+    fn from_request(request: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
+        let project_id = request
+            .match_info()
+            .get("project")
+            .unwrap_or_default()
+            .parse::<ProjectId>()
+            .map_err(BadEventMeta::BadProject)?;
+
+        let auth = auth_from_request(request)?;
+
+        let config = request.state().config();
+        let upstream = config.upstream_descriptor();
+
+        let dsn_string = format!(
+            "{}://{}:@{}/{}",
+            upstream.scheme(),
+            auth.public_key(),
+            upstream.host(),
+            project_id,
+        );
+
         Ok(EventMeta {
-            auth: auth_from_request(request)?,
+            dsn: dsn_string.parse().map_err(BadEventMeta::BadDsn)?,
+            version: auth.version(),
+            client: auth.client_agent().map(str::to_owned),
             origin: parse_header_url(request, header::ORIGIN)
                 .or_else(|| parse_header_url(request, header::REFERER)),
             remote_addr: request.peer_addr().map(|peer| peer.ip()),

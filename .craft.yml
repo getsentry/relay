@@ -24,3 +24,16 @@ targets:
       - path: /semaphore/latest/
         metadata:
           cacheControl: 'public, max-age=600'
+
+requireNames:
+  - ^gh-pages.zip$
+  - ^semaphore-.*-py2.py3-none-macosx_10_11_x86_64.whl$
+  - ^semaphore-.*-py2.py3-none-manylinux1_i686.whl$
+  - ^semaphore-.*-py2.py3-none-manylinux1_x86_64.whl$
+  - ^semaphore-.*.zip$
+  - ^semaphore-Darwin-x86_64$
+  - ^semaphore-Darwin-x86_64-dsym.zip$
+  - ^semaphore-Linux-x86_64$
+  - ^semaphore-Linux-x86_64-debug.zip$
+  - ^semaphore-Windows-x86_64-pdb.zip$
+  - ^semaphore-Windows-x86_64\.exe$

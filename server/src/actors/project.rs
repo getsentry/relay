@@ -56,7 +56,7 @@ pub enum RateLimitScope {
 
 impl RateLimitScope {
     fn iter_variants(meta: &EventMeta) -> impl Iterator<Item = RateLimitScope> {
-        iter::once(RateLimitScope::Key(meta.auth().public_key().to_owned()))
+        iter::once(RateLimitScope::Key(meta.public_key().to_owned()))
     }
 }
 
@@ -416,7 +416,7 @@ impl ProjectState {
             // thus we handle events pretending the config is still valid,
             // except queueing events for unknown DSNs as they might have become
             // available in the meanwhile.
-            match self.get_public_key_status(meta.auth().public_key()) {
+            match self.get_public_key_status(meta.public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
                 PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::ProjectId),
                 PublicKeyStatus::Unknown => EventAction::Accept,
@@ -437,7 +437,7 @@ impl ProjectState {
             // public keys do not exist and drop events eagerly. proxy mode is
             // an exception, where public keys are backfilled lazily after
             // events are sent to the upstream.
-            match self.get_public_key_status(meta.auth().public_key()) {
+            match self.get_public_key_status(meta.public_key()) {
                 PublicKeyStatus::Enabled => EventAction::Accept,
                 PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::ProjectId),
                 PublicKeyStatus::Unknown => match config.relay_mode() {

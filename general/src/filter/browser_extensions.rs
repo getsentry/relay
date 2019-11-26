@@ -86,6 +86,7 @@ lazy_static! {
         eatdifferent\.com\.woopra-ns\.com|              # Woopra flakiness
         static\.woopra\.com/js/woopra\.js|
         ^chrome(-extension)?://|                        # Chrome extensions
+        ^moz-extension://|                              # Firefox extensions
         127\.0\.0\.1:4001/isrunning|                    # Cacaoweb
         webappstoolbarba\.texthelp\.com/|               # Other
         metrics\.itunes\.apple\.com\.edgesuite\.net/|
@@ -169,6 +170,7 @@ mod tests {
             "https://static.woopra.com/js/woopra.js",
             "chrome-extension://my-extension/or/something",
             "chrome://my-extension/or/something",
+            "moz-extension://my-extension/or/something",
             "127.0.0.1:4001/isrunning",
             "webappstoolbarba.texthelp.com/",
             "http://metrics.itunes.apple.com.edgesuite.net/itunespreview/itunes/browser:firefo",
