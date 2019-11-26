@@ -4,7 +4,7 @@ use actix::prelude::*;
 use actix_web::http::Method;
 use actix_web::middleware::cors::Cors;
 use actix_web::{HttpMessage, HttpRequest, HttpResponse};
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use futures::Future;
 use serde::{Deserialize, Serialize};
 
@@ -49,15 +49,15 @@ fn extract_envelope(
                     .map_err(BadStoreRequest::InvalidEnvelope);
             }
 
-    // Python clients are well known to send crappy JSON in the Sentry world.  The reason
-    // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
-    // server could deal with this but we cannot.  To work around this issue, we run a basic
-    // character substitution on the input stream but only if we detect a Python agent.
-    //
-    // This is done here so that the rest of the code can assume valid JSON.
-    let is_legacy_python_json = meta.client().map_or(false, |agent| {
-        agent.starts_with("raven-python/") || agent.starts_with("sentry-python/")
-    });
+            // Python clients are well known to send crappy JSON in the Sentry world.  The reason
+            // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
+            // server could deal with this but we cannot.  To work around this issue, we run a basic
+            // character substitution on the input stream but only if we detect a Python agent.
+            //
+            // This is done here so that the rest of the code can assume valid JSON.
+            let is_legacy_python_json = meta.client().map_or(false, |agent| {
+                agent.starts_with("raven-python/") || agent.starts_with("sentry-python/")
+            });
 
             if is_legacy_python_json {
                 let mut data_mut = BytesMut::from(data);

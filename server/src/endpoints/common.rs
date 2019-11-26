@@ -5,7 +5,6 @@ use std::sync::Arc;
 use actix::prelude::*;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, ResponseError};
-use bytes::Bytes;
 use failure::Fail;
 use futures::prelude::*;
 use parking_lot::Mutex;
@@ -198,10 +197,8 @@ where
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(clone!(event_id, |project| {
-            StoreBody::new(&request)
-                .limit(config.max_event_payload_size())
-                .map_err(BadStoreRequest::PayloadError)
-                .and_then(move |data| extract_envelope(data, meta,config.max_event_payload_size()))
+            extract_envelope(&request, meta, config.max_event_payload_size())
+                .into_future()
                 .and_then(clone!(project, |envelope| {
                     *event_id.lock() = Some(envelope.event_id());
 

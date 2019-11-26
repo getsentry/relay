@@ -535,10 +535,8 @@ pub struct EventManager {
     current_active_events: u32,
     shutdown: SyncHandle,
     outcome_producer: Addr<OutcomeProducer>,
-
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
-
     captured_events: Arc<RwLock<BTreeMap<EventId, CapturedEvent>>>,
 }
 
@@ -593,10 +591,8 @@ impl EventManager {
             current_active_events: 0,
             shutdown: SyncHandle::new(),
             captured_events: Arc::default(),
-
             #[cfg(feature = "processing")]
             store_forwarder,
-
             outcome_producer,
         })
     }
