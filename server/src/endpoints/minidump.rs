@@ -129,7 +129,7 @@ where
         });
 
     if name.is_none() && file_name.is_none() {
-        // log::trace!("multipart content without name or file_name");
+        log::trace!("multipart content without name or file_name");
         Box::new(ok(content))
     } else {
         let result = read_multipart_data(field, content.remaining_size).and_then(|data| {
@@ -150,7 +150,7 @@ where
                             content.form_data.push((name, value.to_string()));
                         }
                         Err(_failure) => {
-                            // log::trace!("invalid text value in multipart item");
+                            log::trace!("invalid text value in multipart item");
                         }
                     }
                 }
@@ -208,7 +208,12 @@ where
         for item in envelope.items() {
             if let Some(name) = item.name() {
                 if name == MINIDUMP_ENTRY_NAME {
-                    return Ok(envelope);
+                    if item.payload().as_ref().starts_with(MINIDUMP_MAGIC_HEADER) {
+                        return Ok(envelope);
+                    } else {
+                        log::trace!("Invalid minidump content");
+                        return Err(BadStoreRequest::InvalidMinidump);
+                    }
                 }
             }
         }
