@@ -28,7 +28,7 @@ class Relay(SentryLike):
         self.process.send_signal(sig)
 
         try:
-            self.process.wait(12)
+            self.process.wait(19)
         except subprocess.TimeoutExpired:
             self.process.kill()
             raise
