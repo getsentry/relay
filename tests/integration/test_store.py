@@ -141,7 +141,7 @@ def test_static_config(mini_sentry, relay):
     relay_options = {"relay": {"mode": "static"}}
     relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
     mini_sentry.project_configs[42] = project_config
-    relay.wait_relay_healthcheck()
+    sleep(1)  # There is no upstream auth, so just wait for relay to initialize
 
     relay.send_event(42)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
