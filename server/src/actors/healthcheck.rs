@@ -1,7 +1,11 @@
+use std::sync::Arc;
+
 use actix::prelude::*;
 
 use futures::future;
 use futures::prelude::*;
+
+use semaphore_common::{Config, RelayMode};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe};
 use crate::actors::upstream::{IsAuthenticated, UpstreamRelay};
@@ -9,13 +13,15 @@ use crate::actors::upstream::{IsAuthenticated, UpstreamRelay};
 pub struct Healthcheck {
     is_shutting_down: bool,
     upstream: Addr<UpstreamRelay>,
+    config: Arc<Config>,
 }
 
 impl Healthcheck {
-    pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         Healthcheck {
             is_shutting_down: false,
             upstream,
+            config,
         }
     }
 }
@@ -58,8 +64,10 @@ impl Handler<IsHealthy> for Healthcheck {
             IsHealthy::Readiness => {
                 if self.is_shutting_down {
                     Box::new(future::ok(false))
-                } else {
+                } else if self.config.relay_mode() == RelayMode::Managed {
                     Box::new(self.upstream.send(IsAuthenticated).map_err(|_| ()))
+                } else {
+                    Box::new(future::ok(true))
                 }
             }
         }
