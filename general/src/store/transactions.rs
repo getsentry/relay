@@ -1,6 +1,6 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{Context, ContextInner, Contexts, Event, EventType, Span};
-use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult};
+use crate::types::{Annotated, Error, Meta, ProcessingAction, ProcessingResult};
 
 pub struct TransactionsProcessor;
 
@@ -18,7 +18,8 @@ impl Processor for TransactionsProcessor {
         match (event.start_timestamp.value(), event.timestamp.value_mut()) {
             (Some(start), Some(end)) => {
                 if *end < *start {
-                    return Err(ProcessingAction::InvalidTransaction(
+                    *end = *start;
+                    event.timestamp.meta_mut().add_error(Error::invalid(
                         "end timestamp is smaller than start timestamp",
                     ));
                 }
@@ -96,11 +97,12 @@ impl Processor for TransactionsProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        match (span.start_timestamp.value(), span.timestamp.value()) {
+        match (span.start_timestamp.value(), span.timestamp.value_mut()) {
             (Some(start), Some(end)) => {
-                if end < start {
-                    return Err(ProcessingAction::InvalidTransaction(
-                        "end timestamp in span is smaller than start timestamp",
+                if *end < *start {
+                    *end = *start;
+                    span.timestamp.meta_mut().add_error(Error::invalid(
+                        "end timestamp is smaller than start timestamp",
                     ));
                 }
             }
@@ -717,5 +719,52 @@ mod tests {
         .unwrap();
 
         assert!(event.value().is_some());
+    }
+
+    #[test]
+    fn test_normalizes_invalid_timestamps() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(1, 0, 0)),
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "trace".to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
+                        )),
+                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                        op: Annotated::new("http.server".to_owned()),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+                start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(1, 0, 0)),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                op: Annotated::new("db.statement".to_owned()),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        let event = event.value().unwrap();
+        assert_eq!(event.timestamp.value(), event.start_timestamp.value());
+
+        let spans = event.spans.value().unwrap();
+        let span = spans.first().unwrap().value().unwrap();
+        assert_eq!(span.timestamp.value(), span.start_timestamp.value());
     }
 }
