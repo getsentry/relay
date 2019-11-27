@@ -36,16 +36,15 @@ struct SizeLimitedEnvelope {
     // keeps track of how much bigger is this envelope allowed to grow
     pub remaining_size: usize,
     // collect all form data in here
-    pub form_data: Vec<(String, String)>,
+    pub form_data: Vec<u8>,
 }
 
 impl SizeLimitedEnvelope {
     pub fn into_envelope(mut self) -> Result<Envelope, serde_json::Error> {
-        if !self.form_data.is_empty() {
-            let data = serde_json::to_string(&self.form_data)?;
+        if self.form_data.len() > 0 {
             let mut item = Item::new(ItemType::FormData);
             item.set_name(COLLECTOR_NAME);
-            item.set_payload(ContentType::Json, data);
+            item.set_payload(ContentType::Text, self.form_data);
             self.envelope.add_item(item);
         }
         Ok(self.envelope)
@@ -147,7 +146,11 @@ where
                     let value = from_utf8(&data);
                     match value {
                         Ok(value) => {
-                            content.form_data.push((name, value.to_string()));
+                            serde_json::ser::to_writer(
+                                &mut content.form_data,
+                                &[name.as_str(), value],
+                            )
+                            .ok();
                         }
                         Err(_failure) => {
                             log::trace!("invalid text value in multipart item");

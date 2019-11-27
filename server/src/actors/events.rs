@@ -9,7 +9,7 @@ use failure::{Fail, ResultExt};
 use futures::prelude::*;
 use parking_lot::{Mutex, RwLock};
 use rmp_serde as mps;
-use serde_json::{Error as SerdeError, Map as SerdeMap, Value as SerdeValue};
+use serde_json::{Map as SerdeMap, Value as SerdeValue};
 
 use semaphore_common::{clone, metric, Config, LogError, RelayMode};
 use semaphore_general::pii::PiiProcessor;
@@ -234,66 +234,63 @@ impl EventProcessor {
     ) -> Annotated<Event> {
         // if we have a "sentry" entry it should be a straight json.. merge this into
         if form_data.ty() != ItemType::FormData
-            || form_data.content_type() != Some(&ContentType::Json)
+            || form_data.content_type() != Some(&ContentType::Text)
         {
             //this should never happen caller called it with
             log::error!("merge_form_data called without a proper FormData item");
             return Annotated::new(Event::default());
         }
 
-        let consolidated_data: Result<SerdeValue, SerdeError> =
-            serde_json::from_slice(form_data.payload().deref());
+        #[derive(serde::Deserialize)]
+        struct StringPair<'a>(pub &'a str, pub &'a str);
 
-        if let Ok(SerdeValue::Array(consolidated_data)) = consolidated_data {
-            let mut event_data = SerdeValue::Object(SerdeMap::new());
+        let payload = form_data.payload();
+        let mut consolidated_data_stream =
+            serde_json::Deserializer::from_slice(payload.deref()).into_iter();
 
-            for key_val in consolidated_data {
-                if let SerdeValue::Array(vec) = key_val {
-                    if vec.len() == 2 {
-                        if let (SerdeValue::String(key), SerdeValue::String(val)) =
-                            (&vec[0], &vec[1])
-                        {
-                            if let Some(keys) = get_sentry_entry_indexes(key.as_str()) {
-                                //iterate through all 'sentry[...' params
-                                update_json_object(&mut event_data, &keys, val);
-                            } else if key.as_str() == "sentry" {
-                                //this should be a json string representing the event, merge it into what
-                                //we have already created
-                                let evt_from_json = serde_json::from_str(val.as_str());
-                                if let Ok(evt_from_json) = evt_from_json {
-                                    merge_vals(&mut event_data, evt_from_json)
-                                }
-                            } else {
-                                //an unknown entry, just add it to extra
-                                update_json_object(&mut event_data, &["extra", key.as_str()], val);
-                            }
+        let mut event_data = SerdeValue::Object(SerdeMap::new());
+        loop {
+            match consolidated_data_stream.next() {
+                None => break,
+                Some(Err(e)) => log::error!("Form data deserialization failed {:?}", e),
+                Some(Ok(val)) => {
+                    let val: StringPair = val;
+                    let (key, val) = (val.0, val.1);
+                    if let Some(keys) = get_sentry_entry_indexes(key) {
+                        //iterate through all 'sentry[...' params
+                        update_json_object(&mut event_data, &keys, val);
+                    } else if key == "sentry" {
+                        //this should be a json string representing the event, merge it into what
+                        //we have already created
+                        let evt_from_json = serde_json::from_str(val);
+                        if let Ok(evt_from_json) = evt_from_json {
+                            merge_vals(&mut event_data, evt_from_json)
                         }
-                    }
-                }
-            }
-            if let Some(event_data_mps) = event_data_mps {
-                if event_data_mps.len() < MAX_MSGPACK_EVENT_SIZE_BYTES {
-                    if let Ok(evt) = mps::from_slice(event_data_mps.payload().as_ref()) {
-                        merge_vals(&mut event_data, evt);
                     } else {
-                        log::debug!("Invalid message pack event data in form data");
+                        //an unknown entry, just add it to extra
+                        update_json_object(&mut event_data, &["extra", key], val);
                     }
                 }
             }
-
-            let mut annotated_event =
-                Annotated::deserialize_with_meta(event_data).unwrap_or_default();
-
-            Self::add_message_pack_breadcrumbs(&mut annotated_event, breadcrumbs1, breadcrumbs2);
-
-            Self::write_minidump_placeholder(&mut annotated_event);
-
-            return annotated_event;
-        } else {
-            log::error!("Error deserializing FormData item")
         }
 
-        Annotated::new(Event::default())
+        if let Some(event_data_mps) = event_data_mps {
+            if event_data_mps.len() < MAX_MSGPACK_EVENT_SIZE_BYTES {
+                if let Ok(evt) = mps::from_slice(event_data_mps.payload().as_ref()) {
+                    merge_vals(&mut event_data, evt);
+                } else {
+                    log::debug!("Invalid message pack event data in form data");
+                }
+            }
+        }
+
+        let mut annotated_event = Annotated::deserialize_with_meta(event_data).unwrap_or_default();
+
+        Self::add_message_pack_breadcrumbs(&mut annotated_event, breadcrumbs1, breadcrumbs2);
+
+        Self::write_minidump_placeholder(&mut annotated_event);
+
+        annotated_event
     }
 
     fn get_item_by_name(envelope: &mut Envelope, name: &str) -> Option<Item> {
