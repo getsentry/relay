@@ -257,7 +257,7 @@ struct Limits {
     max_concurrent_queries: usize,
     /// The maximum plain payload size for events.
     max_plain_event_payload_size: ByteSize,
-    /// The maximum security payload size for events.
+    /// The maximum payload size for security reports.
     max_security_event_payload_size: ByteSize,
     /// The maximum minidump payload size for events.
     max_minidump_event_payload_size: ByteSize,
