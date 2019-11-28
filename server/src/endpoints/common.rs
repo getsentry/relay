@@ -160,7 +160,7 @@ pub fn handle_store_like_request<F, R, I>(
     create_response: R,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
-    F: FnOnce(&HttpRequest<ServiceState>, EventMeta, usize) -> I + 'static,
+    F: FnOnce(&HttpRequest<ServiceState>, EventMeta) -> I + 'static,
     I: IntoFuture<Item = Envelope, Error = BadStoreRequest> + 'static,
     R: FnOnce(EventId) -> HttpResponse + 'static,
 {
@@ -184,7 +184,6 @@ where
 
     metric!(counter(&format!("event.protocol.v{}", version)) += 1);
 
-    let config = request.state().config();
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
     let outcome_producer = request.state().outcome_producer().clone();
@@ -197,7 +196,7 @@ where
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(clone!(event_id, |project| {
-            extract_envelope(&request, meta, config.max_event_payload_size())
+            extract_envelope(&request, meta)
                 .into_future()
                 .and_then(clone!(project, |envelope| {
                     *event_id.lock() = Some(envelope.event_id());

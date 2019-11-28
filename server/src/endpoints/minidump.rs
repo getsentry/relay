@@ -229,13 +229,13 @@ fn store_minidump(
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
+    let event_size = request.state().config().max_minidump_event_payload_size();
+
     Box::new(handle_store_like_request(
         meta,
         start_time,
         request,
-        move |data, meta, max_event_payload_size| {
-            extract_envelope_from_minidump_request(data, meta, max_event_payload_size)
-        },
+        move |data, meta| extract_envelope_from_minidump_request(data, meta, event_size),
         move |id| {
             HttpResponse::Ok()
                 .content_type("text/plain")

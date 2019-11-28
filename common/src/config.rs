@@ -255,8 +255,12 @@ struct Limits {
     ///
     /// The concurrency of queries is additionally constrained by `max_concurrent_requests`.
     max_concurrent_queries: usize,
-    /// The maximum payload size for events.
-    max_event_payload_size: ByteSize,
+    /// The maximum plain payload size for events.
+    max_plain_event_payload_size: ByteSize,
+    /// The maximum security payload size for events.
+    max_security_event_payload_size: ByteSize,
+    /// The maximum minidump payload size for events.
+    max_minidump_event_payload_size: ByteSize,
     /// The maximum payload size for general API requests.
     max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
@@ -285,7 +289,9 @@ impl Default for Limits {
         Limits {
             max_concurrent_requests: 100,
             max_concurrent_queries: 5,
-            max_event_payload_size: ByteSize::from_kilobytes(256),
+            max_plain_event_payload_size: ByteSize::from_kilobytes(256),
+            max_security_event_payload_size: ByteSize::from_kilobytes(256),
+            max_minidump_event_payload_size: ByteSize::from_kilobytes(256),
             max_api_payload_size: ByteSize::from_megabytes(20),
             max_api_file_upload_size: ByteSize::from_megabytes(40),
             max_api_chunk_upload_size: ByteSize::from_megabytes(100),
@@ -822,9 +828,25 @@ impl Config {
         Duration::from_secs(self.values.cache.file_interval.into())
     }
 
-    /// Returns the maximum size of an event payload in bytes.
-    pub fn max_event_payload_size(&self) -> usize {
-        self.values.limits.max_event_payload_size.as_bytes() as usize
+    /// Returns the maximum size of a plain event payload in bytes.
+    pub fn max_plain_event_payload_size(&self) -> usize {
+        self.values.limits.max_plain_event_payload_size.as_bytes() as usize
+    }
+
+    /// Returns the maximum size of security event payload in bytes.
+    pub fn max_security_event_payload_size(&self) -> usize {
+        self.values
+            .limits
+            .max_security_event_payload_size
+            .as_bytes() as usize
+    }
+
+    /// Returns the maximum size of a minidump event payload in bytes.
+    pub fn max_minidump_event_payload_size(&self) -> usize {
+        self.values
+            .limits
+            .max_minidump_event_payload_size
+            .as_bytes() as usize
     }
 
     /// Returns the maximum payload size for general API requests.

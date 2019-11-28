@@ -118,14 +118,13 @@ fn store_event(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let is_get_request = request.method() == "GET";
     let content_type = request.content_type().to_owned();
+    let event_size = request.state().config().max_plain_event_payload_size();
 
     Box::new(handle_store_like_request(
         meta,
         start_time,
         request,
-        move |data, meta, max_event_payload_size| {
-            extract_envelope(data, meta, max_event_payload_size, content_type)
-        },
+        move |data, meta| extract_envelope(data, meta, event_size, content_type),
         move |id| create_response(id, is_get_request),
     ))
 }

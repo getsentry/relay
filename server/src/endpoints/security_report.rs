@@ -68,13 +68,12 @@ fn store_security_report(
     request: HttpRequest<ServiceState>,
     params: Query<SecurityReportParams>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
+    let event_size = request.state().config().max_security_event_payload_size();
     Box::new(handle_store_like_request(
         meta,
         start_time,
         request,
-        move |data, meta, max_event_payload_size| {
-            extract_envelope(data, meta, max_event_payload_size, params.into_inner())
-        },
+        move |data, meta| extract_envelope(data, meta, event_size, params.into_inner()),
         |_| create_response(),
     ))
 }
