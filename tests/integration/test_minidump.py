@@ -1,5 +1,6 @@
 import pytest
 from requests import HTTPError
+import re
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 
@@ -18,6 +19,35 @@ def _get_item_by_file_name(items, filename):
     return None
 
 
+def test_minidump_returns_the_correct_result(mini_sentry, relay):
+    proj_id = 42
+    relay = relay(mini_sentry)
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
+
+    response = relay.send_minidump(
+        project_id=proj_id,
+        files=(
+            # add the minidump attachment with the magic header MDMP
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.txt", "MDMPminidump content"),
+        ),
+    )
+
+    # a result for a successful request should be text consisting of a hyphenated uuid (and nothing else).
+    response_body = response.text.strip()
+    re_hex = lambda x: "[0-9a-fA-F]{{{}}}".format(x)
+    hyphenated_uuid = "^{hex_8}-{hex_4}-{hex_4}-{hex_4}-{hex_12}$".format(
+        hex_4=re_hex(4), hex_8=re_hex(8), hex_12=re_hex(12)
+    )
+    assert re.match(hyphenated_uuid, response_body)
+
+    # the event id from the event should match the id in the response (minus the formatting)
+    event = mini_sentry.captured_events.get(timeout=1)
+    assert event
+    event_id = event.headers.get("event_id")
+    assert event_id == response_body.replace("-", "")
+
+
 def test_minidump_attachments_are_added_to_the_envelope(mini_sentry, relay):
     proj_id = 42
     relay = relay(mini_sentry)
@@ -32,7 +62,7 @@ def test_minidump_attachments_are_added_to_the_envelope(mini_sentry, relay):
             (MINIDUMP_ATTACHMENT_NAME, "minidump.txt", "MDMPminidump content"),
             ("attachment1", "attach1.txt", "attachment 1 content"),
         ),
-    ),
+    )
     items = mini_sentry.captured_events.get(timeout=1).items
 
     mini_dump = _get_item_by_file_name(items, "minidump.txt")

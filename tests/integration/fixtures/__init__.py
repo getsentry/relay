@@ -185,6 +185,7 @@ class SentryLike(object):
         )
 
         response.raise_for_status()
+        return response
 
     def request(self, method, path, **kwargs):
         assert path.startswith("/")
