@@ -7,7 +7,6 @@ use actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
 use serde::{Deserialize, Serialize};
 
-use semaphore_common::metric;
 use semaphore_general::protocol::EventId;
 
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
@@ -54,10 +53,7 @@ fn extract_envelope(
 
     if is_legacy_python_json {
         let mut data_mut = BytesMut::from(data);
-
-        metric!(timer("json_parsing.convert_python_tokens"), {
-            json_forensics::translate_slice(&mut data_mut[..]);
-        });
+        json_forensics::translate_slice(&mut data_mut[..]);
         data = data_mut.freeze();
     }
 
@@ -65,12 +61,10 @@ fn extract_envelope(
     // incoming store request. To uncouple it from the workload on the processing workers, this
     // requires to synchronously parse a minimal part of the JSON payload. If the JSON payload
     // is invalid, processing can be skipped altogether.
-    let event_id = metric!(timer("json_parsing.extract_event_id"), {
-        serde_json::from_slice::<EventIdHelper>(&data)
-            .map(|event| event.id)
-            .map_err(BadStoreRequest::InvalidJson)?
-            .unwrap_or_else(EventId::new)
-    });
+    let event_id = serde_json::from_slice::<EventIdHelper>(&data)
+        .map(|event| event.id)
+        .map_err(BadStoreRequest::InvalidJson)?
+        .unwrap_or_else(EventId::new);
 
     // Use the request's content type. If the content type is missing, assume "application/json".
     let content_type = match content_type {
