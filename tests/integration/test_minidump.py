@@ -129,6 +129,7 @@ def test_minidump_endpoint_accepts_raw_minidump(mini_sentry, relay, content_type
     items = mini_sentry.captured_events.get(timeout=1).items
 
 
+@pytest.mark.skip(reason="Deeply nested minidumps not yet correctly implemented.")
 def test_minidump_endpoint_accepts_doubly_nested_formdata(mini_sentry, relay):
     proj_id = 42
     relay = relay(mini_sentry)
