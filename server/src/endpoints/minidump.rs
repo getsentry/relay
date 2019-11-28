@@ -12,6 +12,7 @@ use futures::{
     future::{ok, Future},
     Stream,
 };
+use uuid;
 
 use semaphore_general::protocol::EventId;
 
@@ -237,10 +238,12 @@ fn store_minidump(
         request,
         move |data, meta| extract_envelope_from_minidump_request(data, meta, event_size),
         move |id| {
+            // the minidump client expects the response to contian an event id as a hphenated UUID i.e.
+            // xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+            let hyphenated = uuid::adapter::Hyphenated::from_uuid(id.0);
             HttpResponse::Ok()
                 .content_type("text/plain")
-                //TODO RaduW 21.11.2019 check that we mach the python implementation (with dashes ? )
-                .body(format!("{}", id))
+                .body(format!("{}", hyphenated))
         },
     ))
 }
