@@ -622,7 +622,6 @@ impl Handler<HandleEvent> for EventManager {
 
                 Box::new(future) as ResponseFuture<_, _>
             }))
-            .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
@@ -707,7 +706,8 @@ impl Handler<HandleEvent> for EventManager {
                     })
                 }
             }))
-            .then(|x, slf, _| {
+            .then(move |x, slf, _| {
+                metric!(timer("event.total_time") = start_time.elapsed());
                 slf.current_active_events -= 1;
                 result(x)
             })
