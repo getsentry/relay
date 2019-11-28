@@ -4,7 +4,7 @@ use futures::prelude::*;
 
 use semaphore_common::{metric, Config};
 
-use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
+use crate::actors::controller::{Controller, Shutdown, Subscribe};
 use crate::service;
 
 pub use crate::service::ServerError;
@@ -30,7 +30,7 @@ impl Actor for Server {
 }
 
 impl Handler<Shutdown> for Server {
-    type Result = ResponseFuture<(), TimeoutError>;
+    type Result = ResponseFuture<(), ()>;
 
     fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
         let graceful = message.timeout.is_some();
@@ -41,8 +41,8 @@ impl Handler<Shutdown> for Server {
         let future = self
             .http_server
             .send(StopServer { graceful })
-            .map_err(|_| TimeoutError)
-            .and_then(|result| result.map_err(|_| TimeoutError));
+            .map_err(|_| ())
+            .and_then(|result| result.map_err(|_| ()));
 
         Box::new(future)
     }

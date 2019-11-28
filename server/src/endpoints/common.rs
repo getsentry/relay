@@ -123,9 +123,7 @@ impl ResponseError for BadStoreRequest {
                     // more likely that the error is local to this project.
                     HttpResponse::InternalServerError().json(&body)
                 }
-                ProjectError::ScheduleFailed(_) | ProjectError::Shutdown => {
-                    HttpResponse::ServiceUnavailable().json(&body)
-                }
+                ProjectError::ScheduleFailed(_) => HttpResponse::ServiceUnavailable().json(&body),
             },
 
             BadStoreRequest::ScheduleFailed(_) | BadStoreRequest::QueueFailed(_) => {

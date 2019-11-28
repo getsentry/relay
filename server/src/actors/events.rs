@@ -20,7 +20,6 @@ use semaphore_general::protocol::{
 };
 use semaphore_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 
-use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
     EventAction, GetEventAction, GetProjectState, Project, ProjectError, ProjectState, RateLimit,
@@ -30,9 +29,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
 use crate::quotas::{QuotasError, RateLimiter};
 use crate::service::{ServerError, ServerErrorKind};
-use crate::utils::{
-    get_sentry_entry_indexes, merge_vals, update_json_object, SyncActorFuture, SyncHandle,
-};
+use crate::utils::{get_sentry_entry_indexes, merge_vals, update_json_object, FutureExt};
 
 #[cfg(feature = "processing")]
 use {
@@ -56,6 +53,7 @@ enum ProcessingError {
     #[fail(display = "invalid json in event")]
     InvalidJson(#[cause] serde_json::Error),
 
+    #[cfg(feature = "processing")]
     #[fail(display = "invalid transaction event")]
     InvalidTransaction,
 
@@ -105,9 +103,6 @@ enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
-
-    #[fail(display = "shutdown timer expired")]
-    Shutdown,
 }
 
 struct EventProcessor {
@@ -536,10 +531,11 @@ pub struct EventManager {
     upstream: Addr<UpstreamRelay>,
     processor: Addr<EventProcessor>,
     current_active_events: u32,
-    shutdown: SyncHandle,
     outcome_producer: Addr<OutcomeProducer>,
+
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
+
     captured_events: Arc<RwLock<BTreeMap<EventId, CapturedEvent>>>,
 }
 
@@ -592,10 +588,11 @@ impl EventManager {
             upstream,
             processor,
             current_active_events: 0,
-            shutdown: SyncHandle::new(),
             captured_events: Arc::default(),
+
             #[cfg(feature = "processing")]
             store_forwarder,
+
             outcome_producer,
         })
     }
@@ -604,9 +601,8 @@ impl EventManager {
 impl Actor for EventManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, context: &mut Self::Context) {
+    fn started(&mut self, _ctx: &mut Self::Context) {
         log::info!("event manager started");
-        Controller::from_registry().do_send(Subscribe(context.address().recipient()));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -816,7 +812,6 @@ impl Handler<HandleEvent> for EventManager {
             .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
-            .sync(&self.shutdown, ProcessingError::Shutdown)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(clone!(project, captured_events, |error, _, _| {
                 // if we are in capture mode, we stash away the event instead of
@@ -835,12 +830,12 @@ impl Handler<HandleEvent> for EventManager {
                     | ProcessingError::ScheduleFailed(_)
                     | ProcessingError::ProjectFailed(_)
                     | ProcessingError::Timeout
-                    | ProcessingError::Shutdown
                     | ProcessingError::ProcessingFailed(_)
                     | ProcessingError::NoAction(_)
                     | ProcessingError::QuotasFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
+                    #[cfg(feature = "processing")]
                     ProcessingError::InvalidTransaction => {
                         Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
                     }
@@ -902,20 +897,10 @@ impl Handler<HandleEvent> for EventManager {
             .then(|x, slf, _| {
                 slf.current_active_events -= 1;
                 result(x)
-            });
+            })
+            .drop_guard("process_event");
 
         Box::new(future)
-    }
-}
-
-impl Handler<Shutdown> for EventManager {
-    type Result = ResponseFuture<(), TimeoutError>;
-
-    fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
-        match message.timeout {
-            Some(timeout) => self.shutdown.timeout(timeout),
-            None => self.shutdown.now(),
-        }
     }
 }
 

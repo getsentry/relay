@@ -15,7 +15,6 @@ use futures::prelude::*;
 use crate::constants::SHUTDOWN_TIMEOUT;
 
 pub use crate::service::ServerError;
-pub use crate::utils::TimeoutError;
 
 /// Actor to start and gracefully stop an actix system.
 ///
@@ -43,7 +42,7 @@ pub use crate::utils::TimeoutError;
 /// }
 ///
 /// impl Handler<Shutdown> for MyActor {
-///     type Result = Result<(), TimeoutError>;
+///     type Result = Result<(), ()>;
 ///
 ///     fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
 ///         // Implement custom logic here
@@ -99,14 +98,6 @@ impl Controller {
         Ok(())
     }
 
-    /// Stops the current system immediately without sending a shutdown signal.
-    pub fn stop(&mut self, context: &mut Context<Self>) {
-        // Delay the shutdown for 100ms to allow synchronized futures to execute their error
-        // handlers. Once `System::stop` is called, futures won't be polled anymore and we will not
-        // be able to print error messages.
-        context.run_later(Duration::from_millis(100), |_, _| System::current().stop());
-    }
-
     /// Performs a graceful shutdown with the given timeout.
     ///
     /// This sends a `Shutdown` message to all subscribed actors and waits for them to finish. As
@@ -122,13 +113,22 @@ impl Controller {
             .map(|future| future.then(|_| Ok(())))
             .collect();
 
-        // Once all shutdowns have completed, we can schedule a stop of the actix system. It is
-        // performed with a slight delay to give pending synced futures a chance to perform their
-        // error handlers.
         future::join_all(futures)
             .into_actor(self)
-            .and_then(|_, slf, ctx| {
-                slf.stop(ctx);
+            .and_then(move |_, _, ctx| {
+                // Once all shutdowns have completed, we can schedule a stop of the actix system. It is
+                // performed with a slight delay to give pending synced futures a chance to perform their
+                // error handlers.
+                //
+                // Delay the shutdown for 100ms to allow synchronized futures to execute their error
+                // handlers. Once `System::stop` is called, futures won't be polled anymore and we will not
+                // be able to print error messages.
+                let when =
+                    timeout.unwrap_or_else(|| Duration::from_secs(0)) + Duration::from_millis(100);
+
+                ctx.run_later(when, |_, _| {
+                    System::current().stop();
+                });
                 fut::ok(())
             })
             .spawn(context);
@@ -199,12 +199,15 @@ impl Handler<Subscribe> for Controller {
 
 /// Shutdown request message sent by the [`Controller`] to subscribed actors.
 ///
-/// The specified timeout is only a hint to the implementor of this message. A handler has to
-/// ensure that it doesn't take significantly longer to resolve the future. Ideally, open work is
-/// persisted or finished in an orderly manner but no new requests are accepted anymore.
+/// A handler has to ensure that it doesn't take longer than `timeout` to resolve the future.
+/// Ideally, open work is persisted or finished in an orderly manner but no new requests are
+/// accepted anymore.
 ///
-/// The implementor may indicate a timeout by responding with `Err(TimeoutError)`. At the moment,
-/// this does not have any consequences for the shutdown.
+/// After the timeout the system will shut down regardless of what the receivers of this message
+/// do.
+///
+/// The return value is fully ignored. It is only `Result` such that futures can be executed inside
+/// a handler.
 ///
 /// [`Controller`]: struct.Controller.html
 pub struct Shutdown {
@@ -213,5 +216,5 @@ pub struct Shutdown {
 }
 
 impl Message for Shutdown {
-    type Result = Result<(), TimeoutError>;
+    type Result = Result<(), ()>;
 }

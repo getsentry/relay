@@ -29,11 +29,10 @@ use semaphore_general::{
     pii::PiiConfig,
 };
 
-use crate::actors::controller::{Controller, Shutdown, Subscribe, TimeoutError};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
-use crate::utils::{self, ErrorBoundary, Response, SyncActorFuture, SyncHandle};
+use crate::utils::{self, ErrorBoundary, Response};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -42,9 +41,6 @@ pub enum ProjectError {
 
     #[fail(display = "could not schedule project fetching")]
     ScheduleFailed(#[cause] MailboxError),
-
-    #[fail(display = "shutdown timer expired")]
-    Shutdown,
 }
 
 impl ResponseError for ProjectError {}
@@ -818,7 +814,6 @@ pub struct ProjectCache {
     local_states: HashMap<ProjectId, Arc<ProjectState>>,
     state_channels: HashMap<ProjectId, ProjectStateChannel>,
     updates: VecDeque<ProjectUpdate>,
-    shutdown: SyncHandle,
 }
 
 impl ProjectCache {
@@ -831,7 +826,6 @@ impl ProjectCache {
             local_states: HashMap::new(),
             state_channels: HashMap::new(),
             updates: VecDeque::new(),
-            shutdown: SyncHandle::new(),
         }
     }
 
@@ -845,9 +839,7 @@ impl ProjectCache {
 
     /// Schedules a batched upstream query with exponential backoff.
     fn schedule_fetch(&mut self, context: &mut Context<Self>) {
-        utils::run_later(self.next_backoff(), Self::fetch_states)
-            .sync(&self.shutdown, ())
-            .spawn(context)
+        utils::run_later(self.next_backoff(), Self::fetch_states).spawn(context)
     }
 
     /// Executes an upstream request to fetch project configs.
@@ -986,16 +978,14 @@ impl ProjectCache {
                         Err(error) => {
                             log::error!("error fetching project states: {}", LogError(&error));
 
-                            if !slf.shutdown.requested() {
-                                // Put the channels back into the queue, in addition to channels that
-                                // have been pushed in the meanwhile. We will retry again shortly.
-                                slf.state_channels.extend(channels_batch);
+                            // Put the channels back into the queue, in addition to channels that
+                            // have been pushed in the meanwhile. We will retry again shortly.
+                            slf.state_channels.extend(channels_batch);
 
-                                metric!(
-                                    histogram("project_state.pending") =
-                                        slf.state_channels.len() as u64
-                                );
-                            }
+                            metric!(
+                                histogram("project_state.pending") =
+                                    slf.state_channels.len() as u64
+                            );
                         }
                     }
                 }
@@ -1006,7 +996,6 @@ impl ProjectCache {
 
                 fut::ok(())
             })
-            .sync(&self.shutdown, ProjectError::Shutdown)
             .drop_err()
             .spawn(context);
     }
@@ -1101,7 +1090,6 @@ impl Actor for ProjectCache {
         context.set_mailbox_capacity(mailbox_size);
 
         log::info!("project cache started");
-        Controller::from_registry().do_send(Subscribe(context.address().recipient()));
 
         // Start the background thread that reads the local states from disk.
         // `poll_local_states` returns a future that resolves as soon as the first read is done.
@@ -1245,16 +1233,5 @@ impl Handler<FetchProjectState> for ProjectCache {
                 .map(|x| ProjectStateResponse::managed((*x).clone()))
                 .map_err(|_| ()),
         )
-    }
-}
-
-impl Handler<Shutdown> for ProjectCache {
-    type Result = ResponseFuture<(), TimeoutError>;
-
-    fn handle(&mut self, message: Shutdown, _context: &mut Self::Context) -> Self::Result {
-        match message.timeout {
-            Some(timeout) => self.shutdown.timeout(timeout),
-            None => self.shutdown.now(),
-        }
     }
 }
