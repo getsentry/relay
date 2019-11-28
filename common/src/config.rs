@@ -291,7 +291,7 @@ impl Default for Limits {
             max_concurrent_queries: 5,
             max_plain_event_payload_size: ByteSize::from_kilobytes(256),
             max_security_event_payload_size: ByteSize::from_kilobytes(256),
-            max_minidump_event_payload_size: ByteSize::from_kilobytes(256),
+            max_minidump_event_payload_size: ByteSize::from_megabytes(2000),
             max_api_payload_size: ByteSize::from_megabytes(20),
             max_api_file_upload_size: ByteSize::from_megabytes(40),
             max_api_chunk_upload_size: ByteSize::from_megabytes(100),

@@ -113,6 +113,16 @@ struct EventProcessor {
     geoip_lookup: Option<Arc<GeoIpLookup>>,
 }
 
+fn take_item_by_name(envelope: &mut Envelope, name: &str) -> Option<Item> {
+    envelope.take_item_cond(|item| {
+        if let Some(item_name) = item.name() {
+            name == item_name
+        } else {
+            false
+        }
+    })
+}
+
 impl EventProcessor {
     #[cfg(feature = "processing")]
     pub fn new(
@@ -288,16 +298,6 @@ impl EventProcessor {
         annotated_event
     }
 
-    fn get_item_by_name(envelope: &mut Envelope, name: &str) -> Option<Item> {
-        envelope.take_item_cond(|item| {
-            if let Some(item_name) = item.name() {
-                name == item_name
-            } else {
-                false
-            }
-        })
-    }
-
     fn process(&self, message: ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
         let mut envelope = message.envelope;
         let event_id = envelope.event_id();
@@ -308,7 +308,7 @@ impl EventProcessor {
         let event_item = envelope.take_item(ItemType::Event);
         let security_item = envelope.take_item(ItemType::SecurityReport);
         let form_item = envelope.take_item(ItemType::FormData);
-        let mps_event = Self::get_item_by_name(&mut envelope, "__sentry-event");
+        let mps_event = take_item_by_name(&mut envelope, "__sentry-event");
 
         fn small_enough_or_none(item: Item) -> Option<Item> {
             if item.payload().len() < MAX_MSGPACK_BREADCRUMB_SIZE_BYTES {
@@ -318,11 +318,11 @@ impl EventProcessor {
             }
         }
 
-        let mps_breadcrumbs1 = Self::get_item_by_name(&mut envelope, "__sentry-breadcrumb1")
-            .and_then(small_enough_or_none);
+        let mps_breadcrumbs1 =
+            take_item_by_name(&mut envelope, "__sentry-breadcrumb1").and_then(small_enough_or_none);
 
-        let mps_breadcrumbs2 = Self::get_item_by_name(&mut envelope, "__sentry-breadcrumb2")
-            .and_then(small_enough_or_none);
+        let mps_breadcrumbs2 =
+            take_item_by_name(&mut envelope, "__sentry-breadcrumb2").and_then(small_enough_or_none);
 
         // TODO: describe validation
         let duplicate_item = envelope

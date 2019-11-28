@@ -128,44 +128,40 @@ where
             )
         });
 
-    if name.is_none() && file_name.is_none() {
-        log::trace!("multipart content without name or file_name");
-        Box::new(ok(content))
-    } else {
-        let result = read_multipart_data(field, content.remaining_size).and_then(|data| {
-            content.remaining_size -= data.len();
-
-            match (name, file_name) {
-                (name, Some(file_name)) => {
-                    let mut item = Item::new(ItemType::Attachment);
-                    item.set_payload(ContentType::OctetStream, data);
-                    item.set_filename(file_name);
-                    name.map(|name| item.set_name(name));
-                    content.envelope.add_item(item)
-                }
-                (Some(name), None) => {
-                    let value = from_utf8(&data);
-                    match value {
-                        Ok(value) => {
-                            serde_json::ser::to_writer(
-                                &mut content.form_data,
-                                &[name.as_str(), value],
-                            )
+    match (name, file_name) {
+        (name, Some(file_name)) => {
+            let result = read_multipart_data(field, content.remaining_size).and_then(move |data| {
+                content.remaining_size -= data.len();
+                let mut item = Item::new(ItemType::Attachment);
+                item.set_payload(ContentType::OctetStream, data);
+                item.set_filename(file_name);
+                name.map(|name| item.set_name(name));
+                content.envelope.add_item(item);
+                Ok(content)
+            });
+            Box::new(result)
+        }
+        (Some(name), None) => {
+            let result = read_multipart_data(field, content.remaining_size).and_then(move |data| {
+                content.remaining_size -= data.len();
+                let value = from_utf8(&data);
+                match value {
+                    Ok(value) => {
+                        serde_json::ser::to_writer(&mut content.form_data, &[name.as_str(), value])
                             .ok();
-                        }
-                        Err(_failure) => {
-                            log::trace!("invalid text value in multipart item");
-                        }
+                    }
+                    Err(_failure) => {
+                        log::trace!("invalid text value in multipart item");
                     }
                 }
-                (None, None) => {
-                    //already checked on the if branch
-                    unreachable!();
-                }
-            }
-            Ok(content)
-        });
-        Box::new(result)
+                Ok(content)
+            });
+            Box::new(result)
+        }
+        (None, None) => {
+            log::trace!("multipart content without name or file_name");
+            Box::new(ok(content))
+        }
     }
 }
 
