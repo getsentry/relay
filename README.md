@@ -110,4 +110,4 @@ The command assumes that semaphore's configuration (`config.yml` and `credential
 
 ### Release Management
 
-We use [craft](https://github.com/getsentry/semaphore) to release new versions.
+We use [craft](https://github.com/getsentry/craft) to release new versions.
