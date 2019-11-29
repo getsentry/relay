@@ -414,7 +414,11 @@ impl EventManager {
 impl Actor for EventManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, _ctx: &mut Self::Context) {
+    fn started(&mut self, context: &mut Self::Context) {
+        // Set the mailbox size to the size of the event buffer. This is a rough estimate but
+        // should ensure that we're not dropping events unintentionally after we've accepted them.
+        let mailbox_size = self.config.event_buffer_size() as usize;
+        context.set_mailbox_capacity(mailbox_size);
         log::info!("event manager started");
     }
 
