@@ -44,7 +44,6 @@ smallvec = "0.6.10"
 tokio-timer = "0.2.11"
 url = { version = "2.0.0", features = ["serde"] }
 itertools = "0.8.1"
-jemallocator = "0.3.2"
 
 [dependencies.semaphore-common]
 path = "../common"
@@ -54,6 +53,7 @@ path = "../general"
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.60"
+jemallocator = "0.3.2"
 
 [dev-dependencies]
 insta = "0.11.0"
