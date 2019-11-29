@@ -32,7 +32,8 @@ def test_outcomes(relay_with_processing, kafka_consumer, mini_sentry):
     del outcome["timestamp"]
     assert timestamp is not None
     event_emission = datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-    assert start <= event_emission <= end
+    assert start <= event_emission
+    assert event_emission <= end
     # reconstruct the expected message without timestamp
     expected = {
         "project_id": 42,
