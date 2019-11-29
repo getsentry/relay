@@ -44,6 +44,7 @@ smallvec = "0.6.10"
 tokio-timer = "0.2.11"
 url = { version = "2.0.0", features = ["serde"] }
 itertools = "0.8.1"
+jemallocator = "0.3.2"
 
 [dependencies.semaphore-common]
 path = "../common"

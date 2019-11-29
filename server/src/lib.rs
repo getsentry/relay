@@ -9,6 +9,9 @@
 //! [`run`]: fn.run.html
 #![warn(missing_docs)]
 
+#[global_allocator]
+static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
+
 mod actors;
 mod body;
 mod constants;
