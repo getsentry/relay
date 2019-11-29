@@ -53,6 +53,7 @@ path = "../general"
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.60"
+jemallocator = "0.3.2"
 
 [dev-dependencies]
 insta = "0.11.0"
