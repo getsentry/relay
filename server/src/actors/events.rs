@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -522,7 +523,7 @@ impl Handler<HandleEvent> for EventManager {
         let remote_addr = envelope.meta().client_addr();
         let meta_clone = Arc::new(envelope.meta().clone());
 
-        let org_id_for_err = Arc::new(Mutex::new(None::<u64>));
+        let org_id_for_err = Rc::new(Mutex::new(None::<u64>));
 
         metric!(set("unique_projects") = project_id as i64);
 
