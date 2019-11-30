@@ -468,7 +468,7 @@ impl FromValue for DateTime<Utc> {
             }
             Annotated(Some(Value::F64(ts)), meta) => {
                 let secs = ts as i64;
-                // at this point we probably already loose nanosecond precision, but we deal with
+                // at this point we probably already lose nanosecond precision, but we deal with
                 // this in `datetime_to_timestamp`.
                 let nanos = (ts.fract() * 1_000_000_000f64) as u32;
                 utc_result_to_annotated(Utc.timestamp_opt(secs, nanos), ts, meta)
