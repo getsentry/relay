@@ -403,11 +403,6 @@ impl ToValue for Value {
 }
 
 fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
-    // use `timestamp_subsec_nanos` here because all other functions on `DateTime` are built on top
-    // of it, so we only need to do one float division to construct `timestamp`
-    let nanos = f64::from(dt.timestamp_subsec_nanos()) / 1_000_000_000f64;
-    let timestamp = dt.timestamp() as f64 + nanos;
-
     // f64s cannot store nanoseconds. To verify this just try to fit the current timestamp in
     // nanoseconds into a 52-bit number (which is the significand of a double).
     //
@@ -420,7 +415,11 @@ fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
     // If we want to support nanoseconds at some point we will probably have to start using strings
     // everywhere. Even then it's unclear how to deal with it in Python code as a `datetime` cannot
     // store nanoseconds.
-    (timestamp * 1_000_000f64).round() / 1_000_000f64
+    //
+    // We use `timestamp_subsec_nanos` instead of `timestamp_subsec_micros` anyway to get better
+    // rounding behavior.
+    let micros = (f64::from(dt.timestamp_subsec_nanos()) / 1_000f64).round();
+    dt.timestamp() as f64 + (micros / 1_000_000f64)
 }
 
 fn utc_result_to_annotated<V: ToValue>(
