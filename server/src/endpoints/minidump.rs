@@ -164,15 +164,12 @@ where
     }
 }
 
-fn extract_envelope_from_minidump_request<T, S>(
-    request: &T,
+fn extract_envelope(
+    request: &HttpRequest<ServiceState>,
     meta: EventMeta,
     max_payload_size: usize,
 ) -> impl Future<Item = Envelope, Error = BadStoreRequest>
-where
-    T: HttpMessage<Stream = S> + 'static,
-    S: Stream<Item = Bytes, Error = PayloadError> + 'static,
-{
+where {
     let mut size_limited_envelope = SizeLimitedEnvelope {
         envelope: Envelope::from_request(EventId::new(), meta),
         remaining_size: max_payload_size,
@@ -230,7 +227,7 @@ fn store_minidump(
         meta,
         start_time,
         request,
-        move |data, meta| extract_envelope_from_minidump_request(data, meta, event_size),
+        move |data, meta| extract_envelope(data, meta, event_size),
         move |id| {
             // the minidump client expects the response to contain an event id as a hyphenated UUID i.e.
             // xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
