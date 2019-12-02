@@ -6,29 +6,24 @@ enum IndexingState {
 }
 
 /// Updates a json Value at the specified path.
-pub fn update_json_object<'a, V: AsRef<str>>(obj: &'a mut Value, path: &[&str], val: V) {
-    if path.len() == 0 {
-        return;
-    }
-    if let Value::Object(the_map) = obj {
-        if path.len() == 1 {
-            the_map.insert(path[0].into(), Value::String(val.as_ref().to_string()));
-        } else {
-            match the_map.get_mut(path[0]) {
-                Some(inner) => {
-                    if inner.is_object() {
-                        // we have a member at the specified index and it is an object (we can insert at path)
-                        update_json_object(inner, &path[1..], val);
-                    }
-                }
-                None => {
-                    //nothing yet at the specified path create an object
-                    the_map.insert(path[0].into(), Value::Object(serde_json::Map::new()));
-                    // now we should have an object at the path, try again
-                    update_json_object(obj, path, val);
-                }
-            }
-        }
+pub fn update_json_object<'a, V: Into<String>>(obj: &'a mut Value, path: &[&str], val: V) {
+    let map = match obj {
+        Value::Object(map) => map,
+        _ => return,
+    };
+
+    let (key, rest) = match path.split_first() {
+        Some(tuple) => tuple,
+        None => return,
+    };
+
+    let entry = map.entry(key.to_owned());
+
+    if rest.is_empty() {
+        entry.or_insert_with(|| Value::String(val.into()));
+    } else {
+        let sub_obj = entry.or_insert_with(|| Value::Object(Default::default()));
+        update_json_object(sub_obj, rest, val);
     }
 }
 

@@ -243,7 +243,9 @@ impl EventProcessor {
         breadcrumbs1: Option<Item>,
         breadcrumbs2: Option<Item>,
     ) -> Annotated<Event> {
-        // Check that the formdata item is in the expected format
+        // Check that the form-data item is in the expected format
+        // Content type is Text (since it is not a json object but multiple).
+        // json arrays serialized one after the other.
         if form_data.ty() != ItemType::FormData
             || form_data.content_type() != Some(&ContentType::Text)
         {
