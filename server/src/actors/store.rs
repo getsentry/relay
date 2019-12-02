@@ -120,11 +120,13 @@ struct EventKafkaMessage {
     project_id: u64,
     /// The client ip address.
     remote_addr: Option<String>,
+    /// Attachments that are potentially relevant for processing.
+    attachments: Vec<ChunkedAttachment>,
 }
 
 /// Container payload for chunks of attachments.
 #[derive(Debug, Serialize)]
-struct AttachmentKafkaMessage {
+struct AttachmentChunkKafkaMessage {
     /// The type discriminator of the message.
     ty: KafkaMessageType,
     /// Chunk payload of the attachment.
@@ -133,12 +135,35 @@ struct AttachmentKafkaMessage {
     event_id: String,
     /// The project id for the current event.
     project_id: u64,
-    /// Index of this attachment in the list of attachments.
-    index: usize,
-    /// Total attachment size in bytes.
-    size: usize,
-    /// Offset of the current chunk in bytes.
-    offset: usize,
+    /// The attachment ID. (project_id, event_id, id) identifies an attachment uniquely.
+    id: String,
+    /// Sequence number of chunk. Starts at 0 and ends at `AttachmentKafkaMessage.num_chunks - 1`.
+    chunk_index: usize,
+}
+
+/// A "standalone" attachment.
+///
+/// Still belongs to an event but can be sent independently (like userfeedback) and is not
+/// considered in processing.
+#[derive(Debug, Serialize)]
+struct AttachmentKafkaMessage {
+    /// The type discriminator of the message.
+    ty: KafkaMessageType,
+    /// The event id.
+    event_id: String,
+    /// The project id for the current event.
+    project_id: u64,
+    #[serde(flatten)]
+    attachment: ChunkedAttachment,
+}
+
+/// Common attributes for both standalone attachments and processing-relevant attachments.
+#[derive(Debug, Serialize)]
+struct ChunkedAttachment {
+    /// The attachment ID. (project_id, event_id, id) identifies an attachment uniquely.
+    id: String,
+    /// Number of chunks.
+    chunks: usize,
 }
 
 /// Message sent to the StoreForwarder containing an event
@@ -174,11 +199,17 @@ impl Handler<StoreEvent> for StoreForwarder {
             KafkaTopic::Events
         };
 
+        let mut attachments = Vec::new();
+
         for (index, item) in envelope.items().enumerate() {
             // Only upload items first.
             if item.ty() != ItemType::Attachment {
                 continue;
             }
+
+            let id = index.to_string(); // TODO(jauer)
+
+            let mut chunk_index = 0;
 
             let mut offset = 0;
             let payload = item.payload();
@@ -188,19 +219,24 @@ impl Handler<StoreEvent> for StoreForwarder {
                 let max_chunk_size = self.config.attachment_chunk_size();
                 let chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
-                let attachment_message = AttachmentKafkaMessage {
+                let attachment_message = AttachmentChunkKafkaMessage {
                     ty: KafkaMessageType::AttachmentChunk,
                     payload: payload.slice(offset, offset + chunk_size),
                     event_id: event_id.to_string(),
                     project_id,
-                    index,
-                    offset,
-                    size,
+                    id: id.clone(),
+                    chunk_index,
                 };
 
                 self.produce(topic, event_id, attachment_message)?;
                 offset += chunk_size;
+                chunk_index += 1;
             }
+
+            attachments.push(ChunkedAttachment {
+                id: id.clone(),
+                chunks: chunk_index + 1,
+            });
         }
 
         if let Some(event_item) = event_item {
@@ -211,10 +247,14 @@ impl Handler<StoreEvent> for StoreForwarder {
                 event_id: event_id.to_string(),
                 project_id,
                 remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
+                attachments,
             };
 
             self.produce(topic, event_id, event_message)?;
             metric!(counter("processing.event.produced") += 1, "type" => "event");
+        } else {
+            // TODO(jauer)
+            unimplemented!();
         }
 
         Ok(())
