@@ -39,9 +39,6 @@ use {
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
 
-const MAX_MSGPACK_BREADCRUMB_SIZE_BYTES: usize = 50_000;
-const MAX_MSGPACK_EVENT_SIZE_BYTES: usize = 100_000;
-
 #[derive(Debug, Fail)]
 pub enum QueueEventError {
     #[fail(display = "Too many events (max_concurrent_events reached)")]
@@ -113,16 +110,6 @@ struct EventProcessor {
     geoip_lookup: Option<Arc<GeoIpLookup>>,
 }
 
-fn take_item_by_name(envelope: &mut Envelope, name: &str) -> Option<Item> {
-    envelope.take_item_cond(|item| {
-        if let Some(item_name) = item.name() {
-            name == item_name
-        } else {
-            false
-        }
-    })
-}
-
 impl EventProcessor {
     #[cfg(feature = "processing")]
     pub fn new(
@@ -151,6 +138,7 @@ impl EventProcessor {
             .and_then(Annotated::into_value)
     }
 
+    /// Merges breadcrumbs passed in as an message pack attachment (in `__sentry-breacrumbs1/2`)
     fn add_message_pack_breadcrumbs(
         evt: &mut Annotated<Event>,
         breadcrumbs1: Option<Item>,
@@ -176,10 +164,15 @@ impl EventProcessor {
             .rev()
             .find_map(|breadcrumb| breadcrumb.value().and_then(|b| b.timestamp.value()));
 
+        // sort breadcrumbs by date ( we presume that last timestamp from each row gives the
+        // relative sequence of the whole sequence, i.e. we don't need to splice the sequences
+        // to get the breadrumbs sorted)
         if timestamp1 > timestamp2 {
             std::mem::swap(&mut breadcrumbs1, &mut breadcrumbs2);
         }
 
+        // limit the total length of the breadcrumbs, we presume that if we have both
+        // breadcrumbs with items one contains the maximum number of breadcrumbs allowed.
         let max_length = std::cmp::max(breadcrumbs1.len(), breadcrumbs2.len());
 
         breadcrumbs1.extend(breadcrumbs2);
@@ -189,31 +182,40 @@ impl EventProcessor {
             breadcrumbs1.drain(0..(breadcrumbs1.len() - max_length));
         }
 
-        if let Some(evt) = evt.value_mut() {
-            evt.breadcrumbs = Annotated::new(Values {
-                values: Annotated::new(breadcrumbs1.into()),
-                other: Object::default(),
-            });
-        }
+        let evt = evt.get_or_insert_with(Event::default);
+        evt.breadcrumbs = Annotated::new(Values {
+            values: Annotated::new(breadcrumbs1.into()),
+            other: Object::default(),
+        });
     }
 
     /// Writes a placeholder to indicate that this event has an associated minidump.
+    ///
+    ///   This will indicate to the ingestion pipeline that this event will need to be
+    ///   processed. The payload can be checked via ``is_minidump_event``.
     fn write_minidump_placeholder(evt: &mut Annotated<Event>) {
-        let evt = evt.get_or_insert_with(Event::default);
+        let event = evt.get_or_insert_with(Event::default);
 
-        let platform = evt.platform.value_mut();
-        *platform = Some("native".to_string());
+        // Minidump events must be native platform.
+        event.platform.get_or_insert_with(|| "native".to_string());
 
-        let level = evt.level.value_mut();
+        // Assume that this minidump is the result of a crash and assign the fatal
+        // level. Note that the use of `setdefault` here doesn't generally allow the
+        // user to override the minidump's level as processing will overwrite it
+        // later.
+        let level = event.level.value_mut();
         *level = Some(Level::Fatal);
 
-        let exceptions = evt
+        // Create a placeholder exception. This signals normalization that this is an
+        // error event and also serves as a placeholder if processing of the minidump
+        // fails.
+        let exceptions = event
             .exceptions
             .value_mut()
-            .get_or_insert_with(Values::<Exception>::default)
+            .get_or_insert_with(Values::default)
             .values
             .value_mut()
-            .get_or_insert_with(|| vec![]);
+            .get_or_insert_with(Vec::new);
 
         exceptions.clear(); // clear previous errors if any
 
@@ -230,18 +232,22 @@ impl EventProcessor {
         }));
     }
 
-    /// merge form data (from a multipart request into the event
+    /// Merge form data from a multipart request into the event.
+    ///
+    /// Some SDKs send event and bredcrumbs as messagepack attachments.
+    /// This function merges them into the main event.
     fn event_from_minidump_data(
+        &self,
         form_data: Item,
         event_data_mps: Option<Item>,
         breadcrumbs1: Option<Item>,
         breadcrumbs2: Option<Item>,
     ) -> Annotated<Event> {
-        // if we have a "sentry" entry it should be a straight json.. merge this into
+        // Check that the formdata item is in the expected format
         if form_data.ty() != ItemType::FormData
             || form_data.content_type() != Some(&ContentType::Text)
         {
-            //this should never happen caller called it with
+            // This should never happen it is probably a programming error.
             log::error!("merge_form_data called without a proper FormData item");
             return Annotated::new(Event::default());
         }
@@ -280,7 +286,7 @@ impl EventProcessor {
         }
 
         if let Some(event_data_mps) = event_data_mps {
-            if event_data_mps.len() < MAX_MSGPACK_EVENT_SIZE_BYTES {
+            if event_data_mps.len() < self.config.max_msgpack_event_payload_size() {
                 if let Ok(evt) = mps::from_slice(event_data_mps.payload().as_ref()) {
                     merge_vals(&mut event_data, evt);
                 } else {
@@ -305,24 +311,26 @@ impl EventProcessor {
         // TODO: What about envelope headers?
         // TODO: Move or copy headers
 
-        let event_item = envelope.take_item(ItemType::Event);
-        let security_item = envelope.take_item(ItemType::SecurityReport);
-        let form_item = envelope.take_item(ItemType::FormData);
-        let mps_event = take_item_by_name(&mut envelope, "__sentry-event");
+        let event_item = envelope.take_item_by_type(ItemType::Event);
+        let security_item = envelope.take_item_by_type(ItemType::SecurityReport);
+        let form_item = envelope.take_item_by_type(ItemType::FormData);
+        let mps_event = envelope.take_item_by_name("__sentry-event");
 
-        fn small_enough_or_none(item: Item) -> Option<Item> {
-            if item.payload().len() < MAX_MSGPACK_BREADCRUMB_SIZE_BYTES {
+        let small_enough_or_none = |item: Item| {
+            if item.payload().len() < self.config.max_msgpack_breadcrumb_payload_size() {
                 Some(item)
             } else {
                 None
             }
-        }
+        };
 
-        let mps_breadcrumbs1 =
-            take_item_by_name(&mut envelope, "__sentry-breadcrumb1").and_then(small_enough_or_none);
+        let mps_breadcrumbs1 = envelope
+            .take_item_by_name("__sentry-breadcrumb1")
+            .and_then(small_enough_or_none);
 
-        let mps_breadcrumbs2 =
-            take_item_by_name(&mut envelope, "__sentry-breadcrumb2").and_then(small_enough_or_none);
+        let mps_breadcrumbs2 = envelope
+            .take_item_by_name("__sentry-breadcrumb2")
+            .and_then(small_enough_or_none);
 
         // TODO: describe validation
         let duplicate_item = envelope
@@ -340,7 +348,7 @@ impl EventProcessor {
                     .map_err(ProcessingError::InvalidJson)?
             }),
             (None, Some(item)) => {
-                Self::event_from_minidump_data(item, mps_event, mps_breadcrumbs1, mps_breadcrumbs2)
+                self.event_from_minidump_data(item, mps_event, mps_breadcrumbs1, mps_breadcrumbs2)
             }
             (None, None) => {
                 log::trace!("creating empty event {}", event_id);

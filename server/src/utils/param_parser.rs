@@ -5,17 +5,8 @@ enum IndexingState {
     Accumulating(usize),
 }
 
-// updates a json Value at the specified path
+/// Updates a json Value at the specified path.
 pub fn update_json_object<'a, V: AsRef<str>>(obj: &'a mut Value, path: &[&str], val: V) {
-    update_json_object_internal(obj, path, val, false)
-}
-
-fn update_json_object_internal<'a, V: AsRef<str>>(
-    obj: &'a mut Value,
-    path: &[&str],
-    val: V,
-    recursion_protection: bool,
-) {
     if path.len() == 0 {
         return;
     }
@@ -27,19 +18,14 @@ fn update_json_object_internal<'a, V: AsRef<str>>(
                 Some(inner) => {
                     if inner.is_object() {
                         // we have a member at the specified index and it is an object (we can insert at path)
-                        update_json_object_internal(inner, &path[1..], val, false);
+                        update_json_object(inner, &path[1..], val);
                     }
                 }
                 None => {
-                    if recursion_protection {
-                        //this is a bug we should NEVER be here
-                        log::error!("update_value_internal, infinite recursion detected");
-                    } else {
-                        //nothing yet at the specified path create an object
-                        the_map.insert(path[0].into(), Value::Object(serde_json::Map::new()));
-                        // now we should have an object at the path, try again
-                        update_json_object_internal(obj, path, val, true);
-                    }
+                    //nothing yet at the specified path create an object
+                    the_map.insert(path[0].into(), Value::Object(serde_json::Map::new()));
+                    // now we should have an object at the path, try again
+                    update_json_object(obj, path, val);
                 }
             }
         }

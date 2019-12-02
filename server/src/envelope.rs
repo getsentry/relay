@@ -416,20 +416,23 @@ impl Envelope {
     }
 
     /// Returns the first item that matches the given `ItemType`.
-    pub fn get_item(&self, ty: ItemType) -> Option<&Item> {
+    pub fn get_item_by_type(&self, ty: ItemType) -> Option<&Item> {
         self.items().find(|item| item.ty() == ty)
     }
 
     /// Removes and returns the first item that matches the given `ItemType`.
     ///
     /// This swaps the last item with the item being removed.
-    pub fn take_item(&mut self, ty: ItemType) -> Option<Item> {
-        let index = self.items.iter().position(|item| item.ty() == ty);
-        index.map(|index| self.items.swap_remove(index))
+    pub fn take_item_by_type(&mut self, ty: ItemType) -> Option<Item> {
+        self.take_item_by(|item| item.ty() == ty)
+    }
+
+    pub fn take_item_by_name(&mut self, name: &str) -> Option<Item> {
+        self.take_item_by(|item| item.name() == Some(name))
     }
 
     /// Removes and returns the first itme that matches the given condition
-    pub fn take_item_cond<F>(&mut self, cond: F) -> Option<Item>
+    pub fn take_item_by<F>(&mut self, cond: F) -> Option<Item>
     where
         F: Fn(&Item) -> bool,
     {
@@ -620,12 +623,12 @@ mod tests {
         envelope.add_item(item2);
 
         let taken = envelope
-            .take_item(ItemType::Attachment)
+            .take_item_by_type(ItemType::Attachment)
             .expect("should return some item");
 
         assert_eq!(taken.filename(), Some("item1"));
 
-        assert!(envelope.take_item(ItemType::Event).is_none());
+        assert!(envelope.take_item_by_type(ItemType::Event).is_none());
     }
 
     #[test]

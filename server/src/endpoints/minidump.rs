@@ -12,7 +12,6 @@ use futures::{
     future::{ok, Future},
     Stream,
 };
-use uuid;
 
 use semaphore_general::protocol::EventId;
 
@@ -23,7 +22,7 @@ use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
 const MULTIPART_DATA_INITIAL_CHUNK_SIZE: usize = 512;
-const COLLECTOR_NAME: &str = "data_collector";
+const FORM_DATA: &str = "form_data";
 const MINIDUMP_ENTRY_NAME: &str = "upload_file_minidump";
 // minidump attachments should have this name
 const MINIDUMP_MAGIC_HEADER: &[u8] = b"MDMP"; // all minidumps start with this header
@@ -44,7 +43,7 @@ impl SizeLimitedEnvelope {
     pub fn into_envelope(mut self) -> Result<Envelope, serde_json::Error> {
         if self.form_data.len() > 0 {
             let mut item = Item::new(ItemType::FormData);
-            item.set_name(COLLECTOR_NAME);
+            item.set_name(FORM_DATA);
             item.set_payload(ContentType::Text, self.form_data);
             self.envelope.add_item(item);
         }
@@ -199,7 +198,6 @@ where
     };
 
     size_limited_envelope.and_then(|size_limited_envelope| {
-        //TODO RaduW check if this is the error we want
         let envelope = size_limited_envelope
             .into_envelope()
             .map_err(|_| BadStoreRequest::InvalidMultipart)?;
@@ -236,7 +234,7 @@ fn store_minidump(
         move |id| {
             // the minidump client expects the response to contain an event id as a hyphenated UUID i.e.
             // xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-            let hyphenated = uuid::adapter::Hyphenated::from_uuid(id.0);
+            let hyphenated = id.0.to_hyphenated();
             HttpResponse::Ok()
                 .content_type("text/plain")
                 .body(format!("{}", hyphenated))
