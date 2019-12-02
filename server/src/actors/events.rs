@@ -197,14 +197,14 @@ impl EventProcessor {
         let event = evt.get_or_insert_with(Event::default);
 
         // Minidump events must be native platform.
-        event.platform.get_or_insert_with(|| "native".to_string());
+        let platform = event.platform.value_mut();
+        *platform = Some("native".to_string());
 
         // Assume that this minidump is the result of a crash and assign the fatal
         // level. Note that the use of `setdefault` here doesn't generally allow the
         // user to override the minidump's level as processing will overwrite it
         // later.
-        let level = event.level.value_mut();
-        *level = Some(Level::Fatal);
+        event.level.get_or_insert_with(|| Level::Fatal);
 
         // Create a placeholder exception. This signals normalization that this is an
         // error event and also serves as a placeholder if processing of the minidump
@@ -256,15 +256,15 @@ impl EventProcessor {
         struct StringPair<'a>(pub &'a str, pub &'a str);
 
         let payload = form_data.payload();
-        let mut consolidated_data_stream =
+        let consolidated_data_stream =
             serde_json::Deserializer::from_slice(payload.deref()).into_iter();
 
         let mut event_data = SerdeValue::Object(SerdeMap::new());
-        loop {
-            match consolidated_data_stream.next() {
-                None => break,
-                Some(Err(e)) => log::error!("Form data deserialization failed {:?}", e),
-                Some(Ok(val)) => {
+
+        for result in consolidated_data_stream {
+            match result {
+                Err(e) => log::error!("Form data deserialization failed {:?}", e),
+                Ok(val) => {
                     let val: StringPair = val;
                     let (key, val) = (val.0, val.1);
                     if let Some(keys) = get_sentry_entry_indexes(key) {
@@ -295,6 +295,8 @@ impl EventProcessor {
             }
         }
 
+        // get the existing event or create an event if we don't already have one
+        // so that we have a valid event to merge the breadcrumbs in.
         let mut annotated_event = Annotated::deserialize_with_meta(event_data).unwrap_or_default();
 
         Self::add_message_pack_breadcrumbs(&mut annotated_event, breadcrumbs1, breadcrumbs2);

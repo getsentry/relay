@@ -170,6 +170,10 @@ fn extract_envelope(
     max_payload_size: usize,
 ) -> impl Future<Item = Envelope, Error = BadStoreRequest>
 where {
+    // TODO at the moment we override any pre exsiting (set by an SDK) event id here.
+    //  We shouldn't do that. The problem is that at this stage we cannot afford to parse the
+    //  request and look for the event id so we simply set one.
+    //  We need to somehow preserve SDK set event ids ( the current behaviour needs to change).
     let mut size_limited_envelope = SizeLimitedEnvelope {
         envelope: Envelope::from_request(EventId::new(), meta),
         remaining_size: max_payload_size,
@@ -200,16 +204,12 @@ where {
             .map_err(|_| BadStoreRequest::InvalidMultipart)?;
 
         //check that the envelope contains a minidump item
-        for item in envelope.items() {
-            if let Some(name) = item.name() {
-                if name == MINIDUMP_ENTRY_NAME {
-                    if item.payload().as_ref().starts_with(MINIDUMP_MAGIC_HEADER) {
-                        return Ok(envelope);
-                    } else {
-                        log::trace!("Invalid minidump content");
-                        return Err(BadStoreRequest::InvalidMinidump);
-                    }
-                }
+        if let Some(item) = envelope.get_item_by(|item| item.name() == Some(MINIDUMP_ENTRY_NAME)) {
+            if item.payload().as_ref().starts_with(MINIDUMP_MAGIC_HEADER) {
+                return Ok(envelope);
+            } else {
+                log::trace!("Invalid minidump content");
+                return Err(BadStoreRequest::InvalidMinidump);
             }
         }
         Err(BadStoreRequest::MissingMinidump)

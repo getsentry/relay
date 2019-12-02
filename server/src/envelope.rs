@@ -264,10 +264,12 @@ impl Item {
         self.headers.filename = Some(filename.into());
     }
 
+    /// Returns the name header of the item.
     pub fn name(&self) -> Option<&str> {
         self.headers.name.as_ref().map(String::as_str)
     }
 
+    // Sets the name header of the item.
     pub fn set_name<S>(&mut self, name: S)
     where
         S: Into<String>,
@@ -415,9 +417,18 @@ impl Envelope {
         self.items.iter()
     }
 
+    /// Returns the an option with a reference to the first item that matches
+    /// the predicate, or None if the predicate is not matched by any item.
+    pub fn get_item_by<F>(&self, pred: F) -> Option<&Item>
+    where
+        F: Fn(&Item) -> bool,
+    {
+        self.items().find(|item| pred(item))
+    }
+
     /// Returns the first item that matches the given `ItemType`.
     pub fn get_item_by_type(&self, ty: ItemType) -> Option<&Item> {
-        self.items().find(|item| item.ty() == ty)
+        self.get_item_by(|item| item.ty() == ty)
     }
 
     /// Removes and returns the first item that matches the given `ItemType`.
@@ -427,11 +438,12 @@ impl Envelope {
         self.take_item_by(|item| item.ty() == ty)
     }
 
+    /// Removes and returns the first item that matches the given names
     pub fn take_item_by_name(&mut self, name: &str) -> Option<Item> {
         self.take_item_by(|item| item.name() == Some(name))
     }
 
-    /// Removes and returns the first itme that matches the given condition
+    /// Removes and returns the first item that matches the given condition
     pub fn take_item_by<F>(&mut self, cond: F) -> Option<Item>
     where
         F: Fn(&Item) -> bool,
