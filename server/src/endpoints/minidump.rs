@@ -101,6 +101,14 @@ where {
     Box::new(future)
 }
 
+fn create_response(id: EventId) -> HttpResponse {
+    // the minidump client expects the response to contain an event id as a hyphenated UUID
+    // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    HttpResponse::Ok()
+        .content_type("text/plain")
+        .body(format!("{}", id.0.to_hyphenated()))
+}
+
 fn store_minidump(
     meta: EventMeta,
     start_time: StartTime,
@@ -113,14 +121,7 @@ fn store_minidump(
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, event_size),
-        move |id| {
-            // the minidump client expects the response to contain an event id as a hyphenated UUID
-            // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-            let hyphenated = id.0.to_hyphenated();
-            HttpResponse::Ok()
-                .content_type("text/plain")
-                .body(format!("{}", hyphenated))
-        },
+        create_response,
     ))
 }
 
