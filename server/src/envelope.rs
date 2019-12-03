@@ -100,6 +100,16 @@ pub enum ContentType {
 }
 
 impl ContentType {
+    pub fn as_str(&self) -> &str {
+        match *self {
+            Self::Text => "text/plain",
+            Self::Json => "application/json",
+            Self::MsgPack => "application/x-msgpack",
+            Self::OctetStream => "application/octet-stream",
+            Self::Other(ref other) => &other,
+        }
+    }
+
     fn from_str(content_type: &str) -> Option<Self> {
         match content_type {
             "text/plain" => Some(Self::Text),

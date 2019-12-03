@@ -403,8 +403,23 @@ impl ToValue for Value {
 }
 
 fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
-    let micros = f64::from(dt.timestamp_subsec_micros()) / 1_000_000f64;
-    ((dt.timestamp() as f64 + micros) * 1000f64).round() / 1000f64
+    // f64s cannot store nanoseconds. To verify this just try to fit the current timestamp in
+    // nanoseconds into a 52-bit number (which is the significand of a double).
+    //
+    // Round off to microseconds to not show more decimal points than we know are correct. Anything
+    // else might trick the user into thinking the nanoseconds in those timestamps mean anything.
+    //
+    // This needs to be done regardless of whether the input value was a ISO-formatted string or a
+    // number because it all ends up as a f64 on serialization.
+    //
+    // If we want to support nanoseconds at some point we will probably have to start using strings
+    // everywhere. Even then it's unclear how to deal with it in Python code as a `datetime` cannot
+    // store nanoseconds.
+    //
+    // We use `timestamp_subsec_nanos` instead of `timestamp_subsec_micros` anyway to get better
+    // rounding behavior.
+    let micros = (f64::from(dt.timestamp_subsec_nanos()) / 1_000f64).round();
+    dt.timestamp() as f64 + (micros / 1_000_000f64)
 }
 
 fn utc_result_to_annotated<V: ToValue>(
@@ -452,8 +467,10 @@ impl FromValue for DateTime<Utc> {
             }
             Annotated(Some(Value::F64(ts)), meta) => {
                 let secs = ts as i64;
-                let micros = (ts.fract() * 1_000_000f64) as u32;
-                utc_result_to_annotated(Utc.timestamp_opt(secs, micros * 1000), ts, meta)
+                // at this point we probably already lose nanosecond precision, but we deal with
+                // this in `datetime_to_timestamp`.
+                let nanos = (ts.fract() * 1_000_000_000f64) as u32;
+                utc_result_to_annotated(Utc.timestamp_opt(secs, nanos), ts, meta)
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
