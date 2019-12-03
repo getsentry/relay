@@ -4,7 +4,7 @@ use futures::Future;
 use semaphore_general::protocol::EventId;
 
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::MultipartEnvelope;
@@ -72,7 +72,7 @@ where {
                 let mut item = Item::new(ItemType::Attachment);
                 item.set_payload(ContentType::OctetStream, data);
                 item.set_filename(MINIDUMP_FILE_NAME);
-                item.set_name(MINIDUMP_FIELD_NAME);
+                item.set_attachment_type(AttachmentType::Minidump);
 
                 envelope.add_item(item);
 
@@ -85,10 +85,13 @@ where {
     let future = MultipartEnvelope::new(envelope, max_payload_size)
         .handle_request(request)
         .map_err(BadStoreRequest::InvalidMultipart)
-        .and_then(|envelope| {
+        .and_then(|mut envelope| {
             // Check that the envelope contains a minidump item.
-            match envelope.get_item_by_name(MINIDUMP_FIELD_NAME) {
-                Some(item) => validate_minidump(&item.payload())?,
+            match envelope.get_item_by_mut(|item| item.name() == Some(MINIDUMP_FIELD_NAME)) {
+                Some(item) => {
+                    validate_minidump(&item.payload())?;
+                    item.set_attachment_type(AttachmentType::Minidump);
+                }
                 None => return Err(BadStoreRequest::MissingMinidump),
             }
 
