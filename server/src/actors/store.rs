@@ -135,7 +135,9 @@ struct AttachmentChunkKafkaMessage {
     event_id: String,
     /// The project id for the current event.
     project_id: u64,
-    /// The attachment ID. (project_id, event_id, id) identifies an attachment uniquely.
+    /// The attachment ID within the event.
+    ///
+    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
     id: String,
     /// Sequence number of chunk. Starts at 0 and ends at `AttachmentKafkaMessage.num_chunks - 1`.
     chunk_index: usize,
@@ -153,16 +155,47 @@ struct AttachmentKafkaMessage {
     event_id: String,
     /// The project id for the current event.
     project_id: u64,
+    /// The attachment.
     #[serde(flatten)]
     attachment: ChunkedAttachment,
+}
+
+#[derive(Debug, Serialize)]
+enum AttachmentType {
+    /// A regular attachment without special meaning.
+    #[serde(rename = "event.attachment")]
+    Attachment,
+
+    /// A minidump crash report (binary data).
+    #[serde(rename = "event.minidump")]
+    #[allow(dead_code)]
+    Minidump,
+
+    /// An apple crash report (text data).
+    #[serde(rename = "event.applecrashreport")]
+    #[allow(dead_code)]
+    AppleCrashReport,
 }
 
 /// Common attributes for both standalone attachments and processing-relevant attachments.
 #[derive(Debug, Serialize)]
 struct ChunkedAttachment {
-    /// The attachment ID. (project_id, event_id, id) identifies an attachment uniquely.
+    /// The attachment ID within the event.
+    ///
+    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
     id: String,
-    /// Number of chunks.
+
+    /// File name of the attachment file. Should not be `None`.
+    name: Option<String>,
+
+    /// Content type of the attachment payload.
+    content_type: Option<String>,
+
+    /// The Sentry-internal attachment type used in the processing pipeline.
+    #[serde(rename = "type")]
+    ty: AttachmentType,
+
+    /// Number of chunks. Must be greater than zero.
     chunks: usize,
 }
 
@@ -207,10 +240,10 @@ impl Handler<StoreEvent> for StoreForwarder {
                 continue;
             }
 
-            let id = index.to_string(); // TODO(jauer)
+            // TODO(jauer): This needs to be unique within the event.
+            let id = index.to_string();
 
             let mut chunk_index = 0;
-
             let mut offset = 0;
             let payload = item.payload();
             let size = item.len();
@@ -233,9 +266,18 @@ impl Handler<StoreEvent> for StoreForwarder {
                 chunk_index += 1;
             }
 
+            // The chunk_index is incremented after every loop iteration. After we exit the loop, it
+            // is one larger than the last chunk, so it is equal to the number of chunks.
+            debug_assert!(chunk_index > 0);
+
             attachments.push(ChunkedAttachment {
                 id: id.clone(),
-                chunks: chunk_index + 1,
+                name: item.filename().map(str::to_owned),
+                content_type: item
+                    .content_type()
+                    .map(|content_type| content_type.as_str().to_owned()),
+                ty: AttachmentType::Attachment,
+                chunks: chunk_index,
             });
         }
 
