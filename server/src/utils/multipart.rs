@@ -1,7 +1,6 @@
 use actix::prelude::*;
 use actix_web::{dev::Payload, multipart, HttpMessage, HttpRequest};
 use failure::Fail;
-use futures::future;
 use futures::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -84,9 +83,7 @@ impl<'a> Iterator for FormDataIter<'a> {
         for result in &mut self.iter {
             match result {
                 Ok(entry) => return Some(entry),
-                Err(error) => {
-                    log::error!("form data deserialization failed: {}", LogError(&error));
-                }
+                Err(error) => log::error!("form data deserialization failed: {}", LogError(&error)),
             }
         }
 
@@ -106,46 +103,36 @@ fn handle_multipart_item(
     };
 
     let content_type = field.content_type().to_string();
-    let (name, file_name) = field.content_disposition().map_or((None, None), |d| {
-        (
-            d.get_name().map(String::from),
-            d.get_filename().map(String::from),
-        )
+    let content_disposition = field.content_disposition();
+
+    let future = read_multipart_data(field, content.remaining_size).and_then(move |data| {
+        content.remaining_size -= data.len();
+
+        let field_name = content_disposition.as_ref().and_then(|d| d.get_name());
+        let file_name = content_disposition.as_ref().and_then(|d| d.get_filename());
+
+        if let Some(file_name) = file_name {
+            let mut item = Item::new(ItemType::Attachment);
+            item.set_payload(content_type.into(), data);
+            item.set_filename(file_name);
+            if let Some(field_name) = field_name {
+                item.set_name(field_name);
+            }
+
+            content.envelope.add_item(item);
+        } else if let Some(field_name) = field_name {
+            match std::str::from_utf8(&data) {
+                Ok(value) => content.form_data.append(field_name, value),
+                Err(_failure) => log::trace!("invalid text value in multipart item"),
+            }
+        } else {
+            log::trace!("multipart content without name or file_name");
+        }
+
+        Ok(content)
     });
 
-    match (name, file_name) {
-        (name, Some(file_name)) => {
-            let result = read_multipart_data(field, content.remaining_size).and_then(move |data| {
-                content.remaining_size -= data.len();
-
-                let mut item = Item::new(ItemType::Attachment);
-                item.set_payload(content_type.into(), data);
-                item.set_filename(file_name);
-                if let Some(name) = name {
-                    item.set_name(name);
-                }
-
-                content.envelope.add_item(item);
-                Ok(content)
-            });
-            Box::new(result)
-        }
-        (Some(name), None) => {
-            let result = read_multipart_data(field, content.remaining_size).and_then(move |data| {
-                content.remaining_size -= data.len();
-                match std::str::from_utf8(&data) {
-                    Ok(value) => content.form_data.append(name.as_str(), value),
-                    Err(_failure) => log::trace!("invalid text value in multipart item"),
-                }
-                Ok(content)
-            });
-            Box::new(result)
-        }
-        (None, None) => {
-            log::trace!("multipart content without name or file_name");
-            Box::new(future::ok(content))
-        }
-    }
+    Box::new(future)
 }
 
 fn handle_multipart_stream(
