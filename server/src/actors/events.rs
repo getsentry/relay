@@ -411,7 +411,7 @@ impl EventProcessor {
     ) -> Result<(), ProcessingError> {
         // Skip store processing if disabled. This feature is only active for Relays that run Sentry
         // event ingestion. External Relays do not need to run this code.
-        if self.config.processing_enabled() {
+        if !self.config.processing_enabled() {
             return Ok(());
         }
 
