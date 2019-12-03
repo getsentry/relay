@@ -14,7 +14,7 @@ use serde::Serialize;
 
 use rmp_serde::encode::Error as SerdeError;
 
-use semaphore_common::{metric, Config, KafkaTopic};
+use semaphore_common::{metric, Config, KafkaTopic, ProjectId};
 use semaphore_general::protocol::{EventId, EventType};
 
 use crate::envelope::{Envelope, ItemType};
@@ -98,11 +98,10 @@ impl Actor for StoreForwarder {
 enum KafkaMessageType {
     /// The serialized payload of an event with some meta data.
     Event,
+    /// A standalone attachment that is ingested independent of an event.
+    Attachment,
     /// The binary chunk of an event attachment.
     AttachmentChunk,
-    /// The serialized payload of a transaction event with some meta data.
-    #[allow(unused)] // future use
-    Transaction,
 }
 
 /// Container payload for event messages.
@@ -115,9 +114,9 @@ struct EventKafkaMessage {
     /// Time at which the event was received by Relay.
     start_time: u64,
     /// The event id.
-    event_id: String,
+    event_id: EventId,
     /// The project id for the current event.
-    project_id: u64,
+    project_id: ProjectId,
     /// The client ip address.
     remote_addr: Option<String>,
     /// Attachments that are potentially relevant for processing.
@@ -132,9 +131,9 @@ struct AttachmentChunkKafkaMessage {
     /// Chunk payload of the attachment.
     payload: Bytes,
     /// The event id.
-    event_id: String,
+    event_id: EventId,
     /// The project id for the current event.
-    project_id: u64,
+    project_id: ProjectId,
     /// The attachment ID within the event.
     ///
     /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
@@ -152,9 +151,9 @@ struct AttachmentKafkaMessage {
     /// The type discriminator of the message.
     ty: KafkaMessageType,
     /// The event id.
-    event_id: String,
+    event_id: EventId,
     /// The project id for the current event.
-    project_id: u64,
+    project_id: ProjectId,
     /// The attachment.
     #[serde(flatten)]
     attachment: ChunkedAttachment,
@@ -204,7 +203,7 @@ struct ChunkedAttachment {
 pub struct StoreEvent {
     pub envelope: Envelope,
     pub start_time: Instant,
-    pub project_id: u64,
+    pub project_id: ProjectId,
 }
 
 impl Message for StoreEvent {
@@ -255,7 +254,7 @@ impl Handler<StoreEvent> for StoreForwarder {
                 let attachment_message = AttachmentChunkKafkaMessage {
                     ty: KafkaMessageType::AttachmentChunk,
                     payload: payload.slice(offset, offset + chunk_size),
-                    event_id: event_id.to_string(),
+                    event_id,
                     project_id,
                     id: id.clone(),
                     chunk_index,
@@ -283,10 +282,10 @@ impl Handler<StoreEvent> for StoreForwarder {
 
         if let Some(event_item) = event_item {
             let event_message = EventKafkaMessage {
+                ty: KafkaMessageType::Event,
                 payload: event_item.payload(),
                 start_time: instant_to_unix_timestamp(start_time),
-                ty: KafkaMessageType::Event,
-                event_id: event_id.to_string(),
+                event_id,
                 project_id,
                 remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
                 attachments,
@@ -295,8 +294,17 @@ impl Handler<StoreEvent> for StoreForwarder {
             self.produce(topic, event_id, event_message)?;
             metric!(counter("processing.event.produced") += 1, "type" => "event");
         } else {
-            // TODO(jauer)
-            unimplemented!();
+            for attachment in attachments {
+                let attachment_message = AttachmentKafkaMessage {
+                    ty: KafkaMessageType::Attachment,
+                    event_id,
+                    project_id,
+                    attachment,
+                };
+
+                self.produce(topic, event_id, attachment_message)?;
+                metric!(counter("processing.event.produced") += 1, "type" => "attachment");
+            }
         }
 
         Ok(())
