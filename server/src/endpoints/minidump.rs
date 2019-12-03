@@ -72,15 +72,21 @@ where
     Box::new(future)
 }
 
+fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
+    if !data.starts_with(MINIDUMP_MAGIC_HEADER) {
+        log::trace!("invalid minidump file");
+        return Err(BadStoreRequest::InvalidMinidump);
+    }
+
+    Ok(())
+}
+
 fn add_minidump_to_envelope(
     envelope: &mut Envelope,
     data: Vec<u8>,
     file_name: Option<&str>,
 ) -> Result<(), BadStoreRequest> {
-    if !data.starts_with(MINIDUMP_MAGIC_HEADER) {
-        log::trace!("Did not find magic minidump header");
-        return Err(BadStoreRequest::InvalidMinidump);
-    }
+    validate_minidump(&data)?;
 
     let mut item = Item::new(ItemType::Attachment);
     item.set_payload(ContentType::OctetStream, data);
@@ -222,13 +228,10 @@ where {
 
             // Check that the envelope contains a minidump item.
             if let Some(item) = envelope.get_item_by_name(MINIDUMP_ENTRY_NAME) {
-                if item.payload().as_ref().starts_with(MINIDUMP_MAGIC_HEADER) {
-                    return Ok(envelope);
-                } else {
-                    log::trace!("Invalid minidump content");
-                    return Err(BadStoreRequest::InvalidMinidump);
-                }
+                validate_minidump(&item.payload())?;
+                return Ok(envelope);
             }
+
             Err(BadStoreRequest::MissingMinidump)
         },
     );
