@@ -25,7 +25,7 @@ use crate::actors::project::{
     RateLimitScope, RetryAfter,
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
-use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
+use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::service::ServerError;
 use crate::utils::{self, FormDataIter, FutureExt};
 
@@ -507,7 +507,9 @@ impl EventProcessor {
 
         // If special attachments are present in the envelope, add placeholder payloads to the
         // event. This indicates to the pipeline that the event needs special processing.
-        if envelope.get_item_by_name("upload_file_minidump").is_some() {
+        let minidump_attachment =
+            envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+        if minidump_attachment.is_some() {
             self.write_minidump_placeholder(&mut event);
         }
 

@@ -17,7 +17,7 @@ use rmp_serde::encode::Error as SerdeError;
 use semaphore_common::{metric, Config, KafkaTopic, ProjectId};
 use semaphore_general::protocol::{EventId, EventType};
 
-use crate::envelope::{Envelope, ItemType};
+use crate::envelope::{AttachmentType, Envelope, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
 use crate::utils::instant_to_unix_timestamp;
 
@@ -93,7 +93,7 @@ impl Actor for StoreForwarder {
 }
 
 /// The type of a message sent to Kafka for store.
-#[derive(Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum KafkaMessageType {
     /// The serialized payload of an event with some meta data.
@@ -157,23 +157,6 @@ struct AttachmentKafkaMessage {
     /// The attachment.
     #[serde(flatten)]
     attachment: ChunkedAttachment,
-}
-
-#[derive(Debug, Serialize)]
-enum AttachmentType {
-    /// A regular attachment without special meaning.
-    #[serde(rename = "event.attachment")]
-    Attachment,
-
-    /// A minidump crash report (binary data).
-    #[serde(rename = "event.minidump")]
-    #[allow(dead_code)]
-    Minidump,
-
-    /// An apple crash report (text data).
-    #[serde(rename = "event.applecrashreport")]
-    #[allow(dead_code)]
-    AppleCrashReport,
 }
 
 /// Common attributes for both standalone attachments and processing-relevant attachments.
@@ -275,7 +258,7 @@ impl Handler<StoreEvent> for StoreForwarder {
                 content_type: item
                     .content_type()
                     .map(|content_type| content_type.as_str().to_owned()),
-                ty: AttachmentType::Attachment,
+                ty: item.attachment_type().unwrap_or_default(),
                 chunks: chunk_index,
             });
         }

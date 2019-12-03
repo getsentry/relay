@@ -161,6 +161,31 @@ impl<'de> Deserialize<'de> for ContentType {
     }
 }
 
+/// The type of an event attachment.
+///
+/// These item types must align with the Sentry processing pipeline.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+pub enum AttachmentType {
+    /// A regular attachment without special meaning.
+    #[serde(rename = "event.attachment")]
+    Attachment,
+
+    /// A minidump crash report (binary data).
+    #[serde(rename = "event.minidump")]
+    Minidump,
+
+    /// An apple crash report (text data).
+    #[serde(rename = "event.applecrashreport")]
+    #[allow(dead_code)]
+    AppleCrashReport,
+}
+
+impl Default for AttachmentType {
+    fn default() -> Self {
+        Self::Attachment
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ItemHeaders {
     #[serde(rename = "type")]
@@ -170,6 +195,9 @@ pub struct ItemHeaders {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     event_type: Option<EventType>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    attachment_type: Option<AttachmentType>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     content_type: Option<ContentType>,
@@ -198,6 +226,7 @@ impl Item {
                 ty,
                 length: 0,
                 event_type: None,
+                attachment_type: None,
                 content_type: None,
                 filename: None,
                 name: None,
@@ -236,6 +265,17 @@ impl Item {
     /// Sets the event type of this item.
     pub fn set_event_type(&mut self, event_type: EventType) {
         self.headers.event_type = Some(event_type);
+    }
+
+    /// Returns the attachment type if this item is an attachment.
+    pub fn attachment_type(&self) -> Option<AttachmentType> {
+        // TODO: consider to replace this with an ItemType?
+        self.headers.attachment_type
+    }
+
+    /// Sets the attachment type of this item.
+    pub fn set_attachment_type(&mut self, attachment_type: AttachmentType) {
+        self.headers.attachment_type = Some(attachment_type);
     }
 
     /// Returns the payload of this item.
@@ -307,6 +347,7 @@ impl Item {
 }
 
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
+pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnvelopeHeaders {
@@ -427,6 +468,13 @@ impl Envelope {
         self.items.iter()
     }
 
+    /// Returns an iterator over mutable items in this envelope.
+    ///
+    /// Note that iteration order may change when using `take_item`.
+    pub fn items_mut(&mut self) -> ItemIterMut<'_> {
+        self.items.iter_mut()
+    }
+
     /// Returns the an option with a reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     pub fn get_item_by<F>(&self, mut pred: F) -> Option<&Item>
@@ -444,6 +492,15 @@ impl Envelope {
     /// Returns the first item that matches the given name.
     pub fn get_item_by_name(&self, name: &str) -> Option<&Item> {
         self.get_item_by(|item| item.name() == Some(name))
+    }
+
+    /// Returns the an option with a mutable reference to the first item that matches
+    /// the predicate, or None if the predicate is not matched by any item.
+    pub fn get_item_by_mut<F>(&mut self, mut pred: F) -> Option<&mut Item>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        self.items_mut().find(|item| pred(item))
     }
 
     /// Removes and returns the first item that matches the given condition.

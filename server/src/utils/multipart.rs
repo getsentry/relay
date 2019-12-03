@@ -105,15 +105,13 @@ fn handle_multipart_item(
         }
     };
 
-    let (name, file_name) = field
-        .content_disposition()
-        .as_ref()
-        .map_or((None, None), |d| {
-            (
-                d.get_name().map(String::from),
-                d.get_filename().map(String::from),
-            )
-        });
+    let content_type = field.content_type().to_string();
+    let (name, file_name) = field.content_disposition().map_or((None, None), |d| {
+        (
+            d.get_name().map(String::from),
+            d.get_filename().map(String::from),
+        )
+    });
 
     match (name, file_name) {
         (name, Some(file_name)) => {
@@ -121,7 +119,7 @@ fn handle_multipart_item(
                 content.remaining_size -= data.len();
 
                 let mut item = Item::new(ItemType::Attachment);
-                item.set_payload(ContentType::OctetStream, data);
+                item.set_payload(content_type.into(), data);
                 item.set_filename(file_name);
                 if let Some(name) = name {
                     item.set_name(name);
