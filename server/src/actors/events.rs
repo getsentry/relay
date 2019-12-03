@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use actix::fut::result;
 use actix::prelude::*;
-use failure::{Fail, ResultExt};
+use failure::Fail;
 use futures::prelude::*;
 use parking_lot::{Mutex, RwLock};
 use serde_json::Value as SerdeValue;
@@ -26,13 +26,15 @@ use crate::actors::project::{
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
-use crate::quotas::{QuotasError, RateLimiter};
-use crate::service::{ServerError, ServerErrorKind};
+use crate::service::ServerError;
 use crate::utils::{self, FutureExt};
 
 #[cfg(feature = "processing")]
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
+    crate::quotas::{QuotasError, RateLimiter},
+    crate::service::ServerErrorKind,
+    failure::ResultExt,
     semaphore_general::filter::{should_filter, FilterStatKey},
     semaphore_general::protocol::IpAddr,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
@@ -119,6 +121,7 @@ enum ProcessingError {
     #[fail(display = "sending failed due to rate limit: {:?}", _0)]
     RateLimited(RateLimit),
 
+    #[cfg(feature = "processing")]
     #[fail(display = "failed to apply quotas")]
     QuotasFailed(#[cause] QuotasError),
 
@@ -128,6 +131,7 @@ enum ProcessingError {
 
 struct EventProcessor {
     config: Arc<Config>,
+    #[cfg(feature = "processing")]
     rate_limiter: RateLimiter,
     #[cfg(feature = "processing")]
     geoip_lookup: Option<Arc<GeoIpLookup>>,
@@ -148,11 +152,8 @@ impl EventProcessor {
     }
 
     #[cfg(not(feature = "processing"))]
-    pub fn new(config: Arc<Config>, rate_limiter: RateLimiter) -> Self {
-        Self {
-            config,
-            rate_limiter,
-        }
+    pub fn new(config: Arc<Config>) -> Self {
+        Self { config }
     }
 
     /// Writes a placeholder to indicate that this event has an associated minidump.
@@ -609,9 +610,6 @@ impl EventManager {
         upstream: Addr<UpstreamRelay>,
         outcome_producer: Addr<OutcomeProducer>,
     ) -> Result<Self, ServerError> {
-        let rate_limiter = RateLimiter::new(&config).context(ServerErrorKind::RedisError)?;
-
-        // TODO: Make the number configurable via config file
         let thread_count = config.cpu_concurrency();
         log::info!("starting {} event processing workers", thread_count);
 
@@ -623,6 +621,8 @@ impl EventManager {
                 )),
                 None => None,
             };
+
+            let rate_limiter = RateLimiter::new(&config).context(ServerErrorKind::RedisError)?;
 
             SyncArbiter::start(
                 thread_count,
@@ -637,9 +637,7 @@ impl EventManager {
         #[cfg(not(feature = "processing"))]
         let processor = SyncArbiter::start(
             thread_count,
-            clone!(config, || {
-                EventProcessor::new(config.clone(), rate_limiter.clone())
-            }),
+            clone!(config, || { EventProcessor::new(config.clone()) }),
         );
 
         #[cfg(feature = "processing")]
@@ -904,8 +902,11 @@ impl Handler<HandleEvent> for EventManager {
                     | ProcessingError::ProjectFailed(_)
                     | ProcessingError::Timeout
                     | ProcessingError::ProcessingFailed(_)
-                    | ProcessingError::NoAction(_)
-                    | ProcessingError::QuotasFailed(_) => {
+                    | ProcessingError::NoAction(_) => {
+                        Some(Outcome::Invalid(DiscardReason::Internal))
+                    }
+                    #[cfg(feature = "processing")]
+                    ProcessingError::QuotasFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
                     #[cfg(feature = "processing")]
