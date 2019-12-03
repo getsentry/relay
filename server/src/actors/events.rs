@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
-use std::rc::Rc;
 use std::ops::Deref;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 

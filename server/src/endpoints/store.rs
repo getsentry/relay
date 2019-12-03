@@ -61,9 +61,9 @@ fn extract_envelope(
 
             if is_legacy_python_json {
                 let mut data_mut = BytesMut::from(data);
-                
-                    json_forensics::translate_slice(&mut data_mut[..]);
-                
+
+                json_forensics::translate_slice(&mut data_mut[..]);
+
                 data = data_mut.freeze();
             }
 
@@ -73,10 +73,9 @@ fn extract_envelope(
             // is invalid, processing can be skipped altogether.
             //let event_id = serde_json::from_slice::<EventIdHelper>(&data)
             let event_id = serde_json::from_slice::<EventIdHelper>(&data)
-                    .map(|event| event.id)
-                    .map_err(BadStoreRequest::InvalidJson)?
-                    .unwrap_or_else(EventId::new);
-            
+                .map(|event| event.id)
+                .map_err(BadStoreRequest::InvalidJson)?
+                .unwrap_or_else(EventId::new);
 
             // Use the request's content type. If the content type is missing, assume "application/json".
             let content_type = match &content_type {
