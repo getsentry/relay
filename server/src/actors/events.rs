@@ -27,7 +27,7 @@ use crate::actors::project::{
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
 use crate::service::ServerError;
-use crate::utils::{self, FutureExt};
+use crate::utils::{self, FormDataIter, FutureExt};
 
 #[cfg(feature = "processing")]
 use {
@@ -234,38 +234,25 @@ impl EventProcessor {
     }
 
     fn merge_formdata(&self, target: &mut SerdeValue, item: Item) {
-        #[derive(serde::Deserialize)]
-        struct StringPair<'a>(pub &'a str, pub &'a str);
-
-        let payload = &item.payload();
-        let deserializer = serde_json::Deserializer::from_slice(payload);
-
-        for result in deserializer.into_iter::<StringPair>() {
-            let (key, value) = match result {
-                Ok(StringPair(key, value)) => (key, value),
-                Err(e) => {
-                    log::error!("form data deserialization failed: {}", LogError(&e));
-                    continue;
-                }
-            };
-
-            if key == "sentry" {
+        let payload = item.payload();
+        for entry in FormDataIter::new(&payload) {
+            if entry.key() == "sentry" {
                 // Custom clients can submit longer payloads and should JSON encode event data into
                 // the optional `sentry` field.
-                match serde_json::from_str(value) {
+                match serde_json::from_str(entry.value()) {
                     Ok(event) => utils::merge_values(target, event),
                     Err(_) => log::debug!("invalid json event payload in form data"),
                 }
-            } else if let Some(keys) = utils::get_sentry_entry_indexes(key) {
+            } else if let Some(keys) = utils::get_sentry_entry_indexes(entry.key()) {
                 // Try to parse the nested form syntax `sentry[key][key]` This is required for the
                 // Breakpad client library, which only supports string values of up to 64
                 // characters.
-                utils::update_nested_value(target, &keys, value);
+                utils::update_nested_value(target, &keys, entry.value());
             } else {
                 // Merge additional form fields from the request with `extra` data from the event
                 // payload and set defaults for processing. This is sent by clients like Breakpad or
                 // Crashpad.
-                utils::update_nested_value(target, &["extra", key], value);
+                utils::update_nested_value(target, &["extra", entry.key()], entry.value());
             }
         }
     }
