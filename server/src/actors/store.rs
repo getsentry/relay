@@ -54,10 +54,12 @@ impl StoreForwarder {
         })
     }
 
-    fn produce<T>(&self, topic: KafkaTopic, event_id: EventId, message: T) -> Result<(), StoreError>
-    where
-        T: Serialize,
-    {
+    fn produce(
+        &self,
+        topic: KafkaTopic,
+        event_id: EventId,
+        message: KafkaMessage,
+    ) -> Result<(), StoreError> {
         // Use the event id as partition routing key.
         let key = event_id.0.as_bytes().as_ref();
 
@@ -92,23 +94,30 @@ impl Actor for StoreForwarder {
     }
 }
 
-/// The type of a message sent to Kafka for store.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum KafkaMessageType {
-    /// The serialized payload of an event with some meta data.
-    Event,
-    /// A standalone attachment that is ingested independent of an event.
-    Attachment,
-    /// The binary chunk of an event attachment.
-    AttachmentChunk,
+/// Common attributes for both standalone attachments and processing-relevant attachments.
+#[derive(Debug, Serialize)]
+struct ChunkedAttachment {
+    /// The attachment ID within the event.
+    ///
+    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
+    id: String,
+
+    /// File name of the attachment file. Should not be `None`.
+    name: Option<String>,
+
+    /// Content type of the attachment payload.
+    content_type: Option<String>,
+
+    /// The Sentry-internal attachment type used in the processing pipeline.
+    attachment_type: AttachmentType,
+
+    /// Number of chunks. Must be greater than zero.
+    chunks: usize,
 }
 
 /// Container payload for event messages.
 #[derive(Debug, Serialize)]
 struct EventKafkaMessage {
-    /// The type discriminator of the message.
-    ty: KafkaMessageType,
     /// Raw event payload.
     payload: Bytes,
     /// Time at which the event was received by Relay.
@@ -126,8 +135,6 @@ struct EventKafkaMessage {
 /// Container payload for chunks of attachments.
 #[derive(Debug, Serialize)]
 struct AttachmentChunkKafkaMessage {
-    /// The type discriminator of the message.
-    ty: KafkaMessageType,
     /// Chunk payload of the attachment.
     payload: Bytes,
     /// The event id.
@@ -148,8 +155,6 @@ struct AttachmentChunkKafkaMessage {
 /// considered in processing.
 #[derive(Debug, Serialize)]
 struct AttachmentKafkaMessage {
-    /// The type discriminator of the message.
-    ty: KafkaMessageType,
     /// The event id.
     event_id: EventId,
     /// The project id for the current event.
@@ -159,26 +164,13 @@ struct AttachmentKafkaMessage {
     attachment: ChunkedAttachment,
 }
 
-/// Common attributes for both standalone attachments and processing-relevant attachments.
+/// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
-struct ChunkedAttachment {
-    /// The attachment ID within the event.
-    ///
-    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
-    id: String,
-
-    /// File name of the attachment file. Should not be `None`.
-    name: Option<String>,
-
-    /// Content type of the attachment payload.
-    content_type: Option<String>,
-
-    /// The Sentry-internal attachment type used in the processing pipeline.
-    #[serde(rename = "type")]
-    ty: AttachmentType,
-
-    /// Number of chunks. Must be greater than zero.
-    chunks: usize,
+#[serde(tag = "type", rename_all = "snake_case")]
+enum KafkaMessage {
+    Event(EventKafkaMessage),
+    Attachment(AttachmentKafkaMessage),
+    AttachmentChunk(AttachmentChunkKafkaMessage),
 }
 
 /// Message sent to the StoreForwarder containing an event
@@ -234,14 +226,14 @@ impl Handler<StoreEvent> for StoreForwarder {
                 let max_chunk_size = self.config.attachment_chunk_size();
                 let chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
-                let attachment_message = AttachmentChunkKafkaMessage {
-                    ty: KafkaMessageType::AttachmentChunk,
-                    payload: payload.slice(offset, offset + chunk_size),
-                    event_id,
-                    project_id,
-                    id: id.clone(),
-                    chunk_index,
-                };
+                let attachment_message =
+                    KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
+                        payload: payload.slice(offset, offset + chunk_size),
+                        event_id,
+                        project_id,
+                        id: id.clone(),
+                        chunk_index,
+                    });
 
                 self.produce(topic, event_id, attachment_message)?;
                 offset += chunk_size;
@@ -258,32 +250,30 @@ impl Handler<StoreEvent> for StoreForwarder {
                 content_type: item
                     .content_type()
                     .map(|content_type| content_type.as_str().to_owned()),
-                ty: item.attachment_type().unwrap_or_default(),
+                attachment_type: item.attachment_type().unwrap_or_default(),
                 chunks: chunk_index,
             });
         }
 
         if let Some(event_item) = event_item {
-            let event_message = EventKafkaMessage {
-                ty: KafkaMessageType::Event,
+            let event_message = KafkaMessage::Event(EventKafkaMessage {
                 payload: event_item.payload(),
                 start_time: instant_to_unix_timestamp(start_time),
                 event_id,
                 project_id,
                 remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
                 attachments,
-            };
+            });
 
             self.produce(topic, event_id, event_message)?;
             metric!(counter("processing.event.produced") += 1, "type" => "event");
         } else {
             for attachment in attachments {
-                let attachment_message = AttachmentKafkaMessage {
-                    ty: KafkaMessageType::Attachment,
+                let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
                     event_id,
                     project_id,
                     attachment,
-                };
+                });
 
                 self.produce(topic, event_id, attachment_message)?;
                 metric!(counter("processing.event.produced") += 1, "type" => "attachment");
