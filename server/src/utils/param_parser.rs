@@ -3,6 +3,7 @@ use serde_json::Value;
 enum IndexingState {
     LookingForLeftParenthesis,
     Accumulating(usize),
+    Starting,
 }
 
 /// Updates a json Value at the specified path.
@@ -51,15 +52,24 @@ pub fn merge_values(a: &mut Value, b: Value) {
 }
 
 /// Extracts indexes from a param string e.g. extracts `[String(abc),String(xyz)]` from `"sentry[abc][xyz]"`
-fn get_indexes(full_string: &str) -> Vec<&str> {
+fn get_indexes(full_string: &str) -> Result<Vec<&str>, ()> {
     let mut ret_vals = vec![];
-    let mut state = IndexingState::LookingForLeftParenthesis;
+    let mut state = IndexingState::Starting;
     //first iterate by byte (so we can get correct offsets)
     for (idx, by) in full_string.as_bytes().iter().enumerate() {
         match state {
+            IndexingState::Starting => {
+                if by == &b'[' {
+                    state = IndexingState::Accumulating(idx + 1)
+                }
+            }
             IndexingState::LookingForLeftParenthesis => {
                 if by == &b'[' {
                     state = IndexingState::Accumulating(idx + 1);
+                } else if by == &b'=' {
+                    return Ok(ret_vals);
+                } else {
+                    return Err(());
                 }
             }
             IndexingState::Accumulating(start_idx) => {
@@ -71,13 +81,13 @@ fn get_indexes(full_string: &str) -> Vec<&str> {
             }
         }
     }
-    ret_vals
+    Ok(ret_vals)
 }
 
 /// Extracts indexes from a param of the form 'sentry[XXX][...]'
 pub fn get_sentry_entry_indexes(param_name: &str) -> Option<Vec<&str>> {
     if param_name.starts_with("sentry[") {
-        Some(get_indexes(param_name))
+        get_indexes(param_name).ok()
     } else {
         None
     }
@@ -89,18 +99,23 @@ mod tests {
 
     #[test]
     fn test_index_parser() {
-        let examples: &[(&str, &[&str])] = &[
-            ("fafdasd[a][b][33]", &["a", "b", "33"]),
-            ("[23a][234][abc123]", &["23a", "234", "abc123"]),
-            ("sentry[abc][123][]=SomeVal", &["abc", "123", ""]),
-            ("sentry[Grüße][Jürgen][❤]", &["Grüße", "Jürgen", "❤"]),
-            ("[农22历][新年][b新年c]", &["农22历", "新年", "b新年c"]),
-            ("[ὈΔΥΣΣΕΎΣ][abc]", &["ὈΔΥΣΣΕΎΣ", "abc"]),
+        let examples: &[(&str, Option<&[&str]>)] = &[
+            ("fafdasd[a][b][33]", Some(&["a", "b", "33"])),
+            ("fafdasd[a]b[33]", None),
+            ("fafdasd[a][b33]xx", None),
+            ("[23a][234][abc123]", Some(&["23a", "234", "abc123"])),
+            ("sentry[abc][123][]=SomeVal", Some(&["abc", "123", ""])),
+            ("sentry[Grüße][Jürgen][❤]", Some(&["Grüße", "Jürgen", "❤"])),
+            (
+                "[农22历][新年][b新年c]",
+                Some(&["农22历", "新年", "b新年c"]),
+            ),
+            ("[ὈΔΥΣΣΕΎΣ][abc]", Some(&["ὈΔΥΣΣΕΎΣ", "abc"])),
         ];
 
         for &(example, expected_result) in examples {
-            let indexes = get_indexes(example);
-            assert_eq!(&indexes[..], expected_result)
+            let indexes = get_indexes(example).ok();
+            assert_eq!(indexes, expected_result.map(|vec| vec.into()));
         }
     }
 
