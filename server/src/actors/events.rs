@@ -342,10 +342,12 @@ impl EventProcessor {
             breadcrumbs1.drain(0..(breadcrumbs1.len() - max_length));
         }
 
-        event.get_or_insert_with(Event::default).breadcrumbs = Annotated::new(Values {
-            values: Annotated::new(breadcrumbs1),
-            other: Object::default(),
-        });
+        if !breadcrumbs1.is_empty() {
+            event.get_or_insert_with(Event::default).breadcrumbs = Annotated::new(Values {
+                values: Annotated::new(breadcrumbs1),
+                other: Object::default(),
+            });
+        }
 
         Ok(event)
     }
