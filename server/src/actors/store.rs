@@ -109,8 +109,7 @@ struct ChunkedAttachment {
     content_type: Option<String>,
 
     /// The Sentry-internal attachment type used in the processing pipeline.
-    #[serde(rename = "type")]
-    ty: AttachmentType,
+    attachment_type: AttachmentType,
 
     /// Number of chunks. Must be greater than zero.
     chunks: usize,
@@ -251,7 +250,7 @@ impl Handler<StoreEvent> for StoreForwarder {
                 content_type: item
                     .content_type()
                     .map(|content_type| content_type.as_str().to_owned()),
-                ty: item.attachment_type().unwrap_or_default(),
+                attachment_type: item.attachment_type().unwrap_or_default(),
                 chunks: chunk_index,
             });
         }

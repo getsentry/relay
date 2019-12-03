@@ -184,5 +184,5 @@ class EventsConsumer(ConsumerBase):
         assert event.error() is None
 
         v = msgpack.unpackb(event.value(), raw=False, use_list=False)
-        assert v["ty"][0] == 0, v["ty"]  # KafkaMessageType::Event
+        assert v["type"][0] == "event"
         return json.loads(v["payload"].decode("utf8")), v
