@@ -6,8 +6,11 @@ enum IndexingState {
 }
 
 /// Updates a json Value at the specified path.
-pub fn update_json_object<'a, V: Into<String>>(obj: &'a mut Value, path: &[&str], val: V) {
-    let map = match obj {
+pub fn update_nested_value<V>(target: &mut Value, path: &[&str], value: V)
+where
+    V: Into<String>,
+{
+    let map = match target {
         Value::Object(map) => map,
         _ => return,
     };
@@ -20,23 +23,24 @@ pub fn update_json_object<'a, V: Into<String>>(obj: &'a mut Value, path: &[&str]
     let entry = map.entry(key.to_owned());
 
     if rest.is_empty() {
-        entry.or_insert_with(|| Value::String(val.into()));
+        entry.or_insert_with(|| Value::String(value.into()));
     } else {
-        let sub_obj = entry.or_insert_with(|| Value::Object(Default::default()));
-        update_json_object(sub_obj, rest, val);
+        let sub_object = entry.or_insert_with(|| Value::Object(Default::default()));
+        update_nested_value(sub_object, rest, value);
     }
 }
 
-/// Merge two serde values
-/// taken (with small changes) from stack overflow answer
+/// Merge two serde values.
+///
+/// Taken (with small changes) from stack overflow answer:
 /// https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust
-pub fn merge_vals(a: &mut Value, b: Value) {
+pub fn merge_values(a: &mut Value, b: Value) {
     match (a, b) {
         //recursively merge dicts
         (a @ &mut Value::Object(_), Value::Object(b)) => {
             let a = a.as_object_mut().unwrap();
             for (k, v) in b {
-                merge_vals(a.entry(k).or_insert(Value::Null), v);
+                merge_values(a.entry(k).or_insert(Value::Null), v);
             }
         }
         //fill in missing left values
@@ -104,7 +108,7 @@ mod tests {
     fn test_update_value() {
         let mut val = Value::Object(serde_json::Map::new());
 
-        update_json_object(&mut val, &["x", "y", "z"], "xx");
+        update_nested_value(&mut val, &["x", "y", "z"], "xx");
 
         insta::assert_json_snapshot!(val, @r###"
        ⋮{
@@ -116,9 +120,9 @@ mod tests {
        ⋮}
         "###);
 
-        update_json_object(&mut val, &["x", "y", "k"], "kk");
-        update_json_object(&mut val, &["w", ""], "w");
-        update_json_object(&mut val, &["z1"], "val1");
+        update_nested_value(&mut val, &["x", "y", "k"], "kk");
+        update_nested_value(&mut val, &["w", ""], "w");
+        update_nested_value(&mut val, &["z1"], "val1");
         insta::assert_json_snapshot!(val, @r###"
        ⋮{
        ⋮  "w": {
@@ -155,7 +159,7 @@ mod tests {
             "k6": "v6"
         });
 
-        merge_vals(&mut original, modified);
+        merge_values(&mut original, modified);
         insta::assert_json_snapshot!(original, @r###"
        ⋮{
        ⋮  "k1": "v1",

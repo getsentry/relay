@@ -87,6 +87,7 @@ fn add_minidump_to_envelope(
     item.set_filename(file_name.unwrap_or(MINIDUMP_ENTRY_NAME)); // add a default file name
     item.set_name(MINIDUMP_ENTRY_NAME);
     envelope.add_item(item);
+
     Ok(())
 }
 
