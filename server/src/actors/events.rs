@@ -104,9 +104,8 @@ enum ProcessingError {
 }
 
 struct EventProcessor {
-    rate_limiter: RateLimiter,
-    #[cfg(feature = "processing")]
     config: Arc<Config>,
+    rate_limiter: RateLimiter,
     #[cfg(feature = "processing")]
     geoip_lookup: Option<Arc<GeoIpLookup>>,
 }
@@ -115,19 +114,22 @@ impl EventProcessor {
     #[cfg(feature = "processing")]
     pub fn new(
         config: Arc<Config>,
-        geoip_lookup: Option<Arc<GeoIpLookup>>,
         rate_limiter: RateLimiter,
+        geoip_lookup: Option<Arc<GeoIpLookup>>,
     ) -> Self {
         Self {
             config,
-            geoip_lookup,
             rate_limiter,
+            geoip_lookup,
         }
     }
 
     #[cfg(not(feature = "processing"))]
-    pub fn new(rate_limiter: RateLimiter) -> Self {
-        Self { rate_limiter }
+    pub fn new(config: Arc<Config>, rate_limiter: RateLimiter) -> Self {
+        Self {
+            config,
+            rate_limiter,
+        }
     }
 
     fn message_pack_to_annotated_breadcrumbs(item: &Item) -> Option<Array<Breadcrumb>> {
@@ -577,16 +579,19 @@ impl EventManager {
                 thread_count,
                 clone!(config, || EventProcessor::new(
                     config.clone(),
+                    rate_limiter.clone(),
                     geoip_lookup.clone(),
-                    rate_limiter.clone()
                 )),
             )
         };
 
         #[cfg(not(feature = "processing"))]
-        let processor = SyncArbiter::start(thread_count, move || {
-            EventProcessor::new(rate_limiter.clone())
-        });
+        let processor = SyncArbiter::start(
+            thread_count,
+            clone!(config, || {
+                EventProcessor::new(config.clone(), rate_limiter.clone())
+            }),
+        );
 
         #[cfg(feature = "processing")]
         let store_forwarder = if config.processing_enabled() {
