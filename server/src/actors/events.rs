@@ -628,7 +628,7 @@ impl EventManager {
         #[cfg(not(feature = "processing"))]
         let processor = SyncArbiter::start(
             thread_count,
-            clone!(config, || { EventProcessor::new(config.clone()) }),
+            clone!(config, || EventProcessor::new(config.clone())),
         );
 
         #[cfg(feature = "processing")]
@@ -885,38 +885,15 @@ impl Handler<HandleEvent> for EventManager {
 
                 metric!(counter("event.rejected") += 1);
                 let outcome_params: Option<Outcome> = match error {
+                    // General outcomes for invalid events
                     ProcessingError::PayloadTooLarge => {
                         Some(Outcome::Invalid(DiscardReason::TooLarge))
-                    }
-                    ProcessingError::SerializeFailed(_)
-                    | ProcessingError::ScheduleFailed(_)
-                    | ProcessingError::ProjectFailed(_)
-                    | ProcessingError::Timeout
-                    | ProcessingError::ProcessingFailed(_)
-                    | ProcessingError::NoAction(_) => {
-                        Some(Outcome::Invalid(DiscardReason::Internal))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::QuotasFailed(_) => {
-                        Some(Outcome::Invalid(DiscardReason::Internal))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::InvalidTransaction => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
                     }
                     ProcessingError::InvalidJson(_) => {
                         Some(Outcome::Invalid(DiscardReason::InvalidJson))
                     }
                     ProcessingError::InvalidMsgpack(_) => {
                         Some(Outcome::Invalid(DiscardReason::InvalidMsgpack))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::StoreFailed(_) => {
-                        Some(Outcome::Invalid(DiscardReason::Internal))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::EventFiltered(ref filter_stat_key) => {
-                        Some(Outcome::Filtered(*filter_stat_key))
                     }
                     ProcessingError::EventRejected(outcome_reason) => {
                         Some(Outcome::Invalid(outcome_reason))
@@ -927,18 +904,43 @@ impl Handler<HandleEvent> for EventManager {
                     ProcessingError::InvalidSecurityReport(_) => {
                         Some(Outcome::Invalid(DiscardReason::SecurityReport))
                     }
-                    // if we have an upstream, we don't emit outcomes. the upstream should deal with
-                    // this
-                    ProcessingError::SendFailed(_) => None,
+                    ProcessingError::DuplicateItem(_) => {
+                        Some(Outcome::Invalid(DiscardReason::DuplicateItem))
+                    }
 
+                    // Rate limits need special handling: Cache them on the project to avoid
+                    // expensive processing while the limit is active.
                     ProcessingError::RateLimited(ref rate_limit) => {
                         project.do_send(rate_limit.clone());
                         Some(Outcome::RateLimited(rate_limit.clone()))
                     }
 
-                    ProcessingError::DuplicateItem(_) => {
-                        Some(Outcome::Invalid(DiscardReason::DuplicateItem))
+                    // Processing-only outcomes (Sentry-internal Relays)
+                    #[cfg(feature = "processing")]
+                    ProcessingError::InvalidTransaction => {
+                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
                     }
+                    #[cfg(feature = "processing")]
+                    ProcessingError::EventFiltered(ref filter_stat_key) => {
+                        Some(Outcome::Filtered(*filter_stat_key))
+                    }
+
+                    // Internal errors
+                    ProcessingError::SerializeFailed(_)
+                    | ProcessingError::ScheduleFailed(_)
+                    | ProcessingError::ProjectFailed(_)
+                    | ProcessingError::Timeout
+                    | ProcessingError::ProcessingFailed(_)
+                    | ProcessingError::NoAction(_) => {
+                        Some(Outcome::Invalid(DiscardReason::Internal))
+                    }
+                    #[cfg(feature = "processing")]
+                    ProcessingError::StoreFailed(_) | ProcessingError::QuotasFailed(_) => {
+                        Some(Outcome::Invalid(DiscardReason::Internal))
+                    }
+
+                    // If we send to an upstream, we don't emit outcomes.
+                    ProcessingError::SendFailed(_) => None,
                 };
 
                 if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome_params {
