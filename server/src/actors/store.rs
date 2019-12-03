@@ -14,7 +14,7 @@ use serde::Serialize;
 
 use rmp_serde::encode::Error as SerdeError;
 
-use semaphore_common::{metric, Config, KafkaTopic};
+use semaphore_common::{metric, Config, KafkaTopic, ProjectId};
 use semaphore_general::protocol::{EventId, EventType};
 
 use crate::envelope::{Envelope, ItemType};
@@ -98,11 +98,10 @@ impl Actor for StoreForwarder {
 enum KafkaMessageType {
     /// The serialized payload of an event with some meta data.
     Event,
+    /// A standalone attachment that is ingested independent of an event.
+    Attachment,
     /// The binary chunk of an event attachment.
     AttachmentChunk,
-    /// The serialized payload of a transaction event with some meta data.
-    #[allow(unused)] // future use
-    Transaction,
 }
 
 /// Container payload for event messages.
@@ -115,30 +114,88 @@ struct EventKafkaMessage {
     /// Time at which the event was received by Relay.
     start_time: u64,
     /// The event id.
-    event_id: String,
+    event_id: EventId,
     /// The project id for the current event.
-    project_id: u64,
+    project_id: ProjectId,
     /// The client ip address.
     remote_addr: Option<String>,
+    /// Attachments that are potentially relevant for processing.
+    attachments: Vec<ChunkedAttachment>,
 }
 
 /// Container payload for chunks of attachments.
 #[derive(Debug, Serialize)]
-struct AttachmentKafkaMessage {
+struct AttachmentChunkKafkaMessage {
     /// The type discriminator of the message.
     ty: KafkaMessageType,
     /// Chunk payload of the attachment.
     payload: Bytes,
     /// The event id.
-    event_id: String,
+    event_id: EventId,
     /// The project id for the current event.
-    project_id: u64,
-    /// Index of this attachment in the list of attachments.
-    index: usize,
-    /// Total attachment size in bytes.
-    size: usize,
-    /// Offset of the current chunk in bytes.
-    offset: usize,
+    project_id: ProjectId,
+    /// The attachment ID within the event.
+    ///
+    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
+    id: String,
+    /// Sequence number of chunk. Starts at 0 and ends at `AttachmentKafkaMessage.num_chunks - 1`.
+    chunk_index: usize,
+}
+
+/// A "standalone" attachment.
+///
+/// Still belongs to an event but can be sent independently (like userfeedback) and is not
+/// considered in processing.
+#[derive(Debug, Serialize)]
+struct AttachmentKafkaMessage {
+    /// The type discriminator of the message.
+    ty: KafkaMessageType,
+    /// The event id.
+    event_id: EventId,
+    /// The project id for the current event.
+    project_id: ProjectId,
+    /// The attachment.
+    #[serde(flatten)]
+    attachment: ChunkedAttachment,
+}
+
+#[derive(Debug, Serialize)]
+enum AttachmentType {
+    /// A regular attachment without special meaning.
+    #[serde(rename = "event.attachment")]
+    Attachment,
+
+    /// A minidump crash report (binary data).
+    #[serde(rename = "event.minidump")]
+    #[allow(dead_code)]
+    Minidump,
+
+    /// An apple crash report (text data).
+    #[serde(rename = "event.applecrashreport")]
+    #[allow(dead_code)]
+    AppleCrashReport,
+}
+
+/// Common attributes for both standalone attachments and processing-relevant attachments.
+#[derive(Debug, Serialize)]
+struct ChunkedAttachment {
+    /// The attachment ID within the event.
+    ///
+    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
+    id: String,
+
+    /// File name of the attachment file. Should not be `None`.
+    name: Option<String>,
+
+    /// Content type of the attachment payload.
+    content_type: Option<String>,
+
+    /// The Sentry-internal attachment type used in the processing pipeline.
+    #[serde(rename = "type")]
+    ty: AttachmentType,
+
+    /// Number of chunks. Must be greater than zero.
+    chunks: usize,
 }
 
 /// Message sent to the StoreForwarder containing an event
@@ -146,7 +203,7 @@ struct AttachmentKafkaMessage {
 pub struct StoreEvent {
     pub envelope: Envelope,
     pub start_time: Instant,
-    pub project_id: u64,
+    pub project_id: ProjectId,
 }
 
 impl Message for StoreEvent {
@@ -174,12 +231,18 @@ impl Handler<StoreEvent> for StoreForwarder {
             KafkaTopic::Events
         };
 
+        let mut attachments = Vec::new();
+
         for (index, item) in envelope.items().enumerate() {
             // Only upload items first.
             if item.ty() != ItemType::Attachment {
                 continue;
             }
 
+            // TODO(jauer): This needs to be unique within the event.
+            let id = index.to_string();
+
+            let mut chunk_index = 0;
             let mut offset = 0;
             let payload = item.payload();
             let size = item.len();
@@ -188,33 +251,60 @@ impl Handler<StoreEvent> for StoreForwarder {
                 let max_chunk_size = self.config.attachment_chunk_size();
                 let chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
-                let attachment_message = AttachmentKafkaMessage {
+                let attachment_message = AttachmentChunkKafkaMessage {
                     ty: KafkaMessageType::AttachmentChunk,
                     payload: payload.slice(offset, offset + chunk_size),
-                    event_id: event_id.to_string(),
+                    event_id,
                     project_id,
-                    index,
-                    offset,
-                    size,
+                    id: id.clone(),
+                    chunk_index,
                 };
 
                 self.produce(topic, event_id, attachment_message)?;
                 offset += chunk_size;
+                chunk_index += 1;
             }
+
+            // The chunk_index is incremented after every loop iteration. After we exit the loop, it
+            // is one larger than the last chunk, so it is equal to the number of chunks.
+            debug_assert!(chunk_index > 0);
+
+            attachments.push(ChunkedAttachment {
+                id: id.clone(),
+                name: item.filename().map(str::to_owned),
+                content_type: item
+                    .content_type()
+                    .map(|content_type| content_type.as_str().to_owned()),
+                ty: AttachmentType::Attachment,
+                chunks: chunk_index,
+            });
         }
 
         if let Some(event_item) = event_item {
             let event_message = EventKafkaMessage {
+                ty: KafkaMessageType::Event,
                 payload: event_item.payload(),
                 start_time: instant_to_unix_timestamp(start_time),
-                ty: KafkaMessageType::Event,
-                event_id: event_id.to_string(),
+                event_id,
                 project_id,
                 remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
+                attachments,
             };
 
             self.produce(topic, event_id, event_message)?;
             metric!(counter("processing.event.produced") += 1, "type" => "event");
+        } else {
+            for attachment in attachments {
+                let attachment_message = AttachmentKafkaMessage {
+                    ty: KafkaMessageType::Attachment,
+                    event_id,
+                    project_id,
+                    attachment,
+                };
+
+                self.produce(topic, event_id, attachment_message)?;
+                metric!(counter("processing.event.produced") += 1, "type" => "attachment");
+            }
         }
 
         Ok(())
