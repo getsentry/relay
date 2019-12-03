@@ -41,7 +41,7 @@ struct SizeLimitedEnvelope {
 
 impl SizeLimitedEnvelope {
     pub fn into_envelope(mut self) -> Result<Envelope, serde_json::Error> {
-        if self.form_data.len() > 0 {
+        if !self.form_data.is_empty() {
             let mut item = Item::new(ItemType::FormData);
             item.set_name(FORM_DATA);
             // Content type is Text (since it is not a json object but multiple
@@ -133,10 +133,14 @@ where
         (name, Some(file_name)) => {
             let result = read_multipart_data(field, content.remaining_size).and_then(move |data| {
                 content.remaining_size -= data.len();
+
                 let mut item = Item::new(ItemType::Attachment);
                 item.set_payload(ContentType::OctetStream, data);
                 item.set_filename(file_name);
-                name.map(|name| item.set_name(name));
+                if let Some(name) = name {
+                    item.set_name(name);
+                }
+
                 content.envelope.add_item(item);
                 Ok(content)
             });

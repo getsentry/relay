@@ -185,7 +185,7 @@ impl EventProcessor {
 
         let evt = evt.get_or_insert_with(Event::default);
         evt.breadcrumbs = Annotated::new(Values {
-            values: Annotated::new(breadcrumbs1.into()),
+            values: Annotated::new(breadcrumbs1),
             other: Object::default(),
         });
     }
