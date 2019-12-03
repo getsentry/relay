@@ -420,10 +420,7 @@ impl EventProcessor {
             return Err(ProcessingError::DuplicateItem(duplicate_item.ty()));
         }
 
-        if envelope
-            .get_item_by(|item| item.name() == Some("upload_file_minidump"))
-            .is_some()
-        {
+        if envelope.get_item_by_name("upload_file_minidump").is_some() {
             self.write_minidump_placeholder(&mut event);
         }
 

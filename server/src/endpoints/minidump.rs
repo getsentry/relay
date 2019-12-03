@@ -220,10 +220,8 @@ where {
                 .into_envelope()
                 .map_err(|_| BadStoreRequest::InvalidMultipart)?;
 
-            //check that the envelope contains a minidump item
-            if let Some(item) =
-                envelope.get_item_by(|item| item.name() == Some(MINIDUMP_ENTRY_NAME))
-            {
+            // Check that the envelope contains a minidump item.
+            if let Some(item) = envelope.get_item_by_name(MINIDUMP_ENTRY_NAME) {
                 if item.payload().as_ref().starts_with(MINIDUMP_MAGIC_HEADER) {
                     return Ok(envelope);
                 } else {
