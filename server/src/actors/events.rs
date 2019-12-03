@@ -8,7 +8,6 @@ use actix::prelude::*;
 use failure::{Fail, ResultExt};
 use futures::prelude::*;
 use parking_lot::{Mutex, RwLock};
-use rmp_serde as mps;
 use serde_json::Value as SerdeValue;
 
 use semaphore_common::{clone, metric, Config, LogError, RelayMode};
@@ -68,6 +67,12 @@ pub enum QueueEventError {
 enum ProcessingError {
     #[fail(display = "invalid json in event")]
     InvalidJson(#[cause] serde_json::Error),
+
+    #[fail(display = "invalid message pack event payload")]
+    InvalidMsgpack(#[cause] rmp_serde::decode::Error),
+
+    #[fail(display = "event payload too large")]
+    PayloadTooLarge,
 
     #[cfg(feature = "processing")]
     #[fail(display = "invalid transaction event")]
@@ -264,50 +269,62 @@ impl EventProcessor {
         }
     }
 
-    fn merge_attached_event(&self, target: &mut SerdeValue, item: Item) {
+    fn extract_attached_event(
+        config: &Config,
+        item: Item,
+    ) -> Result<Annotated<Event>, ProcessingError> {
         // Protect against blowing up during deserialization. Attachments can have a significantly
         // larger size than regular events and may cause significant processing delays.
-        if item.len() > self.config.max_event_payload_size() {
-            return;
+        if item.len() > config.max_event_payload_size() {
+            return Err(ProcessingError::PayloadTooLarge);
         }
 
-        match mps::from_slice(&item.payload()) {
-            Ok(event) => utils::merge_values(target, event),
-            Err(_) => log::debug!("invalid message pack event data in form data"),
-        }
+        let payload = item.payload();
+        let deserializer = &mut rmp_serde::Deserializer::from_slice(&payload);
+        Annotated::deserialize_with_meta(deserializer).map_err(ProcessingError::InvalidMsgpack)
     }
 
-    fn parse_msgpack_breadcrumbs(config: &Config, item: Item) -> Option<Array<Breadcrumb>> {
+    fn parse_msgpack_breadcrumbs(
+        config: &Config,
+        item: Item,
+    ) -> Result<Option<Array<Breadcrumb>>, ProcessingError> {
         // Validate that we do not exceed the maximum breadcrumb payload length. Breadcrumbs are
         // truncated to a maximum of 100 in event normalization, but this is to protect us from
         // blowing up during deserialization. As approximation, we use the maximum event payload
         // size as bound, which is roughly in the right ballpark.
         if item.len() > config.max_event_payload_size() {
-            return None;
+            return Err(ProcessingError::PayloadTooLarge);
         }
 
         let payload = item.payload();
-        let des = &mut mps::Deserializer::from_slice(&payload);
+        let deserializer = &mut rmp_serde::Deserializer::from_slice(&payload);
 
-        Annotated::<Array<Breadcrumb>>::deserialize_with_meta(des)
-            .ok()
-            .and_then(Annotated::into_value)
+        match Annotated::deserialize_with_meta(deserializer) {
+            Ok(annotated) => Ok(annotated.into_value()),
+            Err(error) => Err(ProcessingError::InvalidMsgpack(error)),
+        }
     }
 
-    /// Merges breadcrumbs passed in as an message pack attachment (in `__sentry-breacrumbs1/2`)
-    fn merge_attached_breadcrumbs(
+    fn event_from_attachments(
         config: &Config,
-        event: &mut Annotated<Event>,
-        item1: Option<Item>,
-        item2: Option<Item>,
-    ) {
-        let mut breadcrumbs1 = item1
-            .and_then(|item| Self::parse_msgpack_breadcrumbs(config, item))
-            .unwrap_or_default();
+        event_item: Option<Item>,
+        breadcrumbs_item1: Option<Item>,
+        breadcrumbs_item2: Option<Item>,
+    ) -> Result<Annotated<Event>, ProcessingError> {
+        let mut event = match event_item {
+            Some(item) => Self::extract_attached_event(config, item)?,
+            None => Annotated::new(Event::default()),
+        };
 
-        let mut breadcrumbs2 = item2
-            .and_then(|item| Self::parse_msgpack_breadcrumbs(config, item))
-            .unwrap_or_default();
+        let mut breadcrumbs1 = match breadcrumbs_item1 {
+            Some(item) => Self::parse_msgpack_breadcrumbs(config, item)?.unwrap_or_default(),
+            None => Array::new(),
+        };
+
+        let mut breadcrumbs2 = match breadcrumbs_item2 {
+            Some(item) => Self::parse_msgpack_breadcrumbs(config, item)?.unwrap_or_default(),
+            None => Array::new(),
+        };
 
         let timestamp1 = breadcrumbs1
             .iter()
@@ -341,39 +358,18 @@ impl EventProcessor {
             values: Annotated::new(breadcrumbs1),
             other: Object::default(),
         });
-    }
-
-    fn event_from_multipart(
-        &self,
-        form_item: Option<Item>,
-        envelope: &mut Envelope,
-    ) -> Result<Annotated<Event>, ProcessingError> {
-        let mut value = SerdeValue::Object(Default::default());
-
-        if let Some(item) = form_item {
-            log::trace!("extracting form data {}", envelope.event_id());
-            self.merge_formdata(&mut value, item);
-        }
-
-        if let Some(item) = envelope.take_item_by_name(ITEM_NAME_EVENT) {
-            log::trace!("extracting attached event {}", envelope.event_id());
-            self.merge_attached_event(&mut value, item);
-        }
-
-        // Deserialize the event before parsing breadcrumbs. We add breadcrumbs to the typed event,
-        // instead of manipulating a raw value.
-        let mut event = Annotated::deserialize_with_meta(value).unwrap_or_default();
-
-        Self::merge_attached_breadcrumbs(
-            &self.config,
-            &mut event,
-            envelope.take_item_by_name(ITEM_NAME_BREADCRUMBS1),
-            envelope.take_item_by_name(ITEM_NAME_BREADCRUMBS2),
-        );
 
         Ok(event)
     }
 
+    /// Extracts the primary event payload from an envelope.
+    ///
+    /// The event is obtained from only one source in the following precedence:
+    ///  1. An explicit event item. This is also the case for JSON uploads.
+    ///  2. A security report item.
+    ///  3. Attachments `__sentry-event` and `__sentry-breadcrumbs1/2`.
+    ///  4. A multipart form data body.
+    ///  5. If none match, an empty default Event.
     fn extract_event(&self, envelope: &mut Envelope) -> Result<Annotated<Event>, ProcessingError> {
         // Remove all items first, and then process them. After this function returns, only
         // attachments can remain in the envelope. The event will be added again at the end of
@@ -381,6 +377,9 @@ impl EventProcessor {
         let event_item = envelope.take_item_by_type(ItemType::Event);
         let security_item = envelope.take_item_by_type(ItemType::SecurityReport);
         let form_item = envelope.take_item_by_type(ItemType::FormData);
+        let attachment_item = envelope.take_item_by_name(ITEM_NAME_EVENT);
+        let breadcrumbs_item1 = envelope.take_item_by_name(ITEM_NAME_BREADCRUMBS1);
+        let breadcrumbs_item2 = envelope.take_item_by_name(ITEM_NAME_BREADCRUMBS2);
 
         if let Some(item) = event_item {
             log::trace!("processing json event {}", envelope.event_id());
@@ -394,9 +393,21 @@ impl EventProcessor {
             return self.event_from_security_report(item);
         }
 
-        if form_item.is_some() || envelope.get_item_by_type(ItemType::Attachment).is_some() {
-            log::trace!("processing multipart envelope {}", envelope.event_id());
-            return self.event_from_multipart(form_item, envelope);
+        if attachment_item.is_some() || breadcrumbs_item1.is_some() || breadcrumbs_item2.is_some() {
+            log::trace!("extracting attached event data {}", envelope.event_id());
+            return Self::event_from_attachments(
+                &self.config,
+                attachment_item,
+                breadcrumbs_item1,
+                breadcrumbs_item2,
+            );
+        }
+
+        if let Some(item) = form_item {
+            log::trace!("extracting form data {}", envelope.event_id());
+            let mut value = SerdeValue::Object(Default::default());
+            self.merge_formdata(&mut value, item);
+            return Ok(Annotated::deserialize_with_meta(value).unwrap_or_default());
         }
 
         log::trace!("creating empty event {}", envelope.event_id());
@@ -885,6 +896,9 @@ impl Handler<HandleEvent> for EventManager {
 
                 metric!(counter("event.rejected") += 1);
                 let outcome_params: Option<Outcome> = match error {
+                    ProcessingError::PayloadTooLarge => {
+                        Some(Outcome::Invalid(DiscardReason::TooLarge))
+                    }
                     ProcessingError::SerializeFailed(_)
                     | ProcessingError::ScheduleFailed(_)
                     | ProcessingError::ProjectFailed(_)
@@ -900,6 +914,9 @@ impl Handler<HandleEvent> for EventManager {
                     }
                     ProcessingError::InvalidJson(_) => {
                         Some(Outcome::Invalid(DiscardReason::InvalidJson))
+                    }
+                    ProcessingError::InvalidMsgpack(_) => {
+                        Some(Outcome::Invalid(DiscardReason::InvalidMsgpack))
                     }
                     #[cfg(feature = "processing")]
                     ProcessingError::StoreFailed(_) => {
@@ -1004,7 +1021,7 @@ mod tests {
             })
             .collect();
 
-        let v = mps::to_vec(&breadcrumbs).unwrap();
+        let v = rmp_serde::to_vec(&breadcrumbs).unwrap();
         let mut ret_val = Item::new(ItemType::Attachment);
         ret_val.set_payload(ContentType::OctetStream, v);
         ret_val
@@ -1024,17 +1041,11 @@ mod tests {
 
     #[test]
     fn message_pack_breadcrumbs_replace_the_existing_bread_crumbs() {
-        let mut evt = Annotated::new(Event {
-            breadcrumbs: Annotated::new(Values::new(vec![Annotated::new(Breadcrumb {
-                message: Annotated::new("old".into()),
-                ..Breadcrumb::default()
-            })])),
-            ..Event::default()
-        });
-
         let item = create_breadcrumbs_envelope(&[(None, "new1")]);
 
-        EventProcessor::merge_attached_breadcrumbs(&Config::default(), &mut evt, Some(item), None);
+        let evt =
+            EventProcessor::event_from_attachments(&Config::default(), None, Some(item), None)
+                .unwrap();
 
         let breadcrumbs = breadcrumbs_from_event(&evt);
 
@@ -1044,11 +1055,13 @@ mod tests {
 
         let item = create_breadcrumbs_envelope(&[(None, "new2")]);
 
-        EventProcessor::merge_attached_breadcrumbs(&Config::default(), &mut evt, None, Some(item));
+        let evt =
+            EventProcessor::event_from_attachments(&Config::default(), None, None, Some(item))
+                .unwrap();
 
         let breadcrumbs = breadcrumbs_from_event(&evt);
-
         assert_eq!(breadcrumbs.len(), 1);
+
         let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
         assert_eq!("new2", first_breadcrumb_message);
     }
@@ -1060,24 +1073,17 @@ mod tests {
         let item1 = create_breadcrumbs_envelope(&[(None, "old1"), (Some(d1), "old2")]);
         let item2 = create_breadcrumbs_envelope(&[(Some(d2), "new")]);
 
-        let mut evt = Annotated::new(Event {
-            breadcrumbs: Annotated::new(Values::new(vec![Annotated::new(Breadcrumb {
-                message: Annotated::new("old".into()),
-                ..Breadcrumb::default()
-            })])),
-            ..Event::default()
-        });
-
-        EventProcessor::merge_attached_breadcrumbs(
+        let evt = EventProcessor::event_from_attachments(
             &Config::default(),
-            &mut evt,
+            None,
             Some(item1),
             Some(item2),
-        );
+        )
+        .unwrap();
 
         let breadcrumbs = breadcrumbs_from_event(&evt);
-
         assert_eq!(breadcrumbs.len(), 2);
+
         let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
         let second_breadcrumb_message = breadcrumbs[1].value().unwrap().message.value().unwrap();
         assert_eq!("old2", first_breadcrumb_message);
@@ -1087,16 +1093,17 @@ mod tests {
         let item1 = create_breadcrumbs_envelope(&[(Some(d2), "new")]);
         let item2 = create_breadcrumbs_envelope(&[(None, "old1"), (Some(d1), "old2")]);
 
-        EventProcessor::merge_attached_breadcrumbs(
+        let evt = EventProcessor::event_from_attachments(
             &Config::default(),
-            &mut evt,
-            Some(item2),
+            None,
             Some(item1),
-        );
+            Some(item2),
+        )
+        .unwrap();
 
         let breadcrumbs = breadcrumbs_from_event(&evt);
-
         assert_eq!(breadcrumbs.len(), 2);
+
         let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
         let second_breadcrumb_message = breadcrumbs[1].value().unwrap().message.value().unwrap();
         assert_eq!("old2", first_breadcrumb_message);

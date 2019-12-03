@@ -142,6 +142,9 @@ pub enum DiscardReason {
     /// [Relay] Parsing the event JSON payload failed due to a syntax error.
     InvalidJson,
 
+    /// [Relay] Parsing the event msgpack payload failed due to a syntax error.
+    InvalidMsgpack,
+
     /// [Relay] Parsing a multipart form-data request failed.
     InvalidMultipart,
 
@@ -238,6 +241,7 @@ mod real_implementation {
                 DiscardReason::Payload => "payload",
                 DiscardReason::InvalidJson => "invalid_json",
                 DiscardReason::InvalidMultipart => "invalid_multipart",
+                DiscardReason::InvalidMsgpack => "invalid_msgpack",
                 DiscardReason::InvalidTransaction => "invalid_transaction",
                 DiscardReason::InvalidEnvelope => "invalid_envelope",
                 DiscardReason::ProjectState => "project_state",
