@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::rc::Rc;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -613,7 +614,11 @@ impl EventManager {
 impl Actor for EventManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, _ctx: &mut Self::Context) {
+    fn started(&mut self, context: &mut Self::Context) {
+        // Set the mailbox size to the size of the event buffer. This is a rough estimate but
+        // should ensure that we're not dropping events unintentionally after we've accepted them.
+        let mailbox_size = self.config.event_buffer_size() as usize;
+        context.set_mailbox_capacity(mailbox_size);
         log::info!("event manager started");
     }
 
@@ -717,7 +722,7 @@ impl Handler<HandleEvent> for EventManager {
         let remote_addr = envelope.meta().client_addr();
         let meta_clone = Arc::new(envelope.meta().clone());
 
-        let org_id_for_err = Arc::new(Mutex::new(None::<u64>));
+        let org_id_for_err = Rc::new(Mutex::new(None::<u64>));
 
         metric!(set("unique_projects") = project_id as i64);
 
@@ -821,7 +826,6 @@ impl Handler<HandleEvent> for EventManager {
 
                 Box::new(future) as ResponseFuture<_, _>
             }))
-            .inspect(move |_| metric!(timer("event.total_time") = start_time.elapsed()))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
@@ -906,7 +910,8 @@ impl Handler<HandleEvent> for EventManager {
                     })
                 }
             }))
-            .then(|x, slf, _| {
+            .then(move |x, slf, _| {
+                metric!(timer("event.total_time") = start_time.elapsed());
                 slf.current_active_events -= 1;
                 result(x)
             })

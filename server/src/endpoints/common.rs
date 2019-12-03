@@ -1,5 +1,6 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
+use std::rc::Rc;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -188,7 +189,7 @@ where
     let remote_addr = meta.client_addr();
 
     let cloned_meta = Arc::new(meta.clone());
-    let event_id = Arc::new(Mutex::new(None));
+    let event_id = Rc::new(Mutex::new(None));
 
     let future = project_manager
         .send(GetProject { id: project_id })

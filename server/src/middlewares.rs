@@ -33,7 +33,7 @@ impl<S> Middleware<S> for Metrics {
     fn finish(&self, req: &HttpRequest<S>, resp: &HttpResponse) -> Finished {
         let start_time = req.extensions().get::<StartTime>().unwrap().0;
         metric!(timer("requests.duration") = start_time.elapsed());
-        metric!(counter(&format!("responses.status_code.{}", resp.status())) += 1);
+        metric!(counter("responses.status_codes") += 1, "status_code" => &resp.status().as_str());
         Finished::Done
     }
 }
