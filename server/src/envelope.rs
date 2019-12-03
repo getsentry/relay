@@ -419,9 +419,9 @@ impl Envelope {
 
     /// Returns the an option with a reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
-    pub fn get_item_by<F>(&self, pred: F) -> Option<&Item>
+    pub fn get_item_by<F>(&self, mut pred: F) -> Option<&Item>
     where
-        F: Fn(&Item) -> bool,
+        F: FnMut(&Item) -> bool,
     {
         self.items().find(|item| pred(item))
     }
@@ -431,6 +431,20 @@ impl Envelope {
         self.get_item_by(|item| item.ty() == ty)
     }
 
+    /// Returns the first item that matches the given name.
+    pub fn get_item_by_name(&self, name: &str) -> Option<&Item> {
+        self.get_item_by(|item| item.name() == Some(name))
+    }
+
+    /// Removes and returns the first item that matches the given condition.
+    pub fn take_item_by<F>(&mut self, cond: F) -> Option<Item>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        let index = self.items.iter().position(cond);
+        index.map(|index| self.items.swap_remove(index))
+    }
+
     /// Removes and returns the first item that matches the given `ItemType`.
     ///
     /// This swaps the last item with the item being removed.
@@ -438,18 +452,9 @@ impl Envelope {
         self.take_item_by(|item| item.ty() == ty)
     }
 
-    /// Removes and returns the first item that matches the given names
+    /// Removes and returns the first item that matches the given name.
     pub fn take_item_by_name(&mut self, name: &str) -> Option<Item> {
         self.take_item_by(|item| item.name() == Some(name))
-    }
-
-    /// Removes and returns the first item that matches the given condition
-    pub fn take_item_by<F>(&mut self, cond: F) -> Option<Item>
-    where
-        F: Fn(&Item) -> bool,
-    {
-        let index = self.items.iter().position(cond);
-        index.map(|index| self.items.swap_remove(index))
     }
 
     /// Adds a new item to this envelope.

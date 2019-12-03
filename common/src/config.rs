@@ -259,10 +259,6 @@ struct Limits {
     max_event_payload_size: ByteSize,
     /// The maximum payload size for minidump events.
     max_attachment_payload_size: ByteSize,
-    /// The maximum size of a message pack breadcrumb attachment (in a multipart request)
-    max_msgpack_breadcrumb_payload_size: ByteSize,
-    /// The maximum size of a message pack event attachment (in a multipart request)
-    max_msgpack_event_payload_size: ByteSize,
     /// The maximum payload size for general API requests.
     max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
@@ -294,8 +290,6 @@ impl Default for Limits {
             max_event_payload_size: ByteSize::from_kilobytes(256),
             max_attachment_payload_size: ByteSize::from_megabytes(50),
             max_api_payload_size: ByteSize::from_megabytes(20),
-            max_msgpack_breadcrumb_payload_size: ByteSize::from_kilobytes(50),
-            max_msgpack_event_payload_size: ByteSize::from_kilobytes(100),
             max_api_file_upload_size: ByteSize::from_megabytes(40),
             max_api_chunk_upload_size: ByteSize::from_megabytes(100),
             max_thread_count: num_cpus::get(),
@@ -842,19 +836,6 @@ impl Config {
         self.values.limits.max_attachment_payload_size.as_bytes() as usize
     }
 
-    /// Returns the maximum size of a message pack event payload (inside a multipart request).
-    pub fn max_msgpack_event_payload_size(&self) -> usize {
-        self.values.limits.max_msgpack_event_payload_size.as_bytes() as usize
-    }
-
-    /// Returns the maximum size of a message pack breadcrumb payload (inside a multipart request).
-    pub fn max_msgpack_breadcrumb_payload_size(&self) -> usize {
-        self.values
-            .limits
-            .max_msgpack_breadcrumb_payload_size
-            .as_bytes() as usize
-    }
-
     /// Returns the maximum payload size for general API requests.
     pub fn max_api_payload_size(&self) -> usize {
         self.values.limits.max_api_payload_size.as_bytes() as usize
@@ -972,6 +953,17 @@ impl Config {
     /// Chunk size of attachments in bytes.
     pub fn attachment_chunk_size(&self) -> usize {
         self.values.processing.attachment_chunk_size.as_bytes() as usize
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            values: ConfigValues::default(),
+            credentials: None,
+            path: PathBuf::new(),
+        }
     }
 }
 

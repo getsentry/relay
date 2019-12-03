@@ -22,7 +22,7 @@ use crate::body::StorePayloadError;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::ServiceState;
-use crate::utils::ApiErrorResponse;
+use crate::utils::{ApiErrorResponse, MultipartError};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -45,7 +45,7 @@ pub enum BadStoreRequest {
     InvalidEnvelope(#[cause] EnvelopeError),
 
     #[fail(display = "invalid multipart data")]
-    InvalidMultipart,
+    InvalidMultipart(#[cause] MultipartError),
 
     #[fail(display = "invalid minidump")]
     InvalidMinidump,
@@ -75,9 +75,10 @@ impl BadStoreRequest {
 
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
             BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
-            BadStoreRequest::InvalidMultipart | BadStoreRequest::InvalidMinidump => {
-                Outcome::Invalid(DiscardReason::InvalidMinidump)
+            BadStoreRequest::InvalidMultipart(_) => {
+                Outcome::Invalid(DiscardReason::InvalidMultipart)
             }
+            BadStoreRequest::InvalidMinidump => Outcome::Invalid(DiscardReason::InvalidMinidump),
             BadStoreRequest::MissingMinidump => {
                 Outcome::Invalid(DiscardReason::MissingMinidumpUpload)
             }
