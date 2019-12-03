@@ -136,15 +136,15 @@ def test_minidump_endpoint_accepts_doubly_nested_formdata(mini_sentry, relay):
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
 
-    with open(os.path.join(os.path.dirname(__file__), "fixtures/native/electron.dmp"), 'rb') as f:
+    with open(
+        os.path.join(os.path.dirname(__file__), "fixtures/native/electron.dmp"), "rb"
+    ) as f:
         # Yes, electron really sends us nested formdata
         dmpfile = f.read()
 
     relay.send_minidump(
         project_id=proj_id,
-        files=(
-            (MINIDUMP_ATTACHMENT_NAME, "minidump.txt", dmpfile),
-        ),
+        files=((MINIDUMP_ATTACHMENT_NAME, "minidump.txt", dmpfile),),
     )
 
     items = mini_sentry.captured_events.get(timeout=1).items
