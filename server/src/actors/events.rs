@@ -403,100 +403,77 @@ impl EventProcessor {
         Ok(Annotated::new(Event::default()))
     }
 
-    fn process(&self, message: ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
-        let mut envelope = message.envelope;
-        let event_id = envelope.event_id();
-
-        let mut event = self.extract_event(&mut envelope)?;
-
-        // `extract_event` must remove all items other than attachments from the envelope. Once the
-        // envelope is processed, an `Event` item will be added to the envelope again. Only
-        // attachments and events are allowed in the end.
-        let duplicate_item = envelope
-            .items()
-            .find(|item| item.ty() != ItemType::Attachment);
-
-        if let Some(duplicate_item) = duplicate_item {
-            return Err(ProcessingError::DuplicateItem(duplicate_item.ty()));
+    #[cfg(feature = "processing")]
+    fn store_process_event(
+        &self,
+        event: &mut Annotated<Event>,
+        envelope: &Envelope,
+        project_state: &ProjectState,
+    ) -> Result<(), ProcessingError> {
+        // Skip store processing if disabled. This feature is only active for Relays that run Sentry
+        // event ingestion. External Relays do not need to run this code.
+        if self.config.processing_enabled() {
+            return Ok(());
         }
 
-        if envelope.get_item_by_name("upload_file_minidump").is_some() {
-            self.write_minidump_placeholder(&mut event);
+        let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
+        let key_id = project_state
+            .get_public_key_config(&envelope.meta().public_key())
+            .and_then(|k| Some(k.numeric_id?.to_string()));
+
+        if key_id.is_none() {
+            log::error!("can't find key in project config, but we verified auth before already");
         }
 
+        let store_config = StoreConfig {
+            project_id: Some(envelope.meta().project_id()),
+            client_ip: envelope.meta().client_addr().map(IpAddr::from),
+            client: envelope.meta().client().map(str::to_owned),
+            key_id,
+            protocol_version: Some(envelope.meta().version().to_string()),
+            grouping_config: project_state.config.grouping_config.clone(),
+            user_agent: envelope.meta().user_agent().map(str::to_owned),
+            max_secs_in_future: Some(self.config.max_secs_in_future()),
+            max_secs_in_past: Some(self.config.max_secs_in_past()),
+            enable_trimming: Some(true),
+            is_renormalize: Some(false),
+            remove_other: Some(true),
+            normalize_user_agent: Some(true),
+        };
+
+        let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
+        metric!(timer("event_processing.process"), {
+            process_value(event, &mut store_processor, ProcessingState::root())
+                .map_err(|_| ProcessingError::InvalidTransaction)?;
+        });
+
+        // Event filters assume a normalized event. Unfortunately, this requires us to run
+        // expensive normalization first.
         if let Some(event) = event.value_mut() {
-            event.id = Annotated::new(event_id);
-        }
+            let client_ip = envelope.meta().client_addr();
+            let filter_settings = &project_state.config.filter_settings;
+            let filter_result = metric!(timer("event_processing.filtering"), {
+                should_filter(event, client_ip, filter_settings)
+            });
 
-        #[cfg(feature = "processing")]
-        {
-            if self.config.processing_enabled() {
-                let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
-                let key_id = message
-                    .project_state
-                    .get_public_key_config(&envelope.meta().public_key())
-                    .and_then(|k| Some(k.numeric_id?.to_string()));
-
-                if key_id.is_none() {
-                    log::error!(
-                        "can't find key in project config, but we verified auth before already"
-                    );
-                }
-
-                let store_config = StoreConfig {
-                    project_id: Some(envelope.meta().project_id()),
-                    client_ip: envelope.meta().client_addr().map(IpAddr::from),
-                    client: envelope.meta().client().map(str::to_owned),
-                    key_id,
-                    protocol_version: Some(envelope.meta().version().to_string()),
-                    grouping_config: message.project_state.config.grouping_config.clone(),
-                    user_agent: envelope.meta().user_agent().map(str::to_owned),
-                    max_secs_in_future: Some(self.config.max_secs_in_future()),
-                    max_secs_in_past: Some(self.config.max_secs_in_past()),
-                    enable_trimming: Some(true),
-                    is_renormalize: Some(false),
-                    remove_other: Some(true),
-                    normalize_user_agent: Some(true),
-                };
-
-                let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
-                metric!(timer("event_processing.process"), {
-                    process_value(&mut event, &mut store_processor, ProcessingState::root())
-                        .map_err(|_| ProcessingError::InvalidTransaction)?;
-                });
-
-                // Event filters assume a normalized event. Unfortunately, this requires us to run
-                // expensive normalization first.
-                if let Some(event) = event.value_mut() {
-                    let client_ip = envelope.meta().client_addr();
-                    let filter_settings = &message.project_state.config.filter_settings;
-                    let filter_result = metric!(timer("event_processing.filtering"), {
-                        should_filter(event, client_ip, filter_settings)
-                    });
-
-                    if let Err(reason) = filter_result {
-                        // If the event should be filtered, no more processing is needed
-                        return Err(ProcessingError::EventFiltered(reason));
-                    }
-
-                    // TODO: Remove this once cutover is complete.
-                    event.other.insert(
-                        "_relay_processed".to_owned(),
-                        Annotated::new(Value::Bool(true)),
-                    );
-                }
+            if let Err(reason) = filter_result {
+                // If the event should be filtered, no more processing is needed
+                return Err(ProcessingError::EventFiltered(reason));
             }
+
+            // TODO: Remove this once cutover is complete.
+            event.other.insert(
+                "_relay_processed".to_owned(),
+                Annotated::new(Value::Bool(true)),
+            );
         }
 
         // Run rate limiting after normalizing the event and running all filters. If the event is
         // dropped or filtered for a different reason before that, it should not count against
         // quotas. Also, this allows to reduce the number of requests to the rate limiter (currently
         // implemented in Redis).
-        if let Some(organization_id) = message.project_state.organization_id {
-            let key_config = message
-                .project_state
-                .get_public_key_config(&envelope.meta().public_key());
-
+        if let Some(organization_id) = project_state.organization_id {
+            let key_config = project_state.get_public_key_config(&envelope.meta().public_key());
             if let Some(key_config) = key_config {
                 let rate_limit = metric!(timer("event_processing.rate_limiting"), {
                     self.rate_limiter
@@ -512,8 +489,40 @@ impl EventProcessor {
             }
         }
 
-        // Run PII stripping after normalization because normalization adds IP addresses to the
-        // event.
+        Ok(())
+    }
+
+    fn process(&self, message: ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
+        let mut envelope = message.envelope;
+
+        // Extract the event from the envelope. This removes all items from the envelope that should
+        // not be forwarded, including the event item itself.
+        let mut event = self.extract_event(&mut envelope)?;
+
+        // `extract_event` must remove all items other than attachments from the envelope. Once the
+        // envelope is processed, an `Event` item will be added to the envelope again. Only
+        // attachments and events are allowed in the end.
+        if let Some(duplicate) = envelope.get_item_by(|item| item.ty() != ItemType::Attachment) {
+            return Err(ProcessingError::DuplicateItem(duplicate.ty()));
+        }
+
+        // If special attachments are present in the envelope, add placeholder payloads to the
+        // event. This indicates to the pipeline that the event needs special processing.
+        if envelope.get_item_by_name("upload_file_minidump").is_some() {
+            self.write_minidump_placeholder(&mut event);
+        }
+
+        // Ensure that the event id in the payload is consistent with the envelope. If an event id
+        // was ingested, this will already be the case. Otherwise, this will insert a new event id.
+        // To be defensive, we always overwrite to ensure consistency.
+        if let Some(event) = event.value_mut() {
+            event.id = Annotated::new(envelope.event_id());
+        }
+
+        #[cfg(feature = "processing")]
+        self.store_process_event(&mut event, &envelope, &message.project_state)?;
+
+        // Run PII stripping last since normalization can add PII (e.g. IP addresses).
         metric!(timer("event_processing.pii"), {
             for pii_config in message.project_state.config.pii_configs() {
                 let mut processor = PiiProcessor::new(pii_config);
