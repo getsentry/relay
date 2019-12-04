@@ -95,7 +95,7 @@ impl StoreBody {
         }
 
         // Check the content length first. If we detect an overflow from the content length header,
-        // keep the payload in the request. The `ReadRequestMiddleware` should drain the payload.
+        // keep the payload in the request to drain it correctly in the `ReadRequestMiddleware`.
         if let Some(length) = utils::get_content_length(req) {
             if length > limit {
                 return Self::err(StorePayloadError::Overflow);
