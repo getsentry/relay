@@ -372,6 +372,8 @@ pub struct TraceContext {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(u8)] // size limit in clickhouse
 pub enum SpanStatus {
+    // XXX: this mapping exists multiple times at the moment.  It's also in the python binding
+    // to semaphore.  This should be cleaned up.
     /// The operation completed successfully.
     ///
     /// HTTP status 100..299 + successful redirects from the 3xx range.
