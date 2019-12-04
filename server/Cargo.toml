@@ -13,7 +13,7 @@ license-file = "../LICENSE"
 [features]
 default = ["with_ssl"]
 with_ssl = ["native-tls", "actix-web/tls"]
-processing = ["rdkafka", "rmp-serde", "redis", "r2d2"]
+processing = ["rdkafka", "redis", "r2d2"]
 
 [dependencies]
 actix = "0.7.9"
@@ -35,7 +35,7 @@ r2d2 = { version = "0.8.5", optional = true }
 rdkafka = { version = "0.21.0", git = "https://github.com/fede1024/rust-rdkafka", optional = true, rev = "b1a391b3264ca8e0b0e053c6aec7a6db09af3131" }
 redis = { version = "0.12.1-alpha.0", git = "https://github.com/mitsuhiko/redis-rs", optional = true, branch = "feature/cluster", features = ["cluster", "r2d2"] }
 regex = "1.2.0"
-rmp-serde = { version = "0.13.7", optional = true }
+rmp-serde = "0.13.7"
 sentry = "0.17.0"
 sentry-actix = "0.17.0"
 serde = { version = "1.0.98", features = ["derive"] }

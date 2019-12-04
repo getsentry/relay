@@ -6,7 +6,6 @@ use std::sync::Arc;
 use actix::prelude::*;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, ResponseError};
-use bytes::Bytes;
 use failure::Fail;
 use futures::prelude::*;
 use parking_lot::Mutex;
@@ -19,11 +18,11 @@ use semaphore_general::protocol::EventId;
 use crate::actors::events::{QueueEvent, QueueEventError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
-use crate::body::{StoreBody, StorePayloadError};
+use crate::body::StorePayloadError;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::ServiceState;
-use crate::utils::ApiErrorResponse;
+use crate::utils::{ApiErrorResponse, MultipartError};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -44,6 +43,15 @@ pub enum BadStoreRequest {
 
     #[fail(display = "invalid event envelope")]
     InvalidEnvelope(#[cause] EnvelopeError),
+
+    #[fail(display = "invalid multipart data")]
+    InvalidMultipart(#[cause] MultipartError),
+
+    #[fail(display = "invalid minidump")]
+    InvalidMinidump,
+
+    #[fail(display = "missing minidump")]
+    MissingMinidump,
 
     #[fail(display = "failed to queue event")]
     QueueFailed(#[cause] QueueEventError),
@@ -67,6 +75,13 @@ impl BadStoreRequest {
 
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
             BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
+            BadStoreRequest::InvalidMultipart(_) => {
+                Outcome::Invalid(DiscardReason::InvalidMultipart)
+            }
+            BadStoreRequest::InvalidMinidump => Outcome::Invalid(DiscardReason::InvalidMinidump),
+            BadStoreRequest::MissingMinidump => {
+                Outcome::Invalid(DiscardReason::MissingMinidumpUpload)
+            }
             BadStoreRequest::InvalidEnvelope(_) => Outcome::Invalid(DiscardReason::InvalidEnvelope),
 
             BadStoreRequest::QueueFailed(event_error) => match event_error {
@@ -137,7 +152,7 @@ impl ResponseError for BadStoreRequest {
 /// If store_event receives a non empty store_body it will use it as the body of the
 /// event otherwise it will try to create a store_body from the request.
 ///
-pub fn handle_store_like_request<F, R>(
+pub fn handle_store_like_request<F, R, I>(
     meta: EventMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
@@ -145,7 +160,8 @@ pub fn handle_store_like_request<F, R>(
     create_response: R,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
-    F: FnOnce(Bytes, EventMeta) -> Result<Envelope, BadStoreRequest> + 'static,
+    F: FnOnce(&HttpRequest<ServiceState>, EventMeta) -> I + 'static,
+    I: IntoFuture<Item = Envelope, Error = BadStoreRequest> + 'static,
     R: FnOnce(EventId) -> HttpResponse + 'static,
 {
     let start_time = start_time.into_inner();
@@ -168,7 +184,6 @@ where
 
     metric!(counter(&format!("event.protocol.v{}", version)) += 1);
 
-    let config = request.state().config();
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
     let outcome_producer = request.state().outcome_producer().clone();
@@ -181,10 +196,8 @@ where
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(clone!(event_id, |project| {
-            StoreBody::new(&request)
-                .limit(config.max_event_payload_size())
-                .map_err(BadStoreRequest::PayloadError)
-                .and_then(move |data| extract_envelope(data, meta))
+            extract_envelope(&request, meta)
+                .into_future()
                 .and_then(clone!(project, |envelope| {
                     *event_id.lock() = Some(envelope.event_id());
 

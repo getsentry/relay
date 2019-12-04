@@ -257,6 +257,8 @@ struct Limits {
     max_concurrent_queries: usize,
     /// The maximum payload size for events.
     max_event_payload_size: ByteSize,
+    /// The maximum payload size for minidump events.
+    max_attachment_payload_size: ByteSize,
     /// The maximum payload size for general API requests.
     max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
@@ -286,6 +288,7 @@ impl Default for Limits {
             max_concurrent_requests: 100,
             max_concurrent_queries: 5,
             max_event_payload_size: ByteSize::from_kilobytes(256),
+            max_attachment_payload_size: ByteSize::from_megabytes(50),
             max_api_payload_size: ByteSize::from_megabytes(20),
             max_api_file_upload_size: ByteSize::from_megabytes(40),
             max_api_chunk_upload_size: ByteSize::from_megabytes(100),
@@ -827,6 +830,12 @@ impl Config {
         self.values.limits.max_event_payload_size.as_bytes() as usize
     }
 
+    /// Returns the maximum size of payloads containing attachments (minidump, unreal, standalone
+    /// attachments) in bytes.
+    pub fn max_attachment_payload_size(&self) -> usize {
+        self.values.limits.max_attachment_payload_size.as_bytes() as usize
+    }
+
     /// Returns the maximum payload size for general API requests.
     pub fn max_api_payload_size(&self) -> usize {
         self.values.limits.max_api_payload_size.as_bytes() as usize
@@ -944,6 +953,17 @@ impl Config {
     /// Chunk size of attachments in bytes.
     pub fn attachment_chunk_size(&self) -> usize {
         self.values.processing.attachment_chunk_size.as_bytes() as usize
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            values: ConfigValues::default(),
+            credentials: None,
+            path: PathBuf::new(),
+        }
     }
 }
 

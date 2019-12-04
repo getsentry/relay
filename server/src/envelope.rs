@@ -161,6 +161,31 @@ impl<'de> Deserialize<'de> for ContentType {
     }
 }
 
+/// The type of an event attachment.
+///
+/// These item types must align with the Sentry processing pipeline.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+pub enum AttachmentType {
+    /// A regular attachment without special meaning.
+    #[serde(rename = "event.attachment")]
+    Attachment,
+
+    /// A minidump crash report (binary data).
+    #[serde(rename = "event.minidump")]
+    Minidump,
+
+    /// An apple crash report (text data).
+    #[serde(rename = "event.applecrashreport")]
+    #[allow(dead_code)]
+    AppleCrashReport,
+}
+
+impl Default for AttachmentType {
+    fn default() -> Self {
+        Self::Attachment
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ItemHeaders {
     #[serde(rename = "type")]
@@ -172,10 +197,16 @@ pub struct ItemHeaders {
     event_type: Option<EventType>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    attachment_type: Option<AttachmentType>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     content_type: Option<ContentType>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
 
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -195,8 +226,10 @@ impl Item {
                 ty,
                 length: 0,
                 event_type: None,
+                attachment_type: None,
                 content_type: None,
                 filename: None,
+                name: None,
                 other: BTreeMap::new(),
             },
             payload: Bytes::new(),
@@ -232,6 +265,17 @@ impl Item {
     /// Sets the event type of this item.
     pub fn set_event_type(&mut self, event_type: EventType) {
         self.headers.event_type = Some(event_type);
+    }
+
+    /// Returns the attachment type if this item is an attachment.
+    pub fn attachment_type(&self) -> Option<AttachmentType> {
+        // TODO: consider to replace this with an ItemType?
+        self.headers.attachment_type
+    }
+
+    /// Sets the attachment type of this item.
+    pub fn set_attachment_type(&mut self, attachment_type: AttachmentType) {
+        self.headers.attachment_type = Some(attachment_type);
     }
 
     /// Returns the payload of this item.
@@ -270,6 +314,19 @@ impl Item {
         self.headers.filename = Some(filename.into());
     }
 
+    /// Returns the name header of the item.
+    pub fn name(&self) -> Option<&str> {
+        self.headers.name.as_ref().map(String::as_str)
+    }
+
+    // Sets the name header of the item.
+    pub fn set_name<S>(&mut self, name: S)
+    where
+        S: Into<String>,
+    {
+        self.headers.name = Some(name.into());
+    }
+
     /// Returns the specified header value, if present.
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
     where
@@ -290,6 +347,7 @@ impl Item {
 }
 
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
+pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnvelopeHeaders {
@@ -410,17 +468,60 @@ impl Envelope {
         self.items.iter()
     }
 
+    /// Returns an iterator over mutable items in this envelope.
+    ///
+    /// Note that iteration order may change when using `take_item`.
+    pub fn items_mut(&mut self) -> ItemIterMut<'_> {
+        self.items.iter_mut()
+    }
+
+    /// Returns the an option with a reference to the first item that matches
+    /// the predicate, or None if the predicate is not matched by any item.
+    pub fn get_item_by<F>(&self, mut pred: F) -> Option<&Item>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        self.items().find(|item| pred(item))
+    }
+
     /// Returns the first item that matches the given `ItemType`.
-    pub fn get_item(&self, ty: ItemType) -> Option<&Item> {
-        self.items().find(|item| item.ty() == ty)
+    pub fn get_item_by_type(&self, ty: ItemType) -> Option<&Item> {
+        self.get_item_by(|item| item.ty() == ty)
+    }
+
+    /// Returns the first item that matches the given name.
+    pub fn get_item_by_name(&self, name: &str) -> Option<&Item> {
+        self.get_item_by(|item| item.name() == Some(name))
+    }
+
+    /// Returns the an option with a mutable reference to the first item that matches
+    /// the predicate, or None if the predicate is not matched by any item.
+    pub fn get_item_by_mut<F>(&mut self, mut pred: F) -> Option<&mut Item>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        self.items_mut().find(|item| pred(item))
+    }
+
+    /// Removes and returns the first item that matches the given condition.
+    pub fn take_item_by<F>(&mut self, cond: F) -> Option<Item>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        let index = self.items.iter().position(cond);
+        index.map(|index| self.items.swap_remove(index))
     }
 
     /// Removes and returns the first item that matches the given `ItemType`.
     ///
     /// This swaps the last item with the item being removed.
-    pub fn take_item(&mut self, ty: ItemType) -> Option<Item> {
-        let index = self.items.iter().position(|item| item.ty() == ty);
-        index.map(|index| self.items.swap_remove(index))
+    pub fn take_item_by_type(&mut self, ty: ItemType) -> Option<Item> {
+        self.take_item_by(|item| item.ty() == ty)
+    }
+
+    /// Removes and returns the first item that matches the given name.
+    pub fn take_item_by_name(&mut self, name: &str) -> Option<Item> {
+        self.take_item_by(|item| item.name() == Some(name))
     }
 
     /// Adds a new item to this envelope.
@@ -606,12 +707,12 @@ mod tests {
         envelope.add_item(item2);
 
         let taken = envelope
-            .take_item(ItemType::Attachment)
+            .take_item_by_type(ItemType::Attachment)
             .expect("should return some item");
 
         assert_eq!(taken.filename(), Some("item1"));
 
-        assert!(envelope.take_item(ItemType::Event).is_none());
+        assert!(envelope.take_item_by_type(ItemType::Event).is_none());
     }
 
     #[test]

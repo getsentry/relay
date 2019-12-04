@@ -8,6 +8,7 @@ mod common;
 pub mod events;
 pub mod forward;
 pub mod healthcheck;
+pub mod minidump;
 pub mod project_configs;
 pub mod public_keys;
 pub mod security_report;

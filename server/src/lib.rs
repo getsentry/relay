@@ -20,9 +20,11 @@ mod endpoints;
 mod envelope;
 mod extractors;
 mod middlewares;
-mod quotas;
 mod service;
 mod utils;
+
+#[cfg(feature = "processing")]
+mod quotas;
 
 use crate::actors::controller::Controller;
 use crate::actors::server::Server;

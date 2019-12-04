@@ -3,11 +3,12 @@
 use actix_web::actix::ResponseFuture;
 use actix_web::http::Method;
 use actix_web::{pred, HttpRequest, HttpResponse, Query, Request};
-use bytes::Bytes;
+use futures::Future;
 use serde::Deserialize;
 
 use semaphore_general::protocol::EventId;
 
+use crate::body::StoreBody;
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
@@ -20,29 +21,36 @@ struct SecurityReportParams {
 }
 
 fn extract_envelope(
-    data: Bytes,
+    request: &HttpRequest<ServiceState>,
     meta: EventMeta,
+    max_event_payload_size: usize,
     params: SecurityReportParams,
-) -> Result<Envelope, BadStoreRequest> {
-    if data.is_empty() {
-        return Err(BadStoreRequest::EmptyBody);
-    }
+) -> ResponseFuture<Envelope, BadStoreRequest> {
+    let future = StoreBody::new(&request)
+        .limit(max_event_payload_size)
+        .map_err(BadStoreRequest::PayloadError)
+        .and_then(move |data| {
+            if data.is_empty() {
+                return Err(BadStoreRequest::EmptyBody);
+            }
 
-    let mut report_item = Item::new(ItemType::SecurityReport);
-    report_item.set_payload(ContentType::Json, data);
+            let mut report_item = Item::new(ItemType::SecurityReport);
+            report_item.set_payload(ContentType::Json, data);
 
-    if let Some(sentry_release) = params.sentry_release {
-        report_item.set_header("sentry_release", sentry_release);
-    }
+            if let Some(sentry_release) = params.sentry_release {
+                report_item.set_header("sentry_release", sentry_release);
+            }
 
-    if let Some(sentry_environment) = params.sentry_environment {
-        report_item.set_header("sentry_environment", sentry_environment);
-    }
+            if let Some(sentry_environment) = params.sentry_environment {
+                report_item.set_header("sentry_environment", sentry_environment);
+            }
 
-    let mut envelope = Envelope::from_request(EventId::new(), meta);
-    envelope.add_item(report_item);
+            let mut envelope = Envelope::from_request(EventId::new(), meta);
+            envelope.add_item(report_item);
 
-    Ok(envelope)
+            Ok(envelope)
+        });
+    Box::new(future)
 }
 
 fn create_response() -> HttpResponse {
@@ -60,11 +68,12 @@ fn store_security_report(
     request: HttpRequest<ServiceState>,
     params: Query<SecurityReportParams>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
+    let event_size = request.state().config().max_event_payload_size();
     Box::new(handle_store_like_request(
         meta,
         start_time,
         request,
-        move |data, meta| extract_envelope(data, meta, params.into_inner()),
+        move |data, meta| extract_envelope(data, meta, event_size, params.into_inner()),
         |_| create_response(),
     ))
 }

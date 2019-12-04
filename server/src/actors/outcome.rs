@@ -142,6 +142,12 @@ pub enum DiscardReason {
     /// [Relay] Parsing the event JSON payload failed due to a syntax error.
     InvalidJson,
 
+    /// [Relay] Parsing the event msgpack payload failed due to a syntax error.
+    InvalidMsgpack,
+
+    /// [Relay] Parsing a multipart form-data request failed.
+    InvalidMultipart,
+
     /// [Relay] The event is parseable but semantically invalid. This should only happen with
     /// transaction events.
     InvalidTransaction,
@@ -234,6 +240,8 @@ mod real_implementation {
                 // Relay specific reasons (not present in Sentry)
                 DiscardReason::Payload => "payload",
                 DiscardReason::InvalidJson => "invalid_json",
+                DiscardReason::InvalidMultipart => "invalid_multipart",
+                DiscardReason::InvalidMsgpack => "invalid_msgpack",
                 DiscardReason::InvalidTransaction => "invalid_transaction",
                 DiscardReason::InvalidEnvelope => "invalid_envelope",
                 DiscardReason::ProjectState => "project_state",
