@@ -148,24 +148,33 @@ impl Future for StoreBody {
         }
 
         let limit = self.limit;
+        let body = Some(BytesMut::with_capacity(8192));
+
         let future = self
             .stream
             .take()
             .expect("Can not be used second time")
-            .from_err()
-            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
-                if (body.len() + chunk.len()) > limit {
-                    Err(StorePayloadError::Overflow)
-                } else {
-                    body.extend_from_slice(&chunk);
-                    Ok(body)
-                }
+            .map_err(StorePayloadError::from)
+            .fold(body, move |body_opt, chunk| {
+                // Ensure that the stream is always fully consumed. Erroring here would leave a
+                // broken TCP stream that cannot be used with keep-alive connections.
+                Ok::<_, StorePayloadError>(body_opt.and_then(|mut body| {
+                    if (body.len() + chunk.len()) > limit {
+                        None
+                    } else {
+                        body.extend_from_slice(&chunk);
+                        Some(body)
+                    }
+                }))
             })
-            .and_then(|body| {
-                metric!(time_raw("event.size_bytes.raw") = body.len() as u64);
-                let decoded = decode_bytes(body.freeze())?;
-                metric!(time_raw("event.size_bytes.uncompressed") = decoded.len() as u64);
-                Ok(decoded)
+            .and_then(|body_opt| match body_opt {
+                Some(body) => {
+                    metric!(time_raw("event.size_bytes.raw") = body.len() as u64);
+                    let decoded = decode_bytes(body.freeze())?;
+                    metric!(time_raw("event.size_bytes.uncompressed") = decoded.len() as u64);
+                    Ok(decoded)
+                }
+                None => Err(StorePayloadError::Overflow),
             });
 
         self.fut = Some(Box::new(future));
