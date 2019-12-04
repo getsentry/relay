@@ -2,9 +2,8 @@ use std::borrow::Cow;
 use std::io::{self, Read};
 
 use actix::ResponseFuture;
-use actix_web::http::{header, StatusCode};
-use actix_web::HttpRequest;
-use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
+use actix_web::http::StatusCode;
+use actix_web::{error::PayloadError, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use base64::DecodeError;
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
@@ -15,6 +14,7 @@ use url::form_urlencoded;
 use semaphore_common::metric;
 
 use crate::actors::outcome::DiscardReason;
+use crate::utils;
 
 /// A set of errors that can occur during parsing json payloads
 #[derive(Fail, Debug)]
@@ -94,14 +94,9 @@ impl StoreBody {
             };
         }
 
-        let length_opt = match get_content_length(req) {
-            Ok(length_opt) => length_opt,
-            Err(e) => return Self::err(e),
-        };
-
         // Check the content length first. If we detect an overflow from the content length header,
         // keep the payload in the request. The `ReadRequestMiddleware` should drain the payload.
-        if let Some(length) = length_opt {
+        if let Some(length) = utils::get_content_length(req) {
             if length > limit {
                 return Self::err(StorePayloadError::Overflow);
             }
@@ -200,20 +195,4 @@ fn decode_bytes<B: Into<Bytes> + AsRef<[u8]>>(body: B) -> Result<Bytes, StorePay
         .map_err(StorePayloadError::Zlib)?;
 
     Ok(Bytes::from(bytes))
-}
-
-fn get_content_length<S>(req: &HttpRequest<S>) -> Result<Option<usize>, StorePayloadError> {
-    if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
-        if let Ok(s) = l.to_str() {
-            if let Ok(l) = s.parse::<usize>() {
-                Ok(Some(l))
-            } else {
-                Err(StorePayloadError::UnknownLength)
-            }
-        } else {
-            Err(StorePayloadError::UnknownLength)
-        }
-    } else {
-        Ok(None)
-    }
 }
