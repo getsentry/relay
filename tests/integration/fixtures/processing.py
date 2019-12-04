@@ -173,6 +173,10 @@ def events_consumer(kafka_consumer):
 def transactions_consumer(kafka_consumer):
     return lambda: EventsConsumer(kafka_consumer("transactions"))
 
+@pytest.fixture
+def attachments_consumer(kafka_consumer):
+    return lambda: AttachmentsConsumer(kafka_consumer("attachments"))
+
 
 class EventsConsumer(ConsumerBase):
     def __init__(self, consumer):
@@ -186,3 +190,14 @@ class EventsConsumer(ConsumerBase):
         v = msgpack.unpackb(event.value(), raw=False, use_list=False)
         assert v["type"] == "event"
         return json.loads(v["payload"].decode("utf8")), v
+
+
+class AttachmentsConsumer(EventsConsumer):
+    def get_attachment_chunk(self):
+        event = self.poll()
+        assert event is not None
+        assert event.error() is None
+
+        v = msgpack.unpackb(event.value(), raw=False, use_list=False)
+        assert v["type"] == "attachment_chunk", v['type']
+        return v["payload"], v
