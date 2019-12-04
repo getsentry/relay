@@ -1,21 +1,24 @@
-from .processing import StoreNormalizer
-
-__all__ = ["SPAN_STATUS_MAPPING"]
+__all__ = ["SPAN_STATUS_CODE_TO_NAME", "SPAN_STATUS_NAME_TO_CODE"]
 
 
-def _get_span_status_mapping():
-    normalizer = StoreNormalizer()
-    rv = {}
+SPAN_STATUS_CODE_TO_NAME = {
+    0: "ok",
+    1: "cancelled",
+    2: "unknown_error",
+    3: "invalid_argument",
+    4: "deadline_exceeded",
+    5: "not_found",
+    6: "already_exists",
+    7: "permission_denied",
+    8: "resource_exhausted",
+    9: "failed_precondition",
+    10: "aborted",
+    11: "out_of_range",
+    12: "unimplemented",
+    13: "internal_error",
+    14: "unavailable",
+    15: "data_loss",
+    16: "unauthenticated",
+}
 
-    for i in range(255):
-        name = normalizer.normalize_event({"contexts": {"trace": {"status": i,},},})[
-            "contexts"
-        ]["trace"]["status"]
-        if name is not None:
-            rv[i] = name
-
-    return rv
-
-
-SPAN_STATUS_MAPPING = _get_span_status_mapping()
-del _get_span_status_mapping
+SPAN_STATUS_NAME_TO_CODE = dict((v, k) for k, v in SPAN_STATUS_CODE_TO_NAME.items())
