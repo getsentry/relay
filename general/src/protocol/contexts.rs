@@ -355,7 +355,7 @@ pub struct TraceContext {
 
     /// Whether the trace failed or succeeded. Currently only used to indicate status of individual
     /// transactions.
-    pub status: Annotated<TraceStatus>,
+    pub status: Annotated<SpanStatus>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true")]
@@ -371,25 +371,27 @@ pub struct TraceContext {
 /// value. We use repr(u8) to statically validate that the trace status has 255 variants at most.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(u8)] // size limit in clickhouse
-pub enum TraceStatus {
+pub enum SpanStatus {
+    // XXX: this mapping exists multiple times at the moment.  It's also in the python binding
+    // to semaphore.  This should be cleaned up.
     /// The operation completed successfully.
     ///
     /// HTTP status 100..299 + successful redirects from the 3xx range.
-    Ok,
+    Ok = 0,
 
     /// The operation was cancelled (typically by the user).
-    Cancelled,
+    Cancelled = 1,
 
     /// Unknown. Any non-standard HTTP status code.
     ///
     /// "We do not know whether the transaction failed or succeeded"
-    UnknownError,
+    UnknownError = 2,
 
     /// Client specified an invalid argument. 4xx.
     ///
     /// Note that this differs from FailedPrecondition. InvalidArgument indicates arguments that
     /// are problematic regardless of the state of the system.
-    InvalidArgument,
+    InvalidArgument = 3,
 
     /// Deadline expired before operation could complete.
     ///
@@ -397,60 +399,60 @@ pub enum TraceStatus {
     /// operation has been completed successfully.
     ///
     /// HTTP redirect loops and 504 Gateway Timeout
-    DeadlineExceeded,
+    DeadlineExceeded = 4,
 
     /// 404 Not Found. Some requested entity (file or directory) was not found.
-    NotFound,
+    NotFound = 5,
 
     /// Already exists (409)
     ///
     /// Some entity that we attempted to create already exists.
-    AlreadyExists,
+    AlreadyExists = 6,
 
     /// 403 Forbidden
     ///
     /// The caller does not have permission to execute the specified operation.
-    PermissionDenied,
+    PermissionDenied = 7,
 
     /// 429 Too Many Requests
     ///
     /// Some resource has been exhausted, perhaps a per-user quota or perhaps the entire file
     /// system is out of space.
-    ResourceExhausted,
+    ResourceExhausted = 8,
 
     /// Operation was rejected because the system is not in a state required for the operation's
     /// execution
-    FailedPrecondition,
+    FailedPrecondition = 9,
 
     /// The operation was aborted, typically due to a concurrency issue.
-    Aborted,
+    Aborted = 10,
 
     /// Operation was attempted past the valid range.
-    OutOfRange,
+    OutOfRange = 11,
 
     /// 501 Not Implemented
     ///
     /// Operation is not implemented or not enabled.
-    Unimplemented,
+    Unimplemented = 12,
 
     /// Other/generic 5xx.
-    InternalError,
+    InternalError = 13,
 
     /// 503 Service Unavailable
-    Unavailable,
+    Unavailable = 14,
 
     /// Unrecoverable data loss or corruption
-    DataLoss,
+    DataLoss = 15,
 
     /// 401 Unauthorized (actually does mean unauthenticated according to RFC 7235)
     ///
     /// Prefer PermissionDenied if a user is logged in.
-    Unauthenticated,
+    Unauthenticated = 16,
 }
 
-impl ProcessValue for TraceStatus {}
+impl ProcessValue for SpanStatus {}
 
-impl Empty for TraceStatus {
+impl Empty for SpanStatus {
     #[inline]
     fn is_empty(&self) -> bool {
         false
@@ -458,63 +460,63 @@ impl Empty for TraceStatus {
 }
 
 #[derive(Debug, Fail)]
-#[fail(display = "invalid trace status")]
-pub struct ParseTraceStatusError;
+#[fail(display = "invalid span status")]
+pub struct ParseSpanStatusError;
 
-impl FromStr for TraceStatus {
-    type Err = ParseTraceStatusError;
+impl FromStr for SpanStatus {
+    type Err = ParseSpanStatusError;
 
-    fn from_str(string: &str) -> Result<TraceStatus, Self::Err> {
+    fn from_str(string: &str) -> Result<SpanStatus, Self::Err> {
         Ok(match string {
-            "ok" => TraceStatus::Ok,
-            "success" => TraceStatus::Ok, // Backwards compat with initial schema
-            "deadline_exceeded" => TraceStatus::DeadlineExceeded,
-            "unauthenticated" => TraceStatus::Unauthenticated,
-            "permission_denied" => TraceStatus::PermissionDenied,
-            "not_found" => TraceStatus::NotFound,
-            "resource_exhausted" => TraceStatus::ResourceExhausted,
-            "invalid_argument" => TraceStatus::InvalidArgument,
-            "unimplemented" => TraceStatus::Unimplemented,
-            "unavailable" => TraceStatus::Unavailable,
-            "internal_error" => TraceStatus::InternalError,
-            "failure" => TraceStatus::InternalError, // Backwards compat with initial schema
-            "unknown_error" => TraceStatus::UnknownError,
-            "cancelled" => TraceStatus::Cancelled,
-            "already_exists" => TraceStatus::AlreadyExists,
-            "failed_precondition" => TraceStatus::FailedPrecondition,
-            "aborted" => TraceStatus::Aborted,
-            "out_of_range" => TraceStatus::OutOfRange,
-            "data_loss" => TraceStatus::DataLoss,
-            _ => return Err(ParseTraceStatusError),
+            "ok" => SpanStatus::Ok,
+            "success" => SpanStatus::Ok, // Backwards compat with initial schema
+            "deadline_exceeded" => SpanStatus::DeadlineExceeded,
+            "unauthenticated" => SpanStatus::Unauthenticated,
+            "permission_denied" => SpanStatus::PermissionDenied,
+            "not_found" => SpanStatus::NotFound,
+            "resource_exhausted" => SpanStatus::ResourceExhausted,
+            "invalid_argument" => SpanStatus::InvalidArgument,
+            "unimplemented" => SpanStatus::Unimplemented,
+            "unavailable" => SpanStatus::Unavailable,
+            "internal_error" => SpanStatus::InternalError,
+            "failure" => SpanStatus::InternalError, // Backwards compat with initial schema
+            "unknown_error" => SpanStatus::UnknownError,
+            "cancelled" => SpanStatus::Cancelled,
+            "already_exists" => SpanStatus::AlreadyExists,
+            "failed_precondition" => SpanStatus::FailedPrecondition,
+            "aborted" => SpanStatus::Aborted,
+            "out_of_range" => SpanStatus::OutOfRange,
+            "data_loss" => SpanStatus::DataLoss,
+            _ => return Err(ParseSpanStatusError),
         })
     }
 }
 
-impl fmt::Display for TraceStatus {
+impl fmt::Display for SpanStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            TraceStatus::Ok => write!(f, "ok"),
-            TraceStatus::DeadlineExceeded => write!(f, "deadline_exceeded"),
-            TraceStatus::Unauthenticated => write!(f, "unauthenticated"),
-            TraceStatus::PermissionDenied => write!(f, "permission_denied"),
-            TraceStatus::NotFound => write!(f, "not_found"),
-            TraceStatus::ResourceExhausted => write!(f, "resource_exhausted"),
-            TraceStatus::InvalidArgument => write!(f, "invalid_argument"),
-            TraceStatus::Unimplemented => write!(f, "unimplemented"),
-            TraceStatus::Unavailable => write!(f, "unavailable"),
-            TraceStatus::InternalError => write!(f, "internal_error"),
-            TraceStatus::UnknownError => write!(f, "unknown_error"),
-            TraceStatus::Cancelled => write!(f, "cancelled"),
-            TraceStatus::AlreadyExists => write!(f, "already_exists"),
-            TraceStatus::FailedPrecondition => write!(f, "failed_precondition"),
-            TraceStatus::Aborted => write!(f, "aborted"),
-            TraceStatus::OutOfRange => write!(f, "out_of_range"),
-            TraceStatus::DataLoss => write!(f, "data_loss"),
+            SpanStatus::Ok => write!(f, "ok"),
+            SpanStatus::DeadlineExceeded => write!(f, "deadline_exceeded"),
+            SpanStatus::Unauthenticated => write!(f, "unauthenticated"),
+            SpanStatus::PermissionDenied => write!(f, "permission_denied"),
+            SpanStatus::NotFound => write!(f, "not_found"),
+            SpanStatus::ResourceExhausted => write!(f, "resource_exhausted"),
+            SpanStatus::InvalidArgument => write!(f, "invalid_argument"),
+            SpanStatus::Unimplemented => write!(f, "unimplemented"),
+            SpanStatus::Unavailable => write!(f, "unavailable"),
+            SpanStatus::InternalError => write!(f, "internal_error"),
+            SpanStatus::UnknownError => write!(f, "unknown_error"),
+            SpanStatus::Cancelled => write!(f, "cancelled"),
+            SpanStatus::AlreadyExists => write!(f, "already_exists"),
+            SpanStatus::FailedPrecondition => write!(f, "failed_precondition"),
+            SpanStatus::Aborted => write!(f, "aborted"),
+            SpanStatus::OutOfRange => write!(f, "out_of_range"),
+            SpanStatus::DataLoss => write!(f, "data_loss"),
         }
     }
 }
 
-impl FromValue for TraceStatus {
+impl FromValue for SpanStatus {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
@@ -525,6 +527,33 @@ impl FromValue for TraceStatus {
                     Annotated(None, meta)
                 }
             },
+            Annotated(Some(Value::I64(value)), mut meta) => Annotated(
+                Some(match value {
+                    0 => SpanStatus::Ok,
+                    1 => SpanStatus::Cancelled,
+                    2 => SpanStatus::UnknownError,
+                    3 => SpanStatus::InvalidArgument,
+                    4 => SpanStatus::DeadlineExceeded,
+                    5 => SpanStatus::NotFound,
+                    6 => SpanStatus::AlreadyExists,
+                    7 => SpanStatus::PermissionDenied,
+                    8 => SpanStatus::ResourceExhausted,
+                    9 => SpanStatus::FailedPrecondition,
+                    10 => SpanStatus::Aborted,
+                    11 => SpanStatus::OutOfRange,
+                    12 => SpanStatus::Unimplemented,
+                    13 => SpanStatus::InternalError,
+                    14 => SpanStatus::Unavailable,
+                    15 => SpanStatus::DataLoss,
+                    16 => SpanStatus::Unauthenticated,
+                    _ => {
+                        meta.add_error(Error::expected("a trace status"));
+                        meta.set_original_value(Some(value));
+                        return Annotated(None, meta);
+                    }
+                }),
+                meta,
+            ),
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("a string"));
@@ -535,7 +564,7 @@ impl FromValue for TraceStatus {
     }
 }
 
-impl ToValue for TraceStatus {
+impl ToValue for SpanStatus {
     fn to_value(self) -> Value {
         Value::String(self.to_string())
     }
@@ -881,7 +910,7 @@ fn test_trace_context_roundtrip() {
         span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
         parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
         op: Annotated::new("http".into()),
-        status: Annotated::new(TraceStatus::Ok),
+        status: Annotated::new(SpanStatus::Ok),
         other: {
             let mut map = Object::new();
             map.insert(
