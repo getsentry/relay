@@ -125,12 +125,8 @@ fn consume_item(
     let content_type = field.content_type().to_string();
     let content_disposition = field.content_disposition();
 
-    let future = consume_field(field, content.remaining_size).and_then(move |data_opt| {
-        let data = match data_opt {
-            Some(data) => data,
-            None => return Ok(None),
-        };
-
+    let future = consume_field(field, content.remaining_size).map(move |data_opt| {
+        let data = data_opt?;
         content.remaining_size -= data.len();
 
         let field_name = content_disposition.as_ref().and_then(|d| d.get_name());
@@ -154,7 +150,7 @@ fn consume_item(
             log::trace!("multipart content without name or file_name");
         }
 
-        Ok(Some(content))
+        Some(content)
     });
 
     Box::new(future)
@@ -164,6 +160,9 @@ fn consume_stream(
     content: MultipartEnvelope,
     stream: multipart::Multipart<Payload>,
 ) -> ResponseFuture<Option<MultipartEnvelope>, MultipartError> {
+    // Ensure that we consume the entire stream here. If we overflow at a certain point,
+    // `consume_item` will return `None`. We need to continue folding, however, to ensure that we
+    // consume the entire request payload.
     let future = stream.map_err(MultipartError::InvalidMultipart).fold(
         Some(content),
         move |content_opt, item| match content_opt {
@@ -174,6 +173,7 @@ fn consume_stream(
 
     Box::new(future)
 }
+
 /// Internal structure used when constructing Envelopes to maintain a cap on the content size
 pub struct MultipartEnvelope {
     // the envelope under construction
