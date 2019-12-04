@@ -154,7 +154,9 @@ def test_minidump_endpoint_accepts_doubly_nested_formdata(mini_sentry, relay):
     assert mini_dump.headers.get("name") == MINIDUMP_ATTACHMENT_NAME
 
 
-def test_minidump_with_processing(mini_sentry, relay_with_processing, attachments_consumer):
+def test_minidump_with_processing(
+    mini_sentry, relay_with_processing, attachments_consumer
+):
     proj_id = 42
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
@@ -163,9 +165,7 @@ def test_minidump_with_processing(mini_sentry, relay_with_processing, attachment
 
     relay.send_minidump(
         project_id=proj_id,
-        files=(
-            ("upload_file_minidump", "minidump.txt", "MDMPminidump content"),
-        ),
+        files=(("upload_file_minidump", "minidump.txt", "MDMPminidump content"),),
     )
 
     attachment = b""
@@ -178,7 +178,8 @@ def test_minidump_with_processing(mini_sentry, relay_with_processing, attachment
 
     event, v = attachments_consumer.get_event()
 
-    assert event['platform'] == 'native'
+    assert event["platform"] == "native"
+    assert event["exception"]["value"][0]["mechanism"]["type"] == "minidump"
 
     assert list(v["attachments"]) == [
         {
