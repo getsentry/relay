@@ -2,9 +2,8 @@ use std::borrow::Cow;
 use std::io::{self, Read};
 
 use actix::ResponseFuture;
-use actix_web::http::{header, StatusCode};
-use actix_web::HttpRequest;
-use actix_web::{error::PayloadError, HttpMessage, HttpResponse, ResponseError};
+use actix_web::http::StatusCode;
+use actix_web::{error::PayloadError, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use base64::DecodeError;
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
@@ -15,6 +14,7 @@ use url::form_urlencoded;
 use semaphore_common::metric;
 
 use crate::actors::outcome::DiscardReason;
+use crate::utils;
 
 /// A set of errors that can occur during parsing json payloads
 #[derive(Fail, Debug)]
@@ -75,10 +75,8 @@ impl From<PayloadError> for StorePayloadError {
 /// Future that resolves to a complete store endpoint body.
 pub struct StoreBody {
     limit: usize,
-    length: Option<usize>,
 
-    // These states are mutually exclusive, and only separate options due to borrowing
-    // problems:
+    // These states are mutually exclusive:
     result: Option<Result<Bytes, StorePayloadError>>,
     fut: Option<ResponseFuture<Bytes, StorePayloadError>>,
     stream: Option<<HttpRequest as HttpMessage>::Stream>,
@@ -86,44 +84,38 @@ pub struct StoreBody {
 
 impl StoreBody {
     /// Create `StoreBody` for request.
-    pub fn new<S>(req: &HttpRequest<S>) -> Self {
+    pub fn new<S>(req: &HttpRequest<S>, limit: usize) -> Self {
         if let Some(body) = data_from_querystring(req) {
-            StoreBody {
-                limit: 262_144,
-                length: Some(body.len()),
+            return StoreBody {
+                limit,
                 stream: None,
                 result: Some(decode_bytes(body.as_bytes())),
                 fut: None,
-            }
-        } else {
-            let length = match get_content_length(req) {
-                Ok(x) => x,
-                Err(e) => return StoreBody::err(e),
             };
+        }
 
-            StoreBody {
-                limit: 262_144,
-                length,
-                result: None,
-                stream: Some(req.payload()),
-                fut: None,
+        // Check the content length first. If we detect an overflow from the content length header,
+        // keep the payload in the request to drain it correctly in the `ReadRequestMiddleware`.
+        if let Some(length) = utils::get_content_length(req) {
+            if length > limit {
+                return Self::err(StorePayloadError::Overflow);
             }
         }
-    }
 
-    /// Change max size of payload. By default max size is 256Kb
-    pub fn limit(mut self, limit: usize) -> Self {
-        self.limit = limit;
-        self
+        StoreBody {
+            limit,
+            result: None,
+            fut: None,
+            stream: Some(req.payload()),
+        }
     }
 
     fn err(e: StorePayloadError) -> Self {
         StoreBody {
-            stream: None,
-            limit: 262_144,
+            limit: 0,
             result: Some(Err(e)),
             fut: None,
-            length: None,
+            stream: None,
         }
     }
 }
@@ -141,27 +133,28 @@ impl Future for StoreBody {
             return fut.poll();
         }
 
-        if let Some(len) = self.length.take() {
-            if len > self.limit {
-                return Err(StorePayloadError::Overflow);
-            }
-        }
-
         let limit = self.limit;
+        let body = Some(BytesMut::with_capacity(8192));
+
         let future = self
             .stream
             .take()
             .expect("Can not be used second time")
-            .from_err()
-            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
-                if (body.len() + chunk.len()) > limit {
-                    Err(StorePayloadError::Overflow)
-                } else {
-                    body.extend_from_slice(&chunk);
-                    Ok(body)
-                }
+            .map_err(StorePayloadError::from)
+            .fold(body, move |body_opt, chunk| {
+                // Ensure that the stream is always fully consumed. Erroring here would leave a
+                // broken TCP stream that cannot be used with keep-alive connections.
+                Ok::<_, StorePayloadError>(body_opt.and_then(|mut body| {
+                    if (body.len() + chunk.len()) > limit {
+                        None
+                    } else {
+                        body.extend_from_slice(&chunk);
+                        Some(body)
+                    }
+                }))
             })
-            .and_then(|body| {
+            .and_then(|body_opt| {
+                let body = body_opt.ok_or(StorePayloadError::Overflow)?;
                 metric!(time_raw("event.size_bytes.raw") = body.len() as u64);
                 let decoded = decode_bytes(body.freeze())?;
                 metric!(time_raw("event.size_bytes.uncompressed") = decoded.len() as u64);
@@ -200,20 +193,4 @@ fn decode_bytes<B: Into<Bytes> + AsRef<[u8]>>(body: B) -> Result<Bytes, StorePay
         .map_err(StorePayloadError::Zlib)?;
 
     Ok(Bytes::from(bytes))
-}
-
-fn get_content_length<S>(req: &HttpRequest<S>) -> Result<Option<usize>, StorePayloadError> {
-    if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
-        if let Ok(s) = l.to_str() {
-            if let Ok(l) = s.parse::<usize>() {
-                Ok(Some(l))
-            } else {
-                Err(StorePayloadError::UnknownLength)
-            }
-        } else {
-            Err(StorePayloadError::UnknownLength)
-        }
-    } else {
-        Ok(None)
-    }
 }

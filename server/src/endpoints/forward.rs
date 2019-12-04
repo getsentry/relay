@@ -97,8 +97,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         .set_header("Connection", "close")
         .timeout(config.http_timeout());
 
-    ForwardBody::new(request)
-        .limit(limit)
+    ForwardBody::new(request, limit)
         .map_err(Error::from)
         .and_then(move |data| forwarded_request_builder.body(data).map_err(Error::from))
         .and_then(move |request| request.send().map_err(Error::from))

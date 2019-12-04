@@ -3,6 +3,7 @@ use futures::Future;
 
 use semaphore_general::protocol::EventId;
 
+use crate::body::ForwardBody;
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
@@ -62,9 +63,7 @@ where {
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
     if MINIDUMP_RAW_CONTENT_TYPES.contains(&request.content_type()) {
-        let future = request
-            .body()
-            .limit(max_payload_size)
+        let future = ForwardBody::new(request, max_payload_size)
             .map_err(|_| BadStoreRequest::InvalidMinidump)
             .and_then(move |data| {
                 validate_minidump(&data)?;
