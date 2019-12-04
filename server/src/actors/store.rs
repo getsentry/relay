@@ -10,7 +10,7 @@ use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
 use rdkafka::producer::{BaseRecord, DefaultProducerContext};
 use rdkafka::ClientConfig;
-use serde::Serialize;
+use serde::{ser::Error, Serialize};
 
 use rmp_serde::encode::Error as SerdeError;
 
@@ -109,10 +109,26 @@ struct ChunkedAttachment {
     content_type: Option<String>,
 
     /// The Sentry-internal attachment type used in the processing pipeline.
+    #[serde(serialize_with = "serialize_attachment_type")]
     attachment_type: AttachmentType,
 
     /// Number of chunks. Must be greater than zero.
     chunks: usize,
+}
+
+/// A hack to make rmp-serde behave more like serde-json when serializing enums.
+///
+/// Cannot serialize bytes.
+///
+/// See https://github.com/3Hren/msgpack-rust/pull/214
+fn serialize_attachment_type<S, T>(t: &T, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+    T: serde::Serialize,
+{
+    serde_json::to_value(t)
+        .map_err(|e| S::Error::custom(e.to_string()))?
+        .serialize(serializer)
 }
 
 /// Container payload for event messages.

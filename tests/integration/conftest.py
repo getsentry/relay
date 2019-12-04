@@ -16,6 +16,7 @@ from .fixtures.processing import (
     events_consumer,
     outcomes_consumer,
     transactions_consumer,
+    attachments_consumer,
 )  # noqa
 
 
