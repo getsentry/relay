@@ -12,8 +12,8 @@ use smallvec::SmallVec;
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
-    Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry, Request, Stacktrace, Tags,
-    TraceContext, TraceStatus, User, INVALID_ENVIRONMENTS, VALID_PLATFORMS,
+    Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry, Request, SpanStatus,
+    Stacktrace, Tags, TraceContext, User, INVALID_ENVIRONMENTS, VALID_PLATFORMS,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -640,7 +640,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         context
             .status
             .value_mut()
-            .get_or_insert(TraceStatus::UnknownError);
+            .get_or_insert(SpanStatus::UnknownError);
         Ok(())
     }
 }
