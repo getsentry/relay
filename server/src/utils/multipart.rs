@@ -1,7 +1,7 @@
 use actix::prelude::*;
 use actix_web::{dev::Payload, multipart, HttpMessage, HttpRequest};
 use failure::Fail;
-use futures::prelude::*;
+use futures::{future, Future, Stream};
 use serde::{Deserialize, Serialize};
 
 use semaphore_common::LogError;
@@ -91,21 +91,46 @@ impl<'a> Iterator for FormDataIter<'a> {
     }
 }
 
-fn handle_multipart_item(
+/// Reads data from a multipart field (coming from a HttpRequest)
+fn consume_field(
+    field: multipart::Field<Payload>,
+    max_size: usize,
+) -> ResponseFuture<Option<Vec<u8>>, MultipartError> {
+    let future = field.map_err(MultipartError::InvalidMultipart).fold(
+        Some(Vec::with_capacity(512)),
+        move |body_opt, chunk| {
+            Ok(body_opt.and_then(|mut body| {
+                if (body.len() + chunk.len()) > max_size {
+                    None
+                } else {
+                    body.extend_from_slice(&chunk);
+                    Some(body)
+                }
+            }))
+        },
+    );
+
+    Box::new(future)
+}
+
+fn consume_item(
     mut content: MultipartEnvelope,
     item: multipart::MultipartItem<Payload>,
-) -> ResponseFuture<MultipartEnvelope, MultipartError> {
+) -> ResponseFuture<Option<MultipartEnvelope>, MultipartError> {
     let field = match item {
+        multipart::MultipartItem::Nested(nested) => return consume_stream(content, nested),
         multipart::MultipartItem::Field(field) => field,
-        multipart::MultipartItem::Nested(nested) => {
-            return handle_multipart_stream(content, nested);
-        }
     };
 
     let content_type = field.content_type().to_string();
     let content_disposition = field.content_disposition();
 
-    let future = read_multipart_data(field, content.remaining_size).and_then(move |data| {
+    let future = consume_field(field, content.remaining_size).and_then(move |data_opt| {
+        let data = match data_opt {
+            Some(data) => data,
+            None => return Ok(None),
+        };
+
         content.remaining_size -= data.len();
 
         let field_name = content_disposition.as_ref().and_then(|d| d.get_name());
@@ -129,45 +154,26 @@ fn handle_multipart_item(
             log::trace!("multipart content without name or file_name");
         }
 
-        Ok(content)
+        Ok(Some(content))
     });
 
     Box::new(future)
 }
 
-fn handle_multipart_stream(
+fn consume_stream(
     content: MultipartEnvelope,
     stream: multipart::Multipart<Payload>,
-) -> ResponseFuture<MultipartEnvelope, MultipartError> {
-    let future = stream
-        .map_err(MultipartError::InvalidMultipart)
-        .fold(content, move |content, item| {
-            handle_multipart_item(content, item)
-        });
-
-    Box::new(future)
-}
-
-/// Reads data from a multipart field (coming from a HttpRequest)
-fn read_multipart_data(
-    field: multipart::Field<Payload>,
-    max_size: usize,
-) -> ResponseFuture<Vec<u8>, MultipartError> {
-    let future = field.map_err(MultipartError::InvalidMultipart).fold(
-        Vec::with_capacity(512),
-        move |mut body, chunk| {
-            if (body.len() + chunk.len()) > max_size {
-                Err(MultipartError::Overflow)
-            } else {
-                body.extend_from_slice(&chunk);
-                Ok(body)
-            }
+) -> ResponseFuture<Option<MultipartEnvelope>, MultipartError> {
+    let future = stream.map_err(MultipartError::InvalidMultipart).fold(
+        Some(content),
+        move |content_opt, item| match content_opt {
+            Some(content) => consume_item(content, item),
+            None => Box::new(future::ok(None)),
         },
     );
 
     Box::new(future)
 }
-
 /// Internal structure used when constructing Envelopes to maintain a cap on the content size
 pub struct MultipartEnvelope {
     // the envelope under construction
@@ -191,7 +197,8 @@ impl MultipartEnvelope {
         self,
         request: &HttpRequest<ServiceState>,
     ) -> ResponseFuture<Envelope, MultipartError> {
-        let future = handle_multipart_stream(self, request.multipart()).and_then(|multipart| {
+        let future = consume_stream(self, request.multipart()).and_then(|multipart_opt| {
+            let multipart = multipart_opt.ok_or(MultipartError::Overflow)?;
             let mut envelope = multipart.envelope;
 
             let form_data = multipart.form_data.into_item();
