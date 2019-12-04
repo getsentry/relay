@@ -179,7 +179,7 @@ def test_minidump_with_processing(
     event, v = attachments_consumer.get_event()
 
     assert event["platform"] == "native"
-    assert event["exception"]["value"][0]["mechanism"]["type"] == "minidump"
+    assert event["exception"]["values"][0]["mechanism"]["type"] == "minidump"
 
     assert list(v["attachments"]) == [
         {
