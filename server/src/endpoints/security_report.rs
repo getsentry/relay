@@ -26,8 +26,7 @@ fn extract_envelope(
     max_event_payload_size: usize,
     params: SecurityReportParams,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
-    let future = StoreBody::new(&request)
-        .limit(max_event_payload_size)
+    let future = StoreBody::new(&request, max_event_payload_size)
         .map_err(BadStoreRequest::PayloadError)
         .and_then(move |data| {
             if data.is_empty() {

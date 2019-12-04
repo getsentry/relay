@@ -75,10 +75,8 @@ impl From<PayloadError> for StorePayloadError {
 /// Future that resolves to a complete store endpoint body.
 pub struct StoreBody {
     limit: usize,
-    length: Option<usize>,
 
-    // These states are mutually exclusive, and only separate options due to borrowing
-    // problems:
+    // These states are mutually exclusive:
     result: Option<Result<Bytes, StorePayloadError>>,
     fut: Option<ResponseFuture<Bytes, StorePayloadError>>,
     stream: Option<<HttpRequest as HttpMessage>::Stream>,
@@ -86,44 +84,43 @@ pub struct StoreBody {
 
 impl StoreBody {
     /// Create `StoreBody` for request.
-    pub fn new<S>(req: &HttpRequest<S>) -> Self {
+    pub fn new<S>(req: &HttpRequest<S>, limit: usize) -> Self {
         if let Some(body) = data_from_querystring(req) {
-            StoreBody {
-                limit: 262_144,
-                length: Some(body.len()),
+            return StoreBody {
+                limit,
                 stream: None,
                 result: Some(decode_bytes(body.as_bytes())),
                 fut: None,
-            }
-        } else {
-            let length = match get_content_length(req) {
-                Ok(x) => x,
-                Err(e) => return StoreBody::err(e),
             };
+        }
 
-            StoreBody {
-                limit: 262_144,
-                length,
-                result: None,
-                stream: Some(req.payload()),
-                fut: None,
+        let length_opt = match get_content_length(req) {
+            Ok(length_opt) => length_opt,
+            Err(e) => return Self::err(e),
+        };
+
+        // Check the content length first. If we detect an overflow from the content length header,
+        // keep the payload in the request. The `ReadRequestMiddleware` should drain the payload.
+        if let Some(length) = length_opt {
+            if length > limit {
+                return Self::err(StorePayloadError::Overflow);
             }
         }
-    }
 
-    /// Change max size of payload. By default max size is 256Kb
-    pub fn limit(mut self, limit: usize) -> Self {
-        self.limit = limit;
-        self
+        StoreBody {
+            limit,
+            result: None,
+            fut: None,
+            stream: Some(req.payload()),
+        }
     }
 
     fn err(e: StorePayloadError) -> Self {
         StoreBody {
-            stream: None,
-            limit: 262_144,
+            limit: 0,
             result: Some(Err(e)),
             fut: None,
-            length: None,
+            stream: None,
         }
     }
 }
@@ -139,12 +136,6 @@ impl Future for StoreBody {
 
         if let Some(ref mut fut) = self.fut {
             return fut.poll();
-        }
-
-        if let Some(len) = self.length.take() {
-            if len > self.limit {
-                return Err(StorePayloadError::Overflow);
-            }
         }
 
         let limit = self.limit;
