@@ -58,7 +58,12 @@ pub fn init_logging(config: &Config) {
         dsn: config
             .sentry_dsn()
             .map(|dsn| dsn.to_string().parse().unwrap()),
-        in_app_include: vec!["semaphore_common::", "semaphore_server::", "semaphore::"],
+        in_app_include: vec![
+            "semaphore_common::",
+            "semaphore_general::",
+            "semaphore_server::",
+            "semaphore::",
+        ],
         release: sentry::release_name!(),
         ..Default::default()
     });
@@ -79,6 +84,7 @@ pub fn init_logging(config: &Config) {
                 "INFO,\
                  actix_web::pipeline=DEBUG,\
                  semaphore_common=DEBUG,\
+                 semaphore_general=DEBUG,\
                  semaphore_server=DEBUG,\
                  semaphore=DEBUG"
             }
@@ -86,6 +92,7 @@ pub fn init_logging(config: &Config) {
                 "INFO,\
                  actix_web::pipeline=DEBUG,\
                  semaphore_common=TRACE,\
+                 semaphore_general=TRACE,\
                  semaphore_server=TRACE,\
                  semaphore=TRACE"
             }
