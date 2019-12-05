@@ -5,6 +5,14 @@
 * Added newline support for general glob code.
 * Added span status mapping to python library.
 
+**Relay**:
+
+* Switched to jemalloc.
+* Introduce separate outcome reason for invalid events.
+* Always consume request bodies to the end.
+* Implemented minidump ingestion.
+* Increas precisions of timestamps in protocol.
+
 ## 0.4.63
 
 **Store**:
