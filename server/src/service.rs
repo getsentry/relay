@@ -16,6 +16,7 @@ use crate::actors::healthcheck::Healthcheck;
 use crate::actors::keys::KeyCache;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::ProjectCache;
+use crate::actors::project_keys::ProjectKeyLookup;
 use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
@@ -108,6 +109,7 @@ pub struct ServiceState {
     project_cache: Addr<ProjectCache>,
     upstream_relay: Addr<UpstreamRelay>,
     event_manager: Addr<EventManager>,
+    key_lookup: Addr<ProjectKeyLookup>,
     outcome_producer: Addr<OutcomeProducer>,
     healthcheck: Addr<Healthcheck>,
 }
@@ -130,6 +132,7 @@ impl ServiceState {
 
         Ok(ServiceState {
             config: config.clone(),
+            key_lookup: ProjectKeyLookup::new(config.clone(), upstream_relay.clone()).start(),
             upstream_relay: upstream_relay.clone(),
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
@@ -157,6 +160,11 @@ impl ServiceState {
     /// Returns the current event manager.
     pub fn event_manager(&self) -> Addr<EventManager> {
         self.event_manager.clone()
+    }
+
+    /// Returns project id lookup for project keys.
+    pub fn key_lookup(&self) -> Addr<ProjectKeyLookup> {
+        self.key_lookup.clone()
     }
 
     pub fn outcome_producer(&self) -> Addr<OutcomeProducer> {
