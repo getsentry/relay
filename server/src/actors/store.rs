@@ -26,9 +26,9 @@ type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerConte
 #[derive(Fail, Debug)]
 pub enum StoreError {
     #[fail(display = "failed to send kafka message")]
-    SendFailed(KafkaError),
+    SendFailed(#[cause] KafkaError),
     #[fail(display = "failed to serialize message")]
-    SerializeFailed(SerdeError),
+    SerializeFailed(#[cause] SerdeError),
 }
 
 /// Actor for publishing events to Sentry through kafka topics.
@@ -176,7 +176,6 @@ struct AttachmentKafkaMessage {
     /// The project id for the current event.
     project_id: ProjectId,
     /// The attachment.
-    #[serde(flatten)]
     attachment: ChunkedAttachment,
 }
 
@@ -272,6 +271,7 @@ impl Handler<StoreEvent> for StoreForwarder {
         }
 
         if let Some(event_item) = event_item {
+            log::trace!("Sending event item of envelope to kafka");
             let event_message = KafkaMessage::Event(EventKafkaMessage {
                 payload: event_item.payload(),
                 start_time: instant_to_unix_timestamp(start_time),
@@ -284,6 +284,7 @@ impl Handler<StoreEvent> for StoreForwarder {
             self.produce(topic, event_id, event_message)?;
             metric!(counter("processing.event.produced") += 1, "type" => "event");
         } else {
+            log::trace!("Sending individual attachments of envelope to kafka");
             for attachment in attachments {
                 let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
                     event_id,

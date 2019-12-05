@@ -162,7 +162,6 @@ class SentryLike(object):
 
     def send_minidump(self, project_id, params=None, files=None):
         """
-
         :param project_id: the project id
         :param params: a list of tuples (param_name, param_value)
         :param files: a list of triples (param_name, file_name, file_content)
@@ -191,6 +190,28 @@ class SentryLike(object):
 
         response.raise_for_status()
         return response
+
+    def send_attachments(self, project_id, event_id, files):
+        files = {
+            name: (file_name, file_content)
+            for (name, file_name, file_content) in files
+        }
+        response = self.post(
+            "/api/{}/events/{}/attachments/".format(project_id, event_id),
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+                "X-Sentry-Auth": (
+                    "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
+                    "sentry_client=raven-node/2.6.3, "
+                    "sentry_key={}".format(self.dsn_public_key)
+                ),
+            },
+            files=files
+        )
+        response.raise_for_status()
+        return response
+
 
     def request(self, method, path, **kwargs):
         assert path.startswith("/")

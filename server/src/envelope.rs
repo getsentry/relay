@@ -178,6 +178,16 @@ pub enum AttachmentType {
     #[serde(rename = "event.applecrashreport")]
     #[allow(dead_code)]
     AppleCrashReport,
+
+    #[serde(rename = "event.event")]
+    /// A msgpack-encoded event submitted as part of minidump uploads.
+    Event,
+
+    #[serde(rename = "event.breadcrumb")]
+    /// This is a special attachment that can contain breadcrumbs encoded as message pack. There can be
+    /// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
+    /// truncated to the maxmimum number of allowed attachments.
+    Breadcrumb,
 }
 
 impl Default for AttachmentType {
@@ -489,6 +499,11 @@ impl Envelope {
         self.get_item_by(|item| item.ty() == ty)
     }
 
+    /// Returns the first item that matches the given `AttachmentType`.
+    pub fn get_item_by_attachment_type(&self, ty: AttachmentType) -> Option<&Item> {
+        self.get_item_by(|item| item.attachment_type() == Some(ty))
+    }
+
     /// Returns the first item that matches the given name.
     pub fn get_item_by_name(&self, name: &str) -> Option<&Item> {
         self.get_item_by(|item| item.name() == Some(name))
@@ -517,6 +532,13 @@ impl Envelope {
     /// This swaps the last item with the item being removed.
     pub fn take_item_by_type(&mut self, ty: ItemType) -> Option<Item> {
         self.take_item_by(|item| item.ty() == ty)
+    }
+
+    /// Removes and returns the first item that matches the given `AttachmentType`.
+    ///
+    /// This swaps the last item with the item being removed.
+    pub fn take_item_by_attachment_type(&mut self, ty: AttachmentType) -> Option<Item> {
+        self.take_item_by(|item| item.attachment_type() == Some(ty))
     }
 
     /// Removes and returns the first item that matches the given name.

@@ -195,10 +195,19 @@ class EventsConsumer(ConsumerBase):
 
 class AttachmentsConsumer(EventsConsumer):
     def get_attachment_chunk(self):
-        event = self.poll()
-        assert event is not None
-        assert event.error() is None
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
 
-        v = msgpack.unpackb(event.value(), raw=False, use_list=False)
+        v = msgpack.unpackb(message.value(), raw=False, use_list=False)
         assert v["type"] == "attachment_chunk", v["type"]
         return v["payload"], v
+
+    def get_individual_attachment(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        v = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        assert v['type'] == 'attachment', v['type']
+        return v

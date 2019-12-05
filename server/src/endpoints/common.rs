@@ -19,7 +19,7 @@ use crate::actors::events::{QueueEvent, QueueEventError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
 use crate::body::StorePayloadError;
-use crate::envelope::{Envelope, EnvelopeError};
+use crate::envelope::{Envelope, EnvelopeError, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::ServiceState;
 use crate::utils::{ApiErrorResponse, MultipartError};
@@ -191,15 +191,20 @@ where
 
     let cloned_meta = Arc::new(meta.clone());
     let event_id = Rc::new(Mutex::new(None));
+    let is_event = Rc::new(Mutex::new(true));
 
     let future = project_manager
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
-        .and_then(clone!(event_id, |project| {
+        .and_then(clone!(event_id, is_event, |project| {
             extract_envelope(&request, meta)
                 .into_future()
                 .and_then(clone!(project, |envelope| {
                     *event_id.lock() = Some(envelope.event_id());
+
+                    if envelope.get_item_by_type(ItemType::Event).is_none() {
+                        *is_event.lock() = false;
+                    }
 
                     project
                         .send(GetEventAction::cached(cloned_meta))
@@ -231,15 +236,17 @@ where
         .or_else(move |error: BadStoreRequest| {
             metric!(counter("event.rejected") += 1);
 
-            outcome_producer.do_send(TrackOutcome {
-                timestamp: start_time,
-                project_id,
-                org_id: None,
-                key_id: None,
-                outcome: error.to_outcome(),
-                event_id: *event_id.lock(),
-                remote_addr,
-            });
+            if *is_event.lock() {
+                outcome_producer.do_send(TrackOutcome {
+                    timestamp: start_time,
+                    project_id,
+                    org_id: None,
+                    key_id: None,
+                    outcome: error.to_outcome(),
+                    event_id: *event_id.lock(),
+                    remote_addr,
+                });
+            }
 
             let response = error.error_response();
             if response.status().is_server_error() {

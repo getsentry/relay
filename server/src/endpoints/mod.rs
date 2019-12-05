@@ -7,6 +7,7 @@ use actix_web::HttpResponse;
 
 use crate::service::ServiceApp;
 
+mod attachments;
 mod common;
 mod events;
 mod forward;
@@ -30,6 +31,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
     .configure(store::configure_app)
     .configure(security_report::configure_app)
     .configure(minidump::configure_app)
+    .configure(attachments::configure_app)
     // `forward` must be last as it creates a wildcard proxy
     .configure(forward::configure_app)
 }
