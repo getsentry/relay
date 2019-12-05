@@ -146,6 +146,7 @@ pub enum GlobFlags {
     DoubleStar = 1,
     CaseInsensitive = 2,
     PathNormalize = 4,
+    AllowNewline = 8,
 }
 
 ffi_fn! {
@@ -164,6 +165,9 @@ ffi_fn! {
         }
         if (flags & GlobFlags::PathNormalize as u32) != 0 {
             options.path_normalize = true;
+        }
+        if (flags & GlobFlags::AllowNewline as u32) != 0 {
+            options.allow_newline = true;
         }
         Ok(glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options))
     }
