@@ -4,8 +4,14 @@ use std::path::Path;
 use crate::protocol::Geo;
 use crate::types::Annotated;
 
+#[cfg(feature = "memmap")]
+type ReaderType = memmap::Mmap;
+
+#[cfg(not(feature = "memmap"))]
+type ReaderType = Vec<u8>;
+
 /// A geo ip lookup helper based on maxmind db files.
-pub struct GeoIpLookup(maxminddb::Reader<Vec<u8>>);
+pub struct GeoIpLookup(maxminddb::Reader<ReaderType>);
 
 impl GeoIpLookup {
     /// Opens a maxminddb file by path.
@@ -13,7 +19,7 @@ impl GeoIpLookup {
     where
         P: AsRef<Path>,
     {
-        Ok(GeoIpLookup(maxminddb::Reader::open_readfile(path)?))
+        Ok(GeoIpLookup(maxminddb::Reader::open_mmap(path)?))
     }
 
     /// Looks up an IP address.
