@@ -107,7 +107,9 @@ def mini_sentry(request):
     def get_project_ids():
         project_ids = {}
         for public_key in flask_request.json["publicKeys"]:
-            project_ids[public_key] = _get_project_id(public_key, sentry.project_configs)
+            project_ids[public_key] = _get_project_id(
+                public_key, sentry.project_configs
+            )
         return jsonify(projectIds=project_ids)
 
     @app.route("/api/0/relays/projectconfigs/", methods=["POST"])
