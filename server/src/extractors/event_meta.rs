@@ -225,7 +225,6 @@ fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Opti
 fn extract_event_meta(
     request: &HttpRequest<ServiceState>,
 ) -> ResponseFuture<EventMeta, BadEventMeta> {
-    // println!("XXXXXXXXXXXXXXXXX    extracting meta now");
     let auth = tryf!(auth_from_request(request));
 
     let version = auth.version();
@@ -292,7 +291,6 @@ impl FromRequest<ServiceState> for EventMeta {
     type Result = AsyncResult<Self, actix_web::Error>;
 
     fn from_request(request: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
-        // println!("XXXXXXXXXXXXXXXX       eventmeta fromrequest");
         AsyncResult::from(Ok(extract_event_meta(request)))
     }
 }
