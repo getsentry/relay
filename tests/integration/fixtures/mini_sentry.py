@@ -42,6 +42,13 @@ class Sentry(SentryLike):
         return "http://{}@{}:{}/666".format(self.dsn_public_key, *self.server_address)
 
 
+def _get_project_id(public_key, project_configs):
+    for project_id, project_config in project_configs.items():
+        for key_config in project_config["publicKeys"]:
+            if key_config["publicKey"] == public_key:
+                return project_id
+
+
 @pytest.fixture
 def mini_sentry(request):
     app = Flask(__name__)
@@ -95,6 +102,13 @@ def mini_sentry(request):
     @app.route("/api/<project>/store/", methods=["POST"])
     def store_event_catchall(project):
         raise AssertionError(f"Unknown project: {project}")
+
+    @app.route("/api/0/relays/projectids/", methods=["POST"])
+    def get_project_ids():
+        project_ids = {}
+        for public_key in flask_request.json["publicKeys"]:
+            project_ids[public_key] = _get_project_id(public_key, sentry.project_configs)
+        return jsonify(projectIds=project_ids)
 
     @app.route("/api/0/relays/projectconfigs/", methods=["POST"])
     def get_project_config():
