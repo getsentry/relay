@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.64
+
+* Added newline support for general glob code.
+* Added span status mapping to python library.
+
 ## 0.4.63
 
 **Store**:
