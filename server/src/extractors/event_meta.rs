@@ -20,6 +20,9 @@ use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, Fail)]
 pub enum BadEventMeta {
+    #[fail(display = "missing authorization information")]
+    MissingAuth,
+
     #[fail(display = "bad project path parameter")]
     BadProject(#[cause] ProjectIdParseError),
 
@@ -198,17 +201,28 @@ impl EventMeta {
     }
 }
 
-fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
-    let auth = req
-        .headers()
-        .get("x-sentry-auth")
-        .and_then(|x| x.to_str().ok());
+fn get_auth_header<'a, S>(req: &'a HttpRequest<S>, header_name: &str) -> Option<&'a str> {
+    req.headers()
+        .get(header_name)
+        .and_then(|x| x.to_str().ok())
+        .filter(|h| h.len() >= 7 && h[..7].eq_ignore_ascii_case("sentry "))
+}
 
-    if let Some(auth) = auth {
+fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
+    if let Some(auth) = get_auth_header(req, "x-sentry-auth") {
         return auth.parse::<Auth>().map_err(BadEventMeta::BadAuth);
     }
 
-    Auth::from_querystring(req.query_string().as_bytes()).map_err(BadEventMeta::BadAuth)
+    if let Some(auth) = get_auth_header(req, "authorization") {
+        return auth.parse::<Auth>().map_err(BadEventMeta::BadAuth);
+    }
+
+    let query = req.query_string();
+    if query.contains("sentry_") {
+        return Auth::from_querystring(query.as_bytes()).map_err(BadEventMeta::BadAuth);
+    }
+
+    Err(BadEventMeta::MissingAuth)
 }
 
 fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Option<Url> {
