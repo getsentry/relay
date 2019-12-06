@@ -129,9 +129,15 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
 }
 
 /// Registers this endpoint in the actix-web app.
+///
+/// NOTE: This endpoint registers a catch-all handler on `/api`. Register this endpoint last, since
+/// no routes can be registered afterwards!
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     // We only forward API requests so that relays cannot be used to surf sentry's frontend. The
     // "/api/" path is special as it is actually a web UI endpoint.
-    app.resource("/api/", |r| r.f(|_| HttpResponse::NotFound()))
-        .handler("/api", forward_upstream)
+    app.resource("/api/", |r| {
+        r.name("api-root");
+        r.f(|_| HttpResponse::NotFound())
+    })
+    .handler("/api", forward_upstream)
 }

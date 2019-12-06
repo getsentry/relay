@@ -1,5 +1,5 @@
-use ::actix::ResponseFuture;
-use actix_web::{http::Method, Error, Json};
+use actix::ResponseFuture;
+use actix_web::{Error, Json};
 use futures::prelude::*;
 
 use crate::actors::keys::{GetPublicKeys, GetPublicKeysResult};
@@ -27,6 +27,7 @@ fn get_public_keys(
 /// which authenticate entire Relays.
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.resource("/api/0/relays/publickeys/", |r| {
-        r.method(Method::POST).with(get_public_keys);
+        r.name("relay-publickeys");
+        r.post().with(get_public_keys);
     })
 }
