@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::hash_map::{Entry, HashMap};
 use std::sync::Arc;
+use std::time::Instant;
 
 use actix::fut;
 use actix::prelude::*;
@@ -9,7 +10,7 @@ use failure::Fail;
 use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 
-use semaphore_common::{Config, LogError, ProjectId};
+use semaphore_common::{metric, Config, LogError, ProjectId};
 
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 
@@ -97,10 +98,15 @@ impl ProjectKeyLookup {
             public_keys: public_keys.clone(),
         };
 
+        metric!(counter("project_id.request") += 1);
+        let request_start = Instant::now();
+
         self.upstream
             .send(SendQuery(request))
             .into_actor(self)
             .then(move |result, slf, _context| {
+                metric!(timer("project_id.request.duration") = request_start.elapsed());
+
                 let mut project_ids = match result {
                     Ok(Ok(response)) => response.project_ids,
                     Ok(Err(upstream_err)) => {
