@@ -27,7 +27,11 @@ impl StartTime {
 impl<S> Middleware<S> for Metrics {
     fn start(&self, req: &HttpRequest<S>) -> Result<Started, Error> {
         req.extensions_mut().insert(StartTime(Instant::now()));
-        metric!(counter("requests") += 1, "route" => req.resource().name());
+        metric!(
+            counter("requests") += 1,
+            "route" => req.resource().name(),
+            "method" => req.method().as_str()
+        );
         Ok(Started::Done)
     }
 
@@ -36,12 +40,14 @@ impl<S> Middleware<S> for Metrics {
 
         metric!(
             timer("requests.duration") = start_time.elapsed(),
-            "route" => req.resource().name()
+            "route" => req.resource().name(),
+            "method" => req.method().as_str()
         );
         metric!(
             counter("responses.status_codes") += 1,
             "status_code" => &resp.status().as_str(),
-            "route" => req.resource().name()
+            "route" => req.resource().name(),
+            "method" => req.method().as_str()
         );
 
         Finished::Done
