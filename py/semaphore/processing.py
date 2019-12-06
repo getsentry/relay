@@ -143,7 +143,12 @@ def scrub_event(config, data):
 
 
 def is_glob_match(
-    value, pat, double_star=False, case_insensitive=False, path_normalize=False
+    value,
+    pat,
+    double_star=False,
+    case_insensitive=False,
+    path_normalize=False,
+    allow_newline=False,
 ):
     flags = 0
     if double_star:
@@ -156,6 +161,8 @@ def is_glob_match(
         pat = pat.lower()
     if path_normalize:
         flags |= lib.GLOB_FLAGS_PATH_NORMALIZE
+    if allow_newline:
+        flags |= lib.GLOB_FLAGS_ALLOW_NEWLINE
 
     if isinstance(value, text_type):
         value = value.encode("utf-8")

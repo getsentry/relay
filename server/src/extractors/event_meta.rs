@@ -1,13 +1,19 @@
 use std::net::IpAddr;
 
+use actix::ResponseFuture;
+use actix_web::dev::AsyncResult;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
+use futures::{future, Future};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use semaphore_common::{Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError};
+use semaphore_common::{
+    tryf, Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError,
+};
 
+use crate::actors::project_keys::GetProjectId;
 use crate::extractors::ForwardedFor;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
@@ -22,11 +28,23 @@ pub enum BadEventMeta {
 
     #[fail(display = "bad sentry DSN")]
     BadDsn(#[fail(cause)] DsnParseError),
+
+    #[fail(display = "bad project key: project does not exist")]
+    BadProjectKey,
+
+    #[fail(display = "could not schedule event processing")]
+    ScheduleFailed,
 }
 
 impl ResponseError for BadEventMeta {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::BadRequest().json(&ApiErrorResponse::from_fail(self))
+        let mut builder = match *self {
+            Self::ScheduleFailed => HttpResponse::ServiceUnavailable(),
+            Self::BadProjectKey => HttpResponse::Unauthorized(),
+            _ => HttpResponse::BadRequest(),
+        };
+
+        builder.json(&ApiErrorResponse::from_fail(self))
     }
 }
 
@@ -204,21 +222,48 @@ fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Opti
         })
 }
 
-impl FromRequest<ServiceState> for EventMeta {
-    type Config = ();
-    type Result = Result<Self, BadEventMeta>;
+fn extract_event_meta(
+    request: &HttpRequest<ServiceState>,
+) -> ResponseFuture<EventMeta, BadEventMeta> {
+    let auth = tryf!(auth_from_request(request));
 
-    fn from_request(request: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
-        let project_id = request
-            .match_info()
-            .get("project")
-            .unwrap_or_default()
-            .parse::<ProjectId>()
-            .map_err(BadEventMeta::BadProject)?;
+    let version = auth.version();
+    let client = auth.client_agent().map(str::to_owned);
+    let origin = parse_header_url(request, header::ORIGIN)
+        .or_else(|| parse_header_url(request, header::REFERER));
+    let remote_addr = request.peer_addr().map(|peer| peer.ip());
+    let forwarded_for = ForwardedFor::from(request).into_inner();
+    let user_agent = request
+        .headers()
+        .get(header::USER_AGENT)
+        .and_then(|h| h.to_str().ok())
+        .map(str::to_owned);
 
-        let auth = auth_from_request(request)?;
+    let state = request.state();
+    let config = state.config();
 
-        let config = request.state().config();
+    let project_future = match request.match_info().get("project") {
+        Some(s) => {
+            // The project_id was declared in the URL. Use it directly.
+            let id_result = s.parse::<ProjectId>().map_err(BadEventMeta::BadProject);
+            Box::new(future::result(id_result)) as ResponseFuture<_, _>
+        }
+        None => {
+            // The legacy endpoint (/api/store) was hit without a project id. Fetch the project
+            // id from the key lookup. Since this is the uncommon case, block the request until the
+            // project id is here.
+            let future = state
+                .key_lookup()
+                .send(GetProjectId(auth.public_key().to_owned()))
+                .map_err(|_| BadEventMeta::ScheduleFailed)
+                .and_then(|result| result.map_err(|_| BadEventMeta::ScheduleFailed))
+                .and_then(|opt| opt.ok_or(BadEventMeta::BadProjectKey));
+
+            Box::new(future) as ResponseFuture<_, _>
+        }
+    };
+
+    Box::new(project_future.and_then(move |project_id| {
         let upstream = config.upstream_descriptor();
 
         let dsn_string = format!(
@@ -231,17 +276,21 @@ impl FromRequest<ServiceState> for EventMeta {
 
         Ok(EventMeta {
             dsn: dsn_string.parse().map_err(BadEventMeta::BadDsn)?,
-            version: auth.version(),
-            client: auth.client_agent().map(str::to_owned),
-            origin: parse_header_url(request, header::ORIGIN)
-                .or_else(|| parse_header_url(request, header::REFERER)),
-            remote_addr: request.peer_addr().map(|peer| peer.ip()),
-            forwarded_for: ForwardedFor::from(request).into_inner(),
-            user_agent: request
-                .headers()
-                .get(header::USER_AGENT)
-                .and_then(|h| h.to_str().ok())
-                .map(str::to_owned),
+            version,
+            client,
+            origin,
+            remote_addr,
+            forwarded_for,
+            user_agent,
         })
+    }))
+}
+
+impl FromRequest<ServiceState> for EventMeta {
+    type Config = ();
+    type Result = AsyncResult<Self, actix_web::Error>;
+
+    fn from_request(request: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
+        AsyncResult::from(Ok(extract_event_meta(request)))
     }
 }

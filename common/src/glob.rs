@@ -4,7 +4,7 @@ use globset::GlobBuilder;
 use lazy_static::lazy_static;
 use lru::LruCache;
 use parking_lot::Mutex;
-use regex::bytes::Regex;
+use regex::bytes::{Regex, RegexBuilder};
 
 lazy_static! {
     static ref GLOB_CACHE: Mutex<LruCache<(GlobOptions, String), Regex>> =
@@ -20,6 +20,8 @@ pub struct GlobOptions {
     pub case_insensitive: bool,
     /// Enables path normalization.
     pub path_normalize: bool,
+    /// Allows newlines
+    pub allow_newline: bool,
 }
 
 impl Default for GlobOptions {
@@ -28,6 +30,7 @@ impl Default for GlobOptions {
             double_star: false,
             case_insensitive: false,
             path_normalize: false,
+            allow_newline: false,
         }
     }
 }
@@ -37,7 +40,10 @@ fn translate_pattern(pat: &str, options: GlobOptions) -> Option<Regex> {
     builder.case_insensitive(options.case_insensitive);
     builder.literal_separator(options.double_star);
     let glob = builder.build().ok()?;
-    Regex::new(glob.regex()).ok()
+    RegexBuilder::new(glob.regex())
+        .dot_matches_new_line(options.allow_newline)
+        .build()
+        .ok()
 }
 
 /// Performs a glob operation on bytes.
@@ -82,6 +88,7 @@ pub fn glob_match(value: &str, pat: &str, options: GlobOptions) -> bool {
 }
 
 #[test]
+#[allow(clippy::cognitive_complexity)]
 fn test_globs() {
     macro_rules! test_glob {
         ($value:expr, $pat:expr, $is_match:expr, {$($k:ident: $v:expr),*}) => {{
@@ -108,6 +115,8 @@ fn test_globs() {
     test_glob!("foo/hello.PY", "**/*.py", true, {double_star: true, case_insensitive: true});
     test_glob!("foo\\hello\\bar.PY", "foo/**/*.py", false, {double_star: true, case_insensitive: true});
     test_glob!("foo\\hello\\bar.PY", "foo/**/*.py", true, {double_star: true, case_insensitive: true, path_normalize: true});
+    test_glob!("foo\nbar", "foo*", false, {});
+    test_glob!("foo\nbar", "foo*", true, {allow_newline: true});
 
     let mut long_string = std::iter::repeat('x').take(1_000_000).collect::<String>();
     long_string.push_str(".PY");

@@ -15,6 +15,7 @@ enum GlobFlags {
   GLOB_FLAGS_DOUBLE_STAR = 1,
   GLOB_FLAGS_CASE_INSENSITIVE = 2,
   GLOB_FLAGS_PATH_NORMALIZE = 4,
+  GLOB_FLAGS_ALLOW_NEWLINE = 8,
 };
 typedef uint32_t GlobFlags;
 
