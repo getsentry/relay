@@ -68,6 +68,10 @@ impl ProjectIdChannel {
     }
 }
 
+/// Reverse lookup for project keys.
+///
+/// This is used for the legacy store endpoint (`/api/store/`) to resolve the project id from a
+/// public key.
 pub struct ProjectKeyLookup {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
@@ -163,7 +167,12 @@ impl Handler<GetProjectId> for ProjectKeyLookup {
                 let channel = ProjectIdChannel::new();
                 let receiver = channel.receiver();
                 entry.insert(channel);
+
+                // Fetch each project id individually. The result is cached indefinitely and those
+                // requests only happen infrequently. Since the store endpoint waits on this result,
+                // we need to execute as fast as possible.
                 self.fetch_project_id(key, context);
+
                 receiver
             }
         };
