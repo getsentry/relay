@@ -22,6 +22,17 @@ def test_store(mini_sentry, relay_chain):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
+def test_legacy_store(mini_sentry, relay_chain):
+    relay = relay_chain()
+    mini_sentry.project_configs[42] = relay.basic_project_config()
+    relay.wait_relay_healthcheck()
+
+    relay.send_event(42, legacy=True)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+
+    assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
 def test_store_node_base64(mini_sentry, relay_chain):
     relay = relay_chain()
     relay.wait_relay_healthcheck()

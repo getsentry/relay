@@ -132,7 +132,6 @@ fn store_event(
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    // XXX: does not handle the legacy /api/store/ endpoint
     Cors::for_app(app)
         .allowed_methods(vec!["POST"])
         .allowed_headers(vec![
@@ -147,7 +146,17 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         ])
         .expose_headers(vec!["X-Sentry-Error", "Retry-After"])
         .max_age(3600)
-        .resource(r"/api/{project:\d+}/store{trailing_slash:/*}", |r| {
+        // Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs
+        // in their URL handling. Since actix does not normalize such paths, allow any number of
+        // slashes. The trailing slash can also be omitted, optionally.
+        .resource(r"/{l:/*}api/{project:\d+}/store{t:/*}", |r| {
+            r.method(Method::POST).with(store_event);
+            r.method(Method::GET).with(store_event);
+        })
+        // Legacy store path. Since it is missing the project parameter, the `EventMeta` extractor
+        // will use `ProjectKeyLookup` to map the public key to a project id before handling the
+        // request.
+        .resource(r"/{l:/*}api/store{t:/*}", |r| {
             r.method(Method::POST).with(store_event);
             r.method(Method::GET).with(store_event);
         })

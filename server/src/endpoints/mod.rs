@@ -3,13 +3,33 @@
 //! This module contains implementations for all supported relay endpoints, as well as a generic
 //! `forward` endpoint that sends unknown requests to the upstream.
 
-mod common;
+use actix_web::HttpResponse;
 
-pub mod events;
-pub mod forward;
-pub mod healthcheck;
-pub mod minidump;
-pub mod project_configs;
-pub mod public_keys;
-pub mod security_report;
-pub mod store;
+use crate::service::ServiceApp;
+
+mod common;
+mod events;
+mod forward;
+mod healthcheck;
+mod minidump;
+mod project_configs;
+mod public_keys;
+mod security_report;
+mod store;
+
+pub fn configure_app(app: ServiceApp) -> ServiceApp {
+    app.scope("/api/relay", |mut scope| {
+        scope = healthcheck::configure_scope(scope);
+        scope = events::configure_scope(scope);
+
+        // never forward /api/relay, as that prefix is used for stuff like healthchecks
+        scope.default_resource(|r| r.f(|_| HttpResponse::NotFound()))
+    })
+    .configure(project_configs::configure_app)
+    .configure(public_keys::configure_app)
+    .configure(store::configure_app)
+    .configure(security_report::configure_app)
+    .configure(minidump::configure_app)
+    // `forward` must be last as it creates a wildcard proxy
+    .configure(forward::configure_app)
+}
