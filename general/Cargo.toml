@@ -33,6 +33,7 @@ url = "2.0.0"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 pest = "2.1.1"
 pest_derive = "2.1.0"
+memmap = { version = "0.7.0", optional = true }
 
 [dev-dependencies]
 difference = "2.0.0"
@@ -40,4 +41,5 @@ insta = { version = "0.11.0", features =  ["ron", "redactions"] }
 
 [features]
 bench = []
-default = ["uaparser"]
+mmap = ["maxminddb/mmap", "memmap"]
+default = ["uaparser", "mmap"]
