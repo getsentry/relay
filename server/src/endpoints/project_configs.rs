@@ -1,5 +1,5 @@
-use ::actix::prelude::*;
-use actix_web::{http::Method, Error, Json};
+use actix::prelude::*;
+use actix_web::{Error, Json};
 use futures::{future, Future};
 
 use crate::actors::project::{
@@ -53,6 +53,7 @@ fn get_project_configs(
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.resource("/api/0/relays/projectconfigs/", |r| {
-        r.method(Method::POST).with(get_project_configs);
+        r.name("relay-projectconfigs");
+        r.post().with(get_project_configs);
     })
 }

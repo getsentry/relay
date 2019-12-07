@@ -1,6 +1,6 @@
 //! A simple healthcheck endpoint for the relay.
 use ::actix::prelude::*;
-use actix_web::{http::Method, Error, HttpResponse, Scope};
+use actix_web::{Error, HttpResponse, Scope};
 use futures::prelude::*;
 use serde::Serialize;
 
@@ -64,9 +64,11 @@ fn liveness_healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpRespon
 pub fn configure_scope(scope: Scope<ServiceState>) -> Scope<ServiceState> {
     scope
         .resource("/healthcheck/ready/", |r| {
-            r.method(Method::GET).with(readiness_healthcheck);
+            r.name("internal-healthcheck-ready");
+            r.get().with(readiness_healthcheck);
         })
         .resource("/healthcheck/live/", |r| {
-            r.method(Method::GET).with(liveness_healthcheck)
+            r.name("internal-healthcheck-live");
+            r.get().with(liveness_healthcheck);
         })
 }
