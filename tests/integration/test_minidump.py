@@ -129,15 +129,18 @@ def test_minidump_endpoint_accepts_raw_minidump(mini_sentry, relay, content_type
     items = mini_sentry.captured_events.get(timeout=1).items
 
 
-@pytest.mark.skip(reason="Deeply nested minidumps not yet correctly implemented.")
-def test_minidump_endpoint_accepts_doubly_nested_formdata(mini_sentry, relay):
+@pytest.mark.parametrize("test_file_name", ("electron_simple.dmp", "electron.dmp"))
+def test_minidump_endpoint_accepts_doubly_nested_formdata(
+    mini_sentry, relay, test_file_name
+):
     proj_id = 42
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
 
     with open(
-        os.path.join(os.path.dirname(__file__), "fixtures/native/electron.dmp"), "rb"
+        os.path.join(os.path.dirname(__file__), "fixtures/native", test_file_name),
+        "rb",
     ) as f:
         # Yes, electron really sends us nested formdata
         dmpfile = f.read()
@@ -152,6 +155,28 @@ def test_minidump_endpoint_accepts_doubly_nested_formdata(mini_sentry, relay):
     mini_dump = _get_item_by_file_name(items, "minidump.txt")
     assert mini_dump is not None
     assert mini_dump.headers.get("name") == MINIDUMP_ATTACHMENT_NAME
+
+
+def test_minidump_endpoint_rejects_invalid_doubly_nested_formdata(mini_sentry, relay):
+    proj_id = 42
+    relay = relay(mini_sentry)
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
+
+    with open(
+        os.path.join(
+            os.path.dirname(__file__), "fixtures/native/bad_electron_simple.dmp"
+        ),
+        "rb",
+    ) as f:
+        # Yes, electron really sends us nested formdata
+        dmpfile = f.read()
+
+    with pytest.raises(HTTPError):
+        relay.send_minidump(
+            project_id=proj_id,
+            files=((MINIDUMP_ATTACHMENT_NAME, "minidump.txt", dmpfile),),
+        )
 
 
 def test_minidump_with_processing(

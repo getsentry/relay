@@ -1,0 +1,18 @@
+--0eede1e790b8498a
+Content-Disposition: form-data; name="pid"
+
+22385
+--0eede1e790b8498a
+Content-Disposition: form-data; name="platform"
+
+linux
+--0eede1e790b8498a
+Content-Disposition: form-data; name="process_type"
+
+browser
+--0eede1e790b8498a
+Content-Disposition: form-data; name="upload_file_minidump"; filename="dump"
+Content-Type: application/octet-stream
+
+BAD_START_MDMP00000-317792f80000 rw-p 00000000 00:00 0
+--0eede1e790b8498a--
