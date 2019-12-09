@@ -1,5 +1,6 @@
 use actix::prelude::*;
-use actix_web::{dev::Payload, multipart, HttpMessage, HttpRequest};
+use actix_web::{dev::Payload, error::PayloadError, multipart, HttpMessage, HttpRequest};
+use bytes::Bytes;
 use failure::Fail;
 use futures::{future, Future, Stream};
 use serde::{Deserialize, Serialize};
@@ -91,11 +92,17 @@ impl<'a> Iterator for FormDataIter<'a> {
     }
 }
 
-/// Reads data from a multipart field (coming from a HttpRequest)
-fn consume_field(
-    field: multipart::Field<Payload>,
+/// Reads data from a multipart field (coming from a HttpRequest).
+///
+/// This function returns `None` on overflow. The caller needs to coerce this into an appropriate
+/// error. This function does not error directly on overflow to allow consuming the full stream.
+pub fn consume_field<S>(
+    field: multipart::Field<S>,
     max_size: usize,
-) -> ResponseFuture<Option<Vec<u8>>, MultipartError> {
+) -> ResponseFuture<Option<Vec<u8>>, MultipartError>
+where
+    S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+{
     let future = field.map_err(MultipartError::InvalidMultipart).fold(
         Some(Vec::with_capacity(512)),
         move |body_opt, chunk| {
@@ -149,7 +156,6 @@ fn consume_item(
         } else {
             log::trace!("multipart content without name or file_name");
         }
-
         Some(content)
     });
 
@@ -172,6 +178,29 @@ fn consume_stream(
     );
 
     Box::new(future)
+}
+
+/// Looks for a multipart boundary at the beginning of the data
+/// and returns it as a `&str` if it is found
+///
+/// A multipart boundary starts at the beginning of the data (possibly
+/// after some blank lines) and it is prefixed by '--' (two dashes)
+///
+/// ```ignore
+/// let boundary = get_multipart_boundary(b"--The boundary\r\n next line");
+/// assert_eq!(Some("The boundary"), boundary);
+///
+/// let invalid_boundary = get_multipart_boundary(b"The boundary\r\n next line");
+/// assert_eq!(None, invalid_boundary);
+/// ```
+pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
+    data.split(|&byte| byte == b'\r' || byte == b'\n')
+        // Get the first non-empty line
+        .find(|slice| !slice.is_empty())
+        // Check for the form boundary indicator
+        .filter(|slice| slice.len() > 2 && slice.starts_with(b"--"))
+        // Form boundaries must be valid UTF-8 strings
+        .and_then(|slice| std::str::from_utf8(&slice[2..]).ok())
 }
 
 /// Internal structure used when constructing Envelopes to maintain a cap on the content size
@@ -210,5 +239,30 @@ impl MultipartEnvelope {
         });
 
         Box::new(future)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_boundary() {
+        let examples: &[(&[u8], Option<&str>)] = &[
+            (b"--some_val", Some("some_val")),
+            (b"--\nsecond line", None),
+            (b"\n\r--some_val", Some("some_val")),
+            (b"\n\r--some_val\nadfa", Some("some_val")),
+            (b"\n\r--some_val\rfasdf", Some("some_val")),
+            (b"\n\r--some_val\r\nfasdf", Some("some_val")),
+            (b"\n\rsome_val", None),
+            (b"", None),
+            (b"--", None),
+        ];
+
+        for (input, expected) in examples {
+            let boundary = get_multipart_boundary(input);
+            assert_eq!(*expected, boundary);
+        }
     }
 }
