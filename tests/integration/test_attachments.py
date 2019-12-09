@@ -28,8 +28,8 @@ def test_attachments_with_processing(
     while set(attachment_contents.values()) != {b"heavens no", b"hell yeah"}:
         chunk, v = attachments_consumer.get_attachment_chunk()
         attachment_contents[v["id"]] = attachment_contents.get(v["id"], b"") + chunk
-        if v['id'] not in attachment_ids:
-            attachment_ids.append(v['id'])
+        if v["id"] not in attachment_ids:
+            attachment_ids.append(v["id"])
         num_chunks = 1 + attachment_num_chunks.get(v["id"], 0)
         assert v["chunk_index"] == num_chunks - 1
         attachment_num_chunks[v["id"]] = num_chunks

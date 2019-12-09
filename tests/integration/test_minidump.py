@@ -200,7 +200,7 @@ def test_minidump_with_processing(
     while attachment != b"MDMPminidump content":
         print("ATTACHMENT", attachment)
         chunk, v = attachments_consumer.get_attachment_chunk()
-        attachment_id = attachment_id or v['id']
+        attachment_id = attachment_id or v["id"]
         attachment += chunk
         num_chunks += 1
 
