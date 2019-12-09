@@ -35,11 +35,19 @@ class Sentry(SentryLike):
         self.captured_events = Queue()
         self.test_failures = []
         self.upstream = None
+        self.hits = {}
 
     @property
     def internal_error_dsn(self):
         """DSN whose events make the test fail."""
         return "http://{}@{}:{}/666".format(self.dsn_public_key, *self.server_address)
+
+    def get_hits(self, path):
+        return self.hits.get(path) or 0
+
+    def hit(self, path):
+        self.hits.setdefault(path, 0)
+        self.hits[path] += 1
 
 
 def _get_project_id(public_key, project_configs):
@@ -56,6 +64,11 @@ def mini_sentry(request):
     sentry = None
 
     authenticated_relays = {}
+
+    @app.before_request
+    def count_hits():
+        if flask_request.url_rule:
+            sentry.hit(flask_request.url_rule.rule)
 
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
     def get_challenge():
