@@ -32,6 +32,13 @@ def test_legacy_store(mini_sentry, relay_chain):
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
+    relay.send_event(42, legacy=True)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
+
+    # Second request should have the project id cached
+    assert mini_sentry.get_hits("/api/0/relays/projectids/") == 1
+
 
 def test_store_node_base64(mini_sentry, relay_chain):
     relay = relay_chain()
