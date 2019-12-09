@@ -115,7 +115,7 @@ class SentryLike(object):
             "config": {**basic["config"], **full["config"]},
         }
 
-    def send_event(self, project_id, payload=None, headers=None):
+    def send_event(self, project_id, payload=None, headers=None, legacy=False):
         if payload is None:
             payload = {"message": "Hello, World!"}
 
@@ -136,7 +136,12 @@ class SentryLike(object):
             **(headers or {}),
         }
 
-        response = self.post("/api/%s/store/" % project_id, headers=headers, **kwargs,)
+        if legacy:
+            url = "/api/store/"
+        else:
+            url = "/api/%s/store/" % project_id
+
+        response = self.post(url, headers=headers, **kwargs)
         response.raise_for_status()
 
     def send_security_report(

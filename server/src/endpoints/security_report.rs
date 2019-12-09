@@ -1,7 +1,6 @@
 //! Endpoints for security reports.
 
 use actix_web::actix::ResponseFuture;
-use actix_web::http::Method;
 use actix_web::{pred, HttpRequest, HttpResponse, Query, Request};
 use futures::Future;
 use serde::Deserialize;
@@ -100,15 +99,17 @@ impl pred::Predicate<ServiceState> for SecurityReportFilter {
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
+    // Default security endpoint
     app.resource(r"/api/{project:\d+}/security/", |r| {
-        //hook security endpoint
-        r.method(Method::POST)
+        r.name("store-security-report");
+        r.post()
             .filter(SecurityReportFilter)
             .with(store_security_report);
     })
+    // Legacy security endpoint
     .resource(r"/api/{project:\d+}/csp-report/", |r| {
-        //legacy security endpoint
-        r.method(Method::POST)
+        r.name("store-csp-report");
+        r.post()
             .filter(SecurityReportFilter)
             .with(store_security_report);
     })

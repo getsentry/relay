@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::client::ClientConnector;
-use actix_web::{server, App, HttpResponse};
+use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
@@ -16,6 +16,7 @@ use crate::actors::healthcheck::Healthcheck;
 use crate::actors::keys::KeyCache;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::ProjectCache;
+use crate::actors::project_keys::ProjectKeyLookup;
 use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
@@ -108,6 +109,7 @@ pub struct ServiceState {
     project_cache: Addr<ProjectCache>,
     upstream_relay: Addr<UpstreamRelay>,
     event_manager: Addr<EventManager>,
+    key_lookup: Addr<ProjectKeyLookup>,
     outcome_producer: Addr<OutcomeProducer>,
     healthcheck: Addr<Healthcheck>,
 }
@@ -130,6 +132,7 @@ impl ServiceState {
 
         Ok(ServiceState {
             config: config.clone(),
+            key_lookup: ProjectKeyLookup::new(config.clone(), upstream_relay.clone()).start(),
             upstream_relay: upstream_relay.clone(),
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
@@ -159,6 +162,11 @@ impl ServiceState {
         self.event_manager.clone()
     }
 
+    /// Returns project id lookup for project keys.
+    pub fn key_lookup(&self) -> Addr<ProjectKeyLookup> {
+        self.key_lookup.clone()
+    }
+
     pub fn outcome_producer(&self) -> Addr<OutcomeProducer> {
         self.outcome_producer.clone()
     }
@@ -173,30 +181,13 @@ impl ServiceState {
 pub type ServiceApp = App<ServiceState>;
 
 fn make_app(state: ServiceState) -> ServiceApp {
-    let mut app = App::with_state(state)
+    App::with_state(state)
         .middleware(SentryMiddleware::new())
         .middleware(Metrics)
         .middleware(AddCommonHeaders)
         .middleware(ErrorHandlers)
-        .middleware(ReadRequestMiddleware);
-
-    app = app.scope("/api/relay", |mut scope| {
-        scope = endpoints::healthcheck::configure_scope(scope);
-        scope = endpoints::events::configure_scope(scope);
-        // never forward /api/relay, as that prefix is used for stuff like healthchecks
-        scope.default_resource(|r| r.f(|_| HttpResponse::NotFound()))
-    });
-
-    app = endpoints::project_configs::configure_app(app);
-    app = endpoints::public_keys::configure_app(app);
-    app = endpoints::store::configure_app(app);
-    app = endpoints::security_report::configure_app(app);
-    app = endpoints::minidump::configure_app(app);
-
-    // `forward` must be last as it creates a wildcard proxy
-    app = endpoints::forward::configure_app(app);
-
-    app
+        .middleware(ReadRequestMiddleware)
+        .configure(endpoints::configure_app)
 }
 
 fn dump_listen_infos<H, F>(server: &server::HttpServer<H, F>)

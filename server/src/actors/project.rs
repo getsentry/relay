@@ -127,7 +127,7 @@ impl Project {
         self.manager
             .send(FetchProjectState { id })
             .into_actor(self)
-            .and_then(move |state_result, slf, _ctx| {
+            .map(move |state_result, slf, _ctx| {
                 slf.state_channel = None;
                 slf.is_local = state_result
                     .as_ref()
@@ -139,8 +139,6 @@ impl Project {
                     log::debug!("project {} state updated", id);
                     sender.send(state.clone()).ok();
                 }
-
-                fut::ok(())
             })
             .drop_err()
             .spawn(context);

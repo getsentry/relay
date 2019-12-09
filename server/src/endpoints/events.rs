@@ -36,6 +36,7 @@ fn get_captured_event(
 
 pub fn configure_scope(scope: Scope<ServiceState>) -> Scope<ServiceState> {
     scope.resource("/events/{event_id}/", |r| {
+        r.name("internal-events");
         r.method(Method::GET).with(get_captured_event);
     })
 }
