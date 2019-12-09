@@ -38,21 +38,6 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-fn create_minidump_item<B>(data: B) -> Result<Item, BadStoreRequest>
-where
-    B: Into<Bytes>,
-{
-    let data = data.into();
-    validate_minidump(&data)?;
-
-    let mut item = Item::new(ItemType::Attachment);
-    item.set_payload(ContentType::OctetStream, data);
-    item.set_filename(MINIDUMP_FILE_NAME);
-    item.set_attachment_type(AttachmentType::Minidump);
-
-    Ok(item)
-}
-
 fn get_embedded_minidump(
     payload: Bytes,
     max_size: usize,
@@ -113,7 +98,13 @@ where {
         let future = ForwardBody::new(request, max_payload_size)
             .map_err(|_| BadStoreRequest::InvalidMinidump)
             .and_then(move |data| {
-                let item = create_minidump_item(data)?;
+                validate_minidump(&data)?;
+
+                let mut item = Item::new(ItemType::Attachment);
+                item.set_payload(ContentType::OctetStream, data);
+                item.set_filename(MINIDUMP_FILE_NAME);
+                item.set_attachment_type(AttachmentType::Minidump);
+
                 envelope.add_item(item);
                 Ok(envelope)
             });
