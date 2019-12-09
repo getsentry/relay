@@ -45,6 +45,7 @@ fn store_attachment(
 
     Box::new(handle_store_like_request(
         meta,
+        false,
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, attachment_size),

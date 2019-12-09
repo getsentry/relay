@@ -149,6 +149,7 @@ fn store_minidump(
 
     Box::new(handle_store_like_request(
         meta,
+        true,
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, event_size),

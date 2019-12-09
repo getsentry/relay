@@ -123,6 +123,10 @@ fn store_event(
 
     Box::new(handle_store_like_request(
         meta,
+        // XXX: This is wrong. In case of external relays, store can receive event-less envelopes.
+        // We need to fix this before external relays go live or we will create outcomes and rate
+        // limits for individual attachment requests.
+        true,
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, event_size, content_type),
