@@ -57,6 +57,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.resource(
         r"/api/{project:\d+}/events/{event_id:[^/]+}/attachments{trailing_slash:/}",
         |r| {
+            r.name("store-attachment");
             r.method(Method::POST).with(store_attachment);
         },
     )
