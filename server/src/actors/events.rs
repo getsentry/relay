@@ -390,16 +390,7 @@ impl EventProcessor {
             ));
         }
 
-        if envelope
-            .get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump))
-            .is_none()
-        {
-            log::trace!("creating no event for envelope {}", envelope.event_id());
-            Ok(None)
-        } else {
-            log::trace!("creating empty event for envelope {}", envelope.event_id());
-            Ok(Some(Annotated::default()))
-        }
+        Ok(None)
     }
 
     #[cfg(feature = "processing")]
@@ -496,10 +487,7 @@ impl EventProcessor {
 
         // Extract the event from the envelope. This removes all items from the envelope that should
         // not be forwarded, including the event item itself.
-        let mut event = match self.extract_event(&mut envelope)? {
-            Some(event) => event,
-            None => return Ok(ProcessEventResponse { envelope }),
-        };
+        let mut event_opt = self.extract_event(&mut envelope)?;
 
         // `extract_event` must remove all items other than attachments from the envelope. Once the
         // envelope is processed, an `Event` item will be added to the envelope again. Only
@@ -513,8 +501,21 @@ impl EventProcessor {
         let minidump_attachment =
             envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
         if minidump_attachment.is_some() {
-            self.write_minidump_placeholder(&mut event);
+            self.write_minidump_placeholder(&mut event_opt.get_or_insert_with(Annotated::default));
         }
+
+        // If we have an envelope without event at this point, we should not process or apply rate
+        // limits.
+        let mut event = match event_opt {
+            Some(event) => event,
+            None => {
+                log::trace!(
+                    "no event for envelope {}, skipping processing",
+                    envelope.event_id()
+                );
+                return Ok(ProcessEventResponse { envelope });
+            }
+        };
 
         // Ensure that the event id in the payload is consistent with the envelope. If an event id
         // was ingested, this will already be the case. Otherwise, this will insert a new event id.
