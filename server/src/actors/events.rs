@@ -352,9 +352,9 @@ impl EventProcessor {
         let security_item = envelope.take_item_by_type(ItemType::SecurityReport);
 
         let form_item = envelope.take_item_by_type(ItemType::FormData);
-        let attachment_item = envelope.take_item_by_attachment_type(AttachmentType::Event);
-        let breadcrumbs_item1 = envelope.take_item_by_attachment_type(AttachmentType::Breadcrumb);
-        let breadcrumbs_item2 = envelope.take_item_by_attachment_type(AttachmentType::Breadcrumb);
+        let attachment_item = envelope.take_item_by_attachment_type(AttachmentType::MsgpackEvent);
+        let breadcrumbs_item1 = envelope.take_item_by_attachment_type(AttachmentType::Breadcrumbs);
+        let breadcrumbs_item2 = envelope.take_item_by_attachment_type(AttachmentType::Breadcrumbs);
 
         if let Some(item) = event_item {
             log::trace!("processing json event {}", envelope.event_id());

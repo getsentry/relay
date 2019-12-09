@@ -179,15 +179,15 @@ pub enum AttachmentType {
     #[allow(dead_code)]
     AppleCrashReport,
 
-    #[serde(rename = "event.event")]
+    #[serde(rename = "event.msgpackevent")]
     /// A msgpack-encoded event submitted as part of minidump uploads.
-    Event,
+    MsgpackEvent,
 
-    #[serde(rename = "event.breadcrumb")]
+    #[serde(rename = "event.breadcrumbs")]
     /// This is a special attachment that can contain breadcrumbs encoded as message pack. There can be
     /// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
     /// truncated to the maxmimum number of allowed attachments.
-    Breadcrumb,
+    Breadcrumbs,
 }
 
 impl Default for AttachmentType {

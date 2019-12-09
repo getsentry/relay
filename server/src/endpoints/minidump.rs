@@ -116,14 +116,14 @@ where {
             for field_name in &[ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2] {
                 if let Some(item) = envelope.get_item_by_mut(|item| item.name() == Some(field_name))
                 {
-                    item.set_attachment_type(AttachmentType::Breadcrumb);
+                    item.set_attachment_type(AttachmentType::Breadcrumbs);
                 }
             }
 
             if let Some(item) =
                 envelope.get_item_by_mut(|item| item.name() == Some(ITEM_NAME_EVENT))
             {
-                item.set_attachment_type(AttachmentType::Event);
+                item.set_attachment_type(AttachmentType::MsgpackEvent);
             }
 
             Ok(envelope)
