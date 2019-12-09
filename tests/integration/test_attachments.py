@@ -22,17 +22,22 @@ def test_attachments_with_processing(
     )
 
     attachment_contents = {}
+    attachment_ids = []
     attachment_num_chunks = {}
 
     while set(attachment_contents.values()) != {b"heavens no", b"hell yeah"}:
         chunk, v = attachments_consumer.get_attachment_chunk()
         attachment_contents[v["id"]] = attachment_contents.get(v["id"], b"") + chunk
+        if v['id'] not in attachment_ids:
+            attachment_ids.append(v['id'])
         num_chunks = 1 + attachment_num_chunks.get(v["id"], 0)
         assert v["chunk_index"] == num_chunks - 1
         attachment_num_chunks[v["id"]] = num_chunks
 
-    assert attachment_contents["0"] == b"heavens no"
-    assert attachment_contents["1"] == b"hell yeah"
+    id1, id2 = attachment_ids
+
+    assert attachment_contents[id1] == b"heavens no"
+    assert attachment_contents[id2] == b"hell yeah"
 
     attachment = attachments_consumer.get_individual_attachment()
     attachment2 = attachments_consumer.get_individual_attachment()
@@ -41,9 +46,9 @@ def test_attachments_with_processing(
         "type": "attachment",
         "attachment": {
             "attachment_type": "event.attachment",
-            "chunks": attachment_num_chunks["0"],
+            "chunks": attachment_num_chunks[id1],
             "content_type": "application/octet-stream",
-            "id": "0",
+            "id": id1,
             "name": "foo.txt",
         },
         "event_id": event_id,
@@ -53,9 +58,9 @@ def test_attachments_with_processing(
         "type": "attachment",
         "attachment": {
             "attachment_type": "event.attachment",
-            "chunks": attachment_num_chunks["1"],
+            "chunks": attachment_num_chunks[id2],
             "content_type": "application/octet-stream",
-            "id": "1",
+            "id": id2,
             "name": "bar.txt",
         },
         "event_id": event_id,

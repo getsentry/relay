@@ -170,10 +170,12 @@ def test_minidump_with_processing(
 
     attachment = b""
     num_chunks = 0
+    attachment_id = None
 
     while attachment != b"MDMPminidump content":
         print("ATTACHMENT", attachment)
         chunk, v = attachments_consumer.get_attachment_chunk()
+        attachment_id = attachment_id or v['id']
         attachment += chunk
         num_chunks += 1
 
@@ -184,7 +186,7 @@ def test_minidump_with_processing(
 
     assert list(v["attachments"]) == [
         {
-            "id": "0",
+            "id": attachment_id,
             "name": "minidump.txt",
             "content_type": "application/octet-stream",
             "attachment_type": "event.minidump",

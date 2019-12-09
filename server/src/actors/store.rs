@@ -14,7 +14,7 @@ use serde::{ser::Error, Serialize};
 
 use rmp_serde::encode::Error as SerdeError;
 
-use semaphore_common::{metric, Config, KafkaTopic, ProjectId};
+use semaphore_common::{metric, Config, KafkaTopic, ProjectId, Uuid};
 use semaphore_general::protocol::{EventId, EventType};
 
 use crate::envelope::{AttachmentType, Envelope, ItemType};
@@ -226,14 +226,14 @@ impl Handler<StoreEvent> for StoreForwarder {
 
         let mut attachments = Vec::new();
 
-        for (index, item) in envelope.items().enumerate() {
+        for item in envelope.items() {
             // Only upload items first.
             if item.ty() != ItemType::Attachment {
                 continue;
             }
 
             // TODO(jauer): This needs to be unique within the event.
-            let id = index.to_string();
+            let id = Uuid::new_v4().to_string();
 
             let mut chunk_index = 0;
             let mut offset = 0;
