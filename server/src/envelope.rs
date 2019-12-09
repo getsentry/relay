@@ -494,21 +494,6 @@ impl Envelope {
         self.items().find(|item| pred(item))
     }
 
-    /// Returns the first item that matches the given `ItemType`.
-    pub fn get_item_by_type(&self, ty: ItemType) -> Option<&Item> {
-        self.get_item_by(|item| item.ty() == ty)
-    }
-
-    /// Returns the first item that matches the given `AttachmentType`.
-    pub fn get_item_by_attachment_type(&self, ty: AttachmentType) -> Option<&Item> {
-        self.get_item_by(|item| item.attachment_type() == Some(ty))
-    }
-
-    /// Returns the first item that matches the given name.
-    pub fn get_item_by_name(&self, name: &str) -> Option<&Item> {
-        self.get_item_by(|item| item.name() == Some(name))
-    }
-
     /// Returns the an option with a mutable reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     pub fn get_item_by_mut<F>(&mut self, mut pred: F) -> Option<&mut Item>
@@ -525,25 +510,6 @@ impl Envelope {
     {
         let index = self.items.iter().position(cond);
         index.map(|index| self.items.swap_remove(index))
-    }
-
-    /// Removes and returns the first item that matches the given `ItemType`.
-    ///
-    /// This swaps the last item with the item being removed.
-    pub fn take_item_by_type(&mut self, ty: ItemType) -> Option<Item> {
-        self.take_item_by(|item| item.ty() == ty)
-    }
-
-    /// Removes and returns the first item that matches the given `AttachmentType`.
-    ///
-    /// This swaps the last item with the item being removed.
-    pub fn take_item_by_attachment_type(&mut self, ty: AttachmentType) -> Option<Item> {
-        self.take_item_by(|item| item.attachment_type() == Some(ty))
-    }
-
-    /// Removes and returns the first item that matches the given name.
-    pub fn take_item_by_name(&mut self, name: &str) -> Option<Item> {
-        self.take_item_by(|item| item.name() == Some(name))
     }
 
     /// Adds a new item to this envelope.
@@ -729,12 +695,14 @@ mod tests {
         envelope.add_item(item2);
 
         let taken = envelope
-            .take_item_by_type(ItemType::Attachment)
+            .take_item_by(|item| item.ty() == ItemType::Attachment)
             .expect("should return some item");
 
         assert_eq!(taken.filename(), Some("item1"));
 
-        assert!(envelope.take_item_by_type(ItemType::Event).is_none());
+        assert!(envelope
+            .take_item_by(|item| item.ty() == ItemType::Event)
+            .is_none());
     }
 
     #[test]

@@ -348,13 +348,16 @@ impl EventProcessor {
         // Remove all items first, and then process them. After this function returns, only
         // attachments can remain in the envelope. The event will be added again at the end of
         // `process_event`.
-        let event_item = envelope.take_item_by_type(ItemType::Event);
-        let security_item = envelope.take_item_by_type(ItemType::SecurityReport);
+        let event_item = envelope.take_item_by(|item| item.ty() == ItemType::Event);
+        let security_item = envelope.take_item_by(|item| item.ty() == ItemType::SecurityReport);
 
-        let form_item = envelope.take_item_by_type(ItemType::FormData);
-        let attachment_item = envelope.take_item_by_attachment_type(AttachmentType::MsgpackEvent);
-        let breadcrumbs_item1 = envelope.take_item_by_attachment_type(AttachmentType::Breadcrumbs);
-        let breadcrumbs_item2 = envelope.take_item_by_attachment_type(AttachmentType::Breadcrumbs);
+        let form_item = envelope.take_item_by(|item| item.ty() == ItemType::FormData);
+        let attachment_item = envelope
+            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::MsgpackEvent));
+        let breadcrumbs_item1 = envelope
+            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
+        let breadcrumbs_item2 = envelope
+            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
 
         if let Some(item) = event_item {
             log::trace!("processing json event {}", envelope.event_id());
@@ -388,7 +391,7 @@ impl EventProcessor {
         }
 
         if envelope
-            .get_item_by_attachment_type(AttachmentType::Minidump)
+            .get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump))
             .is_none()
         {
             log::trace!("creating no event for envelope {}", envelope.event_id());
@@ -759,7 +762,9 @@ impl Handler<HandleEvent> for EventManager {
         } = message;
 
         let event_id = envelope.event_id();
-        let is_event = envelope.get_item_by_type(ItemType::Event).is_some();
+        let is_event = envelope
+            .get_item_by(|item| item.ty() == ItemType::Event)
+            .is_some();
         let project_id = envelope.meta().project_id();
         let remote_addr = envelope.meta().client_addr();
         let meta_clone = Arc::new(envelope.meta().clone());

@@ -211,9 +211,12 @@ impl Handler<StoreEvent> for StoreForwarder {
         } = message;
 
         let event_id = envelope.event_id();
-        let event_item = envelope.get_item_by_type(ItemType::Event);
+        let event_item = envelope.get_item_by(|item| item.ty() == ItemType::Event);
 
-        let topic = if envelope.get_item_by_type(ItemType::Attachment).is_some() {
+        let topic = if envelope
+            .get_item_by(|item| item.ty() == ItemType::Attachment)
+            .is_some()
+        {
             KafkaTopic::Attachments
         } else if event_item.and_then(|x| x.event_type()) == Some(EventType::Transaction) {
             KafkaTopic::Transactions
