@@ -1,5 +1,7 @@
+use actix_web::multipart::{Multipart, MultipartItem};
 use actix_web::{actix::ResponseFuture, http::Method, HttpMessage, HttpRequest, HttpResponse};
-use futures::Future;
+use bytes::Bytes;
+use futures::{future, Future, Stream};
 
 use semaphore_general::protocol::EventId;
 
@@ -8,7 +10,7 @@ use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::MultipartEnvelope;
+use crate::utils::{consume_field, get_multipart_boundary, MultipartEnvelope, MultipartError};
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
@@ -34,6 +36,51 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     }
 
     Ok(())
+}
+
+fn create_minidump_item<B>(data: B) -> Result<Item, BadStoreRequest>
+where
+    B: Into<Bytes>,
+{
+    let data = data.into();
+    validate_minidump(&data)?;
+
+    let mut item = Item::new(ItemType::Attachment);
+    item.set_payload(ContentType::OctetStream, data);
+    item.set_filename(MINIDUMP_FILE_NAME);
+    item.set_attachment_type(AttachmentType::Minidump);
+
+    Ok(item)
+}
+
+fn get_embedded_minidump(
+    payload: Bytes,
+    max_size: usize,
+) -> ResponseFuture<Option<Bytes>, BadStoreRequest> {
+    let boundary = match get_multipart_boundary(&payload) {
+        Some(boundary) => boundary,
+        None => return Box::new(future::ok(None)),
+    };
+
+    let f = Multipart::new(Ok(boundary.to_string()), futures::stream::once(Ok(payload)))
+        .map_err(MultipartError::InvalidMultipart)
+        .filter_map(|item| {
+            if let MultipartItem::Field(field) = item {
+                if let Some(content_disposition) = field.content_disposition() {
+                    if content_disposition.get_name() == Some(MINIDUMP_FIELD_NAME) {
+                        return Some(field);
+                    }
+                }
+            }
+            None
+        })
+        .and_then(move |field| consume_field(field, max_size))
+        .and_then(|data_opt| data_opt.ok_or(MultipartError::Overflow))
+        .into_future()
+        .map_err(|(err, _)| BadStoreRequest::InvalidMultipart(err))
+        .map(|(data, _)| data.map(Bytes::from));
+
+    Box::new(f)
 }
 
 /// Creates an evelope from a minidump request.
@@ -66,15 +113,8 @@ where {
         let future = ForwardBody::new(request, max_payload_size)
             .map_err(|_| BadStoreRequest::InvalidMinidump)
             .and_then(move |data| {
-                validate_minidump(&data)?;
-
-                let mut item = Item::new(ItemType::Attachment);
-                item.set_payload(ContentType::OctetStream, data);
-                item.set_filename(MINIDUMP_FILE_NAME);
-                item.set_attachment_type(AttachmentType::Minidump);
-
+                let item = create_minidump_item(data)?;
                 envelope.add_item(item);
-
                 Ok(envelope)
             });
 
@@ -84,17 +124,48 @@ where {
     let future = MultipartEnvelope::new(envelope, max_payload_size)
         .handle_request(request)
         .map_err(BadStoreRequest::InvalidMultipart)
-        .and_then(|mut envelope| {
-            // Check that the envelope contains a minidump item.
-            match envelope.get_item_by_mut(|item| item.name() == Some(MINIDUMP_FIELD_NAME)) {
-                Some(item) => {
-                    validate_minidump(&item.payload())?;
-                    item.set_attachment_type(AttachmentType::Minidump);
-                }
-                None => return Err(BadStoreRequest::MissingMinidump),
-            }
+        .and_then(move |mut envelope| {
+            let mut minidump_item =
+                match envelope.take_item_by(|item| item.name() == Some(MINIDUMP_FIELD_NAME)) {
+                    Some(item) => item,
+                    None => {
+                        return Box::new(future::err(BadStoreRequest::MissingMinidump))
+                            as ResponseFuture<Envelope, BadStoreRequest>
+                    }
+                };
 
-            Ok(envelope)
+            // HACK !!
+            // This field is not a minidump (.i.e. it doesn't start with the minidump magic header).
+            // It could be a multipart field containing a minidump; this happens in some
+            // Linux Electron SDKs.
+            // Unfortunately the embedded multipart field is not recognized by the multipart
+            // parser as a multipart field containing a multipart body.
+            // My (RaduW) guess is that it is not recognized because the Content-Disposition
+            // header at the beginning of the field does *NOT* contain a boundary field.
+            // For this case we will look if field the field starts with a '--' and manually
+            // extract the boundary (which is what follows '--' up to the end of line)
+            // and manually construct a multipart with the detected boundary.
+            // If we can extract a multipart with an embedded minidump than use that field.
+            let future = get_embedded_minidump(minidump_item.payload(), max_payload_size).and_then(
+                move |embedded_opt| {
+                    if let Some(embedded) = embedded_opt {
+                        let content_type = minidump_item
+                            .content_type()
+                            .cloned()
+                            .unwrap_or(ContentType::OctetStream);
+
+                        minidump_item.set_payload(content_type, embedded);
+                    }
+
+                    minidump_item.set_attachment_type(AttachmentType::Minidump);
+                    validate_minidump(&minidump_item.payload())?;
+                    envelope.add_item(minidump_item);
+
+                    Ok(envelope)
+                },
+            );
+
+            Box::new(future)
         });
 
     Box::new(future)
