@@ -69,6 +69,7 @@ fn store_security_report(
     let event_size = request.state().config().max_event_payload_size();
     Box::new(handle_store_like_request(
         meta,
+        true,
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, event_size, params.into_inner()),

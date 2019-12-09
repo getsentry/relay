@@ -40,25 +40,6 @@ use {
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
 
-/// Name of the event attachment.
-///
-/// This is a special attachment that can contain a sentry event payload encoded as message pack.
-const ITEM_NAME_EVENT: &str = "__sentry-event";
-
-/// Name of the breadcrumb attachment (1).
-///
-/// This is a special attachment that can contain breadcrumbs encoded as message pack. There can be
-/// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
-/// truncated to the maxmimum number of allowed attachments.
-const ITEM_NAME_BREADCRUMBS1: &str = "__sentry-breadcrumbs1";
-
-/// Name of the breadcrumb attachment (2).
-///
-/// This is a special attachment that can contain breadcrumbs encoded as message pack. There can be
-/// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
-/// truncated to the maxmimum number of allowed attachments.
-const ITEM_NAME_BREADCRUMBS2: &str = "__sentry-breadcrumbs2";
-
 #[derive(Debug, Fail)]
 pub enum QueueEventError {
     #[fail(display = "Too many events (max_concurrent_events reached)")]
@@ -360,48 +341,56 @@ impl EventProcessor {
     ///  3. Attachments `__sentry-event` and `__sentry-breadcrumbs1/2`.
     ///  4. A multipart form data body.
     ///  5. If none match, an empty default Event.
-    fn extract_event(&self, envelope: &mut Envelope) -> Result<Annotated<Event>, ProcessingError> {
+    fn extract_event(
+        &self,
+        envelope: &mut Envelope,
+    ) -> Result<Option<Annotated<Event>>, ProcessingError> {
         // Remove all items first, and then process them. After this function returns, only
         // attachments can remain in the envelope. The event will be added again at the end of
         // `process_event`.
-        let event_item = envelope.take_item_by_type(ItemType::Event);
-        let security_item = envelope.take_item_by_type(ItemType::SecurityReport);
-        let form_item = envelope.take_item_by_type(ItemType::FormData);
-        let attachment_item = envelope.take_item_by_name(ITEM_NAME_EVENT);
-        let breadcrumbs_item1 = envelope.take_item_by_name(ITEM_NAME_BREADCRUMBS1);
-        let breadcrumbs_item2 = envelope.take_item_by_name(ITEM_NAME_BREADCRUMBS2);
+        let event_item = envelope.take_item_by(|item| item.ty() == ItemType::Event);
+        let security_item = envelope.take_item_by(|item| item.ty() == ItemType::SecurityReport);
+
+        let form_item = envelope.take_item_by(|item| item.ty() == ItemType::FormData);
+        let attachment_item = envelope
+            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::MsgpackEvent));
+        let breadcrumbs_item1 = envelope
+            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
+        let breadcrumbs_item2 = envelope
+            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
 
         if let Some(item) = event_item {
             log::trace!("processing json event {}", envelope.event_id());
-            return metric!(timer("event_processing.deserialize"), {
-                self.event_from_json_payload(item)
-            });
+            return Ok(Some(metric!(timer("event_processing.deserialize"), {
+                self.event_from_json_payload(item)?
+            })));
         }
 
         if let Some(item) = security_item {
             log::trace!("processing security report {}", envelope.event_id());
-            return self.event_from_security_report(item);
+            return Ok(Some(self.event_from_security_report(item)?));
         }
 
         if attachment_item.is_some() || breadcrumbs_item1.is_some() || breadcrumbs_item2.is_some() {
             log::trace!("extracting attached event data {}", envelope.event_id());
-            return Self::event_from_attachments(
+            return Ok(Some(Self::event_from_attachments(
                 &self.config,
                 attachment_item,
                 breadcrumbs_item1,
                 breadcrumbs_item2,
-            );
+            )?));
         }
 
         if let Some(item) = form_item {
             log::trace!("extracting form data {}", envelope.event_id());
             let mut value = SerdeValue::Object(Default::default());
             self.merge_formdata(&mut value, item);
-            return Ok(Annotated::deserialize_with_meta(value).unwrap_or_default());
+            return Ok(Some(
+                Annotated::deserialize_with_meta(value).unwrap_or_default(),
+            ));
         }
 
-        log::trace!("creating empty event {}", envelope.event_id());
-        Ok(Annotated::new(Event::default()))
+        Ok(None)
     }
 
     #[cfg(feature = "processing")]
@@ -498,7 +487,7 @@ impl EventProcessor {
 
         // Extract the event from the envelope. This removes all items from the envelope that should
         // not be forwarded, including the event item itself.
-        let mut event = self.extract_event(&mut envelope)?;
+        let mut event_opt = self.extract_event(&mut envelope)?;
 
         // `extract_event` must remove all items other than attachments from the envelope. Once the
         // envelope is processed, an `Event` item will be added to the envelope again. Only
@@ -512,8 +501,21 @@ impl EventProcessor {
         let minidump_attachment =
             envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
         if minidump_attachment.is_some() {
-            self.write_minidump_placeholder(&mut event);
+            self.write_minidump_placeholder(&mut event_opt.get_or_insert_with(Annotated::default));
         }
+
+        // If we have an envelope without event at this point, we should not process or apply rate
+        // limits.
+        let mut event = match event_opt {
+            Some(event) => event,
+            None => {
+                log::trace!(
+                    "no event for envelope {}, skipping processing",
+                    envelope.event_id()
+                );
+                return Ok(ProcessEventResponse { envelope });
+            }
+        };
 
         // Ensure that the event id in the payload is consistent with the envelope. If an event id
         // was ingested, this will already be the case. Otherwise, this will insert a new event id.
@@ -761,6 +763,9 @@ impl Handler<HandleEvent> for EventManager {
         } = message;
 
         let event_id = envelope.event_id();
+        let is_event = envelope
+            .get_item_by(|item| item.ty() == ItemType::Event)
+            .is_some();
         let project_id = envelope.meta().project_id();
         let remote_addr = envelope.meta().client_addr();
         let meta_clone = Arc::new(envelope.meta().clone());
@@ -800,7 +805,7 @@ impl Handler<HandleEvent> for EventManager {
                 #[cfg(feature = "processing")]
                 {
                     if let Some(store_forwarder) = store_forwarder {
-                        log::trace!("sending event to kafka {}", event_id);
+                        log::trace!("sending envelope to kafka {}", event_id);
                         let future = store_forwarder
                             .send(StoreEvent {
                                 envelope,
@@ -873,6 +878,11 @@ impl Handler<HandleEvent> for EventManager {
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .map(|_, _, _| metric!(counter("event.accepted") += 1))
             .map_err(clone!(project, captured_events, |error, _, _| {
+                // Do not track outcomes or capture events for non-event envelopes (such as
+                // individual attachments)
+                if !is_event {
+                    return;
+                }
                 // if we are in capture mode, we stash away the event instead of
                 // forwarding it.
                 if capture {

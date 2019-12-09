@@ -161,6 +161,9 @@ pub enum DiscardReason {
     /// [Relay] An envelope was submitted with two items that need to be unique.
     DuplicateItem,
 
+    /// [Relay] User specified an unparseable event ID as part of an attachment endpoint request.
+    InvalidEventId,
+
     /// [All] An error in Relay caused event ingestion to fail. This is the catch-all and usually
     /// indicates bugs in Relay, rather than an expected failure.
     Internal,
@@ -247,6 +250,7 @@ mod real_implementation {
                 DiscardReason::ProjectState => "project_state",
                 DiscardReason::DuplicateItem => "duplicate_item",
                 DiscardReason::Internal => "internal",
+                DiscardReason::InvalidEventId => "invalid_event_id",
             }
         }
     }
