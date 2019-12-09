@@ -180,19 +180,6 @@ fn consume_stream(
     Box::new(future)
 }
 
-//        //check if the data is actually an embedded multipart field (Electron linux hack)
-//        let boundary = get_multipart_boundary(data.as_ref());
-//
-//        let boundary = get_multipart_boundary(data.as_ref());
-//
-//        if let Some(boundary) = boundary {
-//            let multipart = Multipart::new(
-//                Ok(boundary.to_string()),
-//                futures::stream::once(Ok(Bytes::from(data))),
-//            );
-//            return consume_stream(content, multipart);
-//        }
-
 /// Looks for a multipart boundary at the beginning of the data
 /// and returns it as a `&str` if it is found
 ///
