@@ -1,4 +1,4 @@
-use actix_web::{actix::ResponseFuture, http::Method, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{actix::ResponseFuture, HttpMessage, HttpRequest, HttpResponse};
 use futures::Future;
 
 use semaphore_general::protocol::EventId;
@@ -126,6 +126,7 @@ fn store_minidump(
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.resource(r"/api/{project:\d+}/minidump{trailing_slash:/?}", |r| {
-        r.method(Method::POST).with(store_minidump);
+        r.name("store-minidump");
+        r.post().with(store_minidump);
     })
 }

@@ -1,7 +1,6 @@
 //! Handles event store requests.
 
 use actix::prelude::*;
-use actix_web::http::Method;
 use actix_web::middleware::cors::Cors;
 use actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use bytes::BytesMut;
@@ -150,15 +149,17 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         // in their URL handling. Since actix does not normalize such paths, allow any number of
         // slashes. The trailing slash can also be omitted, optionally.
         .resource(r"/{l:/*}api/{project:\d+}/store{t:/*}", |r| {
-            r.method(Method::POST).with(store_event);
-            r.method(Method::GET).with(store_event);
+            r.name("store-default");
+            r.post().with(store_event);
+            r.get().with(store_event);
         })
         // Legacy store path. Since it is missing the project parameter, the `EventMeta` extractor
         // will use `ProjectKeyLookup` to map the public key to a project id before handling the
         // request.
         .resource(r"/{l:/*}api/store{t:/*}", |r| {
-            r.method(Method::POST).with(store_event);
-            r.method(Method::GET).with(store_event);
+            r.name("store-legacy");
+            r.post().with(store_event);
+            r.get().with(store_event);
         })
         .register()
 }
