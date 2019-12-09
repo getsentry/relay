@@ -134,7 +134,7 @@ where {
     let future = MultipartEnvelope::new(envelope, max_payload_size)
         .handle_request(request)
         .map_err(BadStoreRequest::InvalidMultipart)
-        .and_then(|mut envelope| {
+        .and_then(move |mut envelope| {
             let mut minidump_item =
                 match envelope.take_item_by(|item| item.name() == Some(MINIDUMP_FIELD_NAME)) {
                     Some(item) => item,
@@ -175,6 +175,9 @@ where {
                 },
             );
 
+            Box::new(future)
+        })
+        .and_then(move |mut envelope| {
             for field_name in &[ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2] {
                 if let Some(item) = envelope.get_item_by_mut(|item| item.name() == Some(field_name))
                 {
