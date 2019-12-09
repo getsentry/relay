@@ -232,7 +232,6 @@ impl Handler<StoreEvent> for StoreForwarder {
                 continue;
             }
 
-            // TODO(jauer): This needs to be unique within the event.
             let id = Uuid::new_v4().to_string();
 
             let mut chunk_index = 0;
