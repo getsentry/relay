@@ -193,8 +193,7 @@ class SentryLike(object):
 
     def send_attachments(self, project_id, event_id, files):
         files = {
-            name: (file_name, file_content)
-            for (name, file_name, file_content) in files
+            name: (file_name, file_content) for (name, file_name, file_content) in files
         }
         response = self.post(
             "/api/{}/events/{}/attachments/".format(project_id, event_id),
@@ -207,11 +206,10 @@ class SentryLike(object):
                     "sentry_key={}".format(self.dsn_public_key)
                 ),
             },
-            files=files
+            files=files,
         )
         response.raise_for_status()
         return response
-
 
     def request(self, method, path, **kwargs):
         assert path.startswith("/")

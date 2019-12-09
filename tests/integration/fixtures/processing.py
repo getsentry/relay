@@ -209,5 +209,5 @@ class AttachmentsConsumer(EventsConsumer):
         assert message.error() is None
 
         v = msgpack.unpackb(message.value(), raw=False, use_list=False)
-        assert v['type'] == 'attachment', v['type']
+        assert v["type"] == "attachment", v["type"]
         return v
