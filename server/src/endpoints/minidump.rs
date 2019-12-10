@@ -17,6 +17,25 @@ use crate::utils::{consume_field, get_multipart_boundary, MultipartEnvelope, Mul
 /// Sentry requires
 const MINIDUMP_FIELD_NAME: &str = "upload_file_minidump";
 
+/// Name of the event attachment.
+///
+/// This is a special attachment that can contain a sentry event payload encoded as message pack.
+const ITEM_NAME_EVENT: &str = "__sentry-event";
+
+/// Name of the breadcrumb attachment (1).
+///
+/// This is a special attachment that can contain breadcrumbs encoded as message pack. There can be
+/// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
+/// truncated to the maxmimum number of allowed attachments.
+const ITEM_NAME_BREADCRUMBS1: &str = "__sentry-breadcrumbs1";
+
+/// Name of the breadcrumb attachment (2).
+///
+/// This is a special attachment that can contain breadcrumbs encoded as message pack. There can be
+/// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
+/// truncated to the maxmimum number of allowed attachments.
+const ITEM_NAME_BREADCRUMBS2: &str = "__sentry-breadcrumbs2";
+
 /// File name for a standalone minidump upload.
 ///
 /// In contrast to the field name, this is used when a standalone minidump is uploaded not in a
@@ -157,6 +176,22 @@ where {
             );
 
             Box::new(future)
+        })
+        .and_then(move |mut envelope| {
+            for field_name in &[ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2] {
+                if let Some(item) = envelope.get_item_by_mut(|item| item.name() == Some(field_name))
+                {
+                    item.set_attachment_type(AttachmentType::Breadcrumbs);
+                }
+            }
+
+            if let Some(item) =
+                envelope.get_item_by_mut(|item| item.name() == Some(ITEM_NAME_EVENT))
+            {
+                item.set_attachment_type(AttachmentType::MsgpackEvent);
+            }
+
+            Ok(envelope)
         });
 
     Box::new(future)
@@ -179,6 +214,7 @@ fn store_minidump(
 
     Box::new(handle_store_like_request(
         meta,
+        true,
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, event_size),

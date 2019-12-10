@@ -14,7 +14,7 @@ use serde::{ser::Error, Serialize};
 
 use rmp_serde::encode::Error as SerdeError;
 
-use semaphore_common::{metric, Config, KafkaTopic, ProjectId};
+use semaphore_common::{metric, Config, KafkaTopic, ProjectId, Uuid};
 use semaphore_general::protocol::{EventId, EventType};
 
 use crate::envelope::{AttachmentType, Envelope, ItemType};
@@ -26,9 +26,9 @@ type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerConte
 #[derive(Fail, Debug)]
 pub enum StoreError {
     #[fail(display = "failed to send kafka message")]
-    SendFailed(KafkaError),
+    SendFailed(#[cause] KafkaError),
     #[fail(display = "failed to serialize message")]
-    SerializeFailed(SerdeError),
+    SerializeFailed(#[cause] SerdeError),
 }
 
 /// Actor for publishing events to Sentry through kafka topics.
@@ -176,7 +176,6 @@ struct AttachmentKafkaMessage {
     /// The project id for the current event.
     project_id: ProjectId,
     /// The attachment.
-    #[serde(flatten)]
     attachment: ChunkedAttachment,
 }
 
@@ -212,9 +211,12 @@ impl Handler<StoreEvent> for StoreForwarder {
         } = message;
 
         let event_id = envelope.event_id();
-        let event_item = envelope.get_item_by_type(ItemType::Event);
+        let event_item = envelope.get_item_by(|item| item.ty() == ItemType::Event);
 
-        let topic = if envelope.get_item_by_type(ItemType::Attachment).is_some() {
+        let topic = if envelope
+            .get_item_by(|item| item.ty() == ItemType::Attachment)
+            .is_some()
+        {
             KafkaTopic::Attachments
         } else if event_item.and_then(|x| x.event_type()) == Some(EventType::Transaction) {
             KafkaTopic::Transactions
@@ -224,14 +226,13 @@ impl Handler<StoreEvent> for StoreForwarder {
 
         let mut attachments = Vec::new();
 
-        for (index, item) in envelope.items().enumerate() {
+        for item in envelope.items() {
             // Only upload items first.
             if item.ty() != ItemType::Attachment {
                 continue;
             }
 
-            // TODO(jauer): This needs to be unique within the event.
-            let id = index.to_string();
+            let id = Uuid::new_v4().to_string();
 
             let mut chunk_index = 0;
             let mut offset = 0;
@@ -272,6 +273,7 @@ impl Handler<StoreEvent> for StoreForwarder {
         }
 
         if let Some(event_item) = event_item {
+            log::trace!("Sending event item of envelope to kafka");
             let event_message = KafkaMessage::Event(EventKafkaMessage {
                 payload: event_item.payload(),
                 start_time: instant_to_unix_timestamp(start_time),
@@ -284,6 +286,7 @@ impl Handler<StoreEvent> for StoreForwarder {
             self.produce(topic, event_id, event_message)?;
             metric!(counter("processing.event.produced") += 1, "type" => "event");
         } else {
+            log::trace!("Sending individual attachments of envelope to kafka");
             for attachment in attachments {
                 let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
                     event_id,

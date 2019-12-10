@@ -154,6 +154,7 @@ impl ResponseError for BadStoreRequest {
 ///
 pub fn handle_store_like_request<F, R, I>(
     meta: EventMeta,
+    is_event: bool,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
     extract_envelope: F,
@@ -231,15 +232,17 @@ where
         .or_else(move |error: BadStoreRequest| {
             metric!(counter("event.rejected") += 1);
 
-            outcome_producer.do_send(TrackOutcome {
-                timestamp: start_time,
-                project_id,
-                org_id: None,
-                key_id: None,
-                outcome: error.to_outcome(),
-                event_id: *event_id.lock(),
-                remote_addr,
-            });
+            if is_event {
+                outcome_producer.do_send(TrackOutcome {
+                    timestamp: start_time,
+                    project_id,
+                    org_id: None,
+                    key_id: None,
+                    outcome: error.to_outcome(),
+                    event_id: *event_id.lock(),
+                    remote_addr,
+                });
+            }
 
             let response = error.error_response();
             if response.status().is_server_error() {
