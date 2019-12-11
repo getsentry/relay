@@ -27,7 +27,7 @@ use crate::actors::project::{
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::service::ServerError;
-use crate::utils::{self, FormDataIter, FutureExt};
+use crate::utils::{self, expand_if_unreal_envelope, FormDataIter, FutureExt};
 
 #[cfg(feature = "processing")]
 use {
@@ -53,6 +53,9 @@ enum ProcessingError {
 
     #[fail(display = "invalid message pack event payload")]
     InvalidMsgpack(#[cause] rmp_serde::decode::Error),
+
+    #[fail(display = "invalid unreal message")]
+    InvalidUnreal,
 
     #[fail(display = "event payload too large")]
     PayloadTooLarge,
@@ -345,6 +348,12 @@ impl EventProcessor {
         &self,
         envelope: &mut Envelope,
     ) -> Result<Option<Annotated<Event>>, ProcessingError> {
+        // Unreal endpoint puts the whole request into an item. This is done to make the endpoint
+        // fast. For envelopes containing an Unreal request we will look into the unreal item
+        // and expand it so it can be consumed like any other event (e.g. like a minidump )
+        // If the envelope does *NOT* contain an Unreal item the function below is a no-op.
+        expand_if_unreal_envelope(envelope).map_err(|_| ProcessingError::InvalidUnreal)?;
+
         // Remove all items first, and then process them. After this function returns, only
         // attachments can remain in the envelope. The event will be added again at the end of
         // `process_event`.
@@ -389,6 +398,13 @@ impl EventProcessor {
                 Annotated::deserialize_with_meta(value).unwrap_or_default(),
             ));
         }
+
+        //        if let Some(item) = unreal_item {
+        //            log::trace!("extracting event form unreal message");
+        //            return event_from_unreal(item.payload())
+        //                .map(Some)
+        //                .map_err(|_| ProcessingError::InvalidUnreal);
+        //        }
 
         Ok(None)
     }
@@ -916,6 +932,10 @@ impl Handler<HandleEvent> for EventManager {
                     }
                     ProcessingError::DuplicateItem(_) => {
                         Some(Outcome::Invalid(DiscardReason::DuplicateItem))
+                    }
+
+                    ProcessingError::InvalidUnreal => {
+                        Some(Outcome::Invalid(DiscardReason::InvalidUnrealReport))
                     }
 
                     // Rate limits need special handling: Cache them on the project to avoid
