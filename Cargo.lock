@@ -1886,8 +1886,8 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "0.12.1-alpha.0"
-source = "git+https://github.com/mitsuhiko/redis-rs?branch=feature/cluster#5d2f66debfaf66a945d72646b5d542fd94aa5c40"
+version = "0.13.1-alpha.0"
+source = "git+https://github.com/mitsuhiko/redis-rs?branch=feature/cluster#ee8d309cc71847cad81cd16c10426c5073dc3a2e"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "combine 3.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2214,7 +2214,7 @@ dependencies = [
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "r2d2 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rdkafka 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "redis 0.12.1-alpha.0 (git+https://github.com/mitsuhiko/redis-rs?branch=feature/cluster)",
+ "redis 0.13.1-alpha.0 (git+https://github.com/mitsuhiko/redis-rs?branch=feature/cluster)",
  "regex 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rmp-serde 0.13.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "semaphore-common 0.4.63",
@@ -3356,7 +3356,7 @@ dependencies = [
 "checksum rdkafka 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9c39cf211c5e933622b600e892ae6fa7bc9e08cb56c4129424e07d91cc3c9088"
 "checksum rdkafka-sys 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "78d4b56497b669efc00f1741cc39763e94f712f07817dfc3d96181fe41b535ea"
 "checksum rdrand 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "678054eb77286b51581ba43620cc911abf02758c91f93f479767aed0f90458b2"
-"checksum redis 0.12.1-alpha.0 (git+https://github.com/mitsuhiko/redis-rs?branch=feature/cluster)" = "<none>"
+"checksum redis 0.13.1-alpha.0 (git+https://github.com/mitsuhiko/redis-rs?branch=feature/cluster)" = "<none>"
 "checksum redox_syscall 0.1.56 (registry+https://github.com/rust-lang/crates.io-index)" = "2439c63f3f6139d1b57529d16bc3b8bb855230c8efcc5d3a896c8bea7c3b1e84"
 "checksum regex 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "88c3d9193984285d544df4a30c23a4e62ead42edf70a4452ceb76dac1ce05c26"
 "checksum regex-syntax 0.6.11 (registry+https://github.com/rust-lang/crates.io-index)" = "b143cceb2ca5e56d5671988ef8b15615733e7ee16cd348e064333b251b89343f"
