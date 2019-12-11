@@ -6,7 +6,7 @@ use futures::{future, Future, Stream};
 use semaphore_general::protocol::EventId;
 
 use crate::body::ForwardBody;
-use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
+use crate::endpoints::common::{handle_store_like_request, BadStoreRequest, EventIdHelper};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
@@ -102,12 +102,8 @@ fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: EventMeta,
     max_payload_size: usize,
-) -> ResponseFuture<Envelope, BadStoreRequest>
-where {
-    // TODO: at the moment we override any pre exsiting (set by an SDK) event id here.
-    //  We shouldn't do that. The problem is that at this stage we cannot afford to parse the
-    //  request and look for the event id so we simply set one.
-    //  We need to somehow preserve SDK set event ids ( the current behaviour needs to change).
+) -> ResponseFuture<Envelope, BadStoreRequest> {
+    // The event ID is overwritten later based on data extracted from the constructed envelope.
     let mut envelope = Envelope::from_request(EventId::new(), meta);
 
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
@@ -189,6 +185,11 @@ where {
                 envelope.get_item_by_mut(|item| item.name() == Some(ITEM_NAME_EVENT))
             {
                 item.set_attachment_type(AttachmentType::MsgpackEvent);
+                if let Ok(EventIdHelper { id: Some(event_id) }) =
+                    rmp_serde::from_slice(&item.payload())
+                {
+                    envelope.set_event_id(event_id);
+                }
             }
 
             Ok(envelope)

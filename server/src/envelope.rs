@@ -329,7 +329,7 @@ impl Item {
         self.headers.name.as_ref().map(String::as_str)
     }
 
-    // Sets the name header of the item.
+    /// Sets the name header of the item.
     pub fn set_name<S>(&mut self, name: S)
     where
         S: Into<String>,
@@ -464,6 +464,12 @@ impl Envelope {
     /// be additional information to an event, such as attachments.
     pub fn event_id(&self) -> EventId {
         self.headers.event_id
+    }
+
+    /// Sets the event ID in the envelope header. Note that the event ID might be duplicated in
+    /// various items which need to be manually updated.
+    pub fn set_event_id(&mut self, event_id: EventId) {
+        self.headers.event_id = event_id;
     }
 
     /// Returns event metadata information.

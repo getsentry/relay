@@ -11,6 +11,7 @@ use futures::prelude::*;
 use parking_lot::Mutex;
 use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
+use serde::Deserialize;
 
 use semaphore_common::{clone, metric, tryf, LogError};
 use semaphore_general::protocol::EventId;
@@ -253,4 +254,10 @@ where
         });
 
     Box::new(future)
+}
+
+#[derive(Deserialize)]
+pub struct EventIdHelper {
+    #[serde(default, rename = "event_id")]
+    pub id: Option<EventId>,
 }

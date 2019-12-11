@@ -5,12 +5,12 @@ use actix_web::middleware::cors::Cors;
 use actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use bytes::BytesMut;
 use futures::Future;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use semaphore_general::protocol::EventId;
 
 use crate::body::StoreBody;
-use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
+use crate::endpoints::common::{handle_store_like_request, BadStoreRequest, EventIdHelper};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
@@ -19,12 +19,6 @@ use crate::service::{ServiceApp, ServiceState};
 // See http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
 static PIXEL: &[u8] =
     b"GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;";
-
-#[derive(Deserialize)]
-struct EventIdHelper {
-    #[serde(default, rename = "event_id")]
-    id: Option<EventId>,
-}
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
@@ -69,7 +63,6 @@ fn extract_envelope(
             // incoming store request. To uncouple it from the workload on the processing workers, this
             // requires to synchronously parse a minimal part of the JSON payload. If the JSON payload
             // is invalid, processing can be skipped altogether.
-            //let event_id = serde_json::from_slice::<EventIdHelper>(&data)
             let event_id = serde_json::from_slice::<EventIdHelper>(&data)
                 .map(|event| event.id)
                 .map_err(BadStoreRequest::InvalidJson)?
