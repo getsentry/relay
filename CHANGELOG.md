@@ -1,83 +1,116 @@
 # Changelog
 
-## 0.4.64
-
-* Added newline support for general glob code.
-* Added span status mapping to python library.
+## 0.4.65
 
 **Relay**:
 
-* Switched to jemalloc.
-* Introduce separate outcome reason for invalid events.
-* Always consume request bodies to the end.
-* Implemented minidump ingestion.
-* Increas precisions of timestamps in protocol.
+- Implement the Minidump endpoint.
+- Implement the Attachment endpoint.
+- Implement the legacy Store endpoint.
+- Support a plain `Authorization` header in addition to `X-Sentry-Auth`.
+- Simplify the shutdown logic. Relay now always takes a fixed configurable time
+  to shut down.
+- Fix healthchecks in _Static_ mode.
+- Fix internal handling of event attachments.
+- Fix partial reads of request bodies resulting in a broken connection.
+- Fix a crash when parsing User-Agent headers.
+- Fix handling of events sent with `sentry_version=2.0` (Clojure SDK).
+- Use _mmap_ to load the GeoIP database to improve the memory footprint.
+- Revert back to the system memory allocator.
+
+**Store**:
+
+- Preserve microsecond precision in all time stamps.
+- Record event ids in all outcomes.
+- Updates to event processing metrics.
+- Add span status mapping from open telemetry.
+
+**Python**:
+
+- Fix glob-matching of newline characters.
+
+## 0.4.64
+
+- Added newline support for general glob code.
+- Added span status mapping to python library.
+
+**Relay**:
+
+- Switched to jemalloc.
+- Introduce separate outcome reason for invalid events.
+- Always consume request bodies to the end.
+- Implemented minidump ingestion.
+- Increas precisions of timestamps in protocol.
 
 ## 0.4.63
 
 **Store**:
 
-* Fix a bug where glob-matching in filters did not behave correctly when the to-be-matched string contained newlines.
-* Add `moz-extension:` as scheme for browser extensions (filtering out Firefox addons).
-* Raise a dedicated Python exception type for invalid transaction events. Also do not report that error to Sentry from Relay.
+- Fix a bug where glob-matching in filters did not behave correctly when the
+  to-be-matched string contained newlines.
+- Add `moz-extension:` as scheme for browser extensions (filtering out Firefox
+  addons).
+- Raise a dedicated Python exception type for invalid transaction events. Also
+  do not report that error to Sentry from Relay.
 
 **Relay**:
 
-* Refactor healthchecks into two: Liveness and readiness (see code comments for explanation for now).
-* Allow multiple trailing slashes on store endpoint, e.g. `/api/42/store///`.
-* Internal refactor to prepare for envelopes format.
+- Refactor healthchecks into two: Liveness and readiness (see code comments for
+  explanation for now).
+- Allow multiple trailing slashes on store endpoint, e.g. `/api/42/store///`.
+- Internal refactor to prepare for envelopes format.
 
 ## 0.4.62
 
 **Event schema**:
 
-* Spec out values of `event.contexts.trace.status`.
-* `none` is now no longer a valid environment name.
-* Do no longer drop transaction events in renormalization.
+- Spec out values of `event.contexts.trace.status`.
+- `none` is now no longer a valid environment name.
+- Do no longer drop transaction events in renormalization.
 
 **Store**:
 
-* Various performance improvements.
+- Various performance improvements.
 
 ## 0.4.61
 
-* Add `thread.errored` attribute (#306).
+- Add `thread.errored` attribute (#306).
 
 ## 0.4.60
 
-* License is now BSL instead of MIT (#301).
+- License is now BSL instead of MIT (#301).
 
 **Store**:
 
-* Transaction events with negative duration are now rejected (#291).
-* Fix a panic when normalizing certain dates.
+- Transaction events with negative duration are now rejected (#291).
+- Fix a panic when normalizing certain dates.
 
 **Relay**:
 
-* Improve internal metrics and logging (#296, #297, #298).
-* Fix unbounded requests to Sentry for project configs (#295, #300).
-* Fix rejected responses from Sentry due to size limit (#303).
-* Expose more options for configuring request concurrency limits (#311).
+- Improve internal metrics and logging (#296, #297, #298).
+- Fix unbounded requests to Sentry for project configs (#295, #300).
+- Fix rejected responses from Sentry due to size limit (#303).
+- Expose more options for configuring request concurrency limits (#311).
 
 ## 0.4.59
 
-* Fix: Normalize legacy stacktrace attributes (#292)
-* Fix: Validate platform attributes in Relay (#294)
-* Flip the flag that indicates Relay processing (#293)
+- Fix: Normalize legacy stacktrace attributes (#292)
+- Fix: Validate platform attributes in Relay (#294)
+- Flip the flag that indicates Relay processing (#293)
 
 ## 0.4.58
 
-* Expose globbing code from Semaphore to Python (#288)
-* Normalize before datascrubbing (#290)
-* Evict project caches after some time (#287)
-* Add event size metrics (#286)
-* Selectively log internal errors to stderr (#285)
-* Do not ignore `process_value` result in `scrub_event` (#284)
-* Add a config value for thread counts (#283)
-* Refactor outcomes for parity with Sentry (#282)
-* Add an error boundary to parsing project states (#281)
-* Remove warning and add comment for temporary attribute
-* Add flag that relay processed an event (#279)
+- Expose globbing code from Semaphore to Python (#288)
+- Normalize before datascrubbing (#290)
+- Evict project caches after some time (#287)
+- Add event size metrics (#286)
+- Selectively log internal errors to stderr (#285)
+- Do not ignore `process_value` result in `scrub_event` (#284)
+- Add a config value for thread counts (#283)
+- Refactor outcomes for parity with Sentry (#282)
+- Add an error boundary to parsing project states (#281)
+- Remove warning and add comment for temporary attribute
+- Add flag that relay processed an event (#279)
 
 ## 0.4.57
 
