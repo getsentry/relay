@@ -9,10 +9,6 @@
 //! [`run`]: fn.run.html
 #![warn(missing_docs)]
 
-#[cfg(not(windows))]
-#[global_allocator]
-static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
-
 mod actors;
 mod body;
 mod constants;
