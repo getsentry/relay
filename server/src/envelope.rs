@@ -77,6 +77,7 @@ pub enum ItemType {
     Attachment,
     FormData,
     SecurityReport,
+    UnrealReport,
 }
 
 impl fmt::Display for ItemType {
@@ -86,6 +87,7 @@ impl fmt::Display for ItemType {
             Self::Attachment => write!(f, "attachment"),
             Self::FormData => write!(f, "form data"),
             Self::SecurityReport => write!(f, "security report"),
+            Self::UnrealReport => write!(f, "unreal report"),
         }
     }
 }

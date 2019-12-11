@@ -6,7 +6,9 @@ use futures::{future, Future, Stream};
 use semaphore_general::protocol::EventId;
 
 use crate::body::ForwardBody;
-use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
+use crate::endpoints::common::{
+    create_text_event_id_response, handle_store_like_request, BadStoreRequest,
+};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
@@ -197,14 +199,6 @@ where {
     Box::new(future)
 }
 
-fn create_response(id: EventId) -> HttpResponse {
-    // the minidump client expects the response to contain an event id as a hyphenated UUID
-    // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    HttpResponse::Ok()
-        .content_type("text/plain")
-        .body(format!("{}", id.0.to_hyphenated()))
-}
-
 fn store_minidump(
     meta: EventMeta,
     start_time: StartTime,
@@ -218,7 +212,7 @@ fn store_minidump(
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, event_size),
-        create_response,
+        create_text_event_id_response,
     ))
 }
 

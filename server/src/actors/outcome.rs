@@ -167,6 +167,13 @@ pub enum DiscardReason {
     /// [All] An error in Relay caused event ingestion to fail. This is the catch-all and usually
     /// indicates bugs in Relay, rather than an expected failure.
     Internal,
+
+    /// [Relay] Symbolic failed to extract an Unreal Crash report from a request sent to the
+    /// Unreal endpoint
+    ProcessUnreal,
+
+    /// [Relay] Invalid Unreal Crash report
+    InvalidUnrealReport,
 }
 
 /// This is the implementation that uses kafka queues and does stuff
@@ -239,6 +246,7 @@ mod real_implementation {
                 DiscardReason::SecurityReportType => "security_report_type",
                 DiscardReason::SecurityReport => "security_report",
                 DiscardReason::Cors => "cors",
+                DiscardReason::ProcessUnreal => "process_unreal",
 
                 // Relay specific reasons (not present in Sentry)
                 DiscardReason::Payload => "payload",
@@ -251,6 +259,7 @@ mod real_implementation {
                 DiscardReason::DuplicateItem => "duplicate_item",
                 DiscardReason::Internal => "internal",
                 DiscardReason::InvalidEventId => "invalid_event_id",
+                DiscardReason::InvalidUnrealReport => "invalid_unreal",
             }
         }
     }

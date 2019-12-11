@@ -64,6 +64,9 @@ pub enum BadStoreRequest {
 
     #[fail(display = "event submission rejected with_reason: {:?}", _0)]
     EventRejected(DiscardReason),
+
+    #[fail(display = "invalid unreal crash report")]
+    InvalidUnrealReport,
 }
 
 impl BadStoreRequest {
@@ -71,6 +74,10 @@ impl BadStoreRequest {
         match self {
             BadStoreRequest::UnsupportedProtocolVersion(_) => {
                 Outcome::Invalid(DiscardReason::AuthVersion)
+            }
+
+            BadStoreRequest::InvalidUnrealReport => {
+                Outcome::Invalid(DiscardReason::MissingMinidumpUpload)
             }
 
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
@@ -253,4 +260,13 @@ where
         });
 
     Box::new(future)
+}
+
+/// Creates a HttpResponse containing the textual representation of the given EventId
+pub fn create_text_event_id_response(id: EventId) -> HttpResponse {
+    // the minidump client expects the response to contain an event id as a hyphenated UUID
+    // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    HttpResponse::Ok()
+        .content_type("text/plain")
+        .body(format!("{}", id.0.to_hyphenated()))
 }
