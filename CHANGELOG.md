@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.66
+
+**Relay**:
+
+- Align store status codes with main Sentry.
+
 ## 0.4.65
 
 **Relay**:
