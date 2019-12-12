@@ -134,6 +134,12 @@ impl ResponseError for BadStoreRequest {
                 // client. It might retry event submission at a later time.
                 HttpResponse::ServiceUnavailable().json(&body)
             }
+            BadStoreRequest::EventRejected(_) => {
+                // The event has been discarded, which is generally indicated with a 403 error.
+                // Originally, Sentry also used this status code for event filters, but these are
+                // now executed asynchronously in `EventProcessor`.
+                HttpResponse::Forbidden().json(&body)
+            }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client's fault.
