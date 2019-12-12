@@ -20,7 +20,8 @@
       "version": "74.0.3729"
     },
     "client_os": {
-      "name": "Windows 10",
+      "name": "Windows",
+      "version": "10",
       "type": "os"
     }
   },
