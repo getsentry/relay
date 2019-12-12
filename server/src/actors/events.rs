@@ -399,13 +399,6 @@ impl EventProcessor {
             ));
         }
 
-        //        if let Some(item) = unreal_item {
-        //            log::trace!("extracting event form unreal message");
-        //            return event_from_unreal(item.payload())
-        //                .map(Some)
-        //                .map_err(|_| ProcessingError::InvalidUnreal);
-        //        }
-
         Ok(None)
     }
 

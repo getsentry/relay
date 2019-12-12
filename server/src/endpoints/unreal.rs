@@ -10,17 +10,22 @@ use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 use futures::Future;
+use semaphore_general::types::Value;
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: EventMeta,
     max_payload_size: usize,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
+    let user_id = request.query().get("UserID").map(String::to_owned);
     let future = ForwardBody::new(request, max_payload_size)
         .map_err(|_| BadStoreRequest::InvalidUnrealReport)
         .and_then(move |data| {
             let mut envelope = Envelope::from_request(EventId::new(), meta);
             let mut item = Item::new(ItemType::UnrealReport);
+            if let Some(user_id) = user_id {
+                item.set_header("user_id", Value::String(user_id));
+            }
             item.set_payload(ContentType::OctetStream, data);
             envelope.add_item(item);
             Ok(envelope)
@@ -47,11 +52,8 @@ fn store_unreal(
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource(
-        r"/api/{project:\d+}/unreal/{sentry_key:\d+}{trailing_slash:/?}",
-        |r| {
-            r.name("store-unreal");
-            r.post().with(store_unreal);
-        },
-    )
+    app.resource(r"/api/{project:\d+}/unreal/{sentry_key:\d+}/", |r| {
+        r.name("store-unreal");
+        r.post().with(store_unreal);
+    })
 }

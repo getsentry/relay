@@ -190,6 +190,16 @@ pub enum AttachmentType {
     /// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
     /// truncated to the maxmimum number of allowed attachments.
     Breadcrumbs,
+
+    #[serde(rename = "event.unrealcontext")]
+    /// This is a binary attachment present in Unreal 4 events containing event context information.
+    /// This can be deserialized using the `symbolic` crate see [unreal::Unreal4Context]
+    UnrealContext,
+
+    #[serde(rename = "event.unreallogs")]
+    /// This is a binary attachment present in Unreal 4 events containing event Logs.
+    /// This can be deserialized using the `symbolic` crate see [unreal::Unreal4LogEntry]
+    UnrealLogs,
 }
 
 impl Default for AttachmentType {
