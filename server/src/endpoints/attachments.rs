@@ -4,7 +4,6 @@ use futures::Future;
 use semaphore_common::tryf;
 use semaphore_general::protocol::EventId;
 
-use crate::actors::outcome::DiscardReason;
 use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
 use crate::envelope::Envelope;
 use crate::extractors::{EventMeta, StartTime};
@@ -21,7 +20,7 @@ fn extract_envelope(
         .get("event_id")
         .unwrap_or_default()
         .parse::<EventId>()
-        .map_err(|_| BadStoreRequest::EventRejected(DiscardReason::InvalidEventId)));
+        .map_err(|_| BadStoreRequest::InvalidEventId));
 
     let envelope = Envelope::from_request(event_id, meta);
 

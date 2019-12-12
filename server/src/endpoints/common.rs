@@ -64,6 +64,10 @@ pub enum BadStoreRequest {
 
     #[fail(display = "event submission rejected with_reason: {:?}", _0)]
     EventRejected(DiscardReason),
+
+    /// User specified an unparseable event ID as part of an attachment endpoint request.
+    #[fail(display = "invalid event id")]
+    InvalidEventId,
 }
 
 impl BadStoreRequest {
@@ -102,6 +106,9 @@ impl BadStoreRequest {
             }
 
             BadStoreRequest::RateLimited(retry_after) => Outcome::RateLimited(retry_after.clone()),
+
+            // should actually never create an outcome
+            BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
         }
     }
 }
@@ -133,6 +140,12 @@ impl ResponseError for BadStoreRequest {
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
                 HttpResponse::ServiceUnavailable().json(&body)
+            }
+            BadStoreRequest::EventRejected(_) => {
+                // The event has been discarded, which is generally indicated with a 403 error.
+                // Originally, Sentry also used this status code for event filters, but these are
+                // now executed asynchronously in `EventProcessor`.
+                HttpResponse::Forbidden().json(&body)
             }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
