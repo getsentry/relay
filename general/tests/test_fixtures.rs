@@ -24,11 +24,6 @@ macro_rules! event_snapshot {
 }
 
 #[test]
-fn test_android() {
-    event_snapshot!("android");
-}
-
-#[test]
 fn test_cocoa() {
     event_snapshot!("cocoa");
 }
