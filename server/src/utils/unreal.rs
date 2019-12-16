@@ -1,12 +1,6 @@
 use symbolic::unreal::{Unreal4Crash, Unreal4Error, Unreal4File, Unreal4FileType};
 
-//use semaphore_general::protocol::Event;
-//use semaphore_general::types::Annotated;
-
-const MAX_NUM_UNREAL_LOGS: usize = 40;
-
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::envelope::AttachmentType::Attachment;
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 
 fn insert_attachment_from_unreal_file(
@@ -33,8 +27,6 @@ pub fn expand_if_unreal_envelope(envelope: &mut Envelope) -> Result<&mut Envelop
     if let Some(unreal_item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
         let payload = unreal_item.payload();
         let crash = Unreal4Crash::parse(&payload)?;
-
-        let logs = crash.logs(MAX_NUM_UNREAL_LOGS);
 
         for file in crash.files() {
             let file_name = file.name();

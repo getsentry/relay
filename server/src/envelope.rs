@@ -200,6 +200,11 @@ pub enum AttachmentType {
     /// This is a binary attachment present in Unreal 4 events containing event Logs.
     /// This can be deserialized using the `symbolic` crate see [unreal::Unreal4LogEntry]
     UnrealLogs,
+
+    #[serde(rename = "event.userinfo")]
+    /// This is a text attachment present in Unreal 4 events containing event Logs.
+    /// The information comes from the
+    UnrealUserInfo,
 }
 
 impl Default for AttachmentType {

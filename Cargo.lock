@@ -2528,7 +2528,7 @@ dependencies = [
  "serde 1.0.103 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "symbolic 7.0.0 (git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing)",
+ "symbolic 7.0.0 (git+https://github.com/getsentry/symbolic.git)",
  "tokio-timer 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -2793,17 +2793,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "symbolic"
 version = "7.0.0"
-source = "git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing#0e9010adda2243e71eed0d89a56fd5df8342aff2"
+source = "git+https://github.com/getsentry/symbolic.git#921b9360109aa454c343bb95c832e058aa115ecb"
 dependencies = [
- "symbolic-common 7.0.0 (git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing)",
- "symbolic-debuginfo 7.0.0 (git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing)",
- "symbolic-unreal 7.0.0 (git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing)",
+ "symbolic-common 7.0.0 (git+https://github.com/getsentry/symbolic.git)",
+ "symbolic-debuginfo 7.0.0 (git+https://github.com/getsentry/symbolic.git)",
+ "symbolic-unreal 7.0.0 (git+https://github.com/getsentry/symbolic.git)",
 ]
 
 [[package]]
 name = "symbolic-common"
 version = "7.0.0"
-source = "git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing#0e9010adda2243e71eed0d89a56fd5df8342aff2"
+source = "git+https://github.com/getsentry/symbolic.git#921b9360109aa454c343bb95c832e058aa115ecb"
 dependencies = [
  "debugid 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2815,7 +2815,7 @@ dependencies = [
 [[package]]
 name = "symbolic-debuginfo"
 version = "7.0.0"
-source = "git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing#0e9010adda2243e71eed0d89a56fd5df8342aff2"
+source = "git+https://github.com/getsentry/symbolic.git#921b9360109aa454c343bb95c832e058aa115ecb"
 dependencies = [
  "dmsort 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2833,14 +2833,14 @@ dependencies = [
  "serde 1.0.103 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "symbolic-common 7.0.0 (git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing)",
+ "symbolic-common 7.0.0 (git+https://github.com/getsentry/symbolic.git)",
  "zip 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "symbolic-unreal"
 version = "7.0.0"
-source = "git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing#0e9010adda2243e71eed0d89a56fd5df8342aff2"
+source = "git+https://github.com/getsentry/symbolic.git#921b9360109aa454c343bb95c832e058aa115ecb"
 dependencies = [
  "anylog 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3863,10 +3863,10 @@ dependencies = [
 "checksum strsim 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 "checksum subtle 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2d67a5a62ba6e01cb2192ff309324cb4875d0c451d55fe2319433abe7a05a8ee"
 "checksum subtle 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "01f40907d9ffc762709e4ff3eb4a6f6b41b650375a3f09ac92b641942b7fb082"
-"checksum symbolic 7.0.0 (git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing)" = "<none>"
-"checksum symbolic-common 7.0.0 (git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing)" = "<none>"
-"checksum symbolic-debuginfo 7.0.0 (git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing)" = "<none>"
-"checksum symbolic-unreal 7.0.0 (git+https://github.com/getsentry/symbolic.git?branch=feat/expose-context-parsing)" = "<none>"
+"checksum symbolic 7.0.0 (git+https://github.com/getsentry/symbolic.git)" = "<none>"
+"checksum symbolic-common 7.0.0 (git+https://github.com/getsentry/symbolic.git)" = "<none>"
+"checksum symbolic-debuginfo 7.0.0 (git+https://github.com/getsentry/symbolic.git)" = "<none>"
+"checksum symbolic-unreal 7.0.0 (git+https://github.com/getsentry/symbolic.git)" = "<none>"
 "checksum syn 0.15.44 (registry+https://github.com/rust-lang/crates.io-index)" = "9ca4b3b69a77cbe1ffc9e198781b7acb0c7365a883670e8f1c1bc66fba79a5c5"
 "checksum syn 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)" = "66850e97125af79138385e9b88339cbcd037e3f28ceab8c5ad98e64f0f1f80bf"
 "checksum synstructure 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)" = "02353edf96d6e4dc81aea2d8490a7e9db177bf8acb0e951c24940bf866cb313f"
