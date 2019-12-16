@@ -2,7 +2,7 @@
 source: general/tests/test_fixtures.rs
 expression: SerializableAnnotated(&event)
 ---
-event_id: be483c242de94048b04a173619068e12
+event_id: ae3a2cc6e08741c5b09946c65c022469
 level: error
 type: error
 culprit: io.sentry.sample.MainActivity in lambda$onCreate$2

@@ -3,6 +3,7 @@
   "level": "error",
   "release": "io.sentry.sample-1.0",
   "dist": "1",
+  "event_id": "ae3a2cc6e08741c5b09946c65c022469",
   "platform": "java",
   "contexts": {
     "device": {
