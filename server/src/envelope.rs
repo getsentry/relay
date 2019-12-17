@@ -78,6 +78,8 @@ pub enum ItemType {
     FormData,
     SecurityReport,
     UnrealReport,
+    /// Userfeedback encoded as JSON
+    UserFeedback,
 }
 
 impl fmt::Display for ItemType {
@@ -88,6 +90,7 @@ impl fmt::Display for ItemType {
             Self::FormData => write!(f, "form data"),
             Self::SecurityReport => write!(f, "security report"),
             Self::UnrealReport => write!(f, "unreal report"),
+            Self::UserFeedback => write!(f, "user feedback"),
         }
     }
 }

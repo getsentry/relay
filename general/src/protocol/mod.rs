@@ -18,6 +18,7 @@ mod templateinfo;
 mod thread;
 mod types;
 mod user;
+mod user_feedback;
 
 pub use self::breadcrumb::Breadcrumb;
 pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
@@ -49,3 +50,4 @@ pub use self::types::{
     ParseLevelError, RegVal, Values,
 };
 pub use self::user::{Geo, User};
+pub use self::user_feedback::UserFeedback;

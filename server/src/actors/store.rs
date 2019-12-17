@@ -12,12 +12,12 @@ use rdkafka::producer::{BaseRecord, DefaultProducerContext};
 use rdkafka::ClientConfig;
 use serde::{ser::Error, Serialize};
 
-use rmp_serde::encode::Error as SerdeError;
+use rmp_serde::encode::Error as RmpError;
 
 use semaphore_common::{metric, Config, KafkaTopic, ProjectId, Uuid};
-use semaphore_general::protocol::{EventId, EventType};
+use semaphore_general::protocol::{EventId, EventType, UserFeedback};
 
-use crate::envelope::{AttachmentType, Envelope, ItemType};
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
 use crate::utils::instant_to_unix_timestamp;
 
@@ -27,8 +27,10 @@ type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerConte
 pub enum StoreError {
     #[fail(display = "failed to send kafka message")]
     SendFailed(#[cause] KafkaError),
-    #[fail(display = "failed to serialize message")]
-    SerializeFailed(#[cause] SerdeError),
+    #[fail(display = "failed to serialize kafka message")]
+    SerializeFailed(#[cause] RmpError),
+    #[fail(display = "failed to parse JSON")]
+    DeserializeFailed(#[cause] serde_json::Error),
 }
 
 /// Actor for publishing events to Sentry through kafka topics.
@@ -72,6 +74,66 @@ impl StoreForwarder {
             Ok(_) => Ok(()),
             Err((kafka_error, _message)) => Err(StoreError::SendFailed(kafka_error)),
         }
+    }
+
+    fn produce_attachment_chunks(
+        &self,
+        event_id: EventId,
+        project_id: ProjectId,
+        item: &Item,
+    ) -> Result<ChunkedAttachment, StoreError> {
+        let id = Uuid::new_v4().to_string();
+
+        let mut chunk_index = 0;
+        let mut offset = 0;
+        let payload = item.payload();
+        let size = item.len();
+
+        while offset == 0 || offset < size {
+            let max_chunk_size = self.config.attachment_chunk_size();
+            let chunk_size = std::cmp::min(max_chunk_size, size - offset);
+
+            let attachment_message = KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
+                payload: payload.slice(offset, offset + chunk_size),
+                event_id,
+                project_id,
+                id: id.clone(),
+                chunk_index,
+            });
+
+            self.produce(KafkaTopic::Attachments, event_id, attachment_message)?;
+            offset += chunk_size;
+            chunk_index += 1;
+        }
+
+        // The chunk_index is incremented after every loop iteration. After we exit the loop, it
+        // is one larger than the last chunk, so it is equal to the number of chunks.
+        debug_assert!(chunk_index > 0);
+
+        Ok(ChunkedAttachment {
+            id: id.clone(),
+            name: item.filename().map(str::to_owned),
+            content_type: item
+                .content_type()
+                .map(|content_type| content_type.as_str().to_owned()),
+            attachment_type: item.attachment_type().unwrap_or_default(),
+            chunks: chunk_index,
+        })
+    }
+
+    fn produce_userfeedback(&self, project_id: ProjectId, item: &Item) -> Result<(), StoreError> {
+        let feedback: UserFeedback =
+            serde_json::from_slice(&item.payload()).map_err(StoreError::DeserializeFailed)?;
+        self.produce(
+            KafkaTopic::Attachments,
+            feedback.event_id,
+            KafkaMessage::UserFeedback(UserFeedbackKafkaMessage {
+                project_id,
+                feedback,
+            }),
+        )?;
+
+        Ok(())
     }
 }
 
@@ -179,6 +241,16 @@ struct AttachmentKafkaMessage {
     attachment: ChunkedAttachment,
 }
 
+/// User feedback for an event wrapped up in a message ready for consumption in Kafka.
+///
+/// Is always independent of an event and can be sent as part of any envelope.
+#[derive(Debug, Serialize)]
+struct UserFeedbackKafkaMessage {
+    /// The project id for the current event.
+    project_id: ProjectId,
+    feedback: UserFeedback,
+}
+
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -186,6 +258,7 @@ enum KafkaMessage {
     Event(EventKafkaMessage),
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
+    UserFeedback(UserFeedbackKafkaMessage),
 }
 
 /// Message sent to the StoreForwarder containing an event
@@ -227,49 +300,14 @@ impl Handler<StoreEvent> for StoreForwarder {
         let mut attachments = Vec::new();
 
         for item in envelope.items() {
-            // Only upload items first.
-            if item.ty() != ItemType::Attachment {
-                continue;
+            match item.ty() {
+                ItemType::Attachment => {
+                    debug_assert!(topic == KafkaTopic::Attachments);
+                    attachments.push(self.produce_attachment_chunks(event_id, project_id, item)?);
+                }
+                ItemType::UserFeedback => self.produce_userfeedback(project_id, item)?,
+                _ => {}
             }
-
-            let id = Uuid::new_v4().to_string();
-
-            let mut chunk_index = 0;
-            let mut offset = 0;
-            let payload = item.payload();
-            let size = item.len();
-
-            while offset == 0 || offset < size {
-                let max_chunk_size = self.config.attachment_chunk_size();
-                let chunk_size = std::cmp::min(max_chunk_size, size - offset);
-
-                let attachment_message =
-                    KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
-                        payload: payload.slice(offset, offset + chunk_size),
-                        event_id,
-                        project_id,
-                        id: id.clone(),
-                        chunk_index,
-                    });
-
-                self.produce(topic, event_id, attachment_message)?;
-                offset += chunk_size;
-                chunk_index += 1;
-            }
-
-            // The chunk_index is incremented after every loop iteration. After we exit the loop, it
-            // is one larger than the last chunk, so it is equal to the number of chunks.
-            debug_assert!(chunk_index > 0);
-
-            attachments.push(ChunkedAttachment {
-                id: id.clone(),
-                name: item.filename().map(str::to_owned),
-                content_type: item
-                    .content_type()
-                    .map(|content_type| content_type.as_str().to_owned()),
-                attachment_type: item.attachment_type().unwrap_or_default(),
-                chunks: chunk_index,
-            });
         }
 
         if let Some(event_item) = event_item {
