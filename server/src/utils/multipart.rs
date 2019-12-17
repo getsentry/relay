@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use semaphore_common::LogError;
 
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
+use crate::envelope::{ContentType, Item, ItemType, Items};
 use crate::service::ServiceState;
 
 #[derive(Debug, Fail)]
@@ -121,9 +121,9 @@ where
 }
 
 fn consume_item(
-    mut content: MultipartEnvelope,
+    mut content: MultipartItems,
     item: multipart::MultipartItem<Payload>,
-) -> ResponseFuture<Option<MultipartEnvelope>, MultipartError> {
+) -> ResponseFuture<Option<MultipartItems>, MultipartError> {
     let field = match item {
         multipart::MultipartItem::Nested(nested) => return consume_stream(content, nested),
         multipart::MultipartItem::Field(field) => field,
@@ -147,7 +147,7 @@ fn consume_item(
                 item.set_name(field_name);
             }
 
-            content.envelope.add_item(item);
+            content.items.push(item);
         } else if let Some(field_name) = field_name {
             match std::str::from_utf8(&data) {
                 Ok(value) => content.form_data.append(field_name, value),
@@ -163,9 +163,9 @@ fn consume_item(
 }
 
 fn consume_stream(
-    content: MultipartEnvelope,
+    content: MultipartItems,
     stream: multipart::Multipart<Payload>,
-) -> ResponseFuture<Option<MultipartEnvelope>, MultipartError> {
+) -> ResponseFuture<Option<MultipartItems>, MultipartError> {
     // Ensure that we consume the entire stream here. If we overflow at a certain point,
     // `consume_item` will return `None`. We need to continue folding, however, to ensure that we
     // consume the entire request payload.
@@ -204,19 +204,19 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
 }
 
 /// Internal structure used when constructing Envelopes to maintain a cap on the content size
-pub struct MultipartEnvelope {
-    // the envelope under construction
-    envelope: Envelope,
-    // keeps track of how much bigger is this envelope allowed to grow
+pub struct MultipartItems {
+    // Items of the envelope under construction.
+    items: Items,
+    // Keeps track of how much bigger is this envelope allowed to grow.
     remaining_size: usize,
-    // collect all form data in here
+    // Collect all form data in here.
     form_data: FormDataWriter,
 }
 
-impl MultipartEnvelope {
-    pub fn new(envelope: Envelope, max_size: usize) -> Self {
+impl MultipartItems {
+    pub fn new(max_size: usize) -> Self {
         Self {
-            envelope,
+            items: Items::new(),
             remaining_size: max_size,
             form_data: FormDataWriter::new(),
         }
@@ -225,17 +225,17 @@ impl MultipartEnvelope {
     pub fn handle_request(
         self,
         request: &HttpRequest<ServiceState>,
-    ) -> ResponseFuture<Envelope, MultipartError> {
+    ) -> ResponseFuture<Items, MultipartError> {
         let future = consume_stream(self, request.multipart()).and_then(|multipart_opt| {
             let multipart = multipart_opt.ok_or(MultipartError::Overflow)?;
-            let mut envelope = multipart.envelope;
+            let mut items = multipart.items;
 
             let form_data = multipart.form_data.into_item();
             if !form_data.is_empty() {
-                envelope.add_item(form_data);
+                items.push(form_data);
             }
 
-            Ok(envelope)
+            Ok(items)
         });
 
         Box::new(future)

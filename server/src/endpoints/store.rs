@@ -5,12 +5,12 @@ use actix_web::middleware::cors::Cors;
 use actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use bytes::BytesMut;
 use futures::Future;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use semaphore_general::protocol::EventId;
 
 use crate::body::StoreBody;
-use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
+use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
@@ -19,12 +19,6 @@ use crate::service::{ServiceApp, ServiceState};
 // See http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
 static PIXEL: &[u8] =
     b"GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;";
-
-#[derive(Deserialize)]
-struct EventIdHelper {
-    #[serde(default, rename = "event_id")]
-    id: Option<EventId>,
-}
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
@@ -59,9 +53,7 @@ fn extract_envelope(
 
             if is_legacy_python_json {
                 let mut data_mut = BytesMut::from(data);
-
                 json_forensics::translate_slice(&mut data_mut[..]);
-
                 data = data_mut.freeze();
             }
 
@@ -69,11 +61,7 @@ fn extract_envelope(
             // incoming store request. To uncouple it from the workload on the processing workers, this
             // requires to synchronously parse a minimal part of the JSON payload. If the JSON payload
             // is invalid, processing can be skipped altogether.
-            //let event_id = serde_json::from_slice::<EventIdHelper>(&data)
-            let event_id = serde_json::from_slice::<EventIdHelper>(&data)
-                .map(|event| event.id)
-                .map_err(BadStoreRequest::InvalidJson)?
-                .unwrap_or_else(EventId::new);
+            let event_id = common::event_id_from_json(&data)?.unwrap_or_else(EventId::new);
 
             // Use the request's content type. If the content type is missing, assume "application/json".
             let content_type = match &content_type {
@@ -121,7 +109,7 @@ fn store_event(
     let content_type = request.content_type().to_owned();
     let event_size = request.state().config().max_event_payload_size();
 
-    Box::new(handle_store_like_request(
+    common::handle_store_like_request(
         meta,
         // XXX: This is wrong. In case of external relays, store can receive event-less envelopes.
         // We need to fix this before external relays go live or we will create outcomes and rate
@@ -131,7 +119,7 @@ fn store_event(
         request,
         move |data, meta| extract_envelope(data, meta, event_size, content_type),
         move |id| create_response(id, is_get_request),
-    ))
+    )
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
