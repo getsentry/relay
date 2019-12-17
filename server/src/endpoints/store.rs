@@ -109,7 +109,7 @@ fn store_event(
     let content_type = request.content_type().to_owned();
     let event_size = request.state().config().max_event_payload_size();
 
-    Box::new(common::handle_store_like_request(
+    common::handle_store_like_request(
         meta,
         // XXX: This is wrong. In case of external relays, store can receive event-less envelopes.
         // We need to fix this before external relays go live or we will create outcomes and rate
@@ -119,7 +119,7 @@ fn store_event(
         request,
         move |data, meta| extract_envelope(data, meta, event_size, content_type),
         move |id| create_response(id, is_get_request),
-    ))
+    )
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

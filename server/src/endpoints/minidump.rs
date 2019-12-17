@@ -197,14 +197,14 @@ fn store_minidump(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let event_size = request.state().config().max_attachment_payload_size();
 
-    Box::new(common::handle_store_like_request(
+    common::handle_store_like_request(
         meta,
         true,
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, event_size),
         create_response,
-    ))
+    )
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

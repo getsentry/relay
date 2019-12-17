@@ -49,14 +49,14 @@ fn store_attachment(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let attachment_size = request.state().config().max_attachment_payload_size();
 
-    Box::new(common::handle_store_like_request(
+    common::handle_store_like_request(
         meta,
         false,
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, attachment_size),
         create_response,
-    ))
+    )
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
