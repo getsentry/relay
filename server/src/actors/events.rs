@@ -9,7 +9,7 @@ use failure::Fail;
 use futures::prelude::*;
 use parking_lot::{Mutex, RwLock};
 use serde_json::Value as SerdeValue;
-use symbolic::unreal::Unreal4Context;
+use symbolic::unreal::{Unreal4Context, Unreal4LogEntry};
 
 use semaphore_common::{clone, metric, Config, LogError, RelayMode};
 use semaphore_general::pii::PiiProcessor;
@@ -40,6 +40,8 @@ use {
     semaphore_general::protocol::IpAddr,
     semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
+
+const MAX_NUM_UNREAL_LOGS: usize = 40;
 
 #[derive(Debug, Fail)]
 pub enum QueueEventError {
@@ -310,7 +312,7 @@ impl EventProcessor {
         breadcrumbs_item2: Option<Item>,
         unreal_user_info: Option<Item>,
         unreal_context: Option<Item>,
-        _unreal_logs: Option<Item>,
+        unreal_logs: Option<Item>,
     ) -> Result<Annotated<Event>, ProcessingError> {
         let mut event = match event_item {
             Some(item) => Self::extract_attached_event(config, item)?,
@@ -353,6 +355,10 @@ impl EventProcessor {
 
         if let Some(context) = unreal_context {
             Self::merge_unreal_context(evt, context);
+        }
+
+        if let Some(logs) = unreal_logs {
+            Self::merge_unreal_logs(evt, logs)
         }
 
         let mut breadcrumbs1 = match breadcrumbs_item1 {
@@ -401,6 +407,36 @@ impl EventProcessor {
         }
 
         Ok(event)
+    }
+
+    /// Merge an unreal logs object into an event
+    fn merge_unreal_logs(event: &mut Event, item: Item) {
+        if item.attachment_type() != Some(AttachmentType::UnrealLogs) {
+            log::error!(
+                "Invalid item passed as Unreal Logs, got attachemnt type:{:?}",
+                item.attachment_type(),
+            );
+            return;
+        }
+
+        if let Ok(logs) = Unreal4LogEntry::parse(&item.payload(), MAX_NUM_UNREAL_LOGS) {
+            let breadcrumbs = event
+                .breadcrumbs
+                .value_mut()
+                .get_or_insert_with(Values::default)
+                .values
+                .value_mut()
+                .get_or_insert_with(Array::default);
+            for log in logs {
+                let mut breadcrumb = Breadcrumb {
+                    message: Annotated::new(log.message),
+                    ..Breadcrumb::default()
+                };
+                breadcrumb.timestamp.set_value(log.timestamp);
+                breadcrumb.category.set_value(log.component);
+                breadcrumbs.push(Annotated::new(breadcrumb))
+            }
+        }
     }
 
     /// Merges an unreal context object into an event
