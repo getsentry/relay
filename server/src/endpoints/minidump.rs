@@ -163,13 +163,16 @@ fn extract_envelope(
 
             for mut item in items {
                 let attachment_type = match item.name() {
-                    Some(self::ITEM_NAME_BREADCRUMBS1) => AttachmentType::Breadcrumbs,
-                    Some(self::ITEM_NAME_BREADCRUMBS2) => AttachmentType::Breadcrumbs,
-                    Some(self::ITEM_NAME_EVENT) => AttachmentType::MsgpackEvent,
-                    _ => AttachmentType::Attachment,
+                    Some(self::ITEM_NAME_BREADCRUMBS1) => Some(AttachmentType::Breadcrumbs),
+                    Some(self::ITEM_NAME_BREADCRUMBS2) => Some(AttachmentType::Breadcrumbs),
+                    Some(self::ITEM_NAME_EVENT) => Some(AttachmentType::MsgpackEvent),
+                    _ => None,
                 };
 
-                item.set_attachment_type(attachment_type);
+                if let Some(ty) = attachment_type {
+                    item.set_attachment_type(ty);
+                }
+
                 envelope.add_item(item);
             }
 
