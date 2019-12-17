@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UserFeedback {
     /// The event ID for which this user feedback is created.
-    #[serde(default)]
     pub event_id: EventId,
     /// The user's name
     #[serde(default)]
@@ -15,6 +14,5 @@ pub struct UserFeedback {
     #[serde(default)]
     pub email: Option<String>,
     /// Comments supplied by the user
-    #[serde(default)]
-    pub comments: Option<String>,
+    pub comments: String,
 }

@@ -17,7 +17,7 @@ use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{
     AsPair, Breadcrumb, Context as EventContext, Contexts, Csp, DeviceContext, Event, EventId,
     Exception, ExpectCt, ExpectStaple, GpuContext, Hpkp, JsonLenientString, LenientString, Level,
-    LogEntry, Mechanism, OsContext, SecurityReportType, TagEntry, Tags, User, Values,
+    LogEntry, Mechanism, OsContext, SecurityReportType, TagEntry, Tags, User, UserFeedback, Values,
 };
 use semaphore_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 
@@ -304,62 +304,165 @@ impl EventProcessor {
             Err(error) => Err(ProcessingError::InvalidMsgpack(error)),
         }
     }
+    /// Merge an unreal logs object into an event
+    fn merge_unreal_logs(event: &mut Event, item: Option<&Item>) {
+        if let Some(item) = item {
+            if item.attachment_type() != Some(AttachmentType::UnrealLogs) {
+                log::error!(
+                    "Invalid item passed as Unreal Logs, got attachemnt type:{:?}",
+                    item.attachment_type(),
+                );
+                return;
+            }
+            if let Ok(logs) = Unreal4LogEntry::parse(&item.payload(), MAX_NUM_UNREAL_LOGS) {
+                let breadcrumbs = event
+                    .breadcrumbs
+                    .value_mut()
+                    .get_or_insert_with(Values::default)
+                    .values
+                    .value_mut()
+                    .get_or_insert_with(Array::default);
+                for log in logs {
+                    let mut breadcrumb = Breadcrumb {
+                        message: Annotated::new(log.message),
+                        ..Breadcrumb::default()
+                    };
+                    breadcrumb.timestamp.set_value(log.timestamp);
+                    breadcrumb.category.set_value(log.component);
+                    breadcrumbs.push(Annotated::new(breadcrumb))
+                }
+            }
+        }
+    }
+
+    /// Merges an unreal context object into an event
+    fn merge_unreal_context(event: &mut Event, item: Option<&Item>) -> Option<Item> {
+        if let Some(item) = item {
+            if item.attachment_type() != Some(AttachmentType::UnrealContext) {
+                log::error!(
+                    "Invalid item passed as Unreal Context, got attachemnt type:{:?}",
+                    item.attachment_type(),
+                );
+                return None;
+            }
+            if let Ok(context) = Unreal4Context::parse(&item.payload()) {
+                if let Some(mut runtime_props) = context.runtime_properties {
+                    if let Some(msg) = runtime_props.error_message.take() {
+                        event
+                            .logentry
+                            .get_or_insert_with(LogEntry::default)
+                            .formatted = Annotated::new(msg);
+                    }
+                    let user_name = runtime_props.username.take();
+
+                    if let Some(username) = &user_name {
+                        event
+                            .user
+                            .get_or_insert_with(User::default)
+                            .username
+                            .set_value(Some(username.clone()));
+                    }
+
+                    let contexts = event.contexts.get_or_insert_with(Contexts::default);
+
+                    if let Some(memory_physical) = runtime_props.memory_stats_total_physical.take()
+                    {
+                        let device_context = contexts
+                            .get_or_insert_with(DeviceContext::default_key(), || {
+                                EventContext::Device(Box::new(DeviceContext::default()))
+                            });
+
+                        if let EventContext::Device(device_context) = device_context {
+                            device_context.memory_size = Annotated::new(memory_physical);
+                        } else {
+                            log::error!(
+                            "Contexts contains a wrong type of Context at key:'{}', expected DeviceContext.",
+                            DeviceContext::default_key()
+                        )
+                        }
+                    }
+                    if let Some(os_major) = runtime_props.misc_os_version_major.take() {
+                        let os_context = contexts
+                            .get_or_insert_with(OsContext::default_key(), || {
+                                EventContext::Os(Box::new(OsContext::default()))
+                            });
+
+                        if let EventContext::Os(os_context) = os_context {
+                            os_context.name = Annotated::new(os_major);
+                        } else {
+                            log::error!(
+                            "Contexts contains a wrong type of Context at key:'{}', expected OsContext.",
+                            OsContext::default_key()
+                        )
+                        }
+                    }
+                    if let Some(gpu_brand) = runtime_props.misc_primary_gpu_brand.take() {
+                        let gpu_context = contexts
+                            .get_or_insert_with(GpuContext::default_key(), || {
+                                EventContext::Gpu(Box::new(GpuContext::default()))
+                            });
+
+                        if let EventContext::Gpu(gpu_context) = gpu_context {
+                            gpu_context.insert(
+                                "name".to_owned(),
+                                Annotated::new(Value::String(gpu_brand)),
+                            );
+                        } else {
+                            log::error!(
+                            "Contexts contains a wrong type of Context at key:'{}', expected GpuContext.",
+                            GpuContext::default_key()
+                        );
+                        }
+                    }
+
+                    let user_description = runtime_props.user_description.take();
+
+                    // modules not used just remove it from runtime props
+                    runtime_props.modules.take();
+
+                    // TODO need Unreal4ContextRutnimeProps to also derive Deserialize
+                    //let props = serde_json::to_string(&runtime_props);
+                    let props = "{}".to_string(); // TODO remove when we have the real props
+                    if let Ok(Value::Object(props)) = serde_json::from_str(&props) {
+                        contexts.add_at_index("unreal", EventContext::Other(props));
+                    }
+
+                    if let Some(user_description) = user_description {
+                        if let Some(event_id) = event.id.value() {
+                            let user_name = user_name.unwrap_or_else(|| "unknown".to_string());
+                            let user_feedback = UserFeedback {
+                                email: None,
+                                comments: user_description,
+                                event_id: *event_id,
+                                name: Some(user_name),
+                            };
+
+                            if let Ok(user_feedback_body) = serde_json::to_string(&user_feedback) {
+                                let mut ret_val = Item::new(ItemType::UserFeedback);
+                                ret_val.set_payload(
+                                    ContentType::Json,
+                                    user_feedback_body.into_bytes(),
+                                );
+                                return Some(ret_val);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
 
     fn event_from_attachments(
         config: &Config,
         event_item: Option<Item>,
         breadcrumbs_item1: Option<Item>,
         breadcrumbs_item2: Option<Item>,
-        unreal_user_info: Option<Item>,
-        unreal_context: Option<Item>,
-        unreal_logs: Option<Item>,
     ) -> Result<Annotated<Event>, ProcessingError> {
         let mut event = match event_item {
             Some(item) => Self::extract_attached_event(config, item)?,
             None => Annotated::new(Event::default()),
         };
-
-        let evt = event.get_or_insert_with(Event::default);
-
-        if let Some(unreal_user_info) = unreal_user_info {
-            let user_info = String::from_utf8(unreal_user_info.payload().to_vec());
-
-            if let Ok(user_info) = user_info {
-                let parts: Vec<&str> = user_info.split('|').collect();
-                let num_parts = parts.len();
-
-                if num_parts > 0 {
-                    let usr = evt.user.value_mut().get_or_insert_with(User::default);
-                    let user_id = parts[0];
-                    usr.id = Annotated::new(LenientString(user_id.into()));
-                }
-                if num_parts > 1 {
-                    let tags = evt.tags.value_mut().get_or_insert_with(Tags::default);
-                    let epic_account_id = parts[1];
-
-                    tags.push(Annotated::new(TagEntry::from_pair((
-                        Annotated::new("epic_account_id".to_string()),
-                        Annotated::new(epic_account_id.to_string()),
-                    ))));
-                    if num_parts > 2 {
-                        let machine_id = parts[2];
-
-                        tags.push(Annotated::new(TagEntry::from_pair((
-                            Annotated::new("machine_id".to_string()),
-                            Annotated::new(machine_id.to_string()),
-                        ))));
-                    }
-                }
-            }
-        }
-
-        if let Some(context) = unreal_context {
-            Self::merge_unreal_context(evt, context);
-        }
-
-        if let Some(logs) = unreal_logs {
-            Self::merge_unreal_logs(evt, logs)
-        }
 
         let mut breadcrumbs1 = match breadcrumbs_item1 {
             Some(item) => Self::parse_msgpack_breadcrumbs(config, item)?.unwrap_or_default(),
@@ -400,134 +503,13 @@ impl EventProcessor {
         }
 
         if !breadcrumbs1.is_empty() {
-            evt.breadcrumbs = Annotated::new(Values {
+            event.get_or_insert_with(Event::default).breadcrumbs = Annotated::new(Values {
                 values: Annotated::new(breadcrumbs1),
                 other: Object::default(),
             });
         }
 
         Ok(event)
-    }
-
-    /// Merge an unreal logs object into an event
-    fn merge_unreal_logs(event: &mut Event, item: Item) {
-        if item.attachment_type() != Some(AttachmentType::UnrealLogs) {
-            log::error!(
-                "Invalid item passed as Unreal Logs, got attachemnt type:{:?}",
-                item.attachment_type(),
-            );
-            return;
-        }
-
-        if let Ok(logs) = Unreal4LogEntry::parse(&item.payload(), MAX_NUM_UNREAL_LOGS) {
-            let breadcrumbs = event
-                .breadcrumbs
-                .value_mut()
-                .get_or_insert_with(Values::default)
-                .values
-                .value_mut()
-                .get_or_insert_with(Array::default);
-            for log in logs {
-                let mut breadcrumb = Breadcrumb {
-                    message: Annotated::new(log.message),
-                    ..Breadcrumb::default()
-                };
-                breadcrumb.timestamp.set_value(log.timestamp);
-                breadcrumb.category.set_value(log.component);
-                breadcrumbs.push(Annotated::new(breadcrumb))
-            }
-        }
-    }
-
-    /// Merges an unreal context object into an event
-    fn merge_unreal_context(event: &mut Event, item: Item) {
-        if item.attachment_type() != Some(AttachmentType::UnrealContext) {
-            log::error!(
-                "Invalid item passed as Unreal Context, got attachemnt type:{:?}",
-                item.attachment_type(),
-            );
-            return;
-        }
-        if let Ok(context) = Unreal4Context::parse(&item.payload()) {
-            if let Some(mut runtime_props) = context.runtime_properties {
-                if let Some(msg) = runtime_props.error_message.take() {
-                    event
-                        .logentry
-                        .get_or_insert_with(LogEntry::default)
-                        .formatted = Annotated::new(msg);
-                }
-
-                if let Some(username) = runtime_props.username.take() {
-                    event
-                        .user
-                        .get_or_insert_with(User::default)
-                        .username
-                        .set_value(Some(username));
-                }
-
-                let contexts = event.contexts.get_or_insert_with(Contexts::default);
-
-                if let Some(memory_physical) = runtime_props.memory_stats_total_physical.take() {
-                    let device_context = contexts
-                        .get_or_insert_with(DeviceContext::default_key(), || {
-                            EventContext::Device(Box::new(DeviceContext::default()))
-                        });
-
-                    if let EventContext::Device(device_context) = device_context {
-                        device_context.memory_size = Annotated::new(memory_physical);
-                    } else {
-                        log::error!(
-                            "Contexts contains a wrong type of Context at key:'{}', expected DeviceContext.",
-                            DeviceContext::default_key()
-                        )
-                    }
-                }
-                if let Some(os_major) = runtime_props.misc_os_version_major.take() {
-                    let os_context = contexts.get_or_insert_with(OsContext::default_key(), || {
-                        EventContext::Os(Box::new(OsContext::default()))
-                    });
-
-                    if let EventContext::Os(os_context) = os_context {
-                        os_context.name = Annotated::new(os_major);
-                    } else {
-                        log::error!(
-                            "Contexts contains a wrong type of Context at key:'{}', expected OsContext.",
-                            OsContext::default_key()
-                        )
-                    }
-                }
-                if let Some(gpu_brand) = runtime_props.misc_primary_gpu_brand.take() {
-                    let gpu_context = contexts
-                        .get_or_insert_with(GpuContext::default_key(), || {
-                            EventContext::Gpu(Box::new(GpuContext::default()))
-                        });
-
-                    if let EventContext::Gpu(gpu_context) = gpu_context {
-                        gpu_context
-                            .insert("name".to_owned(), Annotated::new(Value::String(gpu_brand)));
-                    } else {
-                        log::error!(
-                            "Contexts contains a wrong type of Context at key:'{}', expected GpuContext.",
-                            GpuContext::default_key()
-                        );
-                    }
-                }
-
-                if let Some(_user_description) = runtime_props.user_description.take() {
-                    //TODO Sentry creates a UserReport object decide what we need to do here
-                }
-
-                // modules not used just remove it from runtime props
-                runtime_props.modules.take();
-
-                // TODO need Unreal4ContextRutnimeProps to also derive Deserialize
-                //let props = serde_json::to_string(&runtime_props);
-                let props = "{}".to_string(); // TODO remove when we have the real props
-                if let Ok(Value::Object(props)) = serde_json::from_str(&props) {
-                    contexts.add_at_index("unreal", EventContext::Other(props));
-                }
-            }
-        }
     }
 
     /// Extracts the primary event payload from an envelope.
@@ -564,9 +546,9 @@ impl EventProcessor {
         let unreal_user_info = envelope
             .take_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealUserInfo));
         let unreal_context = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealContext));
-        let unreal_logs = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs));
+            .get_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealContext));
+        let unreal_logs =
+            envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs));
 
         if let Some(item) = event_item {
             log::trace!("processing json event {}", envelope.event_id());
@@ -580,23 +562,33 @@ impl EventProcessor {
             return Ok(Some(self.event_from_security_report(item)?));
         }
 
-        if attachment_item.is_some()
-            || breadcrumbs_item1.is_some()
-            || breadcrumbs_item2.is_some()
-            || unreal_user_info.is_some()
-            || unreal_context.is_some()
-            || unreal_logs.is_some()
-        {
+        if attachment_item.is_some() || breadcrumbs_item1.is_some() || breadcrumbs_item2.is_some() {
             log::trace!("extracting attached event data {}", envelope.event_id());
-            return Ok(Some(Self::event_from_attachments(
+            let mut event = Self::event_from_attachments(
                 &self.config,
                 attachment_item,
                 breadcrumbs_item1,
                 breadcrumbs_item2,
-                unreal_user_info,
-                unreal_context,
-                unreal_logs,
-            )?));
+            )?;
+
+            if let Some(evt) = event.value_mut() {
+                if evt.id.value().is_none() {
+                    evt.id.set_value(Some(envelope.event_id()));
+                }
+
+                Self::merge_unreal_user_info(evt, unreal_user_info);
+
+                let user_feedback_item = Self::merge_unreal_context(evt, unreal_context);
+                Self::merge_unreal_logs(evt, unreal_logs);
+
+                if let Some(user_feedback_item) = user_feedback_item {
+                    // merge_unreal_context might produce a user feedback item that will be latter sent
+                    // to sentry as an attachment, append it to the envelope
+                    envelope.add_item(user_feedback_item);
+                }
+            }
+
+            return Ok(Some(event));
         }
 
         if let Some(item) = form_item {
@@ -609,6 +601,40 @@ impl EventProcessor {
         }
 
         Ok(None)
+    }
+
+    fn merge_unreal_user_info(event: &mut Event, unreal_user_info: Option<Item>) {
+        if let Some(unreal_user_info) = unreal_user_info {
+            let user_info = String::from_utf8(unreal_user_info.payload().to_vec());
+
+            if let Ok(user_info) = user_info {
+                let parts: Vec<&str> = user_info.split('|').collect();
+                let num_parts = parts.len();
+
+                if num_parts > 0 {
+                    let usr = event.user.value_mut().get_or_insert_with(User::default);
+                    let user_id = parts[0];
+                    usr.id = Annotated::new(LenientString(user_id.into()));
+                }
+                if num_parts > 1 {
+                    let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
+                    let epic_account_id = parts[1];
+
+                    tags.push(Annotated::new(TagEntry::from_pair((
+                        Annotated::new("epic_account_id".to_string()),
+                        Annotated::new(epic_account_id.to_string()),
+                    ))));
+                    if num_parts > 2 {
+                        let machine_id = parts[2];
+
+                        tags.push(Annotated::new(TagEntry::from_pair((
+                            Annotated::new("machine_id".to_string()),
+                            Annotated::new(machine_id.to_string()),
+                        ))));
+                    }
+                }
+            }
+        }
     }
 
     #[cfg(feature = "processing")]
@@ -1276,16 +1302,9 @@ mod tests {
     fn message_pack_breadcrumbs_replace_the_existing_bread_crumbs() {
         let item = create_breadcrumbs_envelope(&[(None, "new1")]);
 
-        let evt = EventProcessor::event_from_attachments(
-            &Config::default(),
-            None,
-            Some(item),
-            None,
-            None,
-            None,
-            None,
-        )
-        .unwrap();
+        let evt =
+            EventProcessor::event_from_attachments(&Config::default(), None, Some(item), None)
+                .unwrap();
 
         let breadcrumbs = breadcrumbs_from_event(&evt);
 
@@ -1295,16 +1314,9 @@ mod tests {
 
         let item = create_breadcrumbs_envelope(&[(None, "new2")]);
 
-        let evt = EventProcessor::event_from_attachments(
-            &Config::default(),
-            None,
-            None,
-            Some(item),
-            None,
-            None,
-            None,
-        )
-        .unwrap();
+        let evt =
+            EventProcessor::event_from_attachments(&Config::default(), None, None, Some(item))
+                .unwrap();
 
         let breadcrumbs = breadcrumbs_from_event(&evt);
         assert_eq!(breadcrumbs.len(), 1);
@@ -1325,9 +1337,6 @@ mod tests {
             None,
             Some(item1),
             Some(item2),
-            None,
-            None,
-            None,
         )
         .unwrap();
 
@@ -1348,9 +1357,6 @@ mod tests {
             None,
             Some(item1),
             Some(item2),
-            None,
-            None,
-            None,
         )
         .unwrap();
 
