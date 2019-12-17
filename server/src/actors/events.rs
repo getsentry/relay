@@ -47,7 +47,7 @@ pub enum QueueEventError {
 }
 
 #[derive(Debug, Fail)]
-pub enum ProcessingError {
+enum ProcessingError {
     #[fail(display = "invalid json in event")]
     InvalidJson(#[cause] serde_json::Error),
 
@@ -180,11 +180,11 @@ impl EventProcessor {
         }));
     }
 
-    fn event_from_json_payload(item: Item) -> Result<Annotated<Event>, ProcessingError> {
+    fn event_from_json_payload(&self, item: Item) -> Result<Annotated<Event>, ProcessingError> {
         Annotated::from_json_bytes(&item.payload()).map_err(ProcessingError::InvalidJson)
     }
 
-    fn event_from_security_report(item: Item) -> Result<Annotated<Event>, ProcessingError> {
+    fn event_from_security_report(&self, item: Item) -> Result<Annotated<Event>, ProcessingError> {
         let mut event = Event::default();
 
         let data = &item.payload();
@@ -214,7 +214,7 @@ impl EventProcessor {
         Ok(Annotated::new(event))
     }
 
-    fn merge_formdata(target: &mut SerdeValue, item: Item) {
+    fn merge_formdata(&self, target: &mut SerdeValue, item: Item) {
         let payload = item.payload();
         for entry in FormDataIter::new(&payload) {
             if entry.key() == "sentry" {
@@ -342,7 +342,7 @@ impl EventProcessor {
     ///  4. A multipart form data body.
     ///  5. If none match, an empty default Event.
     fn extract_event(
-        config: &Config,
+        &self,
         envelope: &mut Envelope,
     ) -> Result<Option<Annotated<Event>>, ProcessingError> {
         // Remove all items first, and then process them. After this function returns, only
@@ -362,19 +362,19 @@ impl EventProcessor {
         if let Some(item) = event_item {
             log::trace!("processing json event {}", envelope.event_id());
             return Ok(Some(metric!(timer("event_processing.deserialize"), {
-                Self::event_from_json_payload(item)?
+                self.event_from_json_payload(item)?
             })));
         }
 
         if let Some(item) = security_item {
             log::trace!("processing security report {}", envelope.event_id());
-            return Ok(Some(Self::event_from_security_report(item)?));
+            return Ok(Some(self.event_from_security_report(item)?));
         }
 
         if attachment_item.is_some() || breadcrumbs_item1.is_some() || breadcrumbs_item2.is_some() {
             log::trace!("extracting attached event data {}", envelope.event_id());
             return Ok(Some(Self::event_from_attachments(
-                &config,
+                &self.config,
                 attachment_item,
                 breadcrumbs_item1,
                 breadcrumbs_item2,
@@ -384,7 +384,7 @@ impl EventProcessor {
         if let Some(item) = form_item {
             log::trace!("extracting form data {}", envelope.event_id());
             let mut value = SerdeValue::Object(Default::default());
-            Self::merge_formdata(&mut value, item);
+            self.merge_formdata(&mut value, item);
             return Ok(Some(
                 Annotated::deserialize_with_meta(value).unwrap_or_default(),
             ));
@@ -487,7 +487,7 @@ impl EventProcessor {
 
         // Extract the event from the envelope. This removes all items from the envelope that should
         // not be forwarded, including the event item itself.
-        let mut event_opt = Self::extract_event(&self.config, &mut envelope)?;
+        let mut event_opt = self.extract_event(&mut envelope)?;
 
         // `extract_event` must remove all items other than attachments from the envelope. Once the
         // envelope is processed, an `Event` item will be added to the envelope again. Only
@@ -999,13 +999,6 @@ impl Handler<GetCapturedEvent> for EventManager {
     fn handle(&mut self, message: GetCapturedEvent, _context: &mut Self::Context) -> Self::Result {
         self.captured_events.read().get(&message.event_id).cloned()
     }
-}
-
-pub fn extract_event(
-    config: &Config,
-    envelope: &mut Envelope,
-) -> Result<Option<Annotated<Event>>, ProcessingError> {
-    EventProcessor::extract_event(config, envelope)
 }
 
 #[cfg(test)]

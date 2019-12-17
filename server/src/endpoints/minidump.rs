@@ -5,9 +5,8 @@ use futures::{future, Future, Stream};
 
 use semaphore_general::protocol::EventId;
 
-use crate::actors::events::extract_event;
 use crate::body::ForwardBody;
-use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
+use crate::endpoints::common::{handle_store_like_request, BadStoreRequest, EventIdHelper};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
@@ -104,8 +103,6 @@ fn extract_envelope(
     meta: EventMeta,
     max_payload_size: usize,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
-    let config = request.state().config();
-
     // The event ID is overwritten later based on data extracted from the constructed envelope.
     let mut envelope = Envelope::from_request(EventId::new(), meta);
 
@@ -188,16 +185,11 @@ fn extract_envelope(
                 envelope.get_item_by_mut(|item| item.name() == Some(ITEM_NAME_EVENT))
             {
                 item.set_attachment_type(AttachmentType::MsgpackEvent);
-            }
-
-            // XXX(markus): This is ridiculously inefficient. Ideally we would not construct a full
-            // event struct here. The envelope cloning should be fine because `Bytes` clones share
-            // buffers internally.
-            if let Some(event_id) = extract_event(&*config, &mut envelope.clone())
-                .ok()
-                .and_then(|event| Some(*event?.value()?.id.value()?))
-            {
-                envelope.set_event_id(event_id);
+                if let Ok(EventIdHelper { id: Some(event_id) }) =
+                    rmp_serde::from_slice(&item.payload())
+                {
+                    envelope.set_event_id(event_id);
+                }
             }
 
             Ok(envelope)
