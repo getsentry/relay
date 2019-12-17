@@ -10,7 +10,7 @@ use serde::Serialize;
 use semaphore_general::protocol::EventId;
 
 use crate::body::StoreBody;
-use crate::endpoints::common::{handle_store_like_request, BadStoreRequest, EventIdHelper};
+use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
@@ -53,9 +53,7 @@ fn extract_envelope(
 
             if is_legacy_python_json {
                 let mut data_mut = BytesMut::from(data);
-
                 json_forensics::translate_slice(&mut data_mut[..]);
-
                 data = data_mut.freeze();
             }
 
@@ -63,10 +61,7 @@ fn extract_envelope(
             // incoming store request. To uncouple it from the workload on the processing workers, this
             // requires to synchronously parse a minimal part of the JSON payload. If the JSON payload
             // is invalid, processing can be skipped altogether.
-            let event_id = serde_json::from_slice::<EventIdHelper>(&data)
-                .map(|event| event.id)
-                .map_err(BadStoreRequest::InvalidJson)?
-                .unwrap_or_else(EventId::new);
+            let event_id = common::event_id_from_json(&data)?.unwrap_or_else(EventId::new);
 
             // Use the request's content type. If the content type is missing, assume "application/json".
             let content_type = match &content_type {
@@ -114,7 +109,7 @@ fn store_event(
     let content_type = request.content_type().to_owned();
     let event_size = request.state().config().max_event_payload_size();
 
-    Box::new(handle_store_like_request(
+    Box::new(common::handle_store_like_request(
         meta,
         // XXX: This is wrong. In case of external relays, store can receive event-less envelopes.
         // We need to fix this before external relays go live or we will create outcomes and rate

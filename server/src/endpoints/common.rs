@@ -20,10 +20,11 @@ use crate::actors::events::{QueueEvent, QueueEventError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
 use crate::body::StorePayloadError;
-use crate::envelope::{Envelope, EnvelopeError};
+use crate::constants::ITEM_NAME_EVENT;
+use crate::envelope::{Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::ServiceState;
-use crate::utils::{ApiErrorResponse, MultipartError};
+use crate::utils::{ApiErrorResponse, FormDataIter, MultipartError};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -41,6 +42,9 @@ pub enum BadStoreRequest {
 
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] serde_json::Error),
+
+    #[fail(display = "invalid messagepack data")]
+    InvalidMsgpack(#[cause] rmp_serde::decode::Error),
 
     #[fail(display = "invalid event envelope")]
     InvalidEnvelope(#[cause] EnvelopeError),
@@ -80,6 +84,7 @@ impl BadStoreRequest {
 
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
             BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
+            BadStoreRequest::InvalidMsgpack(_) => Outcome::Invalid(DiscardReason::InvalidMsgpack),
             BadStoreRequest::InvalidMultipart(_) => {
                 Outcome::Invalid(DiscardReason::InvalidMultipart)
             }
@@ -155,6 +160,90 @@ impl ResponseError for BadStoreRequest {
             }
         }
     }
+}
+
+#[derive(Deserialize)]
+struct EventIdHelper {
+    #[serde(default, rename = "event_id")]
+    id: Option<EventId>,
+}
+
+/// Extracts the event id from a JSON payload.
+///
+/// If the payload contains no event id, `Ok(None)` is returned. This function also validates that
+/// the provided is valid and returns an `Err` on parse errors. If the event id itself is malformed,
+/// an `Err` is returned.
+pub fn event_id_from_json(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
+    serde_json::from_slice(data)
+        .map(|helper: EventIdHelper| helper.id)
+        .map_err(BadStoreRequest::InvalidJson)
+}
+
+/// Extracts the event id from a MessagePack payload.
+///
+/// If the payload contains no event id, `Ok(None)` is returned. This function also validates that
+/// the provided is valid and returns an `Err` on parse errors. If the event id itself is malformed,
+/// an `Err` is returned.
+pub fn event_id_from_msgpack(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
+    rmp_serde::from_slice(data)
+        .map(|helper: EventIdHelper| helper.id)
+        .map_err(BadStoreRequest::InvalidMsgpack)
+}
+
+/// Extracts the event id from `sentry` JSON payload or the `sentry[event_id]` formdata key.
+///
+/// If the event id itself is malformed, an `Err` is returned. If there is a `sentry` key containing
+/// malformed JSON, an error is returned.
+pub fn event_id_from_formdata(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
+    for entry in FormDataIter::new(data) {
+        if entry.key() == "sentry" {
+            return event_id_from_json(entry.value().as_bytes());
+        } else if entry.key() == "sentry[event_id]" {
+            return entry
+                .value()
+                .parse()
+                .map(Some)
+                .map_err(|_| BadStoreRequest::InvalidEventId);
+        }
+    }
+
+    Ok(None)
+}
+
+/// Extracts the event id from multiple items.
+///
+/// Submitting multiple event payloads is undefined behavior. This function will check for an event
+/// id in the following precedence:
+///
+///  1. The `Event` item.
+///  2. The `__sentry-event` event attachment.
+///  3. The `sentry` JSON payload.
+///  4. The `sentry[event_id]` formdata key.
+pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreRequest> {
+    if let Some(item) = items.iter().find(|item| item.ty() == ItemType::Event) {
+        if let Some(event_id) = event_id_from_json(&item.payload())? {
+            return Ok(Some(event_id));
+        }
+    }
+
+    if let Some(item) = items
+        .iter()
+        .find(|item| item.name() == Some(ITEM_NAME_EVENT))
+    {
+        if let Some(event_id) = event_id_from_msgpack(&item.payload())? {
+            return Ok(Some(event_id));
+        }
+    }
+
+    if let Some(item) = items.iter().find(|item| item.ty() == ItemType::FormData) {
+        // Swallow all other errors here since it is quite common to receive invalid secondary
+        // payloads. `EventProcessor` also retains events in such cases.
+        if let Ok(Some(event_id)) = event_id_from_formdata(&item.payload()) {
+            return Ok(Some(event_id));
+        }
+    }
+
+    Ok(None)
 }
 
 /// Handles Sentry events.
@@ -267,10 +356,4 @@ where
         });
 
     Box::new(future)
-}
-
-#[derive(Deserialize)]
-pub struct EventIdHelper {
-    #[serde(default, rename = "event_id")]
-    pub id: Option<EventId>,
 }

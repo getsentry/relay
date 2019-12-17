@@ -4,11 +4,11 @@ use futures::Future;
 use semaphore_common::tryf;
 use semaphore_general::protocol::EventId;
 
-use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
+use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::Envelope;
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::MultipartEnvelope;
+use crate::utils::MultipartItems;
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
@@ -22,11 +22,18 @@ fn extract_envelope(
         .parse::<EventId>()
         .map_err(|_| BadStoreRequest::InvalidEventId));
 
-    let envelope = Envelope::from_request(event_id, meta);
-
-    let future = MultipartEnvelope::new(envelope, max_payload_size)
+    let future = MultipartItems::new(max_payload_size)
         .handle_request(request)
-        .map_err(BadStoreRequest::InvalidMultipart);
+        .map_err(BadStoreRequest::InvalidMultipart)
+        .map(move |items| {
+            let mut envelope = Envelope::from_request(event_id, meta);
+
+            for item in items {
+                envelope.add_item(item);
+            }
+
+            envelope
+        });
 
     Box::new(future)
 }
@@ -42,7 +49,7 @@ fn store_attachment(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let attachment_size = request.state().config().max_attachment_payload_size();
 
-    Box::new(handle_store_like_request(
+    Box::new(common::handle_store_like_request(
         meta,
         false,
         start_time,

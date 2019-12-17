@@ -356,6 +356,7 @@ impl Item {
     }
 }
 
+pub type Items = SmallVec<[Item; 3]>;
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
 pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
@@ -376,7 +377,7 @@ pub struct EnvelopeHeaders {
 #[derive(Clone, Debug)]
 pub struct Envelope {
     headers: EnvelopeHeaders,
-    items: SmallVec<[Item; 3]>,
+    items: Items,
 }
 
 impl Envelope {
@@ -388,7 +389,7 @@ impl Envelope {
                 meta,
                 other: BTreeMap::new(),
             },
-            items: SmallVec::new(),
+            items: Items::new(),
         }
     }
 
@@ -398,7 +399,7 @@ impl Envelope {
 
         let mut envelope = Envelope {
             headers,
-            items: SmallVec::new(),
+            items: Items::new(),
         };
 
         while offset < bytes.len() {
@@ -464,12 +465,6 @@ impl Envelope {
     /// be additional information to an event, such as attachments.
     pub fn event_id(&self) -> EventId {
         self.headers.event_id
-    }
-
-    /// Sets the event ID in the envelope header. Note that the event ID might be duplicated in
-    /// various items which need to be manually updated.
-    pub fn set_event_id(&mut self, event_id: EventId) {
-        self.headers.event_id = event_id;
     }
 
     /// Returns event metadata information.
