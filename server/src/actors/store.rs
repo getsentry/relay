@@ -15,7 +15,7 @@ use serde::{ser::Error, Serialize};
 use rmp_serde::encode::Error as RmpError;
 
 use semaphore_common::{metric, Config, KafkaTopic, ProjectId, Uuid};
-use semaphore_general::protocol::{EventId, EventType, UserFeedback};
+use semaphore_general::protocol::{EventId, EventType};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
@@ -29,8 +29,6 @@ pub enum StoreError {
     SendFailed(#[cause] KafkaError),
     #[fail(display = "failed to serialize kafka message")]
     SerializeFailed(#[cause] RmpError),
-    #[fail(display = "failed to parse JSON")]
-    DeserializeFailed(#[cause] serde_json::Error),
 }
 
 /// Actor for publishing events to Sentry through kafka topics.
@@ -121,15 +119,20 @@ impl StoreForwarder {
         })
     }
 
-    fn produce_userfeedback(&self, project_id: ProjectId, item: &Item) -> Result<(), StoreError> {
-        let feedback: UserFeedback =
-            serde_json::from_slice(&item.payload()).map_err(StoreError::DeserializeFailed)?;
+    fn produce_userfeedback(
+        &self,
+        event_id: EventId,
+        project_id: ProjectId,
+        start_time: Instant,
+        item: &Item,
+    ) -> Result<(), StoreError> {
         self.produce(
             KafkaTopic::Attachments,
-            feedback.event_id,
+            event_id,
             KafkaMessage::UserFeedback(UserFeedbackKafkaMessage {
                 project_id,
-                feedback,
+                payload: item.payload(),
+                start_time: instant_to_unix_timestamp(start_time),
             }),
         )?;
 
@@ -248,7 +251,8 @@ struct AttachmentKafkaMessage {
 struct UserFeedbackKafkaMessage {
     /// The project id for the current event.
     project_id: ProjectId,
-    feedback: UserFeedback,
+    start_time: u64,
+    payload: Bytes,
 }
 
 /// An enum over all possible ingest messages.
@@ -305,7 +309,9 @@ impl Handler<StoreEvent> for StoreForwarder {
                     debug_assert!(topic == KafkaTopic::Attachments);
                     attachments.push(self.produce_attachment_chunks(event_id, project_id, item)?);
                 }
-                ItemType::UserFeedback => self.produce_userfeedback(project_id, item)?,
+                ItemType::UserFeedback => {
+                    self.produce_userfeedback(event_id, project_id, start_time, item)?
+                }
                 _ => {}
             }
         }
