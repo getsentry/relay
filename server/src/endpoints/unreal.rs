@@ -3,9 +3,7 @@ use actix_web::{actix::ResponseFuture, HttpRequest, HttpResponse};
 use semaphore_general::protocol::EventId;
 
 use crate::body::ForwardBody;
-use crate::endpoints::common::{
-    create_text_event_id_response, handle_store_like_request, BadStoreRequest,
-};
+use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
@@ -43,14 +41,14 @@ fn store_unreal(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let event_size = request.state().config().max_attachment_payload_size();
 
-    Box::new(handle_store_like_request(
+    common::handle_store_like_request(
         meta,
         true,
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, event_size),
-        create_text_event_id_response,
-    ))
+        common::create_text_event_id_response,
+    )
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
