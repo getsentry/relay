@@ -67,16 +67,22 @@ pub enum EnvelopeError {
     PayloadIoFailed(#[cause] io::Error),
 }
 
+/// The type of an envelope item.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ItemType {
+    /// Event payload encoded in JSON.
     Event,
+    /// Raw payload of an arbitrary attachment.
     Attachment,
+    /// Multipart form data collected into a stream of JSON tuples.
     FormData,
+    /// Security report as sent by the browser in JSON.
     SecurityReport,
+    /// Raw compressed UE4 crash report.
     UnrealReport,
-    /// Userfeedback encoded as JSON
-    UserFeedback,
+    /// User feedback encoded as JSON.
+    UserReport,
 }
 
 impl fmt::Display for ItemType {
@@ -87,17 +93,25 @@ impl fmt::Display for ItemType {
             Self::FormData => write!(f, "form data"),
             Self::SecurityReport => write!(f, "security report"),
             Self::UnrealReport => write!(f, "unreal report"),
-            Self::UserFeedback => write!(f, "user feedback"),
+            Self::UserReport => write!(f, "user feedback"),
         }
     }
 }
 
+/// Payload content types.
+///
+/// This is an optimized enum intended to reduce allocations for common content types.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ContentType {
+    /// text/plain
     Text,
+    /// application/json
     Json,
+    /// application/x-msgpack
     MsgPack,
+    /// application/octet-stream
     OctetStream,
+    /// Any arbitrary content type not listed explicitly.
     Other(String),
 }
 

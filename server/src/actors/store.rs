@@ -119,7 +119,7 @@ impl StoreForwarder {
         })
     }
 
-    fn produce_userfeedback(
+    fn produce_user_report(
         &self,
         event_id: EventId,
         project_id: ProjectId,
@@ -129,7 +129,7 @@ impl StoreForwarder {
         self.produce(
             KafkaTopic::Attachments,
             event_id,
-            KafkaMessage::UserFeedback(UserFeedbackKafkaMessage {
+            KafkaMessage::UserReport(UserReportKafkaMessage {
                 project_id,
                 payload: item.payload(),
                 start_time: instant_to_unix_timestamp(start_time),
@@ -232,7 +232,7 @@ struct AttachmentChunkKafkaMessage {
 
 /// A "standalone" attachment.
 ///
-/// Still belongs to an event but can be sent independently (like userfeedback) and is not
+/// Still belongs to an event but can be sent independently (like UserReport) and is not
 /// considered in processing.
 #[derive(Debug, Serialize)]
 struct AttachmentKafkaMessage {
@@ -244,11 +244,11 @@ struct AttachmentKafkaMessage {
     attachment: ChunkedAttachment,
 }
 
-/// User feedback for an event wrapped up in a message ready for consumption in Kafka.
+/// User report for an event wrapped up in a message ready for consumption in Kafka.
 ///
 /// Is always independent of an event and can be sent as part of any envelope.
 #[derive(Debug, Serialize)]
-struct UserFeedbackKafkaMessage {
+struct UserReportKafkaMessage {
     /// The project id for the current event.
     project_id: ProjectId,
     start_time: u64,
@@ -262,7 +262,7 @@ enum KafkaMessage {
     Event(EventKafkaMessage),
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
-    UserFeedback(UserFeedbackKafkaMessage),
+    UserReport(UserReportKafkaMessage),
 }
 
 /// Message sent to the StoreForwarder containing an event
@@ -309,8 +309,8 @@ impl Handler<StoreEvent> for StoreForwarder {
                     debug_assert!(topic == KafkaTopic::Attachments);
                     attachments.push(self.produce_attachment_chunks(event_id, project_id, item)?);
                 }
-                ItemType::UserFeedback => {
-                    self.produce_userfeedback(event_id, project_id, start_time, item)?
+                ItemType::UserReport => {
+                    self.produce_user_report(event_id, project_id, start_time, item)?
                 }
                 _ => {}
             }

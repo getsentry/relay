@@ -4,7 +4,7 @@ use symbolic::unreal::{
 
 use semaphore_general::protocol::{
     AsPair, Breadcrumb, Context, Contexts, DeviceContext, Event, EventId, GpuContext,
-    LenientString, LogEntry, OsContext, TagEntry, Tags, User, UserFeedback, Values,
+    LenientString, LogEntry, OsContext, TagEntry, Tags, User, UserReport, Values,
 };
 use semaphore_general::types::{Annotated, Array, Value};
 
@@ -109,7 +109,7 @@ fn merge_unreal_logs(event: &mut Event, data: &[u8]) -> Result<(), Unreal4Error>
     Ok(())
 }
 
-/// Parses `UserFeedback` from unreal user information.
+/// Parses `UserReport` from unreal user information.
 fn get_unreal_user_report(event_id: EventId, context: &mut Unreal4Context) -> Option<Item> {
     let runtime_props = context.runtime_properties.as_mut()?;
     let user_description = runtime_props.user_description.take()?;
@@ -119,7 +119,7 @@ fn get_unreal_user_report(event_id: EventId, context: &mut Unreal4Context) -> Op
         .clone()
         .unwrap_or_else(|| "unknown".to_owned());
 
-    let user_report = UserFeedback {
+    let user_report = UserReport {
         email: None,
         comments: user_description,
         event_id,
@@ -128,7 +128,7 @@ fn get_unreal_user_report(event_id: EventId, context: &mut Unreal4Context) -> Op
 
     let json = serde_json::to_string(&user_report).ok()?;
 
-    let mut item = Item::new(ItemType::UserFeedback);
+    let mut item = Item::new(ItemType::UserReport);
     item.set_payload(ContentType::Json, json);
     Some(item)
 }
