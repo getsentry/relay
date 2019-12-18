@@ -39,7 +39,7 @@ pub fn expand_unreal_envelope(
                 (ContentType::OctetStream, AttachmentType::AppleCrashReport)
             }
             Unreal4FileType::Log => (ContentType::OctetStream, AttachmentType::UnrealLogs),
-            Unreal4FileType::Config => continue,
+            Unreal4FileType::Config => (ContentType::OctetStream, AttachmentType::Attachment),
             Unreal4FileType::Context => (ContentType::OctetStream, AttachmentType::UnrealContext),
             Unreal4FileType::Unknown => match file.name() {
                 self::ITEM_NAME_EVENT => (ContentType::MsgPack, AttachmentType::MsgpackEvent),
