@@ -8,14 +8,13 @@ use semaphore_general::protocol::{
 };
 use semaphore_general::types::{Annotated, Array, Value};
 
-use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
+use crate::constants::{
+    ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, UNREAL_USER_HEADER,
+};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 
 /// Maximum number of unreal logs to parse for breadcrumbs.
 const MAX_NUM_UNREAL_LOGS: usize = 40;
-
-/// Envelope header used to store the UE4 user id.
-pub const UNREAL_USER_HEADER: &str = "unreal_user_id";
 
 /// Expands Unreal 4 items inside an envelope.
 ///

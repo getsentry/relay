@@ -116,6 +116,7 @@ pub enum ContentType {
 }
 
 impl ContentType {
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn as_str(&self) -> &str {
         match *self {
             Self::Text => "text/plain",
@@ -292,6 +293,7 @@ impl Item {
     }
 
     /// Returns the event type if this item is an event.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn event_type(&self) -> Option<EventType> {
         // TODO: consider to replace this with an ItemType?
         self.headers.event_type
@@ -337,6 +339,7 @@ impl Item {
     }
 
     /// Returns the file name of this item, if it is an attachment.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn filename(&self) -> Option<&str> {
         self.headers.filename.as_ref().map(String::as_str)
     }
@@ -499,6 +502,7 @@ impl Envelope {
     }
 
     /// Returns the specified header value, if present.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
     where
         String: Borrow<K>,

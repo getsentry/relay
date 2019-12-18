@@ -14,8 +14,8 @@ use semaphore_common::{clone, metric, Config, LogError, RelayMode};
 use semaphore_general::pii::PiiProcessor;
 use semaphore_general::processor::{process_value, ProcessingState};
 use semaphore_general::protocol::{
-    Breadcrumb, Csp, Event, EventId, Exception, ExpectCt, ExpectStaple, Hpkp, JsonLenientString,
-    LenientString, Level, Mechanism, SecurityReportType, Values,
+    Breadcrumb, Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString,
+    SecurityReportType, Values,
 };
 use semaphore_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 
@@ -54,6 +54,7 @@ enum ProcessingError {
     #[fail(display = "invalid message pack event payload")]
     InvalidMsgpack(#[cause] rmp_serde::decode::Error),
 
+    #[cfg(feature = "processing")]
     #[fail(display = "invalid unreal crash report")]
     InvalidUnrealReport(#[cause] symbolic::unreal::Unreal4Error),
 
@@ -145,7 +146,10 @@ impl EventProcessor {
     ///
     /// This will indicate to the ingestion pipeline that this event will need to be processed. The
     /// payload can be checked via `is_minidump_event`.
+    #[cfg(feature = "processing")]
     fn write_native_placeholder(&self, event: &mut Annotated<Event>, is_minidump: bool) {
+        use semaphore_general::protocol::{Exception, JsonLenientString, Level, Mechanism};
+
         let event = event.get_or_insert_with(Event::default);
 
         // Events must be native platform.
@@ -964,9 +968,6 @@ impl Handler<HandleEvent> for EventManager {
                     ProcessingError::InvalidSecurityReport(_) => {
                         Some(Outcome::Invalid(DiscardReason::SecurityReport))
                     }
-                    ProcessingError::InvalidUnrealReport(_) => {
-                        Some(Outcome::Invalid(DiscardReason::ProcessUnreal))
-                    }
                     ProcessingError::DuplicateItem(_) => {
                         Some(Outcome::Invalid(DiscardReason::DuplicateItem))
                     }
@@ -979,6 +980,10 @@ impl Handler<HandleEvent> for EventManager {
                     }
 
                     // Processing-only outcomes (Sentry-internal Relays)
+                    #[cfg(feature = "processing")]
+                    ProcessingError::InvalidUnrealReport(_) => {
+                        Some(Outcome::Invalid(DiscardReason::ProcessUnreal))
+                    }
                     #[cfg(feature = "processing")]
                     ProcessingError::InvalidTransaction => {
                         Some(Outcome::Invalid(DiscardReason::InvalidTransaction))

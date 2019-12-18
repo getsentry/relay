@@ -4,11 +4,11 @@ use futures::Future;
 use semaphore_general::protocol::EventId;
 
 use crate::body::ForwardBody;
+use crate::constants::UNREAL_USER_HEADER;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::UNREAL_USER_HEADER;
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
