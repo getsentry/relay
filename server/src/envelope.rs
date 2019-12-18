@@ -30,8 +30,6 @@
 //!
 //! ```
 
-#![allow(unused)]
-
 use std::borrow::{Borrow, Cow};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -371,7 +369,6 @@ impl Item {
 
 pub type Items = SmallVec<[Item; 3]>;
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
-pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnvelopeHeaders {
@@ -462,11 +459,13 @@ impl Envelope {
     }
 
     /// Returns the number of items in this envelope.
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
     /// Returns `true` if this envelope does not contain any items.
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
@@ -510,13 +509,6 @@ impl Envelope {
         self.items.iter()
     }
 
-    /// Returns an iterator over mutable items in this envelope.
-    ///
-    /// Note that iteration order may change when using `take_item`.
-    pub fn items_mut(&mut self) -> ItemIterMut<'_> {
-        self.items.iter_mut()
-    }
-
     /// Returns the an option with a reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     pub fn get_item_by<F>(&self, mut pred: F) -> Option<&Item>
@@ -524,15 +516,6 @@ impl Envelope {
         F: FnMut(&Item) -> bool,
     {
         self.items().find(|item| pred(item))
-    }
-
-    /// Returns the an option with a mutable reference to the first item that matches
-    /// the predicate, or None if the predicate is not matched by any item.
-    pub fn get_item_by_mut<F>(&mut self, mut pred: F) -> Option<&mut Item>
-    where
-        F: FnMut(&Item) -> bool,
-    {
-        self.items_mut().find(|item| pred(item))
     }
 
     /// Removes and returns the first item that matches the given condition.
@@ -868,21 +851,21 @@ mod tests {
     #[should_panic(expected = "project id")]
     fn test_parse_request_validate_project() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/99\"}");
-        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+        Envelope::parse_request(bytes, event_meta()).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "public key")]
     fn test_parse_request_validate_key() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:@sentry.io/42\"}");
-        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+        Envelope::parse_request(bytes, event_meta()).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "origin")]
     fn test_parse_request_validate_origin() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\",\"origin\":\"http://localhost/\"}");
-        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+        Envelope::parse_request(bytes, event_meta()).unwrap();
     }
 
     #[test]
