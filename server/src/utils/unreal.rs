@@ -190,10 +190,8 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     // modules not used just remove it from runtime props
     runtime_props.modules.take();
 
-    // TODO need Unreal4ContextRuntimeProps to also derive Deserialize
-    // let props = serde_json::to_string(&runtime_props);
-    let props = "{}".to_string(); // TODO remove when we have the real props
-    if let Ok(Value::Object(props)) = serde_json::from_str(&props) {
+    let props = serde_json::to_string(&runtime_props).and_then(|p| serde_json::from_str(&p));
+    if let Ok(Value::Object(props)) = props {
         contexts.add_at_index("unreal", Context::Other(props));
     }
 }
