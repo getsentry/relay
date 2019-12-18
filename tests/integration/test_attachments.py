@@ -3,6 +3,23 @@ import pytest
 from requests.exceptions import HTTPError
 
 
+def test_attachments_400(
+    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+):
+    proj_id = 42
+    relay = relay_with_processing()
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
+    attachments_consumer = attachments_consumer()
+
+    event_id = "123abc"
+
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_attachments(proj_id, event_id, [])
+
+    assert excinfo.value.response.status_code == 400
+
+
 def test_attachments_with_processing(
     mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
 ):

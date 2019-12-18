@@ -8,7 +8,7 @@ use serde::Deserialize;
 use semaphore_general::protocol::EventId;
 
 use crate::body::StoreBody;
-use crate::endpoints::common::{handle_store_like_request, BadStoreRequest};
+use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
@@ -67,14 +67,14 @@ fn store_security_report(
     params: Query<SecurityReportParams>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let event_size = request.state().config().max_event_payload_size();
-    Box::new(handle_store_like_request(
+    common::handle_store_like_request(
         meta,
         true,
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, event_size, params.into_inner()),
         |_| create_response(),
-    ))
+    )
 }
 
 #[derive(Debug)]

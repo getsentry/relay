@@ -42,9 +42,11 @@ pub enum BadEventMeta {
 impl ResponseError for BadEventMeta {
     fn error_response(&self) -> HttpResponse {
         let mut builder = match *self {
+            Self::MissingAuth | Self::BadProjectKey | Self::BadAuth(_) => {
+                HttpResponse::Unauthorized()
+            }
+            Self::BadProject(_) | Self::BadDsn(_) => HttpResponse::BadRequest(),
             Self::ScheduleFailed => HttpResponse::ServiceUnavailable(),
-            Self::BadProjectKey => HttpResponse::Unauthorized(),
-            _ => HttpResponse::BadRequest(),
         };
 
         builder.json(&ApiErrorResponse::from_fail(self))

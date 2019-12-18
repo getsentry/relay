@@ -349,7 +349,7 @@ impl Item {
         self.headers.name.as_ref().map(String::as_str)
     }
 
-    // Sets the name header of the item.
+    /// Sets the name header of the item.
     pub fn set_name<S>(&mut self, name: S)
     where
         S: Into<String>,
@@ -376,6 +376,7 @@ impl Item {
     }
 }
 
+pub type Items = SmallVec<[Item; 3]>;
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
 pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
@@ -396,7 +397,7 @@ pub struct EnvelopeHeaders {
 #[derive(Clone, Debug)]
 pub struct Envelope {
     headers: EnvelopeHeaders,
-    items: SmallVec<[Item; 3]>,
+    items: Items,
 }
 
 impl Envelope {
@@ -408,7 +409,7 @@ impl Envelope {
                 meta,
                 other: BTreeMap::new(),
             },
-            items: SmallVec::new(),
+            items: Items::new(),
         }
     }
 
@@ -418,7 +419,7 @@ impl Envelope {
 
         let mut envelope = Envelope {
             headers,
-            items: SmallVec::new(),
+            items: Items::new(),
         };
 
         while offset < bytes.len() {

@@ -7,13 +7,11 @@ use semaphore_general::protocol::EventId;
 
 use crate::body::ForwardBody;
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{
-    create_text_event_id_response, handle_store_like_request, BadStoreRequest,
-};
+use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::{consume_field, get_multipart_boundary, MultipartEnvelope, MultipartError};
+use crate::utils::{consume_field, get_multipart_boundary, MultipartError, MultipartItems};
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
@@ -86,14 +84,7 @@ fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: EventMeta,
     max_payload_size: usize,
-) -> ResponseFuture<Envelope, BadStoreRequest>
-where {
-    // TODO: at the moment we override any pre exsiting (set by an SDK) event id here.
-    //  We shouldn't do that. The problem is that at this stage we cannot afford to parse the
-    //  request and look for the event id so we simply set one.
-    //  We need to somehow preserve SDK set event ids ( the current behaviour needs to change).
-    let mut envelope = Envelope::from_request(EventId::new(), meta);
-
+) -> ResponseFuture<Envelope, BadStoreRequest> {
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
@@ -108,6 +99,8 @@ where {
                 item.set_filename(MINIDUMP_FILE_NAME);
                 item.set_attachment_type(AttachmentType::Minidump);
 
+                // Create an envelope with a random event id.
+                let mut envelope = Envelope::from_request(EventId::new(), meta);
                 envelope.add_item(item);
                 Ok(envelope)
             });
@@ -115,31 +108,34 @@ where {
         return Box::new(future);
     }
 
-    let future = MultipartEnvelope::new(envelope, max_payload_size)
+    let future = MultipartItems::new(max_payload_size)
         .handle_request(request)
         .map_err(BadStoreRequest::InvalidMultipart)
-        .and_then(move |mut envelope| {
-            let mut minidump_item =
-                match envelope.take_item_by(|item| item.name() == Some(MINIDUMP_FIELD_NAME)) {
-                    Some(item) => item,
-                    None => {
-                        return Box::new(future::err(BadStoreRequest::MissingMinidump))
-                            as ResponseFuture<Envelope, BadStoreRequest>
-                    }
-                };
+        .and_then(move |mut items| {
+            let minidump_index = items
+                .iter()
+                .position(|item| item.name() == Some(MINIDUMP_FIELD_NAME));
+
+            let mut minidump_item = match minidump_index {
+                Some(index) => items.swap_remove(index),
+                None => {
+                    return Box::new(future::err(BadStoreRequest::MissingMinidump))
+                        as ResponseFuture<_, _>
+                }
+            };
 
             // HACK !!
+            //
             // This field is not a minidump (.i.e. it doesn't start with the minidump magic header).
-            // It could be a multipart field containing a minidump; this happens in some
-            // Linux Electron SDKs.
-            // Unfortunately the embedded multipart field is not recognized by the multipart
-            // parser as a multipart field containing a multipart body.
-            // My (RaduW) guess is that it is not recognized because the Content-Disposition
-            // header at the beginning of the field does *NOT* contain a boundary field.
-            // For this case we will look if field the field starts with a '--' and manually
-            // extract the boundary (which is what follows '--' up to the end of line)
-            // and manually construct a multipart with the detected boundary.
-            // If we can extract a multipart with an embedded minidump than use that field.
+            // It could be a multipart field containing a minidump; this happens in old versions of
+            // the Linux Electron SDK.
+            //
+            // Unfortunately, the embedded multipart field is not recognized by the multipart parser
+            // as a multipart field containing a multipart body. For this case we will look if field
+            // the field starts with a '--' and manually extract the boundary (which is what follows
+            // '--' up to the end of line) and manually construct a multipart with the detected
+            // boundary. If we can extract a multipart with an embedded minidump, then use that
+            // field.
             let future = get_embedded_minidump(minidump_item.payload(), max_payload_size).and_then(
                 move |embedded_opt| {
                     if let Some(embedded) = embedded_opt {
@@ -153,26 +149,31 @@ where {
 
                     minidump_item.set_attachment_type(AttachmentType::Minidump);
                     validate_minidump(&minidump_item.payload())?;
-                    envelope.add_item(minidump_item);
+                    items.push(minidump_item);
 
-                    Ok(envelope)
+                    Ok(items)
                 },
             );
 
             Box::new(future)
         })
-        .and_then(move |mut envelope| {
-            for field_name in &[ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2] {
-                if let Some(item) = envelope.get_item_by_mut(|item| item.name() == Some(field_name))
-                {
-                    item.set_attachment_type(AttachmentType::Breadcrumbs);
-                }
-            }
+        .and_then(move |items| {
+            let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
+            let mut envelope = Envelope::from_request(event_id, meta);
 
-            if let Some(item) =
-                envelope.get_item_by_mut(|item| item.name() == Some(ITEM_NAME_EVENT))
-            {
-                item.set_attachment_type(AttachmentType::MsgpackEvent);
+            for mut item in items {
+                let attachment_type = match item.name() {
+                    Some(self::ITEM_NAME_BREADCRUMBS1) => Some(AttachmentType::Breadcrumbs),
+                    Some(self::ITEM_NAME_BREADCRUMBS2) => Some(AttachmentType::Breadcrumbs),
+                    Some(self::ITEM_NAME_EVENT) => Some(AttachmentType::MsgpackEvent),
+                    _ => None,
+                };
+
+                if let Some(ty) = attachment_type {
+                    item.set_attachment_type(ty);
+                }
+
+                envelope.add_item(item);
             }
 
             Ok(envelope)
@@ -188,14 +189,14 @@ fn store_minidump(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let event_size = request.state().config().max_attachment_payload_size();
 
-    Box::new(handle_store_like_request(
+    common::handle_store_like_request(
         meta,
         true,
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, event_size),
-        create_text_event_id_response,
-    ))
+        common::create_text_event_id_response,
+    )
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

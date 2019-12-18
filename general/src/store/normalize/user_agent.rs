@@ -180,7 +180,8 @@ mod tests {
         assert_annotated_snapshot!(event.contexts, @r###"
         {
           "client_os": {
-            "name": "Windows 7",
+            "name": "Windows",
+            "version": "7",
             "type": "os"
           }
         }

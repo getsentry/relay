@@ -1,10 +1,13 @@
 import os
 
+import msgpack
+
 import pytest
 from requests import HTTPError
 import re
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
+EVENT_ATTACHMENT_NAME = "__sentry-event"
 
 
 def _get_item_file_name(item):
@@ -21,19 +24,25 @@ def _get_item_by_file_name(items, filename):
     return None
 
 
-def test_minidump_returns_the_correct_result(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "input_event",
+    [{"event_id": "2dd132e467174db48dbaddabd3cbed57"}, {"user": {"id": "123"}}, None],
+)
+def test_minidump_returns_the_correct_result(mini_sentry, relay, input_event):
     proj_id = 42
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
 
-    response = relay.send_minidump(
-        project_id=proj_id,
-        files=(
-            # add the minidump attachment with the magic header MDMP
-            (MINIDUMP_ATTACHMENT_NAME, "minidump.txt", "MDMPminidump content"),
-        ),
-    )
+    files = [
+        # add the minidump attachment with the magic header MDMP
+        (MINIDUMP_ATTACHMENT_NAME, "minidump.txt", "MDMPminidump content"),
+    ]
+
+    if input_event is not None:
+        files.append((EVENT_ATTACHMENT_NAME, "foo.txt", msgpack.packb(input_event)))
+
+    response = relay.send_minidump(project_id=proj_id, files=files,)
 
     # a result for a successful request should be text consisting of a hyphenated uuid (and nothing else).
     response_body = response.text.strip()
@@ -44,10 +53,17 @@ def test_minidump_returns_the_correct_result(mini_sentry, relay):
     assert re.match(hyphenated_uuid, response_body)
 
     # the event id from the event should match the id in the response (minus the formatting)
-    event = mini_sentry.captured_events.get(timeout=1)
-    assert event
-    event_id = event.headers.get("event_id")
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert envelope
+    event_id = envelope.headers.get("event_id")
     assert event_id == response_body.replace("-", "")
+
+    event = envelope.get_event()
+    assert event["exception"]["values"][0]["mechanism"]["type"] == "minidump"
+
+    if input_event is not None:
+        for key, value in input_event.items():
+            assert event[key] == value
 
 
 def test_minidump_attachments_are_added_to_the_envelope(mini_sentry, relay):
