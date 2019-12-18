@@ -11,7 +11,11 @@ use semaphore_general::types::{Annotated, Array, Value};
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 
+/// Maximum number of unreal logs to parse for breadcrumbs.
 const MAX_NUM_UNREAL_LOGS: usize = 40;
+
+/// Envelope header used to store the UE4 user id.
+pub const UNREAL_USER_HEADER: &str = "unreal_user_id";
 
 /// Expands Unreal 4 items inside an envelope.
 ///
@@ -56,8 +60,7 @@ pub fn expand_unreal_envelope(
     Ok(())
 }
 
-fn merge_unreal_user_info(event: &mut Event, data: &[u8]) {
-    let user_info = std::str::from_utf8(data).unwrap();
+fn merge_unreal_user_info(event: &mut Event, user_info: &str) {
     let mut parts = user_info.split('|');
 
     if let Some(user_id) = parts.next() {
@@ -199,15 +202,16 @@ pub fn process_unreal_envelope(
     event_opt: &mut Option<Annotated<Event>>,
     envelope: &mut Envelope,
 ) -> Result<(), Unreal4Error> {
-    let user_item = envelope
-        .take_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealUserInfo));
+    let user_header = envelope
+        .get_header(UNREAL_USER_HEADER)
+        .and_then(Value::as_str);
     let context_item =
         envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealContext));
     let logs_item =
         envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs));
 
     // Early exit if there is no information.
-    if context_item.is_none() && logs_item.is_none() {
+    if user_header.is_none() && context_item.is_none() && logs_item.is_none() {
         return Ok(());
     }
 
@@ -215,8 +219,8 @@ pub fn process_unreal_envelope(
     let annotated = event_opt.get_or_insert_with(Annotated::empty);
     let event = annotated.get_or_insert_with(Event::default);
 
-    if let Some(user_item) = user_item {
-        merge_unreal_user_info(event, &user_item.payload());
+    if let Some(user_info) = user_header {
+        merge_unreal_user_info(event, user_info);
     }
 
     if let Some(logs_item) = logs_item {

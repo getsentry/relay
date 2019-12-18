@@ -42,7 +42,6 @@ use failure::Fail;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use semaphore_common::ProjectId;
 use semaphore_general::protocol::{EventId, EventType};
 use semaphore_general::types::Value;
 
@@ -181,33 +180,27 @@ pub enum AttachmentType {
 
     /// An apple crash report (text data).
     #[serde(rename = "event.applecrashreport")]
-    #[allow(dead_code)]
     AppleCrashReport,
 
-    #[serde(rename = "event.msgpackevent")]
     /// A msgpack-encoded event submitted as part of minidump uploads.
+    #[serde(rename = "event.msgpackevent")]
     MsgpackEvent,
 
-    #[serde(rename = "event.breadcrumbs")]
     /// This is a special attachment that can contain breadcrumbs encoded as message pack. There can be
     /// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
     /// truncated to the maxmimum number of allowed attachments.
+    #[serde(rename = "event.breadcrumbs")]
     Breadcrumbs,
 
-    #[serde(rename = "event.unrealcontext")]
     /// This is a binary attachment present in Unreal 4 events containing event context information.
     /// This can be deserialized using the `symbolic` crate see [unreal::Unreal4Context]
+    #[serde(rename = "event.unrealcontext")]
     UnrealContext,
 
-    #[serde(rename = "event.unreallogs")]
     /// This is a binary attachment present in Unreal 4 events containing event Logs.
     /// This can be deserialized using the `symbolic` crate see [unreal::Unreal4LogEntry]
+    #[serde(rename = "event.unreallogs")]
     UnrealLogs,
-
-    #[serde(rename = "event.userinfo")]
-    /// This is a text attachment present in Unreal 4 events containing event Logs.
-    /// The information comes from the
-    UnrealUserInfo,
 }
 
 impl Default for AttachmentType {
@@ -490,6 +483,24 @@ impl Envelope {
     /// Returns event metadata information.
     pub fn meta(&self) -> &EventMeta {
         &self.headers.meta
+    }
+
+    /// Returns the specified header value, if present.
+    pub fn get_header<K>(&self, name: &K) -> Option<&Value>
+    where
+        String: Borrow<K>,
+        K: Ord + ?Sized,
+    {
+        self.headers.other.get(name)
+    }
+
+    /// Sets the specified header value, returning the previous one if present.
+    pub fn set_header<S, V>(&mut self, name: S, value: V) -> Option<Value>
+    where
+        S: Into<String>,
+        V: Into<Value>,
+    {
+        self.headers.other.insert(name.into(), value.into())
     }
 
     /// Returns an iterator over items in this envelope.
