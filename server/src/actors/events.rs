@@ -408,12 +408,6 @@ impl EventProcessor {
         envelope: &Envelope,
         project_state: &ProjectState,
     ) -> Result<(), ProcessingError> {
-        // Skip store processing if disabled. This feature is only active for Relays that run Sentry
-        // event ingestion. External Relays do not need to run this code.
-        if !self.config.processing_enabled() {
-            return Ok(());
-        }
-
         let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
         let key_id = project_state
             .get_public_key_config(&envelope.meta().public_key())
@@ -490,44 +484,79 @@ impl EventProcessor {
         Ok(())
     }
 
+    /// Checks for duplicate items in an envelope.
+    ///
+    /// An item is considered duplicate if it was not removed by sanitation in `process_event` and
+    /// `extract_event`. This partially depends on the `processing_enabled` flag.
+    fn is_duplicate(&self, item: &Item) -> bool {
+        match item.ty() {
+            // These should always be removed by `extract_event`:
+            ItemType::Event => true,
+            ItemType::FormData => true,
+            ItemType::SecurityReport => true,
+
+            // These should be removed conditionally:
+            ItemType::UnrealReport => self.config.processing_enabled(),
+
+            // These may be forwarded to upstream / store:
+            ItemType::Attachment => false,
+            ItemType::UserReport => false,
+        }
+    }
+
     fn process(&self, message: ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
         let mut envelope = message.envelope;
 
+        macro_rules! if_processing {
+            ($($tt:tt)*) => {
+                #[cfg(feature = "processing")] {
+                    if self.config.processing_enabled() {
+                        $($tt)*
+                    }
+                }
+            };
+        }
+
         // Unreal endpoint puts the whole request into an item. This is done to make the endpoint
-        // fast. For envelopes containing an Unreal request, we will look into the unreal item
-        // and expand it so it can be consumed like any other event (e.g. `__sentry-event`).
-        if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
-            utils::expand_unreal_envelope(item, &mut envelope)
-                .map_err(ProcessingError::InvalidUnrealReport)?;
+        // fast. For envelopes containing an Unreal request, we will look into the unreal item and
+        // expand it so it can be consumed like any other event (e.g. `__sentry-event`). External
+        // Relays should leave this as-is.
+        if_processing! {
+            if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
+                utils::expand_unreal_envelope(item, &mut envelope)
+                    .map_err(ProcessingError::InvalidUnrealReport)?;
+            }
         }
 
         // Extract the event from the envelope. This removes all items from the envelope that should
         // not be forwarded, including the event item itself.
         let mut event = self.extract_event(&mut envelope)?;
 
-        // `extract_event` must remove all items other than attachments from the envelope. Once the
-        // envelope is processed, an `Event` item will be added to the envelope again. Only
-        // attachments and events are allowed in the end.
-        if let Some(duplicate) = envelope.get_item_by(|item| item.ty() != ItemType::Attachment) {
+        // `extract_event` must remove all unique items from the envelope. Once the envelope is
+        // processed, an `Event` item will be added to the envelope again. All additional items will
+        // count as duplicates.
+        if let Some(duplicate) = envelope.get_item_by(|item| self.is_duplicate(item)) {
             return Err(ProcessingError::DuplicateItem(duplicate.ty()));
         }
 
-        // This envelope may contain UE4 crash report information, which needs to be patched on the
-        // event returned from `extract_event`.
-        utils::process_unreal_envelope(&mut event, &mut envelope)
-            .map_err(ProcessingError::InvalidUnrealReport)?;
+        if_processing! {
+            // This envelope may contain UE4 crash report information, which needs to be patched on
+            // the event returned from `extract_event`.
+            utils::process_unreal_envelope(&mut event, &mut envelope)
+                .map_err(ProcessingError::InvalidUnrealReport)?;
 
-        // If special attachments are present in the envelope, add placeholder payloads to the
-        // event. This indicates to the pipeline that the event needs special processing.
-        let minidump_attachment =
-            envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
-        let apple_crash_report_attachment = envelope
-            .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
+            // If special attachments are present in the envelope, add placeholder payloads to the
+            // event. This indicates to the pipeline that the event needs special processing.
+            let minidump_attachment = envelope
+                .get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+            let apple_crash_report_attachment = envelope
+                .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
 
-        if minidump_attachment.is_some() {
-            self.write_native_placeholder(&mut event, true);
-        } else if apple_crash_report_attachment.is_some() {
-            self.write_native_placeholder(&mut event, false);
+            if minidump_attachment.is_some() {
+                self.write_native_placeholder(&mut event, true);
+            } else if apple_crash_report_attachment.is_some() {
+                self.write_native_placeholder(&mut event, false);
+            }
         }
 
         let event_id = envelope.event_id();
@@ -544,8 +573,9 @@ impl EventProcessor {
             return Ok(ProcessEventResponse { envelope });
         }
 
-        #[cfg(feature = "processing")]
-        self.store_process_event(&mut event, &envelope, &message.project_state)?;
+        if_processing! {
+            self.store_process_event(&mut event, &envelope, &message.project_state)?;
+        }
 
         // Run PII stripping last since normalization can add PII (e.g. IP addresses).
         metric!(timer("event_processing.pii"), {
