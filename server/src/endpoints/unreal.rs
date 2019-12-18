@@ -1,4 +1,5 @@
 use actix_web::{actix::ResponseFuture, HttpRequest, HttpResponse};
+use futures::Future;
 
 use semaphore_general::protocol::EventId;
 
@@ -7,7 +8,6 @@ use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{EventMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
-use futures::Future;
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,

@@ -140,11 +140,18 @@ impl EventProcessor {
         Self { config }
     }
 
-    /// Writes a placeholder to indicate that this event has an associated minidump or
-    /// an apple crash report.
+    /// Writes a placeholder to indicate that this event has an associated minidump or an apple
+    /// crash report.
     ///
-    fn write_placeholder(&self, evt: &mut Annotated<Event>, is_minidump: bool) {
-        let event = evt.get_or_insert_with(Event::default);
+    /// This will indicate to the ingestion pipeline that this event will need to be processed. The
+    /// payload can be checked via `is_minidump_event`.
+    fn write_native_placeholder(
+        &self,
+        event_opt: &mut Option<Annotated<Event>>,
+        is_minidump: bool,
+    ) {
+        let annotated = event_opt.get_or_insert_with(Annotated::empty);
+        let event = annotated.get_or_insert_with(Event::default);
 
         // Events must be native platform.
         let platform = event.platform.value_mut();
@@ -190,22 +197,6 @@ impl EventProcessor {
             }),
             ..Exception::default()
         }));
-    }
-
-    /// Writes a placeholder to indicate that this event has an associated minidump.
-    ///
-    ///   This will indicate to the ingestion pipeline that this event will need to be
-    ///   processed. The payload can be checked via ``is_minidump_event``.
-    fn write_minidump_placeholder(&self, evt: &mut Annotated<Event>) {
-        self.write_placeholder(evt, true);
-    }
-
-    /// Writes a placeholder to indicate that this event has an associated apple crash report.
-    ///
-    ///   This will indicate to the ingestion pipeline that this event will need to be
-    ///   processed.
-    fn write_applecrashreport_placeholder(&self, evt: &mut Annotated<Event>) {
-        self.write_placeholder(evt, false);
     }
 
     fn event_from_json_payload(&self, item: Item) -> Result<Annotated<Event>, ProcessingError> {
@@ -544,11 +535,9 @@ impl EventProcessor {
             .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
 
         if minidump_attachment.is_some() {
-            let event = event_opt.get_or_insert_with(Annotated::default);
-            self.write_minidump_placeholder(event);
+            self.write_native_placeholder(&mut event_opt, true);
         } else if apple_crash_report_attachment.is_some() {
-            let event = event_opt.get_or_insert_with(Annotated::default);
-            self.write_applecrashreport_placeholder(event);
+            self.write_native_placeholder(&mut event_opt, false);
         }
 
         // If we have an envelope without event at this point, we should not process or apply rate
