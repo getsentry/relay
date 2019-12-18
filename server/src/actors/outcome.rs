@@ -168,9 +168,6 @@ pub enum DiscardReason {
     /// [Relay] Symbolic failed to extract an Unreal Crash report from a request sent to the
     /// Unreal endpoint
     ProcessUnreal,
-
-    /// [Relay] Invalid Unreal Crash report
-    InvalidUnrealReport,
 }
 
 /// This is the implementation that uses kafka queues and does stuff
@@ -255,7 +252,6 @@ mod real_implementation {
                 DiscardReason::ProjectState => "project_state",
                 DiscardReason::DuplicateItem => "duplicate_item",
                 DiscardReason::Internal => "internal",
-                DiscardReason::InvalidUnrealReport => "invalid_unreal",
             }
         }
     }

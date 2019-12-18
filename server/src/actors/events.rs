@@ -57,8 +57,8 @@ enum ProcessingError {
     #[fail(display = "invalid message pack event payload")]
     InvalidMsgpack(#[cause] rmp_serde::decode::Error),
 
-    #[fail(display = "invalid unreal message")]
-    InvalidUnreal,
+    #[fail(display = "invalid unreal crash report")]
+    InvalidUnrealReport(#[cause] symbolic::unreal::Unreal4Error),
 
     #[fail(display = "event payload too large")]
     PayloadTooLarge,
@@ -528,7 +528,7 @@ impl EventProcessor {
         // fast. For envelopes containing an Unreal request we will look into the unreal item
         // and expand it so it can be consumed like any other event (e.g. like a minidump )
         // If the envelope does *NOT* contain an Unreal item the function below is a no-op.
-        expand_if_unreal_envelope(envelope).map_err(|_| ProcessingError::InvalidUnreal)?;
+        expand_if_unreal_envelope(envelope).map_err(ProcessingError::InvalidUnrealReport)?;
 
         // Remove all items first, and then process them. After this function returns, only
         // attachments can remain in the envelope. The event will be added again at the end of
@@ -1165,12 +1165,11 @@ impl Handler<HandleEvent> for EventManager {
                     ProcessingError::InvalidSecurityReport(_) => {
                         Some(Outcome::Invalid(DiscardReason::SecurityReport))
                     }
+                    ProcessingError::InvalidUnrealReport(_) => {
+                        Some(Outcome::Invalid(DiscardReason::ProcessUnreal))
+                    }
                     ProcessingError::DuplicateItem(_) => {
                         Some(Outcome::Invalid(DiscardReason::DuplicateItem))
-                    }
-
-                    ProcessingError::InvalidUnreal => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidUnrealReport))
                     }
 
                     // Rate limits need special handling: Cache them on the project to avoid
