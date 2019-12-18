@@ -277,6 +277,13 @@ impl Message for StoreEvent {
     type Result = Result<(), StoreError>;
 }
 
+/// Determines if the given item is considered slow.
+///
+/// Slow items must be routed to the `Attachments` topic.
+fn is_slow_item(item: &Item) -> bool {
+    item.ty() == ItemType::Attachment || item.ty() == ItemType::UserReport
+}
+
 impl Handler<StoreEvent> for StoreForwarder {
     type Result = Result<(), StoreError>;
 
@@ -290,10 +297,7 @@ impl Handler<StoreEvent> for StoreForwarder {
         let event_id = envelope.event_id();
         let event_item = envelope.get_item_by(|item| item.ty() == ItemType::Event);
 
-        let topic = if envelope
-            .get_item_by(|item| item.ty() == ItemType::Attachment)
-            .is_some()
-        {
+        let topic = if envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments
         } else if event_item.and_then(|x| x.event_type()) == Some(EventType::Transaction) {
             KafkaTopic::Transactions
@@ -310,6 +314,7 @@ impl Handler<StoreEvent> for StoreForwarder {
                     attachments.push(self.produce_attachment_chunks(event_id, project_id, item)?);
                 }
                 ItemType::UserReport => {
+                    debug_assert!(topic == KafkaTopic::Attachments);
                     self.produce_user_report(event_id, project_id, start_time, item)?
                 }
                 _ => {}
