@@ -145,13 +145,8 @@ impl EventProcessor {
     ///
     /// This will indicate to the ingestion pipeline that this event will need to be processed. The
     /// payload can be checked via `is_minidump_event`.
-    fn write_native_placeholder(
-        &self,
-        event_opt: &mut Option<Annotated<Event>>,
-        is_minidump: bool,
-    ) {
-        let annotated = event_opt.get_or_insert_with(Annotated::empty);
-        let event = annotated.get_or_insert_with(Event::default);
+    fn write_native_placeholder(&self, event: &mut Annotated<Event>, is_minidump: bool) {
+        let event = event.get_or_insert_with(Event::default);
 
         // Events must be native platform.
         let platform = event.platform.value_mut();
@@ -359,20 +354,8 @@ impl EventProcessor {
     ///  2. A security report item.
     ///  3. Attachments `__sentry-event` and `__sentry-breadcrumbs1/2`.
     ///  4. A multipart form data body.
-    ///  5. If none match, an empty default Event.
-    fn extract_event(
-        &self,
-        envelope: &mut Envelope,
-    ) -> Result<Option<Annotated<Event>>, ProcessingError> {
-        // Unreal endpoint puts the whole request into an item. This is done to make the endpoint
-        // fast. For envelopes containing an Unreal request we will look into the unreal item
-        // and expand it so it can be consumed like any other event (e.g. like a minidump )
-        // If the envelope does *NOT* contain an Unreal item the function below is a no-op.
-        if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
-            utils::expand_unreal_envelope(item, envelope)
-                .map_err(ProcessingError::InvalidUnrealReport)?;
-        }
-
+    ///  5. If none match, `Annotated::empty()`.
+    fn extract_event(&self, envelope: &mut Envelope) -> Result<Annotated<Event>, ProcessingError> {
         // Remove all items first, and then process them. After this function returns, only
         // attachments can remain in the envelope. The event will be added again at the end of
         // `process_event`.
@@ -388,36 +371,34 @@ impl EventProcessor {
 
         if let Some(item) = event_item {
             log::trace!("processing json event {}", envelope.event_id());
-            return Ok(Some(metric!(timer("event_processing.deserialize"), {
+            return Ok(metric!(timer("event_processing.deserialize"), {
                 self.event_from_json_payload(item)?
-            })));
+            }));
         }
 
         if let Some(item) = security_item {
             log::trace!("processing security report {}", envelope.event_id());
-            return Ok(Some(self.event_from_security_report(item)?));
+            return Ok(self.event_from_security_report(item)?);
         }
 
         if attachment_item.is_some() || breadcrumbs_item1.is_some() || breadcrumbs_item2.is_some() {
             log::trace!("extracting attached event data {}", envelope.event_id());
-            return Ok(Some(Self::event_from_attachments(
+            return Ok(Self::event_from_attachments(
                 &self.config,
                 attachment_item,
                 breadcrumbs_item1,
                 breadcrumbs_item2,
-            )?));
+            )?);
         }
 
         if let Some(item) = form_item {
             log::trace!("extracting form data {}", envelope.event_id());
             let mut value = SerdeValue::Object(Default::default());
             self.merge_formdata(&mut value, item);
-            return Ok(Some(
-                Annotated::deserialize_with_meta(value).unwrap_or_default(),
-            ));
+            return Ok(Annotated::deserialize_with_meta(value).unwrap_or_default());
         }
 
-        Ok(None)
+        Ok(Annotated::empty())
     }
 
     #[cfg(feature = "processing")]
@@ -512,9 +493,17 @@ impl EventProcessor {
     fn process(&self, message: ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
         let mut envelope = message.envelope;
 
+        // Unreal endpoint puts the whole request into an item. This is done to make the endpoint
+        // fast. For envelopes containing an Unreal request, we will look into the unreal item
+        // and expand it so it can be consumed like any other event (e.g. `__sentry-event`).
+        if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
+            utils::expand_unreal_envelope(item, &mut envelope)
+                .map_err(ProcessingError::InvalidUnrealReport)?;
+        }
+
         // Extract the event from the envelope. This removes all items from the envelope that should
         // not be forwarded, including the event item itself.
-        let mut event_opt = self.extract_event(&mut envelope)?;
+        let mut event = self.extract_event(&mut envelope)?;
 
         // `extract_event` must remove all items other than attachments from the envelope. Once the
         // envelope is processed, an `Event` item will be added to the envelope again. Only
@@ -523,8 +512,9 @@ impl EventProcessor {
             return Err(ProcessingError::DuplicateItem(duplicate.ty()));
         }
 
-        // This envelope may contain UE4 crash report information.
-        utils::process_unreal_envelope(&mut event_opt, &mut envelope)
+        // This envelope may contain UE4 crash report information, which needs to be patched on the
+        // event returned from `extract_event`.
+        utils::process_unreal_envelope(&mut event, &mut envelope)
             .map_err(ProcessingError::InvalidUnrealReport)?;
 
         // If special attachments are present in the envelope, add placeholder payloads to the
@@ -535,29 +525,23 @@ impl EventProcessor {
             .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
 
         if minidump_attachment.is_some() {
-            self.write_native_placeholder(&mut event_opt, true);
+            self.write_native_placeholder(&mut event, true);
         } else if apple_crash_report_attachment.is_some() {
-            self.write_native_placeholder(&mut event_opt, false);
+            self.write_native_placeholder(&mut event, false);
         }
 
-        // If we have an envelope without event at this point, we should not process or apply rate
-        // limits.
-        let mut event = match event_opt {
-            Some(event) => event,
-            None => {
-                log::trace!(
-                    "no event for envelope {}, skipping processing",
-                    envelope.event_id()
-                );
-                return Ok(ProcessEventResponse { envelope });
-            }
-        };
-
-        // Ensure that the event id in the payload is consistent with the envelope. If an event id
-        // was ingested, this will already be the case. Otherwise, this will insert a new event id.
-        // To be defensive, we always overwrite to ensure consistency.
+        let event_id = envelope.event_id();
         if let Some(event) = event.value_mut() {
-            event.id = Annotated::new(envelope.event_id());
+            // Ensure that the event id in the payload is consistent with the envelope. If an event
+            // id was ingested, this will already be the case. Otherwise, this will insert a new
+            // event id. To be defensive, we always overwrite to ensure consistency.
+            event.id = Annotated::new(event_id);
+        } else {
+            // If we have an envelope without event at this point, we are done with processing. This
+            // envelope only contains attachments or user reports. We should not run filters or
+            // apply rate limits.
+            log::trace!("no event for envelope {}, skipping processing", event_id);
+            return Ok(ProcessEventResponse { envelope });
         }
 
         #[cfg(feature = "processing")]

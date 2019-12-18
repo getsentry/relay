@@ -197,7 +197,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 }
 
 pub fn process_unreal_envelope(
-    event_opt: &mut Option<Annotated<Event>>,
+    event: &mut Annotated<Event>,
     envelope: &mut Envelope,
 ) -> Result<(), Unreal4Error> {
     let user_header = envelope
@@ -213,9 +213,9 @@ pub fn process_unreal_envelope(
         return Ok(());
     }
 
-    // If we have UE4 info, ensure an event is there to fill.
-    let annotated = event_opt.get_or_insert_with(Annotated::empty);
-    let event = annotated.get_or_insert_with(Event::default);
+    // If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal
+    // information, or otherwise `EventProcessor::process` breaks.
+    let event = event.get_or_insert_with(Event::default);
 
     if let Some(user_info) = user_header {
         merge_unreal_user_info(event, user_info);
