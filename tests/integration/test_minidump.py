@@ -26,7 +26,6 @@ def assert_minidump(minidump_item, assert_payload=True):
         assert minidump_payload.decode("utf-8") == "MDMP content"
 
 
-
 def assert_only_minidump(envelope, assert_payload=True):
     minidump_item = None
     for item in envelope.items:
