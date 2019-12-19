@@ -55,17 +55,12 @@ def test_minidump(mini_sentry, relay):
     event_id = UUID(body)
     assert str(event_id) == body
 
-    # the event id from the response should match the envelope
     envelope = mini_sentry.captured_events.get(timeout=1)
-
     assert envelope
+
+    # the event id from the response should match the envelope
     assert UUID(envelope.headers.get("event_id")) == event_id
     assert_only_minidump(envelope)
-
-    # Check the placeholder payload
-    event_item = envelope.get_event()
-    assert event_item["platform"] == "native"
-    assert event_item["exception"]["values"][0]["mechanism"]["type"] == "minidump"
 
 
 def test_minidump_attachments(mini_sentry, relay):
@@ -311,30 +306,29 @@ def test_minidump_with_processing(
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
     attachments_consumer = attachments_consumer()
 
-    relay.send_minidump(
-        project_id=project_id,
-        files=(("upload_file_minidump", "minidump.txt", "MDMPminidump content"),),
-    )
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
+    relay.send_minidump(project_id=project_id, files=attachments)
 
     attachment = b""
     num_chunks = 0
     attachment_id = None
 
-    while attachment != b"MDMPminidump content":
-        chunk, v = attachments_consumer.get_attachment_chunk()
-        attachment_id = attachment_id or v["id"]
+    while attachment != b"MDMP content":
+        chunk, message = attachments_consumer.get_attachment_chunk()
+        attachment_id = attachment_id or message["id"]
         attachment += chunk
         num_chunks += 1
 
-    event, v = attachments_consumer.get_event()
+    event, message = attachments_consumer.get_event()
 
+    # Check the placeholder payload
     assert event["platform"] == "native"
     assert event["exception"]["values"][0]["mechanism"]["type"] == "minidump"
 
-    assert list(v["attachments"]) == [
+    assert list(message["attachments"]) == [
         {
             "id": attachment_id,
-            "name": "minidump.txt",
+            "name": "minidump.dmp",
             "content_type": "application/octet-stream",
             "attachment_type": "event.minidump",
             "chunks": num_chunks,
