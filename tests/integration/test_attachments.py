@@ -32,7 +32,10 @@ def test_attachments_with_processing(
     attachments_consumer = attachments_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    attachments = [("att_1", "foo.txt", b"heavens no"), ("att_2", "bar.txt", b"hell yeah")]
+    attachments = [
+        ("att_1", "foo.txt", b"heavens no"),
+        ("att_2", "bar.txt", b"hell yeah"),
+    ]
     response = relay.send_attachments(project_id, event_id, attachments)
 
     attachment_contents = {}
