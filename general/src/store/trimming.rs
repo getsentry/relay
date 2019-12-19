@@ -578,12 +578,15 @@ fn test_tags_stripping() {
         .payload_to_json_pretty()
         .unwrap();
 
-    assert_eq_str!(json, r#"[
+    assert_eq_str!(
+        json,
+        r#"[
   [
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx..."
   ]
-]"#);
+]"#
+    );
 }
 
 #[test]

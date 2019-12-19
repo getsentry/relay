@@ -50,12 +50,10 @@ pub use crate::service::ServerError;
 ///     }
 /// }
 ///
-/// fn main() {
-///     Controller::run(|| {
-///         MyActor.start();
-///         # System::current().stop()
-///     })
-/// }
+/// Controller::run(|| {
+///     MyActor.start();
+///     # System::current().stop()
+/// })
 /// ```
 ///
 /// [`Subscribe`]: struct.Subscribe.html

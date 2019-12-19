@@ -101,7 +101,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
     }
 
     if !applied_rules.is_empty() {
-        applications.insert(applied_selector, applied_rules.clone());
+        applications.insert(applied_selector, applied_rules);
     }
 
     Some(PiiConfig {

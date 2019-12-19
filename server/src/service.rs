@@ -136,7 +136,7 @@ impl ServiceState {
             upstream_relay: upstream_relay.clone(),
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
-            healthcheck: Healthcheck::new(config.clone(), upstream_relay.clone()).start(),
+            healthcheck: Healthcheck::new(config, upstream_relay).start(),
             event_manager,
             outcome_producer,
         })

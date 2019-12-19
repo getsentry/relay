@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use actix::prelude::*;
 use actix_web::{dev::Payload, error::PayloadError, multipart, HttpMessage, HttpRequest};
 use bytes::Bytes;
@@ -19,21 +21,24 @@ pub enum MultipartError {
     InvalidMultipart(actix_web::error::MultipartError),
 }
 
-// An entry in a serialized form data item.
-#[derive(Deserialize, Serialize)]
-pub struct FormDataEntry<'a>(&'a str, &'a str);
+/// An entry in a serialized form data item.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+pub struct FormDataEntry<'a>(Cow<'a, str>, Cow<'a, str>);
+
+// TODO: This requires Cows because we encode in JSON. As soon as the string contains an escape
+// sequence, the deserialized string needs to be allocated.
 
 impl<'a> FormDataEntry<'a> {
     pub fn new(key: &'a str, value: &'a str) -> Self {
-        Self(key, value)
+        Self(Cow::Borrowed(key), Cow::Borrowed(value))
     }
 
-    pub fn key(&self) -> &'a str {
-        self.0
+    pub fn key(&self) -> &str {
+        &self.0
     }
 
-    pub fn value(&self) -> &'a str {
-        self.1
+    pub fn value(&self) -> &str {
+        &self.1
     }
 }
 
@@ -264,5 +269,33 @@ mod tests {
             let boundary = get_multipart_boundary(input);
             assert_eq!(*expected, boundary);
         }
+    }
+
+    #[test]
+    fn test_formdata_writer() {
+        let mut writer = FormDataWriter::new();
+        writer.append("foo", "foo");
+        writer.append("bar", "bar");
+
+        let item = writer.into_item();
+        assert_eq!(item.ty(), ItemType::FormData);
+
+        let payload = item.payload();
+        assert_eq!(payload, &br#"["foo","foo"]["bar","bar"]"#[..]);
+    }
+
+    #[test]
+    fn test_formdata_iter() {
+        let data = br#"["foo","foo"]["bar","bar"]"#;
+        let iter = FormDataIter::new(&data[..]);
+        let entries: Vec<_> = iter.collect();
+
+        assert_eq!(
+            entries,
+            vec![
+                FormDataEntry::new("foo", "foo"),
+                FormDataEntry::new("bar", "bar"),
+            ]
+        );
     }
 }

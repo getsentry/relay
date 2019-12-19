@@ -62,7 +62,7 @@ pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> Processin
         if logentry.formatted.value().is_none() {
             if let Some(message) = logentry.message.value() {
                 if let Some(formatted) = format_message(message, params) {
-                    logentry.formatted = formatted.to_string().into();
+                    logentry.formatted = formatted.into();
                 }
             }
         }

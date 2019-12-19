@@ -59,7 +59,7 @@ mod tests {
             let evt = get_event_for_release(release);
             let config = ReleasesFilterConfig {
                 releases: GlobPatterns::new(
-                    blocked_releases.iter().map(|r| r.to_string()).collect(),
+                    blocked_releases.iter().map(|&r| r.to_string()).collect(),
                 ),
             };
 

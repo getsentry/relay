@@ -26,10 +26,8 @@
 //! use semaphore_server::controller::Controller;
 //! use semaphore_server::server::Server;
 //!
-//! fn main() {
-//!     Controller::run(|| Server::start())
-//!         .expect("failed to start relay");
-//! }
+//! Controller::run(|| Server::start())
+//!     .expect("failed to start relay");
 //! ```
 //!
 //! [`Controller`]: controller/struct.Controller.html
