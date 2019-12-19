@@ -110,7 +110,7 @@ impl StoreForwarder {
         // is one larger than the last chunk, so it is equal to the number of chunks.
 
         Ok(ChunkedAttachment {
-            id: id.clone(),
+            id,
             name: item.filename().map(str::to_owned),
             content_type: item
                 .content_type()
