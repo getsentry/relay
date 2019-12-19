@@ -259,10 +259,6 @@ impl Handler<StoreEvent> for StoreForwarder {
                 chunk_index += 1;
             }
 
-            // The chunk_index is incremented after every loop iteration. After we exit the loop, it
-            // is one larger than the last chunk, so it is equal to the number of chunks.
-            debug_assert!(chunk_index > 0);
-
             attachments.push(ChunkedAttachment {
                 id: id.clone(),
                 name: item.filename().map(str::to_owned),
