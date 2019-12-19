@@ -338,7 +338,7 @@ impl EventProcessor {
     /// The event is obtained from only one source in the following precedence:
     ///  1. An explicit event item. This is also the case for JSON uploads.
     ///  2. A security report item.
-    ///  3. Attachments `__sentry-event` and `__sentry-breadcrumbs1/2`.
+    ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
     ///  4. A multipart form data body.
     ///  5. If none match, an empty default Event.
     fn extract_event(
@@ -1044,7 +1044,7 @@ mod tests {
     }
 
     #[test]
-    fn message_pack_breadcrumbs_replace_the_existing_bread_crumbs() {
+    fn test_breadcrumbs_replace_existing() {
         let item = create_breadcrumbs_envelope(&[(None, "new1")]);
 
         let evt =
@@ -1071,13 +1071,14 @@ mod tests {
     }
 
     #[test]
-    fn message_pack_breadcrumbs_are_ordered_by_date_and_capped() {
+    fn test_breadcrumbs_order_with_none() {
         let d1 = NaiveDate::from_ymd(2019, 10, 10).and_hms(12, 10, 10);
         let d2 = NaiveDate::from_ymd(2019, 10, 11).and_hms(12, 10, 10);
-        let item1 = create_breadcrumbs_envelope(&[(None, "old1"), (Some(d1), "old2")]);
-        let item2 = create_breadcrumbs_envelope(&[(Some(d2), "new")]);
 
-        let evt = EventProcessor::event_from_attachments(
+        let item1 = create_breadcrumbs_envelope(&[(None, "none"), (Some(d1), "d1")]);
+        let item2 = create_breadcrumbs_envelope(&[(Some(d2), "d2")]);
+
+        let event = EventProcessor::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
@@ -1085,19 +1086,24 @@ mod tests {
         )
         .unwrap();
 
-        let breadcrumbs = breadcrumbs_from_event(&evt);
+        let breadcrumbs = breadcrumbs_from_event(&event);
         assert_eq!(breadcrumbs.len(), 2);
 
-        let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
-        let second_breadcrumb_message = breadcrumbs[1].value().unwrap().message.value().unwrap();
-        assert_eq!("old2", first_breadcrumb_message);
-        assert_eq!("new", second_breadcrumb_message);
+        let message1 = breadcrumbs[0].value().unwrap().message.value().unwrap();
+        let message2 = breadcrumbs[1].value().unwrap().message.value().unwrap();
+        assert_eq!("d1", message1);
+        assert_eq!("d2", message2);
+    }
 
-        // now try new/old
-        let item1 = create_breadcrumbs_envelope(&[(Some(d2), "new")]);
-        let item2 = create_breadcrumbs_envelope(&[(None, "old1"), (Some(d1), "old2")]);
+    #[test]
+    fn test_breadcrumbs_reversed_with_none() {
+        let d1 = NaiveDate::from_ymd(2019, 10, 10).and_hms(12, 10, 10);
+        let d2 = NaiveDate::from_ymd(2019, 10, 11).and_hms(12, 10, 10);
 
-        let evt = EventProcessor::event_from_attachments(
+        let item1 = create_breadcrumbs_envelope(&[(Some(d2), "d2")]);
+        let item2 = create_breadcrumbs_envelope(&[(None, "none"), (Some(d1), "d1")]);
+
+        let event = EventProcessor::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
@@ -1105,12 +1111,12 @@ mod tests {
         )
         .unwrap();
 
-        let breadcrumbs = breadcrumbs_from_event(&evt);
+        let breadcrumbs = breadcrumbs_from_event(&event);
         assert_eq!(breadcrumbs.len(), 2);
 
-        let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
-        let second_breadcrumb_message = breadcrumbs[1].value().unwrap().message.value().unwrap();
-        assert_eq!("old2", first_breadcrumb_message);
-        assert_eq!("new", second_breadcrumb_message);
+        let message1 = breadcrumbs[0].value().unwrap().message.value().unwrap();
+        let message2 = breadcrumbs[1].value().unwrap().message.value().unwrap();
+        assert_eq!("d1", message1);
+        assert_eq!("d2", message2);
     }
 }

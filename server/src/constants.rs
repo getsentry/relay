@@ -13,11 +13,11 @@ pub const ITEM_NAME_EVENT: &str = "__sentry-event";
 /// This is a special attachment that can contain breadcrumbs encoded as message pack. There can be
 /// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
 /// truncated to the maxmimum number of allowed attachments.
-pub const ITEM_NAME_BREADCRUMBS1: &str = "__sentry-breadcrumbs1";
+pub const ITEM_NAME_BREADCRUMBS1: &str = "__sentry-breadcrumb1";
 
 /// Name of the breadcrumb attachment (2).
 ///
 /// This is a special attachment that can contain breadcrumbs encoded as message pack. There can be
 /// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
 /// truncated to the maxmimum number of allowed attachments.
-pub const ITEM_NAME_BREADCRUMBS2: &str = "__sentry-breadcrumbs2";
+pub const ITEM_NAME_BREADCRUMBS2: &str = "__sentry-breadcrumb2";
