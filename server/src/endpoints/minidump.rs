@@ -95,6 +95,7 @@ fn extract_envelope(
                 validate_minidump(&data)?;
 
                 let mut item = Item::new(ItemType::Attachment);
+                item.set_name(MINIDUMP_FIELD_NAME);
                 item.set_payload(ContentType::OctetStream, data);
                 item.set_filename(MINIDUMP_FILE_NAME);
                 item.set_attachment_type(AttachmentType::Minidump);

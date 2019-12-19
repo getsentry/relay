@@ -296,7 +296,7 @@ where
 
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
-    let outcome_producer = request.state().outcome_producer().clone();
+    let outcome_producer = request.state().outcome_producer();
     let remote_addr = meta.client_addr();
 
     let cloned_meta = Arc::new(meta.clone());

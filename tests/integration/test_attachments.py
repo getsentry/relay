@@ -23,20 +23,20 @@ def test_attachments_400(
 def test_attachments_with_processing(
     mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
 ):
-    proj_id = 42
+    project_id = 42
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
-    mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
+    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
     attachments_consumer = attachments_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    event_id = "515539018c9b4260a6f999572f1661ee"
-
-    response = relay.send_attachments(
-        proj_id,
-        event_id,
-        [("att_1", "foo.txt", b"heavens no"), ("att_2", "bar.txt", b"hell yeah"),],
-    )
+    attachments = [
+        ("att_1", "foo.txt", b"heavens no"),
+        ("att_2", "bar.txt", b"hell yeah"),
+    ]
+    response = relay.send_attachments(project_id, event_id, attachments)
 
     attachment_contents = {}
     attachment_ids = []
@@ -69,7 +69,7 @@ def test_attachments_with_processing(
             "name": "foo.txt",
         },
         "event_id": event_id,
-        "project_id": 42,
+        "project_id": project_id,
     }
     assert attachment2 == {
         "type": "attachment",
@@ -81,7 +81,7 @@ def test_attachments_with_processing(
             "name": "bar.txt",
         },
         "event_id": event_id,
-        "project_id": 42,
+        "project_id": project_id,
     }
 
     # We want to check that no outcome has been created for the attachment
@@ -94,9 +94,41 @@ def test_attachments_with_processing(
     # We need to send in an invalid event because successful ones do not
     # produce outcomes (not in Relay)
     with pytest.raises(HTTPError):
-        relay.send_event(42, b"bogus")
+        relay.send_event(project_id, b"bogus")
 
     outcome = outcomes_consumer.get_outcome()
     assert outcome["event_id"] == None, outcome
     assert outcome["outcome"] == 3
     assert outcome["reason"] == "payload"
+
+
+def test_empty_attachments_with_processing(
+    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+):
+    project_id = 42
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
+    relay = relay_with_processing()
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    attachments_consumer = attachments_consumer()
+
+    attachments = [("att_1", "foo.txt", b"")]
+    response = relay.send_attachments(project_id, event_id, attachments)
+
+    attachment = attachments_consumer.get_individual_attachment()
+
+    # The ID is random. Just assert that it is there and non-zero.
+    assert attachment["attachment"].pop("id")
+
+    assert attachment == {
+        "type": "attachment",
+        "attachment": {
+            "attachment_type": "event.attachment",
+            "chunks": 0,
+            "content_type": "application/octet-stream",
+            "name": "foo.txt",
+        },
+        "event_id": event_id,
+        "project_id": project_id,
+    }

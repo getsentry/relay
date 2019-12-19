@@ -87,7 +87,9 @@ impl StoreForwarder {
         let payload = item.payload();
         let size = item.len();
 
-        while offset == 0 || offset < size {
+        // This skips chunks for empty attachments. The consumer does not require chunks for
+        // empty attachments. `chunks` will be `0` in this case.
+        while offset < size {
             let max_chunk_size = self.config.attachment_chunk_size();
             let chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
@@ -106,7 +108,6 @@ impl StoreForwarder {
 
         // The chunk_index is incremented after every loop iteration. After we exit the loop, it
         // is one larger than the last chunk, so it is equal to the number of chunks.
-        debug_assert!(chunk_index > 0);
 
         Ok(ChunkedAttachment {
             id: id.clone(),

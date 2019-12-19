@@ -90,7 +90,7 @@ mod tests {
         for &(ip_addr, blacklisted_ips, expected) in examples {
             let ip_addr = ip_addr.parse::<IpAddr>().ok();
             let config = ClientIpsFilterConfig {
-                blacklisted_ips: blacklisted_ips.iter().map(|ip| ip.to_string()).collect(),
+                blacklisted_ips: blacklisted_ips.iter().map(|&ip| ip.to_string()).collect(),
             };
 
             let actual = should_filter(ip_addr, &config) != Ok(());
