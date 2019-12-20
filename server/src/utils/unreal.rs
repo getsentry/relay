@@ -238,3 +238,149 @@ pub fn process_unreal_envelope(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Extracts a Context element from Contexts
+    macro_rules! get_context {
+        ($contexts:ident, $context_key: expr, $enum_name: path) => {{
+            let ctx = &$contexts.get($context_key).unwrap().value().unwrap().0;
+
+            match ctx {
+                $enum_name(ref context) => context,
+                _ => panic!("invalid context"),
+            }
+        }};
+    }
+
+    #[test]
+    fn test_merge_unreal_context() {
+        let raw_context = br##"<?xml version="1.0" encoding="UTF-8"?>
+<FGenericCrashContext>
+	<RuntimeProperties>
+		<UserName>bruno</UserName>
+		<MemoryStats.TotalPhysical>6896832512</MemoryStats.TotalPhysical>
+		<Misc.OSVersionMajor>Windows 10</Misc.OSVersionMajor>
+		<Misc.OSVersionMinor />
+		<Misc.PrimaryGPUBrand>Parallels Display Adapter (WDDM)</Misc.PrimaryGPUBrand>
+		<ErrorMessage>Access violation - code c0000005 (first/second chance not available)</ErrorMessage>
+
+		<CrashVersion>3</CrashVersion>
+		<Misc.Is64bitOperatingSystem>1</Misc.Is64bitOperatingSystem>
+		<Misc.CPUVendor>GenuineIntel</Misc.CPUVendor>
+		<Misc.CPUBrand>Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz</Misc.CPUBrand>
+		<GameStateName />
+		<MemoryStats.TotalVirtual>140737488224256</MemoryStats.TotalVirtual>
+		<PlatformFullName>Win64 [Windows 10  64b]</PlatformFullName>
+		<CrashReportClientVersion>1.0</CrashReportClientVersion>
+		<Modules>\\Mac\Home\Desktop\WindowsNoEditor\YetAnother\Binaries\Win64\YetAnother.exe
+\\Mac\Home\Desktop\WindowsNoEditor\Engine\Binaries\ThirdParty\PhysX3\Win64\VS2015\PxFoundationPROFILE_x64.dll</Modules>
+	</RuntimeProperties>
+	<PlatformProperties>
+		<PlatformIsRunningWindows>1</PlatformIsRunningWindows>
+		<PlatformCallbackResult>0</PlatformCallbackResult>
+	</PlatformProperties>
+</FGenericCrashContext>
+"##;
+
+        let context = Unreal4Context::parse(raw_context).unwrap();
+        let mut event = Event::default();
+
+        merge_unreal_context(&mut event, context);
+
+        let user_name = event.user.value().unwrap().username.value().unwrap();
+
+        assert_eq!(&**user_name, "bruno");
+
+        let contexts = event.contexts.value().unwrap();
+
+        let device_context = get_context!(contexts, DeviceContext::default_key(), Context::Device);
+        let mem_size = device_context.memory_size.value().unwrap();
+
+        assert_eq!(*mem_size, 6_896_832_512);
+
+        let os_context = get_context!(contexts, OsContext::default_key(), Context::Os);
+        let os_name = os_context.name.value().unwrap();
+
+        assert_eq!(&**os_name, "Windows 10");
+
+        let gpu_context = get_context!(contexts, GpuContext::default_key(), Context::Gpu);
+        let gpu_name = gpu_context
+            .get("name")
+            .unwrap()
+            .value()
+            .unwrap()
+            .as_str()
+            .unwrap();
+
+        assert_eq!(gpu_name, "Parallels Display Adapter (WDDM)");
+
+        let unreal_context = get_context!(contexts, "unreal", Context::Other);
+
+        let mem_stats_total_virtual = unreal_context
+            .get("memory_stats_total_virtual")
+            .unwrap()
+            .value()
+            .unwrap();
+
+        assert_eq!(&Value::I64(140_737_488_224_256), mem_stats_total_virtual);
+
+        let cpu_brand = unreal_context
+            .get("misc_cpu_brand")
+            .unwrap()
+            .value()
+            .unwrap();
+
+        assert_eq!(
+            "Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz",
+            cpu_brand.as_str().unwrap()
+        );
+        let cpu_brand = unreal_context
+            .get("misc_cpu_brand")
+            .unwrap()
+            .value()
+            .unwrap();
+
+        assert_eq!(
+            "Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz",
+            cpu_brand.as_str().unwrap()
+        );
+
+        let cpu_vendor = unreal_context
+            .get("misc_cpu_vendor")
+            .unwrap()
+            .value()
+            .unwrap();
+
+        assert_eq!("GenuineIntel", cpu_vendor.as_str().unwrap());
+    }
+
+    #[test]
+    fn test_merge_unreal_logs() {
+        let logs = br##"Log file open, 10/29/18 17:56:37
+[2018.10.29-16.56.38:332][  0]LogGameplayTags: Display: UGameplayTagsManager::DoneAddingNativeTags. DelegateIsBound: 0
+[2018.10.29-16.56.39:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI prefixes -  0.000 s
+[2018.10.29-16.56.40:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: Construct from data asset -  0.000 s
+[2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s"##;
+        let mut event = Event::default();
+        merge_unreal_logs(&mut event, logs).ok();
+        let breadcrumbs = event.breadcrumbs.value().unwrap().values.value().unwrap();
+
+        assert_eq!(breadcrumbs.len(), 5); // TODO set to 4 after symbolic fix
+        let first_message = breadcrumbs[1].value().unwrap(); // TODO set to 0 after symbolic fix
+
+        let timestamp_str = format!("{}", first_message.timestamp.value().unwrap());
+        assert_eq!(timestamp_str, "2018-10-29 16:56:38 UTC");
+
+        let category = first_message.category.value().unwrap().as_str();
+        assert_eq!(category, "LogGameplayTags");
+
+        let message = first_message.message.value().unwrap().as_str();
+        assert_eq!(
+            message,
+            "Display: UGameplayTagsManager::DoneAddingNativeTags. DelegateIsBound: 0"
+        );
+    }
+}
