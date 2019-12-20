@@ -166,7 +166,7 @@ fn extract_envelope(
                 let attachment_type = match item.name() {
                     Some(self::ITEM_NAME_BREADCRUMBS1) => Some(AttachmentType::Breadcrumbs),
                     Some(self::ITEM_NAME_BREADCRUMBS2) => Some(AttachmentType::Breadcrumbs),
-                    Some(self::ITEM_NAME_EVENT) => Some(AttachmentType::MsgpackEvent),
+                    Some(self::ITEM_NAME_EVENT) => Some(AttachmentType::EventPayload),
                     _ => None,
                 };
 

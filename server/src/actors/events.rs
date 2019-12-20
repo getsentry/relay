@@ -367,7 +367,7 @@ impl EventProcessor {
         let security_item = envelope.take_item_by(|item| item.ty() == ItemType::SecurityReport);
         let form_item = envelope.take_item_by(|item| item.ty() == ItemType::FormData);
         let attachment_item = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::MsgpackEvent));
+            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
         let breadcrumbs_item1 = envelope
             .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
         let breadcrumbs_item2 = envelope

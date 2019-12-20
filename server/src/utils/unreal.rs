@@ -41,7 +41,7 @@ pub fn expand_unreal_envelope(
             Unreal4FileType::Config => (ContentType::OctetStream, AttachmentType::Attachment),
             Unreal4FileType::Context => (ContentType::OctetStream, AttachmentType::UnrealContext),
             Unreal4FileType::Unknown => match file.name() {
-                self::ITEM_NAME_EVENT => (ContentType::MsgPack, AttachmentType::MsgpackEvent),
+                self::ITEM_NAME_EVENT => (ContentType::MsgPack, AttachmentType::EventPayload),
                 self::ITEM_NAME_BREADCRUMBS1 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
                 self::ITEM_NAME_BREADCRUMBS2 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
                 _ => (ContentType::OctetStream, AttachmentType::Attachment),

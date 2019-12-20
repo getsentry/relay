@@ -195,24 +195,29 @@ pub enum AttachmentType {
     #[serde(rename = "event.applecrashreport")]
     AppleCrashReport,
 
-    /// A msgpack-encoded event submitted as part of minidump uploads.
-    #[serde(rename = "event.msgpackevent")]
-    MsgpackEvent,
+    /// A msgpack-encoded event payload submitted as part of multipart uploads.
+    ///
+    /// This attachment is processed by Relay immediately and never forwarded or persisted.
+    #[serde(rename = "event.payload")]
+    EventPayload,
 
-    /// This is a special attachment that can contain breadcrumbs encoded as message pack. There can be
-    /// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
-    /// truncated to the maxmimum number of allowed attachments.
+    /// A msgpack-encoded list of payloads.
+    ///
+    /// There can be two attachments that the SDK may use as swappable buffers. Both attachments
+    /// will be merged and truncated to the maxmimum number of allowed attachments.
+    ///
+    /// This attachment is processed by Relay immediately and never forwarded or persisted.
     #[serde(rename = "event.breadcrumbs")]
     Breadcrumbs,
 
     /// This is a binary attachment present in Unreal 4 events containing event context information.
     /// This can be deserialized using the `symbolic` crate see [unreal::Unreal4Context]
-    #[serde(rename = "event.unrealcontext")]
+    #[serde(rename = "unreal.context")]
     UnrealContext,
 
     /// This is a binary attachment present in Unreal 4 events containing event Logs.
     /// This can be deserialized using the `symbolic` crate see [unreal::Unreal4LogEntry]
-    #[serde(rename = "event.unreallogs")]
+    #[serde(rename = "unreal.logs")]
     UnrealLogs,
 }
 
