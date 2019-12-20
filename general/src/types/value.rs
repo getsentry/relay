@@ -306,3 +306,11 @@ impl<'de> Deserialize<'de> for Value {
         deserializer.deserialize_any(ValueVisitor)
     }
 }
+
+/// Convert `T` into a `Value`.
+pub fn to_value<T>(value: &T) -> Result<Option<Value>, serde_json::Error>
+where
+    T: Serialize,
+{
+    serde_json::to_value(value).map(Value::from_json)
+}

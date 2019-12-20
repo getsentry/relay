@@ -6,7 +6,7 @@ use semaphore_general::protocol::{
     AsPair, Breadcrumb, Context, Contexts, DeviceContext, Event, EventId, GpuContext,
     LenientString, LogEntry, OsContext, TagEntry, Tags, User, UserReport, Values,
 };
-use semaphore_general::types::{Annotated, Array, Value};
+use semaphore_general::types::{self, Annotated, Array, Object, Value};
 
 use crate::constants::{
     ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, UNREAL_USER_HEADER,
@@ -189,9 +189,13 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     // modules not used just remove it from runtime props
     runtime_props.modules.take();
 
-    let props = serde_json::to_string(&runtime_props).and_then(|p| serde_json::from_str(&p));
-    if let Ok(Value::Object(props)) = props {
-        contexts.add_at_index("unreal", Context::Other(props));
+    if let Ok(Some(Value::Object(props))) = types::to_value(&runtime_props) {
+        let unreal_context =
+            contexts.get_or_insert_with("unreal", || Context::Other(Object::new()));
+
+        if let Context::Other(unreal_context) = unreal_context {
+            unreal_context.extend(props);
+        }
     }
 }
 

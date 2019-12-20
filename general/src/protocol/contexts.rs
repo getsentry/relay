@@ -668,30 +668,17 @@ impl Contexts {
         }
     }
 
-    /// Adds a context at the specified index,
-    /// Prefer [add] when adding contexts with valid default_key()
-    /// This method should be used for Other context or for contexts that are
-    /// not added at their default keys
-    pub fn add_at_index<S>(&mut self, key: S, context: Context)
-    where
-        S: Into<String>,
-    {
-        self.insert(key.into(), Annotated::new(ContextInner(context)));
-    }
-
     /// Returns the context at the specified key or constructs it if not present.
     pub fn get_or_insert_with<F, S>(&mut self, key: S, context_builder: F) -> &mut Context
     where
-        F: FnOnce() -> Context + 'static,
+        F: FnOnce() -> Context,
         S: Into<String>,
     {
-        &mut self
-            .0
+        &mut *self
             .entry(key.into())
-            .or_insert_with(|| Annotated::empty())
+            .or_insert_with(Annotated::empty)
             .value_mut()
             .get_or_insert_with(|| ContextInner(context_builder()))
-            .0
     }
 }
 
