@@ -193,9 +193,14 @@ clean-target-dir:
 	@which virtualenv || sudo easy_install virtualenv
 	virtualenv -p $$SEMAPHORE_PYTHON_VERSION .venv
 
+# GNU tar requires `--wildcards`, but bsd tar does not.
+ifneq (, $(findstring GNU tar,$(shell tar --version)))
+wildcards=--wildcards
+endif
+
 # See https://dev.maxmind.com/geoip/geoipupdate/#Direct_Downloads
 GeoLite2-City.mmdb:
-	@curl https://download.maxmind.com/app/geoip_download\?edition_id=GeoLite2-City\&license_key=${GEOIP_LICENSE}\&suffix=tar.gz | tar xz --to-stdout '*/GeoLite2-City.mmdb' > $@
+	@curl https://download.maxmind.com/app/geoip_download\?edition_id=GeoLite2-City\&license_key=${GEOIP_LICENSE}\&suffix=tar.gz | tar xz --to-stdout $(wildcards) '*/GeoLite2-City.mmdb' > $@
 
 .git/hooks/pre-commit:
 	cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.py pre-commit
