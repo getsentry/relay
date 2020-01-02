@@ -1,4 +1,5 @@
-use std::borrow::Cow;
+use std::convert::TryInto;
+use std::io;
 
 use actix::prelude::*;
 use actix_web::{dev::Payload, error::PayloadError, multipart, HttpMessage, HttpRequest};
@@ -6,8 +7,6 @@ use bytes::Bytes;
 use failure::Fail;
 use futures::{future, Future, Stream};
 use serde::{Deserialize, Serialize};
-
-use semaphore_common::LogError;
 
 use crate::envelope::{ContentType, Item, ItemType, Items};
 use crate::service::ServiceState;
@@ -21,24 +20,73 @@ pub enum MultipartError {
     InvalidMultipart(actix_web::error::MultipartError),
 }
 
+/// Type used for encoding string lengths.
+type Len = u32;
+
+/// Serializes a Pascal-style string with a 4 byte little-endian length prefix.
+fn write_string<W>(mut writer: W, string: &str) -> io::Result<()>
+where
+    W: io::Write,
+{
+    writer.write_all(&(string.len() as Len).to_le_bytes())?;
+    writer.write_all(string.as_bytes())?;
+
+    Ok(())
+}
+
+/// Safely consumes a slice of the given length.
+fn split_front<'a>(data: &mut &'a [u8], len: usize) -> Option<&'a [u8]> {
+    if data.len() < len {
+        *data = &[];
+        return None;
+    }
+
+    let (slice, rest) = data.split_at(len);
+    *data = rest;
+    Some(slice)
+}
+
+/// Consumes the 4-byte length prefix of a string.
+fn consume_len(data: &mut &[u8]) -> Option<usize> {
+    let len = std::mem::size_of::<Len>();
+    let slice = split_front(data, len)?;
+    let bytes = slice.try_into().ok();
+    bytes.map(|b| Len::from_le_bytes(b) as usize)
+}
+
+/// Consumes a Pascal-style string with a 4 byte little-endian length prefix.
+fn consume_string<'a>(data: &mut &'a [u8]) -> Option<&'a str> {
+    let len = consume_len(data)?;
+    let bytes = split_front(data, len)?;
+    std::str::from_utf8(bytes).ok()
+}
+
 /// An entry in a serialized form data item.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
-pub struct FormDataEntry<'a>(Cow<'a, str>, Cow<'a, str>);
-
-// TODO: This requires Cows because we encode in JSON. As soon as the string contains an escape
-// sequence, the deserialized string needs to be allocated.
+pub struct FormDataEntry<'a>(&'a str, &'a str);
 
 impl<'a> FormDataEntry<'a> {
     pub fn new(key: &'a str, value: &'a str) -> Self {
-        Self(Cow::Borrowed(key), Cow::Borrowed(value))
+        Self(key, value)
     }
 
-    pub fn key(&self) -> &str {
+    pub fn key(&self) -> &'a str {
         &self.0
     }
 
-    pub fn value(&self) -> &str {
+    pub fn value(&self) -> &'a str {
         &self.1
+    }
+
+    fn to_writer<W: io::Write>(&self, mut writer: W) {
+        write_string(&mut writer, self.key()).ok();
+        write_string(&mut writer, self.value()).ok();
+    }
+
+    fn read(data: &mut &'a [u8]) -> Option<Self> {
+        let key = consume_string(data)?;
+        let value = consume_string(data)?;
+        Some(Self::new(key, value))
     }
 }
 
@@ -57,7 +105,7 @@ impl FormDataWriter {
 
     pub fn append(&mut self, key: &str, value: &str) {
         let entry = FormDataEntry::new(key, value);
-        serde_json::ser::to_writer(&mut self.data, &entry).ok();
+        entry.to_writer(&mut self.data);
     }
 
     pub fn into_item(self) -> Item {
@@ -71,14 +119,12 @@ impl FormDataWriter {
 
 /// Iterates through serialized form data written with `FormDataWriter`.
 pub struct FormDataIter<'a> {
-    iter: serde_json::de::StreamDeserializer<'a, serde_json::de::SliceRead<'a>, FormDataEntry<'a>>,
+    data: &'a [u8],
 }
 
 impl<'a> FormDataIter<'a> {
     pub fn new(data: &'a [u8]) -> Self {
-        Self {
-            iter: serde_json::Deserializer::from_slice(data).into_iter(),
-        }
+        Self { data }
     }
 }
 
@@ -86,10 +132,10 @@ impl<'a> Iterator for FormDataIter<'a> {
     type Item = FormDataEntry<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        for result in &mut self.iter {
-            match result {
-                Ok(entry) => return Some(entry),
-                Err(error) => log::error!("form data deserialization failed: {}", LogError(&error)),
+        while !self.data.is_empty() {
+            match FormDataEntry::read(&mut self.data) {
+                Some(entry) => return Some(entry),
+                None => log::error!("form data deserialization failed"),
             }
         }
 
@@ -272,30 +318,38 @@ mod tests {
     }
 
     #[test]
-    fn test_formdata_writer() {
+    fn test_formdata() {
         let mut writer = FormDataWriter::new();
         writer.append("foo", "foo");
-        writer.append("bar", "bar");
+        writer.append("bar", "");
+        writer.append("blub", "blub");
 
         let item = writer.into_item();
         assert_eq!(item.ty(), ItemType::FormData);
 
         let payload = item.payload();
-        assert_eq!(payload, &br#"["foo","foo"]["bar","bar"]"#[..]);
-    }
-
-    #[test]
-    fn test_formdata_iter() {
-        let data = br#"["foo","foo"]["bar","bar"]"#;
-        let iter = FormDataIter::new(&data[..]);
+        let iter = FormDataIter::new(&payload);
         let entries: Vec<_> = iter.collect();
 
         assert_eq!(
             entries,
             vec![
                 FormDataEntry::new("foo", "foo"),
-                FormDataEntry::new("bar", "bar"),
+                FormDataEntry::new("bar", ""),
+                FormDataEntry::new("blub", "blub"),
             ]
         );
+    }
+
+    #[test]
+    fn test_empty_formdata() {
+        let writer = FormDataWriter::new();
+        let item = writer.into_item();
+
+        let payload = item.payload();
+        let iter = FormDataIter::new(&payload);
+        let entries: Vec<_> = iter.collect();
+
+        assert_eq!(entries, vec![]);
     }
 }
