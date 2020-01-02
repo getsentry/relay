@@ -88,6 +88,10 @@ relay:
     $ cargo install systemfd cargo-watch
     $ make devserver
 
+
+### Developer Documentation
+More in depth, developer focused, documents can be found at: [https://getsentry.github.io/semaphore/](https://getsentry.github.io/semaphore/).
+
 ### SSL
 
 The repository contains a SSL-certificate + private key for development
