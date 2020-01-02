@@ -20,16 +20,21 @@ pub enum MultipartError {
     InvalidMultipart(actix_web::error::MultipartError),
 }
 
+/// Type used for encoding string lengths.
+type Len = u32;
+
+/// Serializes a Pascal-style string with a 4 byte little-endian length prefix.
 fn write_string<W>(mut writer: W, string: &str) -> io::Result<()>
 where
     W: io::Write,
 {
-    writer.write_all(&string.len().to_ne_bytes())?;
+    writer.write_all(&(string.len() as Len).to_le_bytes())?;
     writer.write_all(string.as_bytes())?;
 
     Ok(())
 }
 
+/// Safely consumes a slice of the given length.
 fn split_front<'a>(data: &mut &'a [u8], len: usize) -> Option<&'a [u8]> {
     if data.len() < len {
         *data = &[];
@@ -41,14 +46,17 @@ fn split_front<'a>(data: &mut &'a [u8], len: usize) -> Option<&'a [u8]> {
     Some(slice)
 }
 
-fn consume_usize(data: &mut &[u8]) -> Option<usize> {
-    let len = std::mem::size_of::<usize>();
-    let bytes = split_front(data, len)?;
-    bytes.try_into().ok().map(usize::from_ne_bytes)
+/// Consumes the 4-byte length prefix of a string.
+fn consume_len(data: &mut &[u8]) -> Option<usize> {
+    let len = std::mem::size_of::<Len>();
+    let slice = split_front(data, len)?;
+    let bytes = slice.try_into().ok();
+    bytes.map(|b| Len::from_le_bytes(b) as usize)
 }
 
+/// Consumes a Pascal-style string with a 4 byte little-endian length prefix.
 fn consume_string<'a>(data: &mut &'a [u8]) -> Option<&'a str> {
-    let len = consume_usize(data)?;
+    let len = consume_len(data)?;
     let bytes = split_front(data, len)?;
     std::str::from_utf8(bytes).ok()
 }
@@ -313,7 +321,8 @@ mod tests {
     fn test_formdata() {
         let mut writer = FormDataWriter::new();
         writer.append("foo", "foo");
-        writer.append("bar", "bar");
+        writer.append("bar", "");
+        writer.append("blub", "blub");
 
         let item = writer.into_item();
         assert_eq!(item.ty(), ItemType::FormData);
@@ -326,7 +335,8 @@ mod tests {
             entries,
             vec![
                 FormDataEntry::new("foo", "foo"),
-                FormDataEntry::new("bar", "bar"),
+                FormDataEntry::new("bar", ""),
+                FormDataEntry::new("blub", "blub"),
             ]
         );
     }
