@@ -1,5 +1,8 @@
 import socket
 import subprocess
+from os import path
+from typing import Optional
+import json
 
 import pytest
 
@@ -72,3 +75,83 @@ def config_dir(tmpdir):
 )
 def relay_chain(request, mini_sentry, relay, gobetween, haproxy):  # noqa
     return lambda: request.param(mini_sentry, relay, gobetween, haproxy)
+
+
+def _fixture_file_path_for_test_file(test_file_path, file_name):
+    prefix, test_file_name = path.split(test_file_path)
+    test_file_name = path.splitext(test_file_name)[0]
+    # remove the 'test_' from the file name (makes the directory structure cleaner)
+    if test_file_name.startswith("test_"):
+        test_file_name = test_file_name[5:]
+
+    return path.abspath(path.join(prefix, "fixtures", test_file_name, file_name))
+
+
+class _JsonFixtureProvider(object):
+    def __init__(self, test_file_path: str):
+        """
+        Initializes a JsonFixtureProvider with the current test file path (in order to create
+        fixtures relative to the current directory
+        :param test_file_path: should be set to __file__
+        """
+        if not test_file_path:
+            raise ValueError(
+                " JsonFixtureProvider should be initialized with the current test file path, i.e. __file__\n."
+                " the code should something look like: fixture_provider = json_fixture_provider(__file__) "
+            )
+
+        self.test_file_path = test_file_path
+
+    def save(self, obj, file_name: str, ext: Optional[str] = None):
+        """
+        Saves an object as a json fixture to the specified file_name.
+        The directory of the file in the file system is relative to the test_file_path passed in the fixture creation
+        :param obj:
+        :param file_name:
+        :param ext:
+        :return:
+        """
+        if ext is not None:
+            file_name = file_name + ext
+        file_name = file_name + ".json"
+
+        file_path = _fixture_file_path_for_test_file(self.test_file_path, file_name)
+
+        if path.isfile(file_path):
+            print(
+                "trying to override existing fixture.\n If fixture is out of date delete manually.",
+                file_path,
+            )
+            raise ValueError("Will not override ", file_path)
+
+        with open(file_path, "w") as f:
+            print(obj)
+            return json.dump(obj, f)
+
+    def load(self, file_name: str, ext: Optional[str] = None):
+        """
+        Loads a fixture with the specified file name (with the path realtive to the current test)
+        :param file_name: the file name
+        :param ext: an optional extension to be appended to the file name ( the ext should contain
+            '.' i.e. it should be something like '.fixture'
+        :return: an object deserialized from the specified file
+        """
+        if ext is not None:
+            file_name = file_name + ext
+        file_name = file_name + ".json"
+
+        file_path = _fixture_file_path_for_test_file(self.test_file_path, file_name)
+
+        if not path.isfile(file_path):
+            return None
+
+        with open(file_path, "rb") as f:
+            return json.load(f)
+
+
+@pytest.fixture
+def json_fixture_provider():
+    def inner(test_file_path: str):
+        return _JsonFixtureProvider(test_file_path)
+
+    return inner
