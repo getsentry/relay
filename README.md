@@ -23,6 +23,9 @@
 The Sentry Relay (aka Semaphore) is a work in progress service that pushes some
 functionality from the Sentry SDKs as well as the Sentry server into a proxy process.
 
+## Documentation
+The project documentation can be found at: [https://getsentry.github.io/semaphore/](https://getsentry.github.io/semaphore/).
+
 ## Quickstart
 
 Semaphore needs a relay ready sentry installation to connect to. It stores all
@@ -88,9 +91,6 @@ relay:
     $ cargo install systemfd cargo-watch
     $ make devserver
 
-
-### Developer Documentation
-More in depth, developer focused, documents can be found at: [https://getsentry.github.io/semaphore/](https://getsentry.github.io/semaphore/).
 
 ### SSL
 
