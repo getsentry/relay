@@ -17,7 +17,7 @@
   "rust-client.rlsPath": "rls",
 
   // Python configuration
-  "python.pythonPath": "${workspaceFolder}/venv/bin/python",
+  "python.pythonPath": "${workspaceFolder}/.venv/bin/python",
   "python.linting.enabled": false,
   "python.formatting.provider": "black",
 
