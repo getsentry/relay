@@ -191,6 +191,24 @@ class SentryLike(object):
         response.raise_for_status()
         return response
 
+    def send_unreal_request(self, project_id, file_content):
+        """
+        Sends a requuest to the unreal endpoint
+        :param project_id: the project id
+        :param file_content: the unreal file content
+        """
+        response = self.post(
+            "/api/{}/unreal/{}/".format(project_id, self.dsn_public_key),
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+            },
+            files={"unreal": ("unreal.bin", file_content)},
+        )
+
+        response.raise_for_status()
+        return response
+
     def send_attachments(self, project_id, event_id, files):
         files = {
             name: (file_name, file_content) for (name, file_name, file_content) in files
