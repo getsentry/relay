@@ -383,4 +383,22 @@ mod tests {
             "Display: UGameplayTagsManager::DoneAddingNativeTags. DelegateIsBound: 0"
         );
     }
+
+    #[test]
+    fn test_merge_unreal_context_event() {
+        let bytes = include_bytes!("../../../tests/integration/fixtures/native/unreal_crash");
+        let crash = Unreal4Crash::parse(bytes).unwrap();
+
+        let mut event = Annotated::new(Event::default());
+
+        let user_id = "ebff51ef3c4878627823eebd9ff40eb4|2e7d369327054a448be6c8d3601213cb|C52DC39D-DAF3-5E36-A8D3-BF5F53A5D38F";
+
+        merge_unreal_user_info(event.value_mut().as_mut().unwrap(), user_id);
+
+        merge_unreal_context(
+            event.value_mut().as_mut().unwrap(),
+            crash.context().unwrap().unwrap(),
+        );
+        insta::assert_snapshot!(event.to_json_pretty().unwrap());
+    }
 }
