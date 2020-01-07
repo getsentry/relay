@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::net::IpAddr;
 
 use actix::ResponseFuture;
@@ -211,20 +212,33 @@ fn get_auth_header<'a, S>(req: &'a HttpRequest<S>, header_name: &str) -> Option<
 }
 
 fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
+    // try to extract authentication info from http header "x-sentry-auth"
     if let Some(auth) = get_auth_header(req, "x-sentry-auth") {
         return auth.parse::<Auth>().map_err(BadEventMeta::BadAuth);
     }
 
+    // try to extract authentication info from http header "authorization"
     if let Some(auth) = get_auth_header(req, "authorization") {
         return auth.parse::<Auth>().map_err(BadEventMeta::BadAuth);
     }
 
+    // try to extract authentication info from URL query_param .../?sentry_...=<key>...
     let query = req.query_string();
     if query.contains("sentry_") {
         return Auth::from_querystring(query.as_bytes()).map_err(BadEventMeta::BadAuth);
     }
 
-    Err(BadEventMeta::MissingAuth)
+    // try to extract authentication info from URL path segment .../{sentry_key}/...
+    let sentry_key = req
+        .match_info()
+        .get("sentry_key")
+        .ok_or(BadEventMeta::MissingAuth)?;
+
+    Auth::from_pairs(std::iter::once((
+        Cow::Borrowed("key"),
+        Cow::Borrowed(sentry_key),
+    )))
+    .map_err(|_| BadEventMeta::MissingAuth)
 }
 
 fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Option<Url> {
