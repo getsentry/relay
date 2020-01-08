@@ -19,7 +19,7 @@ processing = ["rdkafka", "redis", "r2d2"]
 actix = "0.7.9"
 actix-web = { version = "0.7.19", default-features = false, features = ["brotli", "flate2-c"] }
 base64 = "0.10.1"
-bytes = { version = "0.4.12", features = ["serde"] }
+bytes = { version = "0.5.3", features = ["serde"] }
 chrono = { version = "0.4.7", features = ["serde"] }
 clap = "2.33.0"
 failure = "0.1.5"
