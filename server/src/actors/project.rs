@@ -705,9 +705,9 @@ impl Handler<GetEventAction> for Project {
                 .map(move |state| state.get_event_action(project_id, &message.meta, &config))
         } else {
             self.get_or_fetch_state(context);
-            // Fetching is not permitted (as part of the store request). In case the state is not
-            // cached, assume that the event can be accepted. The EventManager will later fetch the
-            // project state and reevaluate the event action.
+            // message.fetch == false: Fetching must not block the store request. In case the state
+            // is not cached, assume that the event can be accepted. The EventManager will later
+            // reevaluate the event action using the fetched project state.
             Response::ok(self.state().map_or(EventAction::Accept, |state| {
                 state.get_event_action(project_id, &message.meta, &self.config)
             }))
