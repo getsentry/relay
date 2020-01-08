@@ -3,10 +3,13 @@ import queue
 import signal
 import socket
 import time
+import threading
 
 import pytest
 
 from flask import jsonify
+
+from requests.exceptions import HTTPError
 
 
 def test_graceful_shutdown(mini_sentry, relay):
@@ -178,12 +181,64 @@ def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
 
-    relay.send_event(42)
-
     response = relay.post(
-        "/api/42/store/",
+        "/api/42/store/?sentry_key=%s" % (relay.dsn_public_key,),
         headers={"Origin": "http://valid.com"},
         json={"message": "hi"},
     )
 
-    mini_sentry.captured_events.get(timeout=1).get_event()
+    if allowed_origins:
+        mini_sentry.captured_events.get(timeout=1).get_event()
+    assert mini_sentry.captured_events.empty()
+
+
+@pytest.mark.parametrize("grace_period", [0, 5])
+def test_project_grace_period(mini_sentry, relay, grace_period):
+    config = mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    config["disabled"] = True
+    fetched_project_config = threading.Event()
+
+    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        fetched_project_config.set()
+        return get_project_config_original()
+
+    relay = relay(
+        mini_sentry,
+        {
+            "cache": {
+                "miss_expiry": 1,
+                "project_expiry": 1,
+                "project_grace_period": grace_period,
+            }
+        },
+    )
+    relay.wait_relay_healthcheck()
+
+    assert not fetched_project_config.is_set()
+
+    # The first event sent should always return a 200 because we have no
+    # project config
+    relay.send_event(42)
+
+    assert fetched_project_config.wait(timeout=5)
+    time.sleep(2)
+    fetched_project_config.clear()
+
+    if grace_period == 0:
+        # With a grace period of 0, sending a second event should return a 200
+        # because the project config has expired again and needs to be refetched
+        relay.send_event(42)
+    else:
+        # With a non-zero grace period the request should fail during the grace period
+        with pytest.raises(HTTPError) as excinfo:
+            relay.send_event(42)
+
+        assert excinfo.value.response.status_code == 403
+
+        assert not fetched_project_config.is_set()
+        assert fetched_project_config.wait(timeout=5)
+
+    assert mini_sentry.captured_events.empty()
