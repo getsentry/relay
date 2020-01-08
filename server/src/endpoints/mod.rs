@@ -17,6 +17,7 @@ mod project_configs;
 mod public_keys;
 mod security_report;
 mod store;
+mod unreal;
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.scope("/api/relay", |mut scope| {
@@ -32,6 +33,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
     .configure(security_report::configure_app)
     .configure(minidump::configure_app)
     .configure(attachments::configure_app)
+    .configure(unreal::configure_app)
     // `forward` must be last as it creates a wildcard proxy
     .configure(forward::configure_app)
 }

@@ -30,8 +30,6 @@
 //!
 //! ```
 
-#![allow(unused)]
-
 use std::borrow::{Borrow, Cow};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -42,7 +40,6 @@ use failure::Fail;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use semaphore_common::ProjectId;
 use semaphore_general::protocol::{EventId, EventType};
 use semaphore_general::types::Value;
 
@@ -70,13 +67,22 @@ pub enum EnvelopeError {
     PayloadIoFailed(#[cause] io::Error),
 }
 
+/// The type of an envelope item.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ItemType {
+    /// Event payload encoded in JSON.
     Event,
+    /// Raw payload of an arbitrary attachment.
     Attachment,
+    /// Multipart form data collected into a stream of JSON tuples.
     FormData,
+    /// Security report as sent by the browser in JSON.
     SecurityReport,
+    /// Raw compressed UE4 crash report.
+    UnrealReport,
+    /// User feedback encoded as JSON.
+    UserReport,
 }
 
 impl fmt::Display for ItemType {
@@ -86,20 +92,31 @@ impl fmt::Display for ItemType {
             Self::Attachment => write!(f, "attachment"),
             Self::FormData => write!(f, "form data"),
             Self::SecurityReport => write!(f, "security report"),
+            Self::UnrealReport => write!(f, "unreal report"),
+            Self::UserReport => write!(f, "user feedback"),
         }
     }
 }
 
+/// Payload content types.
+///
+/// This is an optimized enum intended to reduce allocations for common content types.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ContentType {
+    /// text/plain
     Text,
+    /// application/json
     Json,
+    /// application/x-msgpack
     MsgPack,
+    /// application/octet-stream
     OctetStream,
+    /// Any arbitrary content type not listed explicitly.
     Other(String),
 }
 
 impl ContentType {
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn as_str(&self) -> &str {
         match *self {
             Self::Text => "text/plain",
@@ -176,18 +193,32 @@ pub enum AttachmentType {
 
     /// An apple crash report (text data).
     #[serde(rename = "event.applecrashreport")]
-    #[allow(dead_code)]
     AppleCrashReport,
 
-    #[serde(rename = "event.msgpackevent")]
-    /// A msgpack-encoded event submitted as part of minidump uploads.
-    MsgpackEvent,
+    /// A msgpack-encoded event payload submitted as part of multipart uploads.
+    ///
+    /// This attachment is processed by Relay immediately and never forwarded or persisted.
+    #[serde(rename = "event.payload")]
+    EventPayload,
 
+    /// A msgpack-encoded list of payloads.
+    ///
+    /// There can be two attachments that the SDK may use as swappable buffers. Both attachments
+    /// will be merged and truncated to the maxmimum number of allowed attachments.
+    ///
+    /// This attachment is processed by Relay immediately and never forwarded or persisted.
     #[serde(rename = "event.breadcrumbs")]
-    /// This is a special attachment that can contain breadcrumbs encoded as message pack. There can be
-    /// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
-    /// truncated to the maxmimum number of allowed attachments.
     Breadcrumbs,
+
+    /// This is a binary attachment present in Unreal 4 events containing event context information.
+    /// This can be deserialized using the `symbolic` crate see [unreal::Unreal4Context]
+    #[serde(rename = "unreal.context")]
+    UnrealContext,
+
+    /// This is a binary attachment present in Unreal 4 events containing event Logs.
+    /// This can be deserialized using the `symbolic` crate see [unreal::Unreal4LogEntry]
+    #[serde(rename = "unreal.logs")]
+    UnrealLogs,
 }
 
 impl Default for AttachmentType {
@@ -267,6 +298,7 @@ impl Item {
     }
 
     /// Returns the event type if this item is an event.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn event_type(&self) -> Option<EventType> {
         // TODO: consider to replace this with an ItemType?
         self.headers.event_type
@@ -312,6 +344,7 @@ impl Item {
     }
 
     /// Returns the file name of this item, if it is an attachment.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn filename(&self) -> Option<&str> {
         self.headers.filename.as_ref().map(String::as_str)
     }
@@ -358,7 +391,6 @@ impl Item {
 
 pub type Items = SmallVec<[Item; 3]>;
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
-pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnvelopeHeaders {
@@ -449,11 +481,13 @@ impl Envelope {
     }
 
     /// Returns the number of items in this envelope.
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
     /// Returns `true` if this envelope does not contain any items.
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
@@ -472,18 +506,30 @@ impl Envelope {
         &self.headers.meta
     }
 
+    /// Returns the specified header value, if present.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
+    pub fn get_header<K>(&self, name: &K) -> Option<&Value>
+    where
+        String: Borrow<K>,
+        K: Ord + ?Sized,
+    {
+        self.headers.other.get(name)
+    }
+
+    /// Sets the specified header value, returning the previous one if present.
+    pub fn set_header<S, V>(&mut self, name: S, value: V) -> Option<Value>
+    where
+        S: Into<String>,
+        V: Into<Value>,
+    {
+        self.headers.other.insert(name.into(), value.into())
+    }
+
     /// Returns an iterator over items in this envelope.
     ///
     /// Note that iteration order may change when using `take_item`.
     pub fn items(&self) -> ItemIter<'_> {
         self.items.iter()
-    }
-
-    /// Returns an iterator over mutable items in this envelope.
-    ///
-    /// Note that iteration order may change when using `take_item`.
-    pub fn items_mut(&mut self) -> ItemIterMut<'_> {
-        self.items.iter_mut()
     }
 
     /// Returns the an option with a reference to the first item that matches
@@ -493,15 +539,6 @@ impl Envelope {
         F: FnMut(&Item) -> bool,
     {
         self.items().find(|item| pred(item))
-    }
-
-    /// Returns the an option with a mutable reference to the first item that matches
-    /// the predicate, or None if the predicate is not matched by any item.
-    pub fn get_item_by_mut<F>(&mut self, mut pred: F) -> Option<&mut Item>
-    where
-        F: FnMut(&Item) -> bool,
-    {
-        self.items_mut().find(|item| pred(item))
     }
 
     /// Removes and returns the first item that matches the given condition.
@@ -837,21 +874,21 @@ mod tests {
     #[should_panic(expected = "project id")]
     fn test_parse_request_validate_project() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/99\"}");
-        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+        Envelope::parse_request(bytes, event_meta()).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "public key")]
     fn test_parse_request_validate_key() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:@sentry.io/42\"}");
-        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+        Envelope::parse_request(bytes, event_meta()).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "origin")]
     fn test_parse_request_validate_origin() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\",\"origin\":\"http://localhost/\"}");
-        let envelope = Envelope::parse_request(bytes, event_meta()).unwrap();
+        Envelope::parse_request(bytes, event_meta()).unwrap();
     }
 
     #[test]

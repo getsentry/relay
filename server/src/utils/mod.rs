@@ -9,6 +9,8 @@ mod timer;
 
 #[cfg(feature = "processing")]
 mod processing;
+#[cfg(feature = "processing")]
+mod unreal;
 
 pub use self::actix::*;
 pub use self::api::*;
@@ -21,3 +23,5 @@ pub use self::timer::*;
 
 #[cfg(feature = "processing")]
 pub use self::processing::*;
+#[cfg(feature = "processing")]
+pub use self::unreal::*;

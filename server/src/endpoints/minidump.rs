@@ -166,7 +166,7 @@ fn extract_envelope(
                 let attachment_type = match item.name() {
                     Some(self::ITEM_NAME_BREADCRUMBS1) => Some(AttachmentType::Breadcrumbs),
                     Some(self::ITEM_NAME_BREADCRUMBS2) => Some(AttachmentType::Breadcrumbs),
-                    Some(self::ITEM_NAME_EVENT) => Some(AttachmentType::MsgpackEvent),
+                    Some(self::ITEM_NAME_EVENT) => Some(AttachmentType::EventPayload),
                     _ => None,
                 };
 
@@ -183,14 +183,6 @@ fn extract_envelope(
     Box::new(future)
 }
 
-fn create_response(id: EventId) -> HttpResponse {
-    // the minidump client expects the response to contain an event id as a hyphenated UUID
-    // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    HttpResponse::Ok()
-        .content_type("text/plain")
-        .body(format!("{}", id.0.to_hyphenated()))
-}
-
 fn store_minidump(
     meta: EventMeta,
     start_time: StartTime,
@@ -204,7 +196,7 @@ fn store_minidump(
         start_time,
         request,
         move |data, meta| extract_envelope(data, meta, event_size),
-        create_response,
+        common::create_text_event_id_response,
     )
 }
 

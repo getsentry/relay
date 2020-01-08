@@ -21,3 +21,6 @@ pub const ITEM_NAME_BREADCRUMBS1: &str = "__sentry-breadcrumb1";
 /// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
 /// truncated to the maxmimum number of allowed attachments.
 pub const ITEM_NAME_BREADCRUMBS2: &str = "__sentry-breadcrumb2";
+
+/// Envelope header used to store the UE4 user id.
+pub const UNREAL_USER_HEADER: &str = "unreal_user_id";

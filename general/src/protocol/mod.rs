@@ -18,13 +18,14 @@ mod templateinfo;
 mod thread;
 mod types;
 mod user;
+mod user_report;
 
 pub use self::breadcrumb::Breadcrumb;
 pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
 pub use self::constants::{INVALID_ENVIRONMENTS, VALID_PLATFORMS};
 pub use self::contexts::{
-    AppContext, BrowserContext, Context, ContextInner, Contexts, DeviceContext, OperationType,
-    OsContext, RuntimeContext, SpanId, SpanStatus, TraceContext, TraceId,
+    AppContext, BrowserContext, Context, ContextInner, Contexts, DeviceContext, GpuContext,
+    OperationType, OsContext, RuntimeContext, SpanId, SpanStatus, TraceContext, TraceId,
 };
 pub use self::debugmeta::{
     AppleDebugImage, DebugImage, DebugMeta, NativeDebugImage, SystemSdkInfo,
@@ -49,3 +50,4 @@ pub use self::types::{
     ParseLevelError, RegVal, Values,
 };
 pub use self::user::{Geo, User};
+pub use self::user_report::UserReport;
