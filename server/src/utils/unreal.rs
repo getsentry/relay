@@ -368,8 +368,8 @@ mod tests {
         merge_unreal_logs(&mut event, logs).ok();
         let breadcrumbs = event.breadcrumbs.value().unwrap().values.value().unwrap();
 
-        assert_eq!(breadcrumbs.len(), 5); // TODO set to 4 after symbolic fix
-        let first_message = breadcrumbs[1].value().unwrap(); // TODO set to 0 after symbolic fix
+        assert_eq!(breadcrumbs.len(), 4);
+        let first_message = breadcrumbs[0].value().unwrap();
 
         let timestamp_str = format!("{}", first_message.timestamp.value().unwrap());
         assert_eq!(timestamp_str, "2018-10-29 16:56:38 UTC");
