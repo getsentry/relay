@@ -329,6 +329,9 @@ impl Default for Http {
 struct Cache {
     /// The cache timeout for project configurations in seconds.
     project_expiry: u32,
+    /// Continue using project state this many seconds after cache expiry while a new state is
+    /// being fetched. This is added on top of `project_expiry` and `miss_expiry`. Default is 0.
+    project_grace_period: u32,
     /// The cache timeout for downstream relay info (public keys) in seconds.
     relay_expiry: u32,
     /// The cache timeout for events (store) before dropping them.
@@ -351,8 +354,9 @@ impl Default for Cache {
     fn default() -> Self {
         Cache {
             project_expiry: 300, // 5 minutes
-            relay_expiry: 3600,  // 1 hour
-            event_expiry: 600,   // 10 minutes
+            project_grace_period: 0,
+            relay_expiry: 3600, // 1 hour
+            event_expiry: 600,  // 10 minutes
             event_buffer_size: 1000,
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
@@ -812,6 +816,11 @@ impl Config {
     /// Returns the expiry timeout for cached misses before trying to refetch.
     pub fn cache_miss_expiry(&self) -> Duration {
         Duration::from_secs(self.values.cache.miss_expiry.into())
+    }
+
+    /// Returns the grace period for project caches.
+    pub fn project_grace_period(&self) -> Duration {
+        Duration::from_secs(self.values.cache.project_grace_period.into())
     }
 
     /// Returns the number of seconds during which batchable queries are collected before sending

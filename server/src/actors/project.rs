@@ -56,6 +56,19 @@ impl RateLimitScope {
     }
 }
 
+/// The current status of a project state. Return value of `ProjectState::outdated`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum Outdated {
+    /// The project state is perfectly up to date.
+    Updated,
+    /// The project state is outdated but events depending on this project state can still be
+    /// processed. The state should be refreshed in the background though.
+    SoftOutdated,
+    /// The project state is completely outdated and events need to be buffered up until the new
+    /// state has been fetched.
+    HardOutdated,
+}
+
 pub struct Project {
     id: ProjectId,
     config: Arc<Config>,
@@ -89,13 +102,26 @@ impl Project {
     ) -> Response<Arc<ProjectState>, ProjectError> {
         // count number of times we are looking for the project state
         metric!(counter("project_state.get") += 1);
-        if let Some(ref state) = self.state {
-            // In case the state is fetched from a local file, don't use own caching logic. Rely on
+
+        let state = self.state.as_ref();
+        let outdated = state
+            .map(|s| s.outdated(self.id, &self.config))
+            .unwrap_or(Outdated::HardOutdated);
+
+        let alternative_rv = match (state, outdated, self.is_local) {
+            // The state is fetched from a local file, don't use own caching logic. Rely on
             // `ProjectCache#local_states` for caching.
-            if !self.is_local && !state.outdated(self.id, &self.config) {
-                return Response::ok(state.clone());
-            }
-        }
+            (_, _, true) => None,
+
+            // There is no project state that can be used, fetch a state and return it.
+            (None, _, false) | (_, Outdated::HardOutdated, false) => None,
+
+            // The project is semi-outdated, fetch new state but return old one.
+            (Some(state), Outdated::SoftOutdated, false) => Some(state.clone()),
+
+            // The project is not outdated, return early here to jump over fetching logic below.
+            (Some(state), Outdated::Updated, false) => return Response::ok(state.clone()),
+        };
 
         let channel = match self.state_channel {
             Some(ref channel) => {
@@ -109,6 +135,10 @@ impl Project {
                 channel
             }
         };
+
+        if let Some(rv) = alternative_rv {
+            return Response::ok(rv);
+        }
 
         let future = channel
             .map(|shared| (*shared).clone())
@@ -332,7 +362,7 @@ impl ProjectState {
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
-    pub fn outdated(&self, project_id: ProjectId, config: &Config) -> bool {
+    pub fn outdated(&self, project_id: ProjectId, config: &Config) -> Outdated {
         let expiry = match self.slug {
             Some(_) => config.project_cache_expiry(),
             None => config.cache_miss_expiry(),
@@ -359,8 +389,16 @@ impl ProjectState {
         // See the below assertion for constraints on the next fetch time.
         debug_assert!(next_fetch > last_fetch && next_fetch <= last_fetch + window);
 
+        let now = Utc::now().timestamp() as u64;
+
         // A project state counts as outdated when the time of the next fetch has passed.
-        Utc::now().timestamp() as u64 >= next_fetch
+        if now >= next_fetch + config.project_grace_period().as_secs() {
+            Outdated::HardOutdated
+        } else if now >= next_fetch {
+            Outdated::SoftOutdated
+        } else {
+            Outdated::Updated
+        }
     }
 
     /// Returns the project config.
@@ -402,7 +440,7 @@ impl ProjectState {
             return EventAction::Discard(DiscardReason::Cors);
         }
 
-        if self.outdated(project_id, config) {
+        if self.outdated(project_id, config) == Outdated::HardOutdated {
             // if the state is out of date, we proceed as if it was still up to date. The
             // upstream relay (or sentry) will still filter events.
 
@@ -666,9 +704,10 @@ impl Handler<GetEventAction> for Project {
             self.get_or_fetch_state(context)
                 .map(move |state| state.get_event_action(project_id, &message.meta, &config))
         } else {
-            // Fetching is not permitted (as part of the store request). In case the state is not
-            // cached, assume that the event can be accepted. The EventManager will later fetch the
-            // project state and reevaluate the event action.
+            self.get_or_fetch_state(context);
+            // message.fetch == false: Fetching must not block the store request. In case the state
+            // is not cached, assume that the event can be accepted. The EventManager will later
+            // reevaluate the event action using the fetched project state.
             Response::ok(self.state().map_or(EventAction::Accept, |state| {
                 state.get_event_action(project_id, &message.meta, &self.config)
             }))
