@@ -56,10 +56,16 @@ impl RateLimitScope {
     }
 }
 
+/// The current status of a project state. Return value of `ProjectState::outdated`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Outdated {
-    Fresh,
+    /// The project state is perfectly up to date.
+    Updated,
+    /// The project state is outdated but events depending on this project state can still be
+    /// processed. The state should be refreshed in the background though.
     SoftOutdated,
+    /// The project state is completely outdated and events need to be buffered up until the new
+    /// state has been fetched.
     HardOutdated,
 }
 
@@ -97,27 +103,24 @@ impl Project {
         // count number of times we are looking for the project state
         metric!(counter("project_state.get") += 1);
 
-        let state = self
-            .state
-            .as_ref()
-            .map(|s| (s, s.outdated(self.id, &self.config)));
+        let state = self.state.as_ref();
+        let outdated = state
+            .map(|s| s.outdated(self.id, &self.config))
+            .unwrap_or(Outdated::HardOutdated);
 
-        let alternative_rv = match (state, self.is_local) {
+        let alternative_rv = match (state, outdated, self.is_local) {
             // The state is fetched from a local file, don't use own caching logic. Rely on
             // `ProjectCache#local_states` for caching.
-            (_, true) => None,
+            (_, _, true) => None,
 
-            // There is no project state, fetch a state and return it.
-            (None, false) => None,
-
-            // The project is fully outdated, fetch a new state and return that one.
-            (Some((_, Outdated::HardOutdated)), false) => None,
+            // There is no project state that can be used, fetch a state and return it.
+            (None, _, false) | (_, Outdated::HardOutdated, false) => None,
 
             // The project is semi-outdated, fetch new state but return old one.
-            (Some((state, Outdated::SoftOutdated)), false) => Some(state.clone()),
+            (Some(state), Outdated::SoftOutdated, false) => Some(state.clone()),
 
             // The project is not outdated, return early here to jump over fetching logic below.
-            (Some((state, Outdated::Fresh)), false) => return Response::ok(state.clone()),
+            (Some(state), Outdated::Updated, false) => return Response::ok(state.clone()),
         };
 
         let channel = match self.state_channel {
@@ -394,7 +397,7 @@ impl ProjectState {
         } else if now >= next_fetch {
             Outdated::SoftOutdated
         } else {
-            Outdated::Fresh
+            Outdated::Updated
         }
     }
 
