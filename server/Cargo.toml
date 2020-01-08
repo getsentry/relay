@@ -55,4 +55,4 @@ path = "../general"
 libc = "0.2.60"
 
 [dev-dependencies]
-insta = "0.11.0"
+insta = "0.12.0"
