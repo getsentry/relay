@@ -5,6 +5,7 @@ import pytest
 import os
 import confluent_kafka as kafka
 from copy import deepcopy
+import time
 
 
 @pytest.fixture
@@ -12,8 +13,8 @@ def get_topic_name(worker_id):
     """
     Generate a unique topic name for each test
     """
-
-    return lambda topic: f"semaphore-test-{topic}-{worker_id}"
+    the_time = time.time()
+    return lambda topic: f"semaphore-test-{topic}-{worker_id}-{the_time}"
 
 
 @pytest.fixture
@@ -191,6 +192,13 @@ class EventsConsumer(ConsumerBase):
         v = msgpack.unpackb(event.value(), raw=False, use_list=False)
         assert v["type"] == "event"
         return json.loads(v["payload"].decode("utf8")), v
+
+    def get_message(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        return message, msgpack.unpackb(message.value(), raw=False, use_list=False)
 
 
 class AttachmentsConsumer(EventsConsumer):
