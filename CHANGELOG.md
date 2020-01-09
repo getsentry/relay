@@ -100,7 +100,7 @@
 
 ## 0.4.58
 
-- Expose globbing code from Semaphore to Python (#288)
+- Expose globbing code from Relay to Python (#288)
 - Normalize before datascrubbing (#290)
 - Evict project caches after some time (#287)
 - Add event size metrics (#286)

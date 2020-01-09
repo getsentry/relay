@@ -2,6 +2,8 @@
 name = "relay-general"
 version = "0.4.65"
 authors = ["Sentry <oss@sentry.io>"]
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
 edition = "2018"
 license-file = "../LICENSE"
 

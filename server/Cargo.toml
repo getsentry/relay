@@ -1,9 +1,9 @@
 [package]
+name = "relay-server"
 authors = ["Sentry <oss@sentry.io>"]
 description = "Server components for the Relay"
-homepage = "https://github.com/getsentry/semaphore"
-name = "relay-server"
-repository = "https://github.com/getsentry/semaphore"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
 version = "0.4.65"
 edition = "2018"
 build = "build.rs"

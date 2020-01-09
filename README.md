@@ -7,16 +7,16 @@
 
 # Official Sentry Relay
 
-[![Travis](https://travis-ci.com/getsentry/semaphore.svg?branch=master)](https://travis-ci.com/getsentry/semaphore)
+[![Travis](https://travis-ci.com/getsentry/relay.svg?branch=master)](https://travis-ci.com/getsentry/relay)
 [![AppVeyor](https://img.shields.io/appveyor/ci/sentry/sentry-agent.svg)](https://ci.appveyor.com/project/sentry/sentry-agent)
-[![codecov without integration tests](https://codecov.io/gh/getsentry/semaphore/branch/master/graph/badge.svg)](https://codecov.io/gh/getsentry/semaphore)
-[![GitHub release](https://img.shields.io/github/release/getsentry/semaphore.svg)](https://github.com/getsentry/semaphore/releases/latest)
+[![codecov without integration tests](https://codecov.io/gh/getsentry/relay/branch/master/graph/badge.svg)](https://codecov.io/gh/getsentry/relay)
+[![GitHub release](https://img.shields.io/github/release/getsentry/relay.svg)](https://github.com/getsentry/relay/releases/latest)
 [![PyPI](https://img.shields.io/pypi/v/semaphore.svg)](https://pypi.python.org/pypi/Semaphore)
-[![license](https://img.shields.io/github/license/getsentry/semaphore.svg)](https://github.com/getsentry/semaphore/blob/master/LICENSE)
+[![license](https://img.shields.io/github/license/getsentry/relay.svg)](https://github.com/getsentry/relay/blob/master/LICENSE)
 
 <p align="center">
   <p align="center">
-    <img src="https://github.com/getsentry/semaphore/blob/master/artwork/semaphore.jpg?raw=true" alt="semaphore tower" width="480">
+    <img src="https://github.com/getsentry/relay/blob/master/artwork/semaphore.jpg?raw=true" alt="semaphore tower" width="480">
   </p>
 </p>
 
@@ -24,7 +24,7 @@ The Sentry Relay is a work in progress service that pushes some functionality
 from the Sentry SDKs as well as the Sentry server into a proxy process.
 
 ## Documentation
-The project documentation can be found at: [https://getsentry.github.io/semaphore/](https://getsentry.github.io/semaphore/).
+The project documentation can be found at: [https://getsentry.github.io/relay/](https://getsentry.github.io/relay/).
 
 ## Quickstart
 
