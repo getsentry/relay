@@ -1,7 +1,13 @@
 steps:
   # GCB only fetches a source archive, but the build requires an actual git repo
-  - name: gcr.io/cloud-builders/git
-    args: ['clone', 'https://github.com/getsentry/relay.git', '.']
+  - name: "gcr.io/cloud-builders/git"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        git init
+        git remote add origin git@github.com:/getsentry/$REPO_NAME.git
+        git fetch --depth=1 origin $COMMIT_SHA
 
   - name: "gcr.io/cloud-builders/docker"
     entrypoint: "bash"
