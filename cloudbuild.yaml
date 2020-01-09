@@ -1,4 +1,18 @@
 steps:
+  # GCB only fetches a source archive, but the build requires an actual git repo. Note that the
+  # clone behavior changed multiple times between 2017 and 2019 and might not be stable.
+  # See: https://github.com/GoogleCloudPlatform/cloud-builders/issues/236#issuecomment-558991730
+  - name: "gcr.io/cloud-builders/git"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        git init
+        git remote add origin https://github.com/getsentry/$REPO_NAME.git
+        git fetch --depth=1 origin $COMMIT_SHA
+        git reset --hard FETCH_HEAD
+        git config -f .gitmodules submodule.core.url https://github.com/getsentry/$REPO_NAME.git
+
   - name: "gcr.io/cloud-builders/docker"
     entrypoint: "bash"
     args:
