@@ -5,10 +5,10 @@
 use clap::{App, AppSettings, Arg, Shell};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const ABOUT: &str = "Semaphore is an implementation of the relay system for Sentry.";
+pub const ABOUT: &str = "The official Sentry Relay.";
 
 pub fn make_app() -> App<'static, 'static> {
-    App::new("semaphore")
+    App::new("relay")
         .global_setting(AppSettings::UnifiedHelpMessage)
         .global_setting(AppSettings::DisableHelpSubcommand)
         .setting(AppSettings::SubcommandRequiredElseHelp)

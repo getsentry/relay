@@ -6,7 +6,7 @@ use r2d2::Pool;
 
 use crate::actors::project::{Quota, RedisQuota, RejectAllQuota, RetryAfter};
 
-use semaphore_common::{Config, Redis};
+use relay_common::{Config, Redis};
 
 /// The ``grace`` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota

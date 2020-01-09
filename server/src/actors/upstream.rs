@@ -13,7 +13,7 @@ use futures::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
-use semaphore_common::{
+use relay_common::{
     tryf, Config, LogError, RegisterChallenge, RegisterRequest, RegisterResponse, Registration,
     RelayMode, RetryBackoff,
 };

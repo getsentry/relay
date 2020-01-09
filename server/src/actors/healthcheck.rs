@@ -5,7 +5,7 @@ use actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
 
-use semaphore_common::{Config, RelayMode};
+use relay_common::{Config, RelayMode};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe};
 use crate::actors::upstream::{IsAuthenticated, UpstreamRelay};

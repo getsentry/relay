@@ -9,7 +9,7 @@ use crate::envelope;
 use crate::extractors::CurrentServiceState;
 use crate::service::ServiceState;
 
-use semaphore_general::protocol::EventId;
+use relay_general::protocol::EventId;
 
 #[allow(clippy::needless_pass_by_value)]
 fn get_captured_event(

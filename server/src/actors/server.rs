@@ -2,7 +2,7 @@ use ::actix::prelude::*;
 use actix_web::server::StopServer;
 use futures::prelude::*;
 
-use semaphore_common::{metric, Config};
+use relay_common::{metric, Config};
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe};
 use crate::service;

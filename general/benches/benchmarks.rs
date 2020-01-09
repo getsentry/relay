@@ -7,10 +7,10 @@ macro_rules! benchmark {
             extern crate test;
             use std::collections::BTreeSet;
 
-            use semaphore_general::processor::process_value;
-            use semaphore_general::protocol::Event;
-            use semaphore_general::store::{StoreConfig, StoreProcessor};
-            use semaphore_general::types::Annotated;
+            use relay_general::processor::process_value;
+            use relay_general::protocol::Event;
+            use relay_general::store::{StoreConfig, StoreProcessor};
+            use relay_general::types::Annotated;
 
             fn load_json() -> String {
                 let path = concat!("tests/fixtures/payloads/", stringify!($sdk), ".json");

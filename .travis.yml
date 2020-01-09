@@ -40,7 +40,7 @@ matrix:
     # RUST TESTS
     # -------------------------------------
 
-    - name: "test: semaphore[linux]"
+    - name: "test: relay[linux]"
       os: linux
       addons:
         apt:
@@ -51,7 +51,7 @@ matrix:
         - redis-server
       script: make -e test-rust-all
 
-    - name: "test: semaphore[macos]"
+    - name: "test: relay[macos]"
       if: branch ~= /^release\/[\d.]+$/
       os: osx
       language: generic
@@ -65,20 +65,20 @@ matrix:
     # PYTHON LIBRARY TESTS
     # -------------------------------------
 
-    - name: "test: libsemaphore"
+    - name: "test: librelay"
       os: linux
       script: make -e test-python
 
-    - name: "test: libsemaphore[py2]"
+    - name: "test: librelay[py2]"
       python: "2.7"
       os: linux
-      script: make -e SEMAPHORE_PYTHON_VERSION=python2 test-python
+      script: make -e RELAY_PYTHON_VERSION=python2 test-python
 
     # -------------------------------------
     # EXECUTALE INTEGRATION TESTS
     # -------------------------------------
 
-    - name: "integration-test: semaphore"
+    - name: "integration-test: relay"
       os: linux
       # https://github.com/travis-ci/travis-ci/issues/9831
       sudo: true
@@ -102,7 +102,7 @@ matrix:
     # RUST RELEASE BUILDS
     # -------------------------------------
 
-    - name: "release: semaphore[linux]"
+    - name: "release: relay[linux]"
       if: branch ~= /^release\/[\d.]+$/
       os: linux
       language: generic
@@ -114,37 +114,26 @@ matrix:
       script:
         - make -e docker
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-        - zeus upload -t "application/octet-stream" -n semaphore-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/semaphore  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-        - zip semaphore-debug.zip target/x86_64-unknown-linux-gnu/release/semaphore.debug
-        - zeus upload -t "application/octet-stream" -n semaphore-Linux-x86_64-debug.zip semaphore-debug.zip  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zeus upload -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zip relay-debug.zip target/x86_64-unknown-linux-gnu/release/relay.debug
+        - zeus upload -t "application/octet-stream" -n relay-Linux-x86_64-debug.zip relay-debug.zip  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
-    # - os: linux
-    #   language: generic
-    #   env:
-    #     - BUILD_ARCH=i686
-    #   script:
-    #     - make -e releasebuild-docker
-    #     - npm install -g @zeus-ci/cli
-    #     - zeus upload -t "application/octet-stream"
-    #                   -n semaphore-Linux-i686
-    #                   target/i686-unknown-linux-gnu/release/semaphore
-
-    - name: "release: semaphore[macos]"
+    - name: "release: relay[macos]"
       if: branch ~= /^release\/[\d.]+$/
       os: osx
       language: generic
       script:
         - make -e release
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-        - zeus upload -t "application/octet-stream" -n semaphore-Darwin-x86_64 target/release/semaphore || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-        - zip -r semaphore-dsym.zip target/release/semaphore.dSYM
-        - zeus upload -t "application/octet-stream" -n semaphore-Darwin-x86_64-dsym.zip semaphore-dsym.zip || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zeus upload -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zip -r relay-dsym.zip target/release/relay.dSYM
+        - zeus upload -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     # -------------------------------------
     # PYTHON RELEASE BUILDS
     # -------------------------------------
 
-    - name: "release: libsemaphore[linux-x86]"
+    - name: "release: librelay[linux-x86]"
       if: branch ~= /^release\/[\d.]+$/
       os: linux
       sudo: required
@@ -155,7 +144,7 @@ matrix:
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
-    - name: "release: libsemaphore[linux-x86_64]"
+    - name: "release: librelay[linux-x86_64]"
       if: branch ~= /^release\/[\d.]+$/
       sudo: required
       env: BUILD_ARCH=x86_64
@@ -165,18 +154,18 @@ matrix:
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
-    - name: "release: libsemaphore[macos]"
+    - name: "release: librelay[macos]"
       if: branch ~= /^release\/[\d.]+$/
       os: osx
       language: generic
       osx_image: xcode7.3
-      env: SEMAPHORE_PYTHON_VERSION=python
+      env: RELAY_PYTHON_VERSION=python
       script:
         - make -e wheel
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
-    - name: "release: libsemaphore[sdist]"
+    - name: "release: librelay[sdist]"
       if: branch ~= /^release\/[\d.]+$/
       os: linux
       sudo: required

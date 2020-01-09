@@ -22,7 +22,7 @@ config: setup-deps setup-brew
 .PHONY: config
 
 fake-sentry: setup-deps
-	.venv/bin/python -m semaphore_load_tests.fake_sentry
+	.venv/bin/python -m relay_load_tests.fake_sentry
 
 load-test: setup-deps
 	.venv/bin/locust -f locustfile.py

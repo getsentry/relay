@@ -8,4 +8,4 @@ from semaphore.exceptions import Panic
 
 def test_panic():
     with pytest.raises(Panic):
-        rustcall(lib.semaphore_test_panic)
+        rustcall(lib.relay_test_panic)

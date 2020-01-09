@@ -8,7 +8,7 @@ target
 *.pyc
 
 # Runtime files
-/.semaphore/
+/.relay/
 GeoLite2-City.mmdb
 GeoLiteCity.dat
 

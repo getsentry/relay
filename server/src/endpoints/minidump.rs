@@ -3,7 +3,7 @@ use actix_web::{actix::ResponseFuture, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use futures::{future, Future, Stream};
 
-use semaphore_general::protocol::EventId;
+use relay_general::protocol::EventId;
 
 use crate::body::ForwardBody;
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};

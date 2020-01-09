@@ -2,11 +2,11 @@ use symbolic::unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4FileType, Unreal4LogEntry,
 };
 
-use semaphore_general::protocol::{
+use relay_general::protocol::{
     AsPair, Breadcrumb, Context, Contexts, DeviceContext, Event, EventId, GpuContext,
     LenientString, LogEntry, OsContext, TagEntry, Tags, User, UserReport, Values,
 };
-use semaphore_general::types::{self, Annotated, Array, Object, Value};
+use relay_general::types::{self, Annotated, Array, Object, Value};
 
 use crate::constants::{
     ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, UNREAL_USER_HEADER,

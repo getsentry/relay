@@ -40,8 +40,8 @@ use failure::Fail;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use semaphore_general::protocol::{EventId, EventType};
-use semaphore_general::types::Value;
+use relay_general::protocol::{EventId, EventType};
+use relay_general::types::Value;
 
 use crate::extractors::EventMeta;
 

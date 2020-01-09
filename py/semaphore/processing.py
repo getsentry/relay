@@ -30,7 +30,7 @@ def _init_valid_platforms():
     global VALID_PLATFORMS
 
     size_out = ffi.new("uintptr_t *")
-    strings = rustcall(lib.semaphore_valid_platforms, size_out)
+    strings = rustcall(lib.relay_valid_platforms, size_out)
 
     valid_platforms = []
     for i in range(int(size_out[0])):
@@ -46,7 +46,7 @@ def split_chunks(string, remarks):
     return json.loads(
         decode_str(
             rustcall(
-                lib.semaphore_split_chunks,
+                lib.relay_split_chunks,
                 encode_str(string),
                 encode_str(json.dumps(remarks)),
             )
@@ -77,14 +77,14 @@ def meta_with_chunks(data, meta):
 
 
 class GeoIpLookup(RustObject):
-    __dealloc_func__ = lib.semaphore_geoip_lookup_free
+    __dealloc_func__ = lib.relay_geoip_lookup_free
     __slots__ = ("_path",)
 
     @classmethod
     def from_path(cls, path):
         if isinstance(path, text_type):
             path = path.encode("utf-8")
-        rv = cls._from_objptr(rustcall(lib.semaphore_geoip_lookup_new, path))
+        rv = cls._from_objptr(rustcall(lib.relay_geoip_lookup_new, path))
         rv._path = path
         return rv
 
@@ -93,7 +93,7 @@ class GeoIpLookup(RustObject):
 
 
 class StoreNormalizer(RustObject):
-    __dealloc_func__ = lib.semaphore_store_normalizer_free
+    __dealloc_func__ = lib.relay_store_normalizer_free
     __init__ = object.__init__
     __slots__ = ("__weakref__",)
 
@@ -101,7 +101,7 @@ class StoreNormalizer(RustObject):
         config = json.dumps(config)
         geoptr = geoip_lookup._get_objptr() if geoip_lookup is not None else ffi.NULL
         rv = cls._from_objptr(
-            rustcall(lib.semaphore_store_normalizer_new, encode_str(config), geoptr)
+            rustcall(lib.relay_store_normalizer_new, encode_str(config), geoptr)
         )
         if geoip_lookup is not None:
             attached_refs[rv] = geoip_lookup
@@ -112,7 +112,7 @@ class StoreNormalizer(RustObject):
             raw_event = _serialize_event(event)
 
         event = _encode_raw_event(raw_event)
-        rv = self._methodcall(lib.semaphore_store_normalizer_normalize_event, event)
+        rv = self._methodcall(lib.relay_store_normalizer_normalize_event, event)
         return json.loads(decode_str(rv))
 
 
@@ -125,7 +125,7 @@ def _serialize_event(event):
 
 def _encode_raw_event(raw_event):
     event = encode_str(raw_event, mutable=True)
-    rustcall(lib.semaphore_translate_legacy_python_json, event)
+    rustcall(lib.relay_translate_legacy_python_json, event)
     return event
 
 
@@ -138,7 +138,7 @@ def scrub_event(config, data):
     raw_event = _serialize_event(data)
     event = _encode_raw_event(raw_event)
 
-    rv = rustcall(lib.semaphore_scrub_event, encode_str(config), event)
+    rv = rustcall(lib.relay_scrub_event, encode_str(config), event)
     return json.loads(decode_str(rv))
 
 
@@ -166,6 +166,4 @@ def is_glob_match(
 
     if isinstance(value, text_type):
         value = value.encode("utf-8")
-    return rustcall(
-        lib.semaphore_is_glob_match, make_buf(value), encode_str(pat), flags
-    )
+    return rustcall(lib.relay_is_glob_match, make_buf(value), encode_str(pat), flags)

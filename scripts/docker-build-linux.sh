@@ -21,7 +21,7 @@ docker build --build-arg DOCKER_ARCH=${DOCKER_ARCH} \
              --build-arg BUILD_ARCH=${BUILD_ARCH} \
              --build-arg OPENSSL_ARCH=${OPENSSL_ARCH} \
              --cache-from=${BUILD_IMAGE} \
-             --target semaphore-deps \
+             --target relay-deps \
              -t "${BUILD_IMAGE}" .
 
 DOCKER_RUN_OPTS="
@@ -33,7 +33,7 @@ DOCKER_RUN_OPTS="
 
 # And now build the project
 docker run $DOCKER_RUN_OPTS \
-  make build-linux-release SEMAPHORE_FEATURES="${SEMAPHORE_FEATURES}"
+  make build-linux-release RELAY_FEATURES="${RELAY_FEATURES}"
 
 # Smoke test
 docker run $DOCKER_RUN_OPTS \

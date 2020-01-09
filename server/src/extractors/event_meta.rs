@@ -10,7 +10,7 @@ use futures::{future, Future};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use semaphore_common::{
+use relay_common::{
     tryf, Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError,
 };
 
@@ -55,7 +55,7 @@ impl ResponseError for BadEventMeta {
 }
 
 fn default_version() -> u16 {
-    semaphore_common::PROTOCOL_VERSION
+    relay_common::PROTOCOL_VERSION
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

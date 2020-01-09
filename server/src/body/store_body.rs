@@ -11,7 +11,7 @@ use flate2::read::ZlibDecoder;
 use futures::prelude::*;
 use url::form_urlencoded;
 
-use semaphore_common::metric;
+use relay_common::metric;
 
 use crate::actors::outcome::DiscardReason;
 use crate::utils;

@@ -1,8 +1,8 @@
 use actix_web::{actix::ResponseFuture, http::Method, HttpRequest, HttpResponse};
 use futures::Future;
 
-use semaphore_common::tryf;
-use semaphore_general::protocol::EventId;
+use relay_common::tryf;
+use relay_general::protocol::EventId;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::Envelope;

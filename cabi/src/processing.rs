@@ -1,4 +1,4 @@
-// TODO: Fix casts between SemaphoreGeoIpLookup and GeoIpLookup
+// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 #![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
 
@@ -7,29 +7,29 @@ use std::os::raw::c_char;
 use std::slice;
 
 use json_forensics;
-use semaphore_common::{glob_match_bytes, GlobOptions};
-use semaphore_general::datascrubbing::DataScrubbingConfig;
-use semaphore_general::pii::PiiProcessor;
-use semaphore_general::processor::{process_value, split_chunks, ProcessingState};
-use semaphore_general::protocol::{Event, VALID_PLATFORMS};
-use semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
-use semaphore_general::types::{Annotated, Remark};
+use relay_common::{glob_match_bytes, GlobOptions};
+use relay_general::datascrubbing::DataScrubbingConfig;
+use relay_general::pii::PiiProcessor;
+use relay_general::processor::{process_value, split_chunks, ProcessingState};
+use relay_general::protocol::{Event, VALID_PLATFORMS};
+use relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
+use relay_general::types::{Annotated, Remark};
 
-use crate::core::{SemaphoreBuf, SemaphoreStr};
+use crate::core::{RelayBuf, RelayStr};
 
-pub struct SemaphoreGeoIpLookup;
-pub struct SemaphoreStoreNormalizer;
+pub struct RelayGeoIpLookup;
+pub struct RelayStoreNormalizer;
 
 lazy_static::lazy_static! {
-    static ref VALID_PLATFORM_STRS: Vec<SemaphoreStr> =
-        VALID_PLATFORMS.iter().map(|s| SemaphoreStr::new(s)).collect();
+    static ref VALID_PLATFORM_STRS: Vec<RelayStr> =
+        VALID_PLATFORMS.iter().map(|s| RelayStr::new(s)).collect();
 }
 
 ffi_fn! {
-    unsafe fn semaphore_split_chunks(
-        string: *const SemaphoreStr,
-        remarks: *const SemaphoreStr
-    ) -> Result<SemaphoreStr> {
+    unsafe fn relay_split_chunks(
+        string: *const RelayStr,
+        remarks: *const RelayStr
+    ) -> Result<RelayStr> {
         let remarks: Vec<Remark> = serde_json::from_str((*remarks).as_str())?;
         let chunks = split_chunks((*string).as_str(), &remarks);
         let json = serde_json::to_string(&chunks)?;
@@ -38,18 +38,18 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    unsafe fn semaphore_geoip_lookup_new(
+    unsafe fn relay_geoip_lookup_new(
         path: *const c_char
-    ) -> Result<*mut SemaphoreGeoIpLookup> {
+    ) -> Result<*mut RelayGeoIpLookup> {
         let path = CStr::from_ptr(path).to_string_lossy();
         let lookup = GeoIpLookup::open(path.as_ref())?;
-        Ok(Box::into_raw(Box::new(lookup)) as *mut SemaphoreGeoIpLookup)
+        Ok(Box::into_raw(Box::new(lookup)) as *mut RelayGeoIpLookup)
     }
 }
 
 ffi_fn! {
-    unsafe fn semaphore_geoip_lookup_free(
-        lookup: *mut SemaphoreGeoIpLookup
+    unsafe fn relay_geoip_lookup_free(
+        lookup: *mut RelayGeoIpLookup
     ) {
         if !lookup.is_null() {
             let lookup = lookup as *mut GeoIpLookup;
@@ -60,9 +60,9 @@ ffi_fn! {
 
 ffi_fn! {
     /// Returns a list of all valid platform identifiers.
-    unsafe fn semaphore_valid_platforms(
+    unsafe fn relay_valid_platforms(
         size_out: *mut usize,
-    ) -> Result<*const SemaphoreStr> {
+    ) -> Result<*const RelayStr> {
         if let Some(size_out) = size_out.as_mut() {
             *size_out = VALID_PLATFORM_STRS.len();
         }
@@ -72,20 +72,20 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    unsafe fn semaphore_store_normalizer_new(
-        config: *const SemaphoreStr,
-        geoip_lookup: *const SemaphoreGeoIpLookup,
-    ) -> Result<*mut SemaphoreStoreNormalizer> {
+    unsafe fn relay_store_normalizer_new(
+        config: *const RelayStr,
+        geoip_lookup: *const RelayGeoIpLookup,
+    ) -> Result<*mut RelayStoreNormalizer> {
         let config: StoreConfig = serde_json::from_str((*config).as_str())?;
         let geoip_lookup = (geoip_lookup as *const GeoIpLookup).as_ref();
         let normalizer = StoreProcessor::new(config, geoip_lookup);
-        Ok(Box::into_raw(Box::new(normalizer)) as *mut SemaphoreStoreNormalizer)
+        Ok(Box::into_raw(Box::new(normalizer)) as *mut RelayStoreNormalizer)
     }
 }
 
 ffi_fn! {
-    unsafe fn semaphore_store_normalizer_free(
-        normalizer: *mut SemaphoreStoreNormalizer
+    unsafe fn relay_store_normalizer_free(
+        normalizer: *mut RelayStoreNormalizer
     ) {
         if !normalizer.is_null() {
             let normalizer = normalizer as *mut StoreProcessor;
@@ -95,20 +95,20 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    unsafe fn semaphore_store_normalizer_normalize_event(
-        normalizer: *mut SemaphoreStoreNormalizer,
-        event: *const SemaphoreStr,
-    ) -> Result<SemaphoreStr> {
+    unsafe fn relay_store_normalizer_normalize_event(
+        normalizer: *mut RelayStoreNormalizer,
+        event: *const RelayStr,
+    ) -> Result<RelayStr> {
         let processor = normalizer as *mut StoreProcessor;
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut *processor, ProcessingState::root())?;
-        Ok(SemaphoreStr::from_string(event.to_json()?))
+        Ok(RelayStr::from_string(event.to_json()?))
     }
 }
 
 ffi_fn! {
-    unsafe fn semaphore_translate_legacy_python_json(
-        event: *mut SemaphoreStr,
+    unsafe fn relay_translate_legacy_python_json(
+        event: *mut RelayStr,
     ) -> Result<bool> {
         let data = slice::from_raw_parts_mut((*event).data as *mut u8, (*event).len);
         json_forensics::translate_slice(data);
@@ -117,25 +117,25 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    unsafe fn semaphore_scrub_event(
-        config: *const SemaphoreStr,
-        event: *const SemaphoreStr,
-    ) -> Result<SemaphoreStr> {
+    unsafe fn relay_scrub_event(
+        config: *const RelayStr,
+        event: *const RelayStr,
+    ) -> Result<RelayStr> {
         let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
         let mut processor = match config.pii_config() {
             Some(pii_config) => PiiProcessor::new(pii_config),
-            None => return Ok(SemaphoreStr::new((*event).as_str())),
+            None => return Ok(RelayStr::new((*event).as_str())),
         };
 
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut processor, ProcessingState::root())?;
 
-        Ok(SemaphoreStr::from_string(event.to_json()?))
+        Ok(RelayStr::from_string(event.to_json()?))
     }
 }
 
 ffi_fn! {
-    unsafe fn semaphore_test_panic() -> Result<()> {
+    unsafe fn relay_test_panic() -> Result<()> {
         panic!("this is a test panic")
     }
 }
@@ -150,9 +150,9 @@ pub enum GlobFlags {
 }
 
 ffi_fn! {
-    unsafe fn semaphore_is_glob_match(
-        value: *const SemaphoreBuf,
-        pat: *const SemaphoreStr,
+    unsafe fn relay_is_glob_match(
+        value: *const RelayBuf,
+        pat: *const RelayStr,
         flags: GlobFlags,
     ) -> Result<bool> {
         let mut options = GlobOptions::default();

@@ -1,6 +1,6 @@
 # Actors
 
-This document describes how Semaphore works through the perspective of the system actors and the messages exchanged by them.
+This document describes how Relay works through the perspective of the system actors and the messages exchanged by them.
 
 **TODO** Short description about infrastructure (i.e. actix-web, actix, tokio, futures), note that we are using the old style Future trait, and actix 0.7.x .
 
@@ -17,7 +17,7 @@ The module contains to actors:
 
 ### EventManager
 
-The `EventManager` is an actor running in the main system arbiter. The system arbiter is a asynchronous arbiter  created when the Semaphore starts. The upshot of this is that all processing done by the event manager should be extremly quick. It is ok to wait on I/O but no significant processing may be done in the `EventManager`.
+The `EventManager` is an actor running in the main system arbiter. The system arbiter is a asynchronous arbiter created when Relay starts. The upshot of this is that all processing done by the event manager should be extremly quick. It is ok to wait on I/O but no significant processing may be done in the `EventManager`.
 
 Once the `EventManager` had obtained the project state and had decided that the event should be processed the `EventManager` passes the event to the `EventProcessor` actors.
 
@@ -51,7 +51,7 @@ The `ProcessEvent` handler prepares the event for ingestion. It normalizes the e
 
 ## project.rs
 
-The `project.rs` module contains functionality related to the project state. Sentry events belong to projects and projects belong to organizations (Semaphore doesn't care at the moment about organizations).
+The `project.rs` module contains functionality related to the project state. Sentry events belong to projects and projects belong to organizations (Relay doesn't care at the moment about organizations).
 
 Projects serve to group the events (so that each Sentry customer can only see and deal with his/hers own events) and prescribe how messages are to be processed ( what should be filtered, which data inside the event should be anonymised (i.e PPI stripping), etc).
 
@@ -60,7 +60,7 @@ All activities around obtaining, caching and refreshing the project state is han
 The module contains two actors:
 
 * `Project`: an actor that holds project data
-* `ProjectCache`: an actor that holds references to `Project` actors. 
+* `ProjectCache`: an actor that holds references to `Project` actors.
 
 From a high level perspective one obtains a `Project` from the `ProjectCache` and then uses the `Project` in order to get 'project specific' information.
 
@@ -68,7 +68,7 @@ From a high level perspective one obtains a `Project` from the `ProjectCache` an
 
 The `Project` actor is responsible with decisions about how an event for a particular project should be handled. The project runs in an async arbiter ( I think it actully runs in the SystemArbiter **TODO** check ir that is true, or if it runs in another async arbiter).
 
-The system constructs an actor for each project used. 
+The system constructs an actor for each project used.
 
 The `Project` actor runs in an async context.
 
@@ -87,7 +87,7 @@ The handler retuns the `ProjectState`, either directly (if it has a recent cache
 ```python
 if 'we have an up-to-date project state'
 	return self.project_state
-if not self.receiver: # we don't have an already active request for the project state 
+if not self.receiver: # we don't have an already active request for the project state
     channel, receiver = 'create a channel and save its receiver'
     async: # ops that run at some time in the future
         project_state = await ProjectCache.send(FetchProjectState)
@@ -98,7 +98,7 @@ return future(receiver) # a Future that resolves with the ProjectState when avai
 
 #### GetEventAction
 
-The handler answers the question: How should an event be handled? 
+The handler answers the question: How should an event be handled?
 
 An event may be handled in one of three ways specified by the `EventAction` enum.
 
@@ -120,11 +120,11 @@ if 'we have a cached rate limit value for the current event key':
   return RetryAfter # the event is discarded without further processing
 if 'we have a recent project state'
   # Ask the ProjectState what to do with the msg
-  return projectState.get_event_action(event) 
+  return projectState.get_event_action(event)
 # No recent ProjectState, fetch it from the ProjectCache actor
 async: # ops that run at soem time in the future
 	projectState = await ProjectCache.send(FetchProjectState)
-# return a future that will resolve when the project state becomes avaialble  
+# return a future that will resolve when the project state becomes avaialble
 return future(projectState.get_event_action(event))
 ```
 
@@ -162,19 +162,19 @@ if project_id not in self.project_cache:
   project = Project(project_id)
   project.start()
   self.project_cache[project_id] = project
-  
-return self.project_cache[porject_id] 
+
+return self.project_cache[porject_id]
 ```
 
 #### FetchProjectState
 
 Registers the intention of a project to retrieve the project state.
 
-The `FetchProjectState` functionality logicaly belongs to the `Project` actor but it is handled by the `ProjectCache` in order to batch requests for the project state from multiple `Project` actors. 
+The `FetchProjectState` functionality logicaly belongs to the `Project` actor but it is handled by the `ProjectCache` in order to batch requests for the project state from multiple `Project` actors.
 
-A `Project` registers its desire to obtain its project state with the `ProjectCache` by sending the `FetchProjectState` and the `ProjectCache` batches all requests during a batching period and emits one request to the upstream (another semaphore or the Sentry server) for all required project states.
+A `Project` registers its desire to obtain its project state with the `ProjectCache` by sending the `FetchProjectState` and the `ProjectCache` batches all requests during a batching period and emits one request to the upstream (another Relay or the Sentry server) for all required project states.
 
-The handler checks if there is already a scheduled time for fetching project states and, if not, it schedules a delayed function that will do the actual fetching for all projects that registered their desire for getting the project state (see function: `ProjectCache::fetch_states`). 
+The handler checks if there is already a scheduled time for fetching project states and, if not, it schedules a delayed function that will do the actual fetching for all projects that registered their desire for getting the project state (see function: `ProjectCache::fetch_states`).
 
 **TODO: Add pseudo code **
 
@@ -249,7 +249,7 @@ EventProcessor-->EventManager:ProcessEventResponse
 ```sequence
 main.main->cli.execute:
 cli.execute->cli.execute:make_app
-cli.execute->server.lib.run: 
+cli.execute->server.lib.run:
 server.lib.run->Controller: run
 Controller->server.actors.Server: start
 server.actors.Server->server.service:start

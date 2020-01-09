@@ -10,14 +10,14 @@ use futures::prelude::*;
 use parking_lot::{Mutex, RwLock};
 use serde_json::Value as SerdeValue;
 
-use semaphore_common::{clone, metric, Config, LogError, RelayMode};
-use semaphore_general::pii::PiiProcessor;
-use semaphore_general::processor::{process_value, ProcessingState};
-use semaphore_general::protocol::{
+use relay_common::{clone, metric, Config, LogError, RelayMode};
+use relay_general::pii::PiiProcessor;
+use relay_general::processor::{process_value, ProcessingState};
+use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString,
     SecurityReportType, Values,
 };
-use semaphore_general::types::{Annotated, Array, Object, ProcessingAction, Value};
+use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
@@ -35,9 +35,9 @@ use {
     crate::quotas::{QuotasError, RateLimiter},
     crate::service::ServerErrorKind,
     failure::ResultExt,
-    semaphore_general::filter::{should_filter, FilterStatKey},
-    semaphore_general::protocol::IpAddr,
-    semaphore_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_general::filter::{should_filter, FilterStatKey},
+    relay_general::protocol::IpAddr,
+    relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
 
 #[derive(Debug, Fail)]
@@ -148,7 +148,7 @@ impl EventProcessor {
     /// payload can be checked via `is_minidump_event`.
     #[cfg(feature = "processing")]
     fn write_native_placeholder(&self, event: &mut Annotated<Event>, is_minidump: bool) {
-        use semaphore_general::protocol::{Exception, JsonLenientString, Level, Mechanism};
+        use relay_general::protocol::{Exception, JsonLenientString, Level, Mechanism};
 
         let event = event.get_or_insert_with(Event::default);
 

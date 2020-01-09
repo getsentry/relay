@@ -1,6 +1,6 @@
 # Configuration Options
 
-The base configuration for Relay lives in the file `.semaphore/config.yml`.  All keys are `snake_case`.
+The base configuration for Relay lives in the file `.relay/config.yml`.  All keys are `snake_case`.
 
 ## Relay
 
@@ -53,7 +53,7 @@ General relay settings.
 : *integer, optional*
 
   Optional port to bind for the encrypted relay HTTPS server.  Example: `3001`
-  
+
   This is in addition to the `port` option: If you set up a HTTPS server at
   `tls_port`, the HTTP server at `port` still exists.
 
@@ -183,7 +183,7 @@ Controls various HTTP-related limits.  All values are human-readable strings of 
 : *string, default: `info`*
 
   The log level for the relay. One of:
-  
+
   - `off`
   - `error`
   - `warn`
@@ -202,7 +202,7 @@ Controls various HTTP-related limits.  All values are human-readable strings of 
 : *string, default: `auto`*
 
   Controls the log format. One of:
-  
+
   - `auto`: Auto detect (pretty for tty, simplified for other)
   - `pretty`: With colors
   - `simplified`: Simplified log output

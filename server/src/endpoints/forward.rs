@@ -10,7 +10,7 @@ use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use futures::prelude::*;
 use lazy_static::lazy_static;
 
-use semaphore_common::{Config, GlobMatcher};
+use relay_common::{Config, GlobMatcher};
 
 use crate::body::ForwardBody;
 use crate::extractors::ForwardedFor;

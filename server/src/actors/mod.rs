@@ -23,8 +23,8 @@
 //! ### Example
 //!
 //! ```ignore
-//! use semaphore_server::controller::Controller;
-//! use semaphore_server::server::Server;
+//! use relay_server::controller::Controller;
+//! use relay_server::server::Server;
 //!
 //! Controller::run(|| Server::start())
 //!     .expect("failed to start relay");

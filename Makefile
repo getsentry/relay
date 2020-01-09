@@ -1,6 +1,6 @@
 SHELL=/bin/bash
-export SEMAPHORE_PYTHON_VERSION := python3
-export SEMAPHORE_FEATURES := with_ssl
+export RELAY_PYTHON_VERSION := python3
+export RELAY_FEATURES := with_ssl
 
 all: check test
 .PHONY: all
@@ -22,7 +22,7 @@ build: setup-git
 .PHONY: build
 
 release: setup-git
-	@cargo +stable build --release --locked --features ${SEMAPHORE_FEATURES}
+	@cargo +stable build --release --locked --features ${RELAY_FEATURES}
 .PHONY: release
 
 docker: setup-git
@@ -30,10 +30,10 @@ docker: setup-git
 .PHONY: docker
 
 build-linux-release: setup-git
-	cargo build --release --locked --features ${SEMAPHORE_FEATURES} --target=${TARGET}
-	objcopy --only-keep-debug target/${TARGET}/release/semaphore{,.debug}
-	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/semaphore
-	objcopy --add-gnu-debuglink target/${TARGET}/release/semaphore{.debug,}
+	cargo build --release --locked --features ${RELAY_FEATURES} --target=${TARGET}
+	objcopy --only-keep-debug target/${TARGET}/release/relay{,.debug}
+	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/relay
+	objcopy --add-gnu-debuglink target/${TARGET}/release/relay{.debug,}
 .PHONY: build-linux-release
 
 sdist: setup-git setup-venv
@@ -63,7 +63,7 @@ test-rust-all: setup-geoip setup-git
 
 test-python: setup-geoip setup-git setup-venv
 	.venv/bin/pip install -U pytest
-	SEMAPHORE_DEBUG=1 .venv/bin/pip install -v --editable py
+	RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
 	.venv/bin/pytest -v py
 .PHONY: test-python
 
@@ -191,7 +191,7 @@ clean-target-dir:
 .venv/bin/python: Makefile
 	@rm -rf .venv
 	@which virtualenv || sudo easy_install virtualenv
-	virtualenv -p $$SEMAPHORE_PYTHON_VERSION .venv
+	virtualenv -p $$RELAY_PYTHON_VERSION .venv
 
 # GNU tar requires `--wildcards`, but bsd tar does not.
 ifneq (, $(findstring GNU tar,$(shell tar --version)))

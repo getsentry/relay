@@ -10,30 +10,30 @@ targets:
   - name: gh-pages
   - name: registry
     type: app
-    urlTemplate: "https://downloads.sentry-cdn.com/semaphore/{{version}}/{{file}}"
-    includeNames: /^semaphore-(Darwin|Linux|Windows).*$/i
+    urlTemplate: "https://downloads.sentry-cdn.com/relay/{{version}}/{{file}}"
+    includeNames: /^relay-(Darwin|Linux|Windows).*$/i
     config:
-      canonical: "app:semaphore"
+      canonical: "app:relay"
   - name: gcs
     bucket: sentry-sdk-assets
-    includeNames: /^semaphore-(Darwin|Windows|Linux).*$/
+    includeNames: /^relay-(Darwin|Windows|Linux).*$/
     paths:
-      - path: /semaphore/{{version}}/
+      - path: /relay/{{version}}/
         metadata:
           cacheControl: "public, max-age=2592000"
-      - path: /semaphore/latest/
+      - path: /relay/latest/
         metadata:
           cacheControl: "public, max-age=600"
 
 requireNames:
   - /^gh-pages.zip$/
-  - /^semaphore-.*-py2.py3-none-macosx_10_11_x86_64.whl$/
-  - /^semaphore-.*-py2.py3-none-manylinux1_i686.whl$/
-  - /^semaphore-.*-py2.py3-none-manylinux1_x86_64.whl$/
-  - /^semaphore-.*.zip$/
-  - /^semaphore-Darwin-x86_64$/
-  - /^semaphore-Darwin-x86_64-dsym.zip$/
-  - /^semaphore-Linux-x86_64$/
-  - /^semaphore-Linux-x86_64-debug.zip$/
-  - /^semaphore-Windows-x86_64-pdb.zip$/
-  - /^semaphore-Windows-x86_64\.exe$/
+  - /^relay-.*-py2.py3-none-macosx_10_11_x86_64.whl$/
+  - /^relay-.*-py2.py3-none-manylinux1_i686.whl$/
+  - /^relay-.*-py2.py3-none-manylinux1_x86_64.whl$/
+  - /^relay-.*.zip$/
+  - /^relay-Darwin-x86_64$/
+  - /^relay-Darwin-x86_64-dsym.zip$/
+  - /^relay-Linux-x86_64$/
+  - /^relay-Linux-x86_64-debug.zip$/
+  - /^relay-Windows-x86_64-pdb.zip$/
+  - /^relay-Windows-x86_64\.exe$/

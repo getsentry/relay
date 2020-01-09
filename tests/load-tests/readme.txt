@@ -1,25 +1,25 @@
-Semaphore load test tools.
+# Relay load test tools
 
-# Semaphore load test contains tools for load testing semaphore.
+## Load test contains tools for load testing relay.
 
 The project contains two tools: a load tester based on Locust (see https://locust.io/) and a
-fake Sentry server that contains just enough functionality to get semaphore working with an upstream.
+fake Sentry server that contains just enough functionality to get relay working with an upstream.
 
-# Fake Sentry Server
+## Fake Sentry Server
 
-The FakeSentryServer runs a Flask server that responds to the security challenge messages from Semaphore and
+The FakeSentryServer runs a Flask server that responds to the security challenge messages from Relay and
 is able to provide project configurations for any project (it responds with a canned project configuration)
 
 The FakeSentryServer can be configured via the fake.sentry.config.yml file (situated in the top level directory).
 
 To start the Fake Sentry Server run:
-    .venv/bin/python -m semaphore_load_tests.fake_sentry
+    .venv/bin/python -m relay_load_tests.fake_sentry
 or
     make fake-sentry
 
-# Load tester
+## Load tester
 
-The load tester is a locust script that can be used to send messages to Semaphore.
+The load tester is a locust script that can be used to send messages to Relay.
 The load tester is configured via the locust_config.yml file (situated in the top level directory).
 
 To start the load tester just run:

@@ -21,7 +21,7 @@ steps:
     args:
       [
         "build",
-        "--target", "semaphore-deps",
+        "--target", "relay-deps",
         "-t", "us.gcr.io/$PROJECT_ID/semaphore:deps",
         "--cache-from", "us.gcr.io/$PROJECT_ID/semaphore:deps",
         ".",

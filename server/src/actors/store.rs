@@ -14,8 +14,8 @@ use serde::{ser::Error, Serialize};
 
 use rmp_serde::encode::Error as RmpError;
 
-use semaphore_common::{metric, Config, KafkaTopic, ProjectId, Uuid};
-use semaphore_general::protocol::{EventId, EventType};
+use relay_common::{metric, Config, KafkaTopic, ProjectId, Uuid};
+use relay_general::protocol::{EventId, EventType};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::{ServerError, ServerErrorKind};

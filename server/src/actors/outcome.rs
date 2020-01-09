@@ -10,9 +10,9 @@ use std::time::Instant;
 
 use actix::prelude::*;
 
-use semaphore_common::Config;
-use semaphore_general::filter::FilterStatKey;
-use semaphore_general::protocol::EventId;
+use relay_common::Config;
+use relay_general::filter::FilterStatKey;
+use relay_general::protocol::EventId;
 
 use crate::actors::project::RateLimit;
 use crate::ServerError;
@@ -183,7 +183,7 @@ mod real_implementation {
     use serde::Serialize;
     use serde_json::Error as SerdeSerializationError;
 
-    use semaphore_common::{metric, KafkaTopic};
+    use relay_common::{metric, KafkaTopic};
 
     use crate::service::ServerErrorKind;
     use crate::utils;
@@ -394,11 +394,12 @@ mod real_implementation {
     }
 }
 
-/// This is a shell implementation that doesn't do anything it is here to cleanly isolate the
-/// conditional compilation of Semaphore  with / without processing.
-/// When compiling with processing this module will NOT be included in compilation.
-/// When compiling without processing this module will be included and will serve as a 'no op'
-/// actor that just returns a success future whenever a message is sent to it.
+/// This is a noop implementation that doesn't do anything it is here to cleanly isolate the
+/// conditional compilation of Relay with / without processing.
+///
+/// When compiling with processing this module will NOT be included in compilation. When compiling
+/// without processing this module will be included and will serve as a 'no op' actor that just
+/// returns a success future whenever a message is sent to it.
 #[cfg(not(feature = "processing"))]
 mod no_op_implementation {
     use super::*;

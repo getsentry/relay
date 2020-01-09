@@ -6,7 +6,7 @@ use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::de::DeserializeOwned;
 
-use semaphore_common::{tryf, PublicKey, RelayId};
+use relay_common::{tryf, PublicKey, RelayId};
 
 use crate::actors::keys::GetPublicKey;
 use crate::service::ServiceState;

@@ -1,10 +1,11 @@
 use std::fs;
 
+use relay_general::processor::{process_value, ProcessingState};
+use relay_general::protocol::Event;
+use relay_general::store::{StoreConfig, StoreProcessor};
+use relay_general::types::{Annotated, SerializableAnnotated};
+
 use insta::assert_yaml_snapshot;
-use semaphore_general::processor::{process_value, ProcessingState};
-use semaphore_general::protocol::Event;
-use semaphore_general::store::{StoreConfig, StoreProcessor};
-use semaphore_general::types::{Annotated, SerializableAnnotated};
 
 macro_rules! event_snapshot {
     ($id:expr) => {

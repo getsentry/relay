@@ -13,8 +13,8 @@ use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::Deserialize;
 
-use semaphore_common::{clone, metric, tryf, LogError};
-use semaphore_general::protocol::EventId;
+use relay_common::{clone, metric, tryf, LogError};
+use relay_general::protocol::EventId;
 
 use crate::actors::events::{QueueEvent, QueueEventError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -254,12 +254,12 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 
 /// Handles Sentry events.
 ///
-/// Sentry events may come either directly from a http request ( the store endpoint
-/// calls this method directly) or are generated inside Semaphore from requests to
-/// other endpoints (e.g. the security endpoint)
+/// Sentry events may come either directly from a http request ( the store endpoint calls this
+/// method directly) or are generated inside Relay from requests to other endpoints (e.g. the
+/// security endpoint)
 ///
-/// If store_event receives a non empty store_body it will use it as the body of the
-/// event otherwise it will try to create a store_body from the request.
+/// If store_event receives a non empty store_body it will use it as the body of the event otherwise
+/// it will try to create a store_body from the request.
 ///
 pub fn handle_store_like_request<F, R, I>(
     meta: EventMeta,
@@ -278,7 +278,7 @@ where
 
     // For now, we only handle <= v8 and drop everything else
     let version = meta.version();
-    if version > semaphore_common::PROTOCOL_VERSION {
+    if version > relay_common::PROTOCOL_VERSION {
         // TODO: Delegate to forward_upstream here
         tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(version)));
     }

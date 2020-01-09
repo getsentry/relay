@@ -1,19 +1,19 @@
 # Introduction
 
-The Sentry Relay (aka Semaphore) is a work in progress service that pushes some
-functionality from the Sentry SDKs as well as the Sentry server into a proxy process.
+The Sentry Relay is a work in progress service that pushes some functionality
+from the Sentry SDKs as well as the Sentry server into a proxy process.
 
 ## Getting started
 
-The relay server is called "semaphore".  Binaries can be downloaded from the
+The Relay server is called `relay`.  Binaries can be downloaded from the
 [GitHub releases page](https://github.com/getsentry/semaphore/releases).  After
 downloading place the binary somewhere on your `PATH` and make it executable.
 
 The `config init` command is provided to initialize the initial config.  The
-config will be created the folder it's run from in a hidden `.semaphore`
+config will be created the folder it's run from in a hidden `.relay`
 subdirectory:
 
-    $ semaphore config init
+    $ relay config init
 
 The wizard will ask a few questions:
 
@@ -25,14 +25,14 @@ The wizard will ask a few questions:
 3. Lastly the relay will ask it should run authenticated with credentials or
    not.  Currently we do not yet support authenticated mode against sentry.io.
 
-You now have a folder named `.semaphore` in your current working directory. To
+You now have a folder named `.relay` in your current working directory. To
 launch the server, run:
 
-    semaphore run
+    relay run
 
 If you moved your config folder somewhere else, you can use the `-c` option:
 
-    semaphore run -c ./my/custom/semaphore_folder/
+    relay run -c ./my/custom/relay_folder/
 
 ## Setting up a Project
 
@@ -44,7 +44,7 @@ Relay.
 Create a new file in the form `project_id.json`:
 
 ```
-.semaphore/projects/___PROJECT_ID___.json
+.relay/projects/___PROJECT_ID___.json
 ```
 
 With the following content:
@@ -69,7 +69,7 @@ will send events to it.  DSNs unknown for this project will be rejected.
 
 ## Sending a Test Event
 
-Launch the server with `semaphore run`, and set up any SDK with the following DSN:
+Launch the server with `relay run`, and set up any SDK with the following DSN:
 
 ```
 http://___PUBLIC_KEY___@127.0.0.1:3000/___PROJECT_ID___
@@ -78,7 +78,7 @@ http://___PUBLIC_KEY___@127.0.0.1:3000/___PROJECT_ID___
 As you can see we only changed the host and port of the DSN to point to your
 Relay setup. You should be able to use the SDK normally at this point. Events
 arrive at the Sentry instance that Relay is configured to use in
-`.semaphore/config.yml`.
+`.relay/config.yml`.
 
 ## PII Stripping
 
@@ -94,7 +94,7 @@ The easiest way to go about this is if you already have a raw JSON payload from 
 After iterating on the config, paste it back into the project config you created earlier:
 
 ```
-.semaphore/projects/___PROJECT_ID___.json
+.relay/projects/___PROJECT_ID___.json
 ```
 
 
