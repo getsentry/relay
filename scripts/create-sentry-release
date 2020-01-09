@@ -4,7 +4,7 @@ set -eu
 #   SENTRY_AUTH_TOKEN: Sentry auth token (https://sentry.io/settings/account/api/auth-tokens/)
 
 VERSION="${1:-}"
-GITHUB_PROJECT="getsentry/semaphore"
+GITHUB_PROJECT="getsentry/relay"
 DOCKER_IMAGE="us.gcr.io/sentryio/semaphore:${VERSION}"
 export SENTRY_ORG="sentry"
 export SENTRY_PROJECT="relay"

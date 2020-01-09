@@ -2,8 +2,8 @@
 name = "relay-cabi"
 version = "0.4.65"
 authors = ["Sentry <oss@sentry.io>"]
-homepage = "https://github.com/getsentry/semaphore"
-repository = "https://github.com/getsentry/semaphore"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
 description = "Exposes some internals of the relay to C."
 edition = "2018"
 license-file = "../LICENSE"

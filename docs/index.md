@@ -6,7 +6,7 @@ from the Sentry SDKs as well as the Sentry server into a proxy process.
 ## Getting started
 
 The Relay server is called `relay`.  Binaries can be downloaded from the
-[GitHub releases page](https://github.com/getsentry/semaphore/releases).  After
+[GitHub releases page](https://github.com/getsentry/relay/releases).  After
 downloading place the binary somewhere on your `PATH` and make it executable.
 
 The `config init` command is provided to initialize the initial config.  The

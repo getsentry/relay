@@ -2,7 +2,7 @@
 minVersion: "0.8.4"
 github:
   owner: getsentry
-  repo: semaphore
+  repo: relay
 changelogPolicy: simple
 targets:
   - name: pypi
