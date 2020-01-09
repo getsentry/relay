@@ -1,8 +1,8 @@
 import json
 import uuid
-from semaphore._lowlevel import lib
-from semaphore._compat import text_type, implements_to_string
-from semaphore.utils import (
+from sentry_relay._lowlevel import lib
+from sentry_relay._compat import text_type, implements_to_string
+from sentry_relay.utils import (
     RustObject,
     encode_str,
     decode_str,
@@ -10,7 +10,7 @@ from semaphore.utils import (
     rustcall,
     make_buf,
 )
-from semaphore.exceptions import UnpackErrorBadSignature
+from sentry_relay.exceptions import UnpackErrorBadSignature
 
 
 __all__ = [

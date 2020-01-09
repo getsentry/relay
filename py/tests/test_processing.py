@@ -1,7 +1,7 @@
 # coding: utf-8
-import semaphore
+import sentry_relay
 
-from semaphore._compat import PY2
+from sentry_relay._compat import PY2
 
 REMARKS = [["myrule", "s", 7, 17]]
 META = {"": {"rem": REMARKS}}
@@ -24,57 +24,57 @@ PII_VARS = {
 
 
 def test_valid_platforms():
-    assert len(semaphore.VALID_PLATFORMS) > 0
-    assert "native" in semaphore.VALID_PLATFORMS
+    assert len(sentry_relay.VALID_PLATFORMS) > 0
+    assert "native" in sentry_relay.VALID_PLATFORMS
 
 
 def test_split_chunks():
-    chunks = semaphore.split_chunks(TEXT, REMARKS)
+    chunks = sentry_relay.split_chunks(TEXT, REMARKS)
     assert chunks == CHUNKS
 
 
 def test_meta_with_chunks():
-    meta = semaphore.meta_with_chunks(TEXT, META)
+    meta = sentry_relay.meta_with_chunks(TEXT, META)
     assert meta == META_WITH_CHUNKS
 
 
 def test_meta_with_chunks_none():
-    meta = semaphore.meta_with_chunks(TEXT, None)
+    meta = sentry_relay.meta_with_chunks(TEXT, None)
     assert meta is None
 
 
 def test_meta_with_chunks_empty():
-    meta = semaphore.meta_with_chunks(TEXT, {})
+    meta = sentry_relay.meta_with_chunks(TEXT, {})
     assert meta == {}
 
 
 def test_meta_with_chunks_empty_remarks():
-    meta = semaphore.meta_with_chunks(TEXT, {"rem": []})
+    meta = sentry_relay.meta_with_chunks(TEXT, {"rem": []})
     assert meta == {"rem": []}
 
 
 def test_meta_with_chunks_dict():
-    meta = semaphore.meta_with_chunks({"test": TEXT, "other": 1}, {"test": META})
+    meta = sentry_relay.meta_with_chunks({"test": TEXT, "other": 1}, {"test": META})
     assert meta == {"test": META_WITH_CHUNKS}
 
 
 def test_meta_with_chunks_list():
-    meta = semaphore.meta_with_chunks(["other", TEXT], {"1": META})
+    meta = sentry_relay.meta_with_chunks(["other", TEXT], {"1": META})
     assert meta == {"1": META_WITH_CHUNKS}
 
 
 def test_meta_with_chunks_missing_value():
-    meta = semaphore.meta_with_chunks(None, META)
+    meta = sentry_relay.meta_with_chunks(None, META)
     assert meta == META
 
 
 def test_meta_with_chunks_missing_non_string():
-    meta = semaphore.meta_with_chunks(True, META)
+    meta = sentry_relay.meta_with_chunks(True, META)
     assert meta == META
 
 
 def test_basic_store_normalization():
-    normalizer = semaphore.StoreNormalizer(project_id=1)
+    normalizer = sentry_relay.StoreNormalizer(project_id=1)
     event = normalizer.normalize_event({"tags": []})
     assert event["project"] == 1
     assert event["type"] == "default"
@@ -84,13 +84,13 @@ def test_basic_store_normalization():
 
 
 def test_legacy_json():
-    normalizer = semaphore.StoreNormalizer(project_id=1)
+    normalizer = sentry_relay.StoreNormalizer(project_id=1)
     event = normalizer.normalize_event(raw_event='{"extra":{"x":NaN}}')
     assert event["extra"] == {"x": 0.0}
 
 
 def test_broken_json():
-    normalizer = semaphore.StoreNormalizer(project_id=1)
+    normalizer = sentry_relay.StoreNormalizer(project_id=1)
     bad_str = u"Hello\ud83dWorld🇦🇹!"
     event = normalizer.normalize_event({"message": bad_str})
     assert "Hello" in event["logentry"]["formatted"]
@@ -103,7 +103,7 @@ def test_data_scrubbing_missing_config():
     event = {"extra": PII_VARS}
     config = None
 
-    scrubbed = semaphore.scrub_event(config, event)
+    scrubbed = sentry_relay.scrub_event(config, event)
     assert event == scrubbed
 
 
@@ -111,7 +111,7 @@ def test_data_scrubbing_empty_config():
     event = {"extra": PII_VARS}
     config = {}
 
-    scrubbed = semaphore.scrub_event(config, event)
+    scrubbed = sentry_relay.scrub_event(config, event)
     assert event == scrubbed
 
 
@@ -125,7 +125,7 @@ def test_data_scrubbing_disabled_config():
         "scrubDefaults": True,
     }
 
-    scrubbed = semaphore.scrub_event(config, event)
+    scrubbed = sentry_relay.scrub_event(config, event)
     assert event == scrubbed
 
 
@@ -139,7 +139,7 @@ def test_data_scrubbing_default_config():
         "scrubDefaults": True,
     }
 
-    scrubbed = semaphore.scrub_event(config, event)
+    scrubbed = sentry_relay.scrub_event(config, event)
     assert scrubbed.pop("_meta", None)
     assert scrubbed == {
         "extra": {

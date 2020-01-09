@@ -1,8 +1,8 @@
 import json
 
-from semaphore._compat import string_types, iteritems, text_type
-from semaphore._lowlevel import lib, ffi
-from semaphore.utils import (
+from sentry_relay._compat import string_types, iteritems, text_type
+from sentry_relay._lowlevel import lib, ffi
+from sentry_relay.utils import (
     encode_str,
     decode_str,
     rustcall,

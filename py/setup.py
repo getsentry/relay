@@ -76,7 +76,7 @@ def build_native(spec):
     if sys.platform == "darwin":
         rtld_flags.append("NODELETE")
     spec.add_cffi_module(
-        module_path="semaphore._lowlevel",
+        module_path="sentry_relay._lowlevel",
         dylib=lambda: build.find_dylib("relay", in_path="target/%s" % target),
         header_filename=lambda: build.find_header("relay.h", in_path="include"),
         rtld_flags=rtld_flags,
@@ -84,7 +84,7 @@ def build_native(spec):
 
 
 setup(
-    name="semaphore",
+    name="sentry-relay",
     version=version,
     packages=find_packages(),
     author="Sentry",

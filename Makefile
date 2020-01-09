@@ -125,7 +125,7 @@ style-rust:
 
 style-python: setup-venv
 	.venv/bin/pip install -U black
-	.venv/bin/black --check py tests --exclude '\.eggs|semaphore/_lowlevel.*'
+	.venv/bin/black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
 .PHONY: style-python
 
 # Linting
@@ -155,7 +155,7 @@ format-rust:
 
 format-python: setup-venv
 	.venv/bin/pip install -U black
-	.venv/bin/black py tests --exclude '\.eggs|semaphore/_lowlevel.*'
+	.venv/bin/black py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
 .PHONY: format-python
 
 # Development

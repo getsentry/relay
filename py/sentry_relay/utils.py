@@ -1,9 +1,9 @@
 import os
 import uuid
 import weakref
-from semaphore._lowlevel import ffi, lib
-from semaphore._compat import text_type, with_metaclass
-from semaphore.exceptions import exceptions_by_code, SemaphoreError
+from sentry_relay._lowlevel import ffi, lib
+from sentry_relay._compat import text_type, with_metaclass
+from sentry_relay.exceptions import exceptions_by_code, RelayError
 
 
 attached_refs = weakref.WeakKeyDictionary()
@@ -27,7 +27,7 @@ def rustcall(func, *args):
     if not err:
         return rv
     msg = lib.relay_err_get_last_message()
-    cls = exceptions_by_code.get(err, SemaphoreError)
+    cls = exceptions_by_code.get(err, RelayError)
     exc = cls(decode_str(msg))
     backtrace = decode_str(lib.relay_err_get_backtrace())
     if backtrace:

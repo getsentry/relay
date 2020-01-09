@@ -14,9 +14,9 @@ from pytest_localserver.http import WSGIServer
 from . import SentryLike
 
 
-# HACK: import the envelope module from libsemaphore without requiring to build the cabi
+# HACK: import the envelope module from librelay without requiring to build the cabi
 with open(
-    os.path.abspath(os.path.dirname(__file__)) + "/../../../py/semaphore/envelope.py"
+    os.path.abspath(os.path.dirname(__file__)) + "/../../../py/sentry_relay/envelope.py"
 ) as f:
     envelope_namespace = {}
     eval(compile(f.read(), "envelope.py", "exec"), envelope_namespace)

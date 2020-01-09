@@ -11,7 +11,7 @@
 [![AppVeyor](https://img.shields.io/appveyor/ci/sentry/sentry-agent.svg)](https://ci.appveyor.com/project/sentry/sentry-agent)
 [![codecov without integration tests](https://codecov.io/gh/getsentry/relay/branch/master/graph/badge.svg)](https://codecov.io/gh/getsentry/relay)
 [![GitHub release](https://img.shields.io/github/release/getsentry/relay.svg)](https://github.com/getsentry/relay/releases/latest)
-[![PyPI](https://img.shields.io/pypi/v/semaphore.svg)](https://pypi.python.org/pypi/Semaphore)
+[![PyPI](https://img.shields.io/pypi/v/sentry-relay.svg)](https://pypi.python.org/pypi/sentry-relay)
 [![license](https://img.shields.io/github/license/getsentry/relay.svg)](https://github.com/getsentry/relay/blob/master/LICENSE)
 
 <p align="center">
