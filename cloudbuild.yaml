@@ -10,9 +10,7 @@ steps:
         git init
         git remote add origin https://github.com/getsentry/$REPO_NAME.git
         git fetch --depth=1 origin $COMMIT_SHA
-        git reset --hard FETCH_HEAD
         git config -f .gitmodules submodule.core.url https://github.com/getsentry/$REPO_NAME.git
-        git submodule update --init
 
   - name: "gcr.io/cloud-builders/docker"
     entrypoint: "bash"
