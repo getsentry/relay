@@ -1,9 +1,9 @@
 # coding: utf-8
 import pytest
 
-from semaphore._lowlevel import lib
-from semaphore.utils import rustcall
-from semaphore.exceptions import Panic
+from sentry_relay._lowlevel import lib
+from sentry_relay.utils import rustcall
+from sentry_relay.exceptions import Panic
 
 
 def test_panic():

@@ -1,13 +1,13 @@
-from semaphore._compat import implements_to_string
-from semaphore._lowlevel import lib
+from sentry_relay._compat import implements_to_string
+from sentry_relay._lowlevel import lib
 
 
-__all__ = ["SemaphoreError"]
+__all__ = ["RelayError"]
 exceptions_by_code = {}
 
 
 @implements_to_string
-class SemaphoreError(Exception):
+class RelayError(Exception):
     code = None
 
     def __init__(self, msg):
@@ -22,7 +22,7 @@ class SemaphoreError(Exception):
         return rv
 
 
-def _make_error(error_name, base=SemaphoreError, code=None):
+def _make_error(error_name, base=RelayError, code=None):
     class Exc(base):
         pass
 
@@ -43,7 +43,7 @@ def _get_error_base(error_name):
         if base_class is None:
             base_class = _make_error(base_error_name)
         return base_class
-    return SemaphoreError
+    return RelayError
 
 
 def _make_exceptions():

@@ -1,5 +1,5 @@
 # FFI
-semaphore/_lowlevel*
+sentry_relay/_lowlevel*
 
 # Wheels
 dist
