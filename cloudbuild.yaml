@@ -1,5 +1,7 @@
 steps:
-  # GCB only fetches a source archive, but the build requires an actual git repo
+  # GCB only fetches a source archive, but the build requires an actual git repo. Note that the
+  # clone behavior changed multiple times between 2017 and 2019 and might not be stable.
+  # See: https://github.com/GoogleCloudPlatform/cloud-builders/issues/236#issuecomment-558991730
   - name: "gcr.io/cloud-builders/git"
     entrypoint: "bash"
     args:
