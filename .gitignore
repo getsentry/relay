@@ -1,13 +1,20 @@
+# Rust
 **/*.rs.bk
-*.pyc
-.DS_Store
-.hypothesis
+target
+
+# Python
+.venv/
 .pytest_cache
-.semaphore
-Cargo.lock
+*.pyc
+
+# Runtime files
+/.semaphore/
 GeoLite2-City.mmdb
 GeoLiteCity.dat
-target
-.venv/
-/.idea/
+
+# Docs
 /site
+
+# Editors
+/.idea/
+.DS_Store
