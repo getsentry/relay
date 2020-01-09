@@ -203,4 +203,4 @@ GeoLite2-City.mmdb:
 	@curl https://download.maxmind.com/app/geoip_download\?edition_id=GeoLite2-City\&license_key=${GEOIP_LICENSE}\&suffix=tar.gz | tar xz --to-stdout $(wildcards) '*/GeoLite2-City.mmdb' > $@
 
 .git/hooks/pre-commit:
-	cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.py pre-commit || echo "WARNING: There is no git hooks directory"
+	cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.py pre-commit
