@@ -7,10 +7,10 @@ import pytest
 
 from . import SentryLike
 
-SEMAPHORE_BIN = [os.environ.get("SEMAPHORE_BIN") or "target/debug/semaphore"]
+RELAY_BIN = [os.environ.get("RELAY_BIN") or "target/debug/relay"]
 
-if os.environ.get("SEMAPHORE_AS_CARGO", "false") == "true":
-    SEMAPHORE_BIN = ["cargo", "run", "--"]
+if os.environ.get("RELAY_AS_CARGO", "false") == "true":
+    RELAY_BIN = ["cargo", "run", "--"]
 
 
 class Relay(SentryLike):
@@ -75,13 +75,13 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
         dir.join("config.yml").write(json.dumps(default_opts))
 
         output = subprocess.check_output(
-            SEMAPHORE_BIN + ["-c", str(dir), "credentials", "generate"]
+            RELAY_BIN + ["-c", str(dir), "credentials", "generate"]
         )
 
         if prepare is not None:
             prepare(dir)
 
-        process = background_process(SEMAPHORE_BIN + ["-c", str(dir), "run"])
+        process = background_process(RELAY_BIN + ["-c", str(dir), "run"])
 
         public_key = None
         relay_id = None

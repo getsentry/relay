@@ -12,7 +12,7 @@ use failure::Fail;
 use futures::{future, future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 
-use semaphore_common::{Config, LogError, PublicKey, RelayId, RetryBackoff};
+use relay_common::{Config, LogError, PublicKey, RelayId, RetryBackoff};
 
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::utils::{self, ApiErrorResponse, Response};

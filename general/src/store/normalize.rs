@@ -384,7 +384,7 @@ impl<'a> NormalizeProcessor<'a> {
             user_agent::normalize_user_agent(_event);
 
             #[cfg(not(feature = "uaparser"))]
-            panic!("semaphore not built with uaparser feature");
+            panic!("relay not built with uaparser feature");
         }
     }
 }

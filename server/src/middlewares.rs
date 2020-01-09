@@ -5,7 +5,7 @@ use actix_web::middleware::{Finished, Middleware, Response, Started};
 use actix_web::{http::header, Body, HttpMessage, HttpRequest, HttpResponse};
 use futures::prelude::*;
 
-use semaphore_common::metric;
+use relay_common::metric;
 
 use crate::constants::SERVER;
 use crate::utils::ApiErrorResponse;

@@ -135,17 +135,17 @@ def send_message(task_set, msg_body):
     return client.post(url, headers=headers, data=msg_body)
 
 
-def _get_semaphore_address(config):
-    semaphore_settings = config.get("semaphore", {})
-    host = semaphore_settings.get("host")
-    port = semaphore_settings.get("port")
+def _get_relay_address(config):
+    relay_settings = config.get("relay", {})
+    host = relay_settings.get("host")
+    port = relay_settings.get("port")
 
     if host is None:
-        raise "Missing semaphore.host settings from config file:{}".format(
+        raise "Missing relay.host settings from config file:{}".format(
             _get_config_file_path()
         )
     if port is None:
-        raise "Missing semaphore.port settings from config file:{}".format(
+        raise "Missing relay.port settings from config file:{}".format(
             _get_config_file_path()
         )
 
@@ -187,7 +187,7 @@ class StandardClient(HttpLocust):
     max_wait = 200
     task_set = ProjectApp
     config = _get_config()
-    host = _get_semaphore_address(config)
+    host = _get_relay_address(config)
 
     def setup(self):
         EventsCache.load_events()

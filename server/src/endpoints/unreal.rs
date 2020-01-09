@@ -1,7 +1,7 @@
 use actix_web::{actix::ResponseFuture, HttpRequest, HttpResponse};
 use futures::Future;
 
-use semaphore_general::protocol::EventId;
+use relay_general::protocol::EventId;
 
 use crate::body::ForwardBody;
 use crate::constants::UNREAL_USER_HEADER;

@@ -13,7 +13,7 @@ def get_topic_name(worker_id):
     """
     Generate a unique topic name for each test
     """
-    return lambda topic: f"semaphore-test-{topic}-{worker_id}"
+    return lambda topic: f"relay-test-{topic}-{worker_id}"
 
 
 @pytest.fixture

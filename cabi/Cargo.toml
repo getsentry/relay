@@ -1,5 +1,5 @@
 [package]
-name = "semaphore-cabi"
+name = "relay-cabi"
 version = "0.4.65"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://github.com/getsentry/semaphore"
@@ -9,7 +9,7 @@ edition = "2018"
 license-file = "../LICENSE"
 
 [lib]
-name = "semaphore"
+name = "relay"
 crate-type = ["cdylib"]
 
 [workspace]
@@ -27,8 +27,8 @@ serde = {version = "1.0.98", features = ["derive"]}
 serde_json = "1.0.40"
 uuid = "0.8.1"
 
-[dependencies.semaphore-common]
+[dependencies.relay-common]
 path = "../common"
 
-[dependencies.semaphore-general]
+[dependencies.relay-general]
 path = "../general"

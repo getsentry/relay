@@ -6,20 +6,20 @@ use std::slice;
 use std::str;
 
 use failure::Error;
-use semaphore_common::{KeyParseError, UnpackError, Uuid};
-use semaphore_general::types::ProcessingAction;
+use relay_common::{KeyParseError, UnpackError, Uuid};
+use relay_general::types::ProcessingAction;
 
 use crate::utils::{set_panic_hook, Panic, LAST_ERROR};
 
 /// Represents a uuid.
 #[repr(C)]
-pub struct SemaphoreUuid {
+pub struct RelayUuid {
     pub data: [u8; 16],
 }
 
 /// Represents a string.
 #[repr(C)]
-pub struct SemaphoreStr {
+pub struct RelayStr {
     pub data: *mut c_char,
     pub len: usize,
     pub owned: bool,
@@ -27,7 +27,7 @@ pub struct SemaphoreStr {
 
 /// Represents a buffer.
 #[repr(C)]
-pub struct SemaphoreBuf {
+pub struct RelayBuf {
     pub data: *mut u8,
     pub len: usize,
     pub owned: bool,
@@ -35,67 +35,65 @@ pub struct SemaphoreBuf {
 
 /// Represents all possible error codes
 #[repr(u32)]
-pub enum SemaphoreErrorCode {
+pub enum RelayErrorCode {
     NoError = 0,
     Panic = 1,
     Unknown = 2,
 
-    // semaphore_common::auth::KeyParseError
+    // relay_common::auth::KeyParseError
     KeyParseErrorBadEncoding = 1000,
     KeyParseErrorBadKey = 1001,
 
-    // semaphore_common::auth::UnpackError
+    // relay_common::auth::UnpackError
     UnpackErrorBadSignature = 1003,
     UnpackErrorBadPayload = 1004,
     UnpackErrorSignatureExpired = 1005,
 
-    // semaphore_general::types::annotated::ProcessingAction
+    // relay_general::types::annotated::ProcessingAction
     ProcessingActionInvalidTransaction = 2000,
 }
 
-impl SemaphoreErrorCode {
+impl RelayErrorCode {
     /// This maps all errors that can possibly happen.
-    pub fn from_error(error: &Error) -> SemaphoreErrorCode {
+    pub fn from_error(error: &Error) -> RelayErrorCode {
         for cause in error.iter_chain() {
             if let Some(..) = cause.downcast_ref::<Panic>() {
-                return SemaphoreErrorCode::Panic;
+                return RelayErrorCode::Panic;
             }
             if let Some(err) = cause.downcast_ref::<KeyParseError>() {
                 return match err {
-                    KeyParseError::BadEncoding => SemaphoreErrorCode::KeyParseErrorBadEncoding,
-                    KeyParseError::BadKey => SemaphoreErrorCode::KeyParseErrorBadKey,
+                    KeyParseError::BadEncoding => RelayErrorCode::KeyParseErrorBadEncoding,
+                    KeyParseError::BadKey => RelayErrorCode::KeyParseErrorBadKey,
                 };
             }
             if let Some(err) = cause.downcast_ref::<UnpackError>() {
                 return match err {
-                    UnpackError::BadSignature => SemaphoreErrorCode::UnpackErrorBadSignature,
-                    UnpackError::BadPayload(..) => SemaphoreErrorCode::UnpackErrorBadPayload,
-                    UnpackError::SignatureExpired => {
-                        SemaphoreErrorCode::UnpackErrorSignatureExpired
-                    }
+                    UnpackError::BadSignature => RelayErrorCode::UnpackErrorBadSignature,
+                    UnpackError::BadPayload(..) => RelayErrorCode::UnpackErrorBadPayload,
+                    UnpackError::SignatureExpired => RelayErrorCode::UnpackErrorSignatureExpired,
                 };
             }
             if let Some(err) = cause.downcast_ref::<ProcessingAction>() {
                 return match err {
                     ProcessingAction::InvalidTransaction(_) => {
-                        SemaphoreErrorCode::ProcessingActionInvalidTransaction
+                        RelayErrorCode::ProcessingActionInvalidTransaction
                     }
-                    _ => SemaphoreErrorCode::Unknown,
+                    _ => RelayErrorCode::Unknown,
                 };
             }
         }
-        SemaphoreErrorCode::Unknown
+        RelayErrorCode::Unknown
     }
 }
 
-// SemaphoreStr is immutable, thus it can be Send + Sync
+// RelayStr is immutable, thus it can be Send + Sync
 
-unsafe impl Sync for SemaphoreStr {}
-unsafe impl Send for SemaphoreStr {}
+unsafe impl Sync for RelayStr {}
+unsafe impl Send for RelayStr {}
 
-impl Default for SemaphoreStr {
-    fn default() -> SemaphoreStr {
-        SemaphoreStr {
+impl Default for RelayStr {
+    fn default() -> RelayStr {
+        RelayStr {
             data: ptr::null_mut(),
             len: 0,
             owned: false,
@@ -103,30 +101,30 @@ impl Default for SemaphoreStr {
     }
 }
 
-impl From<String> for SemaphoreStr {
-    fn from(string: String) -> SemaphoreStr {
-        SemaphoreStr::from_string(string)
+impl From<String> for RelayStr {
+    fn from(string: String) -> RelayStr {
+        RelayStr::from_string(string)
     }
 }
 
-impl<'a> From<&'a str> for SemaphoreStr {
-    fn from(string: &str) -> SemaphoreStr {
-        SemaphoreStr::new(string)
+impl<'a> From<&'a str> for RelayStr {
+    fn from(string: &str) -> RelayStr {
+        RelayStr::new(string)
     }
 }
 
-impl SemaphoreStr {
-    pub fn new(s: &str) -> SemaphoreStr {
-        SemaphoreStr {
+impl RelayStr {
+    pub fn new(s: &str) -> RelayStr {
+        RelayStr {
             data: s.as_ptr() as *mut c_char,
             len: s.len(),
             owned: false,
         }
     }
 
-    pub fn from_string(mut s: String) -> SemaphoreStr {
+    pub fn from_string(mut s: String) -> RelayStr {
         s.shrink_to_fit();
-        let rv = SemaphoreStr {
+        let rv = RelayStr {
             data: s.as_ptr() as *mut c_char,
             len: s.len(),
             owned: true,
@@ -149,19 +147,19 @@ impl SemaphoreStr {
     }
 }
 
-impl SemaphoreUuid {
-    pub fn new(uuid: Uuid) -> SemaphoreUuid {
+impl RelayUuid {
+    pub fn new(uuid: Uuid) -> RelayUuid {
         unsafe { mem::transmute(*uuid.as_bytes()) }
     }
 
     pub fn as_uuid(&self) -> &Uuid {
-        unsafe { &*(self as *const SemaphoreUuid as *const Uuid) }
+        unsafe { &*(self as *const RelayUuid as *const Uuid) }
     }
 }
 
-impl Default for SemaphoreBuf {
-    fn default() -> SemaphoreBuf {
-        SemaphoreBuf {
+impl Default for RelayBuf {
+    fn default() -> RelayBuf {
+        RelayBuf {
             data: ptr::null_mut(),
             len: 0,
             owned: false,
@@ -169,24 +167,24 @@ impl Default for SemaphoreBuf {
     }
 }
 
-impl From<Uuid> for SemaphoreUuid {
-    fn from(uuid: Uuid) -> SemaphoreUuid {
-        SemaphoreUuid::new(uuid)
+impl From<Uuid> for RelayUuid {
+    fn from(uuid: Uuid) -> RelayUuid {
+        RelayUuid::new(uuid)
     }
 }
 
-impl SemaphoreBuf {
-    pub fn new(b: &[u8]) -> SemaphoreBuf {
-        SemaphoreBuf {
+impl RelayBuf {
+    pub fn new(b: &[u8]) -> RelayBuf {
+        RelayBuf {
             data: b.as_ptr() as *mut u8,
             len: b.len(),
             owned: false,
         }
     }
 
-    pub fn from_vec(mut b: Vec<u8>) -> SemaphoreBuf {
+    pub fn from_vec(mut b: Vec<u8>) -> RelayBuf {
         b.shrink_to_fit();
-        let rv = SemaphoreBuf {
+        let rv = RelayBuf {
             data: b.as_ptr() as *mut u8,
             len: b.len(),
             owned: true,
@@ -211,7 +209,7 @@ impl SemaphoreBuf {
 
 /// Initializes the library
 #[no_mangle]
-pub unsafe extern "C" fn semaphore_init() {
+pub unsafe extern "C" fn relay_init() {
     set_panic_hook();
 }
 
@@ -219,12 +217,12 @@ pub unsafe extern "C" fn semaphore_init() {
 ///
 /// If there is no error, 0 is returned.
 #[no_mangle]
-pub unsafe extern "C" fn semaphore_err_get_last_code() -> SemaphoreErrorCode {
+pub unsafe extern "C" fn relay_err_get_last_code() -> RelayErrorCode {
     LAST_ERROR.with(|e| {
         if let Some(ref err) = *e.borrow() {
-            SemaphoreErrorCode::from_error(err)
+            RelayErrorCode::from_error(err)
         } else {
-            SemaphoreErrorCode::NoError
+            RelayErrorCode::NoError
         }
     })
 }
@@ -232,9 +230,9 @@ pub unsafe extern "C" fn semaphore_err_get_last_code() -> SemaphoreErrorCode {
 /// Returns the last error message.
 ///
 /// If there is no error an empty string is returned.  This allocates new memory
-/// that needs to be freed with `semaphore_str_free`.
+/// that needs to be freed with `relay_str_free`.
 #[no_mangle]
-pub unsafe extern "C" fn semaphore_err_get_last_message() -> SemaphoreStr {
+pub unsafe extern "C" fn relay_err_get_last_message() -> RelayStr {
     use std::fmt::Write;
     LAST_ERROR.with(|e| {
         if let Some(ref err) = *e.borrow() {
@@ -242,16 +240,16 @@ pub unsafe extern "C" fn semaphore_err_get_last_message() -> SemaphoreStr {
             for cause in err.iter_chain().skip(1) {
                 write!(&mut msg, "\n  caused by: {}", cause).ok();
             }
-            SemaphoreStr::from_string(msg)
+            RelayStr::from_string(msg)
         } else {
-            SemaphoreStr::default()
+            RelayStr::default()
         }
     })
 }
 
 /// Returns the panic information as string.
 #[no_mangle]
-pub unsafe extern "C" fn semaphore_err_get_backtrace() -> SemaphoreStr {
+pub unsafe extern "C" fn relay_err_get_backtrace() -> RelayStr {
     LAST_ERROR.with(|e| {
         if let Some(ref error) = *e.borrow() {
             let backtrace = error.backtrace().to_string();
@@ -259,33 +257,33 @@ pub unsafe extern "C" fn semaphore_err_get_backtrace() -> SemaphoreStr {
                 use std::fmt::Write;
                 let mut out = String::new();
                 write!(&mut out, "stacktrace: {}", backtrace).ok();
-                SemaphoreStr::from_string(out)
+                RelayStr::from_string(out)
             } else {
-                SemaphoreStr::default()
+                RelayStr::default()
             }
         } else {
-            SemaphoreStr::default()
+            RelayStr::default()
         }
     })
 }
 
 /// Clears the last error.
 #[no_mangle]
-pub unsafe extern "C" fn semaphore_err_clear() {
+pub unsafe extern "C" fn relay_err_clear() {
     LAST_ERROR.with(|e| {
         *e.borrow_mut() = None;
     });
 }
 
 ffi_fn! {
-    /// Creates a semaphore str from a c string.
+    /// Creates a Relay str from a c string.
     ///
     /// This sets the string to owned.  In case it's not owned you either have
     /// to make sure you are not freeing the memory or you need to set the
     /// owned flag to false.
-    unsafe fn semaphore_str_from_cstr(s: *const c_char) -> Result<SemaphoreStr> {
+    unsafe fn relay_str_from_cstr(s: *const c_char) -> Result<RelayStr> {
         let s = CStr::from_ptr(s).to_str()?;
-        Ok(SemaphoreStr {
+        Ok(RelayStr {
             data: s.as_ptr() as *mut _,
             len: s.len(),
             owned: true,
@@ -293,23 +291,23 @@ ffi_fn! {
     }
 }
 
-/// Frees a semaphore str.
+/// Frees a Relay str.
 ///
 /// If the string is marked as not owned then this function does not
 /// do anything.
 #[no_mangle]
-pub unsafe extern "C" fn semaphore_str_free(s: *mut SemaphoreStr) {
+pub unsafe extern "C" fn relay_str_free(s: *mut RelayStr) {
     if !s.is_null() {
         (*s).free()
     }
 }
 
-/// Frees a semaphore buf.
+/// Frees a Relay buf.
 ///
 /// If the buffer is marked as not owned then this function does not
 /// do anything.
 #[no_mangle]
-pub unsafe extern "C" fn semaphore_buf_free(b: *mut SemaphoreBuf) {
+pub unsafe extern "C" fn relay_buf_free(b: *mut RelayBuf) {
     if !b.is_null() {
         (*b).free()
     }
@@ -317,7 +315,7 @@ pub unsafe extern "C" fn semaphore_buf_free(b: *mut SemaphoreBuf) {
 
 /// Returns true if the uuid is nil
 #[no_mangle]
-pub unsafe extern "C" fn semaphore_uuid_is_nil(uuid: *const SemaphoreUuid) -> bool {
+pub unsafe extern "C" fn relay_uuid_is_nil(uuid: *const RelayUuid) -> bool {
     if let Ok(uuid) = Uuid::from_slice(&(*uuid).data[..]) {
         uuid == Uuid::nil()
     } else {
@@ -328,9 +326,9 @@ pub unsafe extern "C" fn semaphore_uuid_is_nil(uuid: *const SemaphoreUuid) -> bo
 /// Formats the UUID into a string.
 ///
 /// The string is newly allocated and needs to be released with
-/// `semaphore_cstr_free`.
+/// `relay_cstr_free`.
 #[no_mangle]
-pub unsafe extern "C" fn semaphore_uuid_to_str(uuid: *const SemaphoreUuid) -> SemaphoreStr {
+pub unsafe extern "C" fn relay_uuid_to_str(uuid: *const RelayUuid) -> RelayStr {
     let uuid = Uuid::from_slice(&(*uuid).data[..]).unwrap_or_else(|_| Uuid::nil());
-    SemaphoreStr::from_string(uuid.to_hyphenated_ref().to_string())
+    RelayStr::from_string(uuid.to_hyphenated_ref().to_string())
 }

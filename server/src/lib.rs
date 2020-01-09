@@ -22,9 +22,10 @@ mod utils;
 #[cfg(feature = "processing")]
 mod quotas;
 
+use relay_common::Config;
+
 use crate::actors::controller::Controller;
 use crate::actors::server::Server;
-use semaphore_common::Config;
 
 pub use crate::actors::controller::ServerError;
 

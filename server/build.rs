@@ -10,7 +10,7 @@ fn main() {
 
     write!(
         f,
-        "pub const SERVER: &str = \"semaphore/{}\";\n",
+        "pub const SERVER: &str = \"sentry-relay/{}\";\n",
         env::var("CARGO_PKG_VERSION").unwrap()
     )
     .unwrap();

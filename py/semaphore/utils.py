@@ -9,7 +9,7 @@ from semaphore.exceptions import exceptions_by_code, SemaphoreError
 attached_refs = weakref.WeakKeyDictionary()
 
 
-lib.semaphore_init()
+lib.relay_init()
 os.environ["RUST_BACKTRACE"] = "1"
 
 
@@ -21,15 +21,15 @@ class _NoDict(type):
 
 def rustcall(func, *args):
     """Calls rust method and does some error handling."""
-    lib.semaphore_err_clear()
+    lib.relay_err_clear()
     rv = func(*args)
-    err = lib.semaphore_err_get_last_code()
+    err = lib.relay_err_get_last_code()
     if not err:
         return rv
-    msg = lib.semaphore_err_get_last_message()
+    msg = lib.relay_err_get_last_message()
     cls = exceptions_by_code.get(err, SemaphoreError)
     exc = cls(decode_str(msg))
-    backtrace = decode_str(lib.semaphore_err_get_backtrace())
+    backtrace = decode_str(lib.relay_err_get_backtrace())
     if backtrace:
         exc.rust_info = backtrace
     raise exc
@@ -79,12 +79,12 @@ def decode_str(s, free=False):
         return ffi.unpack(s.data, s.len).decode("utf-8", "replace")
     finally:
         if free:
-            lib.semaphore_str_free(ffi.addressof(s))
+            lib.relay_str_free(ffi.addressof(s))
 
 
 def encode_str(s, mutable=False):
-    """Encodes a SemaphoreStr"""
-    rv = ffi.new("SemaphoreStr *")
+    """Encodes a RelayStr"""
+    rv = ffi.new("RelayStr *")
     if isinstance(s, text_type):
         s = s.encode("utf-8")
     if mutable:
@@ -99,7 +99,7 @@ def encode_str(s, mutable=False):
 
 def make_buf(value):
     buf = memoryview(bytes(value))
-    rv = ffi.new("SemaphoreBuf *")
+    rv = ffi.new("RelayBuf *")
     rv.data = ffi.from_buffer(buf)
     rv.len = len(buf)
     attached_refs[rv] = buf

@@ -1,5 +1,5 @@
 {
-  "release": "semaphore@0.4.46",
+  "release": "relay@0.4.46",
   "dist": null,
   "platform": "native",
   "message": "medium event",
@@ -36,7 +36,7 @@
     ],
     [
       "release",
-      "semaphore@0.4.46"
+      "relay@0.4.46"
     ],
     [
       "server_name",
@@ -769,7 +769,7 @@
   "debug_meta": {
     "images": [
       {
-        "code_file": "/bin/semaphore",
+        "code_file": "/bin/relay",
         "arch": "x86_64",
         "image_addr": "0x55e0855c6000",
         "image_size": 46197295312896,
@@ -886,7 +886,7 @@
             {
               "function": "std::sys::unix::thread::Thread::new::thread_start",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/sys/unix/thread.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN3std3sys4unix6thread6Thread3new12thread_start17h382c6ae14181d163E",
               "filename": "src/libstd/sys/unix/thread.rs",
               "lineno": 79,
@@ -900,7 +900,7 @@
             {
               "function": "std::sys_common::thread::start_thread",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/sys_common/thread.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN3std10sys_common6thread12start_thread17h562a7c4953cb1d31E",
               "filename": "src/libstd/sys_common/thread.rs",
               "lineno": 13,
@@ -914,7 +914,7 @@
             {
               "function": "alloc::boxed::Box<T>::call_once",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/liballoc/boxed.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN83_$LT$alloc..boxed..Box$LT$F$GT$$u20$as$u20$core..ops..function..FnOnce$LT$A$GT$$GT$9call_once17h13f473dbcdaa0fefE",
               "filename": "boxed.rs",
               "raw_function": "<alloc::boxed::Box<F> as core::ops::function::FnOnce<A>>::call_once",
@@ -929,7 +929,7 @@
             {
               "function": "alloc::boxed::Box<T>::call_once",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/liballoc/boxed.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN83_$LT$alloc..boxed..Box$LT$F$GT$$u20$as$u20$core..ops..function..FnOnce$LT$A$GT$$GT$9call_once17h2877b2aefb0fd627E",
               "filename": "boxed.rs",
               "raw_function": "<alloc::boxed::Box<F> as core::ops::function::FnOnce<A>>::call_once",
@@ -944,7 +944,7 @@
             {
               "function": "core::ops::function::FnOnce::call_once{{vtable.shim}}",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libcore/ops/function.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN4core3ops8function6FnOnce40call_once$u7b$$u7b$vtable.shim$u7d$$u7d$17ha5d6b892fbcc73a1E",
               "filename": "function.rs",
               "lineno": 235,
@@ -958,7 +958,7 @@
             {
               "function": "std::thread::Builder::spawn_unchecked::{{closure}}",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/mod.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN3std6thread7Builder15spawn_unchecked28_$u7b$$u7b$closure$u7d$$u7d$17he3d74607e799ca7cE",
               "filename": "mod.rs",
               "lineno": 469,
@@ -972,7 +972,7 @@
             {
               "function": "std::panic::catch_unwind",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/panic.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN3std5panic12catch_unwind17ha74efd75fd14f5faE",
               "filename": "panic.rs",
               "lineno": 394,
@@ -986,7 +986,7 @@
             {
               "function": "std::panicking::try",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/panicking.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN3std9panicking3try17h08ccbd65392e53f5E",
               "filename": "panicking.rs",
               "lineno": 275,
@@ -1000,7 +1000,7 @@
             {
               "function": "__rust_maybe_catch_panic",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libpanic_unwind/lib.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "__rust_maybe_catch_panic",
               "filename": "src/libpanic_unwind/lib.rs",
               "lineno": 80,
@@ -1013,7 +1013,7 @@
             {
               "function": "std::sys_common::backtrace::__rust_begin_short_backtrace",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/sys_common/backtrace.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN3std10sys_common9backtrace28__rust_begin_short_backtrace17hf0c64eae0c710d1cE",
               "filename": "backtrace.rs",
               "lineno": 77,
@@ -1033,7 +1033,7 @@
                 "                trace!(\"Polling thread loop started\");",
                 "                loop {"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085bf5921",
               "symbol": "_ZN7rdkafka8producer13base_producer25ThreadedProducer$LT$C$GT$5start28_$u7b$$u7b$closure$u7d$$u7d$17had49b95808be4a01E",
               "post_context": [
@@ -1062,7 +1062,7 @@
                 "    /// and execute the message delivery callbacks. Returns the number of events served.",
                 "    pub fn poll<T: Into<Option<Duration>>>(&self, timeout: T) -> i32 {"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085bf592f",
               "symbol": "_ZN7rdkafka8producer13base_producer21BaseProducer$LT$C$GT$4poll17h211d63376c4fbfafE",
               "post_context": [
@@ -1091,7 +1091,7 @@
                 "int rd_kafka_poll (rd_kafka_t *rk, int timeout_ms) {",
                 "        rd_kafka_app_polled(rk);"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085c1d565",
               "symbol": "rd_kafka_poll",
               "post_context": [
@@ -1119,7 +1119,7 @@
                 "                rd_kafka_op_res_t res;",
                 ""
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085c517aa",
               "symbol": "rd_kafka_q_serve",
               "post_context": [
@@ -1147,7 +1147,7 @@
                 "        TAILQ_REMOVE(&rkq->rkq_q, rko, rko_link);",
                 "        rkq->rkq_qlen--;"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085c517ef",
               "symbol": "rd_kafka_q_deq0",
               "post_context": [
@@ -1175,7 +1175,7 @@
                 "\tcase RD_KAFKA_OP_ERR:",
                 "\t\tif (rk->rk_conf.error_cb)"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085c22c90",
               "symbol": "rd_kafka_poll_cb",
               "post_context": [
@@ -1203,7 +1203,7 @@
                 "        _client: *mut RDKafka, err: i32, reason: *const i8,",
                 "        opaque: *mut c_void) {"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085bf9727",
               "symbol": "_ZN7rdkafka6client15native_error_cb17ha810c3c24bb4991dE",
               "post_context": [
@@ -1231,7 +1231,7 @@
                 "    let err = rdsys::primitive_to_rd_kafka_resp_err_t(err)",
                 "        .expect(\"global error not an rd_kafka_resp_err_t\");"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085bf9730",
               "symbol": "_ZN4core6option15Option$LT$T$GT$6expect17h4fe3ced09ad8906cE",
               "post_context": [
@@ -1259,7 +1259,7 @@
                 "",
                 "    let context = Box::from_raw(opaque as *mut C);"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085bf97bf",
               "symbol": "_ZN50_$LT$T$u20$as$u20$core..convert..Into$LT$U$GT$$GT$4into17hfadfa31784844ea9E",
               "post_context": [
@@ -1288,7 +1288,7 @@
                 "",
                 "    fn error(&self, error: KafkaError, reason: &str) {"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085bf980f",
               "symbol": "_ZN117_$LT$rdkafka..producer..future_producer..FutureProducerContext$LT$C$GT$$u20$as$u20$rdkafka..client..ClientContext$GT$5error17hfae0858484938d57E",
               "post_context": [
@@ -1317,7 +1317,7 @@
                 "    /// Receives global errors from the librdkafka client.",
                 "    fn error(&self, error: KafkaError, reason: &str) {"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085bf8e91",
               "symbol": "_ZN7rdkafka6client13ClientContext5error17hdf50b41b69da8585E",
               "post_context": [
@@ -1345,7 +1345,7 @@
                 "        }",
                 "        None => {"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085cc09a4",
               "symbol": "_ZN3log5__log17h9d2c15ae4a46a97dE",
               "post_context": [
@@ -1372,7 +1372,7 @@
                 "    fn log(&self, record: &log::Record<'_>) {",
                 "        if self.options.create_issue_for_record(record) {"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085eafb55",
               "symbol": "_ZN62_$LT$sentry..integrations..log..Logger$u20$as$u20$log..Log$GT$3log17h74fdddc6eb0d8678E",
               "post_context": [
@@ -1401,7 +1401,7 @@
                 "    {",
                 "        with_client_impl! {{"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085ed600a",
               "symbol": "_ZN6sentry3hub3Hub11with_active17h417fe35d1f05cb26E",
               "post_context": [
@@ -1429,7 +1429,7 @@
                 "        F: FnOnce(&Arc<Hub>) -> R,",
                 "    {"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085ed600a",
               "symbol": "_ZN6sentry3hub3Hub4with17haf8fa2f14f80e912E",
               "post_context": [
@@ -1451,7 +1451,7 @@
             {
               "function": "std::thread::local::LocalKey<T>::with",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$4with17h68b593154ee42ac6E",
               "filename": "local.rs",
               "lineno": 239,
@@ -1465,7 +1465,7 @@
             {
               "function": "std::thread::local::LocalKey<T>::try_with",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN3std6thread5local17LocalKey$LT$T$GT$8try_with17h5187c062a340e6caE",
               "filename": "local.rs",
               "lineno": 259,
@@ -1479,7 +1479,7 @@
             {
               "function": "sentry::hub::USE_PROCESS_HUB::__getit",
               "abs_path": "<::std::thread::local::__thread_local_inner macros>",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN6sentry3hub15USE_PROCESS_HUB7__getit17h65f6123090b5d98fE",
               "filename": "<::std::thread::local::__thread_local_inner macros>",
               "lineno": 29,
@@ -1493,7 +1493,7 @@
             {
               "function": "std::thread::local::fast::Key<T>::get",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN3std6thread5local4fast12Key$LT$T$GT$3get17h652912daba8d1e1aE",
               "filename": "local.rs",
               "lineno": 416,
@@ -1507,7 +1507,7 @@
             {
               "function": "std::thread::local::fast::Key<T>::try_initialize",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN3std6thread5local4fast12Key$LT$T$GT$14try_initialize17he00de334c203564fE",
               "filename": "local.rs",
               "lineno": 431,
@@ -1521,7 +1521,7 @@
             {
               "function": "std::thread::local::lazy::LazyKeyInner<T>::initialize",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libstd/thread/local.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN3std6thread5local4lazy21LazyKeyInner$LT$T$GT$10initialize17hcb7c8448ec10eeb3E",
               "filename": "local.rs",
               "lineno": 290,
@@ -1535,7 +1535,7 @@
             {
               "function": "core::ops::function::FnOnce::call_once",
               "abs_path": "/rustc/625451e376bb2e5283fc4741caa0a3e8a2ca4d54/src/libcore/ops/function.rs",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN4core3ops8function6FnOnce9call_once17h1999e6cb52709f11E",
               "filename": "function.rs",
               "lineno": 235,
@@ -1549,7 +1549,7 @@
             {
               "function": "sentry::hub::USE_PROCESS_HUB::__init",
               "abs_path": "<::std::thread::local::__thread_local_inner macros>",
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "symbol": "_ZN6sentry3hub15USE_PROCESS_HUB6__init17h5c83ee45546de0e5E",
               "filename": "<::std::thread::local::__thread_local_inner macros>",
               "lineno": 5,
@@ -1569,7 +1569,7 @@
                 "            value: Some(format!(\"{}\", record.args())),",
                 "            stacktrace: if with_stacktrace {"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085eaf232",
               "symbol": "_ZN6sentry12integrations3log17event_from_record17h704fcb5490f1cd34E",
               "post_context": [
@@ -1596,7 +1596,7 @@
                 "#[allow(unused)]",
                 "pub fn current_stacktrace() -> Option<Stacktrace> {"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085ee926d",
               "symbol": "_ZN6sentry17backtrace_support18current_stacktrace17h19bb8eda9d84d3dcE",
               "post_context": [
@@ -1624,7 +1624,7 @@
                 "#[allow(unused)]",
                 "pub fn backtrace_to_stacktrace(bt: &Backtrace) -> Option<Stacktrace> {"
               ],
-              "package": "/bin/semaphore",
+              "package": "/bin/relay",
               "instruction_addr": "0x55e085ee926d",
               "symbol": "_ZN6sentry17backtrace_support23backtrace_to_stacktrace17hdf80dd54330bf51aE",
               "post_context": [
@@ -1681,7 +1681,7 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e08676c2b0",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
@@ -1690,7 +1690,7 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e0867568af",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
@@ -1699,13 +1699,13 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e085bfd786",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "__rust_maybe_catch_panic",
               "in_app": false,
               "instruction_addr": "0x55e08676cf8a",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
@@ -1714,7 +1714,7 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e085bf5930",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
@@ -1723,7 +1723,7 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e085c1d566",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
@@ -1732,7 +1732,7 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e085c517f0",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
@@ -1741,7 +1741,7 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e085c22c91",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
@@ -1750,7 +1750,7 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e085bf9810",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
@@ -1759,13 +1759,13 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e085bf8e92",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "log::__log",
               "in_app": false,
               "instruction_addr": "0x55e085cc09a5",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
@@ -1774,7 +1774,7 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e085eafb56",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
@@ -1783,13 +1783,13 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e085ed6135",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "sentry::integrations::log::event_from_record",
               "in_app": false,
               "instruction_addr": "0x55e085eaf233",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
@@ -1798,7 +1798,7 @@
                 "orig_in_app": 1
               },
               "instruction_addr": "0x55e085ee926d",
-              "package": "/bin/semaphore"
+              "package": "/bin/relay"
             }
           ]
         },

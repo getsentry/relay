@@ -7,7 +7,7 @@ use bytes::BytesMut;
 use futures::Future;
 use serde::Serialize;
 
-use semaphore_general::protocol::EventId;
+use relay_general::protocol::EventId;
 
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};

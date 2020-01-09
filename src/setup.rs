@@ -8,13 +8,13 @@ use failure::{err_msg, Error};
 use log::{Level, LevelFilter};
 use serde::{Deserialize, Serialize};
 
-use semaphore_common::{metrics, Config, LogFormat, RelayMode};
+use relay_common::{metrics, Config, LogFormat, RelayMode};
 
 pub fn check_config(config: &Config) -> Result<(), Error> {
     if config.relay_mode() == RelayMode::Managed && config.credentials().is_none() {
         return Err(err_msg(
             "relay has no credentials, which are required in managed mode. \
-             Generate some with \"semaphore credentials generate\" first.",
+             Generate some with \"relay credentials generate\" first.",
         ));
     }
 
@@ -59,10 +59,10 @@ pub fn init_logging(config: &Config) {
             .sentry_dsn()
             .map(|dsn| dsn.to_string().parse().unwrap()),
         in_app_include: vec![
-            "semaphore_common::",
-            "semaphore_general::",
-            "semaphore_server::",
-            "semaphore::",
+            "relay_common::",
+            "relay_general::",
+            "relay_server::",
+            "relay::",
         ],
         release: sentry::release_name!(),
         ..Default::default()
@@ -83,18 +83,18 @@ pub fn init_logging(config: &Config) {
             LevelFilter::Debug => {
                 "INFO,\
                  actix_web::pipeline=DEBUG,\
-                 semaphore_common=DEBUG,\
-                 semaphore_general=DEBUG,\
-                 semaphore_server=DEBUG,\
-                 semaphore=DEBUG"
+                 relay_common=DEBUG,\
+                 relay_general=DEBUG,\
+                 relay_server=DEBUG,\
+                 relay=DEBUG"
             }
             LevelFilter::Trace => {
                 "INFO,\
                  actix_web::pipeline=DEBUG,\
-                 semaphore_common=TRACE,\
-                 semaphore_general=TRACE,\
-                 semaphore_server=TRACE,\
-                 semaphore=TRACE"
+                 relay_common=TRACE,\
+                 relay_general=TRACE,\
+                 relay_server=TRACE,\
+                 relay=TRACE"
             }
         }
         .to_string();

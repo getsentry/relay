@@ -1,12 +1,6 @@
-use semaphore_general::processor::process_value;
-use semaphore_general::processor::ProcessValue;
-use semaphore_general::processor::ProcessingState;
-use semaphore_general::processor::Processor;
-use semaphore_general::protocol::HeaderName;
-use semaphore_general::types::Annotated;
-use semaphore_general::types::Meta;
-use semaphore_general::types::ProcessingResult;
-use semaphore_general::types::Value;
+use relay_general::processor::{process_value, ProcessValue, ProcessingState, Processor};
+use relay_general::protocol::HeaderName;
+use relay_general::types::{Annotated, Meta, ProcessingResult, Value};
 
 struct RecordingProcessor(Vec<String>);
 

@@ -43,10 +43,10 @@ test_script:
   - C:\MinGW\bin\mingw32-make test-rust
 
 on_success:
-  - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%.exe .\target\release\semaphore.exe ||
+  - zeus upload -t "application/octet-stream" -n relay-Windows-%arch%.exe .\target\release\relay.exe ||
     echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
-  - 7z a .\semaphore-pdb.zip .\target\release\semaphore.pdb
-  - zeus upload -t "application/octet-stream" -n semaphore-Windows-%arch%-pdb.zip .\semaphore-pdb.zip ||
+  - 7z a .\relay-pdb.zip .\target\release\relay.pdb
+  - zeus upload -t "application/octet-stream" -n relay-Windows-%arch%-pdb.zip .\relay-pdb.zip ||
     echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
   - zeus job update --status=passed ||
     echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul

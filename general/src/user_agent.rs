@@ -12,7 +12,7 @@ lazy_static! {
         let ua_regexes = include_bytes!("../uap-core/regexes.yaml");
         UserAgentParser::from_bytes(ua_regexes).expect(
             "Could not create UserAgent. \
-             You are probably using a bad build of 'semaphore-common'. ",
+             You are probably using a bad build of 'relay-common'. ",
         )
     };
 }

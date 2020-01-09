@@ -7,12 +7,12 @@ use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
-use semaphore_common::{Config, Credentials, LogError, MinimalConfig, RelayMode, Uuid};
-use semaphore_general::pii::{PiiConfig, PiiProcessor};
-use semaphore_general::processor::{process_value, ProcessingState};
-use semaphore_general::protocol::Event;
-use semaphore_general::store::{StoreConfig, StoreProcessor};
-use semaphore_general::types::Annotated;
+use relay_common::{Config, Credentials, LogError, MinimalConfig, RelayMode, Uuid};
+use relay_general::pii::{PiiConfig, PiiProcessor};
+use relay_general::processor::{process_value, ProcessingState};
+use relay_general::protocol::Event;
+use relay_general::store::{StoreConfig, StoreProcessor};
+use relay_general::types::Annotated;
 
 use crate::cliapp::make_app;
 use crate::setup;
@@ -34,7 +34,7 @@ pub fn ensure_log_error<E: failure::AsFail>(error: &E) {
 pub fn execute() -> Result<(), Error> {
     let app = make_app();
     let matches = app.get_matches();
-    let config_path = matches.value_of("config").unwrap_or(".semaphore");
+    let config_path = matches.value_of("config").unwrap_or(".relay");
 
     // config init is special because it does not yet have a config.
     if let Some(matches) = matches.subcommand_matches("config") {
@@ -133,9 +133,7 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
         if !changed {
             println!("Nothing was changed");
             if !prompted {
-                println!(
-                    "Run `semaphore credentials remove` first to remove all stored credentials."
-                );
+                println!("Run `relay credentials remove` first to remove all stored credentials.");
             }
         } else {
             println!("Stored updated credentials:");
@@ -301,7 +299,7 @@ pub fn generate_completions<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
         },
         Some(shell) => shell,
     };
-    make_app().gen_completions_to("semaphore", shell, &mut io::stdout());
+    make_app().gen_completions_to("relay", shell, &mut io::stdout());
     Ok(())
 }
 
@@ -342,6 +340,6 @@ pub fn run<'a>(config: Config, _matches: &ArgMatches<'a>) -> Result<(), Error> {
     setup::dump_spawn_infos(&config);
     setup::check_config(&config)?;
     setup::init_metrics(&config)?;
-    semaphore_server::run(config)?;
+    relay_server::run(config)?;
     Ok(())
 }

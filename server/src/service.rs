@@ -9,7 +9,7 @@ use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
 use sentry_actix::SentryMiddleware;
 
-use semaphore_common::{clone, Config};
+use relay_common::{clone, Config};
 
 use crate::actors::events::EventManager;
 use crate::actors::healthcheck::Healthcheck;

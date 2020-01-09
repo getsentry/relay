@@ -3,7 +3,7 @@
 A Relay will generally not accept or forward events where it doesn't know the project. See [_Getting Started_](index.md) for a short introduction to project configs. This page enumerates all possible options.
 
 The configuration for a project with the ID *123* lives in the file
-`.semaphore/projects/123.json`. You can get the project ID from the path section
+`.relay/projects/123.json`. You can get the project ID from the path section
 of a DSN.
 
 ## Basic Options
@@ -15,7 +15,7 @@ of a DSN.
   Whether the project is disabled. If set to `true`, the Relay will drop all
   events sent to this project.
 
-`publicKeys` 
+`publicKeys`
 
 : *array of objects, required*
 
@@ -42,7 +42,7 @@ of a DSN.
 
   Configure origin URLs which Sentry should accept events from. This is
   corresponds to the "Allowed Domains" setting in the Sentry UI.
-  
+
   Note that an empty array will reject all origins. Use the default `["*"]` to
   allow all origins.
 

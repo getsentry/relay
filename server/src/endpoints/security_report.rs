@@ -5,7 +5,7 @@ use actix_web::{pred, HttpRequest, HttpResponse, Query, Request};
 use futures::Future;
 use serde::Deserialize;
 
-use semaphore_general::protocol::EventId;
+use relay_general::protocol::EventId;
 
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};

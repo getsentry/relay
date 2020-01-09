@@ -47,11 +47,12 @@ def _get_error_base(error_name):
 
 
 def _make_exceptions():
+    prefix = "RELAY_ERROR_CODE_"
     for attr in dir(lib):
-        if not attr.startswith("SEMAPHORE_ERROR_CODE_"):
+        if not attr.startswith(prefix):
             continue
 
-        error_name = attr[21:].title().replace("_", "")
+        error_name = attr[len(prefix) :].title().replace("_", "")
         base = _get_error_base(error_name)
         exc = _make_error(error_name, base=base, code=getattr(lib, attr))
         exceptions_by_code[exc.code] = exc

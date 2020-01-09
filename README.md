@@ -5,7 +5,7 @@
   <br />
 </p>
 
-# Semaphore - Official Sentry Relay
+# Official Sentry Relay
 
 [![Travis](https://travis-ci.com/getsentry/semaphore.svg?branch=master)](https://travis-ci.com/getsentry/semaphore)
 [![AppVeyor](https://img.shields.io/appveyor/ci/sentry/sentry-agent.svg)](https://ci.appveyor.com/project/sentry/sentry-agent)
@@ -20,65 +20,62 @@
   </p>
 </p>
 
-The Sentry Relay (aka Semaphore) is a work in progress service that pushes some
-functionality from the Sentry SDKs as well as the Sentry server into a proxy process.
+The Sentry Relay is a work in progress service that pushes some functionality
+from the Sentry SDKs as well as the Sentry server into a proxy process.
 
 ## Documentation
 The project documentation can be found at: [https://getsentry.github.io/semaphore/](https://getsentry.github.io/semaphore/).
 
 ## Quickstart
 
-Semaphore needs a relay ready sentry installation to connect to. It stores all
-of its settings in a `.semaphore` folder in the current working directory by
-default. The initial config can be created through a wizard:
+Relay needs Sentry 10 or later to connect to. It stores all of its settings in a
+`.relay` folder in the current working directory by default. The initial config
+can be created through a wizard:
 
-    semaphore config init
+    relay config init
 
 This will guide you through the setup experience and create a `config.yml` and
-`credentials.json` file in the `.semaphore` folder.
+`credentials.json` file in the `.relay` folder.
 
-To run semaphore in the foreground and connect to the upstream sentry installation
+To run Relay in the foreground and connect to the upstream sentry installation
 `run` can be used:
 
-    semaphore run
+    relay run
 
 To see the entire config (including defaults) the following command can be used:
 
-    semaphore config show
+    relay config show
 
-To change the location of the config folder the `--config` parameter can be passed
-to the `semaphore` command with the path to an alternative location.
+To change the location of the config folder the `--config` parameter can be
+passed to the `relay` command with the path to an alternative location.
 
 ## Upstream Registration
 
-When the semaphore runs it registers itself with the upstream configured sentry
-instance as a relay. Right now relays can only directly connect to Sentry as
-they do not yet proxy through non store requests. Each relay is identified by
-the `(relay_id, public_key)` tuple upstream. Multiple relays can share the same
-public key if they run with different relay IDs.
+When Relay runs, it registers with the upstream configured Sentry instance. Each
+Relay is identified by the `(relay_id, public_key)` tuple upstream. Multiple
+Relays can share the same public key if they run with different Relay IDs.
 
-At present Sentry requires the relays to be explicitly whitelisted by their public
-key. This is done through the `SENTRY_RELAY_WHITELIST_PK` config key which is
-a list of permitted public keys.
+At present, Sentry requires Relays to be explicitly whitelisted by their public
+key. This is done through the `SENTRY_RELAY_WHITELIST_PK` config key which is a
+list of permitted public keys.
 
 ## Metrics and Crash Reporting
 
-By default the relay currently reports directly to sentry.io. This can be disabled
+By default, Relay currently reports directly to sentry.io. This can be disabled
 by setting the `sentry.enabled` key to `false`. Additionally a different DSN can
-be supplied with `sentry.dsn`. Crash reporting will become opt-in before the initial
-public release.
+be supplied with `sentry.dsn`. Crash reporting will become opt-in before the
+initial public release.
 
-Stats can be submitted to a statsd server by configuring `metrics.statsd` key. It
-can be put to a `ip:port` tuple. Additionally `metrics.prefix` can be configured
-to have a different prefix (the default is `sentry.relay`). This prefix is added
-in front of all metrics.
+Stats can be submitted to a statsd server by configuring `metrics.statsd` key.
+It can be put to a `ip:port` tuple. Additionally `metrics.prefix` can be
+configured to have a different prefix (the default is `sentry.relay`). This
+prefix is added in front of all metrics.
 
 ## License
 
-Like Sentry, Semaphore is licensed under the BSL. See the `LICENSE` file and
-[this forum
-post](https://forum.sentry.io/t/re-licensing-sentry-faq-discussion/8044) for
-more information.
+Like Sentry, Relay is licensed under the BSL. See the `LICENSE` file and [this
+forum post](https://forum.sentry.io/t/re-licensing-sentry-faq-discussion/8044)
+for more information.
 
 ## Development
 
@@ -102,15 +99,16 @@ The password for the `.pfx` file is `password`.
 
 ### Running in Docker
 
-Docker image for `semaphore` can be found at `us.gcr.io/sentryio/semaphore`.
+Docker image for `relay` can be found at `us.gcr.io/sentryio/semaphore`.
 
-For example, you can start the latest version of `semaphore` as follows:
+For example, you can start the latest version of `relay` as follows:
 
 ```sh
-docker run -v $(pwd)/configs/:/etc/semaphore/ us.gcr.io/sentryio/semaphore run --config /etc/semaphore
+docker run -v $(pwd)/configs/:/etc/relay/ us.gcr.io/sentryio/semaphore run --config /etc/relay
 ```
 
-The command assumes that semaphore's configuration (`config.yml` and `credentials.json`) are stored in `./configs/` directory on the host machine.
+The command assumes that Relay's configuration (`config.yml` and
+`credentials.json`) are stored in `./configs/` directory on the host machine.
 
 ### Release Management
 

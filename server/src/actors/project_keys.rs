@@ -10,7 +10,7 @@ use failure::Fail;
 use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 
-use semaphore_common::{metric, Config, LogError, ProjectId};
+use relay_common::{metric, Config, LogError, ProjectId};
 
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 
