@@ -3,8 +3,9 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::filter::{FilterConfig, FilterStatKey};
-use crate::protocol::{Event, Exception};
+use relay_general::protocol::{Event, Exception};
+
+use crate::{FilterConfig, FilterStatKey};
 
 /// Filters events originating from known problematic browser extensions.
 pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
@@ -101,9 +102,8 @@ lazy_static! {
 mod tests {
     use super::*;
 
-    use crate::filter::test_utils;
-    use crate::protocol::{Frame, JsonLenientString, RawStacktrace, Stacktrace, Values};
-    use crate::types::Annotated;
+    use relay_general::protocol::{Frame, JsonLenientString, RawStacktrace, Stacktrace, Values};
+    use relay_general::types::Annotated;
 
     /// Returns an event with the specified exception on the last position in the stack.
     fn get_event_with_exception(e: Exception) -> Event {
@@ -153,7 +153,7 @@ mod tests {
         ];
 
         for event in &events {
-            let filter_result = should_filter(event, &test_utils::get_f_config(false));
+            let filter_result = should_filter(event, &FilterConfig { is_enabled: false });
             assert_eq!(
                 filter_result,
                 Ok(()),
@@ -181,7 +181,7 @@ mod tests {
 
         for source_name in &sources {
             let event = get_event_with_exception_source(source_name);
-            let filter_result = should_filter(&event, &test_utils::get_f_config(true));
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
 
             assert_ne!(
                 filter_result,
@@ -219,7 +219,7 @@ mod tests {
 
         for exc_value in &exceptions {
             let event = get_event_with_exception_value(exc_value);
-            let filter_result = should_filter(&event, &test_utils::get_f_config(true));
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
             assert_ne!(
                 filter_result,
                 Ok(()),
@@ -237,7 +237,7 @@ mod tests {
         ];
 
         for event in &events {
-            let filter_result = should_filter(event, &test_utils::get_f_config(true));
+            let filter_result = should_filter(event, &FilterConfig { is_enabled: true });
             assert_eq!(
                 filter_result,
                 Ok(()),

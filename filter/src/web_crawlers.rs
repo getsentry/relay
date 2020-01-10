@@ -3,9 +3,10 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::filter::{FilterConfig, FilterStatKey};
-use crate::protocol::Event;
-use crate::user_agent;
+use relay_general::protocol::Event;
+use relay_general::user_agent;
+
+use crate::{FilterConfig, FilterStatKey};
 
 /// Filters events originating from a known web crawler.
 pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
@@ -51,13 +52,12 @@ lazy_static! {
 mod tests {
     use super::*;
 
-    use crate::filter::test_utils;
     use crate::testutils;
 
     #[test]
     fn test_filter_when_disabled() {
         let evt = testutils::get_event_with_user_agent("Googlebot");
-        let filter_result = should_filter(&evt, &test_utils::get_f_config(false));
+        let filter_result = should_filter(&evt, &FilterConfig { is_enabled: false });
         assert_eq!(
             filter_result,
             Ok(()),
@@ -93,7 +93,7 @@ mod tests {
 
         for banned_user_agent in &user_agents {
             let event = testutils::get_event_with_user_agent(banned_user_agent);
-            let filter_result = should_filter(&event, &test_utils::get_f_config(true));
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
             assert_ne!(
                 filter_result,
                 Ok(()),
@@ -107,7 +107,7 @@ mod tests {
     fn test_dont_filter_normal_user_agents() {
         for user_agent in &["some user agent", "IE", "ie", "opera", "safari"] {
             let event = testutils::get_event_with_user_agent(user_agent);
-            let filter_result = should_filter(&event, &test_utils::get_f_config(true));
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
             assert_eq!(
                 filter_result,
                 Ok(()),

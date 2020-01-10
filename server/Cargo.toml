@@ -36,6 +36,7 @@ rdkafka = { version = "0.22.0", optional = true }
 redis = { git = "https://github.com/mitsuhiko/redis-rs", optional = true, branch = "feature/cluster", features = ["cluster", "r2d2"] }
 regex = "1.2.0"
 relay-common = { path = "../common" }
+relay-filter = { path = "../filter" }
 relay-general = { path = "../general" }
 rmp-serde = "0.13.7"
 sentry = "0.17.0"

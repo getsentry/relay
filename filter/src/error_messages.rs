@@ -5,8 +5,9 @@
 
 use std::borrow::Cow;
 
-use crate::filter::{ErrorMessagesFilterConfig, FilterStatKey};
-use crate::protocol::Event;
+use relay_general::protocol::Event;
+
+use crate::{ErrorMessagesFilterConfig, FilterStatKey};
 
 /// Filters events by patterns in their error messages.
 pub fn should_filter(
@@ -56,9 +57,11 @@ fn should_filter_impl(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filter::GlobPatterns;
-    use crate::protocol::{Exception, LogEntry, Values};
-    use crate::types::Annotated;
+
+    use relay_general::protocol::{Exception, LogEntry, Values};
+    use relay_general::types::Annotated;
+
+    use crate::GlobPatterns;
 
     #[test]
     fn test_should_filter_exception() {

@@ -11,7 +11,7 @@ use std::time::Instant;
 use actix::prelude::*;
 
 use relay_common::Config;
-use relay_general::filter::FilterStatKey;
+use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
 
 use crate::actors::project::RateLimit;

@@ -3,11 +3,11 @@
 use std::collections::HashMap;
 
 use lazy_static::lazy_static;
-use uaparser::UserAgent;
 
-use crate::filter::{FilterStatKey, LegacyBrowser, LegacyBrowsersFilterConfig};
-use crate::protocol::Event;
-use crate::user_agent;
+use relay_general::protocol::Event;
+use relay_general::user_agent::{self, UserAgent};
+
+use crate::{FilterStatKey, LegacyBrowser, LegacyBrowsersFilterConfig};
 
 /// Filters events originating from legacy browsers.
 pub fn should_filter(
