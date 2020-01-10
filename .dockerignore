@@ -2,11 +2,11 @@
 
 !.git/
 !.gitmodules
+!relay/
 !relay-common/
 !relay-filter/
 !relay-general/
 !relay-server/
-!src/
 
 !build.rs
 !Cargo.*
