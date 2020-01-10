@@ -8,8 +8,7 @@ use std::slice;
 
 use json_forensics;
 use relay_common::{glob_match_bytes, GlobOptions};
-use relay_general::datascrubbing::DataScrubbingConfig;
-use relay_general::pii::PiiProcessor;
+use relay_general::pii::{DataScrubbingConfig, PiiProcessor};
 use relay_general::processor::{process_value, split_chunks, ProcessingState};
 use relay_general::protocol::{Event, VALID_PLATFORMS};
 use relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
