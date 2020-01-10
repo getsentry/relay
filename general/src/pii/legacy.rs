@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use lazycell::AtomicLazyCell;
 
-use crate::datascrubbing::convert::to_pii_config;
-use crate::pii::PiiConfig;
+use crate::pii::{convert, PiiConfig};
 
 /// Helper method to check whether a flag is false.
 #[allow(clippy::trivially_copy_pass_by_ref)]
@@ -48,7 +47,7 @@ impl DataScrubbingConfig {
             return pii_config.as_ref();
         }
 
-        let pii_config = to_pii_config(&self);
+        let pii_config = convert::to_pii_config(&self);
         self.pii_config.fill(pii_config).ok();
 
         // If filling the lazy cell fails, another thread is currently inserting. There are two
