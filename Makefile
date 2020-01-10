@@ -75,8 +75,8 @@ test-integration: build setup-geoip setup-venv
 test-process-event: setup-geoip
 	# Process a basic event and assert its output
 	bash -c 'diff \
-		<(cargo run ${CARGO_ARGS} -- process-event <fixtures/basic-event-input.json) \
-		fixtures/basic-event-output.json'
+		<(cargo run ${CARGO_ARGS} -- process-event <tests/fixtures/basic-event-input.json) \
+		tests/fixtures/basic-event-output.json'
 	@echo 'OK'
 .PHONY: test-process-event
 
