@@ -1,7 +1,8 @@
 //! Implements filtering for events originating from the localhost
 
-use crate::filter::{FilterConfig, FilterStatKey};
-use crate::protocol::Event;
+use relay_general::protocol::Event;
+
+use crate::{FilterConfig, FilterStatKey};
 
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
@@ -45,9 +46,8 @@ fn get_domain(event: &Event) -> Option<&str> {
 mod tests {
     use super::*;
 
-    use crate::filter::test_utils;
-    use crate::protocol::{IpAddr, Request, User};
-    use crate::types::Annotated;
+    use relay_general::protocol::{IpAddr, Request, User};
+    use relay_general::types::Annotated;
 
     fn get_event_with_ip_addr(val: &str) -> Event {
         Event {
@@ -75,7 +75,7 @@ mod tests {
             get_event_with_ip_addr("127.0.0.1"),
             get_event_with_domain("localhost"),
         ] {
-            let filter_result = should_filter(&event, &test_utils::get_f_config(false));
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: false });
             assert_eq!(
                 filter_result,
                 Ok(()),
@@ -88,7 +88,7 @@ mod tests {
     fn test_filter_local_ip() {
         for ip_addr in &["127.0.0.1", "::1"] {
             let event = get_event_with_ip_addr(ip_addr);
-            let filter_result = should_filter(&event, &test_utils::get_f_config(true));
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
             assert_ne!(
                 filter_result,
                 Ok(()),
@@ -102,7 +102,7 @@ mod tests {
     fn test_dont_filter_non_local_ip() {
         for ip_addr in &["133.12.12.1", "2001:db8:0:0:0:ff00:42:8329"] {
             let event = get_event_with_ip_addr(ip_addr);
-            let filter_result = should_filter(&event, &test_utils::get_f_config(true));
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
             assert_eq!(
                 filter_result,
                 Ok(()),
@@ -115,7 +115,7 @@ mod tests {
     #[test]
     fn test_dont_filter_missing_ip_or_domains() {
         let event = Event::default();
-        let filter_result = should_filter(&event, &test_utils::get_f_config(true));
+        let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
         assert_eq!(
             filter_result,
             Ok(()),
@@ -127,7 +127,7 @@ mod tests {
     fn test_filter_local_domains() {
         for domain in &["127.0.0.1", "localhost"] {
             let event = get_event_with_domain(domain);
-            let filter_result = should_filter(&event, &test_utils::get_f_config(true));
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
             assert_ne!(
                 filter_result,
                 Ok(()),
@@ -141,7 +141,7 @@ mod tests {
     fn test_dont_filter_non_local_domains() {
         for domain in &["my.dom.com", "123.123.123.44"] {
             let event = get_event_with_domain(domain);
-            let filter_result = should_filter(&event, &test_utils::get_f_config(true));
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
             assert_eq!(
                 filter_result,
                 Ok(()),

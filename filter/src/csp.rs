@@ -2,8 +2,9 @@
 //!
 //! Events originating from a CSP message can be filtered based on the source URL
 
-use crate::filter::{CspFilterConfig, FilterStatKey};
-use crate::protocol::{Event, EventType};
+use relay_general::protocol::{Event, EventType};
+
+use crate::{CspFilterConfig, FilterStatKey};
 
 /// Filters CSP events based on disallowed sources.
 pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), FilterStatKey> {
@@ -141,8 +142,9 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::Csp;
-    use crate::types::Annotated;
+
+    use relay_general::protocol::Csp;
+    use relay_general::types::Annotated;
 
     fn get_csp_event(blocked_uri: Option<&str>, source_file: Option<&str>) -> Event {
         fn annotated_string_or_none(val: Option<&str>) -> Annotated<String> {

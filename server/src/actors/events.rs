@@ -35,7 +35,7 @@ use {
     crate::quotas::{QuotasError, RateLimiter},
     crate::service::ServerErrorKind,
     failure::ResultExt,
-    relay_general::filter::{should_filter, FilterStatKey},
+    relay_filter::{should_filter, FilterStatKey},
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };

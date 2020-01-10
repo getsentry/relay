@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::filter::common::GlobPatterns;
+use crate::common::GlobPatterns;
 
 /// Common configuration for event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -25,14 +25,23 @@ impl FilterConfig {
 /// A browser class to be filtered by the legacy browser filter.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum LegacyBrowser {
+    /// Applies the default set of min-version filters for all known browsers.
     Default,
+    /// Apply to Internet Explorer 8 and older.
     IePre9,
+    /// Apply to Internet Explorer 9.
     Ie9,
+    /// Apply to Internet Explorer 10.
     Ie10,
+    /// Apply to Opera 14 and older.
     OperaPre15,
+    /// Apply to OperaMini 7 and older.
     OperaMiniPre8,
+    /// Apply to Android (Chrome) 3 and older.
     AndroidPre4,
+    /// Apply to Safari 5 and older.
     SafariPre6,
+    /// An unknown browser configuration for forward compatibility.
     Unknown(String),
 }
 
