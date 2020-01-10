@@ -28,7 +28,7 @@ num_cpus = "1.11.1"
 parking_lot = "0.10.0"
 rand = "0.6.5"
 regex = "1.2.0"
-relay-general = { path = "../general" }
+relay-general = { path = "../relay-general" }
 sentry-types = "0.13.3"
 serde = { version = "1.0.98", features = ["derive"] }
 serde_json = "1.0.40"

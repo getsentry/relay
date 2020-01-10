@@ -14,7 +14,7 @@ ipnetwork = "0.14.0"
 lazy_static = "1.3.0"
 lazycell = "1.2.1"
 regex = "1.2.0"
-relay-general = { path = "../general" }
+relay-general = { path = "../relay-general" }
 serde = { version = "1.0.98", features = ["derive"] }
 
 [dev-dependencies]
