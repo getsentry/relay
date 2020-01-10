@@ -2,10 +2,10 @@
 
 !.git/
 !.gitmodules
-!common/
-!filter/
-!general/
-!server/
+!relay-common/
+!relay-filter/
+!relay-general/
+!relay-server/
 !src/
 
 !build.rs

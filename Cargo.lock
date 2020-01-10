@@ -2023,7 +2023,6 @@ dependencies = [
  "openssl-probe 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "pretty_env_logger 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "relay-common 0.4.65",
- "relay-filter 0.4.65",
  "relay-general 0.4.65",
  "relay-server 0.4.65",
  "sentry 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
