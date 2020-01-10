@@ -19,8 +19,8 @@ with open("README", "rb") as f:
     readme = f.read()
 
 
-if os.path.isfile("../cabi/Cargo.toml"):
-    with open("../cabi/Cargo.toml") as f:
+if os.path.isfile("../relay-cabi/Cargo.toml"):
+    with open("../relay-cabi/Cargo.toml") as f:
         version = _version_re.search(f.read()).group(1)
 else:
     with open("version.txt") as f:
@@ -52,7 +52,7 @@ def build_native(spec):
         target = "debug"
 
     # Step 0: find rust sources
-    if not os.path.isfile("../cabi/Cargo.toml"):
+    if not os.path.isfile("../relay-cabi/Cargo.toml"):
         scratchpad = tempfile.mkdtemp()
 
         @atexit.register
@@ -64,9 +64,9 @@ def build_native(spec):
 
         zf = zipfile.ZipFile("rustsrc.zip")
         zf.extractall(scratchpad)
-        rust_path = scratchpad + "/rustsrc/cabi"
+        rust_path = scratchpad + "/rustsrc/relay-cabi"
     else:
-        rust_path = "../cabi"
+        rust_path = "../relay-cabi"
         scratchpad = None
 
     # Step 1: build the rust library
