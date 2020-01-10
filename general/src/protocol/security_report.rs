@@ -1152,6 +1152,8 @@ impl SecurityReportType {
 mod tests {
     use super::*;
 
+    use relay_testutils::assert_annotated_snapshot;
+
     #[test]
     fn test_unsplit_uri() {
         assert_eq!(unsplit_uri("", ""), "");

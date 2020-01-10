@@ -38,6 +38,7 @@ regex = "1.2.0"
 relay-common = { path = "../common" }
 relay-filter = { path = "../filter" }
 relay-general = { path = "../general" }
+relay-pii = { path = "../pii" }
 rmp-serde = "0.13.7"
 sentry = "0.17.0"
 sentry-actix = "0.17.0"

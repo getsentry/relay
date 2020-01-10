@@ -9,14 +9,15 @@ use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 use smallvec::SmallVec;
 
-use crate::pii::config::RuleRef;
-use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType};
-use crate::processor::{
+use relay_general::processor::{
     process_chunked_value, process_value, Chunk, ProcessValue, ProcessingState, Processor,
     SelectorSpec, ValueType,
 };
-use crate::protocol::{AsPair, PairList};
-use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
+use relay_general::protocol::{AsPair, PairList};
+use relay_general::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
+
+use crate::config::RuleRef;
+use crate::{HashAlgorithm, PiiConfig, Redaction, RuleType};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
@@ -648,16 +649,18 @@ fn hash_value(
 }
 
 #[cfg(test)]
-use {
-    crate::protocol::{Event, ExtraValue, Headers, LogEntry, Request},
-    crate::types::{Annotated, Object, Value},
-};
+mod tests {
+    use super::*;
 
-#[test]
-fn test_basic_stripping() {
-    use crate::protocol::{TagEntry, Tags};
-    let config = PiiConfig::from_json(
-        r##"
+    use relay_general::protocol::{Event, ExtraValue, Headers, LogEntry, Request};
+    use relay_general::types::{Annotated, Object, Value};
+    use relay_testutils::assert_annotated_snapshot;
+
+    #[test]
+    fn test_basic_stripping() {
+        use relay_general::protocol::{TagEntry, Tags};
+        let config = PiiConfig::from_json(
+            r##"
         {
             "rules": {
                 "remove_bad_headers": {
@@ -671,78 +674,79 @@ fn test_basic_stripping() {
             }
         }
     "##,
-    )
-    .unwrap();
+        )
+        .unwrap();
 
-    let mut event = Annotated::new(Event {
-        logentry: Annotated::new(LogEntry {
-            formatted: Annotated::new("Hello world!".to_string()),
+        let mut event = Annotated::new(Event {
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new("Hello world!".to_string()),
+                ..Default::default()
+            }),
+            request: Annotated::new(Request {
+                env: {
+                    let mut rv = Object::new();
+                    rv.insert(
+                        "SECRET_KEY".to_string(),
+                        Annotated::new(Value::String("134141231231231231231312".into())),
+                    );
+                    Annotated::new(rv)
+                },
+                headers: {
+                    let mut rv = Vec::new();
+                    rv.push(Annotated::new((
+                        Annotated::new("Cookie".to_string().into()),
+                        Annotated::new("super secret".to_string().into()),
+                    )));
+                    rv.push(Annotated::new((
+                        Annotated::new("X-Forwarded-For".to_string().into()),
+                        Annotated::new("127.0.0.1".to_string().into()),
+                    )));
+                    Annotated::new(Headers(PairList(rv)))
+                },
+                ..Default::default()
+            }),
+            tags: Annotated::new(Tags(
+                vec![Annotated::new(TagEntry(
+                    Annotated::new("forwarded_for".to_string()),
+                    Annotated::new("127.0.0.1".to_string()),
+                ))]
+                .into(),
+            )),
             ..Default::default()
-        }),
-        request: Annotated::new(Request {
-            env: {
-                let mut rv = Object::new();
-                rv.insert(
-                    "SECRET_KEY".to_string(),
-                    Annotated::new(Value::String("134141231231231231231312".into())),
-                );
-                Annotated::new(rv)
-            },
-            headers: {
-                let mut rv = Vec::new();
-                rv.push(Annotated::new((
-                    Annotated::new("Cookie".to_string().into()),
-                    Annotated::new("super secret".to_string().into()),
-                )));
-                rv.push(Annotated::new((
-                    Annotated::new("X-Forwarded-For".to_string().into()),
-                    Annotated::new("127.0.0.1".to_string().into()),
-                )));
-                Annotated::new(Headers(PairList(rv)))
-            },
-            ..Default::default()
-        }),
-        tags: Annotated::new(Tags(
-            vec![Annotated::new(TagEntry(
-                Annotated::new("forwarded_for".to_string()),
-                Annotated::new("127.0.0.1".to_string()),
-            ))]
-            .into(),
-        )),
-        ..Default::default()
-    });
+        });
 
-    let mut processor = PiiProcessor::new(&config);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
+        let mut processor = PiiProcessor::new(&config);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
 
-#[test]
-fn test_redact_containers() {
-    let config = PiiConfig::from_json(
-        r##"
+    #[test]
+    fn test_redact_containers() {
+        let config = PiiConfig::from_json(
+            r##"
         {
             "applications": {
                 "$object": ["@anything"]
             }
         }
     "##,
-    )
-    .unwrap();
+        )
+        .unwrap();
 
-    let mut event = Annotated::new(Event {
-        extra: {
-            let mut map = Object::new();
-            map.insert(
-                "foo".to_string(),
-                Annotated::new(ExtraValue(Value::String("bar".to_string()))),
-            );
-            Annotated::new(map)
-        },
-        ..Default::default()
-    });
+        let mut event = Annotated::new(Event {
+            extra: {
+                let mut map = Object::new();
+                map.insert(
+                    "foo".to_string(),
+                    Annotated::new(ExtraValue(Value::String("bar".to_string()))),
+                );
+                Annotated::new(map)
+            },
+            ..Default::default()
+        });
 
-    let mut processor = PiiProcessor::new(&config);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
+        let mut processor = PiiProcessor::new(&config);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
 }

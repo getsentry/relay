@@ -1,0 +1,9 @@
+[package]
+name = "relay-testutils"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Test utilities for Relay and its crates"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "0.4.65"
+edition = "2018"
+license-file = "../LICENSE"

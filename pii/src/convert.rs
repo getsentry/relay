@@ -2,10 +2,11 @@ use std::collections::BTreeMap;
 
 use regex::RegexBuilder;
 
-use crate::pii::{
+use relay_general::processor::{SelectorPathItem, SelectorSpec, ValueType};
+
+use crate::{
     DataScrubbingConfig, Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType, Vars,
 };
-use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
 
 lazy_static::lazy_static! {
     // XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
@@ -114,12 +115,15 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
 
 #[cfg(test)]
 mod tests {
-    /// These tests are ported from Sentry's Python testsuite (test_data_scrubber). Each testcase
-    /// has an equivalent testcase in Python.
-    use crate::pii::{DataScrubbingConfig, PiiConfig, PiiProcessor};
-    use crate::processor::{process_value, ProcessingState};
-    use crate::protocol::Event;
-    use crate::types::FromValue;
+    //! These tests are ported from Sentry's Python testsuite (test_data_scrubber). Each testcase
+    //! has an equivalent testcase in Python.
+
+    use relay_general::processor::{process_value, ProcessingState};
+    use relay_general::protocol::Event;
+    use relay_general::types::FromValue;
+    use relay_testutils::assert_annotated_snapshot;
+
+    use crate::{DataScrubbingConfig, PiiConfig, PiiProcessor};
 
     use super::to_pii_config as to_pii_config_impl;
 
@@ -128,7 +132,7 @@ mod tests {
         if let Some(ref config) = rv {
             let roundtrip: PiiConfig =
                 serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
-            assert_eq_dbg!(&roundtrip, config);
+            assert_eq!(&roundtrip, config);
         }
         rv
     }
@@ -772,38 +776,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         assert_annotated_snapshot!(data);
     }
 
-    /// Ensure that valid JSON as request body is parsed as such, and that the PII stripping is
-    /// then more granular/sophisticated because we now understand the structure.
-    #[test]
-    fn test_sanitize_http_body() {
-        use crate::store::{StoreConfig, StoreProcessor};
-
-        let mut data = Event::from_value(
-            serde_json::json!({
-                "request": {
-                    "data": r#"{"email":"zzzz@gmail.com","password":"zzzzz"}"#
-                }
-            })
-            .into(),
-        );
-
-        // n.b.: In Rust we rely on store normalization to parse inline JSON
-
-        let mut store_processor = StoreProcessor::new(StoreConfig::default(), None);
-        process_value(&mut data, &mut store_processor, ProcessingState::root()).unwrap();
-
-        let pii_config = simple_enabled_pii_config();
-        let mut pii_processor = PiiProcessor::new(&pii_config);
-        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data.value().unwrap().request);
-    }
-
     /// Ensure that a request body that cannot be parsed by the store processor gets PII stripped
     /// nevertheless.
     #[test]
     fn test_sanitize_http_body_string() {
-        use crate::store::{StoreConfig, StoreProcessor};
-
         let mut data = Event::from_value(
             serde_json::json!({
                 "request": {
@@ -813,10 +789,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        // n.b.: In Rust we rely on store normalization to parse inline JSON.
-
-        let mut store_processor = StoreProcessor::new(StoreConfig::default(), None);
-        process_value(&mut data, &mut store_processor, ProcessingState::root()).unwrap();
+        // n.b.: The store normalizer parses inline JSON. If this fails, we're left with a string
+        // that might still contain PII, so ensure that it gets normalized.
 
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(&pii_config);

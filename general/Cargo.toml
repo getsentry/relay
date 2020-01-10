@@ -38,6 +38,7 @@ uuid = { version = "0.8.1", features = ["v4", "serde"] }
 [dev-dependencies]
 difference = "2.0.0"
 insta = { version = "0.12.0", features =  ["ron", "redactions"] }
+relay-testutils = { path = "../testutils" }
 
 [features]
 mmap = ["maxminddb/mmap", "memmap"]

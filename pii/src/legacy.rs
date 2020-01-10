@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use lazycell::AtomicLazyCell;
 
-use crate::pii::{convert, PiiConfig};
+use crate::config::PiiConfig;
+use crate::convert;
 
 /// Helper method to check whether a flag is false.
 #[allow(clippy::trivially_copy_pass_by_ref)]

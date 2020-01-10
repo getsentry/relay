@@ -8,11 +8,11 @@ use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
 use relay_common::{Config, Credentials, LogError, MinimalConfig, RelayMode, Uuid};
-use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::Event;
 use relay_general::store::{StoreConfig, StoreProcessor};
 use relay_general::types::Annotated;
+use relay_pii::{PiiConfig, PiiProcessor};
 
 use crate::cliapp::make_app;
 use crate::setup;

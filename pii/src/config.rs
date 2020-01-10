@@ -6,9 +6,10 @@ use std::ops::Deref;
 use regex::{Regex, RegexBuilder};
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::pii::builtin::BUILTIN_RULES_MAP;
-use crate::pii::Redaction;
-use crate::processor::SelectorSpec;
+use relay_general::processor::SelectorSpec;
+
+use crate::builtin::BUILTIN_RULES_MAP;
+use crate::redactions::Redaction;
 
 /// A regex pattern for text replacement.
 #[derive(Clone)]
@@ -192,8 +193,11 @@ impl Default for RuleType {
 /// A single rule configuration.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RuleSpec {
+    /// The rule configuration.
     #[serde(flatten)]
     pub ty: RuleType,
+
+    /// The redaction to apply to matches.
     #[serde(default)]
     pub redaction: Redaction,
 }

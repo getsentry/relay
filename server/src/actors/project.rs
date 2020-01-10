@@ -22,7 +22,7 @@ use url::Url;
 
 use relay_common::{metric, Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
 use relay_filter::{matches_any_origin, FiltersConfig};
-use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+use relay_pii::{DataScrubbingConfig, PiiConfig};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};

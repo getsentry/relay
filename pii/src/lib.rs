@@ -1,4 +1,9 @@
-//! PII stripping processor.
+//! PII stripping for Sentry events.
+#![warn(missing_docs)]
+
+#[cfg(test)]
+#[macro_use]
+mod testutils;
 
 mod builtin;
 mod config;

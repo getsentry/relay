@@ -11,13 +11,13 @@ use parking_lot::{Mutex, RwLock};
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, Config, LogError, RelayMode};
-use relay_general::pii::PiiProcessor;
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString,
     SecurityReportType, Values,
 };
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
+use relay_pii::PiiProcessor;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
