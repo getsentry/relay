@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use regex::RegexBuilder;
 
-use crate::datascrubbing::DataScrubbingConfig;
-use crate::pii::{Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType, Vars};
+use crate::pii::{
+    DataScrubbingConfig, Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType, Vars,
+};
 use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
 
 lazy_static::lazy_static! {
@@ -113,10 +114,9 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
 
 #[cfg(test)]
 mod tests {
-    use crate::datascrubbing::DataScrubbingConfig;
     /// These tests are ported from Sentry's Python testsuite (test_data_scrubber). Each testcase
     /// has an equivalent testcase in Python.
-    use crate::pii::{PiiConfig, PiiProcessor};
+    use crate::pii::{DataScrubbingConfig, PiiConfig, PiiProcessor};
     use crate::processor::{process_value, ProcessingState};
     use crate::protocol::Event;
     use crate::types::FromValue;

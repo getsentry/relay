@@ -21,9 +21,8 @@ use serde_json::Value;
 use url::Url;
 
 use relay_common::{metric, Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
-use relay_general::datascrubbing::DataScrubbingConfig;
 use relay_general::filter::{matches_any_origin, FiltersConfig};
-use relay_general::pii::PiiConfig;
+use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
