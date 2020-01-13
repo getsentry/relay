@@ -5,7 +5,7 @@ set -eu
 
 VERSION="${1:-}"
 GITHUB_PROJECT="getsentry/relay"
-DOCKER_IMAGE="us.gcr.io/sentryio/semaphore:${VERSION}"
+DOCKER_IMAGE="us.gcr.io/sentryio/relay:${VERSION}"
 export SENTRY_ORG="sentry"
 export SENTRY_PROJECT="relay"
 

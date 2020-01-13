@@ -18,7 +18,7 @@ steps:
     args:
       [
         "-c",
-        "docker pull us.gcr.io/$PROJECT_ID/semaphore:latest || true"
+        "docker pull us.gcr.io/$PROJECT_ID/relay:latest || true"
       ]
 
   # Pull the image with the first build stage
@@ -27,7 +27,7 @@ steps:
     args:
       [
         "-c",
-        "docker pull us.gcr.io/$PROJECT_ID/semaphore:deps || true"
+        "docker pull us.gcr.io/$PROJECT_ID/relay:deps || true"
       ]
 
   # Build the first stage
@@ -36,8 +36,8 @@ steps:
       [
         "build",
         "--target", "relay-deps",
-        "-t", "us.gcr.io/$PROJECT_ID/semaphore:deps",
-        "--cache-from", "us.gcr.io/$PROJECT_ID/semaphore:deps",
+        "-t", "us.gcr.io/$PROJECT_ID/relay:deps",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
         ".",
       ]
 
@@ -46,14 +46,14 @@ steps:
     args:
       [
         "build",
-        "-t", "us.gcr.io/$PROJECT_ID/semaphore:latest",
-        "-t", "us.gcr.io/$PROJECT_ID/semaphore:$COMMIT_SHA",
-        "--cache-from", "us.gcr.io/$PROJECT_ID/semaphore:deps",
-        "--cache-from", "us.gcr.io/$PROJECT_ID/semaphore:latest",
+        "-t", "us.gcr.io/$PROJECT_ID/relay:latest",
+        "-t", "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:latest",
         ".",
       ]
 
-  - name: "us.gcr.io/$PROJECT_ID/semaphore:$COMMIT_SHA"
+  - name: "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA"
     args: ['--help']
     id: "smoke test"
 
@@ -62,12 +62,12 @@ steps:
     entrypoint: 'bash'
     args:
     - '-c'
-    - '[[ "$BRANCH_NAME" == "master" ]] && docker push us.gcr.io/$PROJECT_ID/semaphore:latest || true'
+    - '[[ "$BRANCH_NAME" == "master" ]] && docker push us.gcr.io/$PROJECT_ID/relay:latest || true'
 
 images:
   [
-    "us.gcr.io/$PROJECT_ID/semaphore:deps",
-    "us.gcr.io/$PROJECT_ID/semaphore:$COMMIT_SHA",
+    "us.gcr.io/$PROJECT_ID/relay:deps",
+    "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
   ]
 timeout: 3600s
 options:
