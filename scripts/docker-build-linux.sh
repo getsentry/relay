@@ -13,7 +13,7 @@ else
 fi
 
 TARGET=${BUILD_ARCH}-unknown-linux-gnu
-BUILD_IMAGE="us.gcr.io/sentryio/semaphore:deps"
+BUILD_IMAGE="us.gcr.io/sentryio/relay:deps"
 
 # Prepare build environment first
 docker pull $BUILD_IMAGE || true

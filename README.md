@@ -97,12 +97,12 @@ The password for the `.pfx` file is `password`.
 
 ### Running in Docker
 
-Docker image for `relay` can be found at `us.gcr.io/sentryio/semaphore`.
+Docker image for `relay` can be found at `us.gcr.io/sentryio/relay`.
 
 For example, you can start the latest version of `relay` as follows:
 
 ```sh
-docker run -v $(pwd)/configs/:/etc/relay/ us.gcr.io/sentryio/semaphore run --config /etc/relay
+docker run -v $(pwd)/configs/:/etc/relay/ us.gcr.io/sentryio/relay run --config /etc/relay
 ```
 
 The command assumes that Relay's configuration (`config.yml` and
