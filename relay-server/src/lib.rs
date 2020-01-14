@@ -22,7 +22,7 @@ mod utils;
 #[cfg(feature = "processing")]
 mod quotas;
 
-use relay_common::Config;
+use relay_config::Config;
 
 use crate::actors::controller::Controller;
 use crate::actors::server::Server;

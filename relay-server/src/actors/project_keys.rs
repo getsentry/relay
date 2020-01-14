@@ -10,7 +10,8 @@ use failure::Fail;
 use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 
-use relay_common::{metric, Config, LogError, ProjectId};
+use relay_common::{metric, LogError, ProjectId};
+use relay_config::Config;
 
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 

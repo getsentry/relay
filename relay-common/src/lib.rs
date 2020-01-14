@@ -8,21 +8,15 @@ mod macros;
 pub mod metrics;
 
 mod auth;
-mod config;
 mod glob;
 mod log;
 mod retry;
-mod types;
-mod upstream;
 mod utils;
 
 pub use crate::auth::*;
-pub use crate::config::*;
 pub use crate::glob::*;
 pub use crate::log::*;
 pub use crate::retry::*;
-pub use crate::types::*;
-pub use crate::upstream::*;
 pub use crate::utils::*;
 
 pub use sentry_types::protocol::LATEST as PROTOCOL_VERSION;

@@ -9,7 +9,8 @@ use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
 use sentry_actix::SentryMiddleware;
 
-use relay_common::{clone, Config};
+use relay_common::clone;
+use relay_config::Config;
 
 use crate::actors::events::EventManager;
 use crate::actors::healthcheck::Healthcheck;

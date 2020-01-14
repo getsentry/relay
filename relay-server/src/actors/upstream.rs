@@ -14,9 +14,10 @@ use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use relay_common::{
-    tryf, Config, LogError, RegisterChallenge, RegisterRequest, RegisterResponse, Registration,
-    RelayMode, RetryBackoff,
+    tryf, LogError, RegisterChallenge, RegisterRequest, RegisterResponse, Registration,
+    RetryBackoff,
 };
+use relay_config::{Config, RelayMode};
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -71,7 +72,7 @@ pub struct UpstreamRelay {
 impl UpstreamRelay {
     pub fn new(config: Arc<Config>) -> Self {
         UpstreamRelay {
-            backoff: RetryBackoff::from_config(&config),
+            backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
             auth_state: AuthState::Unknown,
         }

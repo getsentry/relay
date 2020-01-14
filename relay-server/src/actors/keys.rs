@@ -12,7 +12,8 @@ use failure::Fail;
 use futures::{future, future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 
-use relay_common::{Config, LogError, PublicKey, RelayId, RetryBackoff};
+use relay_common::{LogError, PublicKey, RelayId, RetryBackoff};
+use relay_config::Config;
 
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::utils::{self, ApiErrorResponse, Response};
@@ -111,7 +112,7 @@ pub struct KeyCache {
 impl KeyCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         KeyCache {
-            backoff: RetryBackoff::from_config(&config),
+            backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
             upstream,
             keys: HashMap::new(),

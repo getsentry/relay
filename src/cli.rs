@@ -7,7 +7,8 @@ use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
-use relay_common::{Config, Credentials, LogError, MinimalConfig, RelayMode, Uuid};
+use relay_common::{LogError, Uuid};
+use relay_config::{Config, Credentials, MinimalConfig, RelayMode};
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::Event;

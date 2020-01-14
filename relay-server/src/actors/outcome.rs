@@ -10,7 +10,7 @@ use std::time::Instant;
 
 use actix::prelude::*;
 
-use relay_common::Config;
+use relay_config::Config;
 use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
 
@@ -183,7 +183,8 @@ mod real_implementation {
     use serde::Serialize;
     use serde_json::Error as SerdeSerializationError;
 
-    use relay_common::{metric, KafkaTopic};
+    use relay_common::metric;
+    use relay_config::KafkaTopic;
 
     use crate::service::ServerErrorKind;
     use crate::utils;

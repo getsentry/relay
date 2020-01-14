@@ -8,7 +8,8 @@ use failure::{err_msg, Error};
 use log::{Level, LevelFilter};
 use serde::{Deserialize, Serialize};
 
-use relay_common::{metrics, Config, LogFormat, RelayMode};
+use relay_common::metrics;
+use relay_config::{Config, LogFormat, RelayMode};
 
 pub fn check_config(config: &Config) -> Result<(), Error> {
     if config.relay_mode() == RelayMode::Managed && config.credentials().is_none() {
