@@ -20,6 +20,9 @@ mod service;
 mod utils;
 
 #[cfg(feature = "processing")]
+mod redis;
+
+#[cfg(feature = "processing")]
 mod quotas;
 
 use relay_config::Config;

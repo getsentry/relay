@@ -2,11 +2,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use failure::Fail;
-use r2d2::Pool;
 
-use relay_config::{Config, Redis};
+use relay_config::Config;
 
 use crate::actors::project::{Quota, RedisQuota, RejectAllQuota, RetryAfter};
+use crate::redis::{RedisError, RedisPool};
 
 /// The ``grace`` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -28,14 +28,10 @@ pub struct RateLimiter {
 impl RateLimiter {
     pub fn new(relay_config: &Config) -> Result<Self, QuotasError> {
         let redis_state = if relay_config.processing_enabled() {
-            let pool = match relay_config.redis() {
-                Redis::Cluster { cluster_nodes } => {
-                    RedisPool::cluster(cluster_nodes.iter().map(String::as_str).collect())?
-                }
-                Redis::Single(ref server) => RedisPool::single(&server)?,
-            };
-
-            Some((pool, Arc::new(load_lua_script())))
+            Some((
+                RedisPool::from_config(relay_config.redis()).map_err(QuotasError::Redis)?,
+                Arc::new(load_lua_script()),
+            ))
         } else {
             None
         };
@@ -56,39 +52,10 @@ impl RateLimiter {
     }
 }
 
-#[derive(Clone)]
-enum RedisPool {
-    Cluster(Pool<redis::cluster::ClusterClient>),
-    Single(Pool<redis::Client>),
-}
-
-impl RedisPool {
-    pub fn cluster(servers: Vec<&str>) -> Result<Self, QuotasError> {
-        Ok(RedisPool::Cluster(
-            Pool::builder()
-                .max_size(24)
-                .build(redis::cluster::ClusterClient::open(servers).map_err(QuotasError::Redis)?)
-                .map_err(QuotasError::RedisPool)?,
-        ))
-    }
-
-    pub fn single(server: &str) -> Result<Self, QuotasError> {
-        Ok(RedisPool::Single(
-            Pool::builder()
-                .max_size(24)
-                .build(redis::Client::open(server).map_err(QuotasError::Redis)?)
-                .map_err(QuotasError::RedisPool)?,
-        ))
-    }
-}
-
 #[derive(Debug, Fail)]
 pub enum QuotasError {
-    #[fail(display = "failed to connect to redis")]
-    RedisPool(#[cause] r2d2::Error),
-
     #[fail(display = "failed to talk to redis")]
-    Redis(#[cause] redis::RedisError),
+    Redis(#[cause] crate::redis::RedisError),
 }
 
 fn is_rate_limited(
@@ -144,15 +111,23 @@ fn is_rate_limited(
 
     let rejections: Vec<bool> = match redis_pool {
         RedisPool::Cluster(ref pool) => {
-            let mut client = pool.get().map_err(QuotasError::RedisPool)?;
+            let mut client = pool
+                .get()
+                .map_err(RedisError::RedisPool)
+                .map_err(QuotasError::Redis)?;
             invocation
                 .invoke(&mut *client)
+                .map_err(RedisError::Redis)
                 .map_err(QuotasError::Redis)?
         }
         RedisPool::Single(ref pool) => {
-            let mut client = pool.get().map_err(QuotasError::RedisPool)?;
+            let mut client = pool
+                .get()
+                .map_err(RedisError::RedisPool)
+                .map_err(QuotasError::Redis)?;
             invocation
                 .invoke(&mut *client)
+                .map_err(RedisError::Redis)
                 .map_err(QuotasError::Redis)?
         }
     };
