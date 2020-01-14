@@ -8,10 +8,6 @@ version = "0.4.65"
 edition = "2018"
 license-file = "../LICENSE"
 
-[features]
-default = []
-processing = []
-
 [dependencies]
 backoff = "0.1.5"
 base64 = "0.10.1"

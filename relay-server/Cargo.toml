@@ -12,7 +12,7 @@ license-file = "../LICENSE"
 [features]
 default = ["with_ssl"]
 with_ssl = ["native-tls", "actix-web/tls"]
-processing = ["rdkafka", "redis", "r2d2", "symbolic"]
+processing = ["rdkafka", "redis", "r2d2", "symbolic", "relay-config/processing"]
 
 [dependencies]
 actix = "0.7.9"

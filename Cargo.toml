@@ -17,7 +17,7 @@ publish = false
 [features]
 default = []
 with_ssl = ["relay-server/with_ssl"]
-processing = ["relay-common/processing", "relay-server/processing"]
+processing = ["relay-server/processing"]
 
 [profile.release]
 debug = true

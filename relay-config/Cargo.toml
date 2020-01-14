@@ -8,6 +8,10 @@ version = "0.4.65"
 edition = "2018"
 license-file = "../LICENSE"
 
+[features]
+default = []
+processing = []
+
 [dependencies]
 failure = "0.1.5"
 human-size = "0.4.0"
