@@ -3,6 +3,7 @@
 !.git/
 !.gitmodules
 !relay-common/
+!relay-config/
 !relay-filter/
 !relay-general/
 !relay-server/
