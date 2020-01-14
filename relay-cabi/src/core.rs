@@ -6,7 +6,8 @@ use std::slice;
 use std::str;
 
 use failure::Error;
-use relay_common::{KeyParseError, UnpackError, Uuid};
+use relay_auth::{KeyParseError, UnpackError};
+use relay_common::Uuid;
 use relay_general::types::ProcessingAction;
 
 use crate::utils::{set_panic_hook, Panic, LAST_ERROR};
@@ -40,11 +41,11 @@ pub enum RelayErrorCode {
     Panic = 1,
     Unknown = 2,
 
-    // relay_common::auth::KeyParseError
+    // relay_auth::KeyParseError
     KeyParseErrorBadEncoding = 1000,
     KeyParseErrorBadKey = 1001,
 
-    // relay_common::auth::UnpackError
+    // relay_auth::UnpackError
     UnpackErrorBadSignature = 1003,
     UnpackErrorBadPayload = 1004,
     UnpackErrorSignatureExpired = 1005,

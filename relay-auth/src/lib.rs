@@ -4,9 +4,10 @@ use std::str::FromStr;
 use chrono::{DateTime, Duration, Utc};
 use failure::Fail;
 use rand::{rngs::OsRng, thread_rng, RngCore};
-use sentry_types::Uuid;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::Sha512;
+
+use relay_common::Uuid;
 
 /// Alias for relay IDs (UUIDs)
 pub type RelayId = Uuid;
@@ -197,7 +198,7 @@ impl fmt::Debug for SecretKey {
     }
 }
 
-impl_str_serialization!(SecretKey, "a secret key");
+relay_common::impl_str_serialization!(SecretKey, "a secret key");
 
 impl PublicKey {
     /// Verifies the signature and returns the embedded signature
@@ -313,7 +314,7 @@ impl fmt::Debug for PublicKey {
     }
 }
 
-impl_str_serialization!(PublicKey, "a public key");
+relay_common::impl_str_serialization!(PublicKey, "a public key");
 
 /// Generates an relay ID.
 pub fn generate_relay_id() -> RelayId {

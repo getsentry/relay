@@ -20,7 +20,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;
 
-use relay_common::{metric, LogError, ProjectId, PublicKey, RetryBackoff, Uuid};
+use relay_auth::PublicKey;
+use relay_common::{metric, LogError, ProjectId, RetryBackoff, Uuid};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
