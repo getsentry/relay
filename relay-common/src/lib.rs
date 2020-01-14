@@ -7,13 +7,11 @@ mod macros;
 #[macro_use]
 pub mod metrics;
 
-mod auth;
 mod glob;
 mod log;
 mod retry;
 mod utils;
 
-pub use crate::auth::*;
 pub use crate::glob::*;
 pub use crate::log::*;
 pub use crate::retry::*;

@@ -10,8 +10,8 @@ use std::time::Duration;
 use failure::{Backtrace, Context, Fail};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Dsn;
-use relay_common::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 
 use crate::types::ByteSize;
 use crate::upstream::UpstreamDescriptor;

@@ -1,10 +1,10 @@
 use chrono::Duration;
 use serde::Serialize;
 
-use relay_common::{
+use relay_auth::{
     generate_key_pair, generate_relay_id, PublicKey, RegisterRequest, RegisterResponse, SecretKey,
-    Uuid,
 };
+use relay_common::Uuid;
 
 use crate::core::{RelayBuf, RelayStr, RelayUuid};
 

@@ -13,10 +13,8 @@ use futures::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
-use relay_common::{
-    tryf, LogError, RegisterChallenge, RegisterRequest, RegisterResponse, Registration,
-    RetryBackoff,
-};
+use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
+use relay_common::{tryf, LogError, RetryBackoff};
 use relay_config::{Config, RelayMode};
 
 #[derive(Fail, Debug)]

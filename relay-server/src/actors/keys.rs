@@ -12,7 +12,8 @@ use failure::Fail;
 use futures::{future, future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 
-use relay_common::{LogError, PublicKey, RelayId, RetryBackoff};
+use relay_auth::{PublicKey, RelayId};
+use relay_common::{LogError, RetryBackoff};
 use relay_config::Config;
 
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};

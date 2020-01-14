@@ -2,6 +2,7 @@
 
 !.git/
 !.gitmodules
+!relay-auth/
 !relay-common/
 !relay-config/
 !relay-filter/
