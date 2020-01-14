@@ -4,9 +4,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use failure::Fail;
 use r2d2::Pool;
 
-use crate::actors::project::{Quota, RedisQuota, RejectAllQuota, RetryAfter};
+use relay_config::{Config, Redis};
 
-use relay_common::{Config, Redis};
+use crate::actors::project::{Quota, RedisQuota, RejectAllQuota, RetryAfter};
 
 /// The ``grace`` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota

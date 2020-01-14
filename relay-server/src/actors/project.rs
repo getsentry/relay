@@ -20,7 +20,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;
 
-use relay_common::{metric, Config, LogError, ProjectId, PublicKey, RelayMode, RetryBackoff, Uuid};
+use relay_common::{metric, LogError, ProjectId, PublicKey, RetryBackoff, Uuid};
+use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 
@@ -851,7 +852,7 @@ pub struct ProjectCache {
 impl ProjectCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         ProjectCache {
-            backoff: RetryBackoff::from_config(&config),
+            backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
             upstream,
             projects: HashMap::new(),

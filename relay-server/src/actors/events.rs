@@ -10,7 +10,8 @@ use futures::prelude::*;
 use parking_lot::{Mutex, RwLock};
 use serde_json::Value as SerdeValue;
 
-use relay_common::{clone, metric, Config, LogError, RelayMode};
+use relay_common::{clone, metric, LogError};
+use relay_config::{Config, RelayMode};
 use relay_general::pii::PiiProcessor;
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{

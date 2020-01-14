@@ -5,8 +5,9 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::str::FromStr;
 
 use failure::Fail;
-use sentry_types::{Dsn, Scheme};
 use url::Url;
+
+use relay_common::{Dsn, Scheme};
 
 /// Indicates failures in the upstream error api.
 #[derive(Fail, Debug)]
@@ -157,7 +158,7 @@ impl FromStr for UpstreamDescriptor<'static> {
     }
 }
 
-impl_str_serialization!(UpstreamDescriptor<'static>, "a sentry upstream URL");
+relay_common::impl_str_serialization!(UpstreamDescriptor<'static>, "a sentry upstream URL");
 
 #[cfg(test)]
 mod test {

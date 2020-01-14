@@ -1,0 +1,20 @@
+[package]
+name = "relay-config"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Configuration for the Relay CLI and server"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "0.4.65"
+edition = "2018"
+license-file = "../LICENSE"
+
+[dependencies]
+failure = "0.1.5"
+human-size = "0.4.0"
+log = { version = "0.4.8", features = ["serde"] }
+num_cpus = "1.11.1"
+relay-common = { path = "../relay-common" }
+serde = { version = "1.0.98", features = ["derive"] }
+serde_json = "1.0.40"
+serde_yaml = "0.8.9"
+url = "2.0.0"

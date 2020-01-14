@@ -8,10 +8,11 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use failure::{Backtrace, Context, Fail};
-use sentry_types::Dsn;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
+use relay_common::Dsn;
+use relay_common::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
+
 use crate::types::ByteSize;
 use crate::upstream::UpstreamDescriptor;
 

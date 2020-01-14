@@ -14,7 +14,8 @@ use serde::{ser::Error, Serialize};
 
 use rmp_serde::encode::Error as RmpError;
 
-use relay_common::{metric, Config, KafkaTopic, ProjectId, Uuid};
+use relay_common::{metric, ProjectId, Uuid};
+use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{EventId, EventType};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};

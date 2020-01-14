@@ -3,8 +3,6 @@ use std::time::{Duration, Instant};
 use backoff::backoff::Backoff;
 use backoff::ExponentialBackoff;
 
-use crate::config::Config;
-
 /// Backoff multiplier (1.5 which is 50% increase per backoff).
 const DEFAULT_MULTIPLIER: f64 = 1.5;
 /// Randomization factor (0 which is no randomization).
@@ -20,13 +18,13 @@ pub struct RetryBackoff {
 
 impl RetryBackoff {
     /// Creates a new retry backoff based on configured thresholds.
-    pub fn from_config(config: &Config) -> Self {
+    pub fn new(max_interval: Duration) -> Self {
         let backoff = ExponentialBackoff {
             current_interval: Duration::from_millis(INITIAL_INTERVAL),
             initial_interval: Duration::from_millis(INITIAL_INTERVAL),
             randomization_factor: DEFAULT_RANDOMIZATION,
             multiplier: DEFAULT_MULTIPLIER,
-            max_interval: config.http_max_retry_interval(),
+            max_interval,
             max_elapsed_time: None,
             clock: Default::default(),
             start_time: Instant::now(),
