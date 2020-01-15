@@ -3,8 +3,6 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use failure::Fail;
 
-use relay_config::Config;
-
 use crate::actors::project::{Quota, RedisQuota, RejectAllQuota, RetryAfter};
 use crate::redis::{RedisError, RedisPool};
 
@@ -22,21 +20,16 @@ fn load_lua_script() -> redis::Script {
 
 #[derive(Clone)]
 pub struct RateLimiter {
-    redis_state: Option<(RedisPool, Arc<redis::Script>)>,
+    pool: RedisPool,
+    script: Arc<redis::Script>,
 }
 
 impl RateLimiter {
-    pub fn new(relay_config: &Config) -> Result<Self, QuotasError> {
-        let redis_state = if relay_config.processing_enabled() {
-            Some((
-                RedisPool::from_config(relay_config.redis()).map_err(QuotasError::Redis)?,
-                Arc::new(load_lua_script()),
-            ))
-        } else {
-            None
-        };
-
-        Ok(RateLimiter { redis_state })
+    pub fn new(pool: RedisPool) -> Self {
+        RateLimiter {
+            pool,
+            script: Arc::new(load_lua_script()),
+        }
     }
 
     pub fn is_rate_limited(
@@ -44,11 +37,7 @@ impl RateLimiter {
         quotas: &[Quota],
         organization_id: u64,
     ) -> Result<Option<RetryAfter>, QuotasError> {
-        if let Some((ref redis_pool, ref script)) = self.redis_state {
-            is_rate_limited(redis_pool, quotas, organization_id, script)
-        } else {
-            Ok(None)
-        }
+        is_rate_limited(&self.pool, quotas, organization_id, &self.script)
     }
 }
 

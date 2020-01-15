@@ -23,6 +23,9 @@ use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
 use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware};
 
+#[cfg(feature = "processing")]
+use crate::redis::RedisPool;
+
 /// Common error type for the relay server.
 #[derive(Debug)]
 pub struct ServerError {
@@ -123,10 +126,22 @@ impl ServiceState {
         let outcome_producer = OutcomeProducer::create(config.clone())?;
         let outcome_producer = Arbiter::start(move |_| outcome_producer);
 
+        let mut redis = None;
+
+        #[cfg(feature = "processing")]
+        {
+            if config.processing_enabled() {
+                redis = Some(
+                    RedisPool::from_config(config.redis()).context(ServerErrorKind::RedisError)?,
+                );
+            }
+        }
+
         let event_manager = EventManager::create(
             config.clone(),
             upstream_relay.clone(),
             outcome_producer.clone(),
+            redis,
         )
         .context(ServerErrorKind::ConfigError)?
         .start();
