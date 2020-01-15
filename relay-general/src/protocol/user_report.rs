@@ -7,12 +7,10 @@ use serde::{Deserialize, Serialize};
 pub struct UserReport {
     /// The event ID for which this user feedback is created.
     pub event_id: EventId,
-    /// The user's name
-    #[serde(default)]
-    pub name: Option<String>,
-    /// The user's email address
-    #[serde(default)]
-    pub email: Option<String>,
-    /// Comments supplied by the user
+    /// The user's name.
+    pub name: String,
+    /// The user's email address.
+    pub email: String,
+    /// Comments supplied by the user.
     pub comments: String,
 }

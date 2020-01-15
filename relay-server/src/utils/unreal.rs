@@ -119,10 +119,10 @@ fn get_unreal_user_report(event_id: EventId, context: &mut Unreal4Context) -> Op
         .unwrap_or_else(|| "unknown".to_owned());
 
     let user_report = UserReport {
-        email: None,
+        email: "".to_owned(),
         comments: user_description,
         event_id,
-        name: Some(user_name),
+        name: user_name,
     };
 
     let json = serde_json::to_string(&user_report).ok()?;
