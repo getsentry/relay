@@ -1,4 +1,5 @@
 //! Implements filtering for events originating from the localhost
+use url::Url;
 
 use relay_general::protocol::Event;
 
@@ -21,10 +22,12 @@ pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterS
         }
     }
 
-    if let Some(domain) = get_domain(event) {
-        for &local_domain in LOCAL_DOMAINS {
-            if local_domain == domain {
-                return Err(FilterStatKey::Localhost);
+    if let Some(url) = get_url(event) {
+        if let Some(host) = url.host_str() {
+            for &local_domain in LOCAL_DOMAINS {
+                if host == local_domain {
+                    return Err(FilterStatKey::Localhost);
+                }
             }
         }
     }
@@ -37,9 +40,9 @@ fn get_ip_addr(event: &Event) -> Option<&str> {
     Some(user.ip_address.value()?.as_ref())
 }
 
-fn get_domain(event: &Event) -> Option<&str> {
-    let request = event.request.value()?;
-    Some(request.url.value()?.as_str())
+fn get_url(event: &Event) -> Option<Url> {
+    let url_str = event.request.value()?.url.value()?;
+    Url::parse(url_str).ok()
 }
 
 #[cfg(test)]
@@ -62,7 +65,7 @@ mod tests {
     fn get_event_with_domain(val: &str) -> Event {
         Event {
             request: Annotated::from(Request {
-                url: Annotated::from(val.to_string()),
+                url: Annotated::from(format!("http://{}:8080/", val)),
                 ..Request::default()
             }),
             ..Event::default()
