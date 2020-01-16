@@ -665,6 +665,9 @@ impl EventManager {
         let thread_count = config.cpu_concurrency();
         log::info!("starting {} event processing workers", thread_count);
 
+        #[cfg(not(feature = "processing"))]
+        let _ = redis;
+
         #[cfg(feature = "processing")]
         let processor = {
             let geoip_lookup = match config.geoip_path() {

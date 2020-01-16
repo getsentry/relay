@@ -68,12 +68,16 @@ mod real_implementation {
 
 #[cfg(not(feature = "processing"))]
 mod noop_implementation {
+    use failure::Fail;
+
     use relay_config::Config;
 
     pub type OptionalRedisPool = ();
     pub struct RedisPool;
 
-    pub enum RedisError {}
+    #[derive(Debug, Fail)]
+    #[fail(display = "unreachable")]
+    pub struct RedisError;
 
     impl RedisPool {
         pub fn from_config(_config: &Config) -> Result<OptionalRedisPool, RedisError> {

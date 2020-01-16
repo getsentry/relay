@@ -21,7 +21,7 @@ use serde_json::Value;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{clone, metric, LogError, ProjectId, RetryBackoff, Uuid};
+use relay_common::{metric, LogError, ProjectId, RetryBackoff, Uuid};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -33,7 +33,10 @@ use crate::redis::OptionalRedisPool;
 use crate::utils::{self, ErrorBoundary, Response};
 
 #[cfg(feature = "processing")]
-use crate::actors::redis_project::{GetProjectStatesFromRedis, RedisProjectCache};
+use {
+    crate::actors::redis_project::{GetProjectStatesFromRedis, RedisProjectCache},
+    relay_common::clone,
+};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -863,6 +866,9 @@ impl ProjectCache {
         upstream: Addr<UpstreamRelay>,
         redis: OptionalRedisPool,
     ) -> Self {
+        #[cfg(not(feature = "processing"))]
+        let _ = redis;
+
         #[cfg(feature = "processing")]
         let redis_cache = {
             redis.map(|pool| {
@@ -992,7 +998,7 @@ impl ProjectCache {
     /// This is basically the identity function if processing is disabled.
     fn fetch_states_redis(
         &self,
-        mut channels: HashMap<ProjectId, ProjectStateChannel>,
+        channels: HashMap<ProjectId, ProjectStateChannel>,
     ) -> Box<
         dyn ActorFuture<
             Actor = Self,
@@ -1000,6 +1006,9 @@ impl ProjectCache {
             Error = ProjectError,
         >,
     > {
+        #[cfg(feature = "processing")]
+        let mut channels = channels;
+
         #[cfg(feature = "processing")]
         {
             if let Some(ref redis_cache) = self.redis_cache {
