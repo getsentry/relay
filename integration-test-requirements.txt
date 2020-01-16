@@ -6,4 +6,5 @@ confluent-kafka
 msgpack
 pytest-rerunfailures
 pytest-xdist
+redis
 git+https://github.com/untitaker/pytest-sentry#egg=pytest-sentry

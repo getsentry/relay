@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 
-use redis::Commands;
-
 use crate::actors::project::GetProjectStatesResponse;
 use crate::redis::{RedisError, RedisPool};
 use crate::utils::ErrorBoundary;
@@ -50,19 +48,23 @@ impl Handler<GetProjectStatesFromRedis> for RedisProjectCache {
         request: GetProjectStatesFromRedis,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        let keys: Vec<_> = request
-            .projects
-            .iter()
-            .map(|id| format!("{}:{}", self.config.projectconfig_cache_prefix(), id))
-            .collect();
+        let mut command = redis::cmd("MGET");
+        for id in &request.projects {
+            command.arg(format!(
+                "{}:{}",
+                self.config.projectconfig_cache_prefix(),
+                id
+            ));
+        }
+
         let raw_response: Vec<String> = match self.redis {
             RedisPool::Cluster(ref pool) => {
                 let mut client = pool.get().map_err(RedisError::RedisPool)?;
-                client.get(&keys[..]).map_err(RedisError::Redis)?
+                command.query(&mut *client).map_err(RedisError::Redis)?
             }
             RedisPool::Single(ref pool) => {
                 let mut client = pool.get().map_err(RedisError::RedisPool)?;
-                client.get(&keys[..]).map_err(RedisError::Redis)?
+                command.query(&mut *client).map_err(RedisError::Redis)?
             }
         };
 
