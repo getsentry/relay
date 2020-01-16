@@ -53,6 +53,9 @@ def processing_config(get_topic_name):
 
         if not processing.get("redis"):
             processing["redis"] = "redis://127.0.0.1"
+
+        processing['projectconfig_cache_prefix'] = f"relay-test-relayconfig-{uuid.uuid4()}"
+
         return options
 
     return inner

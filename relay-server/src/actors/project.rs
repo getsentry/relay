@@ -21,7 +21,7 @@ use serde_json::Value;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{metric, LogError, ProjectId, RetryBackoff, Uuid};
+use relay_common::{clone, metric, LogError, ProjectId, RetryBackoff, Uuid};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -866,9 +866,12 @@ impl ProjectCache {
         #[cfg(feature = "processing")]
         let redis_cache = {
             redis.map(|pool| {
-                SyncArbiter::start(config.cpu_concurrency(), move || {
-                    RedisProjectCache::new(pool.clone())
-                })
+                SyncArbiter::start(
+                    config.cpu_concurrency(),
+                    clone!(config, || {
+                        RedisProjectCache::new(config.clone(), pool.clone())
+                    }),
+                )
             })
         };
 

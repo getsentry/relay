@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix::prelude::*;
 
 use redis::Commands;
@@ -7,14 +9,16 @@ use crate::redis::{RedisError, RedisPool};
 use crate::utils::ErrorBoundary;
 
 use relay_common::ProjectId;
+use relay_config::Config;
 
 pub struct RedisProjectCache {
+    config: Arc<Config>,
     redis: RedisPool,
 }
 
 impl RedisProjectCache {
-    pub fn new(redis: RedisPool) -> Self {
-        RedisProjectCache { redis }
+    pub fn new(config: Arc<Config>, redis: RedisPool) -> Self {
+        RedisProjectCache { config, redis }
     }
 }
 
@@ -49,7 +53,7 @@ impl Handler<GetProjectStatesFromRedis> for RedisProjectCache {
         let keys: Vec<_> = request
             .projects
             .iter()
-            .map(|id| format!("relayconfig:{}", id))
+            .map(|id| format!("{}:{}", self.config.projectconfig_cache_prefix(), id))
             .collect();
         let raw_response: Vec<String> = match self.redis {
             RedisPool::Cluster(ref pool) => {
