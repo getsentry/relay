@@ -59,7 +59,7 @@ fn default_version() -> u16 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventMeta {
+pub struct EnvelopeMeta {
     /// The DSN describing the target of this envelope.
     dsn: Dsn,
 
@@ -88,10 +88,10 @@ pub struct EventMeta {
     user_agent: Option<String>,
 }
 
-impl EventMeta {
+impl EnvelopeMeta {
     #[cfg(test)]
     pub fn new(dsn: Dsn) -> Self {
-        EventMeta {
+        EnvelopeMeta {
             dsn,
             client: Some("sentry/client".to_string()),
             version: 7,
@@ -105,7 +105,7 @@ impl EventMeta {
     /// Overwrites this event meta instance with information from another.
     ///
     /// All fields that are not set in the other instance will remain.
-    pub fn merge(&mut self, other: EventMeta) {
+    pub fn merge(&mut self, other: EnvelopeMeta) {
         self.dsn = other.dsn;
         if let Some(client) = other.client {
             self.client = Some(client);
@@ -125,7 +125,7 @@ impl EventMeta {
 
     /// Returns a reference to the DSN.
     ///
-    /// The DSN declares the project and auth information and upstream address. When EventMeta is
+    /// The DSN declares the project and auth information and upstream address. When EnvelopeMeta is
     /// constructed from a web request, the DSN is set to point to the upstream host.
     pub fn dsn(&self) -> &Dsn {
         &self.dsn
@@ -254,7 +254,7 @@ fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Opti
 
 fn extract_event_meta(
     request: &HttpRequest<ServiceState>,
-) -> ResponseFuture<EventMeta, BadEventMeta> {
+) -> ResponseFuture<EnvelopeMeta, BadEventMeta> {
     let auth = tryf!(auth_from_request(request));
 
     let version = auth.version();
@@ -304,7 +304,7 @@ fn extract_event_meta(
             project_id,
         );
 
-        Ok(EventMeta {
+        Ok(EnvelopeMeta {
             dsn: dsn_string.parse().map_err(BadEventMeta::BadDsn)?,
             version,
             client,
@@ -316,7 +316,7 @@ fn extract_event_meta(
     }))
 }
 
-impl FromRequest<ServiceState> for EventMeta {
+impl FromRequest<ServiceState> for EnvelopeMeta {
     type Config = ();
     type Result = AsyncResult<Self, actix_web::Error>;
 

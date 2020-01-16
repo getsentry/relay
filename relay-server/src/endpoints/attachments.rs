@@ -6,13 +6,13 @@ use relay_general::protocol::EventId;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::Envelope;
-use crate::extractors::{EventMeta, StartTime};
+use crate::extractors::{EnvelopeMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::MultipartItems;
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
-    meta: EventMeta,
+    meta: EnvelopeMeta,
     max_payload_size: usize,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
     let event_id = tryf!(request
@@ -26,7 +26,7 @@ fn extract_envelope(
         .handle_request(request)
         .map_err(BadStoreRequest::InvalidMultipart)
         .map(move |items| {
-            let mut envelope = Envelope::from_request(event_id, meta);
+            let mut envelope = Envelope::from_request(Some(event_id), meta);
 
             for item in items {
                 envelope.add_item(item);
@@ -38,12 +38,12 @@ fn extract_envelope(
     Box::new(future)
 }
 
-fn create_response(_: EventId) -> HttpResponse {
+fn create_response(_: Option<EventId>) -> HttpResponse {
     HttpResponse::Created().finish()
 }
 
 fn store_attachment(
-    meta: EventMeta,
+    meta: EnvelopeMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {

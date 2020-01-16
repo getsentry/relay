@@ -7,19 +7,19 @@ use crate::body::ForwardBody;
 use crate::constants::UNREAL_USER_HEADER;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::{EventMeta, StartTime};
+use crate::extractors::{EnvelopeMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
-    meta: EventMeta,
+    meta: EnvelopeMeta,
     max_payload_size: usize,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
     let user_id = request.query().get("UserID").map(String::to_owned);
     let future = ForwardBody::new(request, max_payload_size)
         .map_err(|_| BadStoreRequest::InvalidUnrealReport)
         .and_then(move |data| {
-            let mut envelope = Envelope::from_request(EventId::new(), meta);
+            let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
 
             let mut item = Item::new(ItemType::UnrealReport);
             item.set_payload(ContentType::OctetStream, data);
@@ -36,7 +36,7 @@ fn extract_envelope(
 }
 
 fn store_unreal(
-    meta: EventMeta,
+    meta: EnvelopeMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {

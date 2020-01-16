@@ -12,7 +12,7 @@ use relay_general::protocol::EventId;
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
-use crate::extractors::{EventMeta, StartTime};
+use crate::extractors::{EnvelopeMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
 // Transparent 1x1 gif
@@ -22,7 +22,7 @@ static PIXEL: &[u8] =
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
-    meta: EventMeta,
+    meta: EnvelopeMeta,
     max_event_payload_size: usize,
     content_type: String,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
@@ -72,7 +72,7 @@ fn extract_envelope(
             let mut event_item = Item::new(ItemType::Event);
             event_item.set_payload(content_type, data);
 
-            let mut envelope = Envelope::from_request(event_id, meta);
+            let mut envelope = Envelope::from_request(Some(event_id), meta);
             envelope.add_item(event_item);
 
             Ok(envelope)
@@ -83,10 +83,10 @@ fn extract_envelope(
 
 #[derive(Serialize)]
 struct StoreResponse {
-    id: EventId,
+    id: Option<EventId>,
 }
 
-fn create_response(id: EventId, is_get_request: bool) -> HttpResponse {
+fn create_response(id: Option<EventId>, is_get_request: bool) -> HttpResponse {
     if is_get_request {
         HttpResponse::Ok().content_type("image/gif").body(PIXEL)
     } else {
@@ -101,7 +101,7 @@ fn create_response(id: EventId, is_get_request: bool) -> HttpResponse {
 /// be used directly as a request handler since not all of its arguments
 /// implement the FromRequest trait.
 fn store_event(
-    meta: EventMeta,
+    meta: EnvelopeMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
@@ -145,7 +145,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
             r.post().with(store_event);
             r.get().with(store_event);
         })
-        // Legacy store path. Since it is missing the project parameter, the `EventMeta` extractor
+        // Legacy store path. Since it is missing the project parameter, the `EnvelopeMeta` extractor
         // will use `ProjectKeyLookup` to map the public key to a project id before handling the
         // request.
         .resource(r"/{l:/*}api/store{t:/*}", |r| {

@@ -22,7 +22,7 @@ use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectErr
 use crate::body::StorePayloadError;
 use crate::constants::ITEM_NAME_EVENT;
 use crate::envelope::{Envelope, EnvelopeError, ItemType, Items};
-use crate::extractors::{EventMeta, StartTime};
+use crate::extractors::{EnvelopeMeta, StartTime};
 use crate::service::ServiceState;
 use crate::utils::{ApiErrorResponse, FormDataIter, MultipartError};
 
@@ -262,7 +262,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 /// it will try to create a store_body from the request.
 ///
 pub fn handle_store_like_request<F, R, I>(
-    meta: EventMeta,
+    meta: EnvelopeMeta,
     is_event: bool,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
@@ -270,9 +270,9 @@ pub fn handle_store_like_request<F, R, I>(
     create_response: R,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
-    F: FnOnce(&HttpRequest<ServiceState>, EventMeta) -> I + 'static,
+    F: FnOnce(&HttpRequest<ServiceState>, EnvelopeMeta) -> I + 'static,
     I: IntoFuture<Item = Envelope, Error = BadStoreRequest> + 'static,
-    R: FnOnce(EventId) -> HttpResponse + 'static,
+    R: FnOnce(Option<EventId>) -> HttpResponse + 'static,
 {
     let start_time = start_time.into_inner();
 
@@ -309,7 +309,7 @@ where
             extract_envelope(&request, meta)
                 .into_future()
                 .and_then(clone!(project, |envelope| {
-                    *event_id.lock() = Some(envelope.event_id());
+                    *event_id.lock() = envelope.event_id();
 
                     project
                         .send(GetEventAction::cached(cloned_meta))
@@ -365,10 +365,13 @@ where
 }
 
 /// Creates a HttpResponse containing the textual representation of the given EventId
-pub fn create_text_event_id_response(id: EventId) -> HttpResponse {
+pub fn create_text_event_id_response(id: Option<EventId>) -> HttpResponse {
     // the minidump client expects the response to contain an event id as a hyphenated UUID
     // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    HttpResponse::Ok()
-        .content_type("text/plain")
-        .body(format!("{}", id.0.to_hyphenated()))
+    match id {
+        Some(id) => HttpResponse::Ok()
+            .content_type("text/plain")
+            .body(format!("{}", id.0.to_hyphenated())),
+        None => HttpResponse::Ok().content_type("text/plain").body(""),
+    }
 }

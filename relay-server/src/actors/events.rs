@@ -375,19 +375,19 @@ impl EventProcessor {
             .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
 
         if let Some(item) = event_item {
-            log::trace!("processing json event {}", envelope.event_id());
+            log::trace!("processing json event {}", envelope.display());
             return Ok(metric!(timer("event_processing.deserialize"), {
                 self.event_from_json_payload(item)?
             }));
         }
 
         if let Some(item) = security_item {
-            log::trace!("processing security report {}", envelope.event_id());
+            log::trace!("processing security report {}", envelope.display());
             return Ok(self.event_from_security_report(item)?);
         }
 
         if attachment_item.is_some() || breadcrumbs_item1.is_some() || breadcrumbs_item2.is_some() {
-            log::trace!("extracting attached event data {}", envelope.event_id());
+            log::trace!("extracting attached event data {}", envelope.display());
             return Ok(Self::event_from_attachments(
                 &self.config,
                 attachment_item,
@@ -397,7 +397,7 @@ impl EventProcessor {
         }
 
         if let Some(item) = form_item {
-            log::trace!("extracting form data {}", envelope.event_id());
+            log::trace!("extracting form data {}", envelope.display());
             let mut value = SerdeValue::Object(Default::default());
             self.merge_formdata(&mut value, item);
             return Ok(Annotated::deserialize_with_meta(value).unwrap_or_default());
@@ -564,18 +564,22 @@ impl EventProcessor {
             }
         }
 
-        let event_id = envelope.event_id();
-        if let Some(event) = event.value_mut() {
-            // Ensure that the event id in the payload is consistent with the envelope. If an event
-            // id was ingested, this will already be the case. Otherwise, this will insert a new
-            // event id. To be defensive, we always overwrite to ensure consistency.
-            event.id = Annotated::new(event_id);
-        } else {
-            // If we have an envelope without event at this point, we are done with processing. This
-            // envelope only contains attachments or user reports. We should not run filters or
-            // apply rate limits.
-            log::trace!("no event for envelope {}, skipping processing", event_id);
-            return Ok(ProcessEventResponse { envelope });
+        if let Some(event_id) = envelope.event_id() {
+            if let Some(event) = event.value_mut() {
+                // Ensure that the event id in the payload is consistent with the envelope. If an event
+                // id was ingested, this will already be the case. Otherwise, this will insert a new
+                // event id. To be defensive, we always overwrite to ensure consistency.
+                event.id = Annotated::new(event_id);
+            } else {
+                // If we have an envelope without event at this point, we are done with processing. This
+                // envelope only contains attachments or user reports. We should not run filters or
+                // apply rate limits.
+                log::trace!(
+                    "no event for envelope {}, skipping processing",
+                    envelope.display()
+                );
+                return Ok(ProcessEventResponse { envelope });
+            }
         }
 
         if_processing! {
@@ -734,11 +738,11 @@ pub struct QueueEvent {
 }
 
 impl Message for QueueEvent {
-    type Result = Result<EventId, QueueEventError>;
+    type Result = Result<Option<EventId>, QueueEventError>;
 }
 
 impl Handler<QueueEvent> for EventManager {
-    type Result = Result<EventId, QueueEventError>;
+    type Result = Result<Option<EventId>, QueueEventError>;
 
     fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
         metric!(histogram("event.queue_size") = u64::from(self.current_active_events));
@@ -756,7 +760,9 @@ impl Handler<QueueEvent> for EventManager {
         }
 
         self.current_active_events += 1;
+
         let event_id = message.envelope.event_id();
+        log::trace!("queued event {}", message.envelope.display());
 
         // Actual event handling is performed asynchronously in a separate future. The lifetime of
         // that future will be tied to the EventManager's context. This allows to keep the Project
@@ -767,7 +773,6 @@ impl Handler<QueueEvent> for EventManager {
             start_time: message.start_time,
         });
 
-        log::trace!("queued event {}", event_id);
         Ok(event_id)
     }
 }
@@ -817,7 +822,10 @@ impl Handler<HandleEvent> for EventManager {
             start_time,
         } = message;
 
+        // XXX: this is not correct, HandleEvent should turn into HandleEnvelope and handle
+        // envelopes without event ids correctly.
         let event_id = envelope.event_id();
+        let envelope_display = envelope.display();
         let is_event = envelope
             .get_item_by(|item| item.ty() == ItemType::Event)
             .is_some();
@@ -860,7 +868,7 @@ impl Handler<HandleEvent> for EventManager {
                 #[cfg(feature = "processing")]
                 {
                     if let Some(store_forwarder) = store_forwarder {
-                        log::trace!("sending envelope to kafka {}", event_id);
+                        log::trace!("sending envelope to kafka {}", envelope_display);
                         let future = store_forwarder
                             .send(StoreEvent {
                                 envelope,
@@ -877,16 +885,22 @@ impl Handler<HandleEvent> for EventManager {
                 // if we are in capture mode, we stash away the event instead of
                 // forwarding it.
                 if capture {
-                    log::debug!("capturing event {}", event_id);
-                    captured_events
-                        .write()
-                        .insert(event_id, CapturedEvent::Ok(envelope));
+                    // XXX: this is wrong because captured_events does not take envelopes without
+                    // event_id into account.
+                    if let Some(event_id) = event_id {
+                        log::debug!("capturing envelope {}", envelope_display);
+                        captured_events
+                            .write()
+                            .insert(event_id, CapturedEvent::Ok(envelope));
+                    } else {
+                        log::debug!("dropping non event envelope {}", envelope_display);
+                    }
                     return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
                 }
 
                 let public_key = envelope.meta().public_key().to_string();
 
-                log::trace!("sending event to sentry endpoint {}", event_id);
+                log::trace!("sending event to sentry endpoint {}", envelope_display);
                 let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
                     move |builder| {
                         let meta = envelope.meta();
@@ -941,11 +955,16 @@ impl Handler<HandleEvent> for EventManager {
                 // if we are in capture mode, we stash away the event instead of
                 // forwarding it.
                 if capture {
-                    log::debug!("capturing failed event {}", event_id);
-                    let msg = LogError(&error).to_string();
-                    captured_events
-                        .write()
-                        .insert(event_id, CapturedEvent::Err(msg));
+                    // XXX: does not work with envelopes without event_id
+                    if let Some(event_id) = event_id {
+                        log::debug!("capturing failed event {}", event_id);
+                        let msg = LogError(&error).to_string();
+                        captured_events
+                            .write()
+                            .insert(event_id, CapturedEvent::Err(msg));
+                    } else {
+                        log::debug!("dropping failed envelope without event");
+                    }
                 }
 
                 metric!(counter("event.rejected") += 1);
@@ -1016,9 +1035,13 @@ impl Handler<HandleEvent> for EventManager {
                     // Errors are only logged for what we consider an internal discard reason. These
                     // indicate errors in the infrastructure or implementation bugs. In other cases,
                     // we "expect" errors and log them as info level.
-                    log::error!("error processing event {}: {}", event_id, LogError(&error));
+                    log::error!(
+                        "error processing event {}: {}",
+                        envelope_display,
+                        LogError(&error)
+                    );
                 } else {
-                    log::info!("dropped event {}: {}", event_id, LogError(&error));
+                    log::info!("dropped event {}: {}", envelope_display, LogError(&error));
                 }
 
                 if let Some(outcome) = outcome_params {
@@ -1028,7 +1051,7 @@ impl Handler<HandleEvent> for EventManager {
                         org_id: *(org_id_for_err.lock()),
                         key_id: None,
                         outcome,
-                        event_id: Some(event_id),
+                        event_id,
                         remote_addr,
                     })
                 }

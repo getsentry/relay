@@ -28,7 +28,7 @@ use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
-use crate::extractors::EventMeta;
+use crate::extractors::EnvelopeMeta;
 use crate::utils::{self, ErrorBoundary, Response};
 
 #[derive(Fail, Debug)]
@@ -48,7 +48,7 @@ pub enum RateLimitScope {
 }
 
 impl RateLimitScope {
-    fn iter_variants(meta: &EventMeta) -> impl Iterator<Item = RateLimitScope> {
+    fn iter_variants(meta: &EnvelopeMeta) -> impl Iterator<Item = RateLimitScope> {
         iter::once(RateLimitScope::Key(meta.public_key().to_owned()))
     }
 }
@@ -429,7 +429,7 @@ impl ProjectState {
     pub fn get_event_action(
         &self,
         project_id: ProjectId,
-        meta: &EventMeta,
+        meta: &EnvelopeMeta,
         config: &Config,
     ) -> EventAction {
         // Try to verify the request origin with the project config.
@@ -640,16 +640,16 @@ impl Handler<GetProjectState> for Project {
 }
 
 pub struct GetEventAction {
-    meta: Arc<EventMeta>,
+    meta: Arc<EnvelopeMeta>,
     fetch: bool,
 }
 
 impl GetEventAction {
-    pub fn fetched(meta: Arc<EventMeta>) -> Self {
+    pub fn fetched(meta: Arc<EnvelopeMeta>) -> Self {
         GetEventAction { meta, fetch: true }
     }
 
-    pub fn cached(meta: Arc<EventMeta>) -> Self {
+    pub fn cached(meta: Arc<EnvelopeMeta>) -> Self {
         GetEventAction { meta, fetch: false }
     }
 }

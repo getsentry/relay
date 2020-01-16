@@ -9,7 +9,7 @@ use crate::body::ForwardBody;
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::{EventMeta, StartTime};
+use crate::extractors::{EnvelopeMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::{consume_field, get_multipart_boundary, MultipartError, MultipartItems};
 
@@ -82,7 +82,7 @@ fn get_embedded_minidump(
 ///
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
-    meta: EventMeta,
+    meta: EnvelopeMeta,
     max_payload_size: usize,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
@@ -101,7 +101,7 @@ fn extract_envelope(
                 item.set_attachment_type(AttachmentType::Minidump);
 
                 // Create an envelope with a random event id.
-                let mut envelope = Envelope::from_request(EventId::new(), meta);
+                let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
                 envelope.add_item(item);
                 Ok(envelope)
             });
@@ -160,7 +160,7 @@ fn extract_envelope(
         })
         .and_then(move |items| {
             let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
-            let mut envelope = Envelope::from_request(event_id, meta);
+            let mut envelope = Envelope::from_request(Some(event_id), meta);
 
             for mut item in items {
                 let attachment_type = match item.name() {
@@ -184,7 +184,7 @@ fn extract_envelope(
 }
 
 fn store_minidump(
-    meta: EventMeta,
+    meta: EnvelopeMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
