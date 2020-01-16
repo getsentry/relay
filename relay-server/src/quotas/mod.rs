@@ -186,7 +186,8 @@ mod tests {
 
     lazy_static::lazy_static! {
         static ref RATE_LIMITER: RateLimiter = RateLimiter {
-            redis_state: Some((RedisPool::single("redis://127.0.0.1").unwrap(), Arc::new(load_lua_script())))
+            pool: RedisPool::single("redis://127.0.0.1").unwrap(),
+            script: Arc::new(load_lua_script())
         };
     }
 
@@ -249,7 +250,7 @@ mod tests {
             .map(Duration::as_secs)
             .unwrap();
 
-        let conn_guard = match &RATE_LIMITER.redis_state.as_ref().unwrap().0 {
+        let conn_guard = match &RATE_LIMITER.pool {
             RedisPool::Single(ref conn_guard) => conn_guard,
             _ => unreachable!(),
         };
