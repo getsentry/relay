@@ -23,6 +23,7 @@ use crate::body::StorePayloadError;
 use crate::constants::ITEM_NAME_EVENT;
 use crate::envelope::{Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::{EventMeta, StartTime};
+use crate::metrics::RelayCounters;
 use crate::service::ServiceState;
 use crate::utils::{ApiErrorResponse, FormDataIter, MultipartError};
 
@@ -292,7 +293,7 @@ where
         }));
     });
 
-    metric!(counter(&format!("event.protocol.v{}", version)) += 1);
+    metric!(counter(RelayCounters::EventProtocol(version)) += 1);
 
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
@@ -339,7 +340,7 @@ where
                 })
         }))
         .or_else(move |error: BadStoreRequest| {
-            metric!(counter("event.rejected") += 1);
+            metric!(counter(RelayCounters::EventRejected) += 1);
 
             if is_event {
                 outcome_producer.do_send(TrackOutcome {

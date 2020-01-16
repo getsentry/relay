@@ -19,6 +19,8 @@ mod middlewares;
 mod service;
 mod utils;
 
+mod metrics;
+
 #[cfg(feature = "processing")]
 mod quotas;
 

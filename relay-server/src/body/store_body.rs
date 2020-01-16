@@ -14,6 +14,7 @@ use url::form_urlencoded;
 use relay_common::metric;
 
 use crate::actors::outcome::DiscardReason;
+use crate::metrics::RelayTimers;
 use crate::utils;
 
 /// A set of errors that can occur during parsing json payloads
@@ -155,9 +156,9 @@ impl Future for StoreBody {
             })
             .and_then(|body_opt| {
                 let body = body_opt.ok_or(StorePayloadError::Overflow)?;
-                metric!(time_raw("event.size_bytes.raw") = body.len() as u64);
+                metric!(time_raw(RelayTimers::EventSizeBytesRaw) = body.len() as u64);
                 let decoded = decode_bytes(body.freeze())?;
-                metric!(time_raw("event.size_bytes.uncompressed") = decoded.len() as u64);
+                metric!(time_raw(RelayTimers::EventSizeBytesUncompressed) = decoded.len() as u64);
                 Ok(decoded)
             });
 
