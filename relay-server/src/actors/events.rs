@@ -27,6 +27,7 @@ use crate::actors::project::{
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::redis::OptionalRedisPool;
 use crate::service::ServerError;
 use crate::utils::{self, FormDataIter, FutureExt};
 
@@ -34,16 +35,12 @@ use crate::utils::{self, FormDataIter, FutureExt};
 use {
     crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
     crate::quotas::{QuotasError, RateLimiter},
-    crate::redis::RedisPool,
     crate::service::ServerErrorKind,
     failure::ResultExt,
     relay_filter::{should_filter, FilterStatKey},
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
-
-#[cfg(not(feature = "processing"))]
-type RedisPool = ();
 
 #[derive(Debug, Fail)]
 pub enum QueueEventError {
@@ -663,7 +660,7 @@ impl EventManager {
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
         outcome_producer: Addr<OutcomeProducer>,
-        redis: Option<RedisPool>,
+        redis: OptionalRedisPool,
     ) -> Result<Self, ServerError> {
         let thread_count = config.cpu_concurrency();
         log::info!("starting {} event processing workers", thread_count);

@@ -16,11 +16,9 @@ mod endpoints;
 mod envelope;
 mod extractors;
 mod middlewares;
+mod redis;
 mod service;
 mod utils;
-
-#[cfg(feature = "processing")]
-mod redis;
 
 #[cfg(feature = "processing")]
 mod quotas;
