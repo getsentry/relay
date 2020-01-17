@@ -1,5 +1,4 @@
 use relay_common::metrics::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
-use std::borrow::Cow;
 
 /// Set metrics used by Relay
 pub enum RelaySets {
@@ -8,9 +7,9 @@ pub enum RelaySets {
 }
 
 impl SetMetric for RelaySets {
-    fn name(&self) -> Cow<'_, str> {
+    fn name(&self) -> &'static str {
         match self {
-            RelaySets::UniqueProjects => Cow::Borrowed("unique_projects"),
+            RelaySets::UniqueProjects => "unique_projects",
         }
     }
 }
@@ -23,6 +22,7 @@ pub enum RelayHistograms {
     EventQueueSizePct,
     /// The number of events in the queue at the sampling moment.
     EventQueueSize,
+
     ProjectStatePending,
     ProjectStateRequestBatchSize,
     ProjectStateReceived,
@@ -30,16 +30,14 @@ pub enum RelayHistograms {
 }
 
 impl HistogramMetric for RelayHistograms {
-    fn name(&self) -> Cow<'_, str> {
+    fn name(&self) -> &'static str {
         match self {
-            RelayHistograms::EventQueueSizePct => Cow::Borrowed("event.queue_size.pct"),
-            RelayHistograms::EventQueueSize => Cow::Borrowed("event.queue_size"),
-            RelayHistograms::ProjectStatePending => Cow::Borrowed("project_state.pending"),
-            RelayHistograms::ProjectStateRequestBatchSize => {
-                Cow::Borrowed("project_state.request.batch_size")
-            }
-            RelayHistograms::ProjectStateReceived => Cow::Borrowed("project_state.received"),
-            RelayHistograms::ProjectStateCacheSize => Cow::Borrowed("project_cache.size"),
+            RelayHistograms::EventQueueSizePct => "event.queue_size.pct",
+            RelayHistograms::EventQueueSize => "event.queue_size",
+            RelayHistograms::ProjectStatePending => "project_state.pending",
+            RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
+            RelayHistograms::ProjectStateReceived => "project_state.received",
+            RelayHistograms::ProjectStateCacheSize => "project_cache.size",
         }
     }
 }
@@ -64,35 +62,23 @@ pub enum RelayTimers {
 }
 
 impl TimerMetric for RelayTimers {
-    fn name(&self) -> Cow<'_, str> {
+    fn name(&self) -> &'static str {
         match self {
-            RelayTimers::EventProcessingDeserialize => {
-                Cow::Borrowed("event_processing.deserialize")
-            }
-            RelayTimers::EventProcessingProcess => Cow::Borrowed("event_processing.process"),
-            RelayTimers::EventProcessingFiltering => Cow::Borrowed("event_processing.filtering"),
-            RelayTimers::EventProcessingRateLimiting => {
-                Cow::Borrowed("event_processing.rate_limiting")
-            }
-            RelayTimers::EventProcessingPii => Cow::Borrowed("event_processing.pii"),
-            RelayTimers::EventProcessingSerialization => {
-                Cow::Borrowed("event_processing.serialization")
-            }
-            RelayTimers::EventWaitTime => Cow::Borrowed("event.wait_time"),
-            RelayTimers::EventProcessingTime => Cow::Borrowed("event.processing_time"),
-            RelayTimers::EventTotalTime => Cow::Borrowed("event.total_time"),
-            RelayTimers::ProjectStateEvictionDuration => {
-                Cow::Borrowed("project_state.eviction.duration")
-            }
-            RelayTimers::ProjectStateRequestDuration => {
-                Cow::Borrowed("project_state.request.duration")
-            }
-            RelayTimers::ProjectIdRequestDuration => Cow::Borrowed("project_id.request.duration"),
-            RelayTimers::EventSizeBytesRaw => Cow::Borrowed("event.size_bytes.raw"),
-            RelayTimers::EventSizeBytesUncompressed => {
-                Cow::Borrowed("event.size_bytes.uncompressed")
-            }
-            RelayTimers::RequestsDuration => Cow::Borrowed("requests.duration"),
+            RelayTimers::EventProcessingDeserialize => "event_processing.deserialize",
+            RelayTimers::EventProcessingProcess => "event_processing.process",
+            RelayTimers::EventProcessingFiltering => "event_processing.filtering",
+            RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
+            RelayTimers::EventProcessingPii => "event_processing.pii",
+            RelayTimers::EventProcessingSerialization => "event_processing.serialization",
+            RelayTimers::EventWaitTime => "event.wait_time",
+            RelayTimers::EventProcessingTime => "event.processing_time",
+            RelayTimers::EventTotalTime => "event.total_time",
+            RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
+            RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
+            RelayTimers::ProjectIdRequestDuration => "project_id.request.duration",
+            RelayTimers::EventSizeBytesRaw => "event.size_bytes.raw",
+            RelayTimers::EventSizeBytesUncompressed => "event.size_bytes.uncompressed",
+            RelayTimers::RequestsDuration => "requests.duration",
         }
     }
 }
@@ -109,29 +95,27 @@ pub enum RelayCounters {
     ProjectIdRequest,
     ServerStarting,
     ProcessingEventProduced,
-    EventProtocol(u16),
+    EventProtocol,
     Requests,
     ResponsesStatusCodes,
 }
 
 impl CounterMetric for RelayCounters {
-    fn name(&self) -> Cow<'_, str> {
+    fn name(&self) -> &'static str {
         match self {
-            RelayCounters::EventAccepted => Cow::Borrowed("event.accepted"),
-            RelayCounters::EventRejected => Cow::Borrowed("event.rejected"),
-            RelayCounters::EventOutcomes => Cow::Borrowed("events.outcomes"),
-            RelayCounters::ProjectStateGet => Cow::Borrowed("project_state.get"),
-            RelayCounters::ProjectStateRequest => Cow::Borrowed("project_state.request"),
-            RelayCounters::ProjectCacheHit => Cow::Borrowed("project_cache.hit"),
-            RelayCounters::ProjectCacheMiss => Cow::Borrowed("project_cache.miss"),
-            RelayCounters::ProjectIdRequest => Cow::Borrowed("project_id.request"),
-            RelayCounters::ServerStarting => Cow::Borrowed("server.starting"),
-            RelayCounters::ProcessingEventProduced => Cow::Borrowed("processing.event.produced"),
-            RelayCounters::EventProtocol(version) => {
-                Cow::Owned(format!("event.protocol.v{}", version))
-            }
-            RelayCounters::Requests => Cow::Borrowed("requests"),
-            RelayCounters::ResponsesStatusCodes => Cow::Borrowed("responses.status_codes"),
+            RelayCounters::EventAccepted => "event.accepted",
+            RelayCounters::EventRejected => "event.rejected",
+            RelayCounters::EventOutcomes => "events.outcomes",
+            RelayCounters::ProjectStateGet => "project_state.get",
+            RelayCounters::ProjectStateRequest => "project_state.request",
+            RelayCounters::ProjectCacheHit => "project_cache.hit",
+            RelayCounters::ProjectCacheMiss => "project_cache.miss",
+            RelayCounters::ProjectIdRequest => "project_id.request",
+            RelayCounters::ServerStarting => "server.starting",
+            RelayCounters::ProcessingEventProduced => "processing.event.produced",
+            RelayCounters::EventProtocol => "event.protocol",
+            RelayCounters::Requests => "requests",
+            RelayCounters::ResponsesStatusCodes => "responses.status_codes",
         }
     }
 }

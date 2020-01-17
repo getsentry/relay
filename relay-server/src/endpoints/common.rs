@@ -293,7 +293,7 @@ where
         }));
     });
 
-    metric!(counter(RelayCounters::EventProtocol(version)) += 1);
+    metric!(counter(RelayCounters::EventProtocol) += 1, "version" => &format!("{}",version));
 
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();

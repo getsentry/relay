@@ -1,5 +1,47 @@
-//! Provides access to the metrics sytem.
-use std::borrow::Cow;
+//! Provides access to the metrics system.
+//!
+//! The following types of metrics are available: counter, timer, gauge, histogram and set.
+//! For explanations on what that means see:
+//! [https://github.com/statsd/statsd/blob/master/docs/metric_types.md]
+//!
+//! In order to use metrics one needs to first define a particular metric in a type.
+//!
+//! For a type instance to be used as a metric the type needs to implement one of the
+//! metric traits.
+//!
+//! The metric traits serve only to provide a type safe metric name.
+//! All metric types have exactly the same form, they are different only to ensure
+//! that a metric can only be used for the type for which it was defined, (e.g. a
+//! counter metric cannot be used as a timer metric).
+//!
+//! ## Examples:
+//!
+//! ```no_run
+//!use relay_common::{metric, metrics::TimerMetric};
+//!enum MyTimer {
+//!    TimeSpentDoingA,
+//!    TimeSpentDoingB,
+//!}
+//!
+//!impl TimerMetric for MyTimer {
+//!    fn name(&self) -> &'static str {
+//!        match self {
+//!            Self::TimeSpentDoingA => "processA.millisecs",
+//!            Self::TimeSpentDoingB => "processB.millisecs",
+//!        }
+//!    }
+//!}
+//!
+//! let start_time  = std::time::Instant::now();
+//! // measure time by explicitly setting a std::timer::Duration
+//! metric!(timer(MyTimer::TimeSpentDoingA) = start_time.elapsed());
+//! // measure time implicitly by enclosing a code block in a metric
+//! metric!(timer(MyTimer::TimeSpentDoingB){
+//!    // insert here the code that needs to be timed
+//! });
+//! ```
+//!
+
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 
@@ -65,68 +107,39 @@ where
     })
 }
 
-/// Any type that implements this trait can be set as a timer
-/// A typical implementation would be something like this
-///
-/// ```ignore
-///
-///enum MyTimer {
-///    TimeSpentDoingA,
-///    TimeSpentDoingB,
-///}
-///
-///impl TimerMetric for MyTimer {
-///    fn name(&self) -> &str {
-///        match self {
-///            Self::TimeSpentDoingA => "processA.millisecs",
-///            Self::TimeSpentDoingB => "processB.millisecs",
-///        }
-///    }
-///}
-/// ```
-///
-/// The type can then be used with any of the metric timer macros.
-///
-/// ```ignore
-/// let start_time  = std::time::Instant::now();
-/// metric!(timer(MyTimer::TimeSpentDoingA) = start_time.elapsed());
-/// ```
+/// Trait that designates instances as representing timer metrics.
 pub trait TimerMetric {
     /// Returns the timer metric name that will be sent to statsd (DataDog or whatever
     /// collection server you use)
-    fn name(&self) -> Cow<'_, str>;
+    fn name(&self) -> &'static str;
 }
 
-/// Any type that implements this trait can be set as a counter
-/// This is very similar with the [TimerMetric] trait, see [TimerMetric] for details.
+/// Trait that designates instances as representing counter metrics.
 pub trait CounterMetric {
     /// Returns the counter metric name that will be sent to statsd (DataDog or whatever
     /// collection server you use)
-    fn name(&self) -> Cow<'_, str>;
+    fn name(&self) -> &'static str;
 }
 
-/// Any type that implements this trait can be set as a histogram
-/// This is very similar with the [TimerMetric] trait, see [TimerMetric] for details.
+/// Trait that designates instances as representing histogram metrics.
 pub trait HistogramMetric {
     /// Returns the histogram metric name that will be sent to statsd (DataDog or whatever
     /// collection server you use)
-    fn name(&self) -> Cow<'_, str>;
+    fn name(&self) -> &'static str;
 }
 
-/// Any type that implements this trait can be set as a timer
-/// This is very similar with the [TimerMetric] trait, see [TimerMetric] for details.
+/// Trait that designates instances as representing set metrics.
 pub trait SetMetric {
     /// Returns the set metric name that will be sent to statsd (DataDog or whatever
     /// collection server you use)
-    fn name(&self) -> Cow<'_, str>;
+    fn name(&self) -> &'static str;
 }
 
-/// Any type that implements this trait can be set as a gauge
-/// This is very similar with the [TimerMetric] trait, see [TimerMetric] for details.
+/// Trait that designates instances as representing gauge metrics.
 pub trait GaugeMetric {
     /// Returns the gauge metric name that will be sent to statsd (DataDog or whatever
     /// collection server you use)
-    fn name(&self) -> Cow<'_, str>;
+    fn name(&self) -> &'static str;
 }
 
 /// Emits a metric.
@@ -254,51 +267,4 @@ macro_rules! metric {
         })
     }};
 
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    enum MyTimer {
-        TheA,
-        TheB,
-    }
-
-    impl TimerMetric for MyTimer {
-        fn name(&self) -> Cow<'_, str> {
-            match self {
-                Self::TheA => Cow::Borrowed("theA"),
-                Self::TheB => Cow::Borrowed("theB"),
-            }
-        }
-    }
-
-    // should compile, do not mark this function as test
-    #[allow(dead_code)]
-    fn timer_works() {
-        let t = std::time::Instant::now();
-        metric!(timer(MyTimer::TheA) = t.elapsed());
-    }
-
-    enum MySet {
-        Set1,
-        Set2(i32),
-    }
-
-    impl SetMetric for MySet {
-        fn name(&self) -> Cow<'_, str> {
-            match self {
-                Self::Set1 => Cow::Borrowed("Set1"),
-                Self::Set2(val) => Cow::Owned(format!("Set2_{}", val)),
-            }
-        }
-    }
-
-    // should compile, do not mark this function as test
-    #[allow(dead_code)]
-    fn set_works() {
-        metric!(set(MySet::Set1) = 43);
-        metric!(set(MySet::Set2(23)) = 55);
-    }
 }
