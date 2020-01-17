@@ -30,8 +30,8 @@ impl<S> Middleware<S> for Metrics {
         req.extensions_mut().insert(StartTime(Instant::now()));
         metric!(
             counter(RelayCounters::Requests) += 1,
-            "route" => req.resource().name(),
-            "method" => req.method().as_str()
+            route = req.resource().name(),
+            method = req.method().as_str()
         );
         Ok(Started::Done)
     }
@@ -41,14 +41,14 @@ impl<S> Middleware<S> for Metrics {
 
         metric!(
             timer(RelayTimers::RequestsDuration) = start_time.elapsed(),
-            "route" => req.resource().name(),
-            "method" => req.method().as_str()
+            route = req.resource().name(),
+            method = req.method().as_str()
         );
         metric!(
             counter(RelayCounters::ResponsesStatusCodes) += 1,
-            "status_code" => &resp.status().as_str(),
-            "route" => req.resource().name(),
-            "method" => req.method().as_str()
+            status_code = &resp.status().as_str(),
+            route = req.resource().name(),
+            method = req.method().as_str()
         );
 
         Finished::Done

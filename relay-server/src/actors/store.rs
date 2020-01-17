@@ -336,7 +336,10 @@ impl Handler<StoreEvent> for StoreForwarder {
             });
 
             self.produce(topic, event_id, event_message)?;
-            metric!(counter(RelayCounters::ProcessingEventProduced) += 1, "type" => "event");
+            metric!(
+                counter(RelayCounters::ProcessingEventProduced) += 1,
+                event_type = "event"
+            );
         } else {
             log::trace!("Sending individual attachments of envelope to kafka");
             for attachment in attachments {
@@ -347,7 +350,10 @@ impl Handler<StoreEvent> for StoreForwarder {
                 });
 
                 self.produce(topic, event_id, attachment_message)?;
-                metric!(counter(RelayCounters::ProcessingEventProduced) += 1, "type" => "attachment");
+                metric!(
+                    counter(RelayCounters::ProcessingEventProduced) += 1,
+                    event_type = "attachment"
+                );
             }
         }
 
