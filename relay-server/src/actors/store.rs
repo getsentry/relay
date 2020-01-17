@@ -30,6 +30,8 @@ pub enum StoreError {
     SendFailed(#[cause] KafkaError),
     #[fail(display = "failed to serialize kafka message")]
     SerializeFailed(#[cause] RmpError),
+    #[fail(display = "failed to store event because event id was missing")]
+    NoEventId,
 }
 
 /// Actor for publishing events to Sentry through kafka topics.
@@ -58,16 +60,16 @@ impl StoreForwarder {
     fn produce(
         &self,
         topic: KafkaTopic,
-        event_id: EventId,
+        event_id: Option<EventId>,
         message: KafkaMessage,
     ) -> Result<(), StoreError> {
-        // Use the event id as partition routing key.
-        let key = event_id.0.as_bytes().as_ref();
-
         let serialized = rmp_serde::to_vec_named(&message).map_err(StoreError::SerializeFailed)?;
-        let record = BaseRecord::to(self.config.kafka_topic_name(topic))
-            .payload(&serialized)
-            .key(key);
+        let mut record = BaseRecord::to(self.config.kafka_topic_name(topic)).payload(&serialized);
+
+        // Use the event id as partition routing key.
+        if let Some(ref event_id) = event_id {
+            record = record.key(event_id.0.as_bytes().as_ref());
+        };
 
         match self.producer.send(record) {
             Ok(_) => Ok(()),
@@ -102,7 +104,7 @@ impl StoreForwarder {
                 chunk_index,
             });
 
-            self.produce(KafkaTopic::Attachments, event_id, attachment_message)?;
+            self.produce(KafkaTopic::Attachments, Some(event_id), attachment_message)?;
             offset += chunk_size;
             chunk_index += 1;
         }
@@ -130,7 +132,7 @@ impl StoreForwarder {
     ) -> Result<(), StoreError> {
         self.produce(
             KafkaTopic::Attachments,
-            event_id,
+            Some(event_id),
             KafkaMessage::UserReport(UserReportKafkaMessage {
                 project_id,
                 payload: item.payload(),
@@ -206,7 +208,7 @@ struct EventKafkaMessage {
     /// Time at which the event was received by Relay.
     start_time: u64,
     /// The event id.
-    event_id: EventId,
+    event_id: Option<EventId>,
     /// The project id for the current event.
     project_id: ProjectId,
     /// The client ip address.
@@ -313,11 +315,20 @@ impl Handler<StoreEvent> for StoreForwarder {
             match item.ty() {
                 ItemType::Attachment => {
                     debug_assert!(topic == KafkaTopic::Attachments);
-                    attachments.push(self.produce_attachment_chunks(event_id, project_id, item)?);
+                    attachments.push(self.produce_attachment_chunks(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        project_id,
+                        item,
+                    )?);
                 }
                 ItemType::UserReport => {
                     debug_assert!(topic == KafkaTopic::Attachments);
-                    self.produce_user_report(event_id, project_id, start_time, item)?
+                    self.produce_user_report(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        project_id,
+                        start_time,
+                        item,
+                    )?
                 }
                 _ => {}
             }
@@ -340,7 +351,7 @@ impl Handler<StoreEvent> for StoreForwarder {
             log::trace!("Sending individual attachments of envelope to kafka");
             for attachment in attachments {
                 let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
-                    event_id,
+                    event_id: event_id.ok_or(StoreError::NoEventId)?,
                     project_id,
                     attachment,
                 });

@@ -721,7 +721,7 @@ mod tests {
         let event_id = EventId::new();
         let envelope = Envelope::from_request(Some(event_id), envelope_meta());
 
-        assert_eq!(envelope.event_id(), event_id);
+        assert_eq!(envelope.event_id(), Some(event_id));
         assert_eq!(envelope.len(), 0);
         assert!(envelope.is_empty());
 
@@ -746,7 +746,7 @@ mod tests {
     #[test]
     fn test_envelope_take_item() {
         let event_id = EventId::new();
-        let mut envelope = Envelope::from_request(event_id, envelope_meta());
+        let mut envelope = Envelope::from_request(Some(event_id), envelope_meta());
 
         let mut item1 = Item::new(ItemType::Attachment);
         item1.set_filename("item1");
