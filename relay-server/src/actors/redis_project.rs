@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
 use actix::prelude::*;
+use relay_common::ProjectId;
+use relay_config::Config;
 
 use crate::actors::project::GetProjectStatesResponse;
 use crate::redis::{RedisError, RedisPool};
 use crate::utils::ErrorBoundary;
-
-use relay_common::ProjectId;
-use relay_config::Config;
 
 pub struct RedisProjectCache {
     config: Arc<Config>,

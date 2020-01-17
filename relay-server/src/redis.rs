@@ -7,12 +7,11 @@ pub use noop_implementation::*;
 #[cfg(feature = "processing")]
 mod real_implementation {
     use failure::Fail;
+    use r2d2::Pool;
 
     use relay_config::{Config, Redis};
 
     pub type OptionalRedisPool = Option<RedisPool>;
-
-    use r2d2::Pool;
 
     #[derive(Debug, Fail)]
     pub enum RedisError {

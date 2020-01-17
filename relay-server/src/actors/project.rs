@@ -864,11 +864,8 @@ impl ProjectCache {
     pub fn new(
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
-        redis: OptionalRedisPool,
+        #[cfg(feature = "processing")] redis: OptionalRedisPool,
     ) -> Self {
-        #[cfg(not(feature = "processing"))]
-        let _ = redis;
-
         #[cfg(feature = "processing")]
         let redis_cache = {
             redis.map(|pool| {
@@ -1012,21 +1009,21 @@ impl ProjectCache {
         #[cfg(feature = "processing")]
         {
             if let Some(ref redis_cache) = self.redis_cache {
-                return Box::new(
-                    redis_cache
-                        .send(GetProjectStatesFromRedis {
-                            projects: channels.keys().cloned().collect(),
-                        })
-                        .map_err(ProjectError::ScheduleFailed)
-                        .into_actor(self)
-                        .and_then(move |response, slf, _ctx| {
-                            // Propagate unhandled channels to HTTP section.
-                            fut::result(
-                                slf.handle_fetch_states_response(&mut channels, response, || None)
-                                    .map(|()| channels),
-                            )
-                        }),
-                );
+                let future = redis_cache
+                    .send(GetProjectStatesFromRedis {
+                        projects: channels.keys().cloned().collect(),
+                    })
+                    .map_err(ProjectError::ScheduleFailed)
+                    .into_actor(self)
+                    .and_then(move |response, slf, _ctx| {
+                        // Propagate unhandled channels to HTTP section.
+                        fut::result(
+                            slf.handle_fetch_states_response(&mut channels, response, || None)
+                                .map(|()| channels),
+                        )
+                    });
+
+                return Box::new(future);
             };
         }
 
