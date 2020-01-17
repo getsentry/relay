@@ -4,7 +4,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use failure::Fail;
 
 use crate::actors::project::{Quota, RedisQuota, RejectAllQuota, RetryAfter};
-use crate::redis::{RedisError, RedisPool};
+use crate::utils::{RedisError, RedisPool};
 
 /// The ``grace`` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -44,7 +44,7 @@ impl RateLimiter {
 #[derive(Debug, Fail)]
 pub enum QuotasError {
     #[fail(display = "failed to talk to redis")]
-    Redis(#[cause] crate::redis::RedisError),
+    Redis(#[cause] crate::utils::RedisError),
 }
 
 fn is_rate_limited(

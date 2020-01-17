@@ -16,7 +16,6 @@ mod endpoints;
 mod envelope;
 mod extractors;
 mod middlewares;
-mod redis;
 mod service;
 mod utils;
 

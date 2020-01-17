@@ -6,8 +6,7 @@ use relay_common::ProjectId;
 use relay_config::Config;
 
 use crate::actors::project::GetProjectStatesResponse;
-use crate::redis::{RedisError, RedisPool};
-use crate::utils::ErrorBoundary;
+use crate::utils::{ErrorBoundary, RedisError, RedisPool};
 
 pub struct RedisProjectCache {
     config: Arc<Config>,

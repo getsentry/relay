@@ -27,9 +27,8 @@ use crate::actors::project::{
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::redis::OptionalRedisPool;
 use crate::service::ServerError;
-use crate::utils::{self, FormDataIter, FutureExt};
+use crate::utils::{self, FormDataIter, FutureExt, OptionalRedisPool};
 
 #[cfg(feature = "processing")]
 use {

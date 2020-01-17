@@ -29,8 +29,7 @@ use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
-use crate::redis::OptionalRedisPool;
-use crate::utils::{self, ErrorBoundary, Response};
+use crate::utils::{self, ErrorBoundary, OptionalRedisPool, Response};
 
 #[cfg(feature = "processing")]
 use {
@@ -973,15 +972,13 @@ impl ProjectCache {
         );
 
         self.fetch_states_redis(channels)
-            .and_then(move |channels, slf, _ctx| {
-                slf.fetch_states_http(batch_size, channels)
-                    .and_then(move |(), slf, ctx| {
-                        if !slf.state_channels.is_empty() {
-                            slf.schedule_fetch(ctx);
-                        }
+            .and_then(move |channels, slf, _ctx| slf.fetch_states_http(batch_size, channels))
+            .and_then(move |(), slf, ctx| {
+                if !slf.state_channels.is_empty() {
+                    slf.schedule_fetch(ctx);
+                }
 
-                        fut::ok(())
-                    })
+                fut::ok(())
             })
             .map_err(|e: ProjectError, _, _| {
                 log::error!("Failed to fetch project states: {}", LogError(&e));
@@ -996,13 +993,7 @@ impl ProjectCache {
     fn fetch_states_redis(
         &self,
         channels: HashMap<ProjectId, ProjectStateChannel>,
-    ) -> Box<
-        dyn ActorFuture<
-            Actor = Self,
-            Item = HashMap<ProjectId, ProjectStateChannel>,
-            Error = ProjectError,
-        >,
-    > {
+    ) -> ResponseActFuture<Self, HashMap<ProjectId, ProjectStateChannel>, ProjectError> {
         #[cfg(feature = "processing")]
         let mut channels = channels;
 

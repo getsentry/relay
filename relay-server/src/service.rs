@@ -22,7 +22,7 @@ use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
 use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware};
-use crate::redis::RedisPool;
+use crate::utils::RedisPool;
 
 /// Common error type for the relay server.
 #[derive(Debug)]
