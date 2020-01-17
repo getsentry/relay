@@ -1,5 +1,6 @@
 import json
 import msgpack
+import uuid
 
 import pytest
 import os
@@ -9,11 +10,12 @@ import time
 
 
 @pytest.fixture
-def get_topic_name(worker_id):
+def get_topic_name():
     """
     Generate a unique topic name for each test
     """
-    return lambda topic: f"relay-test-{topic}-{worker_id}"
+    random = uuid.uuid4().hex
+    return lambda topic: f"relay-test-{topic}-{random}"
 
 
 @pytest.fixture
