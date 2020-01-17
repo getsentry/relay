@@ -15,7 +15,14 @@ if os.environ.get("RELAY_AS_CARGO", "false") == "true":
 
 class Relay(SentryLike):
     def __init__(
-        self, server_address, process, upstream, public_key, relay_id, config_dir, options
+        self,
+        server_address,
+        process,
+        upstream,
+        public_key,
+        relay_id,
+        config_dir,
+        options,
     ):
         self.server_address = server_address
         self.process = process
@@ -96,6 +103,8 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
         assert public_key
         assert relay_id
 
-        return Relay((host, port), process, upstream, public_key, relay_id, dir, default_opts)
+        return Relay(
+            (host, port), process, upstream, public_key, relay_id, dir, default_opts
+        )
 
     return inner

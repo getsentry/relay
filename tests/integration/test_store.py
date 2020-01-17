@@ -431,10 +431,12 @@ def test_fetch_config_from_redis(
     relay.wait_relay_healthcheck()
 
     cfg = mini_sentry.full_project_config()
-    cfg['disabled'] = disabled
+    cfg["disabled"] = disabled
 
-    redis_client = redis.Redis(host='127.0.0.1', port=6379, db=0)
-    projectconfig_cache_prefix = relay.options['processing']['projectconfig_cache_prefix']
+    redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
+    projectconfig_cache_prefix = relay.options["processing"][
+        "projectconfig_cache_prefix"
+    ]
     redis_client.setex(f"{projectconfig_cache_prefix}:42", 3600, json.dumps(cfg))
 
     relay.send_event(42)
