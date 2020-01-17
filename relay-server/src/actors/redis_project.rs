@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -67,21 +68,16 @@ impl Handler<GetProjectStatesFromRedis> for RedisProjectCache {
             }
         };
 
-        let parsed_response =
-            raw_response
-                .into_iter()
-                .map(|json| match serde_json::from_str(&json) {
-                    Ok(project_state) => ErrorBoundary::Ok(project_state),
-                    Err(err) => ErrorBoundary::Err(Box::new(err)),
-                });
+        let mut configs = HashMap::new();
+        for (response, id) in raw_response.into_iter().zip(request.projects) {
+            let config = match serde_json::from_str(&response) {
+                Ok(project_state) => ErrorBoundary::Ok(project_state),
+                Err(err) => ErrorBoundary::Err(Box::new(err)),
+            };
 
-        Ok(GetProjectStatesResponse {
-            configs: request
-                .projects
-                .iter()
-                .cloned()
-                .zip(parsed_response)
-                .collect(),
-        })
+            configs.insert(id, config);
+        }
+
+        Ok(GetProjectStatesResponse { configs })
     }
 }
