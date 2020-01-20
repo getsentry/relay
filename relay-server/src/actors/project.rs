@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{hash_map::Entry, HashMap, VecDeque};
+use std::collections::{hash_map::Entry, BTreeMap, HashMap, VecDeque};
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -33,7 +33,7 @@ use crate::utils::{self, ErrorBoundary, OptionalRedisPool, Response};
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::redis_project::{GetProjectStatesFromRedis, RedisProjectCache},
+    crate::actors::redis_project::{GetProjectStateFromRedis, RedisProjectCache},
     relay_common::clone,
 };
 
@@ -863,19 +863,18 @@ impl ProjectCache {
     pub fn new(
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
-        #[cfg(feature = "processing")] redis: OptionalRedisPool,
+        redis: OptionalRedisPool,
     ) -> Self {
         #[cfg(feature = "processing")]
-        let redis_cache = {
-            redis.map(|pool| {
-                SyncArbiter::start(
-                    config.cpu_concurrency(),
-                    clone!(config, || {
-                        RedisProjectCache::new(config.clone(), pool.clone())
-                    }),
-                )
-            })
-        };
+        let redis_cache = redis.map(|pool| {
+            SyncArbiter::start(
+                config.cpu_concurrency(),
+                clone!(config, || RedisProjectCache::new(
+                    config.clone(),
+                    pool.clone()
+                )),
+            )
+        });
 
         ProjectCache {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
@@ -931,7 +930,7 @@ impl ProjectCache {
             .take(batch_size * num_batches)
             .collect();
 
-        let channels: HashMap<_, _> = projects
+        let channels: BTreeMap<_, _> = projects
             .iter()
             .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
             .filter(|(_id, channel)| !channel.expired())
@@ -971,116 +970,6 @@ impl ProjectCache {
             self.backoff.attempt(),
         );
 
-        self.fetch_states_redis(channels)
-            .and_then(move |channels, slf, _ctx| slf.fetch_states_http(batch_size, channels))
-            .and_then(move |(), slf, ctx| {
-                if !slf.state_channels.is_empty() {
-                    slf.schedule_fetch(ctx);
-                }
-
-                fut::ok(())
-            })
-            .map_err(|e: ProjectError, _, _| {
-                log::error!("Failed to fetch project states: {}", LogError(&e));
-            })
-            .spawn(context);
-    }
-
-    /// Look up project states in Redis, send results to channels and return the remaining channels
-    /// for which nothing has been found in Redis.
-    ///
-    /// This is basically the identity function if processing is disabled.
-    fn fetch_states_redis(
-        &self,
-        channels: HashMap<ProjectId, ProjectStateChannel>,
-    ) -> ResponseActFuture<Self, HashMap<ProjectId, ProjectStateChannel>, ProjectError> {
-        #[cfg(feature = "processing")]
-        let mut channels = channels;
-
-        #[cfg(feature = "processing")]
-        {
-            if let Some(ref redis_cache) = self.redis_cache {
-                let future = redis_cache
-                    .send(GetProjectStatesFromRedis {
-                        projects: channels.keys().cloned().collect(),
-                    })
-                    .map_err(ProjectError::ScheduleFailed)
-                    .into_actor(self)
-                    .and_then(move |response, slf, _ctx| {
-                        // Propagate unhandled channels to HTTP section.
-                        fut::result(
-                            slf.handle_fetch_states_response(&mut channels, response, || None)
-                                .map(|()| channels),
-                        )
-                    });
-
-                return Box::new(future);
-            };
-        }
-
-        Box::new(fut::ok(channels))
-    }
-
-    /// Process return values from projectconfigs HTTP endpoint (or Redis cache).
-    fn handle_fetch_states_response<F: Fail>(
-        &mut self,
-        channels_batch: &mut HashMap<ProjectId, ProjectStateChannel>,
-        response: Result<GetProjectStatesResponse, F>,
-        on_cache_miss: impl Fn() -> Option<ProjectState> + Copy,
-    ) -> Result<(), ProjectError> {
-        match response {
-            Ok(mut response) => {
-                // If a single request succeeded we reset the backoff. We decided to
-                // only backoff if we see that the project config endpoint is
-                // completely down and did not answer a single request successfully.
-                //
-                // Otherwise we might refuse to fetch any project configs because of a
-                // single, reproducible 500 we observed for a particular project.
-                self.backoff.reset();
-
-                // count number of project states returned (via http requests)
-                metric!(histogram("project_state.received") = response.configs.len() as u64);
-                let mut new_channels_batch = HashMap::<_, ProjectStateChannel, _>::new();
-
-                for (id, channel) in channels_batch.drain() {
-                    let state = response
-                        .configs
-                        .remove(&id)
-                        .unwrap_or(ErrorBoundary::Ok(None))
-                        .unwrap_or_else(|error| {
-                            let e = LogError(error);
-                            log::error!("error fetching project state {}: {}", id, e);
-                            Some(ProjectState::err())
-                        })
-                        .or_else(on_cache_miss);
-
-                    if let Some(state) = state {
-                        channel.send(state);
-                    } else {
-                        new_channels_batch.insert(id, channel);
-                    }
-                }
-
-                // Ideally we'd be able to use retain(), but borrowing issues with channel.send
-                // prevent us from doing that.
-                *channels_batch = new_channels_batch;
-
-                Ok(())
-            }
-            Err(error) => {
-                log::error!("error fetching project states: {}", LogError(&error));
-
-                metric!(histogram("project_state.pending") = self.state_channels.len() as u64);
-                Err(ProjectError::FetchFailed)
-            }
-        }
-    }
-
-    fn fetch_states_http(
-        &self,
-        batch_size: usize,
-        channels: HashMap<ProjectId, ProjectStateChannel>,
-    ) -> impl ActorFuture<Actor = Self, Item = (), Error = ProjectError> {
         let request_start = Instant::now();
 
         let requests: Vec<_> = channels
@@ -1088,7 +977,7 @@ impl ProjectCache {
             .chunks(batch_size)
             .into_iter()
             .map(|channels_batch| {
-                let channels_batch: HashMap<_, _> = channels_batch.collect();
+                let channels_batch: BTreeMap<_, _> = channels_batch.collect();
                 log::debug!("sending request of size {}", channels_batch.len());
                 metric!(
                     histogram("project_state.request.batch_size") = channels_batch.len() as u64
@@ -1114,22 +1003,62 @@ impl ProjectCache {
         // MailboxError, but errors of a single fanout don't propagate like that.
         future::join_all(requests)
             .into_actor(self)
-            .and_then(move |responses, slf, _ctx| {
+            .and_then(move |responses, slf, ctx| {
                 metric!(timer("project_state.request.duration") = request_start.elapsed());
 
-                for (mut channels_batch, response) in responses {
-                    slf.handle_fetch_states_response(&mut channels_batch, response, || {
-                        Some(ProjectState::missing())
-                    })
-                    .ok();
+                for (channels_batch, response) in responses {
+                    match response {
+                        Ok(mut response) => {
+                            // If a single request succeeded we reset the backoff. We decided to
+                            // only backoff if we see that the project config endpoint is
+                            // completely down and did not answer a single request successfully.
+                            //
+                            // Otherwise we might refuse to fetch any project configs because of a
+                            // single, reproducible 500 we observed for a particular project.
+                            slf.backoff.reset();
 
-                    // Put the unhandled channels back into the queue, in addition to channels that
-                    // have been pushed in the meanwhile. We will retry again shortly.
-                    slf.state_channels.extend(channels_batch);
+                            // count number of project states returned (via http requests)
+                            metric!(
+                                histogram("project_state.received") = response.configs.len() as u64
+                            );
+                            for (id, channel) in channels_batch {
+                                let state = response
+                                    .configs
+                                    .remove(&id)
+                                    .unwrap_or(ErrorBoundary::Ok(None))
+                                    .unwrap_or_else(|error| {
+                                        let e = LogError(error);
+                                        log::error!("error fetching project state {}: {}", id, e);
+                                        Some(ProjectState::err())
+                                    })
+                                    .unwrap_or_else(ProjectState::missing);
+
+                                channel.send(state);
+                            }
+                        }
+                        Err(error) => {
+                            log::error!("error fetching project states: {}", LogError(&error));
+
+                            // Put the channels back into the queue, in addition to channels that
+                            // have been pushed in the meanwhile. We will retry again shortly.
+                            slf.state_channels.extend(channels_batch);
+
+                            metric!(
+                                histogram("project_state.pending") =
+                                    slf.state_channels.len() as u64
+                            );
+                        }
+                    }
+                }
+
+                if !slf.state_channels.is_empty() {
+                    slf.schedule_fetch(ctx);
                 }
 
                 fut::ok(())
             })
+            .drop_err()
+            .spawn(context);
     }
 }
 
@@ -1283,6 +1212,7 @@ impl Handler<GetProject> for ProjectCache {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 struct FetchProjectState {
     id: ProjectId,
 }
@@ -1313,57 +1243,86 @@ impl Message for FetchProjectState {
 }
 
 impl Handler<FetchProjectState> for ProjectCache {
-    type Result = Response<ProjectStateResponse, ()>;
+    type Result = ResponseActFuture<Self, ProjectStateResponse, ()>;
 
-    fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: FetchProjectState, _context: &mut Self::Context) -> Self::Result {
         if let Some(state) = self.local_states.get(&message.id) {
-            return Response::ok(ProjectStateResponse {
+            return Box::new(fut::ok(ProjectStateResponse {
                 state: state.clone(),
                 is_local: true,
-            });
+            }));
         }
 
         match self.config.relay_mode() {
             RelayMode::Proxy => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()));
+                return Box::new(fut::ok(
+                    ProjectStateResponse::local(ProjectState::allowed()),
+                ));
             }
             RelayMode::Static => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::missing()));
+                return Box::new(fut::ok(
+                    ProjectStateResponse::local(ProjectState::missing()),
+                ));
             }
             RelayMode::Capture => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()));
+                return Box::new(fut::ok(
+                    ProjectStateResponse::local(ProjectState::allowed()),
+                ));
             }
             RelayMode::Managed => {
                 // Proceed with loading the config from upstream
             }
         }
 
-        if !self.backoff.started() {
-            self.backoff.reset();
-            self.schedule_fetch(context);
-        }
+        let response: ResponseFuture<_, _> = if let Some(ref redis_cache) = self.redis_cache {
+            Box::new(
+                redis_cache
+                    .send(GetProjectStateFromRedis {
+                        project: message.id,
+                    })
+                    .map_err(|_| ()),
+            )
+        } else {
+            Box::new(future::ok(None))
+        };
 
-        // There's an edge case where a project is represented by two Project actors. This can
-        // happen if our project eviction logic removes an actor from `project_cache.projects`
-        // while it is still being held onto. This in turn happens because we have no efficient way
-        // of determining the refcount of an `Addr<Project>`.
-        //
-        // Instead of fixing the race condition, let's just make sure we don't fetch project caches
-        // twice. If the cleanup/eviction logic were to be fixed to take the addr's refcount into
-        // account, there should never be an instance where `state_channels` already contains a
-        // channel for our current `message.id`.
-        let query_timeout = self.config.query_timeout();
+        let response = response.into_actor(self).and_then(
+            move |state_opt, slf, ctx| -> ResponseActFuture<_, _, _> {
+                if let Some(state) = state_opt {
+                    return Box::new(fut::ok(ProjectStateResponse::managed(Arc::new(state))));
+                }
 
-        let channel = self
-            .state_channels
-            .entry(message.id)
-            .or_insert_with(|| ProjectStateChannel::new(query_timeout));
+                if !slf.backoff.started() {
+                    slf.backoff.reset();
+                    slf.schedule_fetch(ctx);
+                }
 
-        Response::r#async(
-            channel
-                .receiver()
-                .map(|x| ProjectStateResponse::managed((*x).clone()))
-                .map_err(|_| ()),
-        )
+                let query_timeout = slf.config.query_timeout();
+
+                // There's an edge case where a project is represented by two Project actors. This can
+                // happen if our project eviction logic removes an actor from `project_cache.projects`
+                // while it is still being held onto. This in turn happens because we have no efficient way
+                // of determining the refcount of an `Addr<Project>`.
+                //
+                // Instead of fixing the race condition, let's just make sure we don't fetch project caches
+                // twice. If the cleanup/eviction logic were to be fixed to take the addr's refcount into
+                // account, there should never be an instance where `state_channels` already contains a
+                // channel for our current `message.id`.
+                let channel = slf
+                    .state_channels
+                    .entry(message.id)
+                    .or_insert_with(|| ProjectStateChannel::new(query_timeout));
+
+                Box::new(
+                    channel
+                        .receiver()
+                        .map(|x| ProjectStateResponse::managed((*x).clone()))
+                        .map_err(|_| ())
+                        .into_actor(slf),
+                )
+            },
+        );
+
+        Box::new(response)
     }
 }

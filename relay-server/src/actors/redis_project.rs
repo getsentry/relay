@@ -1,21 +1,69 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use actix::prelude::*;
-use relay_common::ProjectId;
+use failure::Fail;
+use relay_common::{LogError, ProjectId};
 use relay_config::Config;
 
-use crate::actors::project::GetProjectStatesResponse;
-use crate::utils::{ErrorBoundary, RedisError, RedisPool};
+use crate::actors::project::ProjectState;
+use crate::utils::{RedisError, RedisPool};
 
 pub struct RedisProjectCache {
     config: Arc<Config>,
     redis: RedisPool,
 }
 
+#[derive(Debug, Fail)]
+enum RedisProjectError {
+    #[fail(display = "failed to parse projectconfig from redis")]
+    Parsing(#[cause] serde_json::Error),
+
+    #[fail(display = "failed to talk to redis")]
+    Redis(#[cause] RedisError),
+}
+
+impl From<RedisError> for RedisProjectError {
+    fn from(e: RedisError) -> RedisProjectError {
+        RedisProjectError::Redis(e)
+    }
+}
+
+impl From<serde_json::Error> for RedisProjectError {
+    fn from(e: serde_json::Error) -> RedisProjectError {
+        RedisProjectError::Parsing(e)
+    }
+}
+
 impl RedisProjectCache {
     pub fn new(config: Arc<Config>, redis: RedisPool) -> Self {
         RedisProjectCache { config, redis }
+    }
+
+    fn get_config(&self, id: ProjectId) -> Result<Option<ProjectState>, RedisProjectError> {
+        let mut command = redis::cmd("GET");
+        command.arg(format!(
+            "{}:{}",
+            self.config.projectconfig_cache_prefix(),
+            id
+        ));
+
+        let raw_response_opt: Option<String> = match self.redis {
+            RedisPool::Cluster(ref pool) => {
+                let mut client = pool.get().map_err(RedisError::RedisPool)?;
+                command.query(&mut *client).map_err(RedisError::Redis)?
+            }
+            RedisPool::Single(ref pool) => {
+                let mut client = pool.get().map_err(RedisError::RedisPool)?;
+                command.query(&mut *client).map_err(RedisError::Redis)?
+            }
+        };
+
+        let raw_response = match raw_response_opt {
+            Some(response) => response,
+            None => return Ok(None),
+        };
+
+        Ok(serde_json::from_str(&raw_response)?)
     }
 }
 
@@ -31,52 +79,28 @@ impl Actor for RedisProjectCache {
     }
 }
 
-pub struct GetProjectStatesFromRedis {
-    pub projects: Vec<ProjectId>,
+pub struct GetProjectStateFromRedis {
+    pub project: ProjectId,
 }
 
-impl Message for GetProjectStatesFromRedis {
-    type Result = Result<GetProjectStatesResponse, RedisError>;
+impl Message for GetProjectStateFromRedis {
+    type Result = Option<ProjectState>;
 }
 
-impl Handler<GetProjectStatesFromRedis> for RedisProjectCache {
-    type Result = Result<GetProjectStatesResponse, RedisError>;
+impl Handler<GetProjectStateFromRedis> for RedisProjectCache {
+    type Result = Option<ProjectState>;
 
     fn handle(
         &mut self,
-        request: GetProjectStatesFromRedis,
+        request: GetProjectStateFromRedis,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        let mut command = redis::cmd("MGET");
-        for id in &request.projects {
-            command.arg(format!(
-                "{}:{}",
-                self.config.projectconfig_cache_prefix(),
-                id
-            ));
-        }
-
-        let raw_response: Vec<String> = match self.redis {
-            RedisPool::Cluster(ref pool) => {
-                let mut client = pool.get().map_err(RedisError::RedisPool)?;
-                command.query(&mut *client).map_err(RedisError::Redis)?
+        match self.get_config(request.project) {
+            Ok(x) => x,
+            Err(e) => {
+                log::error!("Failed to fetch project from Redis: {}", LogError(&e));
+                None
             }
-            RedisPool::Single(ref pool) => {
-                let mut client = pool.get().map_err(RedisError::RedisPool)?;
-                command.query(&mut *client).map_err(RedisError::Redis)?
-            }
-        };
-
-        let mut configs = HashMap::new();
-        for (response, id) in raw_response.into_iter().zip(request.projects) {
-            let config = match serde_json::from_str(&response) {
-                Ok(project_state) => ErrorBoundary::Ok(project_state),
-                Err(err) => ErrorBoundary::Err(Box::new(err)),
-            };
-
-            configs.insert(id, config);
         }
-
-        Ok(GetProjectStatesResponse { configs })
     }
 }
