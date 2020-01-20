@@ -11,8 +11,6 @@ mod real_implementation {
 
     use relay_config::{Config, Redis};
 
-    pub type OptionalRedisPool = Option<RedisPool>;
-
     #[derive(Debug, Fail)]
     pub enum RedisError {
         #[fail(display = "failed to connect to redis")]
@@ -31,7 +29,7 @@ mod real_implementation {
     }
 
     impl RedisPool {
-        pub fn from_config(config: &Config) -> Result<OptionalRedisPool, RedisError> {
+        pub fn from_config(config: &Config) -> Result<Option<RedisPool>, RedisError> {
             if config.processing_enabled() {
                 match config.redis() {
                     Redis::Cluster { cluster_nodes } => {
@@ -71,16 +69,16 @@ mod noop_implementation {
 
     use relay_config::Config;
 
-    pub type OptionalRedisPool = ();
-    pub struct RedisPool;
+    // This is an unconstructable type to make Option<RedisPool> zero-sized
+    pub enum RedisPool {}
 
     #[derive(Debug, Fail)]
     #[fail(display = "unreachable")]
     pub struct RedisError;
 
     impl RedisPool {
-        pub fn from_config(_config: &Config) -> Result<OptionalRedisPool, RedisError> {
-            Ok(())
+        pub fn from_config(_config: &Config) -> Result<Option<RedisPool>, RedisError> {
+            Err(RedisError)
         }
     }
 }

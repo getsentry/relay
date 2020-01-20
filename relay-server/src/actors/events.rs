@@ -28,7 +28,7 @@ use crate::actors::project::{
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::service::ServerError;
-use crate::utils::{self, FormDataIter, FutureExt, OptionalRedisPool};
+use crate::utils::{self, FormDataIter, FutureExt, RedisPool};
 
 #[cfg(feature = "processing")]
 use {
@@ -659,7 +659,7 @@ impl EventManager {
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
         outcome_producer: Addr<OutcomeProducer>,
-        redis: OptionalRedisPool,
+        redis: Option<RedisPool>,
     ) -> Result<Self, ServerError> {
         let thread_count = config.cpu_concurrency();
         log::info!("starting {} event processing workers", thread_count);

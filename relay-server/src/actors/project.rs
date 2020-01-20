@@ -29,7 +29,7 @@ use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
-use crate::utils::{self, ErrorBoundary, OptionalRedisPool, Response};
+use crate::utils::{self, ErrorBoundary, RedisPool, Response};
 
 #[cfg(feature = "processing")]
 use {
@@ -863,7 +863,7 @@ impl ProjectCache {
     pub fn new(
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
-        _redis: OptionalRedisPool,
+        _redis: Option<RedisPool>,
     ) -> Self {
         #[cfg(feature = "processing")]
         let redis_cache = _redis.map(|pool| {
