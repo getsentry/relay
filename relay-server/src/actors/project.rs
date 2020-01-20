@@ -863,10 +863,10 @@ impl ProjectCache {
     pub fn new(
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
-        redis: OptionalRedisPool,
+        _redis: OptionalRedisPool,
     ) -> Self {
         #[cfg(feature = "processing")]
-        let redis_cache = redis.map(|pool| {
+        let redis_cache = _redis.map(|pool| {
             SyncArbiter::start(
                 config.cpu_concurrency(),
                 clone!(config, || RedisProjectCache::new(
