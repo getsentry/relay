@@ -1274,6 +1274,10 @@ impl Handler<FetchProjectState> for ProjectCache {
             }
         }
 
+        #[cfg(not(feature = "processing"))]
+        let response = future::ok(None);
+
+        #[cfg(feature = "processing")]
         let response: ResponseFuture<_, _> = if let Some(ref redis_cache) = self.redis_cache {
             Box::new(
                 redis_cache
