@@ -76,6 +76,7 @@ mod noop_implementation {
     use relay_config::Config;
 
     // This is an unconstructable type to make Option<RedisPool> zero-sized
+    #[derive(Clone)]
     pub enum RedisPool {}
 
     #[derive(Debug, Fail)]
