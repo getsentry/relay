@@ -20,8 +20,14 @@ mod real_implementation {
         Redis(#[cause] redis::RedisError),
     }
 
-    /// "Abstraction" over cluster vs non-cluster mode. This probably can never really abstract a lot
-    /// without changes in r2d2 and redis-rs.
+    /// "Abstraction" over cluster vs non-cluster mode.
+    ///
+    /// Even just writing a method that takes a command and executes it doesn't really work because
+    /// there's both `Cmd` and `ScriptInvocation` to take care of, and both have sync vs async
+    /// APIs.
+    ///
+    /// Basically don't waste your time here, if you want to abstract over this, consider
+    /// upstreaming to the redis crate.
     #[derive(Clone)]
     pub enum RedisPool {
         Cluster(Pool<redis::cluster::ClusterClient>),
