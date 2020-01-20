@@ -22,7 +22,8 @@ pub enum RelayHistograms {
     EventQueueSizePct,
     /// The number of events in the queue at the sampling moment.
     EventQueueSize,
-
+    EventSizeBytesRaw,
+    EventSizeBytesUncompressed,
     ProjectStatePending,
     ProjectStateRequestBatchSize,
     ProjectStateReceived,
@@ -34,6 +35,8 @@ impl HistogramMetric for RelayHistograms {
         match self {
             RelayHistograms::EventQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EventQueueSize => "event.queue_size",
+            RelayHistograms::EventSizeBytesRaw => "event.size_bytes.raw",
+            RelayHistograms::EventSizeBytesUncompressed => "event.size_bytes.uncompressed",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
             RelayHistograms::ProjectStateReceived => "project_state.received",
@@ -56,8 +59,6 @@ pub enum RelayTimers {
     ProjectStateEvictionDuration,
     ProjectStateRequestDuration,
     ProjectIdRequestDuration,
-    EventSizeBytesRaw,
-    EventSizeBytesUncompressed,
     RequestsDuration,
 }
 
@@ -76,8 +77,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             RelayTimers::ProjectIdRequestDuration => "project_id.request.duration",
-            RelayTimers::EventSizeBytesRaw => "event.size_bytes.raw",
-            RelayTimers::EventSizeBytesUncompressed => "event.size_bytes.uncompressed",
             RelayTimers::RequestsDuration => "requests.duration",
         }
     }

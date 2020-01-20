@@ -179,13 +179,6 @@ where
 ///     }
 /// );
 ///
-/// // using a raw timer (directly sending a raw value)
-/// let raw_duration = start_time.elapsed().as_millis() as u64;
-/// metric!(
-///     time_raw(MyTimer::ProcessA) = raw_duration,
-///     server = "server1",
-///     host = "host1",
-/// );
 /// ```
 pub trait TimerMetric {
     /// Returns the timer metric name that will be sent to statsd.
@@ -439,14 +432,4 @@ macro_rules! metric {
         });
         rv
     }};
-
-    // raw timer value (used to send individual values, such as file sizes)
-    (time_raw($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::metrics::with_client(|client| {
-            use $crate::metrics::_pred::*;
-            client.time_with_tags(&$crate::metrics::TimerMetric::name(&$id), $value)
-                $(.with_tag(stringify!($k), $v))*
-                .send();
-        })
-    };
 }
