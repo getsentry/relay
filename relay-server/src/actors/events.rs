@@ -471,9 +471,7 @@ impl EventProcessor {
         // implemented in Redis).
         if let Some(organization_id) = project_state.organization_id {
             let key_config = project_state.get_public_key_config(&envelope.meta().public_key());
-            if let (Some(ref rate_limiter), Some(ref key_config)) =
-                (&self.rate_limiter, &key_config)
-            {
+            if let (Some(ref rate_limiter), Some(key_config)) = (&self.rate_limiter, key_config) {
                 let rate_limit = metric!(timer("event_processing.rate_limiting"), {
                     rate_limiter
                         .is_rate_limited(&key_config.quotas, organization_id)
