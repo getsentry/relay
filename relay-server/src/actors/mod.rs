@@ -51,3 +51,6 @@ pub mod upstream;
 
 #[cfg(feature = "processing")]
 pub mod store;
+
+#[cfg(feature = "processing")]
+pub mod redis_project;
