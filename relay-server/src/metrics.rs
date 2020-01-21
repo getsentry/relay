@@ -53,7 +53,7 @@ impl HistogramMetric for RelayHistograms {
 
 /// Timer metrics used by Relay
 pub enum RelayTimers {
-    /// The time spent deserializing an event from a JSON byte array into a [relay_general::protocol::Event].
+    /// The time spent deserializing an event from a JSON byte array into a `relay_general::protocol::Event`.
     EventProcessingDeserialize,
     /// Time spent running event processors on an event.
     /// Event processing happens before filtering.
@@ -78,16 +78,29 @@ pub enum RelayTimers {
     /// This is the time the event spends in the EventProcessor (i.e. the sync processing of the
     /// event).
     /// It includes decoding the event envelope and the times spent in EventProcessingProcess,
-    /// EventProcessingFiltering, EventProcessingRateLimiting, EventProcessingPii and
+    /// `EventProcessingFiltering`, `EventProcessingRateLimiting`, `EventProcessingPii` and
     /// EventProcessingSerialization.
     EventProcessingTime,
     /// The total time an event spends in Relay from the time it is received until it finishes
     /// processing.
     EventTotalTime,
-
+    /// The total time spent during `ProjectCache.fetch_states` in which eviction of outdated
+    /// projects happens.
     ProjectStateEvictionDuration,
+    /// The total time spent during `ProjectCache.fetch_states` spent waiting for all ProjectState
+    /// requests to resolve. During a fetch_states request, we pick up to max_num_requests *
+    /// max_num_project_states_per_request projects that need their state updated and batch
+    /// them into max_num_requests requests. This metric represents the time spent from issuing
+    /// the first request until all requests are finished.
     ProjectStateRequestDuration,
+    /// The total time spent getting the project id from upstream.
+    /// The project id is only fetched once and it is not refreshed.
     ProjectIdRequestDuration,
+    /// The total duration of a request as seen from Relay from the moment the request is
+    /// received until a http result is returned. Note that this does **not** represent the
+    /// total duration for processing an event. Requests for events that are not immediately
+    /// rejected ( because the project has hit a rate limit) are scheduled for processing at
+    /// a latter time and an HTTP OK (200) is returned.
     RequestsDuration,
 }
 
@@ -113,18 +126,56 @@ impl TimerMetric for RelayTimers {
 
 /// Counter metrics used by Relay
 pub enum RelayCounters {
+    /// Number of events accepted in the current time slot. This represents events that
+    /// have successfully passed rate limits, filters and have been successfully handled.
     EventAccepted,
+    /// Number of events rejected in the current time slot. This includes events being rejected
+    /// because they are malformed or any other error during processing (including filtered
+    /// events, discarded events and rate limited events).
     EventRejected,
+    /// Represents a group of counters, implemented with using tags. The following tags are
+    /// present for each event outcome: `outcome` which is an `EventOutcome` enum and reason
+    /// which is the reason string for all outcomes that are not `Accepted`.
     EventOutcomes,
+    /// Counts the number of times a project state lookup is done. This includes requests
+    /// for projects that are cached and requests for projects that are not yet cached.
+    /// All requests that return a  `EventAction::Accept` i.e. are not rate limited (on
+    /// the fast path) or are discarded because we know the project is disabled or invalid
+    /// will be counted.
     ProjectStateGet,
+    /// Counts the number of project state http requests. Note that a project state HTTP request
+    /// typically contains a number of projects (the project state requests are batched).
     ProjectStateRequest,
+    /// Counts the number of times a request for a project is already present, this effectively
+    /// represents the fraction of ProjectStateGet that will **not** result in a ProjectState
+    /// request.
     ProjectCacheHit,
+    /// Counts the number of times a request for a project is not already present.
+    /// `ProjectStateGet` = `ProjectCacheMiss` + `ProjectCacheHit`.
+    /// Requests that are generating a cache hit will be queued and batched and eventually will
+    /// generate a `ProjectStateRequest`.
     ProjectCacheMiss,
+    /// Counts the number of requests for the  ProjectId (the timing is tracked
+    /// by `ProjectIdRequestDuration`). Note that only projects with the id not already fetched
+    /// are counted. Once the ProjectId is successfully cached if will be retained indefinitely.
     ProjectIdRequest,
+    /// TODO find out what is this about.
     ServerStarting,
+    /// Counts the number of messages placed on the Kafka queue. When Relay operates with processing
+    /// enabled and a message is successfully processed each message will generate an event on the
+    /// Kafka queue and zero or more attachments. The counter has an `event_type` tag which is set to
+    /// either `event` or `attachment` representing the type of message produced on the Kafka queue.
     ProcessingEventProduced,
+    /// Counts the number of events that hit any of the Store like endpoints (Store, Security,
+    /// MiniDump, Unreal). The events are counted before they are rate limited , filtered or
+    /// processed in any way. The counter has a `version` tag that tracks the message event
+    /// protocol version.
     EventProtocol,
+    /// Counts the number of requests reaching Relay.
     Requests,
+    /// Counts the number of requests that have finished during the current interval.
+    /// The counter has the following tags `status_code` representing the HTTP status code,
+    /// `method` representing the HTTP method and `route` representing the request route
     ResponsesStatusCodes,
 }
 

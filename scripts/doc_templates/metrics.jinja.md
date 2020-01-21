@@ -9,8 +9,11 @@ Relay emits statsd metrics in order to allow its monitoring.
 {% endfor %}
 {% for metric in metric_type.metrics or [] %}
 
-### `{{metric.id}}`  ({{metric.name}})
-
+### `{{metric.id}}`
+  
+{% if metric.name %}
+The metric is referred in code as: `{{metric_type.name}}::{{metric.name}}`.
+{% endif %}
 {% for line in metric.description or [] %}{{line}}
 {% endfor %}
 {% endfor %}
