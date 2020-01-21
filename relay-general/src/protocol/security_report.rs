@@ -450,21 +450,23 @@ struct CspReportRaw {
 ///
 ///
 /// See https://www.w3.org/TR/CSP3/
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct Csp {
     /// The directive whose enforcement caused the violation.
-    #[metastructure(pii = "true")]
+    #[should_strip_pii = true]
     pub effective_directive: Annotated<String>,
     /// The URI of the resource that was blocked from loading by the Content Security Policy.
-    #[metastructure(pii = "true")]
+    #[should_strip_pii = true]
     pub blocked_uri: Annotated<String>,
     /// The URI of the document in which the violation occurred.
-    #[metastructure(pii = "true")]
+    #[should_strip_pii = true]
     pub document_uri: Annotated<String>,
     /// The original policy as specified by the Content-Security-Policy HTTP header.
     pub original_policy: Annotated<String>,
     /// The referrer of the document in which the violation occurred.
-    #[metastructure(pii = "true")]
+    #[should_strip_pii = true]
     pub referrer: Annotated<String>,
     /// The HTTP status code of the resource on which the global object was instantiated.
     pub status_code: Annotated<u64>,
@@ -482,7 +484,8 @@ pub struct Csp {
     /// Policy disposition (enforce or report).
     pub disposition: Annotated<String>,
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(pii = "true", additional_properties)]
+    #[metastructure(additional_properties)]
+    #[should_strip_pii = true]
     pub other: Object<Value>,
 }
 
@@ -718,7 +721,9 @@ struct ExpectCtReportRaw {
 /// Object used in ExpectCt reports
 ///
 /// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct SingleCertificateTimestamp {
     pub version: Annotated<i64>,
     pub status: Annotated<String>,
@@ -729,7 +734,9 @@ pub struct SingleCertificateTimestamp {
 /// Expect CT security report sent by user agent (browser).
 ///
 /// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct ExpectCt {
     /// Date time in rfc3339 format YYYY-MM-DDTHH:MM:DD{.FFFFFF}(Z|+/-HH:MM)
     /// UTC time that the UA observed the CT compliance failure
@@ -852,7 +859,9 @@ impl HpkpRaw {
 }
 
 /// Schema as defined in RFC7469, Section 3
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct Hpkp {
     /// > Indicates the time the UA observed the Pin Validation failure.
     pub date_time: Annotated<String>,
@@ -882,7 +891,8 @@ pub struct Hpkp {
     #[metastructure(required = "true")]
     pub known_pins: Annotated<Array<String>>,
 
-    #[metastructure(pii = "true", additional_properties)]
+    #[metastructure(additional_properties)]
+    #[should_strip_pii = true]
     pub other: Object<Value>,
 }
 
@@ -1081,7 +1091,9 @@ impl ExpectStapleRaw {
 
 /// Represents an Expect Staple security report
 /// See https://scotthelme.co.uk/ocsp-expect-staple/ for specification
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct ExpectStaple {
     date_time: Annotated<String>,
     hostname: Annotated<String>,

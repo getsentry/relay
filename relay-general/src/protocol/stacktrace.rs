@@ -4,7 +4,9 @@ use crate::protocol::{Addr, RegVal};
 use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// Holds information about a single stacktrace frame.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_frame", value_type = "Frame")]
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
@@ -90,7 +92,8 @@ pub struct Frame {
 
     /// Local variables in a convenient format.
     // XXX: Probably want to trim per-var => new bag size?
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(bag_size = "medium")]
+    #[should_strip_pii = true]
     pub vars: Annotated<FrameVars>,
 
     /// Auxiliary information about the frame that is platform specific.
@@ -119,11 +122,13 @@ pub struct Frame {
 }
 
 /// Frame local variables.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
 pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<Value>);
 
 /// Additional frame data information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct FrameData {
     /// A reference to the sourcemap used.
     #[metastructure(max_chars = "path")]
@@ -179,7 +184,9 @@ impl FromValue for FrameVars {
 }
 
 /// Holds information about an entirey stacktrace.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_raw_stacktrace", value_type = "Stacktrace")]
 pub struct RawStacktrace {
     #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
@@ -198,7 +205,9 @@ pub struct RawStacktrace {
 }
 
 /// Newtype to distinguish `raw_stacktrace` attributes from the rest.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace(pub RawStacktrace);
 

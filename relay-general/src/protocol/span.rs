@@ -3,7 +3,9 @@ use chrono::{DateTime, Utc};
 use crate::protocol::{OperationType, SpanId, TraceId};
 use crate::types::{Annotated, Object, Value};
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_span", value_type = "Span")]
 pub struct Span {
     /// Timestamp when the span was ended.

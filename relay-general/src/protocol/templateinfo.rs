@@ -1,15 +1,19 @@
 use crate::types::{Annotated, Array, Object, Value};
 
 /// Template debug information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_template_info")]
 pub struct TemplateInfo {
     /// The file name (basename only).
-    #[metastructure(pii = "true", max_chars = "short_path")]
+    #[metastructure(max_chars = "short_path")]
+    #[should_strip_pii = true]
     pub filename: Annotated<String>,
 
     /// Absolute path to the file.
-    #[metastructure(pii = "true", max_chars = "path")]
+    #[metastructure(max_chars = "path")]
+    #[should_strip_pii = true]
     pub abs_path: Annotated<String>,
 
     /// Line number within the source file.

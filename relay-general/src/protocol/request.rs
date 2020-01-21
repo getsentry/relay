@@ -9,7 +9,7 @@ use crate::types::{Annotated, Error, FromValue, Object, Value};
 type CookieEntry = Annotated<(Annotated<String>, Annotated<String>)>;
 
 /// A map holding cookies.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
 pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
 
 impl Cookies {
@@ -83,7 +83,9 @@ impl FromValue for Cookies {
 }
 
 /// A "into-string" type that normalizes header names.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_header_name")]
 pub struct HeaderName(String);
 
@@ -155,7 +157,9 @@ impl FromValue for HeaderName {
 }
 
 /// A "into-string" type that normalizes header values.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct HeaderValue(String);
 
 impl HeaderValue {
@@ -224,7 +228,7 @@ impl FromValue for HeaderValue {
 }
 
 /// A map holding headers.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
 pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<HeaderValue>)>);
 
 impl Headers {
@@ -278,7 +282,7 @@ impl FromValue for Headers {
 }
 
 /// A map holding query string pairs.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
 pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
 impl Query {
@@ -342,7 +346,9 @@ impl FromValue for Query {
 }
 
 /// Http request information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_request", value_type = "Request")]
 pub struct Request {
     /// URL of the request.
@@ -354,31 +360,37 @@ pub struct Request {
 
     /// Request data in any format that makes sense.
     // TODO: Custom logic + info
-    #[metastructure(pii = "true", bag_size = "large")]
+    #[metastructure(bag_size = "large")]
+    #[should_strip_pii = true]
     pub data: Annotated<Value>,
 
     /// URL encoded HTTP query string.
-    #[metastructure(pii = "true", bag_size = "small")]
+    #[metastructure(bag_size = "small")]
+    #[should_strip_pii = true]
     #[metastructure(skip_serialization = "empty")]
     pub query_string: Annotated<Query>,
 
     /// The fragment of the request URL.
-    #[metastructure(pii = "true", max_chars = "summary")]
+    #[metastructure(max_chars = "summary")]
+    #[should_strip_pii = true]
     #[metastructure(skip_serialization = "empty")]
     pub fragment: Annotated<String>,
 
     /// URL encoded contents of the Cookie header.
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(bag_size = "medium")]
+    #[should_strip_pii = true]
     #[metastructure(skip_serialization = "empty")]
     pub cookies: Annotated<Cookies>,
 
     /// HTTP request headers.
-    #[metastructure(pii = "true", bag_size = "large")]
+    #[metastructure(bag_size = "large")]
+    #[should_strip_pii = true]
     #[metastructure(skip_serialization = "empty")]
     pub headers: Annotated<Headers>,
 
     /// Server environment data, such as CGI/WSGI.
-    #[metastructure(pii = "true", bag_size = "large")]
+    #[metastructure(bag_size = "large")]
+    #[should_strip_pii = true]
     #[metastructure(skip_serialization = "empty")]
     pub env: Annotated<Object<Value>>,
 
@@ -387,7 +399,8 @@ pub struct Request {
     pub inferred_content_type: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, pii = "true")]
+    #[metastructure(additional_properties)]
+    #[should_strip_pii = true]
     pub other: Object<Value>,
 }
 

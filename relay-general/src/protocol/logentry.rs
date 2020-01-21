@@ -5,7 +5,7 @@ use crate::types::{Annotated, Error, FromValue, Meta, Object, Value};
 ///
 /// A log message is similar to the `message` attribute on the event itself but
 /// can additionally hold optional parameters.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
 #[metastructure(process_func = "process_logentry", value_type = "LogEntry")]
 pub struct LogEntry {
     /// The log message with parameter placeholders.
@@ -21,7 +21,8 @@ pub struct LogEntry {
     pub params: Annotated<Value>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, pii = "true")]
+    #[metastructure(additional_properties)]
+    #[should_strip_pii = true]
     pub other: Object<Value>,
 }
 

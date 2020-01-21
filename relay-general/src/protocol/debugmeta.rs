@@ -1,6 +1,7 @@
 use debugid::{CodeId, DebugId};
 use uuid::Uuid;
 
+use crate::pii::PiiStrippable;
 use crate::processor::ProcessValue;
 use crate::protocol::Addr;
 use crate::types::{
@@ -11,7 +12,9 @@ use crate::types::{
 ///
 /// This is relevant for iOS and other platforms that have a system
 /// SDK.  Not to be confused with the client SDK.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct SystemSdkInfo {
     /// The internal name of the SDK.
     pub sdk_name: Annotated<String>,
@@ -31,7 +34,9 @@ pub struct SystemSdkInfo {
 }
 
 /// Apple debug image in
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct AppleDebugImage {
     /// Path and name of the debug image (required).
     #[metastructure(required = "true")]
@@ -114,6 +119,8 @@ macro_rules! impl_traits {
         }
 
         impl ProcessValue for $type {}
+
+        impl PiiStrippable for $type {}
     };
 }
 
@@ -121,7 +128,9 @@ impl_traits!(CodeId, "a code identifier");
 impl_traits!(DebugId, "a debug identifier");
 
 /// A native platform debug information file.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct NativeDebugImage {
     /// Optional identifier of the code file.
     ///
@@ -159,7 +168,9 @@ pub struct NativeDebugImage {
 }
 
 /// Proguard mapping file.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct ProguardDebugImage {
     /// UUID computed from the file contents.
     #[metastructure(required = "true")]
@@ -171,7 +182,7 @@ pub struct ProguardDebugImage {
 }
 
 /// A debug information file (debug image).
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable)]
 #[metastructure(process_func = "process_debug_image")]
 pub enum DebugImage {
     /// Legacy apple debug images (MachO).
@@ -194,7 +205,9 @@ pub enum DebugImage {
 }
 
 /// Debugging and processing meta information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_debug_meta")]
 pub struct DebugMeta {
     /// Information about the system SDK (e.g. iOS SDK).

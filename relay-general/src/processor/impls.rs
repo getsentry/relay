@@ -161,7 +161,7 @@ where
             process_value(
                 element,
                 processor,
-                &state.enter_index(index, state.inner_attrs(), ValueType::for_field(element)),
+                &state.enter_index(index, None, ValueType::for_field(element)),
             )?;
         }
 
@@ -204,7 +204,7 @@ where
             process_value(
                 v,
                 processor,
-                &state.enter_borrowed(k, state.inner_attrs(), ValueType::for_field(v)),
+                &state.enter_borrowed(k, None, ValueType::for_field(v)),
             )?;
         }
 
@@ -254,7 +254,7 @@ macro_rules! process_tuple {
                 let mut index = 0;
 
                 $(
-                    process_value($name, processor, &state.enter_index(index, state.inner_attrs(), ValueType::for_field($name)))?;
+                    process_value($name, processor, &state.enter_index(index, None, ValueType::for_field($name)))?;
                     index += 1;
                 )*
 

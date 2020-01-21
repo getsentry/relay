@@ -6,6 +6,7 @@ mod convert;
 mod legacy;
 mod processor;
 mod redactions;
+mod traits;
 
 pub use self::builtin::{BUILTIN_RULES, BUILTIN_SELECTORS};
 pub use self::config::{
@@ -17,3 +18,4 @@ pub use self::processor::PiiProcessor;
 pub use self::redactions::{
     HashAlgorithm, HashRedaction, MaskRedaction, Redaction, ReplaceRedaction,
 };
+pub use self::traits::{PiiAttrsMap, PiiStrippable};

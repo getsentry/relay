@@ -7,7 +7,9 @@ use crate::protocol::{EventId, Level};
 use crate::types::{Annotated, Object, Value};
 
 /// A breadcrumb.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_breadcrumb", value_type = "Breadcrumb")]
 pub struct Breadcrumb {
     /// The timestamp of the breadcrumb.
@@ -25,12 +27,14 @@ pub struct Breadcrumb {
     pub level: Annotated<Level>,
 
     /// Human readable message for the breadcrumb.
-    #[metastructure(pii = "true", max_chars = "message")]
+    #[metastructure(max_chars = "message")]
+    #[should_strip_pii = true]
     pub message: Annotated<String>,
 
     /// Custom user-defined data of this breadcrumb.
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
+    #[should_strip_pii = true]
     pub data: Annotated<Object<Value>>,
 
     /// Identifier of the event this breadcrumb belongs to.

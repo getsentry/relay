@@ -1,7 +1,9 @@
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// POSIX signal with optional extended data.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct CError {
     /// The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.
     #[metastructure(required = "true")]
@@ -12,7 +14,9 @@ pub struct CError {
 }
 
 /// Mach exception information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct MachException {
     /// The mach exception type.
     #[metastructure(field = "exception", required = "true")]
@@ -31,7 +35,9 @@ pub struct MachException {
 }
 
 /// POSIX signal with optional extended data.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct PosixSignal {
     /// The POSIX signal number.
     #[metastructure(required = "true")]
@@ -48,7 +54,9 @@ pub struct PosixSignal {
 }
 
 /// Operating system or runtime meta information to an exception mechanism.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct MechanismMeta {
     /// Optional ISO C standard error code.
     pub errno: Annotated<CError>,
@@ -65,7 +73,7 @@ pub struct MechanismMeta {
 }
 
 /// The mechanism by which an exception was generated and handled.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
 pub struct Mechanism {
     /// Mechanism type (required).
     #[metastructure(
@@ -83,7 +91,8 @@ pub struct Mechanism {
     pub synthetic: Annotated<bool>,
 
     /// Human readable detail description.
-    #[metastructure(pii = "true", max_chars = "message")]
+    #[metastructure(max_chars = "message")]
+    #[should_strip_pii = true]
     pub description: Annotated<String>,
 
     /// Link to online resources describing this error.
@@ -94,8 +103,9 @@ pub struct Mechanism {
     pub handled: Annotated<bool>,
 
     /// Additional attributes depending on the mechanism type.
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
+    #[should_strip_pii = true]
     pub data: Annotated<Object<Value>>,
 
     /// Operating system or runtime meta information.

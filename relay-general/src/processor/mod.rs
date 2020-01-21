@@ -9,10 +9,13 @@ mod size;
 mod traits;
 
 pub use self::attrs::{
-    BagSize, FieldAttrs, MaxChars, Path, PiiKind, ProcessingState, UnknownValueTypeError, ValueType,
+    BagSize, FieldAttrs, MaxChars, Path, PathItem, PiiKind, ProcessingState, UnknownValueTypeError,
+    ValueType,
 };
 pub use self::chunks::{join_chunks, process_chunked_value, split_chunks, Chunk};
 pub use self::funcs::process_value;
+
+// TODO(markus): move to pii module
 pub use self::selector::{SelectorPathItem, SelectorSpec};
 pub use self::size::{estimate_size, estimate_size_flat};
 pub use self::traits::{ProcessValue, Processor};

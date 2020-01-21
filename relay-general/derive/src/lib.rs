@@ -3,6 +3,7 @@
 #![deny(unused_must_use)]
 
 mod empty;
+mod pii;
 mod process;
 
 use std::str::FromStr;
@@ -22,6 +23,7 @@ decl_derive!([Empty, attributes(metastructure)] => empty::derive_empty);
 decl_derive!([ToValue, attributes(metastructure)] => derive_to_value);
 decl_derive!([FromValue, attributes(metastructure)] => derive_from_value);
 decl_derive!([ProcessValue, attributes(metastructure)] => process::derive_process_value);
+decl_derive!([PiiStrippable, attributes(should_strip_pii)] => pii::derive_pii);
 
 fn derive_to_value(s: synstructure::Structure<'_>) -> TokenStream {
     derive_metastructure(s, Trait::To)
@@ -684,7 +686,6 @@ struct FieldAttrs {
     required: Option<bool>,
     nonempty: Option<bool>,
     trim_whitespace: Option<bool>,
-    pii: Option<bool>,
     retain: bool,
     match_regex: Option<String>,
     max_chars: Option<TokenStream>,
@@ -722,14 +723,6 @@ impl FieldAttrs {
             quote!(#trim_whitespace)
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.trim_whitespace)
-        } else {
-            quote!(false)
-        };
-
-        let pii = if let Some(pii) = self.pii {
-            quote!(#pii)
-        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.pii)
         } else {
             quote!(false)
         };
@@ -772,7 +765,6 @@ impl FieldAttrs {
                 match_regex: #match_regex,
                 max_chars: #max_chars,
                 bag_size: #bag_size,
-                pii: #pii,
                 retain: #retain,
             }
         })
@@ -936,17 +928,6 @@ fn parse_field_attributes(
                                     }
                                     _ => {
                                         panic!("Got non string literal for bag_size");
-                                    }
-                                }
-                            } else if ident == "pii" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.pii = Some(true),
-                                        "false" => rv.pii = Some(false),
-                                        other => panic!("Unknown value {}", other),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for pii");
                                     }
                                 }
                             } else if ident == "retain" {

@@ -221,8 +221,6 @@ pub struct FieldAttrs {
     pub max_chars: Option<MaxChars>,
     /// The maximum bag size of this field.
     pub bag_size: Option<BagSize>,
-    /// The type of PII on the field.
-    pub pii: bool,
     /// Whether additional properties should be retained during normalization.
     pub retain: bool,
 }
@@ -236,7 +234,6 @@ lazy_static::lazy_static! {
         match_regex: None,
         max_chars: None,
         bag_size: None,
-        pii: false,
         retain: false,
     };
 }
@@ -250,7 +247,6 @@ lazy_static::lazy_static! {
         match_regex: None,
         max_chars: None,
         bag_size: None,
-        pii: true,
         retain: false,
     };
 }
@@ -264,7 +260,6 @@ lazy_static::lazy_static! {
         match_regex: None,
         max_chars: None,
         bag_size: None,
-        pii: false,
         retain: true,
     };
 }
@@ -288,7 +283,7 @@ impl Default for FieldAttrs {
 }
 
 #[derive(Debug, Clone, Eq, Ord, PartialOrd)]
-enum PathItem<'a> {
+pub enum PathItem<'a> {
     StaticKey(&'a str),
     Index(usize),
 }
@@ -444,15 +439,6 @@ impl<'a> ProcessingState<'a> {
         }
     }
 
-    /// Derives the attrs for recursion.
-    pub fn inner_attrs(&self) -> Option<Cow<'_, FieldAttrs>> {
-        if self.attrs().pii {
-            Some(Cow::Borrowed(FieldAttrs::default_pii()))
-        } else {
-            None
-        }
-    }
-
     /// Iterates through this state and all its ancestors up the hierarchy.
     pub fn iter(&'a self) -> ProcessingStateIter<'a> {
         ProcessingStateIter {
@@ -480,7 +466,7 @@ impl<'a> ProcessingState<'a> {
     /// Returns the last path item if there is one. Skips over "dummy" path segments that exist
     /// because of newtypes.
     #[inline]
-    fn path_item(&self) -> Option<&PathItem<'_>> {
+    pub fn last_path_item(&self) -> Option<&PathItem<'_>> {
         for state in self.iter() {
             if let Some(ref path_item) = state.path_item {
                 return Some(path_item);
@@ -525,13 +511,17 @@ impl<'a> Path<'a> {
     /// Returns the current key if there is one
     #[inline]
     pub fn key(&self) -> Option<&str> {
-        PathItem::key(self.0.path_item()?)
+        PathItem::key(self.0.last_path_item()?)
     }
 
     /// Returns the current index if there is one
     #[inline]
     pub fn index(&self) -> Option<usize> {
-        PathItem::index(self.0.path_item()?)
+        PathItem::index(self.0.last_path_item()?)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &PathItem<'_>> {
+        self.0.iter().filter_map(|state| state.path_item.as_ref())
     }
 
     /// Checks if a path matches given selector.

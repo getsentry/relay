@@ -10,7 +10,7 @@ use sha2::{Sha256, Sha512};
 use smallvec::SmallVec;
 
 use crate::pii::config::RuleRef;
-use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType};
+use crate::pii::{HashAlgorithm, PiiAttrsMap, PiiConfig, PiiStrippable, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, process_value, Chunk, ProcessValue, ProcessingState, Processor,
     SelectorSpec, ValueType,
@@ -174,6 +174,7 @@ lazy_static! {
 pub struct PiiProcessor<'a> {
     config: &'a PiiConfig,
     applications: Vec<(&'a SelectorSpec, BTreeSet<RuleRef<'a>>)>,
+    pii_attrs_stack: Vec<Option<PiiAttrsMap>>,
 }
 
 impl<'a> PiiProcessor<'a> {
@@ -191,6 +192,7 @@ impl<'a> PiiProcessor<'a> {
         PiiProcessor {
             config,
             applications,
+            pii_attrs_stack: Vec::new(),
         }
     }
 
@@ -202,14 +204,31 @@ impl<'a> PiiProcessor<'a> {
     /// Iterate over all matching rules.
     fn iter_rules<'b>(&'a self, state: &'b ProcessingState<'b>) -> RuleIterator<'a, 'b> {
         RuleIterator {
+            should_strip_pii: self.should_strip_pii(state),
             state,
             application_iter: self.applications.iter(),
             pending_refs: None,
         }
     }
+
+    fn should_strip_pii(&self, current_state: &ProcessingState<'_>) -> bool {
+        let mut attrs_iter = self.pii_attrs_stack.iter().rev();
+        attrs_iter.next(); // skip over field attrs we just pushed for the current layer
+        let path = current_state.path();
+
+        for (attrs, path_item) in attrs_iter.zip(path.iter()) {
+            if let Some(attrs) = attrs {
+                if let Some(rv) = attrs.should_strip_pii(path_item) {
+                    return rv;
+                }
+            }
+        }
+        false
+    }
 }
 
 struct RuleIterator<'a, 'b> {
+    should_strip_pii: bool,
     state: &'b ProcessingState<'b>,
     application_iter: std::slice::Iter<'a, (&'a SelectorSpec, BTreeSet<RuleRef<'a>>)>,
     pending_refs: Option<std::collections::btree_set::Iter<'a, RuleRef<'a>>>,
@@ -219,10 +238,9 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
     type Item = RuleRef<'a>;
 
     fn next(&mut self) -> Option<RuleRef<'a>> {
-        if !self.state.attrs().pii {
+        if !self.should_strip_pii {
             return None;
         }
-
         'outer: loop {
             if let Some(&rv) = self.pending_refs.as_mut().and_then(Iterator::next) {
                 return Some(rv);
@@ -243,10 +261,15 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
 impl<'a> Processor for PiiProcessor<'a> {
     fn before_process<T: ProcessValue>(
         &mut self,
-        _value: Option<&T>,
+        value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if state.entered_anything() {
+            self.pii_attrs_stack
+                .push(value.map(PiiStrippable::get_attrs));
+        }
+
         // booleans cannot be PII, and strings are handled in process_string
         if let Some(ValueType::Boolean) | Some(ValueType::String) = state.value_type() {
             return Ok(());
@@ -258,6 +281,18 @@ impl<'a> Processor for PiiProcessor<'a> {
                 Ok(()) => continue,
                 other => return other,
             }
+        }
+        Ok(())
+    }
+
+    fn after_process<T: ProcessValue>(
+        &mut self,
+        _: Option<&T>,
+        _: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if state.entered_anything() {
+            self.pii_attrs_stack.pop().unwrap();
         }
         Ok(())
     }
@@ -318,17 +353,13 @@ impl<'a> Processor for PiiProcessor<'a> {
                     process_value(
                         value,
                         self,
-                        &state.enter_borrowed(
-                            key_name,
-                            state.inner_attrs(),
-                            ValueType::for_field(value),
-                        ),
+                        &state.enter_borrowed(key_name, None, ValueType::for_field(value)),
                     )?;
                 } else {
                     process_value(
                         value,
                         self,
-                        &state.enter_index(idx, state.inner_attrs(), ValueType::for_field(value)),
+                        &state.enter_index(idx, None, ValueType::for_field(value)),
                     )?;
                 }
             }

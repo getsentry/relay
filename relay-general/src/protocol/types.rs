@@ -15,7 +15,7 @@ use crate::types::{
 };
 
 /// A array like wrapper used in various places.
-#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
 #[metastructure(process_func = "process_values")]
 pub struct Values<T> {
     /// The values of the collection.
@@ -157,7 +157,7 @@ where
 }
 
 /// A mixture of a hashmap and an array.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, PiiStrippable)]
 pub struct PairList<T>(pub Array<T>);
 
 impl<T, K, V> PairList<T>
@@ -296,7 +296,7 @@ where
         P: Processor,
     {
         for (idx, pair) in self.0.iter_mut().enumerate() {
-            let state = state.enter_index(idx, state.inner_attrs(), ValueType::for_field(pair));
+            let state = state.enter_index(idx, None, ValueType::for_field(pair));
             process_value(pair, processor, &state)?;
         }
 
@@ -383,20 +383,31 @@ macro_rules! hex_metrastructure {
 pub struct InvalidRegVal;
 
 /// A register value.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, PiiStrippable)]
 pub struct RegVal(pub u64);
 
 hex_metrastructure!(RegVal, "register value");
 
 /// An address
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, PiiStrippable)]
 pub struct Addr(pub u64);
 
 hex_metrastructure!(Addr, "address");
 
 /// An ip address.
 #[derive(
-    Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue, Serialize,
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Empty,
+    ToValue,
+    ProcessValue,
+    Serialize,
+    PiiStrippable,
 )]
 pub struct IpAddr(pub String);
 
@@ -493,7 +504,7 @@ impl FromValue for IpAddr {
 pub struct ParseLevelError;
 
 /// Severity level of an event or breadcrumb.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, PiiStrippable)]
 pub enum Level {
     /// Indicates very spammy debug information.
     Debug,
@@ -616,7 +627,9 @@ impl Empty for Level {
 }
 
 /// A "into-string" type of value. Emulates an invocation of `str(x)` in Python
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct LenientString(pub String);
 
 impl LenientString {
@@ -687,7 +700,9 @@ impl FromValue for LenientString {
 }
 
 /// A "into-string" type of value. All non-string values are serialized as JSON.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct JsonLenientString(pub String);
 
 impl JsonLenientString {

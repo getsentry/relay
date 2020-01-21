@@ -2,19 +2,24 @@ use crate::protocol::{IpAddr, LenientString};
 use crate::types::{Annotated, Object, Value};
 
 /// Geographical location of the end user or device.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_geo")]
 pub struct Geo {
     /// Two-letter country code (ISO 3166-1 alpha-2).
-    #[metastructure(pii = "true", max_chars = "summary")]
+    #[metastructure(max_chars = "summary")]
+    #[should_strip_pii = true]
     pub country_code: Annotated<String>,
 
     /// Human readable city name.
-    #[metastructure(pii = "true", max_chars = "summary")]
+    #[metastructure(max_chars = "summary")]
+    #[should_strip_pii = true]
     pub city: Annotated<String>,
 
     /// Human readable region name or code.
-    #[metastructure(pii = "true", max_chars = "summary")]
+    #[metastructure(max_chars = "summary")]
+    #[should_strip_pii = true]
     pub region: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -23,27 +28,34 @@ pub struct Geo {
 }
 
 /// Information about the user who triggered an event.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_user", value_type = "User")]
 pub struct User {
     /// Unique identifier of the user.
-    #[metastructure(pii = "true", max_chars = "enumlike", skip_serialization = "empty")]
+    #[metastructure(max_chars = "enumlike", skip_serialization = "empty")]
+    #[should_strip_pii = true]
     pub id: Annotated<LenientString>,
 
     /// Email address of the user.
-    #[metastructure(pii = "true", max_chars = "email", skip_serialization = "empty")]
+    #[metastructure(max_chars = "email", skip_serialization = "empty")]
+    #[should_strip_pii = true]
     pub email: Annotated<String>,
 
     /// Remote IP address of the user. Defaults to "{{auto}}".
-    #[metastructure(pii = "true", skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty")]
+    #[should_strip_pii = true]
     pub ip_address: Annotated<IpAddr>,
 
     /// Username of the user.
-    #[metastructure(pii = "false", max_chars = "enumlike", skip_serialization = "empty")]
+    #[metastructure(max_chars = "enumlike", skip_serialization = "empty")]
+    #[should_strip_pii = false]
     pub username: Annotated<String>,
 
     /// Human readable name of the user.
-    #[metastructure(pii = "true", max_chars = "enumlike", skip_serialization = "empty")]
+    #[metastructure(max_chars = "enumlike", skip_serialization = "empty")]
+    #[should_strip_pii = true]
     pub name: Annotated<String>,
 
     /// Approximate geographical location of the end user or device.
@@ -52,11 +64,13 @@ pub struct User {
 
     /// Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).
     /// All data from `self.other` should end up here after store normalization.
-    #[metastructure(pii = "true", skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty")]
+    #[should_strip_pii = true]
     pub data: Annotated<Object<Value>>,
 
     /// Additional arbitrary fields, as sent by clients.
-    #[metastructure(additional_properties, pii = "true")]
+    #[metastructure(additional_properties)]
+    #[should_strip_pii = true]
     pub other: Object<Value>,
 }
 

@@ -19,7 +19,7 @@ use crate::types::{
 };
 
 /// Wrapper around a UUID with slightly different formatting.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, PiiStrippable)]
 pub struct EventId(pub uuid::Uuid);
 
 impl EventId {
@@ -58,7 +58,9 @@ impl FromStr for EventId {
 impl_str_serde!(EventId);
 
 /// The type of event we're dealing with.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, PiiStrippable,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum EventType {
     Default,
@@ -154,7 +156,7 @@ impl ToValue for EventType {
 
 impl ProcessValue for EventType {}
 
-#[derive(Debug, FromValue, ToValue, ProcessValue, Empty, Clone, PartialEq)]
+#[derive(Debug, FromValue, ToValue, ProcessValue, PiiStrippable, Empty, Clone, PartialEq)]
 pub struct ExtraValue(#[metastructure(bag_size = "larger")] pub Value);
 
 impl<T: Into<Value>> From<T> for ExtraValue {
@@ -164,7 +166,9 @@ impl<T: Into<Value>> From<T> for ExtraValue {
 }
 
 /// An event processing error.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct EventProcessingError {
     #[metastructure(field = "type", required = "true")]
     /// The error kind.
@@ -177,7 +181,8 @@ pub struct EventProcessingError {
     pub value: Annotated<Value>,
 
     /// Additional data explaining this error.
-    #[metastructure(additional_properties, pii = "true")]
+    #[metastructure(additional_properties)]
+    #[should_strip_pii = true]
     pub other: Object<Value>,
 }
 
@@ -185,7 +190,9 @@ pub struct EventProcessingError {
 ///
 /// This is currently only supplied as part of normalization and the payload
 /// only permits the ID of the algorithm to be set and no parameters yet.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct GroupingConfig {
     /// The id of the grouping config.
     #[metastructure(max_chars = "enumlike")]
@@ -195,7 +202,9 @@ pub struct GroupingConfig {
 }
 
 /// The sentry v7 event structure.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {
     /// Unique identifier of this event.
@@ -256,7 +265,8 @@ pub struct Event {
     pub received: Annotated<DateTime<Utc>>,
 
     /// Server or device name the event was generated on.
-    #[metastructure(pii = "true", max_chars = "symbol")]
+    #[metastructure(max_chars = "symbol")]
+    #[should_strip_pii = true]
     pub server_name: Annotated<String>,
 
     /// Program's release identifier.
@@ -303,7 +313,8 @@ pub struct Event {
     pub request: Annotated<Request>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
-    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.Contexts")]
+    #[metastructure(legacy_alias = "sentry.interfaces.Contexts")]
+    #[should_strip_pii = true]
     pub contexts: Annotated<Contexts>,
 
     /// List of breadcrumbs recorded before this event.
@@ -336,7 +347,8 @@ pub struct Event {
 
     /// Arbitrary extra information set by the user.
     #[metastructure(bag_size = "massive")]
-    #[metastructure(pii = "true", skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty")]
+    #[should_strip_pii = true]
     pub extra: Annotated<Object<ExtraValue>>,
 
     /// Meta data for event processing and debugging.
@@ -372,15 +384,18 @@ pub struct Event {
     pub csp: Annotated<Csp>,
 
     /// HPKP (security) reports.
-    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.Hpkp")]
+    #[metastructure(legacy_alias = "sentry.interfaces.Hpkp")]
+    #[should_strip_pii = true]
     pub hpkp: Annotated<Hpkp>,
 
     /// ExpectCT (security) reports.
-    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.ExpectCT")]
+    #[metastructure(legacy_alias = "sentry.interfaces.ExpectCT")]
+    #[should_strip_pii = true]
     pub expectct: Annotated<ExpectCt>,
 
     /// ExpectStaple (security) reports.
-    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.ExpectStaple")]
+    #[metastructure(legacy_alias = "sentry.interfaces.ExpectStaple")]
+    #[should_strip_pii = true]
     pub expectstaple: Annotated<ExpectStaple>,
 
     /// Spans for tracing.
@@ -392,7 +407,8 @@ pub struct Event {
     pub _metrics: Annotated<Metrics>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, pii = "true")]
+    #[metastructure(additional_properties)]
+    #[should_strip_pii = true]
     pub other: Object<Value>,
 }
 

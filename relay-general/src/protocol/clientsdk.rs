@@ -2,7 +2,9 @@ use crate::protocol::IpAddr;
 use crate::types::{Annotated, Array, Object, Value};
 
 /// An installed and loaded package as part of the Sentry SDK.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 pub struct ClientSdkPackage {
     /// Name of the package.
     pub name: Annotated<String>,
@@ -11,7 +13,9 @@ pub struct ClientSdkPackage {
 }
 
 /// Information about the Sentry SDK.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+)]
 #[metastructure(process_func = "process_client_sdk_info", value_type = "ClientSdkInfo")]
 pub struct ClientSdkInfo {
     /// Unique SDK name.
@@ -31,7 +35,8 @@ pub struct ClientSdkInfo {
     pub packages: Annotated<Array<ClientSdkPackage>>,
 
     /// IP Address of sender??? Seems unused.
-    #[metastructure(pii = "true", skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty")]
+    #[should_strip_pii = true]
     pub client_ip: Annotated<IpAddr>,
 
     /// Additional arbitrary fields for forwards compatibility.
