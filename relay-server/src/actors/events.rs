@@ -30,7 +30,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
-use crate::utils::{self, FormDataIter, FutureExt};
+use crate::utils::{self, FormDataIter, FutureExt, RedisPool};
 
 #[cfg(feature = "processing")]
 use {
@@ -120,7 +120,7 @@ enum ProcessingError {
 struct EventProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
-    rate_limiter: RateLimiter,
+    rate_limiter: Option<RateLimiter>,
     #[cfg(feature = "processing")]
     geoip_lookup: Option<Arc<GeoIpLookup>>,
 }
@@ -129,7 +129,7 @@ impl EventProcessor {
     #[cfg(feature = "processing")]
     pub fn new(
         config: Arc<Config>,
-        rate_limiter: RateLimiter,
+        rate_limiter: Option<RateLimiter>,
         geoip_lookup: Option<Arc<GeoIpLookup>>,
     ) -> Self {
         Self {
@@ -473,9 +473,9 @@ impl EventProcessor {
         // implemented in Redis).
         if let Some(organization_id) = project_state.organization_id {
             let key_config = project_state.get_public_key_config(&envelope.meta().public_key());
-            if let Some(key_config) = key_config {
+            if let (Some(ref rate_limiter), Some(key_config)) = (&self.rate_limiter, key_config) {
                 let rate_limit = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-                    self.rate_limiter
+                    rate_limiter
                         .is_rate_limited(&key_config.quotas, organization_id)
                         .map_err(ProcessingError::QuotasFailed)?
                 });
@@ -661,9 +661,13 @@ impl EventManager {
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
         outcome_producer: Addr<OutcomeProducer>,
+        redis: Option<RedisPool>,
     ) -> Result<Self, ServerError> {
         let thread_count = config.cpu_concurrency();
         log::info!("starting {} event processing workers", thread_count);
+
+        #[cfg(not(feature = "processing"))]
+        let _ = redis;
 
         #[cfg(feature = "processing")]
         let processor = {
@@ -674,7 +678,7 @@ impl EventManager {
                 None => None,
             };
 
-            let rate_limiter = RateLimiter::new(&config).context(ServerErrorKind::RedisError)?;
+            let rate_limiter = redis.map(RateLimiter::new);
 
             SyncArbiter::start(
                 thread_count,

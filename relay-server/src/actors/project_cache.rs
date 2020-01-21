@@ -15,7 +15,10 @@ use crate::actors::project::{Project, ProjectState};
 use crate::actors::project_local_cache::ProjectLocalCache;
 use crate::actors::project_upstream_cache::ProjectUpstreamCache;
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::Response;
+use crate::utils::{RedisPool, Response};
+
+#[cfg(feature = "processing")]
+use {crate::actors::redis_project::RedisProjectCache, relay_common::clone};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -46,9 +49,12 @@ impl ProjectUpdate {
 pub struct ProjectCache {
     config: Arc<Config>,
     projects: HashMap<ProjectId, Addr<Project>>,
+    updates: VecDeque<ProjectUpdate>,
+
     local_cache: Addr<ProjectLocalCache>,
     upstream_cache: Addr<ProjectUpstreamCache>,
-    updates: VecDeque<ProjectUpdate>,
+    #[cfg(feature = "processing")]
+    redis_cache: Option<Addr<RedisProjectCache>>,
 }
 
 impl ProjectCache {
@@ -56,13 +62,28 @@ impl ProjectCache {
         config: Arc<Config>,
         local_cache: Addr<ProjectLocalCache>,
         upstream_cache: Addr<ProjectUpstreamCache>,
+        _redis: Option<RedisPool>,
     ) -> Self {
+        #[cfg(feature = "processing")]
+        let redis_cache = _redis.map(|pool| {
+            SyncArbiter::start(
+                config.cpu_concurrency(),
+                clone!(config, || RedisProjectCache::new(
+                    config.clone(),
+                    pool.clone()
+                )),
+            )
+        });
+
         ProjectCache {
             config,
             projects: HashMap::new(),
+            updates: VecDeque::new(),
+
             local_cache,
             upstream_cache,
-            updates: VecDeque::new(),
+            #[cfg(feature = "processing")]
+            redis_cache,
         }
     }
 }
@@ -191,6 +212,8 @@ impl Handler<FetchProjectState> for ProjectCache {
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
 
         let upstream_cache = self.upstream_cache.clone();
+        #[cfg(feature = "processing")]
+        let redis_cache = self.redis_cache.clone();
 
         let fetch_local = self
             .local_cache
@@ -206,12 +229,38 @@ impl Handler<FetchProjectState> for ProjectCache {
                 }
             }
 
-            let fetch_upstream = upstream_cache
-                .send(message.clone())
-                .map_err(|_| ())
-                .and_then(move |result| result.map_err(|_| ()));
+            #[cfg(not(feature = "processing"))]
+            let fetch_redis = future::ok(Ok(OptionalProjectStateResponse { state: None }));
 
-            Box::new(fetch_upstream)
+            #[cfg(feature = "processing")]
+            let fetch_redis: ResponseFuture<_, _> = if let Some(ref redis_cache) = redis_cache {
+                Box::new(
+                    redis_cache
+                        .send(FetchOptionalProjectState { id: message.id })
+                        .map_err(|_| ()),
+                )
+            } else {
+                Box::new(future::ok(Ok(OptionalProjectStateResponse { state: None })))
+            };
+
+            let fetch_redis = fetch_redis.and_then(move |result| {
+                if let Ok(response) = result {
+                    // response should be infallible for redis cache
+                    if let Some(state) = response.state {
+                        return Box::new(future::ok(ProjectStateResponse::local(state)))
+                            as ResponseFuture<_, _>;
+                    }
+                }
+
+                let fetch_upstream = upstream_cache
+                    .send(message.clone())
+                    .map_err(|_| ())
+                    .and_then(move |result| result.map_err(|_| ()));
+
+                Box::new(fetch_upstream)
+            });
+
+            Box::new(fetch_redis)
         });
 
         Response::r#async(future)
