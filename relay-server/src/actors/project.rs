@@ -30,8 +30,13 @@ use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::utils::{self, ErrorBoundary, RedisPool, Response};
 
-use crate::utils::{self, ErrorBoundary, Response};
+#[cfg(feature = "processing")]
+use {
+    crate::actors::redis_project::{GetProjectStateFromRedis, RedisProjectCache},
+    relay_common::clone,
+};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -850,10 +855,28 @@ pub struct ProjectCache {
     local_states: HashMap<ProjectId, Arc<ProjectState>>,
     state_channels: HashMap<ProjectId, ProjectStateChannel>,
     updates: VecDeque<ProjectUpdate>,
+
+    #[cfg(feature = "processing")]
+    redis_cache: Option<Addr<RedisProjectCache>>,
 }
 
 impl ProjectCache {
-    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        upstream: Addr<UpstreamRelay>,
+        _redis: Option<RedisPool>,
+    ) -> Self {
+        #[cfg(feature = "processing")]
+        let redis_cache = _redis.map(|pool| {
+            SyncArbiter::start(
+                config.cpu_concurrency(),
+                clone!(config, || RedisProjectCache::new(
+                    config.clone(),
+                    pool.clone()
+                )),
+            )
+        });
+
         ProjectCache {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
@@ -862,6 +885,9 @@ impl ProjectCache {
             local_states: HashMap::new(),
             state_channels: HashMap::new(),
             updates: VecDeque::new(),
+
+            #[cfg(feature = "processing")]
+            redis_cache,
         }
     }
 
@@ -1189,6 +1215,7 @@ impl Handler<GetProject> for ProjectCache {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 struct FetchProjectState {
     id: ProjectId,
 }
@@ -1219,57 +1246,90 @@ impl Message for FetchProjectState {
 }
 
 impl Handler<FetchProjectState> for ProjectCache {
-    type Result = Response<ProjectStateResponse, ()>;
+    type Result = ResponseActFuture<Self, ProjectStateResponse, ()>;
 
-    fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: FetchProjectState, _context: &mut Self::Context) -> Self::Result {
         if let Some(state) = self.local_states.get(&message.id) {
-            return Response::ok(ProjectStateResponse {
+            return Box::new(fut::ok(ProjectStateResponse {
                 state: state.clone(),
                 is_local: true,
-            });
+            }));
         }
 
         match self.config.relay_mode() {
             RelayMode::Proxy => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()));
+                return Box::new(fut::ok(
+                    ProjectStateResponse::local(ProjectState::allowed()),
+                ));
             }
             RelayMode::Static => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::missing()));
+                return Box::new(fut::ok(
+                    ProjectStateResponse::local(ProjectState::missing()),
+                ));
             }
             RelayMode::Capture => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()));
+                return Box::new(fut::ok(
+                    ProjectStateResponse::local(ProjectState::allowed()),
+                ));
             }
             RelayMode::Managed => {
                 // Proceed with loading the config from upstream
             }
         }
 
-        if !self.backoff.started() {
-            self.backoff.reset();
-            self.schedule_fetch(context);
-        }
+        #[cfg(not(feature = "processing"))]
+        let response = future::ok(None);
 
-        // There's an edge case where a project is represented by two Project actors. This can
-        // happen if our project eviction logic removes an actor from `project_cache.projects`
-        // while it is still being held onto. This in turn happens because we have no efficient way
-        // of determining the refcount of an `Addr<Project>`.
-        //
-        // Instead of fixing the race condition, let's just make sure we don't fetch project caches
-        // twice. If the cleanup/eviction logic were to be fixed to take the addr's refcount into
-        // account, there should never be an instance where `state_channels` already contains a
-        // channel for our current `message.id`.
-        let query_timeout = self.config.query_timeout();
+        #[cfg(feature = "processing")]
+        let response: ResponseFuture<_, _> = if let Some(ref redis_cache) = self.redis_cache {
+            Box::new(
+                redis_cache
+                    .send(GetProjectStateFromRedis {
+                        project: message.id,
+                    })
+                    .map_err(|_| ()),
+            )
+        } else {
+            Box::new(future::ok(None))
+        };
 
-        let channel = self
-            .state_channels
-            .entry(message.id)
-            .or_insert_with(|| ProjectStateChannel::new(query_timeout));
+        let response = response.into_actor(self).and_then(
+            move |state_opt, slf, ctx| -> ResponseActFuture<_, _, _> {
+                if let Some(state) = state_opt {
+                    return Box::new(fut::ok(ProjectStateResponse::managed(Arc::new(state))));
+                }
 
-        Response::r#async(
-            channel
-                .receiver()
-                .map(|x| ProjectStateResponse::managed((*x).clone()))
-                .map_err(|_| ()),
-        )
+                if !slf.backoff.started() {
+                    slf.backoff.reset();
+                    slf.schedule_fetch(ctx);
+                }
+
+                let query_timeout = slf.config.query_timeout();
+
+                // There's an edge case where a project is represented by two Project actors. This can
+                // happen if our project eviction logic removes an actor from `project_cache.projects`
+                // while it is still being held onto. This in turn happens because we have no efficient way
+                // of determining the refcount of an `Addr<Project>`.
+                //
+                // Instead of fixing the race condition, let's just make sure we don't fetch project caches
+                // twice. If the cleanup/eviction logic were to be fixed to take the addr's refcount into
+                // account, there should never be an instance where `state_channels` already contains a
+                // channel for our current `message.id`.
+                let channel = slf
+                    .state_channels
+                    .entry(message.id)
+                    .or_insert_with(|| ProjectStateChannel::new(query_timeout));
+
+                Box::new(
+                    channel
+                        .receiver()
+                        .map(|x| ProjectStateResponse::managed((*x).clone()))
+                        .map_err(|_| ())
+                        .into_actor(slf),
+                )
+            },
+        );
+
+        Box::new(response)
     }
 }

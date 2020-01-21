@@ -4,6 +4,7 @@ import queue
 import datetime
 import uuid
 import time
+import redis
 
 import flask
 import pytest
@@ -417,3 +418,31 @@ def test_query_retry_maxed_out(
         assert "error fetching project states" in str(error)
 
     mini_sentry.test_failures.clear()
+
+
+@pytest.mark.parametrize("disabled", (True, False))
+def test_fetch_config_from_redis(
+    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer, disabled
+):
+    outcomes_consumer = outcomes_consumer()
+    events_consumer = events_consumer()
+
+    relay = relay_with_processing({"limits": {"query_timeout": 10}})
+    relay.wait_relay_healthcheck()
+
+    cfg = mini_sentry.full_project_config()
+    cfg["disabled"] = disabled
+
+    redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
+    projectconfig_cache_prefix = relay.options["processing"][
+        "projectconfig_cache_prefix"
+    ]
+    redis_client.setex(f"{projectconfig_cache_prefix}:42", 3600, json.dumps(cfg))
+
+    relay.send_event(42)
+
+    if disabled:
+        outcomes_consumer.assert_dropped_unknown_project()
+    else:
+        event, v = events_consumer.get_event()
+        assert event["logentry"] == {"formatted": "Hello, World!"}
