@@ -5,7 +5,6 @@ from os import path
 from dataclasses import dataclass
 from typing import Any, Callable, List
 
-import jinja2
 from jinja2 import Environment, FileSystemLoader
 
 
@@ -52,7 +51,12 @@ extractions = [
     ExtractorDef(
         file="metrics",
         processor="extract_metrics",
-        processor_config=["RelayHistograms", "RelayTimers", "RelaySets", "RelayCounters"],
+        processor_config=[
+            "RelayHistograms",
+            "RelayTimers",
+            "RelaySets",
+            "RelayCounters",
+        ],
         formatter="metrics_to_markdown",
         formatter_config="../docs/metrics.md",
     )
@@ -75,7 +79,11 @@ def extract_metrics(file_name, enums):
             enum_def = _get_enum_def(enum_type_name, content)
             if enum_def is not None:
                 description = _get_enum_description(enum_type_name, lines)
-                enum_defs.append(MetricType(name=enum_type_name, description=description, metrics=enum_def))
+                enum_defs.append(
+                    MetricType(
+                        name=enum_type_name, description=description, metrics=enum_def
+                    )
+                )
     return enum_defs
 
 
@@ -99,28 +107,23 @@ def _get_enum_description(enum_name, lines):
         enum_description.reverse()
     return enum_description
 
+
 def _get_enum_def(enum_type_name, lines):
     """
     Returns the contents of an enum
     """
     enum_regex_str = r"enum\s+" + enum_type_name + r"\s+\{(?P<enum_content>[^}]+)\}"
-    # enum_regex = re.compile(enum_regex_str, re.MULTILINE)
     result = re.search(enum_regex_str, lines, flags=re.MULTILINE)
     if result is None:
         return None
 
-
     inner_content = result.groupdict().get("enum_content")
-    # print("enum content", inner_content)
-    back_to_lines = inner_content.split('\n')
-    # print("num lines", len(back_to_lines))
+    back_to_lines = inner_content.split("\n")
     enum_defs = []
     current_def = _new_enum_def()
     for line in back_to_lines:
-        # print("we have a line", line)
         comment = _get_comment(line)
         if comment is not None:
-            # print("we have a comment", comment)
             current_def.description.append(comment)
         else:
             enum_name = _get_enum_name(line)
@@ -128,7 +131,6 @@ def _get_enum_def(enum_type_name, lines):
                 continue
             current_def.id = _get_metric_id_enum(enum_type_name, enum_name, lines)
             current_def.name = enum_name
-            # print("we have an enum name", current_def)
             enum_defs.append(current_def)
             current_def = _new_enum_def()
 
@@ -189,7 +191,7 @@ formatters = [
     CommandDef(name="metrics_to_markdown", fn=metrics_to_markdown),
 ]
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Extracting file info")
     file_defs = {fd.name: _get_file_path(fd.path) for fd in files}
     processor_defs = {p.name: p.fn for p in processors}

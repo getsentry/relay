@@ -159,7 +159,7 @@ format-rust:
 
 format-python: setup-venv
 	.venv/bin/pip install -U black
-	.venv/bin/black py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
+	.venv/bin/black py tests scripts --exclude '\.eggs|sentry_relay/_lowlevel.*'
 .PHONY: format-python
 
 # Development
