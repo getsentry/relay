@@ -92,11 +92,15 @@ api-docs: setup-git
 	@cargo doc
 .PHONY: api-docs
 
-prose-docs: .venv/bin/python
-	.venv/bin/pip install -U mkdocs mkdocs-material pygments pymdown-extensions
+prose-docs: .venv/bin/python extract-doc
+	.venv/bin/pip install -U mkdocs mkdocs-material pygments pymdown-extensions Jinja2
 	.venv/bin/mkdocs build
 	touch site/.nojekyll
 .PHONY: prose-docs
+
+extract-doc: .venv/bin/python
+	.venv/bin/pip install -U Jinja2
+	cd scripts && python extract_metric_docs.py
 
 docserver: prose-docs
 	.venv/bin/mkdocs serve
