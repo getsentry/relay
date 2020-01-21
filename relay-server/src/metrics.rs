@@ -14,7 +14,7 @@ impl SetMetric for RelaySets {
     }
 }
 
-/// Histogram metrics used by Relay
+/// Histogram metrics used by Relay.
 pub enum RelayHistograms {
     /// The number of events in the queue as a percentage of the maximum number of events
     /// that can be stored in the queue ( 0 ... the queue is empty, 1 ... the queue is full
@@ -22,11 +22,17 @@ pub enum RelayHistograms {
     EventQueueSizePct,
     /// The number of events in the queue at the sampling moment.
     EventQueueSize,
+    /// The event size as seen by Relay after it is extracted from a request
     EventSizeBytesRaw,
+    /// The event size as seen by Relay after it is extracted Base64 decoded and unzipped.
     EventSizeBytesUncompressed,
+    /// Number of projects in the ProjectCache that are waiting for their state to be updated.
     ProjectStatePending,
+    /// Number of project state requested from the Upstream for the current batch request.
     ProjectStateRequestBatchSize,
+    /// Number of project states received from the Upstream for the current batch request.
     ProjectStateReceived,
+    /// Number of project states currently held in the ProjectState cache.
     ProjectStateCacheSize,
 }
 
@@ -47,15 +53,38 @@ impl HistogramMetric for RelayHistograms {
 
 /// Timer metrics used by Relay
 pub enum RelayTimers {
+    /// The time spent deserializing an event from a JSON byte array into a [relay_general::protocol::Event].
     EventProcessingDeserialize,
+    /// Time spent running event processors on an event.
+    /// Event processing happens before filtering.
     EventProcessingProcess,
+    /// Time spent running filtering on an event.
     EventProcessingFiltering,
+    /// Time spent checking for rate limits in Redis.
+    /// Note that not all events are checked against Redis. After an event is rate limited
+    /// for period A, any event using the same key coming during period A will be automatically
+    /// rate limited without checking against Redis.
     EventProcessingRateLimiting,
+    /// Time spent in PII for the current event.
     EventProcessingPii,
+    /// Time spent converting the event from an Annotated<Event> into a String containing the JSON
+    /// representation of the event.
     EventProcessingSerialization,
+    /// Represents the time spent between receiving the event in Relay (i.e. beginning of the
+    /// request handling) up to the time before starting synchronous processing in the EventProcessor.
+    /// This is effectively the time between the event arriving in Relay and the event being ready
+    /// to be processed.
     EventWaitTime,
+    /// This is the time the event spends in the EventProcessor (i.e. the sync processing of the
+    /// event).
+    /// It includes decoding the event envelope and the times spent in EventProcessingProcess,
+    /// EventProcessingFiltering, EventProcessingRateLimiting, EventProcessingPii and
+    /// EventProcessingSerialization.
     EventProcessingTime,
+    /// The total time an event spends in Relay from the time it is received until it finishes
+    /// processing.
     EventTotalTime,
+
     ProjectStateEvictionDuration,
     ProjectStateRequestDuration,
     ProjectIdRequestDuration,
