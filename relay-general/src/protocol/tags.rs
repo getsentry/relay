@@ -1,11 +1,16 @@
 use crate::protocol::{AsPair, LenientString, PairList};
 use crate::types::{Annotated, Array, FromValue, Value};
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+)]
 pub struct TagEntry(
-    #[metastructure(max_chars = "tag_key", match_regex = r"^[a-zA-Z0-9_\.:-]+\z")]
-    pub  Annotated<String>,
-    #[metastructure(max_chars = "tag_value", match_regex = r"^[^\n]+\z")] pub Annotated<String>,
+    #[metastructure(max_chars = "tag_key")]
+    #[match_regex = r"^[a-zA-Z0-9_\.:-]+\z"]
+    pub Annotated<String>,
+    #[metastructure(max_chars = "tag_value")]
+    #[match_regex = r"^[^\n]+\z"]
+    pub Annotated<String>,
 );
 
 impl AsPair for TagEntry {
@@ -43,7 +48,16 @@ impl FromValue for TagEntry {
 
 /// Manual key/value tag pairs.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    SchemaValidated,
+    PiiStrippable,
 )]
 pub struct Tags(pub PairList<TagEntry>);
 

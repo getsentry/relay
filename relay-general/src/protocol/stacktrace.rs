@@ -5,7 +5,16 @@ use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// Holds information about a single stacktrace frame.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 #[metastructure(process_func = "process_frame", value_type = "Frame")]
 pub struct Frame {
@@ -122,12 +131,23 @@ pub struct Frame {
 }
 
 /// Frame local variables.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+)]
 pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<Value>);
 
 /// Additional frame data information.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct FrameData {
     /// A reference to the sourcemap used.
@@ -185,11 +205,22 @@ impl FromValue for FrameVars {
 
 /// Holds information about an entirey stacktrace.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 #[metastructure(process_func = "process_raw_stacktrace", value_type = "Stacktrace")]
 pub struct RawStacktrace {
-    #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty")]
+    #[required]
+    #[nonempty]
     pub frames: Annotated<Array<Frame>>,
 
     /// Register values of the thread (top frame).
@@ -206,7 +237,16 @@ pub struct RawStacktrace {
 
 /// Newtype to distinguish `raw_stacktrace` attributes from the rest.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    SchemaValidated,
+    PiiStrippable,
 )]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace(pub RawStacktrace);

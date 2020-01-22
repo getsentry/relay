@@ -11,7 +11,16 @@ use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization
 
 /// Device information.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct DeviceContext {
     /// Name of the device.
@@ -103,7 +112,16 @@ impl DeviceContext {
 
 /// Operating system information.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct OsContext {
     /// Name of the operating system.
@@ -138,7 +156,16 @@ impl OsContext {
 
 /// Runtime information.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct RuntimeContext {
     /// Runtime name.
@@ -167,7 +194,16 @@ impl RuntimeContext {
 
 /// Application information.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct AppContext {
     /// Start time of the app.
@@ -205,7 +241,16 @@ impl AppContext {
 
 /// Web browser information.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct BrowserContext {
     /// Runtime name.
@@ -237,7 +282,16 @@ lazy_static::lazy_static! {
 
 /// GPU information.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct GpuContext(pub Object<Value>);
 
@@ -270,7 +324,16 @@ impl GpuContext {
 
 /// Monitor information.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct MonitorContext(pub Object<Value>);
 
@@ -301,7 +364,9 @@ impl MonitorContext {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+)]
 pub struct TraceId(pub String);
 
 impl FromValue for TraceId {
@@ -326,7 +391,9 @@ impl FromValue for TraceId {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+)]
 pub struct SpanId(pub String);
 
 impl FromValue for SpanId {
@@ -353,7 +420,16 @@ impl FromValue for SpanId {
 
 /// Trace context
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct TraceContext {
     /// The trace ID.
@@ -385,7 +461,7 @@ pub struct TraceContext {
 ///
 /// Note: This type is represented as a u8 in Snuba/Clickhouse, with Unknown being the default
 /// value. We use repr(u8) to statically validate that the trace status has 255 variants at most.
-#[derive(Clone, Copy, Debug, PartialEq, PiiStrippable)]
+#[derive(Clone, Copy, Debug, PartialEq, PiiStrippable, SchemaValidated)]
 #[repr(u8)] // size limit in clickhouse
 pub enum SpanStatus {
     // XXX: this mapping exists multiple times at the moment.  It's also in the python binding
@@ -602,7 +678,9 @@ impl TraceContext {
 }
 
 /// A context describes environment info (e.g. device, os or browser).
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable)]
+#[derive(
+    Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+)]
 #[metastructure(process_func = "process_context")]
 pub enum Context {
     /// Device information.
@@ -645,7 +723,9 @@ impl Context {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable)]
+#[derive(
+    Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+)]
 pub struct ContextInner(#[metastructure(bag_size = "large")] pub Context);
 
 impl std::ops::Deref for ContextInner {
@@ -669,7 +749,9 @@ impl From<Context> for ContextInner {
 }
 
 /// An object holding multiple contexts.
-#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, Default)]
+#[derive(
+    Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, SchemaValidated, PiiStrippable, Default,
+)]
 pub struct Contexts(pub Object<ContextInner>);
 
 impl Contexts {

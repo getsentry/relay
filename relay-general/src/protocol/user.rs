@@ -3,7 +3,16 @@ use crate::types::{Annotated, Object, Value};
 
 /// Geographical location of the end user or device.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 #[metastructure(process_func = "process_geo")]
 pub struct Geo {
@@ -29,7 +38,16 @@ pub struct Geo {
 
 /// Information about the user who triggered an event.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    SchemaValidated,
+    PiiStrippable,
 )]
 #[metastructure(process_func = "process_user", value_type = "User")]
 pub struct User {

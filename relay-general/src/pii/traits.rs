@@ -9,18 +9,26 @@ pub trait PiiStrippable {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct PiiAttrsMap {
-    pub whitelist: &'static [&'static str],
-    pub blacklist: &'static [&'static str],
+    pub whitelist: &'static [PathItem<'static>],
+    pub blacklist: &'static [PathItem<'static>],
+}
+
+impl Default for PiiAttrsMap {
+    fn default() -> PiiAttrsMap {
+        PiiAttrsMap {
+            whitelist: &[],
+            blacklist: &[],
+        }
+    }
 }
 
 impl PiiAttrsMap {
     pub fn should_strip_pii(&self, field: &PathItem<'_>) -> Option<bool> {
-        let key = field.key()?;
-        if self.blacklist.contains(&key) {
+        if self.blacklist.contains(field) {
             Some(false)
-        } else if self.whitelist.contains(&key) {
+        } else if self.whitelist.contains(field) {
             Some(true)
         } else {
             None

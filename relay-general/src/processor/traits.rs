@@ -5,6 +5,7 @@ use std::fmt::Debug;
 
 use crate::pii::PiiStrippable;
 use crate::processor::{process_value, ProcessingState, ValueType};
+use crate::store::schema::SchemaValidated;
 use crate::types::{FromValue, Meta, ProcessingResult, Timestamp, ToValue};
 
 macro_rules! process_method {
@@ -108,7 +109,7 @@ pub trait Processor: Sized {
 }
 
 /// A recursively processable value.
-pub trait ProcessValue: FromValue + ToValue + Debug + PiiStrippable {
+pub trait ProcessValue: FromValue + ToValue + Debug + PiiStrippable + SchemaValidated {
     /// Returns the type of the value.
     #[inline]
     // TODO(ja): Make this a non-option

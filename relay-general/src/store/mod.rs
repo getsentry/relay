@@ -14,7 +14,7 @@ mod geo;
 mod legacy;
 mod normalize;
 mod remove_other;
-mod schema;
+pub mod schema;
 mod transactions;
 mod trimming;
 
@@ -96,7 +96,7 @@ impl<'a> Processor for StoreProcessor<'a> {
 
         if !is_renormalize {
             // Check for required and non-empty values
-            schema::SchemaProcessor.process_event(event, meta, state)?;
+            schema::SchemaProcessor::new().process_event(event, meta, state)?;
 
             // Normalize data in all interfaces
             self.normalize.process_event(event, meta, state)?;

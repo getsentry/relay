@@ -2,7 +2,16 @@ use crate::types::{Annotated, Array, Object, Value};
 
 /// Template debug information.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    SchemaValidated,
+    PiiStrippable,
 )]
 #[metastructure(process_func = "process_template_info")]
 pub struct TemplateInfo {

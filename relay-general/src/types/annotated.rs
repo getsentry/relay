@@ -418,7 +418,7 @@ fn test_annotated_deserialize_with_meta() {
     #[derive(Debug, Empty, FromValue, ToValue)]
     struct Foo {
         id: Annotated<u64>,
-        #[metastructure(field = "type")]
+        #[rename = "type"]
         ty: Annotated<String>,
     }
 

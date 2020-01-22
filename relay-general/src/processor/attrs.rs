@@ -3,7 +3,6 @@ use std::fmt;
 use std::str::FromStr;
 
 use failure::Fail;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -209,14 +208,6 @@ pub enum PiiKind {
 pub struct FieldAttrs {
     /// Optionally the name of the field.
     pub name: Option<&'static str>,
-    /// If the field is required.
-    pub required: bool,
-    /// If the field should be non-empty.
-    pub nonempty: bool,
-    /// Whether to trim whitespace from this string.
-    pub trim_whitespace: bool,
-    /// A regex to validate the (string) value against.
-    pub match_regex: Option<Regex>,
     /// The maximum char length of this field.
     pub max_chars: Option<MaxChars>,
     /// The maximum bag size of this field.
@@ -228,10 +219,6 @@ pub struct FieldAttrs {
 lazy_static::lazy_static! {
     static ref DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
         name: None,
-        required: false,
-        nonempty: false,
-        trim_whitespace: false,
-        match_regex: None,
         max_chars: None,
         bag_size: None,
         retain: false,
@@ -241,10 +228,6 @@ lazy_static::lazy_static! {
 lazy_static::lazy_static! {
     static ref PII_FIELD_ATTRS: FieldAttrs = FieldAttrs {
         name: None,
-        required: false,
-        nonempty: false,
-        trim_whitespace: false,
-        match_regex: None,
         max_chars: None,
         bag_size: None,
         retain: false,
@@ -254,10 +237,6 @@ lazy_static::lazy_static! {
 lazy_static::lazy_static! {
     static ref RETAIN_FIELD_ATTRS: FieldAttrs = FieldAttrs {
         name: None,
-        required: false,
-        nonempty: false,
-        trim_whitespace: false,
-        match_regex: None,
         max_chars: None,
         bag_size: None,
         retain: true,

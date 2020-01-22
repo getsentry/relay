@@ -388,7 +388,17 @@ mod tests {
     use crate::processor::{process_value, ProcessingState, ValueType};
     use crate::types::{Annotated, Remark, RemarkType};
 
-    #[derive(Clone, Debug, PartialEq, Empty, FromValue, ProcessValue, PiiStrippable, ToValue)]
+    #[derive(
+        Clone,
+        Debug,
+        PartialEq,
+        Empty,
+        FromValue,
+        ProcessValue,
+        SchemaValidated,
+        PiiStrippable,
+        ToValue,
+    )]
     struct FreeformRoot {
         #[should_strip_pii = true]
         value: Annotated<String>,

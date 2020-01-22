@@ -4,16 +4,25 @@ use crate::protocol::{OperationType, SpanId, TraceId};
 use crate::types::{Annotated, Object, Value};
 
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    SchemaValidated,
+    PiiStrippable,
 )]
 #[metastructure(process_func = "process_span", value_type = "Span")]
 pub struct Span {
     /// Timestamp when the span was ended.
-    #[metastructure(required = "true")]
+    #[required]
     pub timestamp: Annotated<DateTime<Utc>>,
 
     /// Timestamp when the span started.
-    #[metastructure(required = "true")]
+    #[required]
     pub start_timestamp: Annotated<DateTime<Utc>>,
 
     /// Human readable description of a span (e.g. method URL).
@@ -25,14 +34,14 @@ pub struct Span {
     pub op: Annotated<OperationType>,
 
     /// The Span id.
-    #[metastructure(required = "true")]
+    #[required]
     pub span_id: Annotated<SpanId>,
 
     /// The ID of the span enclosing this span.
     pub parent_span_id: Annotated<SpanId>,
 
     /// The ID of the trace the span belongs to.
-    #[metastructure(required = "true")]
+    #[required]
     pub trace_id: Annotated<TraceId>,
 
     // TODO remove retain when the api stabilizes

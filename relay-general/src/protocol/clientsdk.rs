@@ -3,7 +3,16 @@ use crate::types::{Annotated, Array, Object, Value};
 
 /// An installed and loaded package as part of the Sentry SDK.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct ClientSdkPackage {
     /// Name of the package.
@@ -14,16 +23,27 @@ pub struct ClientSdkPackage {
 
 /// Information about the Sentry SDK.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    SchemaValidated,
+    PiiStrippable,
 )]
 #[metastructure(process_func = "process_client_sdk_info", value_type = "ClientSdkInfo")]
 pub struct ClientSdkInfo {
     /// Unique SDK name.
-    #[metastructure(required = "true", max_chars = "symbol")]
+    #[metastructure(max_chars = "symbol")]
+    #[required]
     pub name: Annotated<String>,
 
     /// SDK version.
-    #[metastructure(required = "true", max_chars = "symbol")]
+    #[metastructure(max_chars = "symbol")]
+    #[required]
     pub version: Annotated<String>,
 
     /// List of integrations that are enabled in the SDK.

@@ -4,6 +4,7 @@ use uuid::Uuid;
 use crate::pii::PiiStrippable;
 use crate::processor::ProcessValue;
 use crate::protocol::Addr;
+use crate::store::schema::SchemaValidated;
 use crate::types::{
     Annotated, Array, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value,
 };
@@ -13,7 +14,16 @@ use crate::types::{
 /// This is relevant for iOS and other platforms that have a system
 /// SDK.  Not to be confused with the client SDK.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct SystemSdkInfo {
     /// The internal name of the SDK.
@@ -35,11 +45,20 @@ pub struct SystemSdkInfo {
 
 /// Apple debug image in
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct AppleDebugImage {
     /// Path and name of the debug image (required).
-    #[metastructure(required = "true")]
+    #[required]
     pub name: Annotated<String>,
 
     /// CPU architecture target.
@@ -52,18 +71,18 @@ pub struct AppleDebugImage {
     pub cpu_subtype: Annotated<u64>,
 
     /// Starting memory address of the image (required).
-    #[metastructure(required = "true")]
+    #[required]
     pub image_addr: Annotated<Addr>,
 
     /// Size of the image in bytes (required).
-    #[metastructure(required = "true")]
+    #[required]
     pub image_size: Annotated<u64>,
 
     /// Loading address in virtual memory.
     pub image_vmaddr: Annotated<Addr>,
 
     /// The unique UUID of the image.
-    #[metastructure(required = "true")]
+    #[required]
     pub uuid: Annotated<Uuid>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -121,6 +140,8 @@ macro_rules! impl_traits {
         impl ProcessValue for $type {}
 
         impl PiiStrippable for $type {}
+
+        impl SchemaValidated for $type {}
     };
 }
 
@@ -129,7 +150,16 @@ impl_traits!(DebugId, "a debug identifier");
 
 /// A native platform debug information file.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct NativeDebugImage {
     /// Optional identifier of the code file.
@@ -138,11 +168,13 @@ pub struct NativeDebugImage {
     pub code_id: Annotated<CodeId>,
 
     /// Path and name of the image file (required).
-    #[metastructure(required = "true", legacy_alias = "name")]
+    #[metastructure(legacy_alias = "name")]
+    #[required]
     pub code_file: Annotated<String>,
 
     /// Unique debug identifier of the image.
-    #[metastructure(required = "true", legacy_alias = "id")]
+    #[metastructure(legacy_alias = "id")]
+    #[required]
     pub debug_id: Annotated<DebugId>,
 
     /// Path and name of the debug companion file (required).
@@ -152,11 +184,11 @@ pub struct NativeDebugImage {
     pub arch: Annotated<String>,
 
     /// Starting memory address of the image (required).
-    #[metastructure(required = "true")]
+    #[required]
     pub image_addr: Annotated<Addr>,
 
     /// Size of the image in bytes (required).
-    #[metastructure(required = "true")]
+    #[required]
     pub image_size: Annotated<u64>,
 
     /// Loading address in virtual memory.
@@ -169,11 +201,20 @@ pub struct NativeDebugImage {
 
 /// Proguard mapping file.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct ProguardDebugImage {
     /// UUID computed from the file contents.
-    #[metastructure(required = "true")]
+    #[required]
     pub uuid: Annotated<Uuid>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -182,7 +223,9 @@ pub struct ProguardDebugImage {
 }
 
 /// A debug information file (debug image).
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable)]
+#[derive(
+    Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+)]
 #[metastructure(process_func = "process_debug_image")]
 pub enum DebugImage {
     /// Legacy apple debug images (MachO).
@@ -206,12 +249,21 @@ pub enum DebugImage {
 
 /// Debugging and processing meta information.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    SchemaValidated,
+    PiiStrippable,
 )]
 #[metastructure(process_func = "process_debug_meta")]
 pub struct DebugMeta {
     /// Information about the system SDK (e.g. iOS SDK).
-    #[metastructure(field = "sdk_info")]
+    #[rename = "sdk_info"]
     #[metastructure(skip_serialization = "empty")]
     pub system_sdk: Annotated<SystemSdkInfo>,
 

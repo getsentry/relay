@@ -7,7 +7,17 @@ use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization
 
 /// Represents a thread id.
 #[derive(
-    Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, PiiStrippable,
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Ord,
+    PartialOrd,
+    Hash,
+    PiiStrippable,
+    SchemaValidated,
 )]
 #[serde(untagged)]
 pub enum ThreadId {
@@ -71,7 +81,16 @@ impl Empty for ThreadId {
 
 /// A process thread of an event.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    SchemaValidated,
+    PiiStrippable,
 )]
 #[metastructure(process_func = "process_thread", value_type = "Thread")]
 pub struct Thread {

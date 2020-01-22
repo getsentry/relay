@@ -2,11 +2,20 @@ use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// POSIX signal with optional extended data.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct CError {
     /// The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.
-    #[metastructure(required = "true")]
+    #[required]
     pub number: Annotated<i64>,
 
     /// Optional name of the errno constant.
@@ -15,19 +24,29 @@ pub struct CError {
 
 /// Mach exception information.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct MachException {
     /// The mach exception type.
-    #[metastructure(field = "exception", required = "true")]
+    #[rename = "exception"]
+    #[required]
     pub ty: Annotated<i64>,
 
     /// The mach exception code.
-    #[metastructure(required = "true")]
+    #[required]
     pub code: Annotated<u64>,
 
     /// The mach exception subcode.
-    #[metastructure(required = "true")]
+    #[required]
     pub subcode: Annotated<u64>,
 
     /// Optional name of the mach exception.
@@ -36,11 +55,20 @@ pub struct MachException {
 
 /// POSIX signal with optional extended data.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct PosixSignal {
     /// The POSIX signal number.
-    #[metastructure(required = "true")]
+    #[required]
     pub number: Annotated<i64>,
 
     /// An optional signal code present on Apple systems.
@@ -55,7 +83,16 @@ pub struct PosixSignal {
 
 /// Operating system or runtime meta information to an exception mechanism.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct MechanismMeta {
     /// Optional ISO C standard error code.
@@ -73,15 +110,15 @@ pub struct MechanismMeta {
 }
 
 /// The mechanism by which an exception was generated and handled.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+)]
 pub struct Mechanism {
     /// Mechanism type (required).
-    #[metastructure(
-        field = "type",
-        required = "true",
-        nonempty = "true",
-        max_chars = "enumlike"
-    )]
+    #[rename = "type"]
+    #[metastructure(max_chars = "enumlike")]
+    #[required]
+    #[nonempty]
     pub ty: Annotated<String>,
 
     /// If this is set then the exception is not a real exception but some
@@ -96,7 +133,8 @@ pub struct Mechanism {
     pub description: Annotated<String>,
 
     /// Link to online resources describing this error.
-    #[metastructure(required = "false", nonempty = "true", max_chars = "path")]
+    #[metastructure(max_chars = "path")]
+    #[nonempty]
     pub help_link: Annotated<String>,
 
     /// Flag indicating whether this exception was handled.
@@ -121,7 +159,7 @@ impl FromValue for Mechanism {
     fn from_value(annotated: Annotated<Value>) -> Annotated<Self> {
         #[derive(Debug, FromValue)]
         struct NewMechanism {
-            #[metastructure(field = "type", required = "true")]
+            #[rename = "type"]
             pub ty: Annotated<String>,
             pub synthetic: Annotated<bool>,
             pub description: Annotated<String>,
@@ -135,7 +173,6 @@ impl FromValue for Mechanism {
 
         #[derive(Debug, FromValue)]
         struct LegacyPosixSignal {
-            #[metastructure(required = "true")]
             pub signal: Annotated<i64>,
             pub code: Annotated<i64>,
             pub name: Annotated<String>,
@@ -144,11 +181,8 @@ impl FromValue for Mechanism {
 
         #[derive(Debug, FromValue)]
         struct LegacyMachException {
-            #[metastructure(required = "true")]
             pub exception: Annotated<i64>,
-            #[metastructure(required = "true")]
             pub code: Annotated<u64>,
-            #[metastructure(required = "true")]
             pub subcode: Annotated<u64>,
             pub exception_name: Annotated<String>,
         }

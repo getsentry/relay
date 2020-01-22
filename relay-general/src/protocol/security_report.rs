@@ -451,7 +451,16 @@ struct CspReportRaw {
 ///
 /// See https://www.w3.org/TR/CSP3/
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct Csp {
     /// The directive whose enforcement caused the violation.
@@ -722,7 +731,16 @@ struct ExpectCtReportRaw {
 ///
 /// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct SingleCertificateTimestamp {
     pub version: Annotated<i64>,
@@ -735,7 +753,16 @@ pub struct SingleCertificateTimestamp {
 ///
 /// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct ExpectCt {
     /// Date time in rfc3339 format YYYY-MM-DDTHH:MM:DD{.FFFFFF}(Z|+/-HH:MM)
@@ -860,7 +887,16 @@ impl HpkpRaw {
 
 /// Schema as defined in RFC7469, Section 3
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct Hpkp {
     /// > Indicates the time the UA observed the Pin Validation failure.
@@ -888,7 +924,7 @@ pub struct Hpkp {
 
     /// > Pins that the UA has noted for the Known Pinned Host.
     // TODO: regex ths string for 'pin-sha256="ABC123"' syntax
-    #[metastructure(required = "true")]
+    #[required]
     pub known_pins: Annotated<Array<String>>,
 
     #[metastructure(additional_properties)]
@@ -1092,7 +1128,16 @@ impl ExpectStapleRaw {
 /// Represents an Expect Staple security report
 /// See https://scotthelme.co.uk/ocsp-expect-staple/ for specification
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    SchemaValidated,
+    PiiStrippable,
 )]
 pub struct ExpectStaple {
     date_time: Annotated<String>,

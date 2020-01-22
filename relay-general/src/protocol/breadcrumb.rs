@@ -8,7 +8,16 @@ use crate::types::{Annotated, Object, Value};
 
 /// A breadcrumb.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    SchemaValidated,
+    PiiStrippable,
 )]
 #[metastructure(process_func = "process_breadcrumb", value_type = "Breadcrumb")]
 pub struct Breadcrumb {
@@ -16,7 +25,8 @@ pub struct Breadcrumb {
     pub timestamp: Annotated<DateTime<Utc>>,
 
     /// The type of the breadcrumb.
-    #[metastructure(field = "type", max_chars = "enumlike")]
+    #[rename = "type"]
+    #[metastructure(max_chars = "enumlike")]
     pub ty: Annotated<String>,
 
     /// The optional category of the breadcrumb.

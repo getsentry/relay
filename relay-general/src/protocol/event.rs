@@ -14,12 +14,15 @@ use crate::protocol::{
     Fingerprint, Hpkp, LenientString, Level, LogEntry, Metrics, Request, Span, Stacktrace, Tags,
     TemplateInfo, Thread, User, Values,
 };
+use crate::store::schema::SchemaValidated;
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, PiiStrippable)]
+#[derive(
+    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, PiiStrippable, SchemaValidated,
+)]
 pub struct EventId(pub uuid::Uuid);
 
 impl EventId {
@@ -155,8 +158,11 @@ impl ToValue for EventType {
 }
 
 impl ProcessValue for EventType {}
+impl SchemaValidated for EventType {}
 
-#[derive(Debug, FromValue, ToValue, ProcessValue, PiiStrippable, Empty, Clone, PartialEq)]
+#[derive(
+    Debug, FromValue, ToValue, ProcessValue, PiiStrippable, SchemaValidated, Empty, Clone, PartialEq,
+)]
 pub struct ExtraValue(#[metastructure(bag_size = "larger")] pub Value);
 
 impl<T: Into<Value>> From<T> for ExtraValue {
@@ -167,10 +173,20 @@ impl<T: Into<Value>> From<T> for ExtraValue {
 
 /// An event processing error.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct EventProcessingError {
-    #[metastructure(field = "type", required = "true")]
+    #[rename = "type"]
+    #[required]
     /// The error kind.
     pub ty: Annotated<String>,
 
@@ -191,7 +207,16 @@ pub struct EventProcessingError {
 /// This is currently only supplied as part of normalization and the payload
 /// only permits the ID of the algorithm to be set and no parameters yet.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiStrippable,
+    SchemaValidated,
 )]
 pub struct GroupingConfig {
     /// The id of the grouping config.
@@ -203,12 +228,21 @@ pub struct GroupingConfig {
 
 /// The sentry v7 event structure.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    SchemaValidated,
+    PiiStrippable,
 )]
 #[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {
     /// Unique identifier of this event.
-    #[metastructure(field = "event_id")]
+    #[rename = "event_id"]
     pub id: Annotated<EventId>,
 
     /// Severity level of the event.
@@ -218,7 +252,7 @@ pub struct Event {
     pub version: Annotated<String>,
 
     /// Type of event: error, csp, default
-    #[metastructure(field = "type")]
+    #[rename = "type"]
     pub ty: Annotated<EventType>,
 
     /// Manual fingerprint override.
@@ -244,8 +278,8 @@ pub struct Event {
     /// Logger that created the event.
     #[metastructure(
         max_chars = "logger", // DB-imposed limit
-        match_regex = r"^[^\r\n]*\z"
     )]
+    #[match_regex = r"^[^\r\n]*\z"]
     pub logger: Annotated<String>,
 
     /// Name and versions of installed modules.
@@ -272,30 +306,24 @@ pub struct Event {
     /// Program's release identifier.
     #[metastructure(
         max_chars = "tag_value",  // release ends in tag
-        match_regex = r"^[^\r\n]*\z",
-        required = "false",
-        trim_whitespace = "true",
-        nonempty = "true",
         skip_serialization = "empty"
     )]
+    #[nonempty]
+    #[trim_whitespace]
+    #[match_regex = r"^[^\r\n]*\z"]
     pub release: Annotated<LenientString>,
 
     /// Program's distribution identifier.
     // Match whitespace here, which will later get trimmed
-    #[metastructure(
-        max_chars = "tag_value",  // dist ends in tag
-        match_regex = r"^\s*[a-zA-Z0-9_.-]*\s*$",
-        required = "false",
-        nonempty = "true"
-    )]
+    #[metastructure(max_chars = "tag_value")] // dist ends in tag
+    #[nonempty]
+    #[match_regex = r"^\s*[a-zA-Z0-9_.-]*\s*$"]
     pub dist: Annotated<String>,
 
     /// Environment the environment was generated in ("production" or "development").
-    #[metastructure(
-        max_chars = "environment",
-        match_regex = r"^[^\r\n\x0C/]+$",
-        trim_whitespace = "true"
-    )]
+    #[metastructure(max_chars = "environment")]
+    #[trim_whitespace]
+    #[match_regex = r"^[^\r\n\x0C/]+$"]
     pub environment: Annotated<String>,
 
     /// Deprecated in favor of tags.
@@ -324,7 +352,7 @@ pub struct Event {
 
     /// One or multiple chained (nested) exceptions.
     #[metastructure(legacy_alias = "sentry.interfaces.Exception")]
-    #[metastructure(field = "exception")]
+    #[rename = "exception"]
     #[metastructure(skip_serialization = "empty")]
     pub exceptions: Annotated<Values<Exception>>,
 
@@ -356,7 +384,7 @@ pub struct Event {
     pub debug_meta: Annotated<DebugMeta>,
 
     /// Information about the Sentry SDK that generated this event.
-    #[metastructure(field = "sdk")]
+    #[rename = "sdk"]
     #[metastructure(skip_serialization = "empty")]
     pub client_sdk: Annotated<ClientSdkInfo>,
 

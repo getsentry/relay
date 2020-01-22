@@ -3,6 +3,8 @@ use quote::quote;
 
 use syn::{Lit, LitBool, Meta};
 
+use crate::{is_newtype, parse_field_name_from_field_attributes};
+
 fn parse_attributes(bi_ast: &syn::Field) -> Option<bool> {
     for attr in &bi_ast.attrs {
         let meta = match attr.interpret_meta() {
@@ -32,17 +34,17 @@ pub fn derive_pii(mut s: synstructure::Structure<'_>) -> TokenStream {
     s.add_bounds(synstructure::AddBounds::None);
 
     let arms = s.each_variant(|variant| {
+        if is_newtype(variant) {
+            let inner_ident = &variant.bindings()[0].binding;
+            return quote!(crate::pii::PiiStrippable::get_attrs(#inner_ident));
+        }
+
         let mut whitelist = quote!();
         let mut blacklist = quote!();
 
-        for bi in variant.bindings() {
+        for (i, bi) in variant.bindings().iter().enumerate() {
             if let Some(val) = parse_attributes(bi.ast()) {
-                let field_name: String = bi
-                    .ast()
-                    .ident
-                    .as_ref()
-                    .expect("Cannot define should_strip_pii on unnamed fields")
-                    .to_string();
+                let field_name = parse_field_name_from_field_attributes(bi.ast(), i).1;
 
                 if val {
                     whitelist = quote!(#field_name, #whitelist);

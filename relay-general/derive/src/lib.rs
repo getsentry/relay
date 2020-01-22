@@ -5,6 +5,7 @@
 mod empty;
 mod pii;
 mod process;
+mod schema;
 
 use std::str::FromStr;
 
@@ -20,10 +21,11 @@ enum Trait {
 }
 
 decl_derive!([Empty, attributes(metastructure)] => empty::derive_empty);
-decl_derive!([ToValue, attributes(metastructure)] => derive_to_value);
-decl_derive!([FromValue, attributes(metastructure)] => derive_from_value);
-decl_derive!([ProcessValue, attributes(metastructure)] => process::derive_process_value);
-decl_derive!([PiiStrippable, attributes(should_strip_pii)] => pii::derive_pii);
+decl_derive!([ToValue, attributes(rename, metastructure)] => derive_to_value);
+decl_derive!([FromValue, attributes(rename, metastructure)] => derive_from_value);
+decl_derive!([ProcessValue, attributes(rename, metastructure)] => process::derive_process_value);
+decl_derive!([PiiStrippable, attributes(rename, should_strip_pii)] => pii::derive_pii);
+decl_derive!([SchemaValidated, attributes(rename, required, nonempty, trim_whitespace, match_regex)] => schema::derive_schema);
 
 fn derive_to_value(s: synstructure::Structure<'_>) -> TokenStream {
     derive_metastructure(s, Trait::To)
@@ -683,11 +685,7 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
 struct FieldAttrs {
     additional_properties: bool,
     field_name: String,
-    required: Option<bool>,
-    nonempty: Option<bool>,
-    trim_whitespace: Option<bool>,
     retain: bool,
-    match_regex: Option<String>,
     max_chars: Option<TokenStream>,
     bag_size: Option<TokenStream>,
     legacy_aliases: Vec<String>,
@@ -697,35 +695,6 @@ struct FieldAttrs {
 impl FieldAttrs {
     fn as_tokens(&self, inherit_from_field_attrs: Option<TokenStream>) -> TokenStream {
         let field_name = &self.field_name;
-
-        if self.required.is_none() && self.nonempty.is_some() {
-            panic!(
-                "`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used."
-            );
-        }
-        let required = if let Some(required) = self.required {
-            quote!(#required)
-        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.required)
-        } else {
-            quote!(false)
-        };
-
-        let nonempty = if let Some(nonempty) = self.nonempty {
-            quote!(#nonempty)
-        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.nonempty)
-        } else {
-            quote!(false)
-        };
-
-        let trim_whitespace = if let Some(trim_whitespace) = self.trim_whitespace {
-            quote!(#trim_whitespace)
-        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.trim_whitespace)
-        } else {
-            quote!(false)
-        };
 
         let retain = self.retain;
 
@@ -745,24 +714,9 @@ impl FieldAttrs {
             quote!(None)
         };
 
-        let match_regex = if let Some(ref match_regex) = self.match_regex {
-            quote!(Some(
-                #[allow(clippy::trivial_regex)]
-                ::regex::Regex::new(#match_regex).unwrap()
-            ))
-        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.match_regex.clone())
-        } else {
-            quote!(None)
-        };
-
         quote!({
             crate::processor::FieldAttrs {
                 name: Some(#field_name),
-                required: #required,
-                nonempty: #nonempty,
-                trim_whitespace: #trim_whitespace,
-                match_regex: #match_regex,
                 max_chars: #max_chars,
                 bag_size: #bag_size,
                 retain: #retain,
@@ -809,6 +763,54 @@ impl FromStr for SkipSerialization {
     }
 }
 
+fn parse_field_name_from_field_attributes(
+    bi_ast: &syn::Field,
+    index: usize,
+) -> (String, TokenStream) {
+    let field_name = match bi_ast.ident {
+        Some(ref name) => {
+            let name = name.to_string();
+            (
+                name.clone(),
+                quote!(crate::processor::PathItem::StaticKey(#name)),
+            )
+        }
+        None => (
+            index.to_string(),
+            quote!(crate::processor::PathItem::Index(#index)),
+        ),
+    };
+
+    for attr in &bi_ast.attrs {
+        let meta = match attr.interpret_meta() {
+            Some(meta) => meta,
+            None => continue,
+        };
+
+        if meta.name() != "rename" {
+            continue;
+        }
+
+        let name_value = match meta {
+            Meta::NameValue(x) => x,
+            _ => panic!("Invalid usage of rename, need NameValue"),
+        };
+
+        match name_value.lit {
+            Lit::Str(litstr) => {
+                let name = litstr.value();
+                return (
+                    name.clone(),
+                    quote!(crate::processor::PathItem::StaticKey(#name)),
+                );
+            }
+            _ => panic!("Invalid usage of rename, need string as value"),
+        }
+    }
+
+    field_name
+}
+
 fn parse_field_attributes(
     index: usize,
     bi_ast: &syn::Field,
@@ -824,11 +826,7 @@ fn parse_field_attributes(
     if !*is_tuple_struct {
         rv.skip_serialization = SkipSerialization::Null(false);
     }
-    rv.field_name = bi_ast
-        .ident
-        .as_ref()
-        .map(ToString::to_string)
-        .unwrap_or_else(|| index.to_string());
+    rv.field_name = parse_field_name_from_field_attributes(bi_ast, index).0;
 
     for attr in &bi_ast.attrs {
         let meta = match attr.parse_meta() {
@@ -861,56 +859,7 @@ fn parse_field_attributes(
                         }
                         Meta::NameValue(name_value) => {
                             let ident = name_value.path.get_ident().expect("Unexpected path");
-                            if ident == "field" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        rv.field_name = litstr.value();
-                                    }
-                                    _ => {
-                                        panic!("Got non string literal for field");
-                                    }
-                                }
-                            } else if ident == "required" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.required = Some(true),
-                                        "false" => rv.required = Some(false),
-                                        other => panic!("Unknown value {}", other),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for required");
-                                    }
-                                }
-                            } else if ident == "nonempty" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.nonempty = Some(true),
-                                        "false" => rv.nonempty = Some(false),
-                                        other => panic!("Unknown value {}", other),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for nonempty");
-                                    }
-                                }
-                            } else if ident == "trim_whitespace" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.trim_whitespace = Some(true),
-                                        "false" => rv.trim_whitespace = Some(false),
-                                        other => panic!("Unknown value {}", other),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for trim_whitespace");
-                                    }
-                                }
-                            } else if ident == "match_regex" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        rv.match_regex = Some(litstr.value().clone())
-                                    }
-                                    _ => panic!("Got non string literal for match_regex"),
-                                }
-                            } else if ident == "max_chars" {
+                            if ident == "max_chars" {
                                 match name_value.lit {
                                     Lit::Str(litstr) => {
                                         let attr = parse_max_chars(litstr.value().as_str());
