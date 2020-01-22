@@ -53,11 +53,6 @@ def processing_config(get_topic_name):
 
         if not processing.get("redis"):
             processing["redis"] = "redis://127.0.0.1"
-
-        processing[
-            "projectconfig_cache_prefix"
-        ] = f"relay-test-relayconfig-{uuid.uuid4()}"
-
         return options
 
     return inner
@@ -169,11 +164,6 @@ class OutcomesConsumer(ConsumerBase):
         outcome = self.get_outcome()
         assert outcome["outcome"] == 3
         assert outcome["reason"] == "internal"
-
-    def assert_dropped_unknown_project(self):
-        outcome = self.get_outcome()
-        assert outcome["outcome"] == 3
-        assert outcome["reason"] == "project_id"
 
 
 @pytest.fixture
