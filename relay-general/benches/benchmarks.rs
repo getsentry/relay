@@ -1,87 +1,108 @@
-#![cfg(feature = "bench")]
-#![feature(test)]
+use std::fmt;
+use std::fs;
 
-macro_rules! benchmark {
-    ($sdk:ident) => {
-        mod $sdk {
-            extern crate test;
-            use std::collections::BTreeSet;
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
-            use relay_general::processor::process_value;
-            use relay_general::protocol::Event;
-            use relay_general::store::{StoreConfig, StoreProcessor};
-            use relay_general::types::Annotated;
+use relay_general::processor::process_value;
+use relay_general::protocol::{Event, IpAddr};
+use relay_general::store::{StoreConfig, StoreProcessor};
+use relay_general::types::Annotated;
 
-            fn load_json() -> String {
-                let path = concat!("tests/fixtures/payloads/", stringify!($sdk), ".json");
-                std::fs::read_to_string(path).expect("failed to load json")
-            }
+fn load_all_fixtures() -> Vec<BenchmarkInput<String>> {
+    let mut rv = Vec::new();
 
-            #[bench]
-            fn bench_from_value(b: &mut test::Bencher) {
-                let json = load_json();
-                b.iter(|| Annotated::<Event>::from_json(&json).expect("failed to deserialize"));
-            }
+    for entry in fs::read_dir("tests/fixtures/payloads/").unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
 
-            #[bench]
-            fn bench_to_json(b: &mut test::Bencher) {
-                let json = load_json();
-                let event = Annotated::<Event>::from_json(&json).expect("failed to deserialize");
-                b.iter(|| event.to_json().expect("failed to serialize"));
-            }
+        rv.push(BenchmarkInput {
+            name: path.file_stem().unwrap().to_str().unwrap().to_string(),
+            data: fs::read_to_string(path).unwrap(),
+        });
+    }
 
-            #[bench]
-            fn bench_processing(b: &mut test::Bencher) {
-                let mut platforms = BTreeSet::new();
-                platforms.insert("cocoa".to_string());
-                platforms.insert("csharp".to_string());
-                platforms.insert("javascript".to_string());
-                platforms.insert("native".to_string());
-                platforms.insert("node".to_string());
-                platforms.insert("python".to_string());
-
-                let config = StoreConfig {
-                    project_id: Some(4711),
-                    client_ip: Some("127.0.0.1".to_string()),
-                    client: Some("sentry.tester".to_string()),
-                    key_id: Some("feedface".to_string()),
-                    protocol_version: Some("8".to_string()),
-                    stacktrace_frames_hard_limit: Some(50),
-                    valid_platforms: platforms,
-                    max_secs_in_future: Some(3600),
-                    max_secs_in_past: Some(2_592_000),
-                    enable_trimming: Some(true),
-                    max_stacktrace_frames: Some(50),
-                };
-
-                let json = load_json();
-                let mut processor = StoreProcessor::new(config, None);
-                let event = Annotated::<Event>::from_json(&json).expect("failed to deserialize");
-
-                b.iter(|| {
-                    let mut event = test::black_box(event.clone());
-                    process_value(&mut event, &mut processor, &Default::default());
-                    event
-                });
-            }
-        }
-    };
+    assert!(!rv.is_empty());
+    rv
 }
 
-benchmark!(legacy_js_exception);
-benchmark!(legacy_js_message);
-benchmark!(legacy_js_onerror);
-benchmark!(legacy_js_promise);
-benchmark!(legacy_node_exception);
-benchmark!(legacy_node_express);
-benchmark!(legacy_node_message);
-benchmark!(legacy_node_onerror);
-benchmark!(legacy_node_promise);
-benchmark!(legacy_python);
-benchmark!(legacy_swift);
+struct BenchmarkInput<T> {
+    name: String,
+    data: T,
+}
 
-benchmark!(cocoa);
-benchmark!(cordova);
-benchmark!(dotnet);
-benchmark!(electron_main);
-benchmark!(electron_renderer);
+impl<T> fmt::Display for BenchmarkInput<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+fn bench_from_value(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bench_from_value");
+
+    for input in load_all_fixtures() {
+        group.bench_with_input(BenchmarkId::from_parameter(&input), &input, |b, input| {
+            b.iter(|| Annotated::<Event>::from_json(&input.data).expect("failed to deserialize"));
+        });
+    }
+
+    group.finish();
+}
+
+fn bench_to_json(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bench_to_json");
+
+    for BenchmarkInput { name, data } in load_all_fixtures() {
+        let event = Annotated::<Event>::from_json(&data).expect("failed to deserialize");
+        let input = BenchmarkInput { name, data: event };
+
+        group.bench_with_input(BenchmarkId::from_parameter(&input), &input, |b, input| {
+            b.iter(|| input.data.to_json().expect("failed to serialize"));
+        });
+    }
+
+    group.finish();
+}
+
+fn bench_store_processor(c: &mut Criterion) {
+    let config = StoreConfig {
+        project_id: Some(4711),
+        client_ip: Some(IpAddr("127.0.0.1".to_string())),
+        client: Some("sentry.tester".to_string()),
+        key_id: Some("feedface".to_string()),
+        protocol_version: Some("8".to_string()),
+        max_secs_in_future: Some(3600),
+        max_secs_in_past: Some(2_592_000),
+        enable_trimming: Some(true),
+        grouping_config: None,
+        is_renormalize: Some(false),
+        normalize_user_agent: Some(false),
+        remove_other: Some(true),
+        user_agent: None,
+    };
+
+    let mut processor = StoreProcessor::new(config, None);
+
+    let mut group = c.benchmark_group("bench_store_processor");
+    for BenchmarkInput { name, data } in load_all_fixtures() {
+        let event = Annotated::<Event>::from_json(&data).expect("failed to deserialize");
+        let input = BenchmarkInput { name, data: event };
+
+        group.bench_with_input(BenchmarkId::from_parameter(&input), &input, |b, input| {
+            b.iter(|| {
+                let mut event = input.data.clone();
+                process_value(&mut event, &mut processor, &Default::default()).unwrap();
+                event
+            })
+        });
+    }
+
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_from_value,
+    bench_to_json,
+    bench_store_processor
+);
+criterion_main!(benches);
