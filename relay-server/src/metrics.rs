@@ -20,11 +20,20 @@ pub enum RelayHistograms {
     /// that can be stored in the queue ( 0 ... the queue is empty, 1 ... the queue is full
     /// and no additional events can be added).
     EventQueueSizePct,
-    /// The number of events in the queue at the sampling moment.
+    /// The number of events in the queue. The event queue represents the events that are being
+    /// processed at a particular time in Relay. Once a request is received the event has
+    /// some preliminary (quick) processing to determine if it can be processed or it is
+    /// rejected. Once this determination has been done the http request that
+    /// created the event terminates and, if the request is to be further processed,
+    /// the event enters a queue ( a virtual queue, the event is kept in a future that
+    /// will resolve at some point in time).
+    /// Once the event finishes processing and is sent downstream (i.e. the future is
+    /// resolved and the event leaves relay) the event is considered handled and it
+    /// leaves the queue ( the queue size is decremented).
     EventQueueSize,
-    /// The event size as seen by Relay after it is extracted from a request
+    /// The event size as seen by Relay after it is extracted from a request.
     EventSizeBytesRaw,
-    /// The event size as seen by Relay after it is extracted Base64 decoded and unzipped.
+    /// The event size as seen by Relay after it has been decompressed and decoded (e.g. from Base64).
     EventSizeBytesUncompressed,
     /// Number of projects in the ProjectCache that are waiting for their state to be updated.
     ProjectStatePending,
@@ -53,7 +62,8 @@ impl HistogramMetric for RelayHistograms {
 
 /// Timer metrics used by Relay
 pub enum RelayTimers {
-    /// The time spent deserializing an event from a JSON byte array into a `relay_general::protocol::Event`.
+    /// The time spent deserializing an event from a JSON byte array into the native data structure
+    /// on which Relay operates.
     EventProcessingDeserialize,
     /// Time spent running event processors on an event.
     /// Event processing happens before filtering.
@@ -63,23 +73,32 @@ pub enum RelayTimers {
     /// Time spent checking for rate limits in Redis.
     /// Note that not all events are checked against Redis. After an event is rate limited
     /// for period A, any event using the same key coming during period A will be automatically
-    /// rate limited without checking against Redis.
+    /// rate limited without checking against Redis (the event will be simply discarded without
+    /// being placed in the processing queue).
     EventProcessingRateLimiting,
-    /// Time spent in PII for the current event.
+    /// Time spent in data scrubbing for the current event.
     EventProcessingPii,
     /// Time spent converting the event from an Annotated<Event> into a String containing the JSON
     /// representation of the event.
     EventProcessingSerialization,
     /// Represents the time spent between receiving the event in Relay (i.e. beginning of the
     /// request handling) up to the time before starting synchronous processing in the EventProcessor.
-    /// This is effectively the time between the event arriving in Relay and the event being ready
-    /// to be processed.
     EventWaitTime,
     /// This is the time the event spends in the EventProcessor (i.e. the sync processing of the
     /// event).
-    /// It includes decoding the event envelope and the times spent in EventProcessingProcess,
-    /// `EventProcessingFiltering`, `EventProcessingRateLimiting`, `EventProcessingPii` and
-    /// EventProcessingSerialization.
+    /// The time spent in synchronous event processing.
+    ///
+    /// This timing covers the end-to-end processing in the CPU pool and comprises:
+    ///
+    ///  - `event_processing.deserialize`
+    ///  - `event_processing.pii`
+    ///  - `event_processing.serialization`
+    ///
+    /// With Relay in processing mode, this includes the following additional timings:
+    ///
+    ///  - `event_processing.process`
+    ///  - `event_processing.filtering`
+    ///  - `event_processing.rate_limiting`
     EventProcessingTime,
     /// The total time an event spends in Relay from the time it is received until it finishes
     /// processing.
@@ -94,6 +113,10 @@ pub enum RelayTimers {
     /// the first request until all requests are finished.
     ProjectStateRequestDuration,
     /// The total time spent getting the project id from upstream.
+    /// **Note** that ProjectIdRequests happen only for the legacy
+    /// endpoint that does not specify the project id in the url, for the new endpoints the
+    /// project id is extracted from the url path. Only projects with the id not already fetched
+    /// are counted.
     /// The project id is only fetched once and it is not refreshed.
     ProjectIdRequestDuration,
     /// The total duration of a request as seen from Relay from the moment the request is
@@ -134,8 +157,9 @@ pub enum RelayCounters {
     /// events, discarded events and rate limited events).
     EventRejected,
     /// Represents a group of counters, implemented with using tags. The following tags are
-    /// present for each event outcome: `outcome` which is an `EventOutcome` enum and reason
-    /// which is the reason string for all outcomes that are not `Accepted`.
+    /// present for each event outcome:
+    /// - `outcome` which is an `EventOutcome` enumeration
+    /// - reason which is the reason string for all outcomes that are not `Accepted`.
     EventOutcomes,
     /// Counts the number of times a project state lookup is done. This includes requests
     /// for projects that are cached and requests for projects that are not yet cached.
@@ -147,23 +171,26 @@ pub enum RelayCounters {
     /// typically contains a number of projects (the project state requests are batched).
     ProjectStateRequest,
     /// Counts the number of times a request for a project is already present, this effectively
-    /// represents the fraction of ProjectStateGet that will **not** result in a ProjectState
+    /// represents the fraction of `project_state.get` that will **not** result in a ProjectState
     /// request.
     ProjectCacheHit,
     /// Counts the number of times a request for a project is not already present.
-    /// `ProjectStateGet` = `ProjectCacheMiss` + `ProjectCacheHit`.
+    /// `project_state.get` = `project_cache.miss` + `project_cache.hit`.
     /// Requests that are generating a cache hit will be queued and batched and eventually will
-    /// generate a `ProjectStateRequest`.
+    /// generate a `project_state.request`.
     ProjectCacheMiss,
     /// Counts the number of requests for the  ProjectId (the timing is tracked
-    /// by `ProjectIdRequestDuration`). Note that only projects with the id not already fetched
-    /// are counted. Once the ProjectId is successfully cached if will be retained indefinitely.
+    /// by `project_id.request.duration`). Note that ProjectIdRequests happen only for the legacy
+    /// endpoint that does not specify the project id in the url, for the new endpoints the
+    /// project id is extracted from the url path. Only projects with the id not already fetched
+    /// are counted. Once the ProjectId is successfully cached it will be retained indefinitely.
     ProjectIdRequest,
-    /// TODO find out what is this about.
+    /// Counts the number of times Relay started.
+    /// This can be used to track unwanted restarts due to crashes or termination.
     ServerStarting,
     /// Counts the number of messages placed on the Kafka queue. When Relay operates with processing
     /// enabled and a message is successfully processed each message will generate an event on the
-    /// Kafka queue and zero or more attachments. The counter has an `event_type` tag which is set to
+    /// Kafka queue and zero or more attachments. The counter has an  `event_type` tag which is set to
     /// either `event` or `attachment` representing the type of message produced on the Kafka queue.
     ProcessingEventProduced,
     /// Counts the number of events that hit any of the Store like endpoints (Store, Security,
@@ -174,8 +201,11 @@ pub enum RelayCounters {
     /// Counts the number of requests reaching Relay.
     Requests,
     /// Counts the number of requests that have finished during the current interval.
-    /// The counter has the following tags `status_code` representing the HTTP status code,
-    /// `method` representing the HTTP method and `route` representing the request route
+    /// The counter has the following tags:
+    ///
+    /// - `status_code` The HTTP status code number.
+    /// - `method` The HTTP method used in the request in uppercase.
+    /// - `route` Unique dashed identifier of the endpoint.
     ResponsesStatusCodes,
 }
 
