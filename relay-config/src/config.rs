@@ -433,10 +433,6 @@ fn default_chunk_size() -> ByteSize {
     ByteSize::from_megabytes(1)
 }
 
-fn default_projectconfig_cache_prefix() -> String {
-    "relayconfig".to_owned()
-}
-
 /// Controls Sentry-internal event processing.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Processing {
@@ -460,9 +456,6 @@ pub struct Processing {
     /// Maximum chunk size of attachments for Kafka.
     #[serde(default = "default_chunk_size")]
     pub attachment_chunk_size: ByteSize,
-    /// Prefix to use when looking up project configs in Redis. Defaults to "relayconfig".
-    #[serde(default = "default_projectconfig_cache_prefix")]
-    pub projectconfig_cache_prefix: String,
 }
 
 impl Default for Processing {
@@ -482,7 +475,6 @@ impl Default for Processing {
             },
             redis: Redis::default(),
             attachment_chunk_size: default_chunk_size(),
-            projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
         }
     }
 }
@@ -971,12 +963,6 @@ impl Config {
     /// Chunk size of attachments in bytes.
     pub fn attachment_chunk_size(&self) -> usize {
         self.values.processing.attachment_chunk_size.as_bytes() as usize
-    }
-
-    /// Default prefix to use when looking up project configs in Redis. This is only done when
-    /// Relay is in processing mode.
-    pub fn projectconfig_cache_prefix(&self) -> &str {
-        &self.values.processing.projectconfig_cache_prefix
     }
 }
 
