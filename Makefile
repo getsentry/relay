@@ -100,7 +100,7 @@ prose-docs: .venv/bin/python extract-doc
 
 extract-doc: .venv/bin/python
 	.venv/bin/pip install -U Jinja2
-	cd scripts && python extract_metric_docs.py
+	cd scripts && ../.venv/bin/python extract_metric_docs.py
 
 docserver: prose-docs
 	.venv/bin/mkdocs serve
