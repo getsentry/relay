@@ -40,5 +40,6 @@ difference = "2.0.0"
 insta = { version = "0.12.0", features =  ["ron", "redactions"] }
 
 [features]
+bench = []
 mmap = ["maxminddb/mmap", "memmap"]
 default = ["uaparser", "mmap"]
