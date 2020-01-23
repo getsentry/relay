@@ -19,6 +19,7 @@ use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{EventId, EventType};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::metrics::RelayCounters;
 use crate::service::{ServerError, ServerErrorKind};
 use crate::utils::instant_to_unix_timestamp;
 
@@ -335,7 +336,10 @@ impl Handler<StoreEvent> for StoreForwarder {
             });
 
             self.produce(topic, event_id, event_message)?;
-            metric!(counter("processing.event.produced") += 1, "type" => "event");
+            metric!(
+                counter(RelayCounters::ProcessingEventProduced) += 1,
+                event_type = "event"
+            );
         } else {
             log::trace!("Sending individual attachments of envelope to kafka");
             for attachment in attachments {
@@ -346,7 +350,10 @@ impl Handler<StoreEvent> for StoreForwarder {
                 });
 
                 self.produce(topic, event_id, attachment_message)?;
-                metric!(counter("processing.event.produced") += 1, "type" => "attachment");
+                metric!(
+                    counter(RelayCounters::ProcessingEventProduced) += 1,
+                    event_type = "attachment"
+                );
             }
         }
 

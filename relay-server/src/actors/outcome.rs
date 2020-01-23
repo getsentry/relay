@@ -15,6 +15,7 @@ use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
 
 use crate::actors::project::RateLimit;
+use crate::metrics::RelayCounters;
 use crate::ServerError;
 
 // Choose the outcome module implementation (either the real one or the fake, no-op one).
@@ -372,9 +373,9 @@ mod real_implementation {
                 .map_err(OutcomeError::SerializationError)?;
 
             metric!(
-                counter("events.outcomes") +=1,
-                "reason" => message.outcome.to_reason().unwrap_or(""),
-                "outcome" => message.outcome.name()
+                counter(RelayCounters::EventOutcomes) += 1,
+                reason = message.outcome.to_reason().unwrap_or(""),
+                outcome = message.outcome.name()
             );
 
             // At the moment, we support outcomes with optional EventId.

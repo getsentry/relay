@@ -14,6 +14,7 @@ use relay_common::{metric, LogError, ProjectId};
 use relay_config::Config;
 
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::metrics::{RelayCounters, RelayTimers};
 
 type ProjectKey = String;
 
@@ -99,14 +100,14 @@ impl ProjectKeyLookup {
             public_keys: public_keys.clone(),
         };
 
-        metric!(counter("project_id.request") += 1);
+        metric!(counter(RelayCounters::ProjectIdRequest) += 1);
         let request_start = Instant::now();
 
         self.upstream
             .send(SendQuery(request))
             .into_actor(self)
             .then(move |result, slf, _context| {
-                metric!(timer("project_id.request.duration") = request_start.elapsed());
+                metric!(timer(RelayTimers::ProjectIdRequestDuration) = request_start.elapsed());
 
                 let mut project_ids = match result {
                     Ok(Ok(response)) => response.project_ids,

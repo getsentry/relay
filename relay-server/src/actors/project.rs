@@ -29,6 +29,7 @@ use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::extractors::EventMeta;
+use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary, Response};
 
 #[derive(Fail, Debug)]
@@ -98,7 +99,7 @@ impl Project {
         context: &mut Context<Self>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
         // count number of times we are looking for the project state
-        metric!(counter("project_state.get") += 1);
+        metric!(counter(RelayCounters::ProjectStateGet) += 1);
 
         let state = self.state.as_ref();
         let outdated = state
@@ -933,8 +934,8 @@ impl ProjectCache {
         self.updates
             .extend(projects.iter().copied().map(ProjectUpdate::new));
 
-        metric!(timer("project_state.eviction.duration") = eviction_start.elapsed());
-        metric!(histogram("project_state.pending") = self.state_channels.len() as u64);
+        metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
+        metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
 
         log::debug!(
             "updating project states for {}/{} projects (attempt {})",
@@ -953,7 +954,8 @@ impl ProjectCache {
                 let channels_batch: BTreeMap<_, _> = channels_batch.collect();
                 log::debug!("sending request of size {}", channels_batch.len());
                 metric!(
-                    histogram("project_state.request.batch_size") = channels_batch.len() as u64
+                    histogram(RelayHistograms::ProjectStateRequestBatchSize) =
+                        channels_batch.len() as u64
                 );
 
                 let request = GetProjectStates {
@@ -963,7 +965,7 @@ impl ProjectCache {
                 };
 
                 // count number of http requests for project states
-                metric!(counter("project_state.request") += 1);
+                metric!(counter(RelayCounters::ProjectStateRequest) += 1);
 
                 self.upstream
                     .send(SendQuery(request))
@@ -977,7 +979,7 @@ impl ProjectCache {
         future::join_all(requests)
             .into_actor(self)
             .and_then(move |responses, slf, ctx| {
-                metric!(timer("project_state.request.duration") = request_start.elapsed());
+                metric!(timer(RelayTimers::ProjectStateRequestDuration) = request_start.elapsed());
 
                 for (channels_batch, response) in responses {
                     match response {
@@ -992,7 +994,8 @@ impl ProjectCache {
 
                             // count number of project states returned (via http requests)
                             metric!(
-                                histogram("project_state.received") = response.configs.len() as u64
+                                histogram(RelayHistograms::ProjectStateReceived) =
+                                    response.configs.len() as u64
                             );
                             for (id, channel) in channels_batch {
                                 let state = response
@@ -1017,7 +1020,7 @@ impl ProjectCache {
                             slf.state_channels.extend(channels_batch);
 
                             metric!(
-                                histogram("project_state.pending") =
+                                histogram(RelayHistograms::ProjectStatePending) =
                                     slf.state_channels.len() as u64
                             );
                         }
@@ -1169,14 +1172,14 @@ impl Handler<GetProject> for ProjectCache {
 
     fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
         let config = self.config.clone();
-        metric!(histogram("project_cache.size") = self.projects.len() as u64);
+        metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
         match self.projects.entry(message.id) {
             Entry::Occupied(entry) => {
-                metric!(counter("project_cache.hit") += 1);
+                metric!(counter(RelayCounters::ProjectCacheHit) += 1);
                 entry.get().clone()
             }
             Entry::Vacant(entry) => {
-                metric!(counter("project_cache.miss") += 1);
+                metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
                 let project = Project::new(message.id, config, context.address()).start();
                 entry.insert(project.clone());
                 project

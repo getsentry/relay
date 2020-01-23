@@ -27,6 +27,7 @@ use crate::actors::project::{
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
 use crate::utils::{self, FormDataIter, FutureExt};
 
@@ -376,7 +377,7 @@ impl EventProcessor {
 
         if let Some(item) = event_item {
             log::trace!("processing json event {}", envelope.event_id());
-            return Ok(metric!(timer("event_processing.deserialize"), {
+            return Ok(metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 self.event_from_json_payload(item)?
             }));
         }
@@ -439,7 +440,7 @@ impl EventProcessor {
         };
 
         let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
-        metric!(timer("event_processing.process"), {
+        metric!(timer(RelayTimers::EventProcessingProcess), {
             process_value(event, &mut store_processor, ProcessingState::root())
                 .map_err(|_| ProcessingError::InvalidTransaction)?;
         });
@@ -449,7 +450,7 @@ impl EventProcessor {
         if let Some(event) = event.value_mut() {
             let client_ip = envelope.meta().client_addr();
             let filter_settings = &project_state.config.filter_settings;
-            let filter_result = metric!(timer("event_processing.filtering"), {
+            let filter_result = metric!(timer(RelayTimers::EventProcessingFiltering), {
                 should_filter(event, client_ip, filter_settings)
             });
 
@@ -472,7 +473,7 @@ impl EventProcessor {
         if let Some(organization_id) = project_state.organization_id {
             let key_config = project_state.get_public_key_config(&envelope.meta().public_key());
             if let Some(key_config) = key_config {
-                let rate_limit = metric!(timer("event_processing.rate_limiting"), {
+                let rate_limit = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
                     self.rate_limiter
                         .is_rate_limited(&key_config.quotas, organization_id)
                         .map_err(ProcessingError::QuotasFailed)?
@@ -583,7 +584,7 @@ impl EventProcessor {
         }
 
         // Run PII stripping last since normalization can add PII (e.g. IP addresses).
-        metric!(timer("event_processing.pii"), {
+        metric!(timer(RelayTimers::EventProcessingPii), {
             for pii_config in message.project_state.config.pii_configs() {
                 let mut processor = PiiProcessor::new(pii_config);
                 process_value(&mut event, &mut processor, ProcessingState::root())
@@ -593,7 +594,7 @@ impl EventProcessor {
 
         // We're done now. Serialize the event back into JSON and put it in an envelope so that it
         // can be sent to the upstream or processing queue.
-        let data = metric!(timer("event_processing.serialization"), {
+        let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
             event.to_json().map_err(ProcessingError::SerializeFailed)?
         });
 
@@ -632,8 +633,10 @@ impl Handler<ProcessEvent> for EventProcessor {
     type Result = Result<ProcessEventResponse, ProcessingError>;
 
     fn handle(&mut self, message: ProcessEvent, _context: &mut Self::Context) -> Self::Result {
-        metric!(timer("event.wait_time") = message.start_time.elapsed());
-        metric!(timer("event.processing_time"), { self.process(message) })
+        metric!(timer(RelayTimers::EventWaitTime) = message.start_time.elapsed());
+        metric!(timer(RelayTimers::EventProcessingTime), {
+            self.process(message)
+        })
     }
 }
 
@@ -741,10 +744,10 @@ impl Handler<QueueEvent> for EventManager {
     type Result = Result<EventId, QueueEventError>;
 
     fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
-        metric!(histogram("event.queue_size") = u64::from(self.current_active_events));
+        metric!(histogram(RelayHistograms::EventQueueSize) = u64::from(self.current_active_events));
 
         metric!(
-            histogram("event.queue_size.pct") = {
+            histogram(RelayHistograms::EventQueueSizePct) = {
                 let queue_size_pct = self.current_active_events as f32 * 100.0
                     / self.config.event_buffer_size() as f32;
                 queue_size_pct.floor() as u64
@@ -827,7 +830,7 @@ impl Handler<HandleEvent> for EventManager {
 
         let org_id_for_err = Rc::new(Mutex::new(None::<u64>));
 
-        metric!(set("unique_projects") = project_id as i64);
+        metric!(set(RelaySets::UniqueProjects) = project_id as i64);
 
         let future = project
             .send(GetEventAction::fetched(meta_clone))
@@ -931,7 +934,7 @@ impl Handler<HandleEvent> for EventManager {
             }))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
-            .map(|_, _, _| metric!(counter("event.accepted") += 1))
+            .map(|_, _, _| metric!(counter(RelayCounters::EventAccepted) += 1))
             .map_err(clone!(project, captured_events, |error, _, _| {
                 // Do not track outcomes or capture events for non-event envelopes (such as
                 // individual attachments)
@@ -948,7 +951,7 @@ impl Handler<HandleEvent> for EventManager {
                         .insert(event_id, CapturedEvent::Err(msg));
                 }
 
-                metric!(counter("event.rejected") += 1);
+                metric!(counter(RelayCounters::EventRejected) += 1);
                 let outcome_params = match error {
                     // General outcomes for invalid events
                     ProcessingError::PayloadTooLarge => {
@@ -1034,7 +1037,7 @@ impl Handler<HandleEvent> for EventManager {
                 }
             }))
             .then(move |x, slf, _| {
-                metric!(timer("event.total_time") = start_time.elapsed());
+                metric!(timer(RelayTimers::EventTotalTime) = start_time.elapsed());
                 slf.current_active_events -= 1;
                 result(x)
             })
