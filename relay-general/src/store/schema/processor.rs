@@ -1,11 +1,11 @@
-use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::store::schema::{SchemaAttrsMap, SchemaValidated};
+use crate::processor::{Attributes, ProcessValue, ProcessingState, Processor};
+use crate::store::schema::SchemaAttrs;
 use crate::types::{
     Array, Empty, Error, ErrorKind, Meta, Object, ProcessingAction, ProcessingResult,
 };
 
 pub struct SchemaProcessor {
-    schema_attrs_stack: Vec<SchemaAttrsMap>,
+    schema_attrs_stack: Vec<SchemaAttrs>,
 }
 
 impl SchemaProcessor {
@@ -15,7 +15,7 @@ impl SchemaProcessor {
         }
     }
 
-    fn current_attrs(&self) -> SchemaAttrsMap {
+    fn current_attrs(&self) -> SchemaAttrs {
         let mut iter = self.schema_attrs_stack.iter().copied().rev();
         iter.next();
         iter.next().unwrap_or_default()
@@ -87,7 +87,7 @@ impl Processor for SchemaProcessor {
     ) -> ProcessingResult {
         if state.entered_anything() {
             self.schema_attrs_stack
-                .push(value.map(SchemaValidated::get_attrs).unwrap_or_default());
+                .push(value.map(Attributes::get_attrs).unwrap_or_default());
         }
 
         let attrs = self.current_attrs();

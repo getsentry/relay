@@ -1,10 +1,8 @@
 use debugid::{CodeId, DebugId};
 use uuid::Uuid;
 
-use crate::pii::PiiStrippable;
-use crate::processor::ProcessValue;
+use crate::processor::{AttrMap, Attributes, ProcessValue};
 use crate::protocol::Addr;
-use crate::store::schema::SchemaValidated;
 use crate::types::{
     Annotated, Array, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value,
 };
@@ -138,10 +136,7 @@ macro_rules! impl_traits {
         }
 
         impl ProcessValue for $type {}
-
-        impl PiiStrippable for $type {}
-
-        impl SchemaValidated for $type {}
+        impl<T: AttrMap> Attributes<T> for $type {}
     };
 }
 

@@ -36,7 +36,7 @@ pub fn derive_pii(mut s: synstructure::Structure<'_>) -> TokenStream {
     let arms = s.each_variant(|variant| {
         if is_newtype(variant) {
             let inner_ident = &variant.bindings()[0].binding;
-            return quote!(crate::pii::PiiStrippable::get_attrs(#inner_ident));
+            return quote!(crate::processor::Attributes::<crate::pii::PiiAttrs>::get_attrs(#inner_ident));
         }
 
         let mut whitelist = quote!();
@@ -55,7 +55,7 @@ pub fn derive_pii(mut s: synstructure::Structure<'_>) -> TokenStream {
         }
 
         quote! {
-            crate::pii::PiiAttrsMap {
+            crate::pii::PiiAttrs {
                 whitelist: &[#whitelist],
                 blacklist: &[#blacklist],
             }
@@ -64,8 +64,8 @@ pub fn derive_pii(mut s: synstructure::Structure<'_>) -> TokenStream {
 
     s.gen_impl(quote! {
         #[automatically_derived]
-        gen impl crate::pii::PiiStrippable for @Self {
-            fn get_attrs(&self) -> crate::pii::PiiAttrsMap {
+        gen impl crate::processor::Attributes<crate::pii::PiiAttrs> for @Self {
+            fn get_attrs(&self) -> crate::pii::PiiAttrs {
                 match *self {
                     #arms
                 }

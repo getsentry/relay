@@ -18,4 +18,4 @@ pub use self::funcs::process_value;
 // TODO(markus): move to pii module
 pub use self::selector::{SelectorPathItem, SelectorSpec};
 pub use self::size::{estimate_size, estimate_size_flat};
-pub use self::traits::{ProcessValue, Processor};
+pub use self::traits::{AttrMap, Attributes, ProcessValue, Processor};

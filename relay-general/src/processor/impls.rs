@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
+use crate::processor::{
+    process_value, AttrMap, Attributes, ProcessValue, ProcessingState, Processor, ValueType,
+};
 use crate::types::{Annotated, Array, Meta, Object, ProcessingResult};
 
 impl ProcessValue for String {
@@ -276,3 +278,31 @@ process_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
 process_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
 process_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
 process_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
+
+impl<T: AttrMap> Attributes<T> for bool {}
+impl<T: AttrMap> Attributes<T> for DateTime<Utc> {}
+impl<T: AttrMap> Attributes<T> for String {}
+impl<T: AttrMap> Attributes<T> for u64 {}
+impl<T: AttrMap> Attributes<T> for i64 {}
+impl<T: AttrMap> Attributes<T> for f64 {}
+impl<T: AttrMap> Attributes<T> for Uuid {}
+impl<T: AttrMap, U> Attributes<T> for Vec<U> {}
+impl<T: AttrMap, K, V> Attributes<T> for std::collections::BTreeMap<K, V> {}
+
+impl<T: AttrMap, U: Attributes<T>> Attributes<T> for Box<U> {
+    fn get_attrs(&self) -> T {
+        (**self).get_attrs()
+    }
+}
+
+macro_rules! tuple_schema_validated {
+    () => {
+        impl <T: AttrMap> Attributes<T> for () {}
+    };
+    ($final_name:ident $(, $name:ident)*) => {
+        impl <T: AttrMap, $final_name $(, $name)*> Attributes<T> for ($final_name $(, $name)*, ) {}
+        tuple_schema_validated!($($name),*);
+    };
+}
+
+tuple_schema_validated!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);

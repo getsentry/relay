@@ -3,9 +3,9 @@
 
 use std::fmt::Debug;
 
-use crate::pii::PiiStrippable;
+use crate::pii::PiiAttrs;
 use crate::processor::{process_value, ProcessingState, ValueType};
-use crate::store::schema::SchemaValidated;
+use crate::store::schema::SchemaAttrs;
 use crate::types::{FromValue, Meta, ProcessingResult, Timestamp, ToValue};
 
 macro_rules! process_method {
@@ -109,7 +109,9 @@ pub trait Processor: Sized {
 }
 
 /// A recursively processable value.
-pub trait ProcessValue: FromValue + ToValue + Debug + PiiStrippable + SchemaValidated {
+pub trait ProcessValue:
+    FromValue + ToValue + Debug + Attributes<PiiAttrs> + Attributes<SchemaAttrs>
+{
     /// Returns the type of the value.
     #[inline]
     // TODO(ja): Make this a non-option
@@ -142,5 +144,14 @@ pub trait ProcessValue: FromValue + ToValue + Debug + PiiStrippable + SchemaVali
         P: Processor,
     {
         Ok(())
+    }
+}
+
+pub trait AttrMap: Default + Copy + Sized + 'static {}
+impl<T> AttrMap for T where T: Default + Copy + Sized + 'static {}
+
+pub trait Attributes<T: AttrMap> {
+    fn get_attrs(&self) -> T {
+        Default::default()
     }
 }

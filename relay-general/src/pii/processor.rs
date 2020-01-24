@@ -10,10 +10,10 @@ use sha2::{Sha256, Sha512};
 use smallvec::SmallVec;
 
 use crate::pii::config::RuleRef;
-use crate::pii::{HashAlgorithm, PiiAttrsMap, PiiConfig, PiiStrippable, Redaction, RuleType};
+use crate::pii::{HashAlgorithm, PiiAttrs, PiiConfig, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, process_value, Chunk, ProcessValue, ProcessingState, Processor,
-    SelectorSpec, ValueType,
+    process_chunked_value, process_value, Attributes, Chunk, ProcessValue, ProcessingState,
+    Processor, SelectorSpec, ValueType,
 };
 use crate::protocol::{AsPair, PairList};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
@@ -174,7 +174,7 @@ lazy_static! {
 pub struct PiiProcessor<'a> {
     config: &'a PiiConfig,
     applications: Vec<(&'a SelectorSpec, BTreeSet<RuleRef<'a>>)>,
-    pii_attrs_stack: Vec<Option<PiiAttrsMap>>,
+    pii_attrs_stack: Vec<Option<PiiAttrs>>,
     should_strip_pii_stack: Vec<bool>,
 }
 
@@ -272,8 +272,7 @@ impl<'a> Processor for PiiProcessor<'a> {
                     .unwrap_or(false),
             );
 
-            self.pii_attrs_stack
-                .push(value.map(PiiStrippable::get_attrs));
+            self.pii_attrs_stack.push(value.map(Attributes::get_attrs));
         }
 
         // booleans cannot be PII, and strings are handled in process_string

@@ -18,4 +18,4 @@ pub use self::processor::PiiProcessor;
 pub use self::redactions::{
     HashAlgorithm, HashRedaction, MaskRedaction, Redaction, ReplaceRedaction,
 };
-pub use self::traits::{PiiAttrsMap, PiiStrippable};
+pub use self::traits::PiiAttrs;

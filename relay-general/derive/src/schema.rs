@@ -55,7 +55,7 @@ pub fn derive_schema(mut s: synstructure::Structure<'_>) -> TokenStream {
     let arms = s.each_variant(|variant| {
         if is_newtype(variant) {
             let inner_ident = &variant.bindings()[0].binding;
-            return quote!(crate::store::schema::SchemaValidated::get_attrs(#inner_ident));
+            return quote!(crate::processor::Attributes::<crate::store::schema::SchemaAttrs>::get_attrs(#inner_ident));
         }
 
         let mut required = quote!();
@@ -104,7 +104,7 @@ pub fn derive_schema(mut s: synstructure::Structure<'_>) -> TokenStream {
         };
 
         quote! {
-            crate::store::schema::SchemaAttrsMap {
+            crate::store::schema::SchemaAttrs {
                 required: &[#required],
                 nonempty: &[#nonempty],
                 trim_whitespace: &[#trim_whitespace],
@@ -115,8 +115,8 @@ pub fn derive_schema(mut s: synstructure::Structure<'_>) -> TokenStream {
 
     s.gen_impl(quote! {
         #[automatically_derived]
-        gen impl crate::store::schema::SchemaValidated for @Self {
-            fn get_attrs(&self) -> crate::store::schema::SchemaAttrsMap {
+        gen impl crate::processor::Attributes<crate::store::schema::SchemaAttrs> for @Self {
+            fn get_attrs(&self) -> crate::store::schema::SchemaAttrs {
                 ::lazy_static::lazy_static! {
                     #lazy_statics
                 }

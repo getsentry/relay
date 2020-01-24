@@ -14,7 +14,6 @@ use crate::protocol::{
     Fingerprint, Hpkp, LenientString, Level, LogEntry, Metrics, Request, Span, Stacktrace, Tags,
     TemplateInfo, Thread, User, Values,
 };
-use crate::store::schema::SchemaValidated;
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
 };
@@ -62,7 +61,18 @@ impl_str_serde!(EventId);
 
 /// The type of event we're dealing with.
 #[derive(
-    Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, PiiStrippable,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Deserialize,
+    Serialize,
+    PiiStrippable,
+    SchemaValidated,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum EventType {
@@ -158,7 +168,6 @@ impl ToValue for EventType {
 }
 
 impl ProcessValue for EventType {}
-impl SchemaValidated for EventType {}
 
 #[derive(
     Debug, FromValue, ToValue, ProcessValue, PiiStrippable, SchemaValidated, Empty, Clone, PartialEq,
