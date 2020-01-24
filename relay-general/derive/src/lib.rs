@@ -65,11 +65,8 @@ fn derive_newtype_metastructure(
         panic!("tag_key not supported on structs");
     }
 
-    let _process_func_call_tokens = type_attrs.process_func_call_tokens();
-
     let field_attrs = parse_field_attributes(0, &s.variants()[0].bindings()[0].ast(), &mut true);
     let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
-    let _field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
 
     let name = &s.ast().ident;
 
@@ -123,7 +120,6 @@ fn derive_enum_metastructure(
     }
 
     let type_attrs = parse_type_attributes(&s);
-    let _process_func_call_tokens = type_attrs.process_func_call_tokens();
 
     let type_name = &s.ast().ident;
     let tag_key_str = LitStr::new(
@@ -405,7 +401,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 quote! {
                     __state.enter_index(
                         #index,
-                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                        Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)),
                         crate::processor::ValueType::for_field(#bi),
                     )
                 }
@@ -413,19 +409,17 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 quote! {
                     __state.enter_static(
                         #field_name,
-                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                        Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)),
                         crate::processor::ValueType::for_field(#bi),
                     )
                 }
             };
 
-            let field_attrs_tokens = field_attrs.as_tokens(None);
+            let field_attrs_tokens = field_attrs.as_tokens();
 
             (quote! {
-                ::lazy_static::lazy_static! {
-                    static ref #field_attrs_name: crate::processor::FieldAttrs =
-                        #field_attrs_tokens;
-                }
+                static #field_attrs_name: crate::processor::FieldAttrs =
+                    #field_attrs_tokens;
 
                 let #bi = crate::processor::process_value(#bi, __processor, &#enter_state);
             })
@@ -693,23 +687,18 @@ struct FieldAttrs {
 }
 
 impl FieldAttrs {
-    fn as_tokens(&self, inherit_from_field_attrs: Option<TokenStream>) -> TokenStream {
+    fn as_tokens(&self) -> TokenStream {
         let field_name = &self.field_name;
-
         let retain = self.retain;
 
         let max_chars = if let Some(ref max_chars) = self.max_chars {
             quote!(Some(#max_chars))
-        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.max_chars)
         } else {
             quote!(None)
         };
 
         let bag_size = if let Some(ref bag_size) = self.bag_size {
             quote!(Some(#bag_size))
-        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.bag_size)
         } else {
             quote!(None)
         };

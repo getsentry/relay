@@ -9,7 +9,7 @@ pub trait PiiStrippable {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct PiiAttrsMap {
     pub whitelist: &'static [PathItem<'static>],
     pub blacklist: &'static [PathItem<'static>],

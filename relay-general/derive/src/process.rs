@@ -23,13 +23,14 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
             let bi = &variant.bindings()[0];
             let ident = &bi.binding;
             let field_attrs = parse_field_attributes(0, bi.ast(), &mut true);
-            let field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
+            let field_attrs_tokens = field_attrs.as_tokens();
 
             quote! {
                 let parent_attrs = __state.attrs();
-                let attrs = #field_attrs_tokens;
+                static ATTRS: crate::processor::FieldAttrs =
+                    #field_attrs_tokens;
                 let __state = &__state.enter_nothing(
-                    Some(::std::borrow::Cow::Owned(attrs))
+                    Some(::std::borrow::Cow::Borrowed(&ATTRS))
                 );
 
                 // This is a copy of `funcs::process_value`, due to ownership issues. In particular
@@ -101,7 +102,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                     quote! {
                         __state.enter_index(
                             #index,
-                            Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                            Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)),
                             crate::processor::ValueType::for_field(#ident),
                         )
                     }
@@ -109,19 +110,17 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                     quote! {
                         __state.enter_static(
                             #field_name,
-                            Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                            Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)),
                             crate::processor::ValueType::for_field(#ident),
                         )
                     }
                 };
 
-                let field_attrs_tokens = field_attrs.as_tokens(None);
+                let field_attrs_tokens = field_attrs.as_tokens();
 
                 (quote! {
-                    ::lazy_static::lazy_static! {
-                        static ref #field_attrs_name: crate::processor::FieldAttrs =
-                            #field_attrs_tokens;
-                    }
+                    static #field_attrs_name: crate::processor::FieldAttrs =
+                        #field_attrs_tokens;
 
                     crate::processor::process_value(#ident, __processor, &#enter_state)?;
                 })
