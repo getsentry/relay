@@ -175,6 +175,7 @@ pub struct PiiProcessor<'a> {
     config: &'a PiiConfig,
     applications: Vec<(&'a SelectorSpec, BTreeSet<RuleRef<'a>>)>,
     pii_attrs_stack: Vec<Option<PiiAttrsMap>>,
+    should_strip_pii_stack: Vec<bool>,
 }
 
 impl<'a> PiiProcessor<'a> {
@@ -193,6 +194,7 @@ impl<'a> PiiProcessor<'a> {
             config,
             applications,
             pii_attrs_stack: Vec::new(),
+            should_strip_pii_stack: Vec::new(),
         }
     }
 
@@ -204,26 +206,16 @@ impl<'a> PiiProcessor<'a> {
     /// Iterate over all matching rules.
     fn iter_rules<'b>(&'a self, state: &'b ProcessingState<'b>) -> RuleIterator<'a, 'b> {
         RuleIterator {
-            should_strip_pii: self.should_strip_pii(state),
+            should_strip_pii: self.should_strip_pii(),
             state,
             application_iter: self.applications.iter(),
             pending_refs: None,
         }
     }
 
-    fn should_strip_pii(&self, current_state: &ProcessingState<'_>) -> bool {
-        let mut attrs_iter = self.pii_attrs_stack.iter().rev();
-        attrs_iter.next(); // skip over field attrs we just pushed for the current layer
-        let path = current_state.path();
-
-        for (attrs, path_item) in attrs_iter.zip(path.iter()) {
-            if let Some(attrs) = attrs {
-                if let Some(rv) = attrs.should_strip_pii(path_item) {
-                    return rv;
-                }
-            }
-        }
-        false
+    #[inline]
+    fn should_strip_pii(&self) -> bool {
+        self.should_strip_pii_stack.last().copied().unwrap_or(false)
     }
 }
 
@@ -266,6 +258,20 @@ impl<'a> Processor for PiiProcessor<'a> {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         if state.entered_anything() {
+            let should_strip_pii = if let (Some(Some(last_attrs)), Some(path_item)) =
+                (self.pii_attrs_stack.last(), state.last_path_item())
+            {
+                last_attrs.should_strip_pii(path_item)
+            } else {
+                None
+            };
+
+            self.should_strip_pii_stack.push(
+                should_strip_pii
+                    .or_else(|| self.should_strip_pii_stack.last().copied())
+                    .unwrap_or(false),
+            );
+
             self.pii_attrs_stack
                 .push(value.map(PiiStrippable::get_attrs));
         }
@@ -293,6 +299,7 @@ impl<'a> Processor for PiiProcessor<'a> {
     ) -> ProcessingResult {
         if state.entered_anything() {
             self.pii_attrs_stack.pop().unwrap();
+            self.should_strip_pii_stack.pop().unwrap();
         }
         Ok(())
     }
