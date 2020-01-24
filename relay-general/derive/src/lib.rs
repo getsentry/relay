@@ -677,11 +677,14 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
 
 #[derive(Default)]
 struct FieldAttrs {
+    //trimming
+    max_chars: Option<TokenStream>,
+    bag_size: Option<TokenStream>,
+
+    //other
     additional_properties: bool,
     field_name: String,
     retain: bool,
-    max_chars: Option<TokenStream>,
-    bag_size: Option<TokenStream>,
     legacy_aliases: Vec<String>,
     skip_serialization: SkipSerialization,
 }
