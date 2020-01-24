@@ -3,7 +3,7 @@
 import re
 from os import path
 from dataclasses import dataclass
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -33,6 +33,7 @@ class CommandDef:
 class Metric:
     name: str
     id: str
+    feature: Optional[str]
     description: List[str]
 
 
@@ -108,6 +109,29 @@ def _get_enum_description(enum_name, lines):
     return enum_description
 
 
+cfg_feature_extractor = re.compile(
+    r"#\[cfg\(feature\s*=\s*\"(?P<feature_name>[^\"]*)\"\)\]"
+)
+
+
+def _get_feature(line):
+    """
+    Returns the features inside a
+    :param line: the line to be parsed
+    :return: a list
+
+    >>> _get_feature('#[cfg(feature = "processing")]')
+    'processing'
+    >>> _get_feature('some random line')
+    >>> _get_feature('#[cfg(not_a_feature = "processing")]')
+
+    """
+    result = cfg_feature_extractor.search(line)
+    if result is None:
+        return None
+    return result.groupdict().get("feature_name")
+
+
 def _get_enum_def(enum_type_name, lines):
     """
     Returns the contents of an enum
@@ -122,6 +146,11 @@ def _get_enum_def(enum_type_name, lines):
     enum_defs = []
     current_def = _new_enum_def()
     for line in back_to_lines:
+        feature = _get_feature(line)
+
+        if feature is not None:
+            print(f"Detected feature {feature}.")
+            current_def.feature = feature
         comment = _get_comment(line)
         if comment is not None:
             current_def.description.append(comment)
@@ -145,7 +174,7 @@ def _get_metric_id_enum(enum_type, enum_member, lines):
 
 
 def _new_enum_def():
-    return Metric(name=None, id=None, description=[])
+    return Metric(name=None, id=None, feature=None, description=[])
 
 
 enum_doc_comment = re.compile(r"^\s*/{3,50}\s*(.*)")

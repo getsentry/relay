@@ -15,7 +15,6 @@ use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
 
 use crate::actors::project::RateLimit;
-use crate::metrics::RelayCounters;
 use crate::ServerError;
 
 // Choose the outcome module implementation (either the real one or the fake, no-op one).
@@ -187,6 +186,7 @@ mod real_implementation {
     use relay_common::metric;
     use relay_config::KafkaTopic;
 
+    use crate::metrics::RelayCounters;
     use crate::service::ServerErrorKind;
     use crate::utils;
 

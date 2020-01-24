@@ -10,7 +10,11 @@ Relay emits statsd metrics in order to allow its monitoring.
 {% for metric in metric_type.metrics or [] %}
 
 ### `{{metric.id}}`
-  
+
+{% if metric.feature %}
+**Note**: This metric is emitted only when Relay is built with the `{{metric.feature}}` feature.
+{% endif %}  
+
 {% if metric.name %}
 The metric is referred in code as: `{{metric_type.name}}::{{metric.name}}`.
 {% endif %}
