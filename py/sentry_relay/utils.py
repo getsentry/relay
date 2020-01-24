@@ -78,7 +78,8 @@ def decode_str(s):
             return u""
         return ffi.unpack(s.data, s.len).decode("utf-8", "replace")
     finally:
-        lib.relay_str_free(ffi.addressof(s))
+        if s.owned:
+            lib.relay_str_free(ffi.addressof(s))
 
 
 def encode_str(s, mutable=False):
