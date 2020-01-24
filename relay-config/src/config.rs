@@ -966,7 +966,6 @@ impl Config {
     }
 }
 
-#[cfg(debug_assertions)]
 impl Default for Config {
     fn default() -> Self {
         Self {
