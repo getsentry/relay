@@ -67,14 +67,17 @@ pub enum RelayTimers {
     EventProcessingDeserialize,
     /// Time spent running event processors on an event.
     /// Event processing happens before filtering.
+    #[cfg(feature = "processing")]
     EventProcessingProcess,
     /// Time spent running filtering on an event.
+    #[cfg(feature = "processing")]
     EventProcessingFiltering,
     /// Time spent checking for rate limits in Redis.
     /// Note that not all events are checked against Redis. After an event is rate limited
     /// for period A, any event using the same key coming during period A will be automatically
     /// rate limited without checking against Redis (the event will be simply discarded without
     /// being placed in the processing queue).
+    #[cfg(feature = "processing")]
     EventProcessingRateLimiting,
     /// Time spent in data scrubbing for the current event.
     EventProcessingPii,
@@ -131,8 +134,11 @@ impl TimerMetric for RelayTimers {
     fn name(&self) -> &'static str {
         match self {
             RelayTimers::EventProcessingDeserialize => "event_processing.deserialize",
+            #[cfg(feature = "processing")]
             RelayTimers::EventProcessingProcess => "event_processing.process",
+            #[cfg(feature = "processing")]
             RelayTimers::EventProcessingFiltering => "event_processing.filtering",
+            #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
             RelayTimers::EventProcessingPii => "event_processing.pii",
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
@@ -158,8 +164,10 @@ pub enum RelayCounters {
     EventRejected,
     /// Represents a group of counters, implemented with using tags. The following tags are
     /// present for each event outcome:
+    ///
     /// - `outcome` which is an `EventOutcome` enumeration
-    /// - reason which is the reason string for all outcomes that are not `Accepted`.
+    /// - `reason` which is the reason string for all outcomes that are not `Accepted`.
+    #[cfg(feature = "processing")]
     EventOutcomes,
     /// Counts the number of times a project state lookup is done. This includes requests
     /// for projects that are cached and requests for projects that are not yet cached.
@@ -192,6 +200,7 @@ pub enum RelayCounters {
     /// enabled and a message is successfully processed each message will generate an event on the
     /// Kafka queue and zero or more attachments. The counter has an  `event_type` tag which is set to
     /// either `event` or `attachment` representing the type of message produced on the Kafka queue.
+    #[cfg(feature = "processing")]
     ProcessingEventProduced,
     /// Counts the number of events that hit any of the Store like endpoints (Store, Security,
     /// MiniDump, Unreal). The events are counted before they are rate limited , filtered or
@@ -214,6 +223,7 @@ impl CounterMetric for RelayCounters {
         match self {
             RelayCounters::EventAccepted => "event.accepted",
             RelayCounters::EventRejected => "event.rejected",
+            #[cfg(feature = "processing")]
             RelayCounters::EventOutcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
@@ -221,6 +231,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectCacheMiss => "project_cache.miss",
             RelayCounters::ProjectIdRequest => "project_id.request",
             RelayCounters::ServerStarting => "server.starting",
+            #[cfg(feature = "processing")]
             RelayCounters::ProcessingEventProduced => "processing.event.produced",
             RelayCounters::EventProtocol => "event.protocol",
             RelayCounters::Requests => "requests",

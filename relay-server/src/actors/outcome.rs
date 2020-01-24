@@ -15,8 +15,10 @@ use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
 
 use crate::actors::project::RateLimit;
-use crate::metrics::RelayCounters;
 use crate::ServerError;
+
+#[cfg(feature = "processing")]
+use crate::metrics::RelayCounters;
 
 // Choose the outcome module implementation (either the real one or the fake, no-op one).
 // Real outcome implementation
