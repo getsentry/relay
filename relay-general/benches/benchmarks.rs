@@ -3,6 +3,7 @@ use std::fs;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
+use relay_general::pii::PiiProcessor;
 use relay_general::processor::process_value;
 use relay_general::protocol::{Event, IpAddr};
 use relay_general::store::{StoreConfig, StoreProcessor};
@@ -99,10 +100,32 @@ fn bench_store_processor(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_pii_stripping(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bench_pii_stripping");
+
+    for BenchmarkInput { name, data } in load_all_fixtures() {
+        let event = Annotated::<Event>::from_json(&data).expect("failed to deserialize");
+        let input = BenchmarkInput { name, data: event };
+
+        group.bench_with_input(BenchmarkId::from_parameter(&input), &input, |b, input| {
+            b.iter(|| {
+                let mut event = input.data.clone();
+                let pii_config = Default::default();
+                let mut processor = PiiProcessor::new(&pii_config);
+                process_value(&mut event, &mut processor, &Default::default()).unwrap();
+                event
+            })
+        });
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_from_value,
     bench_to_json,
-    bench_store_processor
+    bench_store_processor,
+    bench_pii_stripping
 );
 criterion_main!(benches);
