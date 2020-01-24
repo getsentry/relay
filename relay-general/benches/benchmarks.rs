@@ -126,6 +126,6 @@ criterion_group!(
     bench_from_value,
     bench_to_json,
     bench_store_processor,
-    bench_pii_stripping
+    bench_pii_stripping,
 );
 criterion_main!(benches);
