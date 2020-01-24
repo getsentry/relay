@@ -71,15 +71,14 @@ class RustObject(with_metaclass(_NoDict)):
             self._objptr = None
 
 
-def decode_str(s, free=False):
+def decode_str(s):
     """Decodes a SymbolicStr"""
     try:
         if s.len == 0:
             return u""
         return ffi.unpack(s.data, s.len).decode("utf-8", "replace")
     finally:
-        if free:
-            lib.relay_str_free(ffi.addressof(s))
+        lib.relay_str_free(ffi.addressof(s))
 
 
 def encode_str(s, mutable=False):

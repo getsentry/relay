@@ -46,7 +46,7 @@ class PublicKey(RustObject):
         return json.loads(buf)
 
     def __str__(self):
-        return decode_str(self._methodcall(lib.relay_publickey_to_string), free=True)
+        return decode_str(self._methodcall(lib.relay_publickey_to_string))
 
     def __repr__(self):
         return "<%s %r>" % (self.__class__.__name__, text_type(self))
@@ -63,14 +63,14 @@ class SecretKey(RustObject):
 
     def sign(self, value):
         buf = make_buf(value)
-        return decode_str(self._methodcall(lib.relay_secretkey_sign, buf), free=True)
+        return decode_str(self._methodcall(lib.relay_secretkey_sign, buf))
 
     def pack(self, data):
         packed = json.dumps(data, separators=(",", ":"))
         return packed, self.sign(packed)
 
     def __str__(self):
-        return decode_str(self._methodcall(lib.relay_secretkey_to_string), free=True)
+        return decode_str(self._methodcall(lib.relay_secretkey_to_string))
 
     def __repr__(self):
         return "<%s %r>" % (self.__class__.__name__, text_type(self))
