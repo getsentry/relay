@@ -14,30 +14,30 @@ struct Attrs {
 
 fn parse_bag_size(name: &str) -> TokenStream {
     match name {
-        "small" => quote!(crate::processor::BagSize::Small),
-        "medium" => quote!(crate::processor::BagSize::Medium),
-        "large" => quote!(crate::processor::BagSize::Large),
-        "larger" => quote!(crate::processor::BagSize::Larger),
-        "massive" => quote!(crate::processor::BagSize::Massive),
+        "small" => quote!(crate::store::trimming::BagSize::Small),
+        "medium" => quote!(crate::store::trimming::BagSize::Medium),
+        "large" => quote!(crate::store::trimming::BagSize::Large),
+        "larger" => quote!(crate::store::trimming::BagSize::Larger),
+        "massive" => quote!(crate::store::trimming::BagSize::Massive),
         _ => panic!("invalid bag_size variant '{}'", name),
     }
 }
 
 fn parse_max_chars(name: &str) -> TokenStream {
     match name {
-        "logger" => quote!(crate::processor::MaxChars::Logger),
-        "hash" => quote!(crate::processor::MaxChars::Hash),
-        "enumlike" => quote!(crate::processor::MaxChars::EnumLike),
-        "summary" => quote!(crate::processor::MaxChars::Summary),
-        "message" => quote!(crate::processor::MaxChars::Message),
-        "symbol" => quote!(crate::processor::MaxChars::Symbol),
-        "path" => quote!(crate::processor::MaxChars::Path),
-        "short_path" => quote!(crate::processor::MaxChars::ShortPath),
-        "email" => quote!(crate::processor::MaxChars::Email),
-        "culprit" => quote!(crate::processor::MaxChars::Culprit),
-        "tag_key" => quote!(crate::processor::MaxChars::TagKey),
-        "tag_value" => quote!(crate::processor::MaxChars::TagValue),
-        "environment" => quote!(crate::processor::MaxChars::Environment),
+        "logger" => quote!(crate::store::trimming::MaxChars::Logger),
+        "hash" => quote!(crate::store::trimming::MaxChars::Hash),
+        "enumlike" => quote!(crate::store::trimming::MaxChars::EnumLike),
+        "summary" => quote!(crate::store::trimming::MaxChars::Summary),
+        "message" => quote!(crate::store::trimming::MaxChars::Message),
+        "symbol" => quote!(crate::store::trimming::MaxChars::Symbol),
+        "path" => quote!(crate::store::trimming::MaxChars::Path),
+        "short_path" => quote!(crate::store::trimming::MaxChars::ShortPath),
+        "email" => quote!(crate::store::trimming::MaxChars::Email),
+        "culprit" => quote!(crate::store::trimming::MaxChars::Culprit),
+        "tag_key" => quote!(crate::store::trimming::MaxChars::TagKey),
+        "tag_value" => quote!(crate::store::trimming::MaxChars::TagValue),
+        "environment" => quote!(crate::store::trimming::MaxChars::Environment),
         _ => panic!("invalid max_chars variant '{}'", name),
     }
 }

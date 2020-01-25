@@ -9,12 +9,13 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use smallvec::SmallVec;
 
-use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
+use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
     Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry, Request, SpanStatus,
     Stacktrace, Tags, TraceContext, User, INVALID_ENVIRONMENTS, VALID_PLATFORMS,
 };
+use crate::store::trimming::MaxChars;
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,

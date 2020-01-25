@@ -2,12 +2,10 @@ use std::borrow::Cow;
 
 use serde_json;
 
-use crate::processor::{
-    estimate_size_flat, process_chunked_value, Attributes, BagSize, Chunk, MaxChars,
-};
+use crate::processor::{estimate_size_flat, process_chunked_value, Attributes, Chunk};
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::{Frame, RawStacktrace};
-use crate::store::trimming::TrimmingAttrs;
+use crate::store::trimming::{BagSize, MaxChars, TrimmingAttrs};
 use crate::types::{
     Annotated, Array, Empty, Meta, Object, ProcessingAction, ProcessingResult, RemarkType, Value,
 };
@@ -448,7 +446,7 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) -> Process
 
 #[test]
 fn test_string_trimming() {
-    use crate::processor::MaxChars;
+    use crate::store::trimming::MaxChars;
     use crate::types::{Annotated, Meta, Remark, RemarkType};
 
     let mut value = Annotated::new("This is my long string I want to have trimmed!".to_string());
@@ -476,7 +474,7 @@ fn test_basic_trimming() {
     use crate::protocol::Event;
     use crate::types::Annotated;
 
-    use crate::processor::MaxChars;
+    use crate::store::trimming::MaxChars;
     use std::iter::repeat;
 
     let mut processor = TrimmingProcessor::new();
