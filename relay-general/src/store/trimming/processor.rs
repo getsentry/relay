@@ -2,9 +2,12 @@ use std::borrow::Cow;
 
 use serde_json;
 
-use crate::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk, MaxChars};
+use crate::processor::{
+    estimate_size_flat, process_chunked_value, Attributes, BagSize, Chunk, MaxChars,
+};
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::{Frame, RawStacktrace};
+use crate::store::trimming::TrimmingAttrs;
 use crate::types::{
     Annotated, Array, Empty, Meta, Object, ProcessingAction, ProcessingResult, RemarkType, Value,
 };
@@ -19,6 +22,7 @@ struct BagSizeState {
 #[derive(Default)]
 pub struct TrimmingProcessor {
     bag_size_state: Vec<BagSizeState>,
+    trimming_attrs_stack: Vec<TrimmingAttrs>,
 }
 
 impl TrimmingProcessor {
@@ -52,18 +56,57 @@ impl TrimmingProcessor {
     fn remaining_bag_size(&self) -> Option<usize> {
         self.bag_size_state.iter().map(|x| x.size_remaining).min()
     }
+
+    #[inline]
+    fn current_attrs(&self) -> TrimmingAttrs {
+        let mut iter = self.trimming_attrs_stack.iter().copied().rev();
+        iter.next();
+        iter.next().unwrap_or_default()
+    }
+
+    #[inline]
+    fn current_bag_size(&self, state: &ProcessingState<'_>) -> Option<BagSize> {
+        let path = state.path();
+        let mut path_iter = path.iter();
+        let path_item = path_iter.next();
+        let parent_path_item = path_iter.next();
+
+        let mut attrs_iter = self.trimming_attrs_stack.iter().copied().rev();
+        attrs_iter.next();
+        let current_attrs = attrs_iter.next();
+        let parent_attrs = attrs_iter.next();
+
+        if let (Some(parent_path_item), Some(parent_attrs)) = (parent_path_item, parent_attrs) {
+            if let Some(bag_size) = parent_attrs.bag_size_inner(parent_path_item) {
+                return Some(bag_size);
+            }
+        }
+
+        if let (Some(path_item), Some(attrs)) = (path_item, current_attrs) {
+            if let Some(bag_size) = attrs.bag_size(path_item) {
+                return Some(bag_size);
+            }
+        }
+
+        None
+    }
 }
 
 impl Processor for TrimmingProcessor {
     fn before_process<T: ProcessValue>(
         &mut self,
-        _: Option<&T>,
+        value: Option<&T>,
         _: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if state.entered_anything() {
+            self.trimming_attrs_stack
+                .push(value.map(Attributes::get_attrs).unwrap_or_default());
+        }
+
         // If we encounter a bag size attribute it resets the depth and size
         // that is permitted below it.
-        if let Some(bag_size) = state.attrs().bag_size {
+        if let Some(bag_size) = self.current_bag_size(state) {
             self.bag_size_state.push(BagSizeState {
                 size_remaining: bag_size.max_size(),
                 encountered_at_depth: state.depth(),
@@ -98,21 +141,23 @@ impl Processor for TrimmingProcessor {
             }
         }
 
-        for bag_size_state in self.bag_size_state.iter_mut() {
-            // After processing a value, update the remaining bag sizes. We have a separate if-let
-            // here in case somebody defines nested databags (a struct with bag_size that contains
-            // another struct with a different bag_size), in case we just exited a databag we want
-            // to update the bag_size_state of the outer databag with the remaining size.
-            //
-            // This also has to happen after string trimming, which is why it's running in
-            // after_process.
+        if state.entered_anything() {
+            for bag_size_state in self.bag_size_state.iter_mut() {
+                // After processing a value, update the remaining bag sizes. We have a separate if-let
+                // here in case somebody defines nested databags (a struct with bag_size that contains
+                // another struct with a different bag_size), in case we just exited a databag we want
+                // to update the bag_size_state of the outer databag with the remaining size.
+                //
+                // This also has to happen after string trimming, which is why it's running in
+                // after_process.
 
-            if state.entered_anything() {
                 // Do not subtract if state is from newtype struct.
                 let item_length = estimate_size_flat(value) + 1;
                 bag_size_state.size_remaining =
                     bag_size_state.size_remaining.saturating_sub(item_length);
             }
+
+            self.trimming_attrs_stack.pop().unwrap();
         }
 
         Ok(())
@@ -124,8 +169,11 @@ impl Processor for TrimmingProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if let Some(max_chars) = state.attrs().max_chars {
-            trim_string(value, meta, max_chars)?;
+        let attrs = self.current_attrs();
+        if let Some(path_item) = state.last_path_item() {
+            if let Some(max_chars) = attrs.max_chars(path_item) {
+                trim_string(value, meta, max_chars)?;
+            }
         }
 
         if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
@@ -449,7 +497,7 @@ fn test_basic_trimming() {
 
 #[test]
 fn test_databag_stripping() {
-    use crate::protocol::{Event, ExtraValue};
+    use crate::protocol::Event;
     use crate::types::{Annotated, Value};
 
     let mut processor = TrimmingProcessor::new();
@@ -467,16 +515,13 @@ fn test_databag_stripping() {
         let mut map = Object::new();
         map.insert(
             "key_1".to_string(),
-            Annotated::new(ExtraValue(Value::String("value 1".to_string()))),
+            Annotated::new(Value::String("value 1".to_string())),
         );
-        map.insert(
-            "key_2".to_string(),
-            make_nested_object(8).map_value(ExtraValue),
-        );
+        map.insert("key_2".to_string(), make_nested_object(8));
         map.insert(
             "key_3".to_string(),
             // innermost key (string) is entering json stringify codepath
-            make_nested_object(5).map_value(ExtraValue),
+            make_nested_object(5),
         );
         map
     });
@@ -521,7 +566,7 @@ fn test_databag_stripping() {
 
 #[test]
 fn test_databag_array_stripping() {
-    use crate::protocol::{Event, ExtraValue};
+    use crate::protocol::Event;
     use crate::types::{Annotated, SerializableAnnotated, Value};
     use insta::assert_ron_snapshot;
     use std::iter::repeat;
@@ -533,9 +578,7 @@ fn test_databag_array_stripping() {
         for idx in 0..100 {
             map.insert(
                 format!("key_{}", idx),
-                Annotated::new(ExtraValue(Value::String(
-                    repeat("x").take(50000).collect::<String>(),
-                ))),
+                Annotated::new(Value::String(repeat("x").take(50000).collect::<String>())),
             );
         }
         map
@@ -649,7 +692,7 @@ fn test_databag_state_leak() {
 fn test_custom_context_trimming() {
     use std::iter::repeat;
 
-    use crate::protocol::{Context, ContextInner, Contexts};
+    use crate::protocol::{Context, Contexts, Event};
     use crate::types::{Annotated, Object, Value};
 
     let mut contexts = Object::new();
@@ -664,23 +707,28 @@ fn test_custom_context_trimming() {
                 "bar".to_string(),
                 Annotated::new(Value::String(repeat('a').take(5000).collect())),
             );
-            Annotated::new(ContextInner(Context::Other(context)))
+            Annotated::new(Context::Other(context))
         });
     }
 
-    let mut contexts = Annotated::new(Contexts(contexts));
+    let mut event = Annotated::new(Event {
+        contexts: Annotated::new(Contexts(contexts)),
+        ..Event::default()
+    });
     let mut processor = TrimmingProcessor::new();
-    process_value(&mut contexts, &mut processor, ProcessingState::root()).unwrap();
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     for i in 1..2 {
-        let other = match contexts
+        let other = match event
+            .value()
+            .unwrap()
+            .contexts
             .value()
             .unwrap()
             .get(&format!("despacito{}", i))
             .unwrap()
             .value()
             .unwrap()
-            .0
         {
             Context::Other(ref x) => x,
             _ => panic!("Context has changed type!"),
@@ -715,16 +763,16 @@ fn test_custom_context_trimming() {
 fn test_extra_trimming_long_arrays() {
     use std::iter::repeat;
 
-    use crate::protocol::{Event, ExtraValue};
+    use crate::protocol::Event;
     use crate::types::{Annotated, Object, Value};
 
     let mut extra = Object::new();
     extra.insert("foo".to_string(), {
-        Annotated::new(ExtraValue(Value::Array(
+        Annotated::new(Value::Array(
             repeat(Annotated::new(Value::U64(1)))
                 .take(200_000)
                 .collect(),
-        )))
+        ))
     });
 
     let mut event = Annotated::new(Event {
@@ -746,7 +794,7 @@ fn test_extra_trimming_long_arrays() {
         .value()
         .unwrap()
     {
-        ExtraValue(Value::Array(x)) => x,
+        Value::Array(x) => x,
         x => panic!("Wrong type: {:?}", x),
     };
 
@@ -757,29 +805,61 @@ fn test_extra_trimming_long_arrays() {
 #[test]
 fn test_newtypes_do_not_add_to_depth() {
     #[derive(
-        Debug, Clone, FromValue, ToValue, ProcessValue, PiiAttributes, Empty, SchemaAttributes,
+        Debug,
+        Clone,
+        FromValue,
+        ToValue,
+        ProcessValue,
+        PiiAttributes,
+        TrimmingAttributes,
+        Empty,
+        SchemaAttributes,
     )]
     struct WrappedString(String);
 
     #[derive(
-        Debug, Clone, FromValue, ToValue, ProcessValue, PiiAttributes, Empty, SchemaAttributes,
+        Debug,
+        Clone,
+        FromValue,
+        ToValue,
+        ProcessValue,
+        PiiAttributes,
+        TrimmingAttributes,
+        Empty,
+        SchemaAttributes,
     )]
     struct StructChild2 {
         inner: Annotated<WrappedString>,
     }
 
     #[derive(
-        Debug, Clone, FromValue, ToValue, ProcessValue, PiiAttributes, Empty, SchemaAttributes,
+        Debug,
+        Clone,
+        FromValue,
+        ToValue,
+        ProcessValue,
+        PiiAttributes,
+        TrimmingAttributes,
+        Empty,
+        SchemaAttributes,
     )]
     struct StructChild {
         inner: Annotated<StructChild2>,
     }
 
     #[derive(
-        Debug, Clone, FromValue, ToValue, ProcessValue, SchemaAttributes, PiiAttributes, Empty,
+        Debug,
+        Clone,
+        FromValue,
+        ToValue,
+        ProcessValue,
+        SchemaAttributes,
+        PiiAttributes,
+        TrimmingAttributes,
+        Empty,
     )]
     struct Struct {
-        #[metastructure(bag_size = "small")]
+        #[bag_size = "small"]
         inner: Annotated<StructChild>,
     }
 

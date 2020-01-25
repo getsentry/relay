@@ -20,7 +20,17 @@ use crate::types::{
 
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(
-    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, PiiAttributes, SchemaAttributes,
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    PiiAttributes,
+    TrimmingAttributes,
+    SchemaAttributes,
 )]
 pub struct EventId(pub uuid::Uuid);
 
@@ -72,6 +82,7 @@ impl_str_serde!(EventId);
     Deserialize,
     Serialize,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 #[serde(rename_all = "snake_case")]
@@ -169,25 +180,6 @@ impl ToValue for EventType {
 
 impl ProcessValue for EventType {}
 
-#[derive(
-    Debug,
-    FromValue,
-    ToValue,
-    ProcessValue,
-    PiiAttributes,
-    SchemaAttributes,
-    Empty,
-    Clone,
-    PartialEq,
-)]
-pub struct ExtraValue(#[metastructure(bag_size = "larger")] pub Value);
-
-impl<T: Into<Value>> From<T> for ExtraValue {
-    fn from(value: T) -> ExtraValue {
-        ExtraValue(value.into())
-    }
-}
-
 /// An event processing error.
 #[derive(
     Clone,
@@ -199,6 +191,7 @@ impl<T: Into<Value>> From<T> for ExtraValue {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct EventProcessingError {
@@ -233,11 +226,12 @@ pub struct EventProcessingError {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct GroupingConfig {
     /// The id of the grouping config.
-    #[metastructure(max_chars = "enumlike")]
+    #[max_chars = "enumlike"]
     pub id: Annotated<String>,
     /// The enhancements configuration.
     pub enhancements: Annotated<String>,
@@ -255,6 +249,7 @@ pub struct GroupingConfig {
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 #[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {
@@ -277,11 +272,11 @@ pub struct Event {
     pub fingerprint: Annotated<Fingerprint>,
 
     /// Custom culprit of the event.
-    #[metastructure(max_chars = "culprit")]
+    #[max_chars = "culprit"]
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
-    #[metastructure(max_chars = "culprit")]
+    #[max_chars = "culprit"]
     pub transaction: Annotated<String>,
 
     /// Time since the start of the transaction until the error occurred.
@@ -293,14 +288,13 @@ pub struct Event {
     pub logentry: Annotated<LogEntry>,
 
     /// Logger that created the event.
-    #[metastructure(
-        max_chars = "logger", // DB-imposed limit
-    )]
+    #[max_chars = "logger"] // DB-imposed limit
     #[match_regex = r"^[^\r\n]*\z"]
     pub logger: Annotated<String>,
 
     /// Name and versions of installed modules.
-    #[metastructure(skip_serialization = "empty_deep", bag_size = "large")]
+    #[metastructure(skip_serialization = "empty_deep")]
+    #[bag_size = "large"]
     pub modules: Annotated<Object<String>>,
 
     /// Platform identifier of this event (defaults to "other").
@@ -316,35 +310,33 @@ pub struct Event {
     pub received: Annotated<DateTime<Utc>>,
 
     /// Server or device name the event was generated on.
-    #[metastructure(max_chars = "symbol")]
+    #[max_chars = "symbol"]
     #[should_strip_pii = true]
     pub server_name: Annotated<String>,
 
     /// Program's release identifier.
-    #[metastructure(
-        max_chars = "tag_value",  // release ends in tag
-        skip_serialization = "empty"
-    )]
+    #[metastructure(skip_serialization = "empty")]
     #[nonempty]
     #[trim_whitespace]
+    #[max_chars = "tag_value"] // release ends in tag
     #[match_regex = r"^[^\r\n]*\z"]
     pub release: Annotated<LenientString>,
 
     /// Program's distribution identifier.
     // Match whitespace here, which will later get trimmed
-    #[metastructure(max_chars = "tag_value")] // dist ends in tag
+    #[max_chars = "tag_value"] // dist ends in tag
     #[nonempty]
     #[match_regex = r"^\s*[a-zA-Z0-9_.-]*\s*$"]
     pub dist: Annotated<String>,
 
     /// Environment the environment was generated in ("production" or "development").
-    #[metastructure(max_chars = "environment")]
+    #[max_chars = "environment"]
     #[trim_whitespace]
     #[match_regex = r"^[^\r\n\x0C/]+$"]
     pub environment: Annotated<String>,
 
     /// Deprecated in favor of tags.
-    #[metastructure(max_chars = "symbol")]
+    #[max_chars = "symbol"]
     pub site: Annotated<String>,
 
     /// Information about the user who triggered this event.
@@ -360,6 +352,7 @@ pub struct Event {
     /// Contexts describing the environment (e.g. device, os or browser).
     #[metastructure(legacy_alias = "sentry.interfaces.Contexts")]
     #[should_strip_pii = true]
+    #[bag_size_inner = "large"]
     pub contexts: Annotated<Contexts>,
 
     /// List of breadcrumbs recorded before this event.
@@ -391,10 +384,11 @@ pub struct Event {
     pub tags: Annotated<Tags>,
 
     /// Arbitrary extra information set by the user.
-    #[metastructure(bag_size = "massive")]
+    #[bag_size = "massive"]
+    #[bag_size_inner = "larger"]
     #[metastructure(skip_serialization = "empty")]
     #[should_strip_pii = true]
-    pub extra: Annotated<Object<ExtraValue>>,
+    pub extra: Annotated<Object<Value>>,
 
     /// Meta data for event processing and debugging.
     #[metastructure(skip_serialization = "empty")]
@@ -421,7 +415,7 @@ pub struct Event {
     pub grouping_config: Annotated<Object<Value>>,
 
     /// Legacy checksum used for grouping before fingerprint hashes.
-    #[metastructure(max_chars = "hash")]
+    #[max_chars = "hash"]
     pub checksum: Annotated<String>,
 
     /// CSP (security) reports.
@@ -542,7 +536,7 @@ fn test_event_roundtrip() {
             let mut map = Map::new();
             map.insert(
                 "extra".to_string(),
-                Annotated::new(ExtraValue(Value::String("value".to_string()))),
+                Annotated::new(Value::String("value".to_string())),
             );
             Annotated::new(map)
         },

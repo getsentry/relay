@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, Utc};
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{Context, ContextInner, Contexts, Event, EventType, Span};
+use crate::protocol::{Context, Contexts, Event, EventType, Span};
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Timestamp};
 
 pub struct TransactionsProcessor {
@@ -9,7 +9,6 @@ pub struct TransactionsProcessor {
     /// event.timestamp.
     sent_at: Option<DateTime<Utc>>,
     client_clock_drift: Option<Duration>,
-
     // This is an attribute so we can mock it in testing.
     now: DateTime<Utc>,
 }
@@ -62,7 +61,7 @@ impl Processor for TransactionsProcessor {
 
         if let Some(Contexts(ref contexts)) = event.contexts.value() {
             match contexts.get("trace").and_then(Annotated::value) {
-                Some(ContextInner(Context::Trace(ref trace_context))) => {
+                Some(Context::Trace(ref trace_context)) => {
                     if trace_context.trace_id.value().is_none() {
                         return Err(ProcessingAction::InvalidTransaction(
                             "trace context is missing trace_id",
@@ -317,9 +316,9 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),
@@ -348,12 +347,12 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),
@@ -382,13 +381,13 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),
@@ -417,14 +416,14 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                         op: Annotated::new("http.server".to_owned()),
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),
@@ -450,14 +449,14 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                         op: Annotated::new("http.server".to_owned()),
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),
@@ -484,14 +483,14 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                         op: Annotated::new("http.server".to_owned()),
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),
@@ -521,14 +520,14 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                         op: Annotated::new("http.server".to_owned()),
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),
@@ -560,14 +559,14 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                         op: Annotated::new("http.server".to_owned()),
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),
@@ -600,14 +599,14 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                         op: Annotated::new("http.server".to_owned()),
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),
@@ -641,14 +640,14 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                         op: Annotated::new("http.server".to_owned()),
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),
@@ -683,14 +682,14 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                         op: Annotated::new("http.server".to_owned()),
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),
@@ -725,14 +724,14 @@ mod tests {
                 let mut contexts = Object::new();
                 contexts.insert(
                     "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    Annotated::new(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                         op: Annotated::new("http.server".to_owned()),
                         ..Default::default()
-                    })))),
+                    }))),
                 );
                 contexts
             })),

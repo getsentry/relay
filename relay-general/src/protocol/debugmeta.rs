@@ -21,6 +21,7 @@ use crate::types::{
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct SystemSdkInfo {
@@ -52,6 +53,7 @@ pub struct SystemSdkInfo {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct AppleDebugImage {
@@ -154,6 +156,7 @@ impl_traits!(DebugId, "a debug identifier");
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct NativeDebugImage {
@@ -205,6 +208,7 @@ pub struct NativeDebugImage {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct ProguardDebugImage {
@@ -227,6 +231,7 @@ pub struct ProguardDebugImage {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 #[metastructure(process_func = "process_debug_image")]
@@ -262,6 +267,7 @@ pub enum DebugImage {
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 #[metastructure(process_func = "process_debug_meta")]
 pub struct DebugMeta {

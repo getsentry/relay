@@ -35,10 +35,12 @@ impl SchemaAttrs {
     }
 
     pub fn match_regex(&self, field: &PathItem<'_>) -> Option<&Regex> {
-        self.match_regex
-            .iter()
-            .filter(|(k, _)| field == k)
-            .map(|(_, v)| v)
-            .next()
+        for (k, v) in self.match_regex {
+            if k == field {
+                return Some(v);
+            }
+        }
+
+        None
     }
 }

@@ -460,6 +460,7 @@ struct CspReportRaw {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct Csp {
@@ -740,6 +741,7 @@ struct ExpectCtReportRaw {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct SingleCertificateTimestamp {
@@ -762,6 +764,7 @@ pub struct SingleCertificateTimestamp {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct ExpectCt {
@@ -896,6 +899,7 @@ impl HpkpRaw {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct Hpkp {
@@ -1138,6 +1142,7 @@ impl ExpectStapleRaw {
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 pub struct ExpectStaple {
     date_time: Annotated<String>,

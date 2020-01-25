@@ -16,7 +16,7 @@ mod normalize;
 mod remove_other;
 pub mod schema;
 mod transactions;
-mod trimming;
+pub mod trimming;
 
 pub use crate::store::geo::GeoIpLookup;
 

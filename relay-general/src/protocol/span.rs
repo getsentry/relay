@@ -14,6 +14,7 @@ use crate::types::{Annotated, Object, Value};
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 #[metastructure(process_func = "process_span", value_type = "Span")]
 pub struct Span {
@@ -26,11 +27,11 @@ pub struct Span {
     pub start_timestamp: Annotated<DateTime<Utc>>,
 
     /// Human readable description of a span (e.g. method URL).
-    #[metastructure(max_chars = "summary")]
+    #[max_chars = "summary"]
     pub description: Annotated<String>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = "enumlike")]
+    #[max_chars = "enumlike"]
     pub op: Annotated<OperationType>,
 
     /// The Span id.

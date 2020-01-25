@@ -173,6 +173,7 @@ mod tests {
             ProcessValue,
             SchemaAttributes,
             PiiAttributes,
+            TrimmingAttributes,
         )]
         struct Foo<T> {
             #[required]

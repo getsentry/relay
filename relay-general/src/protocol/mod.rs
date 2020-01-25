@@ -25,15 +25,14 @@ pub use self::breadcrumb::Breadcrumb;
 pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
 pub use self::constants::{INVALID_ENVIRONMENTS, VALID_PLATFORMS};
 pub use self::contexts::{
-    AppContext, BrowserContext, Context, ContextInner, Contexts, DeviceContext, GpuContext,
-    OperationType, OsContext, RuntimeContext, SpanId, SpanStatus, TraceContext, TraceId,
+    AppContext, BrowserContext, Context, Contexts, DeviceContext, GpuContext, OperationType,
+    OsContext, RuntimeContext, SpanId, SpanStatus, TraceContext, TraceId,
 };
 pub use self::debugmeta::{
     AppleDebugImage, DebugImage, DebugMeta, NativeDebugImage, SystemSdkInfo,
 };
 pub use self::event::{
-    Event, EventId, EventProcessingError, EventType, ExtraValue, GroupingConfig,
-    ParseEventTypeError,
+    Event, EventId, EventProcessingError, EventType, GroupingConfig, ParseEventTypeError,
 };
 pub use self::exception::Exception;
 pub use self::fingerprint::Fingerprint;

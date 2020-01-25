@@ -11,6 +11,7 @@ use crate::types::{Annotated, Error, FromValue, Object, Value};
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct CError {
@@ -33,6 +34,7 @@ pub struct CError {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct MachException {
@@ -64,6 +66,7 @@ pub struct MachException {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct PosixSignal {
@@ -92,6 +95,7 @@ pub struct PosixSignal {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct MechanismMeta {
@@ -111,12 +115,21 @@ pub struct MechanismMeta {
 
 /// The mechanism by which an exception was generated and handled.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    ToValue,
+    ProcessValue,
+    PiiAttributes,
+    TrimmingAttributes,
+    SchemaAttributes,
 )]
 pub struct Mechanism {
     /// Mechanism type (required).
     #[rename = "type"]
-    #[metastructure(max_chars = "enumlike")]
+    #[max_chars = "enumlike"]
     #[required]
     #[nonempty]
     pub ty: Annotated<String>,
@@ -128,12 +141,12 @@ pub struct Mechanism {
     pub synthetic: Annotated<bool>,
 
     /// Human readable detail description.
-    #[metastructure(max_chars = "message")]
+    #[max_chars = "message"]
     #[should_strip_pii = true]
     pub description: Annotated<String>,
 
     /// Link to online resources describing this error.
-    #[metastructure(max_chars = "path")]
+    #[max_chars = "path"]
     #[nonempty]
     pub help_link: Annotated<String>,
 
@@ -141,7 +154,7 @@ pub struct Mechanism {
     pub handled: Annotated<bool>,
 
     /// Additional attributes depending on the mechanism type.
-    #[metastructure(bag_size = "medium")]
+    #[bag_size = "medium"]
     #[metastructure(skip_serialization = "empty")]
     #[should_strip_pii = true]
     pub data: Annotated<Object<Value>>,

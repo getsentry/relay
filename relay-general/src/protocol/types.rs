@@ -15,7 +15,17 @@ use crate::types::{
 };
 
 /// A array like wrapper used in various places.
-#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes)]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Empty,
+    ToValue,
+    ProcessValue,
+    PiiAttributes,
+    TrimmingAttributes,
+    SchemaAttributes,
+)]
 #[metastructure(process_func = "process_values")]
 pub struct Values<T> {
     /// The values of the collection.
@@ -158,7 +168,17 @@ where
 }
 
 /// A mixture of a hashmap and an array.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, PiiAttributes, SchemaAttributes)]
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    ToValue,
+    PiiAttributes,
+    TrimmingAttributes,
+    SchemaAttributes,
+)]
 pub struct PairList<T>(pub Array<T>);
 
 impl<T, K, V> PairList<T>
@@ -395,6 +415,7 @@ pub struct InvalidRegVal;
     Ord,
     Hash,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct RegVal(pub u64);
@@ -413,6 +434,7 @@ hex_metrastructure!(RegVal, "register value");
     Ord,
     Hash,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct Addr(pub u64);
@@ -433,6 +455,7 @@ hex_metrastructure!(Addr, "address");
     ProcessValue,
     Serialize,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct IpAddr(pub String);
@@ -531,7 +554,17 @@ pub struct ParseLevelError;
 
 /// Severity level of an event or breadcrumb.
 #[derive(
-    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, PiiAttributes, SchemaAttributes,
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    PiiAttributes,
+    TrimmingAttributes,
+    SchemaAttributes,
 )]
 pub enum Level {
     /// Indicates very spammy debug information.
@@ -667,6 +700,7 @@ impl Empty for Level {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct LenientString(pub String);
@@ -752,6 +786,7 @@ impl FromValue for LenientString {
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 pub struct JsonLenientString(pub String);
 

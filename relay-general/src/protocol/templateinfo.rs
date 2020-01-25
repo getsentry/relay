@@ -12,16 +12,17 @@ use crate::types::{Annotated, Array, Object, Value};
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 #[metastructure(process_func = "process_template_info")]
 pub struct TemplateInfo {
     /// The file name (basename only).
-    #[metastructure(max_chars = "short_path")]
+    #[max_chars = "short_path"]
     #[should_strip_pii = true]
     pub filename: Annotated<String>,
 
     /// Absolute path to the file.
-    #[metastructure(max_chars = "path")]
+    #[max_chars = "path"]
     #[should_strip_pii = true]
     pub abs_path: Annotated<String>,
 

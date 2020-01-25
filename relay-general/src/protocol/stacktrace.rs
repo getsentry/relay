@@ -14,12 +14,13 @@ use crate::types::{Annotated, Array, FromValue, Object, Value};
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 #[metastructure(process_func = "process_frame", value_type = "Frame")]
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
-    #[metastructure(max_chars = "symbol")]
+    #[max_chars = "symbol"]
     #[metastructure(skip_serialization = "empty")]
     pub function: Annotated<String>,
 
@@ -37,7 +38,7 @@ pub struct Frame {
     /// in this field instead.  However also this field will be capped at 256
     /// characters at the moment which often means that not the entire original
     /// value can be stored.
-    #[metastructure(max_chars = "symbol")]
+    #[max_chars = "symbol"]
     #[metastructure(skip_serialization = "empty")]
     pub raw_function: Annotated<String>,
 
@@ -46,7 +47,7 @@ pub struct Frame {
     /// This is different from a function name by generally being the mangled
     /// name that appears natively in the binary.  This is relevant for languages
     /// like Swift, C++ or Rust.
-    #[metastructure(max_chars = "symbol")]
+    #[max_chars = "symbol"]
     pub symbol: Annotated<String>,
 
     /// Name of the module the frame is contained in.
@@ -66,12 +67,12 @@ pub struct Frame {
     pub package: Annotated<String>,
 
     /// The source file name (basename only).
-    #[metastructure(max_chars = "path")]
+    #[max_chars = "path"]
     #[metastructure(skip_serialization = "empty")]
     pub filename: Annotated<String>,
 
     /// Absolute path to the source file.
-    #[metastructure(max_chars = "path")]
+    #[max_chars = "path"]
     #[metastructure(skip_serialization = "empty")]
     pub abs_path: Annotated<String>,
 
@@ -101,7 +102,7 @@ pub struct Frame {
 
     /// Local variables in a convenient format.
     // XXX: Probably want to trim per-var => new bag size?
-    #[metastructure(bag_size = "medium")]
+    #[bag_size = "medium"]
     #[should_strip_pii = true]
     pub vars: Annotated<FrameVars>,
 
@@ -118,11 +119,11 @@ pub struct Frame {
     pub symbol_addr: Annotated<Addr>,
 
     /// Used for native crashes to indicate how much we can "trust" the instruction_addr
-    #[metastructure(max_chars = "enumlike")]
+    #[max_chars = "enumlike"]
     pub trust: Annotated<String>,
 
     /// The language of the frame if it overrides the stacktrace language.
-    #[metastructure(max_chars = "enumlike")]
+    #[max_chars = "enumlike"]
     pub lang: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -132,7 +133,16 @@ pub struct Frame {
 
 /// Frame local variables.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    ToValue,
+    ProcessValue,
+    PiiAttributes,
+    TrimmingAttributes,
+    SchemaAttributes,
 )]
 pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<Value>);
 
@@ -147,17 +157,18 @@ pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<V
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct FrameData {
     /// A reference to the sourcemap used.
-    #[metastructure(max_chars = "path")]
+    #[max_chars = "path"]
     sourcemap: Annotated<String>,
     /// The original function name before it was resolved.
-    #[metastructure(max_chars = "symbol")]
+    #[max_chars = "symbol"]
     orig_function: Annotated<String>,
     /// The original minified filename.
-    #[metastructure(max_chars = "path")]
+    #[max_chars = "path"]
     orig_filename: Annotated<String>,
     /// The original line number.
     orig_lineno: Annotated<u64>,
@@ -214,6 +225,7 @@ impl FromValue for FrameVars {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 #[metastructure(process_func = "process_raw_stacktrace", value_type = "Stacktrace")]
@@ -227,7 +239,7 @@ pub struct RawStacktrace {
     pub registers: Annotated<Object<RegVal>>,
 
     /// The language of the stacktrace.
-    #[metastructure(max_chars = "enumlike")]
+    #[max_chars = "enumlike"]
     pub lang: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -247,6 +259,7 @@ pub struct RawStacktrace {
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace(pub RawStacktrace);

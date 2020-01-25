@@ -20,6 +20,7 @@ use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct DeviceContext {
@@ -121,6 +122,7 @@ impl DeviceContext {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct OsContext {
@@ -165,6 +167,7 @@ impl OsContext {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct RuntimeContext {
@@ -203,6 +206,7 @@ impl RuntimeContext {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct AppContext {
@@ -250,6 +254,7 @@ impl AppContext {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct BrowserContext {
@@ -291,6 +296,7 @@ lazy_static::lazy_static! {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct GpuContext(pub Object<Value>);
@@ -333,6 +339,7 @@ impl GpuContext {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct MonitorContext(pub Object<Value>);
@@ -365,7 +372,16 @@ impl MonitorContext {
 }
 
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    ToValue,
+    ProcessValue,
+    PiiAttributes,
+    TrimmingAttributes,
+    SchemaAttributes,
 )]
 pub struct TraceId(pub String);
 
@@ -392,7 +408,16 @@ impl FromValue for TraceId {
 }
 
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    ToValue,
+    ProcessValue,
+    PiiAttributes,
+    TrimmingAttributes,
+    SchemaAttributes,
 )]
 pub struct SpanId(pub String);
 
@@ -429,6 +454,7 @@ impl FromValue for SpanId {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct TraceContext {
@@ -442,7 +468,7 @@ pub struct TraceContext {
     pub parent_span_id: Annotated<SpanId>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = "enumlike")]
+    #[max_chars = "enumlike"]
     pub op: Annotated<OperationType>,
 
     /// Whether the trace failed or succeeded. Currently only used to indicate status of individual
@@ -461,7 +487,7 @@ pub struct TraceContext {
 ///
 /// Note: This type is represented as a u8 in Snuba/Clickhouse, with Unknown being the default
 /// value. We use repr(u8) to statically validate that the trace status has 255 variants at most.
-#[derive(Clone, Copy, Debug, PartialEq, PiiAttributes, SchemaAttributes)]
+#[derive(Clone, Copy, Debug, PartialEq, PiiAttributes, TrimmingAttributes, SchemaAttributes)]
 #[repr(u8)] // size limit in clickhouse
 pub enum SpanStatus {
     // XXX: this mapping exists multiple times at the moment.  It's also in the python binding
@@ -687,6 +713,7 @@ impl TraceContext {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 #[metastructure(process_func = "process_context")]
@@ -731,54 +758,30 @@ impl Context {
     }
 }
 
+/// An object holding multiple contexts.
 #[derive(
     Clone,
     Debug,
     PartialEq,
     Empty,
-    FromValue,
     ToValue,
     ProcessValue,
-    PiiAttributes,
     SchemaAttributes,
+    PiiAttributes,
+    TrimmingAttributes,
+    Default,
 )]
-pub struct ContextInner(#[metastructure(bag_size = "large")] pub Context);
-
-impl std::ops::Deref for ContextInner {
-    type Target = Context;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for ContextInner {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl From<Context> for ContextInner {
-    fn from(c: Context) -> ContextInner {
-        ContextInner(c)
-    }
-}
-
-/// An object holding multiple contexts.
-#[derive(
-    Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, SchemaAttributes, PiiAttributes, Default,
-)]
-pub struct Contexts(pub Object<ContextInner>);
+pub struct Contexts(pub Object<Context>);
 
 impl Contexts {
     pub fn new() -> Contexts {
-        Contexts(Object::<ContextInner>::new())
+        Contexts(Object::<Context>::new())
     }
 
     /// Adds a context to self under the default key for the Context
     pub fn add(&mut self, context: Context) {
         if let Some(key) = context.default_key() {
-            self.insert(key.to_owned(), Annotated::new(ContextInner(context)));
+            self.insert(key.to_owned(), Annotated::new(context));
         }
     }
 
@@ -792,12 +795,12 @@ impl Contexts {
             .entry(key.into())
             .or_insert_with(Annotated::empty)
             .value_mut()
-            .get_or_insert_with(|| ContextInner(context_builder()))
+            .get_or_insert_with(|| context_builder())
     }
 }
 
 impl std::ops::Deref for Contexts {
-    type Target = Object<ContextInner>;
+    type Target = Object<Context>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -1094,10 +1097,10 @@ fn test_other_context_roundtrip() {
 fn test_untagged_context_deserialize() {
     let json = r#"{"os": {"name": "Linux"}}"#;
 
-    let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+    let os_context = Annotated::new(Context::Os(Box::new(OsContext {
         name: Annotated::new("Linux".to_string()),
         ..Default::default()
-    }))));
+    })));
     let mut map = Object::new();
     map.insert("os".to_string(), os_context);
     let contexts = Annotated::new(Contexts(map));
@@ -1109,16 +1112,15 @@ fn test_untagged_context_deserialize() {
 fn test_multiple_contexts_roundtrip() {
     let json = r#"{"os":{"name":"Linux","type":"os"},"runtime":{"name":"rustc","type":"runtime"}}"#;
 
-    let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+    let os_context = Annotated::new(Context::Os(Box::new(OsContext {
         name: Annotated::new("Linux".to_string()),
         ..Default::default()
-    }))));
+    })));
 
-    let runtime_context =
-        Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
-            name: Annotated::new("rustc".to_string()),
-            ..Default::default()
-        }))));
+    let runtime_context = Annotated::new(Context::Runtime(Box::new(RuntimeContext {
+        name: Annotated::new("rustc".to_string()),
+        ..Default::default()
+    })));
 
     let mut map = Object::new();
     map.insert("os".to_string(), os_context);
@@ -1140,11 +1142,11 @@ fn test_context_processing() {
             let mut contexts = Object::new();
             contexts.insert(
                 "runtime".to_owned(),
-                Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
+                Annotated::new(Context::Runtime(Box::new(RuntimeContext {
                     name: Annotated::new("php".to_owned()),
                     version: Annotated::new("7.1.20-1+ubuntu16.04.1+deb.sury.org+1".to_owned()),
                     ..Default::default()
-                })))),
+                }))),
             );
             contexts
         })),

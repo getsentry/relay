@@ -12,6 +12,7 @@ use crate::types::{Annotated, Array, Object, Value};
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct ClientSdkPackage {
@@ -33,16 +34,17 @@ pub struct ClientSdkPackage {
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 #[metastructure(process_func = "process_client_sdk_info", value_type = "ClientSdkInfo")]
 pub struct ClientSdkInfo {
     /// Unique SDK name.
-    #[metastructure(max_chars = "symbol")]
+    #[max_chars = "symbol"]
     #[required]
     pub name: Annotated<String>,
 
     /// SDK version.
-    #[metastructure(max_chars = "symbol")]
+    #[max_chars = "symbol"]
     #[required]
     pub version: Annotated<String>,
 

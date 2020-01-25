@@ -18,6 +18,7 @@ use crate::types::{Annotated, Object, Value};
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 #[metastructure(process_func = "process_breadcrumb", value_type = "Breadcrumb")]
 pub struct Breadcrumb {
@@ -26,23 +27,23 @@ pub struct Breadcrumb {
 
     /// The type of the breadcrumb.
     #[rename = "type"]
-    #[metastructure(max_chars = "enumlike")]
+    #[max_chars = "enumlike"]
     pub ty: Annotated<String>,
 
     /// The optional category of the breadcrumb.
-    #[metastructure(max_chars = "enumlike")]
+    #[max_chars = "enumlike"]
     pub category: Annotated<String>,
 
     /// Severity level of the breadcrumb.
     pub level: Annotated<Level>,
 
     /// Human readable message for the breadcrumb.
-    #[metastructure(max_chars = "message")]
+    #[max_chars = "message"]
     #[should_strip_pii = true]
     pub message: Annotated<String>,
 
     /// Custom user-defined data of this breadcrumb.
-    #[metastructure(bag_size = "medium")]
+    #[bag_size = "medium"]
     #[metastructure(skip_serialization = "empty")]
     #[should_strip_pii = true]
     pub data: Annotated<Object<Value>>,

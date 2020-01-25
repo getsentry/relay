@@ -6,6 +6,7 @@ mod empty;
 mod pii;
 mod process;
 mod schema;
+mod trimming;
 
 use std::str::FromStr;
 
@@ -26,6 +27,7 @@ decl_derive!([FromValue, attributes(rename, metastructure)] => derive_from_value
 decl_derive!([ProcessValue, attributes(rename, metastructure)] => process::derive_process_value);
 decl_derive!([PiiAttributes, attributes(rename, should_strip_pii)] => pii::derive_pii);
 decl_derive!([SchemaAttributes, attributes(rename, required, nonempty, trim_whitespace, match_regex)] => schema::derive_schema);
+decl_derive!([TrimmingAttributes, attributes(max_chars, bag_size, bag_size_inner)] => trimming::derive_trimming);
 
 fn derive_to_value(s: synstructure::Structure<'_>) -> TokenStream {
     derive_metastructure(s, Trait::To)
@@ -551,36 +553,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     }
 }
 
-fn parse_max_chars(name: &str) -> TokenStream {
-    match name {
-        "logger" => quote!(crate::processor::MaxChars::Logger),
-        "hash" => quote!(crate::processor::MaxChars::Hash),
-        "enumlike" => quote!(crate::processor::MaxChars::EnumLike),
-        "summary" => quote!(crate::processor::MaxChars::Summary),
-        "message" => quote!(crate::processor::MaxChars::Message),
-        "symbol" => quote!(crate::processor::MaxChars::Symbol),
-        "path" => quote!(crate::processor::MaxChars::Path),
-        "short_path" => quote!(crate::processor::MaxChars::ShortPath),
-        "email" => quote!(crate::processor::MaxChars::Email),
-        "culprit" => quote!(crate::processor::MaxChars::Culprit),
-        "tag_key" => quote!(crate::processor::MaxChars::TagKey),
-        "tag_value" => quote!(crate::processor::MaxChars::TagValue),
-        "environment" => quote!(crate::processor::MaxChars::Environment),
-        _ => panic!("invalid max_chars variant '{}'", name),
-    }
-}
-
-fn parse_bag_size(name: &str) -> TokenStream {
-    match name {
-        "small" => quote!(crate::processor::BagSize::Small),
-        "medium" => quote!(crate::processor::BagSize::Medium),
-        "large" => quote!(crate::processor::BagSize::Large),
-        "larger" => quote!(crate::processor::BagSize::Larger),
-        "massive" => quote!(crate::processor::BagSize::Massive),
-        _ => panic!("invalid bag_size variant '{}'", name),
-    }
-}
-
 #[derive(Default)]
 struct TypeAttrs {
     process_func: Option<String>,
@@ -677,11 +649,6 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
 
 #[derive(Default)]
 struct FieldAttrs {
-    //trimming
-    max_chars: Option<TokenStream>,
-    bag_size: Option<TokenStream>,
-
-    //other
     additional_properties: bool,
     field_name: String,
     retain: bool,
@@ -694,23 +661,9 @@ impl FieldAttrs {
         let field_name = &self.field_name;
         let retain = self.retain;
 
-        let max_chars = if let Some(ref max_chars) = self.max_chars {
-            quote!(Some(#max_chars))
-        } else {
-            quote!(None)
-        };
-
-        let bag_size = if let Some(ref bag_size) = self.bag_size {
-            quote!(Some(#bag_size))
-        } else {
-            quote!(None)
-        };
-
         quote!({
             crate::processor::FieldAttrs {
                 name: Some(#field_name),
-                max_chars: #max_chars,
-                bag_size: #bag_size,
                 retain: #retain,
             }
         })
@@ -851,27 +804,7 @@ fn parse_field_attributes(
                         }
                         Meta::NameValue(name_value) => {
                             let ident = name_value.path.get_ident().expect("Unexpected path");
-                            if ident == "max_chars" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        let attr = parse_max_chars(litstr.value().as_str());
-                                        rv.max_chars = Some(quote!(#attr));
-                                    }
-                                    _ => {
-                                        panic!("Got non string literal for max_chars");
-                                    }
-                                }
-                            } else if ident == "bag_size" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        let attr = parse_bag_size(litstr.value().as_str());
-                                        rv.bag_size = Some(quote!(#attr));
-                                    }
-                                    _ => {
-                                        panic!("Got non string literal for bag_size");
-                                    }
-                                }
-                            } else if ident == "retain" {
+                            if ident == "retain" {
                                 match name_value.lit {
                                     Lit::Str(litstr) => match litstr.value().as_str() {
                                         "true" => rv.retain = true,

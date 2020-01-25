@@ -36,7 +36,7 @@ pub fn derive_pii(mut s: synstructure::Structure<'_>) -> TokenStream {
     let arms = s.each_variant(|variant| {
         if is_newtype(variant) {
             let inner_ident = &variant.bindings()[0].binding;
-            return quote!(crate::processor::Attributes::<crate::pii::PiiAttrs>::get_attrs(#inner_ident));
+            return quote!(crate::processor::Attributes::get_attrs(#inner_ident));
         }
 
         let mut whitelist = quote!();

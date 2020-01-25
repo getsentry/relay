@@ -6,6 +6,7 @@ use std::fmt::Debug;
 use crate::pii::PiiAttrs;
 use crate::processor::{process_value, ProcessingState, ValueType};
 use crate::store::schema::SchemaAttrs;
+use crate::store::trimming::TrimmingAttrs;
 use crate::types::{FromValue, Meta, ProcessingResult, Timestamp, ToValue};
 
 macro_rules! process_method {
@@ -110,7 +111,12 @@ pub trait Processor: Sized {
 
 /// A recursively processable value.
 pub trait ProcessValue:
-    FromValue + ToValue + Debug + Attributes<PiiAttrs> + Attributes<SchemaAttrs>
+    FromValue
+    + ToValue
+    + Debug
+    + Attributes<PiiAttrs>
+    + Attributes<SchemaAttrs>
+    + Attributes<TrimmingAttrs>
 {
     /// Returns the type of the value.
     #[inline]

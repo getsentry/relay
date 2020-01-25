@@ -55,7 +55,7 @@ pub fn derive_schema(mut s: synstructure::Structure<'_>) -> TokenStream {
     let arms = s.each_variant(|variant| {
         if is_newtype(variant) {
             let inner_ident = &variant.bindings()[0].binding;
-            return quote!(crate::processor::Attributes::<crate::store::schema::SchemaAttrs>::get_attrs(#inner_ident));
+            return quote!(crate::processor::Attributes::get_attrs(#inner_ident));
         }
 
         let mut required = quote!();

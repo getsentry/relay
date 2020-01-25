@@ -17,6 +17,7 @@ use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization
     PartialOrd,
     Hash,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 #[serde(untagged)]
@@ -91,15 +92,16 @@ impl Empty for ThreadId {
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 #[metastructure(process_func = "process_thread", value_type = "Thread")]
 pub struct Thread {
     /// Identifier of this thread within the process (usually an integer).
-    #[metastructure(max_chars = "symbol")]
+    #[max_chars = "symbol"]
     pub id: Annotated<ThreadId>,
 
     /// Display name of this thread.
-    #[metastructure(max_chars = "summary")]
+    #[max_chars = "summary"]
     pub name: Annotated<String>,
 
     /// Stack trace containing frames of this exception.

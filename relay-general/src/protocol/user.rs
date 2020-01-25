@@ -12,22 +12,23 @@ use crate::types::{Annotated, Object, Value};
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 #[metastructure(process_func = "process_geo")]
 pub struct Geo {
     /// Two-letter country code (ISO 3166-1 alpha-2).
-    #[metastructure(max_chars = "summary")]
+    #[max_chars = "summary"]
     #[should_strip_pii = true]
     pub country_code: Annotated<String>,
 
     /// Human readable city name.
-    #[metastructure(max_chars = "summary")]
+    #[max_chars = "summary"]
     #[should_strip_pii = true]
     pub city: Annotated<String>,
 
     /// Human readable region name or code.
-    #[metastructure(max_chars = "summary")]
+    #[max_chars = "summary"]
     #[should_strip_pii = true]
     pub region: Annotated<String>,
 
@@ -48,16 +49,19 @@ pub struct Geo {
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 #[metastructure(process_func = "process_user", value_type = "User")]
 pub struct User {
     /// Unique identifier of the user.
-    #[metastructure(max_chars = "enumlike", skip_serialization = "empty")]
+    #[max_chars = "enumlike"]
+    #[metastructure(skip_serialization = "empty")]
     #[should_strip_pii = true]
     pub id: Annotated<LenientString>,
 
     /// Email address of the user.
-    #[metastructure(max_chars = "email", skip_serialization = "empty")]
+    #[max_chars = "email"]
+    #[metastructure(skip_serialization = "empty")]
     #[should_strip_pii = true]
     pub email: Annotated<String>,
 
@@ -67,12 +71,14 @@ pub struct User {
     pub ip_address: Annotated<IpAddr>,
 
     /// Username of the user.
-    #[metastructure(max_chars = "enumlike", skip_serialization = "empty")]
+    #[max_chars = "enumlike"]
+    #[metastructure(skip_serialization = "empty")]
     #[should_strip_pii = false]
     pub username: Annotated<String>,
 
     /// Human readable name of the user.
-    #[metastructure(max_chars = "enumlike", skip_serialization = "empty")]
+    #[max_chars = "enumlike"]
+    #[metastructure(skip_serialization = "empty")]
     #[should_strip_pii = true]
     pub name: Annotated<String>,
 

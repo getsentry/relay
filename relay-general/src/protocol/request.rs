@@ -10,7 +10,16 @@ type CookieEntry = Annotated<(Annotated<String>, Annotated<String>)>;
 
 /// A map holding cookies.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    ToValue,
+    ProcessValue,
+    PiiAttributes,
+    TrimmingAttributes,
+    SchemaAttributes,
 )]
 pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
 
@@ -97,6 +106,7 @@ impl FromValue for Cookies {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 #[metastructure(process_func = "process_header_name")]
@@ -182,6 +192,7 @@ impl FromValue for HeaderName {
     ToValue,
     ProcessValue,
     PiiAttributes,
+    TrimmingAttributes,
     SchemaAttributes,
 )]
 pub struct HeaderValue(String);
@@ -253,7 +264,16 @@ impl FromValue for HeaderValue {
 
 /// A map holding headers.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    ToValue,
+    ProcessValue,
+    PiiAttributes,
+    TrimmingAttributes,
+    SchemaAttributes,
 )]
 pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<HeaderValue>)>);
 
@@ -309,7 +329,16 @@ impl FromValue for Headers {
 
 /// A map holding query string pairs.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Empty,
+    ToValue,
+    ProcessValue,
+    PiiAttributes,
+    TrimmingAttributes,
+    SchemaAttributes,
 )]
 pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
@@ -385,11 +414,12 @@ impl FromValue for Query {
     ProcessValue,
     SchemaAttributes,
     PiiAttributes,
+    TrimmingAttributes,
 )]
 #[metastructure(process_func = "process_request", value_type = "Request")]
 pub struct Request {
     /// URL of the request.
-    #[metastructure(max_chars = "path")]
+    #[max_chars = "path"]
     pub url: Annotated<String>,
 
     /// HTTP request method.
@@ -397,36 +427,36 @@ pub struct Request {
 
     /// Request data in any format that makes sense.
     // TODO: Custom logic + info
-    #[metastructure(bag_size = "large")]
+    #[bag_size = "large"]
     #[should_strip_pii = true]
     pub data: Annotated<Value>,
 
     /// URL encoded HTTP query string.
-    #[metastructure(bag_size = "small")]
+    #[bag_size = "small"]
     #[should_strip_pii = true]
     #[metastructure(skip_serialization = "empty")]
     pub query_string: Annotated<Query>,
 
     /// The fragment of the request URL.
-    #[metastructure(max_chars = "summary")]
+    #[max_chars = "summary"]
     #[should_strip_pii = true]
     #[metastructure(skip_serialization = "empty")]
     pub fragment: Annotated<String>,
 
     /// URL encoded contents of the Cookie header.
-    #[metastructure(bag_size = "medium")]
+    #[bag_size = "medium"]
     #[should_strip_pii = true]
     #[metastructure(skip_serialization = "empty")]
     pub cookies: Annotated<Cookies>,
 
     /// HTTP request headers.
-    #[metastructure(bag_size = "large")]
+    #[bag_size = "large"]
     #[should_strip_pii = true]
     #[metastructure(skip_serialization = "empty")]
     pub headers: Annotated<Headers>,
 
     /// Server environment data, such as CGI/WSGI.
-    #[metastructure(bag_size = "large")]
+    #[bag_size = "large"]
     #[should_strip_pii = true]
     #[metastructure(skip_serialization = "empty")]
     pub env: Annotated<Object<Value>>,

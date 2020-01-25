@@ -52,7 +52,7 @@ impl Processor for RemoveOtherProcessor {
 }
 
 #[cfg(test)]
-use {crate::processor::process_value, crate::protocol::ContextInner};
+use crate::processor::process_value;
 
 #[test]
 fn test_remove_legacy_attributes() {
@@ -153,7 +153,7 @@ fn test_retain_context_other() {
     let mut contexts = Object::new();
     contexts.insert(
         "renamed".to_string(),
-        Annotated::from(ContextInner(Context::Os(Box::new(os)))),
+        Annotated::from(Context::Os(Box::new(os))),
     );
 
     let mut event = Annotated::new(Event {

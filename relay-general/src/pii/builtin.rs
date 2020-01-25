@@ -397,6 +397,7 @@ mod tests {
         ProcessValue,
         SchemaAttributes,
         PiiAttributes,
+        TrimmingAttributes,
         ToValue,
     )]
     struct FreeformRoot {
