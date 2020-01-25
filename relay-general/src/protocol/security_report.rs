@@ -459,8 +459,8 @@ struct CspReportRaw {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct Csp {
     /// The directive whose enforcement caused the violation.
@@ -739,8 +739,8 @@ struct ExpectCtReportRaw {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct SingleCertificateTimestamp {
     pub version: Annotated<i64>,
@@ -761,8 +761,8 @@ pub struct SingleCertificateTimestamp {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct ExpectCt {
     /// Date time in rfc3339 format YYYY-MM-DDTHH:MM:DD{.FFFFFF}(Z|+/-HH:MM)
@@ -895,8 +895,8 @@ impl HpkpRaw {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct Hpkp {
     /// > Indicates the time the UA observed the Pin Validation failure.
@@ -1136,8 +1136,8 @@ impl ExpectStapleRaw {
     FromValue,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 pub struct ExpectStaple {
     date_time: Annotated<String>,

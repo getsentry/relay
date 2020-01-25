@@ -10,7 +10,7 @@ type CookieEntry = Annotated<(Annotated<String>, Annotated<String>)>;
 
 /// A map holding cookies.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
 )]
 pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
 
@@ -96,8 +96,8 @@ impl FromValue for Cookies {
     Empty,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 #[metastructure(process_func = "process_header_name")]
 pub struct HeaderName(String);
@@ -181,8 +181,8 @@ impl FromValue for HeaderName {
     Empty,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct HeaderValue(String);
 
@@ -253,7 +253,7 @@ impl FromValue for HeaderValue {
 
 /// A map holding headers.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
 )]
 pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<HeaderValue>)>);
 
@@ -309,7 +309,7 @@ impl FromValue for Headers {
 
 /// A map holding query string pairs.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
 )]
 pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
@@ -383,8 +383,8 @@ impl FromValue for Query {
     FromValue,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 #[metastructure(process_func = "process_request", value_type = "Request")]
 pub struct Request {

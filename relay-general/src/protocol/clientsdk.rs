@@ -11,8 +11,8 @@ use crate::types::{Annotated, Array, Object, Value};
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct ClientSdkPackage {
     /// Name of the package.
@@ -31,8 +31,8 @@ pub struct ClientSdkPackage {
     FromValue,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 #[metastructure(process_func = "process_client_sdk_info", value_type = "ClientSdkInfo")]
 pub struct ClientSdkInfo {

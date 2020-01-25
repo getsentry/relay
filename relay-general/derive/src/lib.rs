@@ -24,8 +24,8 @@ decl_derive!([Empty, attributes(metastructure)] => empty::derive_empty);
 decl_derive!([ToValue, attributes(rename, metastructure)] => derive_to_value);
 decl_derive!([FromValue, attributes(rename, metastructure)] => derive_from_value);
 decl_derive!([ProcessValue, attributes(rename, metastructure)] => process::derive_process_value);
-decl_derive!([PiiStrippable, attributes(rename, should_strip_pii)] => pii::derive_pii);
-decl_derive!([SchemaValidated, attributes(rename, required, nonempty, trim_whitespace, match_regex)] => schema::derive_schema);
+decl_derive!([PiiAttributes, attributes(rename, should_strip_pii)] => pii::derive_pii);
+decl_derive!([SchemaAttributes, attributes(rename, required, nonempty, trim_whitespace, match_regex)] => schema::derive_schema);
 
 fn derive_to_value(s: synstructure::Structure<'_>) -> TokenStream {
     derive_metastructure(s, Trait::To)

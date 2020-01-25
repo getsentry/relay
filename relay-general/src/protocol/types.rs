@@ -15,7 +15,7 @@ use crate::types::{
 };
 
 /// A array like wrapper used in various places.
-#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated)]
+#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes)]
 #[metastructure(process_func = "process_values")]
 pub struct Values<T> {
     /// The values of the collection.
@@ -158,7 +158,7 @@ where
 }
 
 /// A mixture of a hashmap and an array.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, PiiStrippable, SchemaValidated)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, PiiAttributes, SchemaAttributes)]
 pub struct PairList<T>(pub Array<T>);
 
 impl<T, K, V> PairList<T>
@@ -394,8 +394,8 @@ pub struct InvalidRegVal;
     PartialOrd,
     Ord,
     Hash,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct RegVal(pub u64);
 
@@ -412,8 +412,8 @@ hex_metrastructure!(RegVal, "register value");
     PartialOrd,
     Ord,
     Hash,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct Addr(pub u64);
 
@@ -432,8 +432,8 @@ hex_metrastructure!(Addr, "address");
     ToValue,
     ProcessValue,
     Serialize,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct IpAddr(pub String);
 
@@ -531,7 +531,7 @@ pub struct ParseLevelError;
 
 /// Severity level of an event or breadcrumb.
 #[derive(
-    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, PiiStrippable, SchemaValidated,
+    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, PiiAttributes, SchemaAttributes,
 )]
 pub enum Level {
     /// Indicates very spammy debug information.
@@ -666,8 +666,8 @@ impl Empty for Level {
     Empty,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct LenientString(pub String);
 
@@ -750,8 +750,8 @@ impl FromValue for LenientString {
     Empty,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 pub struct JsonLenientString(pub String);
 

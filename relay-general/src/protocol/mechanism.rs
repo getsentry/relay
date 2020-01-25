@@ -10,8 +10,8 @@ use crate::types::{Annotated, Error, FromValue, Object, Value};
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct CError {
     /// The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.
@@ -32,8 +32,8 @@ pub struct CError {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct MachException {
     /// The mach exception type.
@@ -63,8 +63,8 @@ pub struct MachException {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct PosixSignal {
     /// The POSIX signal number.
@@ -91,8 +91,8 @@ pub struct PosixSignal {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct MechanismMeta {
     /// Optional ISO C standard error code.
@@ -111,7 +111,7 @@ pub struct MechanismMeta {
 
 /// The mechanism by which an exception was generated and handled.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
 )]
 pub struct Mechanism {
     /// Mechanism type (required).

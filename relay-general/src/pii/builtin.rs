@@ -395,8 +395,8 @@ mod tests {
         Empty,
         FromValue,
         ProcessValue,
-        SchemaValidated,
-        PiiStrippable,
+        SchemaAttributes,
+        PiiAttributes,
         ToValue,
     )]
     struct FreeformRoot {

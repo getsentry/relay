@@ -12,8 +12,8 @@ use crate::types::{Annotated, Object, Value};
     FromValue,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 #[metastructure(process_func = "process_span", value_type = "Span")]
 pub struct Span {

@@ -16,8 +16,8 @@ use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization
     Ord,
     PartialOrd,
     Hash,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 #[serde(untagged)]
 pub enum ThreadId {
@@ -89,8 +89,8 @@ impl Empty for ThreadId {
     FromValue,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 #[metastructure(process_func = "process_thread", value_type = "Thread")]
 pub struct Thread {

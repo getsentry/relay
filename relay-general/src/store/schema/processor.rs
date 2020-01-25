@@ -171,8 +171,8 @@ mod tests {
             FromValue,
             ToValue,
             ProcessValue,
-            SchemaValidated,
-            PiiStrippable,
+            SchemaAttributes,
+            PiiAttributes,
         )]
         struct Foo<T> {
             #[required]

@@ -2,7 +2,7 @@ use crate::protocol::{AsPair, LenientString, PairList};
 use crate::types::{Annotated, Array, FromValue, Value};
 
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
 )]
 pub struct TagEntry(
     #[metastructure(max_chars = "tag_key")]
@@ -56,8 +56,8 @@ impl FromValue for TagEntry {
     FromValue,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 pub struct Tags(pub PairList<TagEntry>);
 

@@ -20,7 +20,7 @@ use crate::types::{
 
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(
-    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, PiiStrippable, SchemaValidated,
+    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, PiiAttributes, SchemaAttributes,
 )]
 pub struct EventId(pub uuid::Uuid);
 
@@ -71,8 +71,8 @@ impl_str_serde!(EventId);
     PartialOrd,
     Deserialize,
     Serialize,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum EventType {
@@ -170,7 +170,15 @@ impl ToValue for EventType {
 impl ProcessValue for EventType {}
 
 #[derive(
-    Debug, FromValue, ToValue, ProcessValue, PiiStrippable, SchemaValidated, Empty, Clone, PartialEq,
+    Debug,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiAttributes,
+    SchemaAttributes,
+    Empty,
+    Clone,
+    PartialEq,
 )]
 pub struct ExtraValue(#[metastructure(bag_size = "larger")] pub Value);
 
@@ -190,8 +198,8 @@ impl<T: Into<Value>> From<T> for ExtraValue {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct EventProcessingError {
     #[rename = "type"]
@@ -224,8 +232,8 @@ pub struct EventProcessingError {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct GroupingConfig {
     /// The id of the grouping config.
@@ -245,8 +253,8 @@ pub struct GroupingConfig {
     FromValue,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 #[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {

@@ -6,7 +6,7 @@ use crate::types::{Annotated, Error, FromValue, Meta, Object, Value};
 /// A log message is similar to the `message` attribute on the event itself but
 /// can additionally hold optional parameters.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, SchemaValidated, PiiStrippable,
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, SchemaAttributes, PiiAttributes,
 )]
 #[metastructure(process_func = "process_logentry", value_type = "LogEntry")]
 pub struct LogEntry {

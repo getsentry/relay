@@ -11,8 +11,8 @@ use crate::types::{Annotated, Object, Value};
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 #[metastructure(process_func = "process_geo")]
 pub struct Geo {
@@ -46,8 +46,8 @@ pub struct Geo {
     FromValue,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 #[metastructure(process_func = "process_user", value_type = "User")]
 pub struct User {

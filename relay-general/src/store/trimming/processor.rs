@@ -757,26 +757,26 @@ fn test_extra_trimming_long_arrays() {
 #[test]
 fn test_newtypes_do_not_add_to_depth() {
     #[derive(
-        Debug, Clone, FromValue, ToValue, ProcessValue, PiiStrippable, Empty, SchemaValidated,
+        Debug, Clone, FromValue, ToValue, ProcessValue, PiiAttributes, Empty, SchemaAttributes,
     )]
     struct WrappedString(String);
 
     #[derive(
-        Debug, Clone, FromValue, ToValue, ProcessValue, PiiStrippable, Empty, SchemaValidated,
+        Debug, Clone, FromValue, ToValue, ProcessValue, PiiAttributes, Empty, SchemaAttributes,
     )]
     struct StructChild2 {
         inner: Annotated<WrappedString>,
     }
 
     #[derive(
-        Debug, Clone, FromValue, ToValue, ProcessValue, PiiStrippable, Empty, SchemaValidated,
+        Debug, Clone, FromValue, ToValue, ProcessValue, PiiAttributes, Empty, SchemaAttributes,
     )]
     struct StructChild {
         inner: Annotated<StructChild2>,
     }
 
     #[derive(
-        Debug, Clone, FromValue, ToValue, ProcessValue, SchemaValidated, PiiStrippable, Empty,
+        Debug, Clone, FromValue, ToValue, ProcessValue, SchemaAttributes, PiiAttributes, Empty,
     )]
     struct Struct {
         #[metastructure(bag_size = "small")]

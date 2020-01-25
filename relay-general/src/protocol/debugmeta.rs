@@ -20,8 +20,8 @@ use crate::types::{
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct SystemSdkInfo {
     /// The internal name of the SDK.
@@ -51,8 +51,8 @@ pub struct SystemSdkInfo {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct AppleDebugImage {
     /// Path and name of the debug image (required).
@@ -153,8 +153,8 @@ impl_traits!(DebugId, "a debug identifier");
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct NativeDebugImage {
     /// Optional identifier of the code file.
@@ -204,8 +204,8 @@ pub struct NativeDebugImage {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct ProguardDebugImage {
     /// UUID computed from the file contents.
@@ -219,7 +219,15 @@ pub struct ProguardDebugImage {
 
 /// A debug information file (debug image).
 #[derive(
-    Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+    Clone,
+    Debug,
+    PartialEq,
+    Empty,
+    FromValue,
+    ToValue,
+    ProcessValue,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 #[metastructure(process_func = "process_debug_image")]
 pub enum DebugImage {
@@ -252,8 +260,8 @@ pub enum DebugImage {
     FromValue,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 #[metastructure(process_func = "process_debug_meta")]
 pub struct DebugMeta {

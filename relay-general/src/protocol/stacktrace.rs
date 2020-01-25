@@ -13,8 +13,8 @@ use crate::types::{Annotated, Array, FromValue, Object, Value};
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 #[metastructure(process_func = "process_frame", value_type = "Frame")]
 pub struct Frame {
@@ -132,7 +132,7 @@ pub struct Frame {
 
 /// Frame local variables.
 #[derive(
-    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiStrippable, SchemaValidated,
+    Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, PiiAttributes, SchemaAttributes,
 )]
 pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<Value>);
 
@@ -146,8 +146,8 @@ pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<V
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 pub struct FrameData {
     /// A reference to the sourcemap used.
@@ -213,8 +213,8 @@ impl FromValue for FrameVars {
     FromValue,
     ToValue,
     ProcessValue,
-    PiiStrippable,
-    SchemaValidated,
+    PiiAttributes,
+    SchemaAttributes,
 )]
 #[metastructure(process_func = "process_raw_stacktrace", value_type = "Stacktrace")]
 pub struct RawStacktrace {
@@ -245,8 +245,8 @@ pub struct RawStacktrace {
     FromValue,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace(pub RawStacktrace);

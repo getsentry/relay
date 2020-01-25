@@ -10,8 +10,8 @@ use crate::types::{Annotated, Array, Object, Value};
     FromValue,
     ToValue,
     ProcessValue,
-    SchemaValidated,
-    PiiStrippable,
+    SchemaAttributes,
+    PiiAttributes,
 )]
 #[metastructure(process_func = "process_template_info")]
 pub struct TemplateInfo {
