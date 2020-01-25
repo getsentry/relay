@@ -727,12 +727,17 @@ fn parse_field_name_from_field_attributes(
     };
 
     for attr in &bi_ast.attrs {
-        let meta = match attr.interpret_meta() {
-            Some(meta) => meta,
+        let meta = match attr.parse_meta() {
+            Ok(meta) => meta,
+            Err(_) => continue,
+        };
+
+        let ident = match meta.path().get_ident() {
+            Some(x) => x,
             None => continue,
         };
 
-        if meta.name() != "rename" {
+        if ident != "rename" {
             continue;
         }
 

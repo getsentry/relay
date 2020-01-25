@@ -46,12 +46,17 @@ fn parse_attributes(bi_ast: &syn::Field) -> Attrs {
     let mut rv = Attrs::default();
 
     for attr in &bi_ast.attrs {
-        let meta = match attr.interpret_meta() {
-            Some(meta) => meta,
+        let meta = match attr.parse_meta() {
+            Ok(meta) => meta,
+            Err(_) => continue,
+        };
+
+        let ident = match meta.path().get_ident() {
+            Some(x) => x,
             None => continue,
         };
 
-        match &meta.name().to_string()[..] {
+        match ident.to_string().as_str() {
             "max_chars" | "bag_size" | "bag_size_inner" => {}
             _ => continue,
         }
@@ -66,7 +71,7 @@ fn parse_attributes(bi_ast: &syn::Field) -> Attrs {
             _ => panic!("Invalid usage of derive(TrimmingAttributes), need string as value"),
         };
 
-        match &meta.name().to_string()[..] {
+        match ident.to_string().as_str() {
             "max_chars" => rv.max_chars = Some(parse_max_chars(&value)),
             "bag_size" => rv.bag_size = Some(parse_bag_size(&value)),
             "bag_size_inner" => rv.bag_size_inner = Some(parse_bag_size(&value)),

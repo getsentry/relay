@@ -7,12 +7,17 @@ use crate::{is_newtype, parse_field_name_from_field_attributes};
 
 fn parse_attributes(bi_ast: &syn::Field) -> Option<bool> {
     for attr in &bi_ast.attrs {
-        let meta = match attr.interpret_meta() {
-            Some(meta) => meta,
+        let meta = match attr.parse_meta() {
+            Ok(meta) => meta,
+            Err(_) => continue,
+        };
+
+        let ident = match meta.path().get_ident() {
+            Some(x) => x,
             None => continue,
         };
 
-        if meta.name() != "should_strip_pii" {
+        if ident != "should_strip_pii" {
             continue;
         }
 

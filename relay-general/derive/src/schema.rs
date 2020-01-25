@@ -17,12 +17,17 @@ fn parse_attributes(bi_ast: &syn::Field) -> Attrs {
     let mut rv = Attrs::default();
 
     for attr in &bi_ast.attrs {
-        let meta = match attr.interpret_meta() {
-            Some(meta) => meta,
+        let meta = match attr.parse_meta() {
+            Ok(meta) => meta,
+            Err(_) => continue,
+        };
+
+        let ident = match meta.path().get_ident() {
+            Some(x) => x,
             None => continue,
         };
 
-        match &meta.name().to_string()[..] {
+        match ident.to_string().as_str() {
             "required" => rv.required = true,
             "nonempty" => rv.nonempty = true,
             "trim_whitespace" => rv.trim_whitespace = true,
