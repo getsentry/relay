@@ -34,7 +34,7 @@
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
       <link rel="shortcut icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.5.0">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.6.0">
     
     
       
@@ -52,7 +52,7 @@
     
       
         <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono&display=fallback">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
         <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
       
     
@@ -149,7 +149,7 @@
 
   
 
-<a href="https://github.com/getsentry/semaphore/" title="Go to repository" class="md-source" data-md-source="github">
+<a href="https://github.com/getsentry/relay/" title="Go to repository" class="md-source" data-md-source="github">
   
     <div class="md-source__icon">
       <svg viewBox="0 0 24 24" width="24" height="24">
@@ -196,7 +196,7 @@
 
   
 
-<a href="https://github.com/getsentry/semaphore/" title="Go to repository" class="md-source" data-md-source="github">
+<a href="https://github.com/getsentry/relay/" title="Go to repository" class="md-source" data-md-source="github">
   
     <div class="md-source__icon">
       <svg viewBox="0 0 24 24" width="24" height="24">
@@ -253,15 +253,27 @@
       
 
 
+  <li class="md-nav__item">
+    <a href="../../metrics/" title="Metrics" class="md-nav__link">
+      Metrics
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
     
-    <label class="md-nav__link" for="nav-4">
+    <label class="md-nav__link" for="nav-5">
       PII and datascrubbing
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-4">
+      <label class="md-nav__title" for="nav-5">
         PII and datascrubbing
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -317,13 +329,13 @@
 
   <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6" checked>
     
-    <label class="md-nav__link" for="nav-5">
+    <label class="md-nav__link" for="nav-6">
       Architecture
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-5">
+      <label class="md-nav__title" for="nav-6">
         Architecture
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -881,11 +893,11 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/getsentry/semaphore/edit/master/docs/architecture/actors.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/getsentry/relay/edit/master/docs/architecture/actors.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
                 <h1 id="actors">Actors</h1>
-<p>This document describes how Semaphore works through the perspective of the system actors and the messages exchanged by them.</p>
+<p>This document describes how Relay works through the perspective of the system actors and the messages exchanged by them.</p>
 <p><strong>TODO</strong> Short description about infrastructure (i.e. actix-web, actix, tokio, futures), note that we are using the old style Future trait, and actix 0.7.x .</p>
 <h2 id="controllerrs">controller.rs</h2>
 <h2 id="eventsrs">events.rs</h2>
@@ -896,7 +908,7 @@
 <li><code>EventProcessor</code> : an CPU bound actor that receives all necessary project configuration and does the heavy lifting of processing the message (normalisation, PII stripping ...). There are multiple <code>EventProcessor</code> actors running in a thread pool.</li>
 </ul>
 <h3 id="eventmanager">EventManager</h3>
-<p>The <code>EventManager</code> is an actor running in the main system arbiter. The system arbiter is a asynchronous arbiter  created when the Semaphore starts. The upshot of this is that all processing done by the event manager should be extremly quick. It is ok to wait on I/O but no significant processing may be done in the <code>EventManager</code>.</p>
+<p>The <code>EventManager</code> is an actor running in the main system arbiter. The system arbiter is a asynchronous arbiter created when Relay starts. The upshot of this is that all processing done by the event manager should be extremly quick. It is ok to wait on I/O but no significant processing may be done in the <code>EventManager</code>.</p>
 <p>Once the <code>EventManager</code> had obtained the project state and had decided that the event should be processed the <code>EventManager</code> passes the event to the <code>EventProcessor</code> actors.</p>
 <p><strong>TODO</strong> document all handlers</p>
 <h3 id="eventprocessor">EventProcessor</h3>
@@ -912,18 +924,18 @@
 <h2 id="storers">store.rs</h2>
 <h2 id="upstreamrs">upstream.rs</h2>
 <h2 id="projectrs">project.rs</h2>
-<p>The <code>project.rs</code> module contains functionality related to the project state. Sentry events belong to projects and projects belong to organizations (Semaphore doesn't care at the moment about organizations).</p>
+<p>The <code>project.rs</code> module contains functionality related to the project state. Sentry events belong to projects and projects belong to organizations (Relay doesn't care at the moment about organizations).</p>
 <p>Projects serve to group the events (so that each Sentry customer can only see and deal with his/hers own events) and prescribe how messages are to be processed ( what should be filtered, which data inside the event should be anonymised (i.e PPI stripping), etc).</p>
 <p>All activities around obtaining, caching and refreshing the project state is handled in this module.</p>
 <p>The module contains two actors:</p>
 <ul>
 <li><code>Project</code>: an actor that holds project data</li>
-<li><code>ProjectCache</code>: an actor that holds references to <code>Project</code> actors. </li>
+<li><code>ProjectCache</code>: an actor that holds references to <code>Project</code> actors.</li>
 </ul>
 <p>From a high level perspective one obtains a <code>Project</code> from the <code>ProjectCache</code> and then uses the <code>Project</code> in order to get 'project specific' information.</p>
 <h3 id="project">Project</h3>
 <p>The <code>Project</code> actor is responsible with decisions about how an event for a particular project should be handled. The project runs in an async arbiter ( I think it actully runs in the SystemArbiter <strong>TODO</strong> check ir that is true, or if it runs in another async arbiter).</p>
-<p>The system constructs an actor for each project used. </p>
+<p>The system constructs an actor for each project used.</p>
 <p>The <code>Project</code> actor runs in an async context.</p>
 <p>The <code>Project</code> actor responds to the following message types:</p>
 <h4 id="getprojectid">GetProjectId</h4>
@@ -933,17 +945,17 @@
 <h5 id="pseudo-code">Pseudo Code</h5>
 <div class="codehilite"><pre><span></span><span class="k">if</span> <span class="s1">&#39;we have an up-to-date project state&#39;</span>
     <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">project_state</span>
-<span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="p">:</span> <span class="c1"># we don&#39;t have an already active request for the project state </span>
+<span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="p">:</span> <span class="c1"># we don&#39;t have an already active request for the project state</span>
     <span class="n">channel</span><span class="p">,</span> <span class="n">receiver</span> <span class="o">=</span> <span class="s1">&#39;create a channel and save its receiver&#39;</span>
-    <span class="n">async</span><span class="p">:</span> <span class="c1"># ops that run at some time in the future</span>
-        <span class="n">project_state</span> <span class="o">=</span> <span class="n">await</span> <span class="n">ProjectCache</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">FetchProjectState</span><span class="p">)</span>
+    <span class="k">async</span><span class="p">:</span> <span class="c1"># ops that run at some time in the future</span>
+        <span class="n">project_state</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ProjectCache</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">FetchProjectState</span><span class="p">)</span>
         <span class="n">channel</span><span class="o">.</span><span class="n">sender</span><span class="o">.</span><span class="n">push</span><span class="p">(</span><span class="n">project_state</span><span class="p">)</span> <span class="c1"># put the state on the channel when available</span>
-        <span class="n">channel</span> <span class="o">=</span> <span class="bp">None</span> <span class="c1"># clenaup after we have pushed the ProjectState</span>
+        <span class="n">channel</span> <span class="o">=</span> <span class="kc">None</span> <span class="c1"># clenaup after we have pushed the ProjectState</span>
 <span class="k">return</span> <span class="n">future</span><span class="p">(</span><span class="n">receiver</span><span class="p">)</span> <span class="c1"># a Future that resolves with the ProjectState when available</span>
 </pre></div>
 
 <h4 id="geteventaction">GetEventAction</h4>
-<p>The handler answers the question: How should an event be handled? </p>
+<p>The handler answers the question: How should an event be handled?</p>
 <p>An event may be handled in one of three ways specified by the <code>EventAction</code> enum.</p>
 <div class="codehilite"><pre><span></span><span class="k">pub</span><span class="w"> </span><span class="k">enum</span> <span class="nc">EventAction</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">    </span><span class="sd">/// The event should be discarded.</span>
@@ -960,11 +972,11 @@
   <span class="k">return</span> <span class="n">RetryAfter</span> <span class="c1"># the event is discarded without further processing</span>
 <span class="k">if</span> <span class="s1">&#39;we have a recent project state&#39;</span>
   <span class="c1"># Ask the ProjectState what to do with the msg</span>
-  <span class="k">return</span> <span class="n">projectState</span><span class="o">.</span><span class="n">get_event_action</span><span class="p">(</span><span class="n">event</span><span class="p">)</span> 
+  <span class="k">return</span> <span class="n">projectState</span><span class="o">.</span><span class="n">get_event_action</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
 <span class="c1"># No recent ProjectState, fetch it from the ProjectCache actor</span>
-<span class="n">async</span><span class="p">:</span> <span class="c1"># ops that run at soem time in the future</span>
-    <span class="n">projectState</span> <span class="o">=</span> <span class="n">await</span> <span class="n">ProjectCache</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">FetchProjectState</span><span class="p">)</span>
-<span class="c1"># return a future that will resolve when the project state becomes avaialble  </span>
+<span class="k">async</span><span class="p">:</span> <span class="c1"># ops that run at soem time in the future</span>
+    <span class="n">projectState</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ProjectCache</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">FetchProjectState</span><span class="p">)</span>
+<span class="c1"># return a future that will resolve when the project state becomes avaialble</span>
 <span class="k">return</span> <span class="n">future</span><span class="p">(</span><span class="n">projectState</span><span class="o">.</span><span class="n">get_event_action</span><span class="p">(</span><span class="n">event</span><span class="p">))</span>
 </pre></div>
 
@@ -990,14 +1002,14 @@
   <span class="n">project</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
   <span class="bp">self</span><span class="o">.</span><span class="n">project_cache</span><span class="p">[</span><span class="n">project_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">project</span>
 
-<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">project_cache</span><span class="p">[</span><span class="n">porject_id</span><span class="p">]</span> 
+<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">project_cache</span><span class="p">[</span><span class="n">porject_id</span><span class="p">]</span>
 </pre></div>
 
 <h4 id="fetchprojectstate">FetchProjectState</h4>
 <p>Registers the intention of a project to retrieve the project state.</p>
-<p>The <code>FetchProjectState</code> functionality logicaly belongs to the <code>Project</code> actor but it is handled by the <code>ProjectCache</code> in order to batch requests for the project state from multiple <code>Project</code> actors. </p>
-<p>A <code>Project</code> registers its desire to obtain its project state with the <code>ProjectCache</code> by sending the <code>FetchProjectState</code> and the <code>ProjectCache</code> batches all requests during a batching period and emits one request to the upstream (another semaphore or the Sentry server) for all required project states.</p>
-<p>The handler checks if there is already a scheduled time for fetching project states and, if not, it schedules a delayed function that will do the actual fetching for all projects that registered their desire for getting the project state (see function: <code>ProjectCache::fetch_states</code>). </p>
+<p>The <code>FetchProjectState</code> functionality logicaly belongs to the <code>Project</code> actor but it is handled by the <code>ProjectCache</code> in order to batch requests for the project state from multiple <code>Project</code> actors.</p>
+<p>A <code>Project</code> registers its desire to obtain its project state with the <code>ProjectCache</code> by sending the <code>FetchProjectState</code> and the <code>ProjectCache</code> batches all requests during a batching period and emits one request to the upstream (another Relay or the Sentry server) for all required project states.</p>
+<p>The handler checks if there is already a scheduled time for fetching project states and, if not, it schedules a delayed function that will do the actual fetching for all projects that registered their desire for getting the project state (see function: <code>ProjectCache::fetch_states</code>).</p>
 <p><strong>TODO: Add pseudo code </strong></p>
 <h4 id="updatelocalstates">UpdateLocalStates</h4>
 <p>Updates project states for project states comming from a local file configuration.(TODO check if that is correct  RaduW.  10.Oct.2019)</p>
@@ -1050,23 +1062,24 @@ Cache--&gt;|UpdateLocalStates|Cache</div>
 </pre></div>
 
 <p><strong>Server bootstrap</strong></p>
-<div class="codehilite"><pre><span></span><span class="n">main</span><span class="p">.</span><span class="n">main</span><span class="o">-&gt;</span><span class="n">cli</span><span class="p">.</span><span class="k">execute</span><span class="p">:</span>
-<span class="n">cli</span><span class="p">.</span><span class="k">execute</span><span class="o">-&gt;</span><span class="n">cli</span><span class="p">.</span><span class="k">execute</span><span class="p">:</span><span class="n">make_app</span>
-<span class="n">cli</span><span class="p">.</span><span class="k">execute</span><span class="o">-&gt;</span><span class="n">server</span><span class="p">.</span><span class="n">lib</span><span class="p">.</span><span class="n">run</span><span class="p">:</span> 
-<span class="n">server</span><span class="p">.</span><span class="n">lib</span><span class="p">.</span><span class="n">run</span><span class="o">-&gt;</span><span class="n">Controller</span><span class="p">:</span> <span class="n">run</span>
-<span class="n">Controller</span><span class="o">-&gt;</span><span class="n">server</span><span class="p">.</span><span class="n">actors</span><span class="p">.</span><span class="n">Server</span><span class="p">:</span> <span class="k">start</span>
-<span class="n">server</span><span class="p">.</span><span class="n">actors</span><span class="p">.</span><span class="n">Server</span><span class="o">-&gt;</span><span class="n">server</span><span class="p">.</span><span class="n">service</span><span class="p">:</span><span class="k">start</span>
-<span class="n">server</span><span class="p">.</span><span class="n">service</span><span class="o">-&gt;</span><span class="n">ServiceState</span><span class="p">:</span> <span class="k">start</span>
+<div class="codehilite"><pre><span></span><span class="err">main.main-&gt;cli.execute:</span>
+<span class="err">cli.execute-&gt;cli.execute:make_app</span>
+<span class="err">cli.execute-&gt;server.lib.run:</span>
+<span class="err">server.lib.run-&gt;Controller: run</span>
+<span class="err">Controller-&gt;server.actors.Server: start</span>
+<span class="err">server.actors.Server-&gt;server.service:start</span>
+<span class="err">server.service-&gt;ServiceState: start</span>
 </pre></div>
 
 <p><strong>ServiceState start</strong></p>
-<div class="codehilite"><pre><span></span><span class="n">ServiceState</span><span class="o">-&gt;</span><span class="n">UpstreamRelay</span><span class="p">:</span><span class="k">start</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
-<span class="n">ServiceState</span><span class="o">-&gt;</span><span class="n">EventManager</span><span class="p">:</span><span class="k">start</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">upstream_realy</span><span class="p">)</span>
-<span class="n">ServiceState</span><span class="o">-&gt;</span><span class="n">KeyCache</span><span class="p">:</span><span class="k">start</span><span class="p">(</span><span class="n">config</span><span class="p">,</span><span class="n">upstream_relay</span><span class="p">)</span>
-<span class="n">ServiceState</span><span class="o">-&gt;</span><span class="n">ProjectCache</span><span class="p">:</span><span class="k">start</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">upstream_relay</span><span class="p">)</span>
+<div class="codehilite"><pre><span></span><span class="err">ServiceState-&gt;UpstreamRelay:start(config)</span>
+<span class="err">ServiceState-&gt;EventManager:start(config, upstream_realy)</span>
+<span class="err">ServiceState-&gt;KeyCache:start(config,upstream_relay)</span>
+<span class="err">ServiceState-&gt;ProjectCache:start(config, upstream_relay)</span>
 </pre></div>
                 
                   
+                
                 
               
               
@@ -1134,7 +1147,7 @@ Cache--&gt;|UpdateLocalStates|Cache</div>
       
     </div>
     
-      <script src="../../assets/javascripts/application.a8b5e56f.js"></script>
+      <script src="../../assets/javascripts/application.808e90bb.js"></script>
       
       <script>app.initialize({version:"1.0.4",url:{base:"../.."}})</script>
       

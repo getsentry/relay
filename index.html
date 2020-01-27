@@ -34,7 +34,7 @@
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
       <link rel="shortcut icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.5.0">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.6.0">
     
     
       
@@ -52,7 +52,7 @@
     
       
         <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono&display=fallback">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
         <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
       
     
@@ -149,7 +149,7 @@
 
   
 
-<a href="https://github.com/getsentry/semaphore/" title="Go to repository" class="md-source" data-md-source="github">
+<a href="https://github.com/getsentry/relay/" title="Go to repository" class="md-source" data-md-source="github">
   
     <div class="md-source__icon">
       <svg viewBox="0 0 24 24" width="24" height="24">
@@ -196,7 +196,7 @@
 
   
 
-<a href="https://github.com/getsentry/semaphore/" title="Go to repository" class="md-source" data-md-source="github">
+<a href="https://github.com/getsentry/relay/" title="Go to repository" class="md-source" data-md-source="github">
   
     <div class="md-source__icon">
       <svg viewBox="0 0 24 24" width="24" height="24">
@@ -312,15 +312,27 @@
       
 
 
+  <li class="md-nav__item">
+    <a href="metrics/" title="Metrics" class="md-nav__link">
+      Metrics
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
     
-    <label class="md-nav__link" for="nav-4">
+    <label class="md-nav__link" for="nav-5">
       PII and datascrubbing
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-4">
+      <label class="md-nav__title" for="nav-5">
         PII and datascrubbing
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -374,13 +386,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
     
-    <label class="md-nav__link" for="nav-5">
+    <label class="md-nav__link" for="nav-6">
       Architecture
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-5">
+      <label class="md-nav__title" for="nav-6">
         Architecture
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -491,20 +503,20 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/getsentry/semaphore/edit/master/docs/index.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/getsentry/relay/edit/master/docs/index.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
                 <h1 id="introduction">Introduction</h1>
-<p>The Sentry Relay (aka Semaphore) is a work in progress service that pushes some
-functionality from the Sentry SDKs as well as the Sentry server into a proxy process.</p>
+<p>The Sentry Relay is a work in progress service that pushes some functionality
+from the Sentry SDKs as well as the Sentry server into a proxy process.</p>
 <h2 id="getting-started">Getting started</h2>
-<p>The relay server is called "semaphore".  Binaries can be downloaded from the
-<a href="https://github.com/getsentry/semaphore/releases">GitHub releases page</a>.  After
+<p>The Relay server is called <code>relay</code>.  Binaries can be downloaded from the
+<a href="https://github.com/getsentry/relay/releases">GitHub releases page</a>.  After
 downloading place the binary somewhere on your <code>PATH</code> and make it executable.</p>
 <p>The <code>config init</code> command is provided to initialize the initial config.  The
-config will be created the folder it's run from in a hidden <code>.semaphore</code>
+config will be created the folder it's run from in a hidden <code>.relay</code>
 subdirectory:</p>
-<div class="codehilite"><pre><span></span>$ semaphore config init
+<div class="codehilite"><pre><span></span>$ relay config init
 </pre></div>
 
 
@@ -518,14 +530,14 @@ subdirectory:</p>
 <li>Lastly the relay will ask it should run authenticated with credentials or
    not.  Currently we do not yet support authenticated mode against sentry.io.</li>
 </ol>
-<p>You now have a folder named <code>.semaphore</code> in your current working directory. To
+<p>You now have a folder named <code>.relay</code> in your current working directory. To
 launch the server, run:</p>
-<div class="codehilite"><pre><span></span><span class="n">semaphore</span> <span class="n">run</span>
+<div class="codehilite"><pre><span></span><span class="err">relay run</span>
 </pre></div>
 
 
 <p>If you moved your config folder somewhere else, you can use the <code>-c</code> option:</p>
-<div class="codehilite"><pre><span></span><span class="n">semaphore</span> <span class="n">run</span> <span class="o">-</span><span class="k">c</span> <span class="p">.</span><span class="o">/</span><span class="n">my</span><span class="o">/</span><span class="n">custom</span><span class="o">/</span><span class="n">semaphore_folder</span><span class="o">/</span>
+<div class="codehilite"><pre><span></span><span class="err">relay run -c ./my/custom/relay_folder/</span>
 </pre></div>
 
 
@@ -535,7 +547,7 @@ credentials), and as such calls the same exact endpoints on Sentry that an SDK
 would.  That also means you have to configure each project individually in
 Relay.</p>
 <p>Create a new file in the form <code>project_id.json</code>:</p>
-<div class="codehilite"><pre><span></span><span class="na">.semaphore</span><span class="err">/</span><span class="no">projects</span><span class="err">/</span><span class="no">___PROJECT_ID___.json</span>
+<div class="codehilite"><pre><span></span><span class="na">.relay</span><span class="err">/</span><span class="no">projects</span><span class="err">/</span><span class="no">___PROJECT_ID___.json</span>
 </pre></div>
 
 <p>With the following content:</p>
@@ -556,14 +568,14 @@ Relay.</p>
 <p>The relay has to know all public keys (i.e. the secret part of the DSN) that
 will send events to it.  DSNs unknown for this project will be rejected.</p>
 <h2 id="sending-a-test-event">Sending a Test Event</h2>
-<p>Launch the server with <code>semaphore run</code>, and set up any SDK with the following DSN:</p>
+<p>Launch the server with <code>relay run</code>, and set up any SDK with the following DSN:</p>
 <div class="codehilite"><pre><span></span><span class="nl">http</span><span class="p">:</span><span class="c1">//___PUBLIC_KEY___@127.0.0.1:3000/___PROJECT_ID___</span>
 </pre></div>
 
 <p>As you can see we only changed the host and port of the DSN to point to your
 Relay setup. You should be able to use the SDK normally at this point. Events
 arrive at the Sentry instance that Relay is configured to use in
-<code>.semaphore/config.yml</code>.</p>
+<code>.relay/config.yml</code>.</p>
 <h2 id="pii-stripping">PII Stripping</h2>
 <p>Now let's get to the entire point of this proxy setup: Stripping sensitive
 data.</p>
@@ -574,7 +586,7 @@ data.</p>
 <li>Paste in other payloads and see if they look fine, go to step <strong>2</strong> if necessary.</li>
 </ol>
 <p>After iterating on the config, paste it back into the project config you created earlier:</p>
-<div class="codehilite"><pre><span></span><span class="na">.semaphore</span><span class="err">/</span><span class="no">projects</span><span class="err">/</span><span class="no">___PROJECT_ID___.json</span>
+<div class="codehilite"><pre><span></span><span class="na">.relay</span><span class="err">/</span><span class="no">projects</span><span class="err">/</span><span class="no">___PROJECT_ID___.json</span>
 </pre></div>
 
 <p>For example:</p>
@@ -606,6 +618,7 @@ data.</p>
 </pre></div>
                 
                   
+                
                 
               
               
@@ -659,7 +672,7 @@ data.</p>
       
     </div>
     
-      <script src="assets/javascripts/application.a8b5e56f.js"></script>
+      <script src="assets/javascripts/application.808e90bb.js"></script>
       
       <script>app.initialize({version:"1.0.4",url:{base:"."}})</script>
       
