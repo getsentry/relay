@@ -171,3 +171,12 @@ ffi_fn! {
         Ok(glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options))
     }
 }
+
+ffi_fn! {
+    unsafe fn relay_parse_release(
+        value: *const RelayStr
+    ) -> Result<RelayStr> {
+        let release = sentry_release_parser::Release::parse((*value).as_str())?;
+        Ok(RelayStr::from_string(serde_json::to_string(&release).unwrap()))
+    }
+}

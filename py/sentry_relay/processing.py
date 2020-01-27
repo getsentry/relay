@@ -19,6 +19,7 @@ __all__ = [
     "GeoIpLookup",
     "scrub_event",
     "is_glob_match",
+    "parse_release",
     "VALID_PLATFORMS",
 ]
 
@@ -167,3 +168,9 @@ def is_glob_match(
     if isinstance(value, text_type):
         value = value.encode("utf-8")
     return rustcall(lib.relay_is_glob_match, make_buf(value), encode_str(pat), flags)
+
+
+def parse_release(release):
+    return json.loads(
+        decode_str(rustcall(lib.relay_parse_release, encode_str(release)))
+    )
