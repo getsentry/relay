@@ -38,7 +38,7 @@ In your application, point to the Relay include directory and specify the
 `relay` library:
 
 ```bash
-$(CC) -Irelay/cabi/include -Lrelay/cabi/target/release -lrelay -o myprogram main.c
+$(CC) -Irelay-cabi/include -Lrelay-cabi/target/release -lrelay -o myprogram main.c
 ```
 
 ## Development
