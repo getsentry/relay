@@ -1,6 +1,6 @@
 [package]
 name = "relay-general"
-version = "0.4.65"
+version = "0.5.0"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
