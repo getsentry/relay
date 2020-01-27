@@ -2,9 +2,9 @@ use actix::prelude::*;
 use actix_web::{Error, Json};
 use futures::{future, Future};
 
-use crate::actors::project::{
-    GetProject, GetProjectState, GetProjectStates, GetProjectStatesResponse,
-};
+use crate::actors::project_cache::{GetProject, GetProjectStates, GetProjectStatesResponse};
+
+use crate::actors::project::GetProjectState;
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
 use crate::utils::ErrorBoundary;

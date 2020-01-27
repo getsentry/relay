@@ -22,9 +22,10 @@ use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
-    EventAction, GetEventAction, GetProjectState, Project, ProjectError, ProjectState, RateLimit,
-    RateLimitScope, RetryAfter,
+    EventAction, GetEventAction, GetProjectState, Project, ProjectState, RateLimit, RateLimitScope,
+    RetryAfter,
 };
+use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};

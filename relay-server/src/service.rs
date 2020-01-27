@@ -16,7 +16,7 @@ use crate::actors::events::EventManager;
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::keys::KeyCache;
 use crate::actors::outcome::OutcomeProducer;
-use crate::actors::project::ProjectCache;
+use crate::actors::project_cache::ProjectCache;
 use crate::actors::project_keys::ProjectKeyLookup;
 use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
