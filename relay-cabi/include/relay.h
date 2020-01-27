@@ -188,6 +188,8 @@ bool relay_is_glob_match(const RelayBuf *value,
                          const RelayStr *pat,
                          GlobFlags flags);
 
+RelayStr relay_parse_release(const RelayStr *value);
+
 /**
  * Frees a public key.
  */
