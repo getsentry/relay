@@ -12,28 +12,6 @@ use relay_general::types::ProcessingAction;
 
 use crate::utils::{set_panic_hook, Panic, LAST_ERROR};
 
-/// Represents a uuid.
-#[repr(C)]
-pub struct RelayUuid {
-    pub data: [u8; 16],
-}
-
-/// Represents a string.
-#[repr(C)]
-pub struct RelayStr {
-    pub data: *mut c_char,
-    pub len: usize,
-    pub owned: bool,
-}
-
-/// Represents a buffer.
-#[repr(C)]
-pub struct RelayBuf {
-    pub data: *mut u8,
-    pub len: usize,
-    pub owned: bool,
-}
-
 /// Represents all possible error codes
 #[repr(u32)]
 pub enum RelayErrorCode {
@@ -87,31 +65,21 @@ impl RelayErrorCode {
     }
 }
 
-// RelayStr is immutable, thus it can be Send + Sync
-
-unsafe impl Sync for RelayStr {}
-unsafe impl Send for RelayStr {}
-
-impl Default for RelayStr {
-    fn default() -> RelayStr {
-        RelayStr {
-            data: ptr::null_mut(),
-            len: 0,
-            owned: false,
-        }
-    }
-}
-
-impl From<String> for RelayStr {
-    fn from(string: String) -> RelayStr {
-        RelayStr::from_string(string)
-    }
-}
-
-impl<'a> From<&'a str> for RelayStr {
-    fn from(string: &str) -> RelayStr {
-        RelayStr::new(string)
-    }
+/// A length-prefixed UTF-8 string.
+///
+/// As opposed to C strings, this string is not null-terminated. If the string is owned, indicated
+/// by the `owned` flag, the owner must call the `free` function on this string. The convention is:
+///
+///  - When obtained as instance through return values, always free the string.
+///  - When obtained as pointer through field access, never free the string.
+#[repr(C)]
+pub struct RelayStr {
+    /// Pointer to the UTF-8 encoded string data.
+    pub data: *mut c_char,
+    /// The length of the string pointed to by `data`.
+    pub len: usize,
+    /// Indicates that the string is owned and must be freed.
+    pub owned: bool,
 }
 
 impl RelayStr {
@@ -143,24 +111,18 @@ impl RelayStr {
         }
     }
 
-    pub fn as_str(&self) -> &str {
-        unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.data as *const _, self.len)) }
+    pub unsafe fn as_str(&self) -> &str {
+        str::from_utf8_unchecked(slice::from_raw_parts(self.data as *const _, self.len))
     }
 }
 
-impl RelayUuid {
-    pub fn new(uuid: Uuid) -> RelayUuid {
-        unsafe { mem::transmute(*uuid.as_bytes()) }
-    }
+// RelayStr is immutable, thus it can be Send + Sync
+unsafe impl Sync for RelayStr {}
+unsafe impl Send for RelayStr {}
 
-    pub fn as_uuid(&self) -> &Uuid {
-        unsafe { &*(self as *const RelayUuid as *const Uuid) }
-    }
-}
-
-impl Default for RelayBuf {
-    fn default() -> RelayBuf {
-        RelayBuf {
+impl Default for RelayStr {
+    fn default() -> RelayStr {
+        RelayStr {
             data: ptr::null_mut(),
             len: 0,
             owned: false,
@@ -168,10 +130,57 @@ impl Default for RelayBuf {
     }
 }
 
+impl From<String> for RelayStr {
+    fn from(string: String) -> RelayStr {
+        RelayStr::from_string(string)
+    }
+}
+
+impl<'a> From<&'a str> for RelayStr {
+    fn from(string: &str) -> RelayStr {
+        RelayStr::new(string)
+    }
+}
+
+/// A 16-byte UUID.
+#[repr(C)]
+pub struct RelayUuid {
+    /// UUID bytes in network byte order (big endian).
+    pub data: [u8; 16],
+}
+
+impl RelayUuid {
+    pub fn new(uuid: Uuid) -> RelayUuid {
+        let data = *uuid.as_bytes();
+        Self { data }
+    }
+
+    pub unsafe fn as_uuid(&self) -> &Uuid {
+        &*(self as *const RelayUuid as *const Uuid)
+    }
+}
+
 impl From<Uuid> for RelayUuid {
     fn from(uuid: Uuid) -> RelayUuid {
         RelayUuid::new(uuid)
     }
+}
+
+/// A binary buffer of known length.
+///
+/// If the buffer is owned, indicated by the `owned` flag, the owner must call the `free` function
+/// on this buffer. The convention is:
+///
+///  - When obtained as instance through return values, always free the buffer.
+///  - When obtained as pointer through field access, never free the buffer.
+#[repr(C)]
+pub struct RelayBuf {
+    /// Pointer to the raw data.
+    pub data: *mut u8,
+    /// The length of the buffer pointed to by `data`.
+    pub len: usize,
+    /// Indicates that the buffer is owned and must be freed.
+    pub owned: bool,
 }
 
 impl RelayBuf {
@@ -203,8 +212,18 @@ impl RelayBuf {
         }
     }
 
-    pub fn as_bytes(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.data as *const u8, self.len) }
+    pub unsafe fn as_bytes(&self) -> &[u8] {
+        slice::from_raw_parts(self.data as *const u8, self.len)
+    }
+}
+
+impl Default for RelayBuf {
+    fn default() -> RelayBuf {
+        RelayBuf {
+            data: ptr::null_mut(),
+            len: 0,
+            owned: false,
+        }
     }
 }
 
@@ -277,17 +296,13 @@ pub unsafe extern "C" fn relay_err_clear() {
 }
 
 ffi_fn! {
-    /// Creates a Relay str from a c string.
-    ///
-    /// This sets the string to owned.  In case it's not owned you either have
-    /// to make sure you are not freeing the memory or you need to set the
-    /// owned flag to false.
+    /// Creates a Relay string from a c string.
     unsafe fn relay_str_from_cstr(s: *const c_char) -> Result<RelayStr> {
         let s = CStr::from_ptr(s).to_str()?;
         Ok(RelayStr {
             data: s.as_ptr() as *mut _,
             len: s.len(),
-            owned: true,
+            owned: false,
         })
     }
 }
@@ -314,7 +329,7 @@ pub unsafe extern "C" fn relay_buf_free(b: *mut RelayBuf) {
     }
 }
 
-/// Returns true if the uuid is nil
+/// Returns true if the uuid is nil.
 #[no_mangle]
 pub unsafe extern "C" fn relay_uuid_is_nil(uuid: *const RelayUuid) -> bool {
     if let Ok(uuid) = Uuid::from_slice(&(*uuid).data[..]) {
