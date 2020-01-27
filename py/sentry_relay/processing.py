@@ -34,7 +34,7 @@ def _init_valid_platforms():
 
     valid_platforms = []
     for i in range(int(size_out[0])):
-        valid_platforms.append(decode_str(strings[i]))
+        valid_platforms.append(decode_str(strings[i], free=True))
 
     VALID_PLATFORMS = frozenset(valid_platforms)
 
@@ -43,15 +43,10 @@ _init_valid_platforms()
 
 
 def split_chunks(string, remarks):
-    return json.loads(
-        decode_str(
-            rustcall(
-                lib.relay_split_chunks,
-                encode_str(string),
-                encode_str(json.dumps(remarks)),
-            )
-        )
+    json_chunks = rustcall(
+        lib.relay_split_chunks, encode_str(string), encode_str(json.dumps(remarks)),
     )
+    return json.loads(decode_str(json_chunks, free=True))
 
 
 def meta_with_chunks(data, meta):
@@ -113,7 +108,7 @@ class StoreNormalizer(RustObject):
 
         event = _encode_raw_event(raw_event)
         rv = self._methodcall(lib.relay_store_normalizer_normalize_event, event)
-        return json.loads(decode_str(rv))
+        return json.loads(decode_str(rv, free=True))
 
 
 def _serialize_event(event):
@@ -139,7 +134,7 @@ def scrub_event(config, data):
     event = _encode_raw_event(raw_event)
 
     rv = rustcall(lib.relay_scrub_event, encode_str(config), event)
-    return json.loads(decode_str(rv))
+    return json.loads(decode_str(rv, free=True))
 
 
 def is_glob_match(

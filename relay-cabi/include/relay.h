@@ -54,20 +54,50 @@ typedef struct RelaySecretKey RelaySecretKey;
 typedef struct RelayStoreNormalizer RelayStoreNormalizer;
 
 /**
- * Represents a buffer.
+ * A binary buffer of known length.
+ *
+ * If the buffer is owned, indicated by the `owned` flag, the owner must call the `free` function
+ * on this buffer. The convention is:
+ *
+ *  - When obtained as instance through return values, always free the buffer.
+ *  - When obtained as pointer through field access, never free the buffer.
  */
 typedef struct {
+  /**
+   * Pointer to the raw data.
+   */
   uint8_t *data;
+  /**
+   * The length of the buffer pointed to by `data`.
+   */
   uintptr_t len;
+  /**
+   * Indicates that the buffer is owned and must be freed.
+   */
   bool owned;
 } RelayBuf;
 
 /**
- * Represents a string.
+ * A length-prefixed UTF-8 string.
+ *
+ * As opposed to C strings, this string is not null-terminated. If the string is owned, indicated
+ * by the `owned` flag, the owner must call the `free` function on this string. The convention is:
+ *
+ *  - When obtained as instance through return values, always free the string.
+ *  - When obtained as pointer through field access, never free the string.
  */
 typedef struct {
+  /**
+   * Pointer to the UTF-8 encoded string data.
+   */
   char *data;
+  /**
+   * The length of the string pointed to by `data`.
+   */
   uintptr_t len;
+  /**
+   * Indicates that the string is owned and must be freed.
+   */
   bool owned;
 } RelayStr;
 
@@ -80,9 +110,12 @@ typedef struct {
 } RelayKeyPair;
 
 /**
- * Represents a uuid.
+ * A 16-byte UUID.
  */
 typedef struct {
+  /**
+   * UUID bytes in network byte order (big endian).
+   */
   uint8_t data[16];
 } RelayUuid;
 
@@ -226,11 +259,7 @@ RelayStr relay_store_normalizer_normalize_event(RelayStoreNormalizer *normalizer
 void relay_str_free(RelayStr *s);
 
 /**
- * Creates a Relay str from a c string.
- *
- * This sets the string to owned.  In case it's not owned you either have
- * to make sure you are not freeing the memory or you need to set the
- * owned flag to false.
+ * Creates a Relay string from a c string.
  */
 RelayStr relay_str_from_cstr(const char *s);
 
@@ -239,7 +268,7 @@ void relay_test_panic(void);
 bool relay_translate_legacy_python_json(RelayStr *event);
 
 /**
- * Returns true if the uuid is nil
+ * Returns true if the uuid is nil.
  */
 bool relay_uuid_is_nil(const RelayUuid *uuid);
 
