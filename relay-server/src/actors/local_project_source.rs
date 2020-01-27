@@ -13,23 +13,23 @@ use relay_common::{LogError, ProjectId};
 use relay_config::Config;
 
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{FetchOptionalProjectState, OptionalProjectStateResponse};
+use crate::actors::project_cache::FetchOptionalProjectState;
 
-pub struct ProjectLocalCache {
+pub struct LocalProjectSource {
     config: Arc<Config>,
     local_states: HashMap<ProjectId, Arc<ProjectState>>,
 }
 
-impl ProjectLocalCache {
+impl LocalProjectSource {
     pub fn new(config: Arc<Config>) -> Self {
-        ProjectLocalCache {
+        LocalProjectSource {
             config,
             local_states: HashMap::new(),
         }
     }
 }
 
-impl Actor for ProjectLocalCache {
+impl Actor for LocalProjectSource {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
@@ -49,17 +49,15 @@ impl Actor for ProjectLocalCache {
     }
 }
 
-impl Handler<FetchOptionalProjectState> for ProjectLocalCache {
-    type Result = Result<OptionalProjectStateResponse, ()>;
+impl Handler<FetchOptionalProjectState> for LocalProjectSource {
+    type Result = Option<Arc<ProjectState>>;
 
     fn handle(
         &mut self,
         message: FetchOptionalProjectState,
         _context: &mut Self::Context,
     ) -> Self::Result {
-        Ok(OptionalProjectStateResponse {
-            state: self.local_states.get(&message.id).cloned(),
-        })
+        self.local_states.get(&message.id).cloned()
     }
 }
 
@@ -71,7 +69,7 @@ impl Message for UpdateLocalStates {
     type Result = ();
 }
 
-impl Handler<UpdateLocalStates> for ProjectLocalCache {
+impl Handler<UpdateLocalStates> for LocalProjectSource {
     type Result = ();
 
     fn handle(&mut self, message: UpdateLocalStates, _context: &mut Context<Self>) -> Self::Result {
@@ -129,7 +127,7 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectId, Arc<
 }
 
 fn poll_local_states(
-    manager: Addr<ProjectLocalCache>,
+    manager: Addr<LocalProjectSource>,
     config: Arc<Config>,
 ) -> impl Future<Item = (), Error = ()> {
     let (sender, receiver) = oneshot::channel();

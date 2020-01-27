@@ -3,7 +3,7 @@ use actix_web::{Error, Json};
 use futures::{future, Future};
 
 use crate::actors::project_cache::GetProject;
-use crate::actors::project_upstream_cache::{GetProjectStates, GetProjectStatesResponse};
+use crate::actors::upstream_project_source::{GetProjectStates, GetProjectStatesResponse};
 
 use crate::actors::project::GetProjectState;
 use crate::extractors::{CurrentServiceState, SignedJson};

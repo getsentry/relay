@@ -6,10 +6,10 @@ use relay_common::{LogError, ProjectId};
 use relay_config::Config;
 
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{FetchOptionalProjectState, OptionalProjectStateResponse};
+use crate::actors::project_cache::FetchOptionalProjectState;
 use crate::utils::{RedisError, RedisPool};
 
-pub struct RedisProjectCache {
+pub struct RedisProjectSource {
     config: Arc<Config>,
     redis: RedisPool,
 }
@@ -35,9 +35,9 @@ impl From<serde_json::Error> for RedisProjectError {
     }
 }
 
-impl RedisProjectCache {
+impl RedisProjectSource {
     pub fn new(config: Arc<Config>, redis: RedisPool) -> Self {
-        RedisProjectCache { config, redis }
+        RedisProjectSource { config, redis }
     }
 
     fn get_config(&self, id: ProjectId) -> Result<Option<ProjectState>, RedisProjectError> {
@@ -68,7 +68,7 @@ impl RedisProjectCache {
     }
 }
 
-impl Actor for RedisProjectCache {
+impl Actor for RedisProjectSource {
     type Context = SyncContext<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
@@ -80,22 +80,20 @@ impl Actor for RedisProjectCache {
     }
 }
 
-impl Handler<FetchOptionalProjectState> for RedisProjectCache {
-    type Result = Result<OptionalProjectStateResponse, ()>;
+impl Handler<FetchOptionalProjectState> for RedisProjectSource {
+    type Result = Option<Arc<ProjectState>>;
 
     fn handle(
         &mut self,
         message: FetchOptionalProjectState,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        let state = match self.get_config(message.id) {
+        match self.get_config(message.id) {
             Ok(x) => x.map(Arc::new),
             Err(e) => {
                 log::error!("Failed to fetch project from Redis: {}", LogError(&e));
                 None
             }
-        };
-
-        Ok(OptionalProjectStateResponse { state })
+        }
     }
 }

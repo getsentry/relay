@@ -76,16 +76,16 @@ impl ProjectStateChannel {
     }
 }
 
-pub struct ProjectUpstreamCache {
+pub struct UpstreamProjectSource {
     backoff: RetryBackoff,
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     state_channels: HashMap<ProjectId, ProjectStateChannel>,
 }
 
-impl ProjectUpstreamCache {
+impl UpstreamProjectSource {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        ProjectUpstreamCache {
+        UpstreamProjectSource {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
             upstream,
@@ -241,7 +241,7 @@ impl ProjectUpstreamCache {
     }
 }
 
-impl Actor for ProjectUpstreamCache {
+impl Actor for UpstreamProjectSource {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
@@ -259,7 +259,7 @@ impl Actor for ProjectUpstreamCache {
     }
 }
 
-impl Handler<FetchProjectState> for ProjectUpstreamCache {
+impl Handler<FetchProjectState> for UpstreamProjectSource {
     type Result = ResponseFuture<ProjectStateResponse, ()>;
 
     fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {

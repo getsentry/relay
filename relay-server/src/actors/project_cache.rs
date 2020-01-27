@@ -11,14 +11,15 @@ use serde::{Deserialize, Serialize};
 use relay_common::{metric, ProjectId};
 use relay_config::Config;
 
+use crate::actors::local_project_source::LocalProjectSource;
 use crate::actors::project::{Project, ProjectState};
-use crate::actors::project_local_cache::ProjectLocalCache;
-use crate::actors::project_upstream_cache::ProjectUpstreamCache;
+use crate::actors::upstream::UpstreamRelay;
+use crate::actors::upstream_project_source::UpstreamProjectSource;
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{RedisPool, Response};
 
 #[cfg(feature = "processing")]
-use {crate::actors::redis_project::RedisProjectCache, relay_common::clone};
+use {crate::actors::redis_project_source::RedisProjectSource, relay_common::clone};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -51,24 +52,27 @@ pub struct ProjectCache {
     projects: HashMap<ProjectId, Addr<Project>>,
     updates: VecDeque<ProjectUpdate>,
 
-    local_cache: Addr<ProjectLocalCache>,
-    upstream_cache: Addr<ProjectUpstreamCache>,
+    local_source: Addr<LocalProjectSource>,
+    upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
-    redis_cache: Option<Addr<RedisProjectCache>>,
+    redis_source: Option<Addr<RedisProjectSource>>,
 }
 
 impl ProjectCache {
     pub fn new(
         config: Arc<Config>,
-        local_cache: Addr<ProjectLocalCache>,
-        upstream_cache: Addr<ProjectUpstreamCache>,
+        upstream_relay: Addr<UpstreamRelay>,
         _redis: Option<RedisPool>,
     ) -> Self {
+        let local_source = LocalProjectSource::new(config.clone()).start();
+        let upstream_source =
+            UpstreamProjectSource::new(config.clone(), upstream_relay.clone()).start();
+
         #[cfg(feature = "processing")]
-        let redis_cache = _redis.map(|pool| {
+        let redis_source = _redis.map(|pool| {
             SyncArbiter::start(
                 config.cpu_concurrency(),
-                clone!(config, || RedisProjectCache::new(
+                clone!(config, || RedisProjectSource::new(
                     config.clone(),
                     pool.clone()
                 )),
@@ -80,10 +84,10 @@ impl ProjectCache {
             projects: HashMap::new(),
             updates: VecDeque::new(),
 
-            local_cache,
-            upstream_cache,
+            local_source,
+            upstream_source,
             #[cfg(feature = "processing")]
-            redis_cache,
+            redis_source,
         }
     }
 }
@@ -171,11 +175,7 @@ pub struct FetchOptionalProjectState {
 }
 
 impl Message for FetchOptionalProjectState {
-    type Result = Result<OptionalProjectStateResponse, ()>;
-}
-
-pub struct OptionalProjectStateResponse {
-    pub state: Option<Arc<ProjectState>>,
+    type Result = Option<Arc<ProjectState>>;
 }
 
 impl Handler<FetchProjectState> for ProjectCache {
@@ -211,48 +211,42 @@ impl Handler<FetchProjectState> for ProjectCache {
 
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
 
-        let upstream_cache = self.upstream_cache.clone();
+        let upstream_source = self.upstream_source.clone();
         #[cfg(feature = "processing")]
-        let redis_cache = self.redis_cache.clone();
+        let redis_source = self.redis_source.clone();
 
         let fetch_local = self
-            .local_cache
+            .local_source
             .send(FetchOptionalProjectState { id: message.id })
             .map_err(|_| ());
 
-        let future = fetch_local.and_then(move |result| {
-            if let Ok(response) = result {
-                // response should be infallible for local cache
-                if let Some(state) = response.state {
-                    return Box::new(future::ok(ProjectStateResponse::local(state)))
-                        as ResponseFuture<_, _>;
-                }
+        let future = fetch_local.and_then(move |response| {
+            if let Some(state) = response {
+                return Box::new(future::ok(ProjectStateResponse::local(state)))
+                    as ResponseFuture<_, _>;
             }
 
             #[cfg(not(feature = "processing"))]
-            let fetch_redis = future::ok(Ok(OptionalProjectStateResponse { state: None }));
+            let fetch_redis = future::ok(None);
 
             #[cfg(feature = "processing")]
-            let fetch_redis: ResponseFuture<_, _> = if let Some(ref redis_cache) = redis_cache {
+            let fetch_redis: ResponseFuture<_, _> = if let Some(ref redis_source) = redis_source {
                 Box::new(
-                    redis_cache
+                    redis_source
                         .send(FetchOptionalProjectState { id: message.id })
                         .map_err(|_| ()),
                 )
             } else {
-                Box::new(future::ok(Ok(OptionalProjectStateResponse { state: None })))
+                Box::new(future::ok(None))
             };
 
-            let fetch_redis = fetch_redis.and_then(move |result| {
-                if let Ok(response) = result {
-                    // response should be infallible for redis cache
-                    if let Some(state) = response.state {
-                        return Box::new(future::ok(ProjectStateResponse::local(state)))
-                            as ResponseFuture<_, _>;
-                    }
+            let fetch_redis = fetch_redis.and_then(move |response| {
+                if let Some(state) = response {
+                    return Box::new(future::ok(ProjectStateResponse::local(state)))
+                        as ResponseFuture<_, _>;
                 }
 
-                let fetch_upstream = upstream_cache
+                let fetch_upstream = upstream_source
                     .send(message.clone())
                     .map_err(|_| ())
                     .and_then(move |result| result.map_err(|_| ()));
