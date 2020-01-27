@@ -29,4 +29,4 @@ uuid = "0.8.1"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
 relay-general = { path = "../relay-general" }
-sentry-release-parser = { version = "0.3.0", features = ["serde"] }
+sentry-release-parser = { version = "0.3.1", features = ["serde"] }

@@ -883,7 +883,7 @@ dependencies = [
  "relay-auth 0.4.65",
  "relay-common 0.4.65",
  "relay-general 0.4.65",
- "sentry-release-parser 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sentry-release-parser 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.45 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -986,7 +986,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "sentry-release-parser"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1412,7 +1412,7 @@ dependencies = [
 "checksum scopeguard 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b42e15e59b18a828bbf5c58ea01debb36b9b096346de35d941dcb89009f24a0d"
 "checksum semver 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1d7eb9ef2c18661902cc47e535f9bc51b78acd254da71d375c2f6720d9a40403"
 "checksum semver-parser 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
-"checksum sentry-release-parser 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "42a12860604e2b3eba1bf272cb9fcf4d98013adf3639ab4e221954bc4c3872f8"
+"checksum sentry-release-parser 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "90b04358fbae608e1444fbe600820daec959372c7022efa0df6611e388013b85"
 "checksum sentry-types 0.13.3 (registry+https://github.com/rust-lang/crates.io-index)" = "8a11dab697b466568b085e49cee092653b8c8f970067818fd47245aee36b05e0"
 "checksum serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)" = "414115f25f818d7dfccec8ee535d76949ae78584fc4f79a6f45a904bf8ab4449"
 "checksum serde_derive 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)" = "128f9e303a5a29922045a830221b8f78ec74a5f544944f3d5984f8ec3895ef64"
