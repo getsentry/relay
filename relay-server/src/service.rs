@@ -19,6 +19,7 @@ use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::project_keys::ProjectKeyLookup;
 use crate::actors::project_local_cache::ProjectLocalCache;
+use crate::actors::project_upstream_cache::ProjectUpstreamCache;
 use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
@@ -110,6 +111,7 @@ pub struct ServiceState {
     key_cache: Addr<KeyCache>,
     project_cache: Addr<ProjectCache>,
     project_local_cache: Addr<ProjectLocalCache>,
+    project_upstream_cache: Addr<ProjectUpstreamCache>,
     upstream_relay: Addr<UpstreamRelay>,
     event_manager: Addr<EventManager>,
     key_lookup: Addr<ProjectKeyLookup>,
@@ -134,10 +136,13 @@ impl ServiceState {
         .start();
 
         let project_local_cache = ProjectLocalCache::new(config.clone()).start();
+        let project_upstream_cache =
+            ProjectUpstreamCache::new(config.clone(), upstream_relay.clone()).start();
+
         let project_cache = ProjectCache::new(
             config.clone(),
-            upstream_relay.clone(),
             project_local_cache.clone(),
+            project_upstream_cache.clone(),
         )
         .start();
 
@@ -148,6 +153,7 @@ impl ServiceState {
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache,
             project_local_cache,
+            project_upstream_cache,
             healthcheck: Healthcheck::new(config, upstream_relay).start(),
             event_manager,
             outcome_producer,
