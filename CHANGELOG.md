@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0
+
+**Relay**:
+
+- The binary has been renamed to `relay`.
+- Updated documentation for metrics.
+
+**Python**:
+
+- The package is now called `sentry-relay`.
+- Renamed all `Semaphore*` types to `Relay*`.
+- Fixed memory leaks in processing functions.
+
 ## 0.4.65
 
 **Relay**:
