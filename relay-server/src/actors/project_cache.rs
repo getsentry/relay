@@ -1,11 +1,6 @@
 use std::borrow::Cow;
 use std::collections::{hash_map::Entry, BTreeMap, HashMap, VecDeque};
-use std::ffi::OsStr;
-use std::fs;
-use std::io;
-use std::path::Path;
 use std::sync::Arc;
-use std::thread;
 use std::time::{Duration, Instant};
 
 use actix::fut;
@@ -20,9 +15,10 @@ use relay_common::{metric, LogError, ProjectId, RetryBackoff};
 use relay_config::{Config, RelayMode};
 
 use crate::actors::project::{Project, ProjectState};
+use crate::actors::project_local_cache::ProjectLocalCache;
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, ErrorBoundary, Response};
+use crate::utils::{self, ErrorBoundary};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -112,19 +108,23 @@ pub struct ProjectCache {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     projects: HashMap<ProjectId, Addr<Project>>,
-    local_states: HashMap<ProjectId, Arc<ProjectState>>,
+    local_cache: Addr<ProjectLocalCache>,
     state_channels: HashMap<ProjectId, ProjectStateChannel>,
     updates: VecDeque<ProjectUpdate>,
 }
 
 impl ProjectCache {
-    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        upstream: Addr<UpstreamRelay>,
+        local_cache: Addr<ProjectLocalCache>,
+    ) -> Self {
         ProjectCache {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
             upstream,
             projects: HashMap::new(),
-            local_states: HashMap::new(),
+            local_cache,
             state_channels: HashMap::new(),
             updates: VecDeque::new(),
         }
@@ -304,84 +304,6 @@ impl ProjectCache {
     }
 }
 
-fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectId, Arc<ProjectState>>> {
-    let mut states = HashMap::new();
-
-    let directory = match fs::read_dir(projects_path) {
-        Ok(directory) => directory,
-        Err(error) => {
-            return match error.kind() {
-                io::ErrorKind::NotFound => Ok(states),
-                _ => Err(error),
-            };
-        }
-    };
-
-    // only printed when directory even exists.
-    log::debug!("Loading local states from directory {:?}", projects_path);
-
-    for entry in directory {
-        let entry = entry?;
-        let path = entry.path();
-
-        if !entry.metadata()?.is_file() {
-            log::warn!("skipping {:?}, not a file", path);
-            continue;
-        }
-
-        if path.extension().map(|x| x != "json").unwrap_or(true) {
-            log::warn!("skipping {:?}, file extension must be .json", path);
-            continue;
-        }
-
-        let id = match path
-            .file_stem()
-            .and_then(OsStr::to_str)
-            .and_then(|stem| stem.parse().ok())
-        {
-            Some(id) => id,
-            None => {
-                log::warn!("skipping {:?}, filename is not a valid project id", path);
-                continue;
-            }
-        };
-
-        let state = serde_json::from_reader(io::BufReader::new(fs::File::open(path)?))?;
-        states.insert(id, Arc::new(state));
-    }
-
-    Ok(states)
-}
-
-fn poll_local_states(
-    manager: Addr<ProjectCache>,
-    config: Arc<Config>,
-) -> impl Future<Item = (), Error = ()> {
-    let (sender, receiver) = oneshot::channel();
-
-    let _ = thread::spawn(move || {
-        let path = config.project_configs_path();
-        let mut sender = Some(sender);
-
-        loop {
-            match load_local_states(&path) {
-                Ok(states) => {
-                    manager.do_send(UpdateLocalStates { states });
-                    sender.take().map(|sender| sender.send(()).ok());
-                }
-                Err(error) => log::error!(
-                    "failed to load static project configs: {}",
-                    LogError(&error)
-                ),
-            }
-
-            thread::sleep(config.local_cache_interval());
-        }
-    });
-
-    receiver.map_err(|_| ())
-}
-
 impl Actor for ProjectCache {
     type Context = Context<Self>;
 
@@ -393,34 +315,10 @@ impl Actor for ProjectCache {
         context.set_mailbox_capacity(mailbox_size);
 
         log::info!("project cache started");
-
-        // Start the background thread that reads the local states from disk.
-        // `poll_local_states` returns a future that resolves as soon as the first read is done.
-        poll_local_states(context.address(), self.config.clone())
-            .into_actor(self)
-            // Block entire actor on first local state read, such that we don't e.g. drop events on
-            // startup
-            .wait(context);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         log::info!("project cache stopped");
-    }
-}
-
-struct UpdateLocalStates {
-    states: HashMap<ProjectId, Arc<ProjectState>>,
-}
-
-impl Message for UpdateLocalStates {
-    type Result = ();
-}
-
-impl Handler<UpdateLocalStates> for ProjectCache {
-    type Result = ();
-
-    fn handle(&mut self, message: UpdateLocalStates, _context: &mut Context<Self>) -> Self::Result {
-        self.local_states = message.states;
     }
 }
 
@@ -483,58 +381,90 @@ impl Message for FetchProjectState {
     type Result = Result<ProjectStateResponse, ()>;
 }
 
+pub struct FetchOptionalProjectState {
+    pub id: ProjectId,
+}
+
+impl Message for FetchOptionalProjectState {
+    type Result = Result<OptionalProjectStateResponse, ()>;
+}
+
+pub struct OptionalProjectStateResponse {
+    pub state: Option<Arc<ProjectState>>,
+}
+
 impl Handler<FetchProjectState> for ProjectCache {
-    type Result = Response<ProjectStateResponse, ()>;
+    type Result = ResponseActFuture<Self, ProjectStateResponse, ()>;
 
-    fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
-        if let Some(state) = self.local_states.get(&message.id) {
-            return Response::ok(ProjectStateResponse {
-                state: state.clone(),
-                is_local: true,
-            });
-        }
+    fn handle(&mut self, message: FetchProjectState, _context: &mut Self::Context) -> Self::Result {
+        let fetch_local_cache = self
+            .local_cache
+            .send(FetchOptionalProjectState { id: message.id })
+            .map_err(|_| ())
+            .into_actor(self);
 
-        match self.config.relay_mode() {
-            RelayMode::Proxy => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()));
+        let future = fetch_local_cache.and_then(move |response, slf, ctx| {
+            if let Ok(response) = response {
+                // response should be infallible for local cache
+                if let Some(state) = response.state {
+                    return Box::new(fut::ok(ProjectStateResponse {
+                        state,
+                        is_local: true,
+                    })) as ResponseActFuture<_, _, _>;
+                }
             }
-            RelayMode::Static => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::missing()));
+
+            match slf.config.relay_mode() {
+                RelayMode::Proxy => {
+                    return Box::new(fut::ok(
+                        ProjectStateResponse::local(ProjectState::allowed()),
+                    ));
+                }
+                RelayMode::Static => {
+                    return Box::new(fut::ok(
+                        ProjectStateResponse::local(ProjectState::missing()),
+                    ));
+                }
+                RelayMode::Capture => {
+                    return Box::new(fut::ok(
+                        ProjectStateResponse::local(ProjectState::allowed()),
+                    ));
+                }
+                RelayMode::Managed => {
+                    // Proceed with loading the config from upstream
+                }
             }
-            RelayMode::Capture => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()));
+
+            if !slf.backoff.started() {
+                slf.backoff.reset();
+                slf.schedule_fetch(ctx);
             }
-            RelayMode::Managed => {
-                // Proceed with loading the config from upstream
-            }
-        }
 
-        if !self.backoff.started() {
-            self.backoff.reset();
-            self.schedule_fetch(context);
-        }
+            // There's an edge case where a project is represented by two Project actors. This can
+            // happen if our project eviction logic removes an actor from `project_cache.projects`
+            // while it is still being held onto. This in turn happens because we have no efficient way
+            // of determining the refcount of an `Addr<Project>`.
+            //
+            // Instead of fixing the race condition, let's just make sure we don't fetch project caches
+            // twice. If the cleanup/eviction logic were to be fixed to take the addr's refcount into
+            // account, there should never be an instance where `state_channels` already contains a
+            // channel for our current `message.id`.
+            let query_timeout = slf.config.query_timeout();
 
-        // There's an edge case where a project is represented by two Project actors. This can
-        // happen if our project eviction logic removes an actor from `project_cache.projects`
-        // while it is still being held onto. This in turn happens because we have no efficient way
-        // of determining the refcount of an `Addr<Project>`.
-        //
-        // Instead of fixing the race condition, let's just make sure we don't fetch project caches
-        // twice. If the cleanup/eviction logic were to be fixed to take the addr's refcount into
-        // account, there should never be an instance where `state_channels` already contains a
-        // channel for our current `message.id`.
-        let query_timeout = self.config.query_timeout();
+            let channel = slf
+                .state_channels
+                .entry(message.id)
+                .or_insert_with(|| ProjectStateChannel::new(query_timeout));
 
-        let channel = self
-            .state_channels
-            .entry(message.id)
-            .or_insert_with(|| ProjectStateChannel::new(query_timeout));
+            Box::new(
+                channel
+                    .receiver()
+                    .map(|x| ProjectStateResponse::managed((*x).clone()))
+                    .map_err(|_| ())
+                    .into_actor(slf),
+            )
+        });
 
-        Response::r#async(
-            channel
-                .receiver()
-                .map(|x| ProjectStateResponse::managed((*x).clone()))
-                .map_err(|_| ()),
-        )
+        Box::new(future)
     }
 }

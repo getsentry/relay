@@ -47,6 +47,7 @@ pub mod outcome;
 pub mod project;
 pub mod project_cache;
 pub mod project_keys;
+pub mod project_local_cache;
 pub mod server;
 pub mod upstream;
 

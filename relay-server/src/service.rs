@@ -18,6 +18,7 @@ use crate::actors::keys::KeyCache;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::project_keys::ProjectKeyLookup;
+use crate::actors::project_local_cache::ProjectLocalCache;
 use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
@@ -108,6 +109,7 @@ pub struct ServiceState {
     config: Arc<Config>,
     key_cache: Addr<KeyCache>,
     project_cache: Addr<ProjectCache>,
+    project_local_cache: Addr<ProjectLocalCache>,
     upstream_relay: Addr<UpstreamRelay>,
     event_manager: Addr<EventManager>,
     key_lookup: Addr<ProjectKeyLookup>,
@@ -131,12 +133,21 @@ impl ServiceState {
         .context(ServerErrorKind::ConfigError)?
         .start();
 
+        let project_local_cache = ProjectLocalCache::new(config.clone()).start();
+        let project_cache = ProjectCache::new(
+            config.clone(),
+            upstream_relay.clone(),
+            project_local_cache.clone(),
+        )
+        .start();
+
         Ok(ServiceState {
             config: config.clone(),
             key_lookup: ProjectKeyLookup::new(config.clone(), upstream_relay.clone()).start(),
             upstream_relay: upstream_relay.clone(),
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
-            project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
+            project_cache,
+            project_local_cache,
             healthcheck: Healthcheck::new(config, upstream_relay).start(),
             event_manager,
             outcome_producer,
