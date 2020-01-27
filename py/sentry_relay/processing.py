@@ -172,5 +172,5 @@ def is_glob_match(
 
 def parse_release(release):
     return json.loads(
-        decode_str(rustcall(lib.relay_parse_release, encode_str(release)))
+        decode_str(rustcall(lib.relay_parse_release, encode_str(release)), free=True)
     )
