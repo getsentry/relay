@@ -54,8 +54,7 @@ impl ProjectCache {
         _redis: Option<RedisPool>,
     ) -> Self {
         let local_source = LocalProjectSource::new(config.clone()).start();
-        let upstream_source =
-            UpstreamProjectSource::new(config.clone(), upstream_relay.clone()).start();
+        let upstream_source = UpstreamProjectSource::new(config.clone(), upstream_relay).start();
 
         #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| {
