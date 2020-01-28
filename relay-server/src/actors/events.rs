@@ -15,7 +15,7 @@ use relay_config::{Config, RelayMode};
 use relay_general::pii::PiiProcessor;
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    Breadcrumb, Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString,
+    Breadcrumb, Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
     SecurityReportType, Values,
 };
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
@@ -116,6 +116,8 @@ enum ProcessingError {
     Timeout,
 }
 
+type ExtractedEvent = (Annotated<Event>, usize);
+
 struct EventProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
@@ -200,11 +202,14 @@ impl EventProcessor {
         }));
     }
 
-    fn event_from_json_payload(&self, item: Item) -> Result<Annotated<Event>, ProcessingError> {
-        Annotated::from_json_bytes(&item.payload()).map_err(ProcessingError::InvalidJson)
+    fn event_from_json_payload(&self, item: Item) -> Result<ExtractedEvent, ProcessingError> {
+        Annotated::from_json_bytes(&item.payload())
+            .map(|event| (event, item.len()))
+            .map_err(ProcessingError::InvalidJson)
     }
 
-    fn event_from_security_report(&self, item: Item) -> Result<Annotated<Event>, ProcessingError> {
+    fn event_from_security_report(&self, item: Item) -> Result<ExtractedEvent, ProcessingError> {
+        let len = item.len();
         let mut event = Event::default();
 
         let data = &item.payload();
@@ -231,7 +236,7 @@ impl EventProcessor {
             event.environment = Annotated::from(env.to_owned());
         }
 
-        Ok(Annotated::new(event))
+        Ok((Annotated::new(event), len))
     }
 
     fn merge_formdata(&self, target: &mut SerdeValue, item: Item) {
@@ -299,7 +304,11 @@ impl EventProcessor {
         event_item: Option<Item>,
         breadcrumbs_item1: Option<Item>,
         breadcrumbs_item2: Option<Item>,
-    ) -> Result<Annotated<Event>, ProcessingError> {
+    ) -> Result<ExtractedEvent, ProcessingError> {
+        let len = event_item.as_ref().map_or(0, |item| item.len())
+            + breadcrumbs_item1.as_ref().map_or(0, |item| item.len())
+            + breadcrumbs_item2.as_ref().map_or(0, |item| item.len());
+
         let mut event = match event_item {
             Some(item) => Self::extract_attached_event(config, item)?,
             None => Annotated::new(Event::default()),
@@ -350,7 +359,7 @@ impl EventProcessor {
             });
         }
 
-        Ok(event)
+        Ok((event, len))
     }
 
     /// Extracts the primary event payload from an envelope.
@@ -361,7 +370,9 @@ impl EventProcessor {
     ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
     ///  4. A multipart form data body.
     ///  5. If none match, `Annotated::empty()`.
-    fn extract_event(&self, envelope: &mut Envelope) -> Result<Annotated<Event>, ProcessingError> {
+    ///
+    /// The return value is a tuple of the extracted event and the original ingested size.
+    fn extract_event(&self, envelope: &mut Envelope) -> Result<ExtractedEvent, ProcessingError> {
         // Remove all items first, and then process them. After this function returns, only
         // attachments can remain in the envelope. The event will be added again at the end of
         // `process_event`.
@@ -399,12 +410,16 @@ impl EventProcessor {
 
         if let Some(item) = form_item {
             log::trace!("extracting form data {}", envelope.event_id());
+            let len = item.len();
+
             let mut value = SerdeValue::Object(Default::default());
             self.merge_formdata(&mut value, item);
-            return Ok(Annotated::deserialize_with_meta(value).unwrap_or_default());
+            let event = Annotated::deserialize_with_meta(value).unwrap_or_default();
+
+            return Ok((event, len));
         }
 
-        Ok(Annotated::empty())
+        Ok((Annotated::empty(), 0))
     }
 
     #[cfg(feature = "processing")]
@@ -534,9 +549,15 @@ impl EventProcessor {
             }
         }
 
+        // Carry metrics on event sizes through the entire normalization process. Without
+        // processing, this value is unused and will be optimized away. Note how we need to extract
+        // sizes at different stages of processing and apply them after `store_process_event`.
+        let mut _metrics = Metrics::default();
+
         // Extract the event from the envelope. This removes all items from the envelope that should
         // not be forwarded, including the event item itself.
-        let mut event = self.extract_event(&mut envelope)?;
+        let (mut event, event_len) = self.extract_event(&mut envelope)?;
+        _metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
         // `extract_event` must remove all unique items from the envelope. Once the envelope is
         // processed, an `Event` item will be added to the envelope again. All additional items will
@@ -558,10 +579,21 @@ impl EventProcessor {
             let apple_crash_report_attachment = envelope
                 .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
 
-            if minidump_attachment.is_some() {
+            if let Some(item) = minidump_attachment {
+                _metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
                 self.write_native_placeholder(&mut event, true);
-            } else if apple_crash_report_attachment.is_some() {
+            } else if let Some(item) =  apple_crash_report_attachment {
+                _metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
                 self.write_native_placeholder(&mut event, false);
+            }
+
+            let attachment_size = envelope.items()
+                .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
+                .map(|item| item.len())
+                .sum::<usize>();
+
+            if attachment_size > 0 {
+                _metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size as u64);
             }
         }
 
@@ -581,6 +613,12 @@ impl EventProcessor {
 
         if_processing! {
             self.store_process_event(&mut event, &envelope, &message.project_state)?;
+
+            // Write metrics into the fully processed event. This ensures that whatever happens
+            // during processing is overwritten at last.
+            if let Some(event) = event.value_mut() {
+                event._metrics = Annotated::new(_metrics);
+            }
         }
 
         // Run PII stripping last since normalization can add PII (e.g. IP addresses).
@@ -1111,7 +1149,8 @@ mod tests {
 
         let evt =
             EventProcessor::event_from_attachments(&Config::default(), None, Some(item), None)
-                .unwrap();
+                .unwrap()
+                .0;
 
         let breadcrumbs = breadcrumbs_from_event(&evt);
 
@@ -1123,7 +1162,8 @@ mod tests {
 
         let evt =
             EventProcessor::event_from_attachments(&Config::default(), None, None, Some(item))
-                .unwrap();
+                .unwrap()
+                .0;
 
         let breadcrumbs = breadcrumbs_from_event(&evt);
         assert_eq!(breadcrumbs.len(), 1);
@@ -1146,7 +1186,8 @@ mod tests {
             Some(item1),
             Some(item2),
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
         let breadcrumbs = breadcrumbs_from_event(&event);
         assert_eq!(breadcrumbs.len(), 2);
@@ -1171,7 +1212,8 @@ mod tests {
             Some(item1),
             Some(item2),
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
         let breadcrumbs = breadcrumbs_from_event(&event);
         assert_eq!(breadcrumbs.len(), 2);

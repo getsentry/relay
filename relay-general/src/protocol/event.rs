@@ -11,7 +11,7 @@ use chrono::TimeZone;
 use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt, ExpectStaple,
-    Fingerprint, Hpkp, LenientString, Level, LogEntry, Request, Span, Stacktrace, Tags,
+    Fingerprint, Hpkp, LenientString, Level, LogEntry, Metrics, Request, Span, Stacktrace, Tags,
     TemplateInfo, Thread, User, Values,
 };
 use crate::types::{
@@ -385,6 +385,11 @@ pub struct Event {
 
     /// Spans for tracing.
     pub spans: Annotated<Array<Span>>,
+
+    /// Internal ingestion and processing metrics.
+    ///
+    /// This value should not be ingested and will be overwritten by the store normalizer.
+    pub _metrics: Annotated<Metrics>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
