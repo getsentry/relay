@@ -349,6 +349,8 @@ struct Cache {
     batch_size: usize,
     /// Interval for watching local cache override files in seconds.
     file_interval: u32,
+    /// Interval for evicting outdated project configs from memory.
+    eviction_interval: u32,
 }
 
 impl Default for Cache {
@@ -362,7 +364,8 @@ impl Default for Cache {
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
             batch_size: 500,
-            file_interval: 10, // 10 seconds
+            file_interval: 10,     // 10 seconds
+            eviction_interval: 60, // 60 seconds
         }
     }
 }
@@ -841,6 +844,12 @@ impl Config {
     /// Returns the interval in seconds in which local project configurations should be reloaded.
     pub fn local_cache_interval(&self) -> Duration {
         Duration::from_secs(self.values.cache.file_interval.into())
+    }
+
+    /// Returns the interval in seconds in which projects configurations should be freed from
+    /// memory when expired.
+    pub fn cache_eviction_interval(&self) -> Duration {
+        Duration::from_secs(self.values.cache.eviction_interval.into())
     }
 
     /// Returns the maximum size of an event payload in bytes.

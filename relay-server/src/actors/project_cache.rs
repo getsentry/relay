@@ -99,7 +99,7 @@ impl Actor for ProjectCache {
         let mailbox_size = self.config.event_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
 
-        context.run_interval(2 * self.config.project_cache_expiry(), |slf, _| {
+        context.run_interval(self.config.cache_eviction_interval(), |slf, _| {
             slf.evict_stale_project_caches()
         });
 
