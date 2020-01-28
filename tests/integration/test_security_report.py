@@ -43,12 +43,8 @@ def test_security_reports_with_processing(
     ext = ".normalized.output"
     expected_evt = fixture_provider.load(test_name, ext)
 
-    if expected_evt is not None:
-        # compare with fixture
-        assert event == expected_evt
-    else:
-        # first run create fixture
-        fixture_provider.save(event, test_name, ext)
+    event.pop("_metrics", None)
+    assert event == expected_evt
 
 
 @pytest.mark.parametrize(
@@ -98,9 +94,4 @@ def test_security_reports_no_processing(
     ext = ".no_processing.output"
     expected_evt = fixture_provider.load(test_name, ext)
 
-    if expected_evt is not None:
-        # compare with fixture
-        assert event == expected_evt
-    else:
-        # first run create fixture
-        fixture_provider.save(event, test_name, ext)
+    assert event == expected_evt
