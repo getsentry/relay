@@ -58,6 +58,12 @@ impl PartialEq for Pattern {
     }
 }
 
+fn replace_groups_default() -> Option<BTreeSet<u8>> {
+    let mut set = BTreeSet::new();
+    set.insert(0);
+    Some(set)
+}
+
 /// A rule that matches a regex pattern.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -65,6 +71,7 @@ pub struct PatternRule {
     /// The regular expression to apply.
     pub pattern: Pattern,
     /// The match group indices to replace.
+    #[serde(default = "replace_groups_default")]
     pub replace_groups: Option<BTreeSet<u8>>,
 }
 

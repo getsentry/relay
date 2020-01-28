@@ -445,6 +445,7 @@ fn apply_rule_to_chunks<'a>(mut chunks: Vec<Chunk<'a>>, rule: RuleRef<'_>) -> Ve
         RuleType::Never => {}
         RuleType::Anything => apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0)),
         RuleType::Pattern(r) => apply_regex!(&r.pattern.0, r.replace_groups.as_ref()),
+
         RuleType::Imei => apply_regex!(&IMEI_REGEX, Some(&*GROUP_0)),
         RuleType::Mac => apply_regex!(&MAC_REGEX, Some(&*GROUP_0)),
         RuleType::Uuid => apply_regex!(&UUID_REGEX, Some(&*GROUP_0)),
@@ -736,6 +737,46 @@ fn test_redact_containers() {
             map.insert(
                 "foo".to_string(),
                 Annotated::new(ExtraValue(Value::String("bar".to_string()))),
+            );
+            Annotated::new(map)
+        },
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_redact_custom_pattern() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "$string": ["myrule"]
+            },
+            "rules": {
+                "myrule": {
+                    "type": "pattern",
+                    "pattern": "foo",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "asd"
+                    }
+                }
+            }
+        }
+    "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        extra: {
+            let mut map = Object::new();
+            map.insert(
+                "myvalue".to_string(),
+                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
             );
             Annotated::new(map)
         },
