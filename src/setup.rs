@@ -84,7 +84,10 @@ pub fn init_logging(config: &Config) {
             LevelFilter::Debug => {
                 "INFO,\
                  actix_web::pipeline=DEBUG,\
+                 relay_auth=DEBUG,\
                  relay_common=DEBUG,\
+                 relay_config=DEBUG,\
+                 relay_filter=DEBUG,\
                  relay_general=DEBUG,\
                  relay_server=DEBUG,\
                  relay=DEBUG"
@@ -92,7 +95,10 @@ pub fn init_logging(config: &Config) {
             LevelFilter::Trace => {
                 "INFO,\
                  actix_web::pipeline=DEBUG,\
+                 relay_auth=TRACE,\
                  relay_common=TRACE,\
+                 relay_config=TRACE,\
+                 relay_filter=TRACE,\
                  relay_general=TRACE,\
                  relay_server=TRACE,\
                  relay=TRACE"
