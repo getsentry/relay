@@ -18,7 +18,8 @@ use relay_general::protocol::EventId;
 
 use crate::actors::events::{QueueEvent, QueueEventError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
+use crate::actors::project::{EventAction, GetEventAction, RateLimit};
+use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
 use crate::constants::ITEM_NAME_EVENT;
 use crate::envelope::{Envelope, EnvelopeError, ItemType, Items};

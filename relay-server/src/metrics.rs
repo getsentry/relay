@@ -216,6 +216,9 @@ pub enum RelayCounters {
     /// - `method` The HTTP method used in the request in uppercase.
     /// - `route` Unique dashed identifier of the endpoint.
     ResponsesStatusCodes,
+    /// We are scanning our in-memory project cache for stale entries. This counter is incremented
+    /// before doing the expensive operation.
+    EvictingStaleProjectCaches,
 }
 
 impl CounterMetric for RelayCounters {
@@ -236,6 +239,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventProtocol => "event.protocol",
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
+            RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
         }
     }
 }
