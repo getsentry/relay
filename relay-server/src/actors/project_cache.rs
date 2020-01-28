@@ -1,4 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap, VecDeque};
+use std::collections::{hash_map::Entry, HashMap};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -32,25 +32,14 @@ pub enum ProjectError {
 
 impl ResponseError for ProjectError {}
 
-#[derive(Clone, Copy, Debug)]
-struct ProjectUpdate {
-    project_id: ProjectId,
-    instant: Instant,
-}
-
-impl ProjectUpdate {
-    pub fn new(project_id: ProjectId) -> Self {
-        ProjectUpdate {
-            project_id,
-            instant: Instant::now(),
-        }
-    }
+struct ProjectEntry {
+    last_updated_at: Instant,
+    project: Addr<Project>,
 }
 
 pub struct ProjectCache {
     config: Arc<Config>,
-    projects: HashMap<ProjectId, Addr<Project>>,
-    updates: VecDeque<ProjectUpdate>,
+    projects: HashMap<ProjectId, ProjectEntry>,
 
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
@@ -82,13 +71,22 @@ impl ProjectCache {
         ProjectCache {
             config,
             projects: HashMap::new(),
-            updates: VecDeque::new(),
 
             local_source,
             upstream_source,
             #[cfg(feature = "processing")]
             redis_source,
         }
+    }
+
+    fn evict_stale_project_caches(&mut self) {
+        metric!(counter(RelayCounters::EvictingStaleProjectCaches) += 1);
+        let eviction_start = Instant::now();
+        let eviction_threshold = eviction_start - 2 * self.config.project_cache_expiry();
+        self.projects
+            .retain(|_, entry| entry.last_updated_at > eviction_threshold);
+
+        metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
     }
 }
 
@@ -101,6 +99,10 @@ impl Actor for ProjectCache {
         // gets hammered a bit.
         let mailbox_size = self.config.event_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
+
+        context.run_interval(2 * self.config.project_cache_expiry(), |slf, _| {
+            slf.evict_stale_project_caches()
+        });
 
         log::info!("project cache started");
     }
@@ -128,12 +130,15 @@ impl Handler<GetProject> for ProjectCache {
         match self.projects.entry(message.id) {
             Entry::Occupied(entry) => {
                 metric!(counter(RelayCounters::ProjectCacheHit) += 1);
-                entry.get().clone()
+                entry.get().project.clone()
             }
             Entry::Vacant(entry) => {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
                 let project = Project::new(message.id, config, context.address()).start();
-                entry.insert(project.clone());
+                entry.insert(ProjectEntry {
+                    last_updated_at: Instant::now(),
+                    project: project.clone(),
+                });
                 project
             }
         }
@@ -182,34 +187,18 @@ impl Handler<FetchProjectState> for ProjectCache {
     type Result = Response<ProjectStateResponse, ()>;
 
     fn handle(&mut self, message: FetchProjectState, _context: &mut Self::Context) -> Self::Result {
-        // Remove outdated projects that are not being refreshed from the cache. If the project is
-        // being updated now, also remove its update entry from the queue, since we will be
-        // inserting a new timestamp at the end (see `extend`).
-        let eviction_start = Instant::now();
-        let eviction_threshold = eviction_start - 2 * self.config.project_cache_expiry();
-        while let Some(update) = self.updates.get(0) {
-            if update.instant > eviction_threshold {
-                break;
-            }
-
-            if update.project_id != message.id {
-                self.projects.remove(&update.project_id);
-            }
-
-            self.updates.pop_front();
+        if let Some(mut entry) = self.projects.get_mut(&message.id) {
+            // Bump the update time of the project in our hashmap to evade eviction. Eviction is a
+            // sequential scan over self.projects, so this needs to be as fast as possible and
+            // probably should not involve sending a message to each Addr<Project> (this is the
+            // reason ProjectEntry exists as a wrapper).
+            //
+            // This is somewhat racy as we do not know for sure whether the project actor sending
+            // us this message is the same one that we have in self.projects. Practically this
+            // should not matter because the race implies that the project we have in self.projects
+            // has been created very recently anyway.
+            entry.last_updated_at = Instant::now();
         }
-
-        // The remaining projects are not outdated anymore. Still, clean them from the queue to
-        // reinsert them at the end, as they are now receiving an updated timestamp. Then,
-        // batch-insert all new projects with the new timestamp.
-        //
-        // TODO(markus): This is way too slow. This used to be OK when part of a batched fetch. We
-        // need some priority queue dingus here.
-        self.updates
-            .retain(|update| update.project_id != message.id);
-        self.updates.push_back(ProjectUpdate::new(message.id));
-
-        metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
 
         let upstream_source = self.upstream_source.clone();
         #[cfg(feature = "processing")]
