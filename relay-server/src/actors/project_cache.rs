@@ -9,7 +9,7 @@ use futures::{future, Future};
 use serde::{Deserialize, Serialize};
 
 use relay_common::{metric, ProjectId};
-use relay_config::Config;
+use relay_config::{Config, RelayMode};
 
 use crate::actors::local_project_source::LocalProjectSource;
 use crate::actors::project::{Project, ProjectState};
@@ -199,6 +199,8 @@ impl Handler<FetchProjectState> for ProjectCache {
             entry.last_updated_at = Instant::now();
         }
 
+        let relay_mode = self.config.relay_mode();
+
         let upstream_source = self.upstream_source.clone();
         #[cfg(feature = "processing")]
         let redis_source = self.redis_source.clone();
@@ -212,6 +214,27 @@ impl Handler<FetchProjectState> for ProjectCache {
             if let Some(state) = response {
                 return Box::new(future::ok(ProjectStateResponse::local(state)))
                     as ResponseFuture<_, _>;
+            }
+
+            match relay_mode {
+                RelayMode::Proxy => {
+                    return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
+                        ProjectState::allowed(),
+                    ))));
+                }
+                RelayMode::Static => {
+                    return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
+                        ProjectState::missing(),
+                    ))));
+                }
+                RelayMode::Capture => {
+                    return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
+                        ProjectState::allowed(),
+                    ))));
+                }
+                RelayMode::Managed => {
+                    // Proceed with loading the config from redis or upstream
+                }
             }
 
             #[cfg(not(feature = "processing"))]

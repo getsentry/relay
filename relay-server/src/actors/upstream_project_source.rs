@@ -11,7 +11,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use relay_common::{metric, LogError, ProjectId, RetryBackoff};
-use relay_config::{Config, RelayMode};
+use relay_config::Config;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError, ProjectStateResponse};
@@ -263,27 +263,6 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
     type Result = ResponseFuture<ProjectStateResponse, ()>;
 
     fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
-        match self.config.relay_mode() {
-            RelayMode::Proxy => {
-                return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
-                    ProjectState::allowed(),
-                ))));
-            }
-            RelayMode::Static => {
-                return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
-                    ProjectState::missing(),
-                ))));
-            }
-            RelayMode::Capture => {
-                return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
-                    ProjectState::allowed(),
-                ))));
-            }
-            RelayMode::Managed => {
-                // Proceed with loading the config from upstream
-            }
-        }
-
         if !self.backoff.started() {
             self.backoff.reset();
             self.schedule_fetch(context);
