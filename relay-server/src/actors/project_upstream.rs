@@ -118,18 +118,19 @@ impl UpstreamProjectSource {
 
         let batch_size = self.config.query_batch_size();
         let num_batches = self.config.max_concurrent_queries();
+        let total_count = batch_size * num_batches;
 
-        // Pop n items from state_channels. Intuitively we would use
+        // Pop `total_count` items from state_channels. Intuitively, we would use
         // `self.state_channels.drain().take(n)`, but that clears the entire hashmap regardless how
         // much of the iterator is consumed.
         //
-        // Instead we have to collect the keys we want into a separate vector and pop them
+        // Instead, we have to collect the keys we want into a separate vector and pop them
         // one-by-one.
         let projects: Vec<_> = self
             .state_channels
             .keys()
             .copied()
-            .take(batch_size * num_batches)
+            .take(total_count)
             .collect();
 
         let channels: BTreeMap<_, _> = projects
@@ -149,9 +150,15 @@ impl UpstreamProjectSource {
 
         let request_start = Instant::now();
 
+        // Distribute the projects evenly across HTTP requests to avoid large chunks too early. Do
+        // this by dividing and rounding up to the next integer. We achieve this by adding the
+        // remainder of the division which rounds up `total_count` to the next multiple of
+        // num_batches. Worst case, we're left with one project per request, but that's fine.
+        let actual_batch_size = (total_count + (total_count % num_batches)) / num_batches;
+
         let requests: Vec<_> = channels
             .into_iter()
-            .chunks(batch_size)
+            .chunks(actual_batch_size)
             .into_iter()
             .map(|channels_batch| {
                 let channels_batch: BTreeMap<_, _> = channels_batch.collect();
