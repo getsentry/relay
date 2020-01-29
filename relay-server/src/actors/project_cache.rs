@@ -11,15 +11,15 @@ use serde::{Deserialize, Serialize};
 use relay_common::{metric, ProjectId};
 use relay_config::{Config, RelayMode};
 
-use crate::actors::local_project_source::LocalProjectSource;
 use crate::actors::project::{Project, ProjectState};
+use crate::actors::project_local::LocalProjectSource;
+use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::actors::upstream::UpstreamRelay;
-use crate::actors::upstream_project_source::UpstreamProjectSource;
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{RedisPool, Response};
 
 #[cfg(feature = "processing")]
-use {crate::actors::redis_project_source::RedisProjectSource, relay_common::clone};
+use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
