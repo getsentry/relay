@@ -1,6 +1,8 @@
 # coding: utf-8
 import sentry_relay
 
+import pytest
+
 from sentry_relay._compat import PY2
 
 REMARKS = [["myrule", "s", 7, 17]]
@@ -151,3 +153,11 @@ def test_data_scrubbing_default_config():
             "apiKey": "[Filtered]",
         }
     }
+
+
+def test_validate_pii_config():
+    sentry_relay.validate_pii_config("{}")
+    sentry_relay.validate_pii_config('{"applications": []}')
+
+    with pytest.raises(ValueError):
+        sentry_relay.validate_pii_config('{"applications": true}')
