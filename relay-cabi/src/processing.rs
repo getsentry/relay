@@ -173,6 +173,7 @@ ffi_fn! {
 }
 
 ffi_fn! {
+    /// Validate a PII config against the schema. Used in project options UI.
     unsafe fn relay_validate_pii_config(
         value: *const RelayStr
     ) -> Result<()> {
