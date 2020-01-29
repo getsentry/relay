@@ -38,11 +38,12 @@ mod real_implementation {
         pub fn from_config(config: &Config) -> Result<Option<RedisPool>, RedisError> {
             if config.processing_enabled() {
                 match config.redis() {
-                    Redis::Cluster { cluster_nodes } => {
+                    Some(&Redis::Cluster { ref cluster_nodes }) => {
                         RedisPool::cluster(cluster_nodes.iter().map(String::as_str).collect())
                             .map(Some)
                     }
-                    Redis::Single(ref server) => RedisPool::single(&server).map(Some),
+                    Some(&Redis::Single(ref server)) => RedisPool::single(&server).map(Some),
+                    None => Ok(None),
                 }
             } else {
                 Ok(None)

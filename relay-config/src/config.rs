@@ -459,7 +459,7 @@ pub struct Processing {
     /// Kafka topic names.
     pub topics: TopicNames,
     /// Redis hosts to connect to for storing state for rate limits.
-    pub redis: Redis,
+    pub redis: Option<Redis>,
     /// Maximum chunk size of attachments for Kafka.
     #[serde(default = "default_chunk_size")]
     pub attachment_chunk_size: ByteSize,
@@ -483,7 +483,7 @@ impl Default for Processing {
                 transactions: String::new(),
                 outcomes: String::new(),
             },
-            redis: Redis::default(),
+            redis: None,
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
         }
@@ -501,12 +501,6 @@ pub enum Redis {
     },
     /// Connect to a single redis instance
     Single(String),
-}
-
-impl Default for Redis {
-    fn default() -> Self {
-        Redis::Single("redis://127.0.0.1".to_owned())
-    }
 }
 
 /// Controls interal reporting to Sentry.
@@ -973,8 +967,8 @@ impl Config {
     }
 
     /// Redis servers to connect to, for rate limiting.
-    pub fn redis(&self) -> &Redis {
-        &self.values.processing.redis
+    pub fn redis(&self) -> Option<&Redis> {
+        self.values.processing.redis.as_ref()
     }
 
     /// Chunk size of attachments in bytes.
