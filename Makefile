@@ -194,6 +194,7 @@ clean-target-dir:
 
 .venv/bin/python: Makefile
 	@rm -rf .venv
+	@which virtualenv || sudo pip install virtualenv
 	virtualenv -p $$RELAY_PYTHON_VERSION .venv
 
 # GNU tar requires `--wildcards`, but bsd tar does not.
