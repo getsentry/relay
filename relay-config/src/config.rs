@@ -483,7 +483,7 @@ impl Default for Processing {
                 transactions: String::new(),
                 outcomes: String::new(),
             },
-            redis: None,
+            redis: Some(Redis::default()),
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
         }
@@ -501,6 +501,12 @@ pub enum Redis {
     },
     /// Connect to a single redis instance
     Single(String),
+}
+
+impl Default for Redis {
+    fn default() -> Self {
+        Redis::Single("redis://127.0.0.1".to_owned())
+    }
 }
 
 /// Controls interal reporting to Sentry.
