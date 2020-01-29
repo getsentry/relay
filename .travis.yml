@@ -145,7 +145,19 @@ jobs:
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
-    - name: "release: librelay[macos]"
+    - name: "release: librelay[macos-10.11]"
+      if: branch ~= /^release\/[\d.]+$/
+      os: osx
+      language: generic
+      osx_image: xcode7.3
+      env: RELAY_PYTHON_VERSION=python
+      script:
+        - sudo easy_install virtualenv
+        - make -e wheel
+        - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+
+    - name: "release: librelay[macos-10.13]"
       if: branch ~= /^release\/[\d.]+$/
       os: osx
       language: generic
