@@ -157,7 +157,10 @@ def test_data_scrubbing_default_config():
 
 def test_validate_pii_config():
     sentry_relay.validate_pii_config("{}")
-    sentry_relay.validate_pii_config('{"applications": []}')
+    sentry_relay.validate_pii_config('{"applications": {}}')
+
+    with pytest.raises(ValueError):
+        sentry_relay.validate_pii_config('{"applications": []}')
 
     with pytest.raises(ValueError):
         sentry_relay.validate_pii_config('{"applications": true}')
