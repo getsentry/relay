@@ -3,7 +3,8 @@ use crate::types::Annotated;
 
 /// Metrics captured during event ingestion and processing.
 ///
-/// These values are collected in Relay and Sentry and finally persisted into the event payload.
+/// These values are collected in Relay and Sentry and finally persisted into the event payload. A
+/// value of `0` is equivalent to N/A and should not be considered in aggregations and analysis.
 #[derive(Clone, Debug, Default, Empty, PartialEq, FromValue, ToValue)]
 pub struct Metrics {
     /// The size of the original event payload ingested into Sentry.
@@ -91,25 +92,25 @@ pub struct Metrics {
     #[metastructure(field = "bytes.stored.event.attachment")]
     pub bytes_stored_event_attachment: Annotated<u64>,
 
-    /// The number of seconds Symbolicator spent processing the native event.
+    /// The number of milliseconds Symbolicator spent processing the native event.
     ///
     /// This metric is measured in Symbolicator and reported in the native processing task. There
     /// are additional overheads polling symbolicator for the response, but the time reported from
     /// symbolicator reflects used resources most accurately.
-    #[metastructure(field = "seconds.processing.symbolicator")]
-    pub seconds_processing_symbolicator: Annotated<u64>,
+    #[metastructure(field = "ms.processing.symbolicator")]
+    pub ms_processing_symbolicator: Annotated<u64>,
 
-    /// The number of seconds Sentry spent resolving proguard mappings for a java event.
+    /// The number of milliseconds Sentry spent resolving proguard mappings for a java event.
     ///
     /// This metric is measured in Sentry and reported in the java processing task.
-    #[metastructure(field = "seconds.processing.proguard")]
-    pub seconds_processing_proguard: Annotated<u64>,
+    #[metastructure(field = "ms.processing.proguard")]
+    pub ms_processing_proguard: Annotated<u64>,
 
-    /// The number of seconds sentry spent resolving minified stack traces for a javascript event.
+    /// The number of milliseconds sentry spent resolving minified stack traces for a javascript event.
     ///
     /// This metric is measured in Sentry and reported in the javascript processing task.
-    #[metastructure(field = "seconds.processing.sourcemaps")]
-    pub seconds_processing_sourcemaps: Annotated<u64>,
+    #[metastructure(field = "ms.processing.sourcemaps")]
+    pub ms_processing_sourcemaps: Annotated<u64>,
 }
 
 // Do not process Metrics
