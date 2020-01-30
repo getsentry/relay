@@ -334,3 +334,32 @@ def test_minidump_with_processing(
             "chunks": num_chunks,
         }
     ]
+
+
+def test_minidump_ratelimit(
+    mini_sentry, relay_with_processing, outcomes_consumer
+):
+    relay = relay_with_processing()
+    relay.wait_relay_healthcheck()
+
+    project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    (key_config,) = project_config["publicKeys"]
+    key_config["quotas"] = [
+        {
+            "limit": 0,
+            "reasonCode": "static_disabled_quota",
+        }
+    ]
+
+    outcomes_consumer = outcomes_consumer()
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
+
+    # First minidump returns 200 but is rate limited in processing
+    relay.send_minidump(project_id=42, files=attachments)
+    outcomes_consumer.assert_rate_limited("static_disabled_quota")
+
+    # Second minidump returns 429 in endpoint
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_minidump(project_id=42, files=attachments)
+    assert excinfo.value.response.status_code == 429
+    outcomes_consumer.assert_rate_limited("static_disabled_quota")
