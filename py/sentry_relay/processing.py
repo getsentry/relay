@@ -20,6 +20,7 @@ __all__ = [
     "scrub_event",
     "is_glob_match",
     "parse_release",
+    "validate_pii_config",
     "VALID_PLATFORMS",
 ]
 
@@ -163,6 +164,21 @@ def is_glob_match(
     if isinstance(value, text_type):
         value = value.encode("utf-8")
     return rustcall(lib.relay_is_glob_match, make_buf(value), encode_str(pat), flags)
+
+
+def validate_pii_config(config):
+    """
+    Validate a PII config against the schema. Used in project options UI.
+
+    The parameter is a JSON-encoded string. We should pass the config through
+    as a string such that line numbers from the error message match with what
+    the user typed in.
+    """
+    assert isinstance(config, string_types)
+    raw_error = rustcall(lib.relay_validate_pii_config, encode_str(config))
+    error = decode_str(raw_error, free=True)
+    if error:
+        raise ValueError(error)
 
 
 def parse_release(release):

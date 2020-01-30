@@ -8,7 +8,7 @@ use std::slice;
 
 use json_forensics;
 use relay_common::{glob_match_bytes, GlobOptions};
-use relay_general::pii::{DataScrubbingConfig, PiiProcessor};
+use relay_general::pii::{DataScrubbingConfig, PiiConfig, PiiProcessor};
 use relay_general::processor::{process_value, split_chunks, ProcessingState};
 use relay_general::protocol::{Event, VALID_PLATFORMS};
 use relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
@@ -169,6 +169,18 @@ ffi_fn! {
             options.allow_newline = true;
         }
         Ok(glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options))
+    }
+}
+
+ffi_fn! {
+    /// Validate a PII config against the schema. Used in project options UI.
+    unsafe fn relay_validate_pii_config(
+        value: *const RelayStr
+    ) -> Result<RelayStr> {
+        match serde_json::from_str((*value).as_str()) {
+            Ok(PiiConfig { .. }) => Ok(RelayStr::new("")),
+            Err(e) => Ok(RelayStr::from_string(e.to_string()))
+        }
     }
 }
 

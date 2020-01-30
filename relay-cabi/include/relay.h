@@ -288,6 +288,11 @@ RelayStr relay_uuid_to_str(const RelayUuid *uuid);
 const RelayStr *relay_valid_platforms(uintptr_t *size_out);
 
 /**
+ * Validate a PII config against the schema. Used in project options UI.
+ */
+RelayStr relay_validate_pii_config(const RelayStr *value);
+
+/**
  * Validates a register response.
  */
 RelayStr relay_validate_register_response(const RelayPublicKey *pk,
