@@ -36,7 +36,6 @@ enum RelayErrorCode {
   RELAY_ERROR_CODE_UNPACK_ERROR_BAD_PAYLOAD = 1004,
   RELAY_ERROR_CODE_UNPACK_ERROR_SIGNATURE_EXPIRED = 1005,
   RELAY_ERROR_CODE_PROCESSING_ACTION_INVALID_TRANSACTION = 2000,
-  RELAY_ERROR_CODE_SERDE_JSON_ERROR = 2001,
 };
 typedef uint32_t RelayErrorCode;
 
@@ -288,7 +287,10 @@ RelayStr relay_uuid_to_str(const RelayUuid *uuid);
  */
 const RelayStr *relay_valid_platforms(uintptr_t *size_out);
 
-void relay_validate_pii_config(const RelayStr *value);
+/**
+ * Validate a PII config against the schema. Used in project options UI.
+ */
+RelayStr relay_validate_pii_config(const RelayStr *value);
 
 /**
  * Validates a register response.

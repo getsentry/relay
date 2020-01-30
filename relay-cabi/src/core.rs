@@ -30,9 +30,6 @@ pub enum RelayErrorCode {
 
     // relay_general::types::annotated::ProcessingAction
     ProcessingActionInvalidTransaction = 2000,
-
-    // serde_json::Error
-    SerdeJsonError = 2001,
 }
 
 impl RelayErrorCode {
@@ -62,9 +59,6 @@ impl RelayErrorCode {
                     }
                     _ => RelayErrorCode::Unknown,
                 };
-            }
-            if let Some(..) = cause.downcast_ref::<serde_json::Error>() {
-                return RelayErrorCode::SerdeJsonError;
             }
         }
         RelayErrorCode::Unknown

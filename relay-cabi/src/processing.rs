@@ -176,9 +176,11 @@ ffi_fn! {
     /// Validate a PII config against the schema. Used in project options UI.
     unsafe fn relay_validate_pii_config(
         value: *const RelayStr
-    ) -> Result<()> {
-        let _: PiiConfig = serde_json::from_str((*value).as_str())?;
-        Ok(())
+    ) -> Result<RelayStr> {
+        match serde_json::from_str((*value).as_str()) {
+            Ok(PiiConfig { .. }) => Ok(RelayStr::new("")),
+            Err(e) => Ok(RelayStr::from_string(e.to_string()))
+        }
     }
 }
 

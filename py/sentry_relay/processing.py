@@ -2,7 +2,6 @@ import json
 
 from sentry_relay._compat import string_types, iteritems, text_type
 from sentry_relay._lowlevel import lib, ffi
-from sentry_relay.exceptions import SerdeJsonError
 from sentry_relay.utils import (
     encode_str,
     decode_str,
@@ -176,10 +175,10 @@ def validate_pii_config(config):
     the user typed in.
     """
     assert isinstance(config, string_types)
-    try:
-        rustcall(lib.relay_validate_pii_config, encode_str(config))
-    except SerdeJsonError as e:
-        raise ValueError(e.message.split("\n")[0])
+    raw_error = rustcall(lib.relay_validate_pii_config, encode_str(config))
+    error = decode_str(raw_error, free=True)
+    if error:
+        raise ValueError(error)
 
 
 def parse_release(release):
