@@ -336,20 +336,13 @@ def test_minidump_with_processing(
     ]
 
 
-def test_minidump_ratelimit(
-    mini_sentry, relay_with_processing, outcomes_consumer
-):
+def test_minidump_ratelimit(mini_sentry, relay_with_processing, outcomes_consumer):
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
 
     project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
     (key_config,) = project_config["publicKeys"]
-    key_config["quotas"] = [
-        {
-            "limit": 0,
-            "reasonCode": "static_disabled_quota",
-        }
-    ]
+    key_config["quotas"] = [{"limit": 0, "reasonCode": "static_disabled_quota",}]
 
     outcomes_consumer = outcomes_consumer()
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
