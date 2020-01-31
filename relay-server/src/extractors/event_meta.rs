@@ -192,7 +192,7 @@ impl EventMeta {
     }
 
     /// When the event has been sent, according to the SDK.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code)]
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.sent_at
     }
