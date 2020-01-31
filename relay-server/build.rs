@@ -8,9 +8,9 @@ fn main() {
     let dest_path = Path::new(&out_dir).join("constants.gen.rs");
     let mut f = File::create(&dest_path).unwrap();
 
-    write!(
+    writeln!(
         f,
-        "pub const SERVER: &str = \"sentry-relay/{}\";\n",
+        "pub const SERVER: &str = \"sentry-relay/{}\";",
         env::var("CARGO_PKG_VERSION").unwrap()
     )
     .unwrap();
