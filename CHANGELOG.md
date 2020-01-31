@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.1
+
+**Relay**:
+
+- Ability to fetch project configuration from Redis as additional caching layer.
+- Fix a few bugs in release filters.
+- Fix a few bugs in minidumps endpoint with processing enabled.
+
+**Python**:
+
+- Bump xcode version from 7.3 to 9.4, dropping wheel support for some older OS X versions.
+- New function `validate_pii_config`.
+
+**Store**:
+
+- Fix a bug in the PII processor that would always remove the entire string on `pattern` rules.
+- Ability to correct some clock drift and wrong system time in transaction events.
+
 ## 0.5.0
 
 **Relay**:

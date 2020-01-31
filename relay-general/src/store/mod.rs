@@ -1,6 +1,7 @@
 //! Utility code for sentry's internal store.
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -44,6 +45,9 @@ pub struct StoreConfig {
 
     /// When `true` it adds context information extracted from the user agent
     pub normalize_user_agent: Option<bool>,
+
+    /// When the event has been sent, according to the SDK. Passed in via envelope headers.
+    pub sent_at: Option<DateTime<Utc>>,
 }
 
 /// The processor that normalizes events for store.
@@ -75,10 +79,21 @@ impl<'a> Processor for StoreProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        let is_renormalize = self.config.is_renormalize.unwrap_or(false);
+        let remove_other = self.config.remove_other.unwrap_or(!is_renormalize);
+        let enable_trimming = self.config.enable_trimming.unwrap_or(true);
+
         // Convert legacy data structures to current format
         legacy::LegacyProcessor.process_event(event, meta, state)?;
 
-        let is_renormalize = self.config.is_renormalize.unwrap_or(false);
+        if !is_renormalize {
+            // internally noops for non-transaction events
+            // TODO: Parts of this processor should probably be a filter once Relay is store so we
+            // can revert some changes to ProcessingAction
+            transactions::TransactionsProcessor::new(self.config.sent_at)
+                .process_event(event, meta, state)?;
+        }
+
         if !is_renormalize {
             // Check for required and non-empty values
             schema::SchemaProcessor.process_event(event, meta, state)?;
@@ -87,7 +102,6 @@ impl<'a> Processor for StoreProcessor<'a> {
             self.normalize.process_event(event, meta, state)?;
         }
 
-        let remove_other = self.config.remove_other.unwrap_or(!is_renormalize);
         if remove_other {
             // Remove unknown attributes at every level
             remove_other::RemoveOtherProcessor.process_event(event, meta, state)?;
@@ -98,16 +112,9 @@ impl<'a> Processor for StoreProcessor<'a> {
             event_error::EmitEventErrors::new().process_event(event, meta, state)?;
         }
 
-        let enable_trimming = self.config.enable_trimming.unwrap_or(true);
         if enable_trimming {
             // Trim large strings and databags down
             trimming::TrimmingProcessor::new().process_event(event, meta, state)?;
-        }
-
-        if !is_renormalize {
-            // internally noops for non-transaction events
-            // TODO: This should probably be a filter once Relay is store.
-            transactions::TransactionsProcessor.process_event(event, meta, state)?;
         }
 
         Ok(())
