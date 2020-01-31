@@ -200,10 +200,10 @@ fn consume_item(
 
             content.items.push(item);
         } else if let Some(field_name) = field_name {
-            match std::str::from_utf8(&data) {
-                Ok(value) => content.form_data.append(field_name, value),
-                Err(_failure) => log::trace!("invalid text value in multipart item"),
-            }
+            // Ensure to decode this safely to match Django's POST data behavior. This allows us to
+            // process sentry event payloads even if they contain invalid encoding.
+            let string = String::from_utf8_lossy(&data);
+            content.form_data.append(field_name, &string);
         } else {
             log::trace!("multipart content without name or file_name");
         }
