@@ -1,5 +1,5 @@
 SHELL=/bin/bash
-export RELAY_PYTHON_VERSION := python3
+export RELAY_PYTHON_VERSION := python3.7
 export RELAY_FEATURES := with_ssl
 
 all: check test
@@ -72,7 +72,7 @@ test-integration: build setup-geoip setup-venv
 	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
 
-test-process-event: setup-geoip
+test-process-event:
 	# Process a basic event and assert its output
 	bash -c 'diff \
 		<(cargo run ${CARGO_ARGS} -- process-event <tests/fixtures/basic-event-input.json) \
@@ -92,11 +92,15 @@ api-docs: setup-git
 	@cargo doc
 .PHONY: api-docs
 
-prose-docs: .venv/bin/python
-	.venv/bin/pip install -U mkdocs mkdocs-material pygments pymdown-extensions
+prose-docs: .venv/bin/python extract-doc
+	.venv/bin/pip install -U mkdocs mkdocs-material pygments pymdown-extensions Jinja2
 	.venv/bin/mkdocs build
 	touch site/.nojekyll
 .PHONY: prose-docs
+
+extract-doc: .venv/bin/python
+	.venv/bin/pip install -U Jinja2
+	cd scripts && ../.venv/bin/python extract_metric_docs.py
 
 docserver: prose-docs
 	.venv/bin/mkdocs serve
@@ -155,7 +159,7 @@ format-rust:
 
 format-python: setup-venv
 	.venv/bin/pip install -U black
-	.venv/bin/black py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
+	.venv/bin/black py tests scripts --exclude '\.eggs|sentry_relay/_lowlevel.*'
 .PHONY: format-python
 
 # Development
@@ -190,7 +194,7 @@ clean-target-dir:
 
 .venv/bin/python: Makefile
 	@rm -rf .venv
-	@which virtualenv || sudo easy_install virtualenv
+	@which virtualenv || sudo pip install virtualenv
 	virtualenv -p $$RELAY_PYTHON_VERSION .venv
 
 # GNU tar requires `--wildcards`, but bsd tar does not.

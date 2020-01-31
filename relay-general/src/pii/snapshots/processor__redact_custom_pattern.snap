@@ -1,0 +1,26 @@
+---
+source: relay-general/src/pii/processor.rs
+expression: event
+---
+{
+  "extra": {
+    "myvalue": "asdbar"
+  },
+  "_meta": {
+    "extra": {
+      "myvalue": {
+        "": {
+          "rem": [
+            [
+              "myrule",
+              "s",
+              0,
+              3
+            ]
+          ],
+          "len": 6
+        }
+      }
+    }
+  }
+}

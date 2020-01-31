@@ -8,6 +8,7 @@ use futures::prelude::*;
 use relay_common::metric;
 
 use crate::constants::SERVER;
+use crate::metrics::{RelayCounters, RelayTimers};
 use crate::utils::ApiErrorResponse;
 
 /// Basic metrics
@@ -28,9 +29,9 @@ impl<S> Middleware<S> for Metrics {
     fn start(&self, req: &HttpRequest<S>) -> Result<Started, Error> {
         req.extensions_mut().insert(StartTime(Instant::now()));
         metric!(
-            counter("requests") += 1,
-            "route" => req.resource().name(),
-            "method" => req.method().as_str()
+            counter(RelayCounters::Requests) += 1,
+            route = req.resource().name(),
+            method = req.method().as_str()
         );
         Ok(Started::Done)
     }
@@ -39,15 +40,15 @@ impl<S> Middleware<S> for Metrics {
         let start_time = req.extensions().get::<StartTime>().unwrap().0;
 
         metric!(
-            timer("requests.duration") = start_time.elapsed(),
-            "route" => req.resource().name(),
-            "method" => req.method().as_str()
+            timer(RelayTimers::RequestsDuration) = start_time.elapsed(),
+            route = req.resource().name(),
+            method = req.method().as_str()
         );
         metric!(
-            counter("responses.status_codes") += 1,
-            "status_code" => &resp.status().as_str(),
-            "route" => req.resource().name(),
-            "method" => req.method().as_str()
+            counter(RelayCounters::ResponsesStatusCodes) += 1,
+            status_code = &resp.status().as_str(),
+            route = req.resource().name(),
+            method = req.method().as_str()
         );
 
         Finished::Done

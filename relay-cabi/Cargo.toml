@@ -1,6 +1,6 @@
 [package]
 name = "relay-cabi"
-version = "0.4.65"
+version = "0.5.0"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
@@ -29,3 +29,4 @@ uuid = "0.8.1"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
 relay-general = { path = "../relay-general" }
+sentry-release-parser = { version = "0.3.1", features = ["serde"] }

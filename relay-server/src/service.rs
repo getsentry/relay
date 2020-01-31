@@ -16,12 +16,13 @@ use crate::actors::events::EventManager;
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::keys::KeyCache;
 use crate::actors::outcome::OutcomeProducer;
-use crate::actors::project::ProjectCache;
+use crate::actors::project_cache::ProjectCache;
 use crate::actors::project_keys::ProjectKeyLookup;
 use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
 use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware};
+use crate::utils::RedisPool;
 
 /// Common error type for the relay server.
 #[derive(Debug)]
@@ -123,20 +124,26 @@ impl ServiceState {
         let outcome_producer = OutcomeProducer::create(config.clone())?;
         let outcome_producer = Arbiter::start(move |_| outcome_producer);
 
+        let redis = RedisPool::from_config(&config).context(ServerErrorKind::RedisError)?;
+
         let event_manager = EventManager::create(
             config.clone(),
             upstream_relay.clone(),
             outcome_producer.clone(),
+            redis.clone(),
         )
         .context(ServerErrorKind::ConfigError)?
         .start();
+
+        let project_cache =
+            ProjectCache::new(config.clone(), upstream_relay.clone(), redis).start();
 
         Ok(ServiceState {
             config: config.clone(),
             key_lookup: ProjectKeyLookup::new(config.clone(), upstream_relay.clone()).start(),
             upstream_relay: upstream_relay.clone(),
             key_cache: KeyCache::new(config.clone(), upstream_relay.clone()).start(),
-            project_cache: ProjectCache::new(config.clone(), upstream_relay.clone()).start(),
+            project_cache,
             healthcheck: Healthcheck::new(config, upstream_relay).start(),
             event_manager,
             outcome_producer,

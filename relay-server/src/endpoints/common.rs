@@ -18,11 +18,13 @@ use relay_general::protocol::EventId;
 
 use crate::actors::events::{QueueEvent, QueueEventError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{EventAction, GetEventAction, GetProject, ProjectError, RateLimit};
+use crate::actors::project::{EventAction, GetEventAction, RateLimit};
+use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
 use crate::constants::ITEM_NAME_EVENT;
 use crate::envelope::{Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::{EnvelopeMeta, StartTime};
+use crate::metrics::RelayCounters;
 use crate::service::ServiceState;
 use crate::utils::{ApiErrorResponse, FormDataIter, MultipartError};
 
@@ -292,7 +294,10 @@ where
         }));
     });
 
-    metric!(counter(&format!("event.protocol.v{}", version)) += 1);
+    metric!(
+        counter(RelayCounters::EventProtocol) += 1,
+        version = &format!("{}", version)
+    );
 
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
@@ -339,7 +344,7 @@ where
                 })
         }))
         .or_else(move |error: BadStoreRequest| {
-            metric!(counter("event.rejected") += 1);
+            metric!(counter(RelayCounters::EventRejected) += 1);
 
             if is_event {
                 outcome_producer.do_send(TrackOutcome {

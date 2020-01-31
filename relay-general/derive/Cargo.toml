@@ -1,16 +1,16 @@
 [package]
 name = "relay-general-derive"
-version = "0.4.65"
+version = "0.5.0"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 edition = "2018"
 
 [dependencies]
-quote = "0.6.13"
-syn = "0.15.42"
-synstructure = "0.11.0"
-proc-macro2 = "0.4.30"
+quote = "1.0.2"
+syn = "1.0.14"
+synstructure = "0.12.3"
+proc-macro2 = "1.0.8"
 
 [lib]
 proc-macro = true

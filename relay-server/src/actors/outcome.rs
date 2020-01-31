@@ -186,6 +186,7 @@ mod real_implementation {
     use relay_common::metric;
     use relay_config::KafkaTopic;
 
+    use crate::metrics::RelayCounters;
     use crate::service::ServerErrorKind;
     use crate::utils;
 
@@ -372,9 +373,9 @@ mod real_implementation {
                 .map_err(OutcomeError::SerializationError)?;
 
             metric!(
-                counter("events.outcomes") +=1,
-                "reason" => message.outcome.to_reason().unwrap_or(""),
-                "outcome" => message.outcome.name()
+                counter(RelayCounters::EventOutcomes) += 1,
+                reason = message.outcome.to_reason().unwrap_or(""),
+                outcome = message.outcome.name()
             );
 
             // At the moment, we support outcomes with optional EventId.

@@ -28,8 +28,8 @@ def rustcall(func, *args):
         return rv
     msg = lib.relay_err_get_last_message()
     cls = exceptions_by_code.get(err, RelayError)
-    exc = cls(decode_str(msg))
-    backtrace = decode_str(lib.relay_err_get_backtrace())
+    exc = cls(decode_str(msg, free=True))
+    backtrace = decode_str(lib.relay_err_get_backtrace(), free=True)
     if backtrace:
         exc.rust_info = backtrace
     raise exc
@@ -72,13 +72,13 @@ class RustObject(with_metaclass(_NoDict)):
 
 
 def decode_str(s, free=False):
-    """Decodes a SymbolicStr"""
+    """Decodes a RelayStr"""
     try:
         if s.len == 0:
             return u""
         return ffi.unpack(s.data, s.len).decode("utf-8", "replace")
     finally:
-        if free:
+        if free and s.owned:
             lib.relay_str_free(ffi.addressof(s))
 
 

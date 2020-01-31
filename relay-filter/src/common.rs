@@ -1,41 +1,20 @@
-use std::borrow::Cow;
 use std::fmt;
 
-use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
+use globset::GlobBuilder;
 use lazycell::AtomicLazyCell;
+use regex::bytes::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// Escapes the a glob pattern or message for the glob matcher.
-fn escape<'a, S>(message: S) -> Cow<'a, str>
-where
-    S: Into<Cow<'a, str>>,
-{
-    let mut escaped = message.into();
-
-    if escaped.contains('\n') {
-        // The glob matcher cannot deal with newlines. We replace them with the zero byte, which we
-        // view as sufficiently uncommon in regular strings to perform such a match.
-        escaped = Cow::Owned(escaped.as_ref().replace("\n", "\00"))
-    }
-
-    escaped
-}
-
 /// Returns `true` if any of the patterns match the given message.
-///
-/// The message is internally escaped using `escape`.
-fn is_match<'a, S>(globs: &GlobSet, message: S) -> bool
-where
-    S: Into<Cow<'a, str>>,
-{
-    globs.is_match(escape(message).as_ref())
+fn is_match(globs: &[Regex], message: &[u8]) -> bool {
+    globs.iter().any(|regex| regex.is_match(message.as_ref()))
 }
 
 /// A list of patterns for glob matching.
 #[derive(Clone)]
 pub struct GlobPatterns {
     patterns: Vec<String>,
-    globs: AtomicLazyCell<GlobSet>,
+    globs: AtomicLazyCell<Vec<Regex>>,
 }
 
 impl GlobPatterns {
@@ -55,11 +34,11 @@ impl GlobPatterns {
     }
 
     /// Returns `true` if any of the patterns match the given message.
-    pub fn is_match<'a, S>(&self, message: S) -> bool
+    pub fn is_match<S>(&self, message: S) -> bool
     where
-        S: Into<Cow<'a, str>>,
+        S: AsRef<[u8]>,
     {
-        let message = message.into();
+        let message = message.as_ref();
         if message.is_empty() {
             return false;
         }
@@ -84,21 +63,27 @@ impl GlobPatterns {
     }
 
     /// Parses valid patterns from the list.
-    fn parse_globs(&self) -> GlobSet {
-        let mut builder = GlobSetBuilder::new();
+    fn parse_globs(&self) -> Vec<Regex> {
+        let mut globs = Vec::with_capacity(self.patterns.len());
 
         for pattern in &self.patterns {
-            let glob_result = GlobBuilder::new(&escape(pattern))
+            let glob_result = GlobBuilder::new(&pattern)
                 .case_insensitive(true)
                 .backslash_escape(true)
                 .build();
 
             if let Ok(glob) = glob_result {
-                builder.add(glob);
+                let regex_result = RegexBuilder::new(glob.regex())
+                    .dot_matches_new_line(true)
+                    .build();
+
+                if let Ok(regex) = regex_result {
+                    globs.push(regex);
+                }
             }
         }
 
-        builder.build().unwrap_or_else(|_| GlobSet::empty())
+        globs
     }
 }
 
@@ -262,5 +247,12 @@ mod tests {
     fn test_match_newline_pattern() {
         let globs = globs!("foo*\n*bar");
         assert!(globs.is_match("foo \n bar"));
+    }
+
+    #[test]
+    fn test_match_range() {
+        let globs = globs!("1.18.[0-4].*");
+        assert!(globs.is_match("1.18.4.2153-2aa83397b"));
+        assert!(!globs.is_match("1.18.5.2153-2aa83397b"));
     }
 }

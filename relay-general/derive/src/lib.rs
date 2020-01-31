@@ -9,7 +9,7 @@ use std::str::FromStr;
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
-use syn::{Data, Ident, Lit, LitStr, Meta, MetaNameValue, NestedMeta};
+use syn::{Data, Ident, Lit, LitStr, Meta, NestedMeta};
 use synstructure::decl_derive;
 
 #[derive(Debug, Clone, Copy)]
@@ -609,22 +609,30 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
     let mut rv = TypeAttrs::default();
 
     for attr in &s.ast().attrs {
-        let meta = match attr.interpret_meta() {
-            Some(meta) => meta,
+        let meta = match attr.parse_meta() {
+            Ok(meta) => meta,
+            Err(_) => continue,
+        };
+
+        let ident = match meta.path().get_ident() {
+            Some(x) => x,
             None => continue,
         };
-        if meta.name() != "metastructure" {
+
+        if ident != "metastructure" {
             continue;
         }
 
         if let Meta::List(metalist) = meta {
             for nested_meta in metalist.nested {
                 match nested_meta {
-                    NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
+                    NestedMeta::Lit(..) => panic!("unexpected literal attribute"),
                     NestedMeta::Meta(meta) => match meta {
-                        Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
+                        Meta::NameValue(name_value) => {
+                            let ident = name_value.path.get_ident().expect("Unexpected path");
+
                             if ident == "process_func" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => {
                                         rv.process_func = Some(litstr.value());
                                     }
@@ -633,7 +641,7 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
                                     }
                                 }
                             } else if ident == "value_type" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => {
                                         rv.value_type = Some(litstr.value());
                                     }
@@ -642,7 +650,7 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
                                     }
                                 }
                             } else if ident == "tag_key" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => {
                                         rv.tag_key = Some(litstr.value());
                                     }
@@ -831,29 +839,38 @@ fn parse_field_attributes(
         .unwrap_or_else(|| index.to_string());
 
     for attr in &bi_ast.attrs {
-        let meta = match attr.interpret_meta() {
-            Some(meta) => meta,
+        let meta = match attr.parse_meta() {
+            Ok(meta) => meta,
+            Err(_) => continue,
+        };
+
+        let ident = match meta.path().get_ident() {
+            Some(x) => x,
             None => continue,
         };
-        if meta.name() != "metastructure" {
+
+        if ident != "metastructure" {
             continue;
         }
 
         if let Meta::List(metalist) = meta {
             for nested_meta in metalist.nested {
                 match nested_meta {
-                    NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
+                    NestedMeta::Lit(..) => panic!("unexpected literal attribute"),
                     NestedMeta::Meta(meta) => match meta {
-                        Meta::Word(ident) => {
+                        Meta::Path(path) => {
+                            let ident = path.get_ident().expect("Unexpected path");
+
                             if ident == "additional_properties" {
                                 rv.additional_properties = true;
                             } else {
                                 panic!("Unknown attribute {}", ident);
                             }
                         }
-                        Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
+                        Meta::NameValue(name_value) => {
+                            let ident = name_value.path.get_ident().expect("Unexpected path");
                             if ident == "field" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => {
                                         rv.field_name = litstr.value();
                                     }
@@ -862,7 +879,7 @@ fn parse_field_attributes(
                                     }
                                 }
                             } else if ident == "required" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => match litstr.value().as_str() {
                                         "true" => rv.required = Some(true),
                                         "false" => rv.required = Some(false),
@@ -873,7 +890,7 @@ fn parse_field_attributes(
                                     }
                                 }
                             } else if ident == "nonempty" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => match litstr.value().as_str() {
                                         "true" => rv.nonempty = Some(true),
                                         "false" => rv.nonempty = Some(false),
@@ -884,7 +901,7 @@ fn parse_field_attributes(
                                     }
                                 }
                             } else if ident == "trim_whitespace" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => match litstr.value().as_str() {
                                         "true" => rv.trim_whitespace = Some(true),
                                         "false" => rv.trim_whitespace = Some(false),
@@ -895,14 +912,14 @@ fn parse_field_attributes(
                                     }
                                 }
                             } else if ident == "match_regex" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => {
                                         rv.match_regex = Some(litstr.value().clone())
                                     }
                                     _ => panic!("Got non string literal for match_regex"),
                                 }
                             } else if ident == "max_chars" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => {
                                         let attr = parse_max_chars(litstr.value().as_str());
                                         rv.max_chars = Some(quote!(#attr));
@@ -912,7 +929,7 @@ fn parse_field_attributes(
                                     }
                                 }
                             } else if ident == "bag_size" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => {
                                         let attr = parse_bag_size(litstr.value().as_str());
                                         rv.bag_size = Some(quote!(#attr));
@@ -922,7 +939,7 @@ fn parse_field_attributes(
                                     }
                                 }
                             } else if ident == "pii" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => match litstr.value().as_str() {
                                         "true" => rv.pii = Some(true),
                                         "false" => rv.pii = Some(false),
@@ -933,7 +950,7 @@ fn parse_field_attributes(
                                     }
                                 }
                             } else if ident == "retain" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => match litstr.value().as_str() {
                                         "true" => rv.retain = true,
                                         "false" => rv.retain = false,
@@ -944,7 +961,7 @@ fn parse_field_attributes(
                                     }
                                 }
                             } else if ident == "legacy_alias" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => {
                                         rv.legacy_aliases.push(litstr.value());
                                     }
@@ -953,7 +970,7 @@ fn parse_field_attributes(
                                     }
                                 }
                             } else if ident == "skip_serialization" {
-                                match lit {
+                                match name_value.lit {
                                     Lit::Str(litstr) => {
                                         rv.skip_serialization = FromStr::from_str(&litstr.value())
                                             .expect("Unknown value for skip_serialization");
@@ -967,7 +984,7 @@ fn parse_field_attributes(
                             }
                         }
                         other => {
-                            panic!("Unexpected or bad attribute {}", other.name());
+                            panic!("Unexpected or bad attribute {:?}", other.path());
                         }
                     },
                 }
@@ -986,30 +1003,36 @@ struct VariantAttrs {
 fn parse_variant_attributes(attrs: &[syn::Attribute]) -> VariantAttrs {
     let mut rv = VariantAttrs::default();
     for attr in attrs {
-        let meta = match attr.interpret_meta() {
-            Some(meta) => meta,
+        let meta = match attr.parse_meta() {
+            Ok(meta) => meta,
+            Err(_) => continue,
+        };
+        let ident = match meta.path().get_ident() {
+            Some(x) => x,
             None => continue,
         };
-        if meta.name() != "metastructure" {
+
+        if ident != "metastructure" {
             continue;
         }
 
         if let Meta::List(metalist) = meta {
             for nested_meta in metalist.nested {
                 match nested_meta {
-                    NestedMeta::Literal(..) => panic!("unexpected literal attribute"),
+                    NestedMeta::Lit(..) => panic!("unexpected literal attribute"),
                     NestedMeta::Meta(meta) => match meta {
-                        Meta::Word(ident) => {
-                            if ident == "fallback_variant" {
+                        Meta::Path(path) => {
+                            if path.get_ident().map_or(false, |x| x == "fallback_variant") {
                                 rv.tag_override = None;
                                 rv.fallback_variant = true;
                             } else {
-                                panic!("Unknown attribute {}", ident);
+                                panic!("Unknown attribute {:?}", path);
                             }
                         }
-                        Meta::NameValue(MetaNameValue { ident, lit, .. }) => {
-                            if ident == "tag" {
-                                match lit {
+                        Meta::NameValue(name_value) => {
+                            let ident = name_value.path.get_ident();
+                            if ident.map_or(false, |x| x == "tag") {
+                                match name_value.lit {
                                     Lit::Str(litstr) => {
                                         rv.tag_override = Some(litstr.value());
                                     }
@@ -1018,11 +1041,11 @@ fn parse_variant_attributes(attrs: &[syn::Attribute]) -> VariantAttrs {
                                     }
                                 }
                             } else {
-                                panic!("Unknown key {}", ident);
+                                panic!("Unknown key {:?}", name_value.path);
                             }
                         }
                         other => {
-                            panic!("Unexpected or bad attribute {}", other.name());
+                            panic!("Unexpected or bad attribute {:?}", other.path());
                         }
                     },
                 }

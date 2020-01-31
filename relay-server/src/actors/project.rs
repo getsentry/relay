@@ -1,57 +1,26 @@
-use std::borrow::Cow;
-use std::collections::{hash_map::Entry, BTreeMap, HashMap, VecDeque};
-use std::ffi::OsStr;
-use std::fs;
-use std::io;
+use std::collections::{hash_map::Entry, HashMap};
 use std::iter;
-use std::path::Path;
 use std::sync::Arc;
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use actix::fut;
 use actix::prelude::*;
-use actix_web::{http::Method, ResponseError};
 use chrono::{DateTime, Utc};
-use failure::Fail;
-use futures::{future, future::Shared, sync::oneshot, Future};
-use itertools::Itertools;
+use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{metric, LogError, ProjectId, RetryBackoff, Uuid};
+use relay_common::{metric, ProjectId, Uuid};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 
 use crate::actors::outcome::DiscardReason;
-use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
 use crate::extractors::EnvelopeMeta;
-use crate::utils::{self, ErrorBoundary, Response};
-
-#[derive(Fail, Debug)]
-pub enum ProjectError {
-    #[fail(display = "failed to fetch project state from upstream")]
-    FetchFailed,
-
-    #[fail(display = "could not schedule project fetching")]
-    ScheduleFailed(#[cause] MailboxError),
-}
-
-impl ResponseError for ProjectError {}
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum RateLimitScope {
-    Key(String),
-}
-
-impl RateLimitScope {
-    fn iter_variants(meta: &EnvelopeMeta) -> impl Iterator<Item = RateLimitScope> {
-        iter::once(RateLimitScope::Key(meta.public_key().to_owned()))
-    }
-}
+use crate::metrics::RelayCounters;
+use crate::utils::Response;
 
 /// The current status of a project state. Return value of `ProjectState::outdated`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -64,126 +33,6 @@ pub enum Outdated {
     /// The project state is completely outdated and events need to be buffered up until the new
     /// state has been fetched.
     HardOutdated,
-}
-
-pub struct Project {
-    id: ProjectId,
-    config: Arc<Config>,
-    manager: Addr<ProjectCache>,
-    state: Option<Arc<ProjectState>>,
-    state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
-    rate_limits: HashMap<RateLimitScope, RetryAfter>,
-    is_local: bool,
-}
-
-impl Project {
-    pub fn new(id: ProjectId, config: Arc<Config>, manager: Addr<ProjectCache>) -> Self {
-        Project {
-            id,
-            config,
-            manager,
-            state: None,
-            state_channel: None,
-            rate_limits: HashMap::new(),
-            is_local: false,
-        }
-    }
-
-    pub fn state(&self) -> Option<&ProjectState> {
-        self.state.as_ref().map(AsRef::as_ref)
-    }
-
-    fn get_or_fetch_state(
-        &mut self,
-        context: &mut Context<Self>,
-    ) -> Response<Arc<ProjectState>, ProjectError> {
-        // count number of times we are looking for the project state
-        metric!(counter("project_state.get") += 1);
-
-        let state = self.state.as_ref();
-        let outdated = state
-            .map(|s| s.outdated(self.id, &self.config))
-            .unwrap_or(Outdated::HardOutdated);
-
-        let alternative_rv = match (state, outdated, self.is_local) {
-            // The state is fetched from a local file, don't use own caching logic. Rely on
-            // `ProjectCache#local_states` for caching.
-            (_, _, true) => None,
-
-            // There is no project state that can be used, fetch a state and return it.
-            (None, _, false) | (_, Outdated::HardOutdated, false) => None,
-
-            // The project is semi-outdated, fetch new state but return old one.
-            (Some(state), Outdated::SoftOutdated, false) => Some(state.clone()),
-
-            // The project is not outdated, return early here to jump over fetching logic below.
-            (Some(state), Outdated::Updated, false) => return Response::ok(state.clone()),
-        };
-
-        let channel = match self.state_channel {
-            Some(ref channel) => {
-                log::debug!("project {} state request amended", self.id);
-                channel.clone()
-            }
-            None => {
-                log::debug!("project {} state requested", self.id);
-                let channel = self.fetch_state(context);
-                self.state_channel = Some(channel.clone());
-                channel
-            }
-        };
-
-        if let Some(rv) = alternative_rv {
-            return Response::ok(rv);
-        }
-
-        let future = channel
-            .map(|shared| (*shared).clone())
-            .map_err(|_| ProjectError::FetchFailed);
-
-        Response::r#async(future)
-    }
-
-    fn fetch_state(
-        &mut self,
-        context: &mut Context<Self>,
-    ) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
-        let (sender, receiver) = oneshot::channel();
-        let id = self.id;
-
-        self.manager
-            .send(FetchProjectState { id })
-            .into_actor(self)
-            .map(move |state_result, slf, _ctx| {
-                slf.state_channel = None;
-                slf.is_local = state_result
-                    .as_ref()
-                    .map(|resp| resp.is_local)
-                    .unwrap_or(false);
-                slf.state = state_result.map(|resp| resp.state).ok();
-
-                if let Some(ref state) = slf.state {
-                    log::debug!("project {} state updated", id);
-                    sender.send(state.clone()).ok();
-                }
-            })
-            .drop_err()
-            .spawn(context);
-
-        receiver.shared()
-    }
-}
-
-impl Actor for Project {
-    type Context = Context<Self>;
-
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        log::debug!("project {} initialized without state", self.id);
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::debug!("project {} removed from cache", self.id);
-    }
 }
 
 /// A helper enum indicating the public key state.
@@ -625,6 +474,126 @@ pub struct RejectAllQuota {
     pub reason_code: Option<String>,
 }
 
+pub struct Project {
+    id: ProjectId,
+    config: Arc<Config>,
+    manager: Addr<ProjectCache>,
+    state: Option<Arc<ProjectState>>,
+    state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
+    rate_limits: HashMap<RateLimitScope, RetryAfter>,
+    is_local: bool,
+}
+
+impl Project {
+    pub fn new(id: ProjectId, config: Arc<Config>, manager: Addr<ProjectCache>) -> Self {
+        Project {
+            id,
+            config,
+            manager,
+            state: None,
+            state_channel: None,
+            rate_limits: HashMap::new(),
+            is_local: false,
+        }
+    }
+
+    pub fn state(&self) -> Option<&ProjectState> {
+        self.state.as_ref().map(AsRef::as_ref)
+    }
+
+    fn get_or_fetch_state(
+        &mut self,
+        context: &mut Context<Self>,
+    ) -> Response<Arc<ProjectState>, ProjectError> {
+        // count number of times we are looking for the project state
+        metric!(counter(RelayCounters::ProjectStateGet) += 1);
+
+        let state = self.state.as_ref();
+        let outdated = state
+            .map(|s| s.outdated(self.id, &self.config))
+            .unwrap_or(Outdated::HardOutdated);
+
+        let alternative_rv = match (state, outdated, self.is_local) {
+            // The state is fetched from a local file, don't use own caching logic. Rely on
+            // `ProjectCache#local_states` for caching.
+            (_, _, true) => None,
+
+            // There is no project state that can be used, fetch a state and return it.
+            (None, _, false) | (_, Outdated::HardOutdated, false) => None,
+
+            // The project is semi-outdated, fetch new state but return old one.
+            (Some(state), Outdated::SoftOutdated, false) => Some(state.clone()),
+
+            // The project is not outdated, return early here to jump over fetching logic below.
+            (Some(state), Outdated::Updated, false) => return Response::ok(state.clone()),
+        };
+
+        let channel = match self.state_channel {
+            Some(ref channel) => {
+                log::debug!("project {} state request amended", self.id);
+                channel.clone()
+            }
+            None => {
+                log::debug!("project {} state requested", self.id);
+                let channel = self.fetch_state(context);
+                self.state_channel = Some(channel.clone());
+                channel
+            }
+        };
+
+        if let Some(rv) = alternative_rv {
+            return Response::ok(rv);
+        }
+
+        let future = channel
+            .map(|shared| (*shared).clone())
+            .map_err(|_| ProjectError::FetchFailed);
+
+        Response::r#async(future)
+    }
+
+    fn fetch_state(
+        &mut self,
+        context: &mut Context<Self>,
+    ) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
+        let (sender, receiver) = oneshot::channel();
+        let id = self.id;
+
+        self.manager
+            .send(FetchProjectState { id })
+            .into_actor(self)
+            .map(move |state_result, slf, _ctx| {
+                slf.state_channel = None;
+                slf.is_local = state_result
+                    .as_ref()
+                    .map(|resp| resp.is_local)
+                    .unwrap_or(false);
+                slf.state = state_result.map(|resp| resp.state).ok();
+
+                if let Some(ref state) = slf.state {
+                    log::debug!("project {} state updated", id);
+                    sender.send(state.clone()).ok();
+                }
+            })
+            .drop_err()
+            .spawn(context);
+
+        receiver.shared()
+    }
+}
+
+impl Actor for Project {
+    type Context = Context<Self>;
+
+    fn started(&mut self, _ctx: &mut Self::Context) {
+        log::debug!("project {} initialized without state", self.id);
+    }
+
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        log::debug!("project {} removed from cache", self.id);
+    }
+}
+
 pub struct GetProjectState;
 
 impl Message for GetProjectState {
@@ -734,6 +703,17 @@ impl RetryAfter {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum RateLimitScope {
+    Key(String),
+}
+
+impl RateLimitScope {
+    fn iter_variants(meta: &EnvelopeMeta) -> impl Iterator<Item = RateLimitScope> {
+        iter::once(RateLimitScope::Key(meta.public_key().to_owned()))
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct RateLimit(pub RateLimitScope, pub RetryAfter);
 
@@ -765,507 +745,5 @@ impl Handler<RateLimit> for Project {
         }
 
         self.rate_limits.insert(scope, value);
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetProjectStates {
-    pub projects: Vec<ProjectId>,
-    #[cfg(feature = "processing")]
-    #[serde(default)]
-    pub full_config: bool,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct GetProjectStatesResponse {
-    pub configs: HashMap<ProjectId, ErrorBoundary<Option<ProjectState>>>,
-}
-
-impl UpstreamQuery for GetProjectStates {
-    type Response = GetProjectStatesResponse;
-
-    fn method(&self) -> Method {
-        Method::POST
-    }
-
-    fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/")
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-struct ProjectUpdate {
-    project_id: ProjectId,
-    instant: Instant,
-}
-
-impl ProjectUpdate {
-    pub fn new(project_id: ProjectId) -> Self {
-        ProjectUpdate {
-            project_id,
-            instant: Instant::now(),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct ProjectStateChannel {
-    sender: oneshot::Sender<Arc<ProjectState>>,
-    receiver: Shared<oneshot::Receiver<Arc<ProjectState>>>,
-    deadline: Instant,
-}
-
-impl ProjectStateChannel {
-    pub fn new(timeout: Duration) -> Self {
-        let (sender, receiver) = oneshot::channel();
-
-        Self {
-            sender,
-            receiver: receiver.shared(),
-            deadline: Instant::now() + timeout,
-        }
-    }
-
-    pub fn send(self, state: ProjectState) {
-        self.sender.send(Arc::new(state)).ok();
-    }
-
-    pub fn receiver(&self) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
-        self.receiver.clone()
-    }
-
-    pub fn expired(&self) -> bool {
-        Instant::now() > self.deadline
-    }
-}
-
-pub struct ProjectCache {
-    backoff: RetryBackoff,
-    config: Arc<Config>,
-    upstream: Addr<UpstreamRelay>,
-    projects: HashMap<ProjectId, Addr<Project>>,
-    local_states: HashMap<ProjectId, Arc<ProjectState>>,
-    state_channels: HashMap<ProjectId, ProjectStateChannel>,
-    updates: VecDeque<ProjectUpdate>,
-}
-
-impl ProjectCache {
-    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        ProjectCache {
-            backoff: RetryBackoff::new(config.http_max_retry_interval()),
-            config,
-            upstream,
-            projects: HashMap::new(),
-            local_states: HashMap::new(),
-            state_channels: HashMap::new(),
-            updates: VecDeque::new(),
-        }
-    }
-
-    /// Returns the backoff timeout for a batched upstream query.
-    ///
-    /// If previous queries succeeded, this will be the general batch interval. Additionally, an
-    /// exponentially increasing backoff is used for retrying the upstream request.
-    fn next_backoff(&mut self) -> Duration {
-        self.config.query_batch_interval() + self.backoff.next_backoff()
-    }
-
-    /// Schedules a batched upstream query with exponential backoff.
-    fn schedule_fetch(&mut self, context: &mut Context<Self>) {
-        utils::run_later(self.next_backoff(), Self::fetch_states).spawn(context)
-    }
-
-    /// Executes an upstream request to fetch project configs.
-    ///
-    /// This assumes that currently no request is running. If the upstream request fails or new
-    /// channels are pushed in the meanwhile, this will reschedule automatically.
-    fn fetch_states(&mut self, context: &mut Context<Self>) {
-        if self.state_channels.is_empty() {
-            log::error!("project state update scheduled without projects");
-            return;
-        }
-
-        let eviction_start = Instant::now();
-        let batch_size = self.config.query_batch_size();
-        let num_batches = self.config.max_concurrent_queries();
-
-        // Pop n items from state_channels. Intuitively we would use
-        // `self.state_channels.drain().take(n)`, but that clears the entire hashmap regardless how
-        // much of the iterator is consumed.
-        //
-        // Instead we have to collect the keys we want into a separate vector and pop them
-        // one-by-one.
-        let projects: Vec<_> = self
-            .state_channels
-            .keys()
-            .copied()
-            .take(batch_size * num_batches)
-            .collect();
-
-        let channels: BTreeMap<_, _> = projects
-            .iter()
-            .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
-            .filter(|(_id, channel)| !channel.expired())
-            .collect();
-
-        // Remove outdated projects that are not being refreshed from the cache. If the project is
-        // being updated now, also remove its update entry from the queue, since we will be
-        // inserting a new timestamp at the end (see `extend`).
-        let eviction_threshold = eviction_start - 2 * self.config.project_cache_expiry();
-        while let Some(update) = self.updates.get(0) {
-            if update.instant > eviction_threshold {
-                break;
-            }
-
-            if !channels.contains_key(&update.project_id) {
-                self.projects.remove(&update.project_id);
-            }
-
-            self.updates.pop_front();
-        }
-
-        // The remaining projects are not outdated anymore. Still, clean them from the queue to
-        // reinsert them at the end, as they are now receiving an updated timestamp. Then,
-        // batch-insert all new projects with the new timestamp.
-        self.updates
-            .retain(|update| !channels.contains_key(&update.project_id));
-        self.updates
-            .extend(projects.iter().copied().map(ProjectUpdate::new));
-
-        metric!(timer("project_state.eviction.duration") = eviction_start.elapsed());
-        metric!(histogram("project_state.pending") = self.state_channels.len() as u64);
-
-        log::debug!(
-            "updating project states for {}/{} projects (attempt {})",
-            channels.len(),
-            channels.len() + self.state_channels.len(),
-            self.backoff.attempt(),
-        );
-
-        let request_start = Instant::now();
-
-        let requests: Vec<_> = channels
-            .into_iter()
-            .chunks(batch_size)
-            .into_iter()
-            .map(|channels_batch| {
-                let channels_batch: BTreeMap<_, _> = channels_batch.collect();
-                log::debug!("sending request of size {}", channels_batch.len());
-                metric!(
-                    histogram("project_state.request.batch_size") = channels_batch.len() as u64
-                );
-
-                let request = GetProjectStates {
-                    projects: channels_batch.keys().copied().collect(),
-                    #[cfg(feature = "processing")]
-                    full_config: self.config.processing_enabled(),
-                };
-
-                // count number of http requests for project states
-                metric!(counter("project_state.request") += 1);
-
-                self.upstream
-                    .send(SendQuery(request))
-                    .map_err(ProjectError::ScheduleFailed)
-                    .map(move |response| (channels_batch, response))
-            })
-            .collect();
-
-        // Wait on results of all fanouts. We fail everything if a single one fails with a
-        // MailboxError, but errors of a single fanout don't propagate like that.
-        future::join_all(requests)
-            .into_actor(self)
-            .and_then(move |responses, slf, ctx| {
-                metric!(timer("project_state.request.duration") = request_start.elapsed());
-
-                for (channels_batch, response) in responses {
-                    match response {
-                        Ok(mut response) => {
-                            // If a single request succeeded we reset the backoff. We decided to
-                            // only backoff if we see that the project config endpoint is
-                            // completely down and did not answer a single request successfully.
-                            //
-                            // Otherwise we might refuse to fetch any project configs because of a
-                            // single, reproducible 500 we observed for a particular project.
-                            slf.backoff.reset();
-
-                            // count number of project states returned (via http requests)
-                            metric!(
-                                histogram("project_state.received") = response.configs.len() as u64
-                            );
-                            for (id, channel) in channels_batch {
-                                let state = response
-                                    .configs
-                                    .remove(&id)
-                                    .unwrap_or(ErrorBoundary::Ok(None))
-                                    .unwrap_or_else(|error| {
-                                        let e = LogError(error);
-                                        log::error!("error fetching project state {}: {}", id, e);
-                                        Some(ProjectState::err())
-                                    })
-                                    .unwrap_or_else(ProjectState::missing);
-
-                                channel.send(state);
-                            }
-                        }
-                        Err(error) => {
-                            log::error!("error fetching project states: {}", LogError(&error));
-
-                            // Put the channels back into the queue, in addition to channels that
-                            // have been pushed in the meanwhile. We will retry again shortly.
-                            slf.state_channels.extend(channels_batch);
-
-                            metric!(
-                                histogram("project_state.pending") =
-                                    slf.state_channels.len() as u64
-                            );
-                        }
-                    }
-                }
-
-                if !slf.state_channels.is_empty() {
-                    slf.schedule_fetch(ctx);
-                }
-
-                fut::ok(())
-            })
-            .drop_err()
-            .spawn(context);
-    }
-}
-
-fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectId, Arc<ProjectState>>> {
-    let mut states = HashMap::new();
-
-    let directory = match fs::read_dir(projects_path) {
-        Ok(directory) => directory,
-        Err(error) => {
-            return match error.kind() {
-                io::ErrorKind::NotFound => Ok(states),
-                _ => Err(error),
-            };
-        }
-    };
-
-    // only printed when directory even exists.
-    log::debug!("Loading local states from directory {:?}", projects_path);
-
-    for entry in directory {
-        let entry = entry?;
-        let path = entry.path();
-
-        if !entry.metadata()?.is_file() {
-            log::warn!("skipping {:?}, not a file", path);
-            continue;
-        }
-
-        if path.extension().map(|x| x != "json").unwrap_or(true) {
-            log::warn!("skipping {:?}, file extension must be .json", path);
-            continue;
-        }
-
-        let id = match path
-            .file_stem()
-            .and_then(OsStr::to_str)
-            .and_then(|stem| stem.parse().ok())
-        {
-            Some(id) => id,
-            None => {
-                log::warn!("skipping {:?}, filename is not a valid project id", path);
-                continue;
-            }
-        };
-
-        let state = serde_json::from_reader(io::BufReader::new(fs::File::open(path)?))?;
-        states.insert(id, Arc::new(state));
-    }
-
-    Ok(states)
-}
-
-fn poll_local_states(
-    manager: Addr<ProjectCache>,
-    config: Arc<Config>,
-) -> impl Future<Item = (), Error = ()> {
-    let (sender, receiver) = oneshot::channel();
-
-    let _ = thread::spawn(move || {
-        let path = config.project_configs_path();
-        let mut sender = Some(sender);
-
-        loop {
-            match load_local_states(&path) {
-                Ok(states) => {
-                    manager.do_send(UpdateLocalStates { states });
-                    sender.take().map(|sender| sender.send(()).ok());
-                }
-                Err(error) => log::error!(
-                    "failed to load static project configs: {}",
-                    LogError(&error)
-                ),
-            }
-
-            thread::sleep(config.local_cache_interval());
-        }
-    });
-
-    receiver.map_err(|_| ())
-}
-
-impl Actor for ProjectCache {
-    type Context = Context<Self>;
-
-    fn started(&mut self, context: &mut Self::Context) {
-        // Set the mailbox size to the size of the event buffer. This is a rough estimate but
-        // should ensure that we're not dropping messages if the main arbiter running this actor
-        // gets hammered a bit.
-        let mailbox_size = self.config.event_buffer_size() as usize;
-        context.set_mailbox_capacity(mailbox_size);
-
-        log::info!("project cache started");
-
-        // Start the background thread that reads the local states from disk.
-        // `poll_local_states` returns a future that resolves as soon as the first read is done.
-        poll_local_states(context.address(), self.config.clone())
-            .into_actor(self)
-            // Block entire actor on first local state read, such that we don't e.g. drop events on
-            // startup
-            .wait(context);
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("project cache stopped");
-    }
-}
-
-struct UpdateLocalStates {
-    states: HashMap<ProjectId, Arc<ProjectState>>,
-}
-
-impl Message for UpdateLocalStates {
-    type Result = ();
-}
-
-impl Handler<UpdateLocalStates> for ProjectCache {
-    type Result = ();
-
-    fn handle(&mut self, message: UpdateLocalStates, _context: &mut Context<Self>) -> Self::Result {
-        self.local_states = message.states;
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct GetProject {
-    pub id: ProjectId,
-}
-
-impl Message for GetProject {
-    type Result = Addr<Project>;
-}
-
-impl Handler<GetProject> for ProjectCache {
-    type Result = Addr<Project>;
-
-    fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
-        let config = self.config.clone();
-        metric!(histogram("project_cache.size") = self.projects.len() as u64);
-        match self.projects.entry(message.id) {
-            Entry::Occupied(entry) => {
-                metric!(counter("project_cache.hit") += 1);
-                entry.get().clone()
-            }
-            Entry::Vacant(entry) => {
-                metric!(counter("project_cache.miss") += 1);
-                let project = Project::new(message.id, config, context.address()).start();
-                entry.insert(project.clone());
-                project
-            }
-        }
-    }
-}
-
-struct FetchProjectState {
-    id: ProjectId,
-}
-
-struct ProjectStateResponse {
-    state: Arc<ProjectState>,
-    is_local: bool,
-}
-
-impl ProjectStateResponse {
-    pub fn managed(state: Arc<ProjectState>) -> Self {
-        ProjectStateResponse {
-            state,
-            is_local: false,
-        }
-    }
-
-    pub fn local(state: ProjectState) -> Self {
-        ProjectStateResponse {
-            state: Arc::new(state),
-            is_local: true,
-        }
-    }
-}
-
-impl Message for FetchProjectState {
-    type Result = Result<ProjectStateResponse, ()>;
-}
-
-impl Handler<FetchProjectState> for ProjectCache {
-    type Result = Response<ProjectStateResponse, ()>;
-
-    fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
-        if let Some(state) = self.local_states.get(&message.id) {
-            return Response::ok(ProjectStateResponse {
-                state: state.clone(),
-                is_local: true,
-            });
-        }
-
-        match self.config.relay_mode() {
-            RelayMode::Proxy => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()));
-            }
-            RelayMode::Static => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::missing()));
-            }
-            RelayMode::Capture => {
-                return Response::ok(ProjectStateResponse::local(ProjectState::allowed()));
-            }
-            RelayMode::Managed => {
-                // Proceed with loading the config from upstream
-            }
-        }
-
-        if !self.backoff.started() {
-            self.backoff.reset();
-            self.schedule_fetch(context);
-        }
-
-        // There's an edge case where a project is represented by two Project actors. This can
-        // happen if our project eviction logic removes an actor from `project_cache.projects`
-        // while it is still being held onto. This in turn happens because we have no efficient way
-        // of determining the refcount of an `Addr<Project>`.
-        //
-        // Instead of fixing the race condition, let's just make sure we don't fetch project caches
-        // twice. If the cleanup/eviction logic were to be fixed to take the addr's refcount into
-        // account, there should never be an instance where `state_channels` already contains a
-        // channel for our current `message.id`.
-        let query_timeout = self.config.query_timeout();
-
-        let channel = self
-            .state_channels
-            .entry(message.id)
-            .or_insert_with(|| ProjectStateChannel::new(query_timeout));
-
-        Response::r#async(
-            channel
-                .receiver()
-                .map(|x| ProjectStateResponse::managed((*x).clone()))
-                .map_err(|_| ()),
-        )
     }
 }

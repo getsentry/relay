@@ -6,6 +6,7 @@ use relay_common::metric;
 use relay_config::Config;
 
 use crate::actors::controller::{Controller, Shutdown, Subscribe};
+use crate::metrics::RelayCounters;
 use crate::service;
 
 pub use crate::service::ServerError;
@@ -16,7 +17,7 @@ pub struct Server {
 
 impl Server {
     pub fn start(config: Config) -> Result<Addr<Self>, ServerError> {
-        metric!(counter("server.starting") += 1);
+        metric!(counter(RelayCounters::ServerStarting) += 1);
         let http_server = service::start(config)?;
         Ok(Server { http_server }.start())
     }

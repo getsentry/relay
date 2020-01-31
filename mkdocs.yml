@@ -8,6 +8,7 @@ nav:
   - index.md
   - options.md
   - project-config.md
+  - metrics.md
   - PII and datascrubbing:
       - pii-config/index.md
       - pii-config/types.md

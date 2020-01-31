@@ -1,5 +1,6 @@
 language: python
-python: "3.6"
+python: "3.7"
+os: linux
 
 cache:
   directories:
@@ -23,7 +24,7 @@ install: skip
 before_cache:
   - make clean-target-dir
 
-matrix:
+jobs:
   fast_finish: true
   include:
     # -------------------------------------
@@ -41,14 +42,13 @@ matrix:
     # -------------------------------------
 
     - name: "test: relay[linux]"
-      os: linux
       addons:
         apt:
           packages:
             - libssl-dev
             - libgeoip-dev
       services:
-        - redis-server
+        - redis
       script: make -e test-rust-all
 
     - name: "test: relay[macos]"
@@ -66,12 +66,10 @@ matrix:
     # -------------------------------------
 
     - name: "test: librelay"
-      os: linux
       script: make -e test-python
 
     - name: "test: librelay[py2]"
       python: "2.7"
-      os: linux
       script: make -e RELAY_PYTHON_VERSION=python2 test-python
 
     # -------------------------------------
@@ -79,9 +77,6 @@ matrix:
     # -------------------------------------
 
     - name: "integration-test: relay"
-      os: linux
-      # https://github.com/travis-ci/travis-ci/issues/9831
-      sudo: true
       env:
         - KAFKA_BOOTSTRAP_SERVER="localhost:9092"
       install:
@@ -104,7 +99,6 @@ matrix:
 
     - name: "release: relay[linux]"
       if: branch ~= /^release\/[\d.]+$/
-      os: linux
       language: generic
       before_install: skip
       services:
@@ -135,8 +129,6 @@ matrix:
 
     - name: "release: librelay[linux-x86]"
       if: branch ~= /^release\/[\d.]+$/
-      os: linux
-      sudo: required
       env: BUILD_ARCH=i686
       language: generic
       script:
@@ -146,7 +138,6 @@ matrix:
 
     - name: "release: librelay[linux-x86_64]"
       if: branch ~= /^release\/[\d.]+$/
-      sudo: required
       env: BUILD_ARCH=x86_64
       language: generic
       script:
@@ -158,7 +149,7 @@ matrix:
       if: branch ~= /^release\/[\d.]+$/
       os: osx
       language: generic
-      osx_image: xcode7.3
+      osx_image: xcode9.4
       env: RELAY_PYTHON_VERSION=python
       script:
         - make -e wheel
@@ -167,9 +158,6 @@ matrix:
 
     - name: "release: librelay[sdist]"
       if: branch ~= /^release\/[\d.]+$/
-      os: linux
-      sudo: required
-      language: generic
       script:
         - make -e sdist
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
