@@ -572,6 +572,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#project_cacheeviction" class="md-nav__link">
+    project_cache.eviction
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1020,6 +1027,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#project_cacheeviction" class="md-nav__link">
+    project_cache.eviction
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1247,6 +1261,10 @@ The counter has the following tags:</p>
 <li><code>method</code> The HTTP method used in the request in uppercase.</li>
 <li><code>route</code> Unique dashed identifier of the endpoint.</li>
 </ul>
+<h3 id="project_cacheeviction"><code>project_cache.eviction</code></h3>
+<p>The metric is referred in code as: <code>RelayCounters::EvictingStaleProjectCaches</code>.</p>
+<p>We are scanning our in-memory project cache for stale entries. This counter is incremented
+before doing the expensive operation.</p>
                 
                   
                 
