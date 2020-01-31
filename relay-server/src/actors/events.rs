@@ -38,7 +38,7 @@ use {
     crate::quotas::{QuotasError, RateLimiter},
     crate::service::ServerErrorKind,
     failure::ResultExt,
-    relay_filter::{should_filter, FilterStatKey},
+    relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
@@ -441,6 +441,7 @@ impl EventProcessor {
             return Ok((event, len));
         }
 
+        log::trace!("no event in envelope");
         Ok((Annotated::empty(), 0))
     }
 
@@ -489,7 +490,7 @@ impl EventProcessor {
             let client_ip = envelope.meta().client_addr();
             let filter_settings = &project_state.config.filter_settings;
             let filter_result = metric!(timer(RelayTimers::EventProcessingFiltering), {
-                should_filter(event, client_ip, filter_settings)
+                relay_filter::should_filter(event, client_ip, filter_settings)
             });
 
             if let Err(reason) = filter_result {
