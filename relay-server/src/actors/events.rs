@@ -474,6 +474,7 @@ impl EventProcessor {
             is_renormalize: Some(false),
             remove_other: Some(true),
             normalize_user_agent: Some(true),
+            sent_at: envelope.meta().sent_at(),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);

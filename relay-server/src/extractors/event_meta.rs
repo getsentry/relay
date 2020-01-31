@@ -5,6 +5,7 @@ use actix::ResponseFuture;
 use actix_web::dev::AsyncResult;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
+use chrono::{DateTime, Utc};
 use failure::Fail;
 use futures::{future, Future};
 use serde::{Deserialize, Serialize};
@@ -86,6 +87,10 @@ pub struct EventMeta {
     /// The user agent that sent this event.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     user_agent: Option<String>,
+
+    /// When the event has been sent, according to the SDK.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sent_at: Option<DateTime<Utc>>,
 }
 
 impl EventMeta {
@@ -99,6 +104,7 @@ impl EventMeta {
             remote_addr: Some("192.168.0.1".parse().unwrap()),
             forwarded_for: String::new(),
             user_agent: Some("sentry/agent".to_string()),
+            sent_at: None,
         }
     }
 
@@ -183,6 +189,12 @@ impl EventMeta {
     /// the SDK that sent the event.
     pub fn user_agent(&self) -> Option<&str> {
         self.user_agent.as_ref().map(String::as_str)
+    }
+
+    /// When the event has been sent, according to the SDK.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
+    pub fn sent_at(&self) -> Option<DateTime<Utc>> {
+        self.sent_at
     }
 
     /// Formats the Sentry authentication header.
@@ -312,6 +324,7 @@ fn extract_event_meta(
             remote_addr,
             forwarded_for,
             user_agent,
+            sent_at: None, // We only support this via envelopes
         })
     }))
 }
