@@ -23,7 +23,7 @@ use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
 use crate::constants::ITEM_NAME_EVENT;
 use crate::envelope::{Envelope, EnvelopeError, ItemType, Items};
-use crate::extractors::{EnvelopeMeta, StartTime};
+use crate::extractors::{RequestMeta, StartTime};
 use crate::metrics::RelayCounters;
 use crate::service::ServiceState;
 use crate::utils::{ApiErrorResponse, FormDataIter, MultipartError};
@@ -262,9 +262,8 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 ///
 /// If store_event receives a non empty store_body it will use it as the body of the event otherwise
 /// it will try to create a store_body from the request.
-///
 pub fn handle_store_like_request<F, R, I>(
-    meta: EnvelopeMeta,
+    meta: RequestMeta,
     is_event: bool,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
@@ -272,7 +271,7 @@ pub fn handle_store_like_request<F, R, I>(
     create_response: R,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
-    F: FnOnce(&HttpRequest<ServiceState>, EnvelopeMeta) -> I + 'static,
+    F: FnOnce(&HttpRequest<ServiceState>, RequestMeta) -> I + 'static,
     I: IntoFuture<Item = Envelope, Error = BadStoreRequest> + 'static,
     R: FnOnce(Option<EventId>) -> HttpResponse + 'static,
 {

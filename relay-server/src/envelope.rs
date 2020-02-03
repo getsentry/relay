@@ -43,7 +43,7 @@ use smallvec::SmallVec;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 
-use crate::extractors::EnvelopeMeta;
+use crate::extractors::RequestMeta;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -403,7 +403,7 @@ pub struct EnvelopeHeaders {
 
     /// Further event information derived from a store request.
     #[serde(flatten)]
-    meta: EnvelopeMeta,
+    meta: RequestMeta,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
@@ -430,7 +430,7 @@ pub struct Envelope {
 
 impl Envelope {
     /// Creates an envelope from request information.
-    pub fn from_request(event_id: Option<EventId>, meta: EnvelopeMeta) -> Self {
+    pub fn from_request(event_id: Option<EventId>, meta: RequestMeta) -> Self {
         Self {
             headers: EnvelopeHeaders {
                 event_id,
@@ -474,7 +474,7 @@ impl Envelope {
     ///  - DSN project (required)
     ///  - DSN public key (required)
     ///  - Origin (if present)
-    pub fn parse_request(bytes: Bytes, request_meta: EnvelopeMeta) -> Result<Self, EnvelopeError> {
+    pub fn parse_request(bytes: Bytes, request_meta: RequestMeta) -> Result<Self, EnvelopeError> {
         let mut envelope = Self::parse_bytes(bytes)?;
 
         // Validate certain key attributes between the envelope and request meta. Envelopes may only
@@ -493,7 +493,7 @@ impl Envelope {
             return Err(EnvelopeError::HeaderMismatch("origin"));
         }
 
-        // TODO(ja): EnvelopeMeta's `forwarded` for is extracted from the header as well as the remote
+        // TODO(ja): RequestMeta's `forwarded` for is extracted from the header as well as the remote
         // address. There is currently no straight-forward way to merge it with the envelope's
         // `forwarded`. This requires us to always send appropriate headers.
 
@@ -526,7 +526,7 @@ impl Envelope {
     }
 
     /// Returns event metadata information.
-    pub fn meta(&self) -> &EnvelopeMeta {
+    pub fn meta(&self) -> &RequestMeta {
         &self.headers.meta
     }
 
@@ -672,12 +672,12 @@ impl Envelope {
 mod tests {
     use super::*;
 
-    fn envelope_meta() -> EnvelopeMeta {
+    fn request_meta() -> RequestMeta {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
 
-        EnvelopeMeta::new(dsn)
+        RequestMeta::new(dsn)
     }
 
     #[test]
@@ -719,7 +719,7 @@ mod tests {
     #[test]
     fn test_envelope_empty() {
         let event_id = EventId::new();
-        let envelope = Envelope::from_request(Some(event_id), envelope_meta());
+        let envelope = Envelope::from_request(Some(event_id), request_meta());
 
         assert_eq!(envelope.event_id(), Some(event_id));
         assert_eq!(envelope.len(), 0);
@@ -732,7 +732,7 @@ mod tests {
     #[test]
     fn test_envelope_add_item() {
         let event_id = EventId::new();
-        let mut envelope = Envelope::from_request(Some(event_id), envelope_meta());
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta());
         envelope.add_item(Item::new(ItemType::Attachment));
 
         assert_eq!(envelope.len(), 1);
@@ -746,7 +746,7 @@ mod tests {
     #[test]
     fn test_envelope_take_item() {
         let event_id = EventId::new();
-        let mut envelope = Envelope::from_request(Some(event_id), envelope_meta());
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta());
 
         let mut item1 = Item::new(ItemType::Attachment);
         item1.set_filename("item1");
@@ -779,7 +779,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_envelope_meta() {
+    fn test_deserialize_request_meta() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42\",\"client\":\"sentry/javascript\",\"version\":6,\"origin\":\"http://localhost/\",\"remote_addr\":\"127.0.0.1\",\"forwarded_for\":\"8.8.8.8\",\"user_agent\":\"sentry-cli/1.0\"}");
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         let meta = envelope.meta();
@@ -863,7 +863,7 @@ mod tests {
     #[test]
     fn test_parse_request_envelope() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42\",\"client\":\"sentry/javascript\",\"version\":6,\"origin\":\"http://origin/\",\"remote_addr\":\"127.0.0.1\",\"forwarded_for\":\"8.8.8.8\",\"user_agent\":\"sentry-cli/1.0\"}");
-        let envelope = Envelope::parse_request(bytes, envelope_meta()).unwrap();
+        let envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
         let meta = envelope.meta();
 
         // This test asserts that all information from the envelope is overwritten with request
@@ -887,7 +887,7 @@ mod tests {
     #[test]
     fn test_parse_request_no_origin() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}");
-        let envelope = Envelope::parse_request(bytes, envelope_meta()).unwrap();
+        let envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
         let meta = envelope.meta();
 
         // Origin validation should skip a missing origin.
@@ -898,27 +898,27 @@ mod tests {
     #[should_panic(expected = "project id")]
     fn test_parse_request_validate_project() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/99\"}");
-        Envelope::parse_request(bytes, envelope_meta()).unwrap();
+        Envelope::parse_request(bytes, request_meta()).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "public key")]
     fn test_parse_request_validate_key() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:@sentry.io/42\"}");
-        Envelope::parse_request(bytes, envelope_meta()).unwrap();
+        Envelope::parse_request(bytes, request_meta()).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "origin")]
     fn test_parse_request_validate_origin() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\",\"origin\":\"http://localhost/\"}");
-        Envelope::parse_request(bytes, envelope_meta()).unwrap();
+        Envelope::parse_request(bytes, request_meta()).unwrap();
     }
 
     #[test]
     fn test_serialize_envelope_empty() {
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
-        let envelope = Envelope::from_request(Some(event_id), envelope_meta());
+        let envelope = Envelope::from_request(Some(event_id), request_meta());
 
         let mut buffer = Vec::new();
         envelope.serialize(&mut buffer).unwrap();
@@ -931,7 +931,7 @@ mod tests {
     #[test]
     fn test_serialize_envelope_attachments() {
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
-        let mut envelope = Envelope::from_request(Some(event_id), envelope_meta());
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta());
 
         let mut item = Item::new(ItemType::Event);
         item.set_payload(

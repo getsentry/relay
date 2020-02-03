@@ -6,13 +6,13 @@ use relay_general::protocol::EventId;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::Envelope;
-use crate::extractors::{EnvelopeMeta, StartTime};
+use crate::extractors::{RequestMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::MultipartItems;
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
-    meta: EnvelopeMeta,
+    meta: RequestMeta,
     max_payload_size: usize,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
     let event_id = tryf!(request
@@ -43,7 +43,7 @@ fn create_response(_: Option<EventId>) -> HttpResponse {
 }
 
 fn store_attachment(
-    meta: EnvelopeMeta,
+    meta: RequestMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {

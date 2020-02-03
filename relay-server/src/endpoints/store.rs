@@ -12,7 +12,7 @@ use relay_general::protocol::EventId;
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
-use crate::extractors::{EnvelopeMeta, StartTime};
+use crate::extractors::{RequestMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
 // Transparent 1x1 gif
@@ -22,7 +22,7 @@ static PIXEL: &[u8] =
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
-    meta: EnvelopeMeta,
+    meta: RequestMeta,
     max_event_payload_size: usize,
     content_type: String,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
@@ -101,7 +101,7 @@ fn create_response(id: Option<EventId>, is_get_request: bool) -> HttpResponse {
 /// be used directly as a request handler since not all of its arguments
 /// implement the FromRequest trait.
 fn store_event(
-    meta: EnvelopeMeta,
+    meta: RequestMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
@@ -145,7 +145,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
             r.post().with(store_event);
             r.get().with(store_event);
         })
-        // Legacy store path. Since it is missing the project parameter, the `EnvelopeMeta` extractor
+        // Legacy store path. Since it is missing the project parameter, the `RequestMeta` extractor
         // will use `ProjectKeyLookup` to map the public key to a project id before handling the
         // request.
         .resource(r"/{l:/*}api/store{t:/*}", |r| {

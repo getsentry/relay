@@ -9,7 +9,7 @@ use crate::body::ForwardBody;
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::{EnvelopeMeta, StartTime};
+use crate::extractors::{RequestMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::{consume_field, get_multipart_boundary, MultipartError, MultipartItems};
 
@@ -79,10 +79,9 @@ fn get_embedded_minidump(
 ///
 /// Optionally, an event payload can be sent in the `sentry` form
 /// field, either as JSON or as nested form data.
-///
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
-    meta: EnvelopeMeta,
+    meta: RequestMeta,
     max_payload_size: usize,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
@@ -184,7 +183,7 @@ fn extract_envelope(
 }
 
 fn store_minidump(
-    meta: EnvelopeMeta,
+    meta: RequestMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
