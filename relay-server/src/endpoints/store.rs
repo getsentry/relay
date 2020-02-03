@@ -28,7 +28,7 @@ fn extract_envelope(
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
     // Regression fix specifically for sentry cocoa. Events have typically been just over the 200kB
     // limit. Since formally limits were applied *before* decompression, such events weren't
-    // rejected. Until a fix in the cocoa SDK is published and adopted, we raise the limit.
+    // rejected. Until a fix is published and adopted with sentry-cocoa/5.0.0, we raise the limit.
     if let Some(client) = meta.client() {
         if client.starts_with("sentry-cocoa/") {
             max_event_payload_size *= 2;
