@@ -1,0 +1,52 @@
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "x86_64-pc-windows-msvc" },
+]
+
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-url = "https://github.com/rustsec/advisory-db"
+vulnerability = "deny"
+unmaintained = "warn"
+yanked = "warn"
+notice = "warn"
+
+[licenses]
+unlicensed = "deny"
+allow = [
+    "MIT",
+    "ISC",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "Apache-2.0",
+    #"Apache-2.0 WITH LLVM-exception",
+    "Unlicense",
+    "Zlib",
+]
+
+copyleft = "warn"
+allow-osi-fsf-free = "neither"
+default = "deny"
+
+exceptions = [
+    { allow = ["BSL-1.0"], name = "ryu", version = "*" },
+    { allow = ["MPL-2.0"], name = "im", version = "*" },
+    { allow = ["MPL-2.0"], name = "sized-chunks", version = "*" },
+]
+
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+highlight = "all"
+
+[sources]
+unknown-registry = "warn"
+unknown-git = "allow"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+

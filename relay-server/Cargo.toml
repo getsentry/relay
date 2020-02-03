@@ -8,6 +8,7 @@ version = "0.5.1"
 edition = "2018"
 build = "build.rs"
 license-file = "../LICENSE"
+publish = false
 
 [features]
 default = ["with_ssl"]
