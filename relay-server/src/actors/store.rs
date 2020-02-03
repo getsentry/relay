@@ -69,6 +69,7 @@ impl StoreForwarder {
 
         // Use the event id as partition routing key.
         if let Some(ref event_id) = event_id {
+            // TODO: consider routing for event-id less envelopes.
             record = record.key(event_id.0.as_bytes().as_ref());
         };
 

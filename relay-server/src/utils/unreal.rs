@@ -230,11 +230,14 @@ pub fn process_unreal_envelope(
 
     if let Some(context_item) = context_item {
         let mut context = Unreal4Context::parse(&context_item.payload())?;
+
         // the `unwrap_or_default` here can produce an invalid user report if the envelope id
-        // is indeed missing.  This should not happen under normal circumstances.
-        if let Some(report) =
-            get_unreal_user_report(envelope.event_id().unwrap_or_default(), &mut context)
-        {
+        // is indeed missing. This should not happen under normal circumstances since the EventId is
+        // created statically.
+        let event_id = envelope.event_id().unwrap_or_default();
+        debug_assert!(!event_id.is_nil());
+
+        if let Some(report) = get_unreal_user_report(event_id, &mut context) {
             envelope.add_item(report);
         }
         merge_unreal_context(event, context);

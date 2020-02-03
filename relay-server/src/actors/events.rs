@@ -621,19 +621,21 @@ impl EventProcessor {
             }
         }
 
-        if let Some(event_id) = envelope.event_id() {
-            if let Some(event) = event.value_mut() {
-                // Ensure that the event id in the payload is consistent with the envelope. If an event
-                // id was ingested, this will already be the case. Otherwise, this will insert a new
-                // event id. To be defensive, we always overwrite to ensure consistency.
-                event.id = Annotated::new(event_id);
-            } else {
-                // If we have an envelope without event at this point, we are done with processing. This
-                // envelope only contains attachments or user reports. We should not run filters or
-                // apply rate limits.
-                log::trace!("no event for envelope, skipping processing");
-                return Ok(ProcessEventResponse { envelope });
-            }
+        if let Some(event) = event.value_mut() {
+            // Event id is set statically in the ingest path.
+            let event_id = envelope.event_id().unwrap_or_default();
+            debug_assert!(!event_id.is_nil());
+
+            // Ensure that the event id in the payload is consistent with the envelope. If an event
+            // id was ingested, this will already be the case. Otherwise, this will insert a new
+            // event id. To be defensive, we always overwrite to ensure consistency.
+            event.id = Annotated::new(event_id);
+        } else {
+            // If we have an envelope without event at this point, we are done with processing. This
+            // envelope only contains attachments or user reports. We should not run filters or
+            // apply rate limits.
+            log::trace!("no event for envelope, skipping processing");
+            return Ok(ProcessEventResponse { envelope });
         }
 
         if_processing! {

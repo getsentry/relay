@@ -370,12 +370,13 @@ where
 
 /// Creates a HttpResponse containing the textual representation of the given EventId
 pub fn create_text_event_id_response(id: Option<EventId>) -> HttpResponse {
+    // Event id is set statically in the ingest path.
+    let id = id.unwrap_or_default();
+    debug_assert!(!id.is_nil());
+
     // the minidump client expects the response to contain an event id as a hyphenated UUID
     // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    match id {
-        Some(id) => HttpResponse::Ok()
-            .content_type("text/plain")
-            .body(format!("{}", id.0.to_hyphenated())),
-        None => HttpResponse::Ok().content_type("text/plain").body(""),
-    }
+    HttpResponse::Ok()
+        .content_type("text/plain")
+        .body(format!("{}", id.0.to_hyphenated()))
 }
