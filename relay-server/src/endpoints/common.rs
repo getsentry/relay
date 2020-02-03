@@ -16,14 +16,14 @@ use serde::Deserialize;
 use relay_common::{clone, metric, tryf, LogError};
 use relay_general::protocol::EventId;
 
-use crate::actors::events::{QueueEvent, QueueEventError};
+use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, RateLimit};
 use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
 use crate::constants::ITEM_NAME_EVENT;
 use crate::envelope::{Envelope, EnvelopeError, ItemType, Items};
-use crate::extractors::{EventMeta, StartTime};
+use crate::extractors::{RequestMeta, StartTime};
 use crate::metrics::RelayCounters;
 use crate::service::ServiceState;
 use crate::utils::{ApiErrorResponse, FormDataIter, MultipartError};
@@ -39,7 +39,7 @@ pub enum BadStoreRequest {
     #[fail(display = "failed to fetch project information")]
     ProjectFailed(#[cause] ProjectError),
 
-    #[fail(display = "empty event data")]
+    #[fail(display = "empty request body")]
     EmptyBody,
 
     #[fail(display = "invalid JSON data")]
@@ -66,8 +66,8 @@ pub enum BadStoreRequest {
     #[fail(display = "invalid event id")]
     InvalidEventId,
 
-    #[fail(display = "failed to queue event")]
-    QueueFailed(#[cause] QueueEventError),
+    #[fail(display = "failed to queue envelope")]
+    QueueFailed(#[cause] QueueEnvelopeError),
 
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
@@ -103,7 +103,7 @@ impl BadStoreRequest {
             BadStoreRequest::InvalidEnvelope(_) => Outcome::Invalid(DiscardReason::InvalidEnvelope),
 
             BadStoreRequest::QueueFailed(event_error) => match event_error {
-                QueueEventError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
+                QueueEnvelopeError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
             },
 
             BadStoreRequest::ProjectFailed(project_error) => match project_error {
@@ -262,9 +262,8 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 ///
 /// If store_event receives a non empty store_body it will use it as the body of the event otherwise
 /// it will try to create a store_body from the request.
-///
 pub fn handle_store_like_request<F, R, I>(
-    meta: EventMeta,
+    meta: RequestMeta,
     is_event: bool,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
@@ -272,9 +271,9 @@ pub fn handle_store_like_request<F, R, I>(
     create_response: R,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
-    F: FnOnce(&HttpRequest<ServiceState>, EventMeta) -> I + 'static,
+    F: FnOnce(&HttpRequest<ServiceState>, RequestMeta) -> I + 'static,
     I: IntoFuture<Item = Envelope, Error = BadStoreRequest> + 'static,
-    R: FnOnce(EventId) -> HttpResponse + 'static,
+    R: FnOnce(Option<EventId>) -> HttpResponse + 'static,
 {
     let start_time = start_time.into_inner();
 
@@ -314,7 +313,7 @@ where
             extract_envelope(&request, meta)
                 .into_future()
                 .and_then(clone!(project, |envelope| {
-                    *event_id.lock() = Some(envelope.event_id());
+                    *event_id.lock() = envelope.event_id();
 
                     project
                         .send(GetEventAction::cached(cloned_meta))
@@ -333,7 +332,7 @@ where
                 }))
                 .and_then(move |envelope| {
                     event_manager
-                        .send(QueueEvent {
+                        .send(QueueEnvelope {
                             envelope,
                             project,
                             start_time,
@@ -370,7 +369,11 @@ where
 }
 
 /// Creates a HttpResponse containing the textual representation of the given EventId
-pub fn create_text_event_id_response(id: EventId) -> HttpResponse {
+pub fn create_text_event_id_response(id: Option<EventId>) -> HttpResponse {
+    // Event id is set statically in the ingest path.
+    let id = id.unwrap_or_default();
+    debug_assert!(!id.is_nil());
+
     // the minidump client expects the response to contain an event id as a hyphenated UUID
     // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
     HttpResponse::Ok()

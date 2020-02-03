@@ -28,6 +28,12 @@ impl EventId {
     pub fn new() -> Self {
         Self(uuid::Uuid::new_v4())
     }
+
+    /// Tests if the UUID is nil.
+    #[inline]
+    pub fn is_nil(&self) -> bool {
+        self.0.is_nil()
+    }
 }
 
 impl Default for EventId {

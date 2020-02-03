@@ -10,7 +10,7 @@ use relay_general::protocol::EventId;
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::{EventMeta, StartTime};
+use crate::extractors::{RequestMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
 #[derive(Debug, Deserialize)]
@@ -21,7 +21,7 @@ struct SecurityReportParams {
 
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
-    meta: EventMeta,
+    meta: RequestMeta,
     max_event_payload_size: usize,
     params: SecurityReportParams,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
@@ -43,7 +43,7 @@ fn extract_envelope(
                 report_item.set_header("sentry_environment", sentry_environment);
             }
 
-            let mut envelope = Envelope::from_request(EventId::new(), meta);
+            let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
             envelope.add_item(report_item);
 
             Ok(envelope)
@@ -61,7 +61,7 @@ fn create_response() -> HttpResponse {
 ///
 /// The security reports will be checked.
 fn store_security_report(
-    meta: EventMeta,
+    meta: RequestMeta,
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
     params: Query<SecurityReportParams>,
