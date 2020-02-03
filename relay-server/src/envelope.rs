@@ -387,6 +387,38 @@ impl Item {
     {
         self.headers.other.insert(name.into(), value.into())
     }
+
+    /// Determines whether the given item creates an event.
+    ///
+    /// This is only true for literal events and crash report attachments.
+    pub fn creates_event(&self) -> bool {
+        match self.ty() {
+            // These items are direct event types.
+            ItemType::Event | ItemType::SecurityReport | ItemType::UnrealReport => true,
+
+            // Attachments are only event items if they are crash reports.
+            ItemType::Attachment => match self.attachment_type().unwrap_or_default() {
+                AttachmentType::AppleCrashReport | AttachmentType::Minidump => true,
+                _ => false,
+            },
+
+            // Form data items may contain partial event payloads, but those are only ever valid if they
+            // occur together with an explicit event item, such as a minidump or apple crash report. For
+            // this reason, FormData alone does not constitute an event item.
+            ItemType::FormData | ItemType::UserReport => false,
+        }
+    }
+
+    /// Determines whether the given item requires an event with identifier.
+    ///
+    /// This is true for all items except session health events.
+    pub fn requires_event(&self) -> bool {
+        // NOTE: Item types should be explicitly white listed here.
+        match self.ty() {
+            // TODO: whitelist item types
+            _ => true,
+        }
+    }
 }
 
 pub type Items = SmallVec<[Item; 3]>;
@@ -457,6 +489,8 @@ impl Envelope {
     ///  - DSN project (required)
     ///  - DSN public key (required)
     ///  - Origin (if present)
+    ///
+    /// If no event id is provided explicitly, one is created on the fly.
     pub fn parse_request(bytes: Bytes, request_meta: RequestMeta) -> Result<Self, EnvelopeError> {
         let mut envelope = Self::parse_bytes(bytes)?;
 
@@ -481,6 +515,12 @@ impl Envelope {
         // `forwarded`. This requires us to always send appropriate headers.
 
         envelope.headers.meta.merge(request_meta);
+
+        // Event-related envelopes *must* contain an event id.
+        if envelope.items().any(Item::requires_event) {
+            envelope.headers.event_id.get_or_insert_with(EventId::new);
+        }
+
         Ok(envelope)
     }
 

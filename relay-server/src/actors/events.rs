@@ -119,27 +119,6 @@ enum ProcessingError {
 
 type ExtractedEvent = (Annotated<Event>, usize);
 
-/// Determines whether the given item creates an event.
-///
-/// This is only true for literal events and crash report attachments.
-fn is_event_item(item: &Item) -> bool {
-    match item.ty() {
-        // These items are direct event types.
-        ItemType::Event | ItemType::SecurityReport | ItemType::UnrealReport => true,
-
-        // Attachments are only event items if they are crash reports.
-        ItemType::Attachment => match item.attachment_type().unwrap_or_default() {
-            AttachmentType::AppleCrashReport | AttachmentType::Minidump => true,
-            _ => false,
-        },
-
-        // Form data items may contain partial event payloads, but those are only ever valid if they
-        // occur together with an explicit event item, such as a minidump or apple crash report. For
-        // this reason, FormData alone does not constitute an event item.
-        ItemType::FormData | ItemType::UserReport => false,
-    }
-}
-
 struct EventProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
@@ -898,7 +877,7 @@ impl Handler<HandleEnvelope> for EventManager {
         // Compute whether this envelope contains an event. This is used in error handling to
         // appropriately emit an outecome. Envelopes not containing events (such as standalone
         // attachment uploads or user reports) should never create outcomes.
-        let is_event = envelope.items().any(is_event_item);
+        let is_event = envelope.items().any(Item::creates_event);
 
         // This is used to add the respective organization id to the outcome emitted in the error
         // case. The organization id can only be obtained via the project state, which has not been
