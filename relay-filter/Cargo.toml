@@ -4,9 +4,10 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Sentry Event filters"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2018"
 license-file = "../LICENSE"
+publish = false
 
 [dependencies]
 globset = "0.4.4"

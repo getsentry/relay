@@ -4,9 +4,10 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Common utilities for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2018"
 license-file = "../LICENSE"
+publish = false
 
 [dependencies]
 backoff = "0.1.5"
