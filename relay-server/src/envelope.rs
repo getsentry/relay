@@ -410,18 +410,6 @@ pub struct EnvelopeHeaders {
     other: BTreeMap<String, Value>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct EnvelopeDisplay(Option<EventId>);
-
-impl fmt::Display for EnvelopeDisplay {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.0 {
-            Some(ref id) => write!(f, "envelope(event_id={})", id),
-            None => write!(f, "envelope(no_event)"),
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct Envelope {
     headers: EnvelopeHeaders,
@@ -457,11 +445,6 @@ impl Envelope {
         }
 
         Ok(envelope)
-    }
-
-    /// Returns a proxy object for printing envelope summarys.
-    pub fn display(&self) -> EnvelopeDisplay {
-        EnvelopeDisplay(self.headers.event_id)
     }
 
     /// Parses an envelope taking into account a request.
