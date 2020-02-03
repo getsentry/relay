@@ -23,9 +23,18 @@ static PIXEL: &[u8] =
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: EventMeta,
-    max_event_payload_size: usize,
+    mut max_event_payload_size: usize,
     content_type: String,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
+    // Regression fix specifically for sentry cocoa. Events have typically been just over the 200kB
+    // limit. Since formally limits were applied *before* decompression, such events weren't
+    // rejected. Until a fix in the cocoa SDK is published and adopted, we raise the limit.
+    if let Some(client) = meta.client() {
+        if client.starts_with("sentry-cocoa/") {
+            max_event_payload_size *= 2;
+        }
+    }
+
     let future = StoreBody::new(&request, max_event_payload_size)
         .map_err(BadStoreRequest::PayloadError)
         .and_then(move |mut data| {
