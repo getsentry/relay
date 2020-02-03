@@ -525,6 +525,9 @@ impl EventProcessor {
             // These may be forwarded to upstream / store:
             ItemType::Attachment => false,
             ItemType::UserReport => false,
+
+            // session data is never considered as part of deduplication
+            ItemType::Session => false,
         }
     }
 

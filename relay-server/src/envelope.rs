@@ -83,6 +83,8 @@ pub enum ItemType {
     UnrealReport,
     /// User feedback encoded as JSON.
     UserReport,
+    /// Session data.
+    Session,
 }
 
 impl fmt::Display for ItemType {
@@ -94,6 +96,7 @@ impl fmt::Display for ItemType {
             Self::SecurityReport => write!(f, "security report"),
             Self::UnrealReport => write!(f, "unreal report"),
             Self::UserReport => write!(f, "user feedback"),
+            Self::Session => write!(f, "session"),
         }
     }
 }
@@ -404,8 +407,9 @@ impl Item {
 
             // Form data items may contain partial event payloads, but those are only ever valid if they
             // occur together with an explicit event item, such as a minidump or apple crash report. For
-            // this reason, FormData alone does not constitute an event item.
-            ItemType::FormData | ItemType::UserReport => false,
+            // this reason, FormData alone does not constitute an event item.  Same for user reports
+            // and sessions.
+            ItemType::FormData | ItemType::UserReport | ItemType::Session => false,
         }
     }
 
@@ -413,10 +417,14 @@ impl Item {
     ///
     /// This is true for all items except session health events.
     pub fn requires_event(&self) -> bool {
-        // NOTE: Item types should be explicitly white listed here.
         match self.ty() {
-            // TODO: whitelist item types
-            _ => true,
+            ItemType::Event => true,
+            ItemType::Attachment => true,
+            ItemType::FormData => true,
+            ItemType::SecurityReport => true,
+            ItemType::UnrealReport => true,
+            ItemType::UserReport => true,
+            ItemType::Session => false,
         }
     }
 }
@@ -980,5 +988,35 @@ mod tests {
         Hello
 
         "###);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_session_data() {
+        // With terminating newline
+        let bytes = Bytes::from(&b"\
+            {\"sid\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"did\":\"319c9827ff324d07954331d1230e9ee3\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+            {\"type\":\"session\",\"length\":83}\n\
+            {\"op\":\"start\",\"ts\":1580740770.86862,\"attrs\":{\"os\":\"Android\",\"os_version\":\"8.0.0\"}}\n\
+        "[..]);
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+
+        assert_eq!(envelope.len(), 1);
+        let items: Vec<_> = envelope.items().collect();
+
+        assert_eq!(items[0].ty(), ItemType::Session);
+        assert_eq!(items[0].len(), 83);
+        assert_eq!(
+            items[0].payload(),
+            Bytes::from(&b"{\"op\":\"start\",\"ts\":1580740770.86862,\"attrs\":{\"os\":\"Android\",\"os_version\":\"8.0.0\"}}\n"[..])
+        );
+        assert_eq!(items[0].content_type(), None);
+
+        let meta = envelope.meta();
+        assert_eq!(
+            meta.session_id(),
+            Some(&"9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap())
+        );
+        assert_eq!(meta.distinct_id(), Some("319c9827ff324d07954331d1230e9ee3"));
     }
 }
