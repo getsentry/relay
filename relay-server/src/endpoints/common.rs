@@ -16,7 +16,7 @@ use serde::Deserialize;
 use relay_common::{clone, metric, tryf, LogError};
 use relay_general::protocol::EventId;
 
-use crate::actors::events::{QueueEvent, QueueEventError};
+use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, RateLimit};
 use crate::actors::project_cache::{GetProject, ProjectError};
@@ -39,7 +39,7 @@ pub enum BadStoreRequest {
     #[fail(display = "failed to fetch project information")]
     ProjectFailed(#[cause] ProjectError),
 
-    #[fail(display = "empty event data")]
+    #[fail(display = "empty request body")]
     EmptyBody,
 
     #[fail(display = "invalid JSON data")]
@@ -66,8 +66,8 @@ pub enum BadStoreRequest {
     #[fail(display = "invalid event id")]
     InvalidEventId,
 
-    #[fail(display = "failed to queue event")]
-    QueueFailed(#[cause] QueueEventError),
+    #[fail(display = "failed to queue envelope")]
+    QueueFailed(#[cause] QueueEnvelopeError),
 
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
@@ -103,7 +103,7 @@ impl BadStoreRequest {
             BadStoreRequest::InvalidEnvelope(_) => Outcome::Invalid(DiscardReason::InvalidEnvelope),
 
             BadStoreRequest::QueueFailed(event_error) => match event_error {
-                QueueEventError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
+                QueueEnvelopeError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
             },
 
             BadStoreRequest::ProjectFailed(project_error) => match project_error {
@@ -332,7 +332,7 @@ where
                 }))
                 .and_then(move |envelope| {
                     event_manager
-                        .send(QueueEvent {
+                        .send(QueueEnvelope {
                             envelope,
                             project,
                             start_time,

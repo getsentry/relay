@@ -44,7 +44,7 @@ use {
 };
 
 #[derive(Debug, Fail)]
-pub enum QueueEventError {
+pub enum QueueEnvelopeError {
     #[fail(display = "Too many events (max_concurrent_events reached)")]
     TooManyEvents,
 }
@@ -796,20 +796,20 @@ impl Actor for EventManager {
     }
 }
 
-pub struct QueueEvent {
+pub struct QueueEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
     pub start_time: Instant,
 }
 
-impl Message for QueueEvent {
-    type Result = Result<Option<EventId>, QueueEventError>;
+impl Message for QueueEnvelope {
+    type Result = Result<Option<EventId>, QueueEnvelopeError>;
 }
 
-impl Handler<QueueEvent> for EventManager {
-    type Result = Result<Option<EventId>, QueueEventError>;
+impl Handler<QueueEnvelope> for EventManager {
+    type Result = Result<Option<EventId>, QueueEnvelopeError>;
 
-    fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
         metric!(histogram(RelayHistograms::EventQueueSize) = u64::from(self.current_active_events));
 
         metric!(
@@ -821,7 +821,7 @@ impl Handler<QueueEvent> for EventManager {
         );
 
         if self.config.event_buffer_size() <= self.current_active_events {
-            return Err(QueueEventError::TooManyEvents);
+            return Err(QueueEnvelopeError::TooManyEvents);
         }
 
         self.current_active_events += 1;
@@ -831,7 +831,7 @@ impl Handler<QueueEvent> for EventManager {
         // Actual event handling is performed asynchronously in a separate future. The lifetime of
         // that future will be tied to the EventManager's context. This allows to keep the Project
         // actor alive even if it is cleaned up in the ProjectManager.
-        context.notify(HandleEvent {
+        context.notify(HandleEnvelope {
             envelope: message.envelope,
             project: message.project,
             start_time: message.start_time,
@@ -842,20 +842,20 @@ impl Handler<QueueEvent> for EventManager {
     }
 }
 
-struct HandleEvent {
+struct HandleEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
     pub start_time: Instant,
 }
 
-impl Message for HandleEvent {
+impl Message for HandleEnvelope {
     type Result = Result<(), ()>;
 }
 
-impl Handler<HandleEvent> for EventManager {
+impl Handler<HandleEnvelope> for EventManager {
     type Result = ResponseActFuture<Self, (), ()>;
 
-    fn handle(&mut self, message: HandleEvent, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: HandleEnvelope, _context: &mut Self::Context) -> Self::Result {
         // We measure three timers while handling events, once they have been initially accepted:
         //
         // 1. `event.wait_time`: The time we take to get all dependencies for events before
@@ -881,14 +881,12 @@ impl Handler<HandleEvent> for EventManager {
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
 
-        let HandleEvent {
+        let HandleEnvelope {
             envelope,
             project,
             start_time,
         } = message;
 
-        // XXX: this is not correct, HandleEvent should turn into HandleEnvelope and handle
-        // envelopes without event ids correctly.
         let event_id = envelope.event_id();
         let project_id = envelope.meta().project_id();
         let remote_addr = envelope.meta().client_addr();
