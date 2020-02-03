@@ -827,7 +827,6 @@ impl Handler<QueueEvent> for EventManager {
         self.current_active_events += 1;
 
         let event_id = message.envelope.event_id();
-        log::trace!("queued event");
 
         // Actual event handling is performed asynchronously in a separate future. The lifetime of
         // that future will be tied to the EventManager's context. This allows to keep the Project
@@ -838,6 +837,7 @@ impl Handler<QueueEvent> for EventManager {
             start_time: message.start_time,
         });
 
+        log::trace!("queued event");
         Ok(event_id)
     }
 }
