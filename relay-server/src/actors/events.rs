@@ -531,7 +531,10 @@ impl EventProcessor {
         }
     }
 
-    fn process(&self, message: ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
+    fn process(
+        &self,
+        message: ProcessEnvelope,
+    ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
         let mut envelope = message.envelope;
 
         macro_rules! if_processing {
@@ -617,7 +620,7 @@ impl EventProcessor {
             // envelope only contains attachments or user reports. We should not run filters or
             // apply rate limits.
             log::trace!("no event for envelope, skipping processing");
-            return Ok(ProcessEventResponse { envelope });
+            return Ok(ProcessEnvelopeResponse { envelope });
         }
 
         if_processing! {
@@ -653,7 +656,7 @@ impl EventProcessor {
         }
         envelope.add_item(event_item);
 
-        Ok(ProcessEventResponse { envelope })
+        Ok(ProcessEnvelopeResponse { envelope })
     }
 }
 
@@ -661,25 +664,25 @@ impl Actor for EventProcessor {
     type Context = SyncContext<Self>;
 }
 
-struct ProcessEvent {
+struct ProcessEnvelope {
     pub envelope: Envelope,
     pub project_state: Arc<ProjectState>,
     pub start_time: Instant,
 }
 
 #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-struct ProcessEventResponse {
+struct ProcessEnvelopeResponse {
     envelope: Envelope,
 }
 
-impl Message for ProcessEvent {
-    type Result = Result<ProcessEventResponse, ProcessingError>;
+impl Message for ProcessEnvelope {
+    type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
 }
 
-impl Handler<ProcessEvent> for EventProcessor {
-    type Result = Result<ProcessEventResponse, ProcessingError>;
+impl Handler<ProcessEnvelope> for EventProcessor {
+    type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
 
-    fn handle(&mut self, message: ProcessEvent, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
         metric!(timer(RelayTimers::EventWaitTime) = message.start_time.elapsed());
         metric!(timer(RelayTimers::EventProcessingTime), {
             self.process(message)
@@ -906,7 +909,7 @@ impl Handler<HandleEnvelope> for EventManager {
             .and_then(clone!(org_id_for_err, |project_state| {
                 *org_id_for_err.lock() = project_state.organization_id;
                 processor
-                    .send(ProcessEvent {
+                    .send(ProcessEnvelope {
                         envelope,
                         project_state,
                         start_time,
