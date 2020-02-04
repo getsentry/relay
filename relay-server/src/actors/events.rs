@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use actix::fut::result;
 use actix::prelude::*;
@@ -38,13 +38,13 @@ use {
     crate::quotas::{QuotasError, RateLimiter},
     crate::service::ServerErrorKind,
     failure::ResultExt,
-    relay_filter::{should_filter, FilterStatKey},
+    relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
 };
 
 #[derive(Debug, Fail)]
-pub enum QueueEventError {
+pub enum QueueEnvelopeError {
     #[fail(display = "Too many events (max_concurrent_events reached)")]
     TooManyEvents,
 }
@@ -118,27 +118,6 @@ enum ProcessingError {
 }
 
 type ExtractedEvent = (Annotated<Event>, usize);
-
-/// Determines whether the given item creates an event.
-///
-/// This is only true for literal events and crash report attachments.
-fn is_event_item(item: &Item) -> bool {
-    match item.ty() {
-        // These items are direct event types.
-        ItemType::Event | ItemType::SecurityReport | ItemType::UnrealReport => true,
-
-        // Attachments are only event items if they are crash reports.
-        ItemType::Attachment => match item.attachment_type().unwrap_or_default() {
-            AttachmentType::AppleCrashReport | AttachmentType::Minidump => true,
-            _ => false,
-        },
-
-        // Form data items may contain partial event payloads, but those are only ever valid if they
-        // occur together with an explicit event item, such as a minidump or apple crash report. For
-        // this reason, FormData alone does not constitute an event item.
-        ItemType::FormData | ItemType::UserReport => false,
-    }
-}
 
 struct EventProcessor {
     config: Arc<Config>,
@@ -409,19 +388,19 @@ impl EventProcessor {
             .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
 
         if let Some(item) = event_item {
-            log::trace!("processing json event {}", envelope.event_id());
+            log::trace!("processing json event");
             return Ok(metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 self.event_from_json_payload(item)?
             }));
         }
 
         if let Some(item) = security_item {
-            log::trace!("processing security report {}", envelope.event_id());
+            log::trace!("processing security report");
             return Ok(self.event_from_security_report(item)?);
         }
 
         if attachment_item.is_some() || breadcrumbs_item1.is_some() || breadcrumbs_item2.is_some() {
-            log::trace!("extracting attached event data {}", envelope.event_id());
+            log::trace!("extracting attached event data");
             return Ok(Self::event_from_attachments(
                 &self.config,
                 attachment_item,
@@ -431,7 +410,7 @@ impl EventProcessor {
         }
 
         if let Some(item) = form_item {
-            log::trace!("extracting form data {}", envelope.event_id());
+            log::trace!("extracting form data");
             let len = item.len();
 
             let mut value = SerdeValue::Object(Default::default());
@@ -441,6 +420,7 @@ impl EventProcessor {
             return Ok((event, len));
         }
 
+        log::trace!("no event in envelope");
         Ok((Annotated::empty(), 0))
     }
 
@@ -489,7 +469,7 @@ impl EventProcessor {
             let client_ip = envelope.meta().client_addr();
             let filter_settings = &project_state.config.filter_settings;
             let filter_result = metric!(timer(RelayTimers::EventProcessingFiltering), {
-                should_filter(event, client_ip, filter_settings)
+                relay_filter::should_filter(event, client_ip, filter_settings)
             });
 
             if let Err(reason) = filter_result {
@@ -620,8 +600,11 @@ impl EventProcessor {
             }
         }
 
-        let event_id = envelope.event_id();
         if let Some(event) = event.value_mut() {
+            // Event id is set statically in the ingest path.
+            let event_id = envelope.event_id().unwrap_or_default();
+            debug_assert!(!event_id.is_nil());
+
             // Ensure that the event id in the payload is consistent with the envelope. If an event
             // id was ingested, this will already be the case. Otherwise, this will insert a new
             // event id. To be defensive, we always overwrite to ensure consistency.
@@ -630,7 +613,7 @@ impl EventProcessor {
             // If we have an envelope without event at this point, we are done with processing. This
             // envelope only contains attachments or user reports. We should not run filters or
             // apply rate limits.
-            log::trace!("no event for envelope {}, skipping processing", event_id);
+            log::trace!("no event for envelope, skipping processing");
             return Ok(ProcessEventResponse { envelope });
         }
 
@@ -721,13 +704,13 @@ impl EventManager {
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
         outcome_producer: Addr<OutcomeProducer>,
-        redis: Option<RedisPool>,
+        redis_pool: Option<RedisPool>,
     ) -> Result<Self, ServerError> {
         let thread_count = config.cpu_concurrency();
         log::info!("starting {} event processing workers", thread_count);
 
         #[cfg(not(feature = "processing"))]
-        let _ = redis;
+        let _ = redis_pool;
 
         #[cfg(feature = "processing")]
         let processor = {
@@ -738,7 +721,7 @@ impl EventManager {
                 None => None,
             };
 
-            let rate_limiter = redis.map(RateLimiter::new);
+            let rate_limiter = redis_pool.map(|pool| RateLimiter::new(config.clone(), pool));
 
             SyncArbiter::start(
                 thread_count,
@@ -795,20 +778,20 @@ impl Actor for EventManager {
     }
 }
 
-pub struct QueueEvent {
+pub struct QueueEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
     pub start_time: Instant,
 }
 
-impl Message for QueueEvent {
-    type Result = Result<EventId, QueueEventError>;
+impl Message for QueueEnvelope {
+    type Result = Result<Option<EventId>, QueueEnvelopeError>;
 }
 
-impl Handler<QueueEvent> for EventManager {
-    type Result = Result<EventId, QueueEventError>;
+impl Handler<QueueEnvelope> for EventManager {
+    type Result = Result<Option<EventId>, QueueEnvelopeError>;
 
-    fn handle(&mut self, message: QueueEvent, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
         metric!(histogram(RelayHistograms::EventQueueSize) = u64::from(self.current_active_events));
 
         metric!(
@@ -820,40 +803,41 @@ impl Handler<QueueEvent> for EventManager {
         );
 
         if self.config.event_buffer_size() <= self.current_active_events {
-            return Err(QueueEventError::TooManyEvents);
+            return Err(QueueEnvelopeError::TooManyEvents);
         }
 
         self.current_active_events += 1;
+
         let event_id = message.envelope.event_id();
 
         // Actual event handling is performed asynchronously in a separate future. The lifetime of
         // that future will be tied to the EventManager's context. This allows to keep the Project
         // actor alive even if it is cleaned up in the ProjectManager.
-        context.notify(HandleEvent {
+        context.notify(HandleEnvelope {
             envelope: message.envelope,
             project: message.project,
             start_time: message.start_time,
         });
 
-        log::trace!("queued event {}", event_id);
+        log::trace!("queued event");
         Ok(event_id)
     }
 }
 
-struct HandleEvent {
+struct HandleEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
     pub start_time: Instant,
 }
 
-impl Message for HandleEvent {
+impl Message for HandleEnvelope {
     type Result = Result<(), ()>;
 }
 
-impl Handler<HandleEvent> for EventManager {
+impl Handler<HandleEnvelope> for EventManager {
     type Result = ResponseActFuture<Self, (), ()>;
 
-    fn handle(&mut self, message: HandleEvent, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: HandleEnvelope, _context: &mut Self::Context) -> Self::Result {
         // We measure three timers while handling events, once they have been initially accepted:
         //
         // 1. `event.wait_time`: The time we take to get all dependencies for events before
@@ -879,7 +863,7 @@ impl Handler<HandleEvent> for EventManager {
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
 
-        let HandleEvent {
+        let HandleEnvelope {
             envelope,
             project,
             start_time,
@@ -893,7 +877,7 @@ impl Handler<HandleEvent> for EventManager {
         // Compute whether this envelope contains an event. This is used in error handling to
         // appropriately emit an outecome. Envelopes not containing events (such as standalone
         // attachment uploads or user reports) should never create outcomes.
-        let is_event = envelope.items().any(is_event_item);
+        let is_event = envelope.items().any(Item::creates_event);
 
         // This is used to add the respective organization id to the outcome emitted in the error
         // case. The organization id can only be obtained via the project state, which has not been
@@ -933,7 +917,7 @@ impl Handler<HandleEvent> for EventManager {
                 #[cfg(feature = "processing")]
                 {
                     if let Some(store_forwarder) = store_forwarder {
-                        log::trace!("sending envelope to kafka {}", event_id);
+                        log::trace!("sending envelope to kafka");
                         let future = store_forwarder
                             .send(StoreEvent {
                                 envelope,
@@ -950,16 +934,22 @@ impl Handler<HandleEvent> for EventManager {
                 // if we are in capture mode, we stash away the event instead of
                 // forwarding it.
                 if capture {
-                    log::debug!("capturing event {}", event_id);
-                    captured_events
-                        .write()
-                        .insert(event_id, CapturedEvent::Ok(envelope));
+                    // XXX: this is wrong because captured_events does not take envelopes without
+                    // event_id into account.
+                    if let Some(event_id) = event_id {
+                        log::debug!("capturing envelope");
+                        captured_events
+                            .write()
+                            .insert(event_id, CapturedEvent::Ok(envelope));
+                    } else {
+                        log::debug!("dropping non event envelope");
+                    }
                     return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
                 }
 
                 let public_key = envelope.meta().public_key().to_string();
 
-                log::trace!("sending event to sentry endpoint {}", event_id);
+                log::trace!("sending event to sentry endpoint");
                 let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
                     move |builder| {
                         let meta = envelope.meta();
@@ -986,14 +976,11 @@ impl Handler<HandleEvent> for EventManager {
                     .and_then(move |result| {
                         result.map_err(move |error| match error {
                             UpstreamRequestError::RateLimited(secs) => {
+                                // TODO: Maybe add a header that tells us the value for
+                                // RateLimitScope?
                                 ProcessingError::RateLimited(RateLimit(
-                                    // TODO: Maybe add a header that tells us the value for
-                                    // RateLimitScope?
                                     RateLimitScope::Key(public_key),
-                                    RetryAfter {
-                                        when: Instant::now() + Duration::from_secs(secs),
-                                        reason_code: None,
-                                    },
+                                    RetryAfter::new(secs),
                                 ))
                             }
                             other => ProcessingError::SendFailed(other),
@@ -1015,11 +1002,16 @@ impl Handler<HandleEvent> for EventManager {
                 // if we are in capture mode, we stash away the event instead of
                 // forwarding it.
                 if capture {
-                    log::debug!("capturing failed event {}", event_id);
-                    let msg = LogError(&error).to_string();
-                    captured_events
-                        .write()
-                        .insert(event_id, CapturedEvent::Err(msg));
+                    // XXX: does not work with envelopes without event_id
+                    if let Some(event_id) = event_id {
+                        log::debug!("capturing failed event {}", event_id);
+                        let msg = LogError(&error).to_string();
+                        captured_events
+                            .write()
+                            .insert(event_id, CapturedEvent::Err(msg));
+                    } else {
+                        log::debug!("dropping failed envelope without event");
+                    }
                 }
 
                 // Do not track outcomes or capture events for non-event envelopes (such as
@@ -1093,9 +1085,9 @@ impl Handler<HandleEvent> for EventManager {
                     // Errors are only logged for what we consider an internal discard reason. These
                     // indicate errors in the infrastructure or implementation bugs. In other cases,
                     // we "expect" errors and log them as info level.
-                    log::error!("error processing event {}: {}", event_id, LogError(&error));
+                    log::error!("error processing event: {}", LogError(&error));
                 } else {
-                    log::debug!("dropped event {}: {}", event_id, LogError(&error));
+                    log::debug!("dropped event: {}", LogError(&error));
                 }
 
                 if let Some(outcome) = outcome_params {
@@ -1105,7 +1097,7 @@ impl Handler<HandleEvent> for EventManager {
                         org_id: *(org_id_for_err.lock()),
                         key_id: None,
                         outcome,
-                        event_id: Some(event_id),
+                        event_id,
                         remote_addr,
                     })
                 }

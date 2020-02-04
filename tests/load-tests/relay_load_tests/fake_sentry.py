@@ -105,12 +105,7 @@ class Sentry(object):
             "organizationId": 1,
             "config": {
                 "excludeFields": [],
-                "filterSettings": {
-                    "browser-extensions": {"isEnabled": True},
-                    "web-crawlers": {"isEnabled": True},
-                    "localhost": {"isEnabled": False},
-                    "legacy-browsers": {"isEnabled": True, "options": ["ie_pre_9"]},
-                },
+                "filterSettings": {},
                 "scrubIpAddresses": False,
                 "sensitiveFields": [],
                 "scrubDefaults": True,
