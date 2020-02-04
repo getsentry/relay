@@ -440,6 +440,10 @@ fn default_projectconfig_cache_prefix() -> String {
     "relayconfig".to_owned()
 }
 
+fn default_rate_limit() -> Option<u32> {
+    Some(300) // 5 minutes
+}
+
 /// Controls Sentry-internal event processing.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Processing {
@@ -466,6 +470,9 @@ pub struct Processing {
     /// Prefix to use when looking up project configs in Redis. Defaults to "relayconfig".
     #[serde(default = "default_projectconfig_cache_prefix")]
     pub projectconfig_cache_prefix: String,
+    /// Maximum rate limit to report to clients.
+    #[serde(default = "default_rate_limit")]
+    pub max_rate_limit: Option<u32>,
 }
 
 impl Default for Processing {
@@ -486,6 +493,7 @@ impl Default for Processing {
             redis: Some(Redis::default()),
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
+            max_rate_limit: default_rate_limit(),
         }
     }
 }
@@ -986,6 +994,11 @@ impl Config {
     /// Relay is in processing mode.
     pub fn projectconfig_cache_prefix(&self) -> &str {
         &self.values.processing.projectconfig_cache_prefix
+    }
+
+    /// Maximum rate limit to report to clients in seconds.
+    pub fn max_rate_limit(&self) -> Option<u64> {
+        self.values.processing.max_rate_limit.into()
     }
 }
 
