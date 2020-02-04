@@ -1,7 +1,7 @@
 use std::collections::{hash_map::Entry, HashMap};
 use std::iter;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
@@ -649,10 +649,11 @@ impl Handler<GetEventAction> for Project {
         let rate_limit = RateLimitScope::iter_variants(&message.meta)
             .filter_map(|scope| {
                 if let Entry::Occupied(entry) = self.rate_limits.entry(scope.clone()) {
-                    if entry.get().can_retry() {
+                    if entry.get().expired() {
                         entry.remove_entry();
                         None
                     } else {
+                        // TODO:
                         Some(RateLimit(scope, entry.get().clone()))
                     }
                 } else {
@@ -681,13 +682,30 @@ impl Handler<GetEventAction> for Project {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+/// A rate limit with optional reason code.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RetryAfter {
-    pub when: Instant,
-    pub reason_code: Option<String>,
+    when: Instant,
+    reason_code: Option<String>,
 }
 
 impl RetryAfter {
+    /// Creates a retry after instance.
+    #[inline]
+    pub fn new(seconds: u64) -> Self {
+        Self::with_reason(seconds, None)
+    }
+
+    /// Creates a retry after instance with the given reason code.
+    #[inline]
+    pub fn with_reason(seconds: u64, reason_code: Option<String>) -> Self {
+        let when = Instant::now() + Duration::from_secs(seconds);
+        Self { when, reason_code }
+    }
+
+    /// Returns the remaining seconds until the rate limit expires.
+    ///
+    /// If the rate limit has expired, this function returns `0`.
     pub fn remaining_seconds(&self) -> u64 {
         let now = Instant::now();
         if now > self.when {
@@ -698,7 +716,12 @@ impl RetryAfter {
         (self.when - now).as_secs() + 1
     }
 
-    pub fn can_retry(&self) -> bool {
+    /// Returns the optional reason for this rate limit.
+    pub fn reason_code(&self) -> Option<&str> {
+        self.reason_code.as_deref()
+    }
+
+    pub fn expired(&self) -> bool {
         self.remaining_seconds() == 0
     }
 }
@@ -714,17 +737,15 @@ impl RateLimitScope {
     }
 }
 
+/// A scoped rate limit with optional reason code.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct RateLimit(pub RateLimitScope, pub RetryAfter);
 
-impl RateLimit {
-    #[cfg(feature = "processing")]
-    pub fn reason_code(&self) -> Option<&str> {
-        Some(&self.1.reason_code.as_ref()?)
-    }
+impl std::ops::Deref for RateLimit {
+    type Target = RetryAfter;
 
-    pub fn remaining_seconds(&self) -> u64 {
-        self.1.remaining_seconds()
+    fn deref(&self) -> &Self::Target {
+        &self.1
     }
 }
 

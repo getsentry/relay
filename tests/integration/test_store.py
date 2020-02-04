@@ -329,7 +329,7 @@ def test_when_processing_is_not_enabled_relay_does_not_normalize_events(
 
 
 def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_consumer):
-    relay = relay_with_processing()
+    relay = relay_with_processing({"processing": {"max_rate_limit": 120}})
     relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
@@ -368,8 +368,13 @@ def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_co
     outcomes_consumer.assert_rate_limited("get_lost")
 
     for _ in range(5):
-        with pytest.raises(HTTPError):
+        with pytest.raises(HTTPError) as excinfo:
             relay.send_event(42, {"message": "rate_limited"})
+
+        # The rate limit is actually for 1 hour, but we cap at 120s with the
+        # max_rate_limit parameter
+        retry_after = excinfo.value.response.headers["retry-after"]
+        assert int(retry_after) <= 120
 
         outcomes_consumer.assert_rate_limited("get_lost")
 
