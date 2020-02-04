@@ -2,7 +2,7 @@ pytest
 pytest-localserver
 requests
 flask
-werkzeug==0.15.1
+werkzeug==0.15.3
 confluent-kafka
 msgpack
 pytest-rerunfailures
