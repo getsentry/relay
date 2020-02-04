@@ -998,7 +998,7 @@ impl Config {
 
     /// Maximum rate limit to report to clients in seconds.
     pub fn max_rate_limit(&self) -> Option<u64> {
-        self.values.processing.max_rate_limit.into()
+        self.values.processing.max_rate_limit.map(u32::into)
     }
 }
 
