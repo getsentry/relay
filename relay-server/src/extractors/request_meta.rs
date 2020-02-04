@@ -128,6 +128,9 @@ impl RequestMeta {
         if let Some(user_agent) = other.user_agent {
             self.user_agent = Some(user_agent);
         }
+        if let Some(sent_at) = other.sent_at {
+            self.sent_at = Some(sent_at);
+        }
     }
 
     /// Returns a reference to the DSN.
