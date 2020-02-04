@@ -1,4 +1,4 @@
-# PII Rule Redaction Methods
+# PII Redaction Methods
 
 #### remove
 
