@@ -125,7 +125,12 @@ def kafka_consumer(request, get_topic_name, processing_config):
 
         consumer = kafka.Consumer(settings)
         consumer.subscribe(topics)
-        request.addfinalizer(consumer.unsubscribe)
+
+        def die():
+            consumer.unsubscribe()
+            consumer.close()
+
+        request.addfinalizer(die)
 
         while consumer.poll(timeout=0.1) is not None:
             pass

@@ -144,6 +144,9 @@ impl RequestMeta {
         if let Some(distinct_id) = other.distinct_id {
             self.distinct_id = Some(distinct_id);
         }
+        if let Some(sent_at) = other.sent_at {
+            self.sent_at = Some(sent_at);
+        }
     }
 
     /// Returns a reference to the DSN.
