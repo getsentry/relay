@@ -9,12 +9,12 @@ Say you have an exception message which, unfortunately, contains IP addresses wh
 ```json
 {
   "applications": {
-    "text": ["@ip:replace"]
+    "$string": ["@ip:replace"]
   }
 }
 ```
 
-It reads as "apply rule `@ip:replace` to all `text` fields.
+It reads as "apply rule `@ip:replace` to all `$string` fields.
 
 ## Rules
 
