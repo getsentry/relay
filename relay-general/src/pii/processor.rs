@@ -385,15 +385,16 @@ fn apply_rule_to_value(
     key: Option<&str>,
     value: Option<&mut String>,
 ) -> ProcessingResult {
+    let should_redact_chunks = match *rule.redaction {
+        Redaction::Default | Redaction::Remove => false,
+        _ => true,
+    };
+
     match rule.ty {
         RuleType::RedactPair(ref redact_pair) => {
             if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
                 // The rule might specify to remove or to redact. If redaction is chosen, we need to
                 // chunk up the value, otherwise we need to simply mark the value for deletion.
-                let should_redact_chunks = match *rule.redaction {
-                    Redaction::Default | Redaction::Remove => false,
-                    _ => true,
-                };
 
                 if let (Some(value), true) = (value, should_redact_chunks) {
                     // If we're given a string value here, redact the value. However, we need to
@@ -415,8 +416,14 @@ fn apply_rule_to_value(
         }
         RuleType::Never => Ok(()),
         RuleType::Anything => {
-            meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
-            Err(ProcessingAction::DeleteValueHard)
+            if should_redact_chunks && value.is_some() {
+                // Handled in process_string
+                Ok(())
+            } else {
+                // The value is a container, @anything on a container can do nothing but delete.
+                meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
+                Err(ProcessingAction::DeleteValueHard)
+            }
         }
 
         // These are not handled by the container code but will be independently picked
@@ -799,6 +806,66 @@ fn test_no_field_upsert() {
         {
             "applications": {
                 "**": ["@anything:remove"]
+            }
+        }
+    "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        extra: {
+            let mut map = Object::new();
+            map.insert(
+                "myvalue".to_string(),
+                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+            );
+            Annotated::new(map)
+        },
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_anything_hash_on_string() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "$string": ["@anything:hash"]
+            }
+        }
+    "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        extra: {
+            let mut map = Object::new();
+            map.insert(
+                "myvalue".to_string(),
+                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+            );
+            Annotated::new(map)
+        },
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_anything_hash_on_container() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "$object": ["@anything:hash"]
             }
         }
     "##,
