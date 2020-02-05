@@ -533,7 +533,7 @@
     <span class="p">}</span>
   <span class="p">},</span>
   <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;remove_ip&quot;</span><span class="p">]</span>
+    <span class="nt">&quot;$string&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;remove_ip&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -546,12 +546,12 @@
       <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;ip&quot;</span><span class="p">,</span>
       <span class="nt">&quot;redaction&quot;</span><span class="p">:</span> <span class="p">{</span>
         <span class="nt">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;replace&quot;</span><span class="p">,</span>
-        <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;[censored]&quot;</span>
-      <span class="p">}</span>
-    <span class="p">}</span>
-  <span class="p">},</span>
-  <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;replace_ip&quot;</span><span class="p">]</span>
+        <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="err">censored</span><span class="p">]</span><span class="s2">&quot;</span>
+<span class="s2">      }</span>
+<span class="s2">    }</span>
+<span class="s2">  },</span>
+<span class="s2">  &quot;</span><span class="err">applications</span><span class="s2">&quot;: {</span>
+<span class="s2">    &quot;</span><span class="err">$string</span><span class="s2">&quot;: [&quot;</span><span class="err">replace_ip&quot;]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -571,7 +571,7 @@
     <span class="p">}</span>
   <span class="p">},</span>
   <span class="s2">&quot;applications&quot;</span><span class="o">:</span> <span class="p">{</span>
-    <span class="s2">&quot;text&quot;</span><span class="o">:</span> <span class="p">[</span><span class="s2">&quot;mask_ip&quot;</span><span class="p">]</span>
+    <span class="s2">&quot;$string&quot;</span><span class="o">:</span> <span class="p">[</span><span class="s2">&quot;mask_ip&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -593,7 +593,7 @@
     <span class="s2">&quot;hashKey&quot;</span><span class="o">:</span> <span class="s2">&quot;myDefaultKey&quot;</span>    <span class="c1">// The default key to use</span>
   <span class="p">}</span>
   <span class="s2">&quot;applications&quot;</span><span class="o">:</span> <span class="p">{</span>
-    <span class="s2">&quot;text&quot;</span><span class="o">:</span> <span class="p">[</span><span class="s2">&quot;mask_ip&quot;</span><span class="p">]</span>
+    <span class="s2">&quot;$string&quot;</span><span class="o">:</span> <span class="p">[</span><span class="s2">&quot;mask_ip&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>

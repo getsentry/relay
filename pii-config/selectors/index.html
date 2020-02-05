@@ -364,8 +364,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#shortcuts" class="md-nav__link">
-    Shortcuts
+  <a href="#value-types" class="md-nav__link">
+    Value types
   </a>
   
 </li>
@@ -481,8 +481,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#shortcuts" class="md-nav__link">
-    Shortcuts
+  <a href="#value-types" class="md-nav__link">
+    Value types
   </a>
   
 </li>
@@ -507,8 +507,7 @@
                 
                 
                 <h1 id="pii-selectors">PII Selectors</h1>
-<p>Instead of <code>text</code> you have the possibility to select a region of the event
-using JSON-path-like syntax. To delete a specific key in "Additional Data", you could for example use:</p>
+<p>You have the possibility to select a region of the event using JSON-path-like syntax. To delete a specific key in "Additional Data", you could for example use:</p>
 <div class="codehilite"><pre><span></span><span class="p">{</span>
   <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
     <span class="nt">&quot;extra.foo&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;@anything:remove&quot;</span><span class="p">]</span>
@@ -528,10 +527,47 @@ using JSON-path-like syntax. To delete a specific key in "Additional Data", you 
 <li><code>**</code> matches all subpaths, so that <code>foo.**</code> matches all JSON keys within <code>foo</code>.</li>
 <li><code>*</code> matches a single path item, so that <code>foo.*</code> matches all JSON keys one level below <code>foo</code>.</li>
 </ul>
-<h2 id="shortcuts">Shortcuts</h2>
+<h2 id="value-types">Value types</h2>
+<p>The following can be used to select subsections by JSON-type or semantic meaning.</p>
 <ul>
-<li><code>text</code> matches all strings. In most cases this can be replaced with <code>**</code>, as applying a regex on e.g. an integer or JSON object just does nothing.</li>
+<li><code>$string</code></li>
+<li><code>$number</code></li>
+<li><code>$boolean</code></li>
+<li><code>$datetime</code></li>
+<li><code>$array</code></li>
+<li><code>$object</code></li>
+<li><code>$event</code></li>
+<li><code>$exception</code></li>
+<li><code>$stacktrace</code></li>
+<li><code>$frame</code></li>
+<li><code>$request</code></li>
+<li><code>$user</code></li>
+<li><code>$logentry</code> (also applies to <code>event.message</code>)</li>
+<li><code>$thread</code></li>
+<li><code>$breadcrumb</code></li>
+<li><code>$span</code></li>
+<li><code>$sdk</code></li>
 </ul>
+<p>Examples:</p>
+<ul>
+<li>Delete <code>event.user</code>:</li>
+</ul>
+<div class="codehilite"><pre><span></span><span class="p">{</span>
+  <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;$user&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;@anything:remove&quot;</span><span class="p">]</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+
+<ul>
+<li>Delete all frame-local variables:</li>
+</ul>
+<div class="codehilite"><pre><span></span><span class="p">{</span>
+  <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;$frame.vars&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;@anything:remove&quot;</span><span class="p">]</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
                 
                   
                 

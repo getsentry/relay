@@ -604,7 +604,7 @@
     <span class="p">}</span>
   <span class="p">},</span>
   <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_device_id&quot;</span><span class="p">]</span>
+    <span class="nt">&quot;$string&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_device_id&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -621,7 +621,7 @@
     <span class="p">}</span>
   <span class="p">},</span>
   <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_imei&quot;</span><span class="p">]</span>
+    <span class="nt">&quot;$string&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_imei&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -638,7 +638,7 @@
     <span class="p">}</span>
   <span class="p">},</span>
   <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_mac&quot;</span><span class="p">]</span>
+    <span class="nt">&quot;$string&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_mac&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -655,7 +655,7 @@
     <span class="p">}</span>
   <span class="p">},</span>
   <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_ip&quot;</span><span class="p">]</span>
+    <span class="nt">&quot;$string&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_ip&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -672,7 +672,7 @@
     <span class="p">}</span>
   <span class="p">},</span>
   <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_cc&quot;</span><span class="p">]</span>
+    <span class="nt">&quot;$string&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_cc&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -689,14 +689,14 @@
     <span class="p">}</span>
   <span class="p">},</span>
   <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_userpath&quot;</span><span class="p">]</span>
+    <span class="nt">&quot;$string&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hash_userpath&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
 
 <h4 id="anything">anything</h4>
 <p>Matches any value. This is basically equivalent to a wildcard regex.</p>
-<p>For example, to remove all data with the PII kind <code>text</code>:</p>
+<p>For example, to remove all strings:</p>
 <div class="codehilite"><pre><span></span><span class="p">{</span>
   <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
     <span class="nt">&quot;remove_everything&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -707,7 +707,7 @@
     <span class="p">}</span>
   <span class="p">},</span>
   <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;remove_everything&quot;</span><span class="p">]</span>
+    <span class="nt">&quot;$string&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;remove_everything&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -729,7 +729,7 @@
     <span class="p">}</span>
   <span class="p">},</span>
   <span class="s2">&quot;applications&quot;</span><span class="o">:</span> <span class="p">{</span>
-    <span class="s2">&quot;text&quot;</span><span class="o">:</span> <span class="p">[</span><span class="s2">&quot;remove_ips_and_macs&quot;</span><span class="p">]</span>
+    <span class="s2">&quot;$string&quot;</span><span class="o">:</span> <span class="p">[</span><span class="s2">&quot;remove_ips_and_macs&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -748,23 +748,7 @@
     <span class="p">}</span>
   <span class="p">},</span>
   <span class="s2">&quot;applications&quot;</span><span class="o">:</span> <span class="p">{</span>
-    <span class="s2">&quot;text&quot;</span><span class="o">:</span> <span class="p">[</span><span class="s2">&quot;remove_ips&quot;</span><span class="p">]</span>
-  <span class="p">}</span>
-<span class="p">}</span>
-</pre></div>
-
-<p>Apply a regex to the key name. The value matches if the key matches the given regex. This is useful for removing tokens and keys, since those are usually completely random.</p>
-<div class="codehilite"><pre><span></span><span class="p">{</span>
-  <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;container&quot;</span><span class="p">:</span> <span class="p">[</span>
-      <span class="s2">&quot;remove_all_passwords&quot;</span>
-    <span class="p">]</span>
-  <span class="p">},</span>
-  <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;remove_all_passwords&quot;</span><span class="p">:</span> <span class="p">{</span>
-      <span class="nt">&quot;keyPattern&quot;</span><span class="p">:</span> <span class="s2">&quot;(password|token|credentials)&quot;</span><span class="p">,</span>
-      <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;redact_pair&quot;</span>
-    <span class="p">}</span>
+    <span class="s2">&quot;$string&quot;</span><span class="o">:</span> <span class="p">[</span><span class="s2">&quot;remove_ips&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>

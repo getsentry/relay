@@ -524,12 +524,12 @@
 <p>Say you have an exception message which, unfortunately, contains IP addresses which are not supposed to be there. You'd write:</p>
 <div class="codehilite"><pre><span></span><span class="p">{</span>
   <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;@ip:replace&quot;</span><span class="p">]</span>
+    <span class="nt">&quot;$string&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;@ip:replace&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
 
-<p>It reads as "apply rule <code>@ip:replace</code> to all <code>text</code> fields.</p>
+<p>It reads as "apply rule <code>@ip:replace</code> to all <code>$string</code> fields.</p>
 <h2 id="rules">Rules</h2>
 <p>The following rules exist by default:</p>
 <ul>
