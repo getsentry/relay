@@ -1,7 +1,6 @@
 # PII Selectors
 
-Instead of `text` you have the possibility to select a region of the event
-using JSON-path-like syntax. To delete a specific key in "Additional Data", you could for example use:
+You have the possibility to select a region of the event using JSON-path-like syntax. To delete a specific key in "Additional Data", you could for example use:
 
 ```json
 {
@@ -24,6 +23,46 @@ You can combine selectors using boolean logic.
 * `**` matches all subpaths, so that `foo.**` matches all JSON keys within `foo`.
 * `*` matches a single path item, so that `foo.*` matches all JSON keys one level below `foo`.
 
-## Shortcuts
+## Value types
 
-* `text` matches all strings. In most cases this can be replaced with `**`, as applying a regex on e.g. an integer or JSON object just does nothing.
+The following can be used to select subsections by JSON-type or semantic meaning.
+
+* `$string`
+* `$number`
+* `$boolean`
+* `$datetime`
+* `$array`
+* `$object`
+* `$event`
+* `$exception`
+* `$stacktrace`
+* `$frame`
+* `$request`
+* `$user`
+* `$logentry` (also applies to `event.message`)
+* `$thread`
+* `$breadcrumb`
+* `$span`
+* `$sdk`
+
+Examples:
+
+* Delete `event.user`:
+
+  ```json
+  {
+    "applications": {
+      "$user": ["@anything:remove"]
+    }
+  }
+  ```
+
+* Delete all frame-local variables:
+
+  ```json
+  {
+    "applications": {
+      "$frame.vars": ["@anything:remove"]
+    }
+  }
+  ```
