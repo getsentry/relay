@@ -243,12 +243,16 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
 impl<'a> Processor for PiiProcessor<'a> {
     fn before_process<T: ProcessValue>(
         &mut self,
-        _value: Option<&T>,
+        value: Option<&T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         // booleans cannot be PII, and strings are handled in process_string
         if let Some(ValueType::Boolean) | Some(ValueType::String) = state.value_type() {
+            return Ok(());
+        }
+
+        if value.is_none() {
             return Ok(());
         }
 
@@ -765,6 +769,36 @@ fn test_redact_custom_pattern() {
                         "text": "asd"
                     }
                 }
+            }
+        }
+    "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        extra: {
+            let mut map = Object::new();
+            map.insert(
+                "myvalue".to_string(),
+                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+            );
+            Annotated::new(map)
+        },
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_no_field_upsert() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "**": ["@anything:remove"]
             }
         }
     "##,
