@@ -55,8 +55,10 @@ fn store_unreal(
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource(r"/api/{project:\d+}/unreal/{sentry_key:\w+}/", |r| {
-        r.name("store-unreal");
-        r.post().with(store_unreal);
-    })
+    common::cors(app)
+        .resource(r"/api/{project:\d+}/unreal/{sentry_key:\w+}/", |r| {
+            r.name("store-unreal");
+            r.post().with(store_unreal);
+        })
+        .register()
 }
