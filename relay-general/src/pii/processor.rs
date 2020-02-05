@@ -288,14 +288,6 @@ impl<'a> Processor for PiiProcessor<'a> {
                     other => return other,
                 }
             }
-
-            // apply rules based on value (basically all the regexes)
-            process_chunked_value(value, meta, |mut chunks| {
-                for rule in &rules {
-                    chunks = apply_rule_to_chunks(chunks, *rule);
-                }
-                chunks
-            });
         }
         Ok(())
     }
@@ -383,100 +375,77 @@ fn apply_rule_to_value(
     meta: &mut Meta,
     rule: RuleRef<'_>,
     key: Option<&str>,
-    value: Option<&mut String>,
+    mut value: Option<&mut String>,
 ) -> ProcessingResult {
     let should_redact_chunks = match *rule.redaction {
         Redaction::Default | Redaction::Remove => false,
         _ => true,
     };
 
+    macro_rules! apply_regex {
+        ($regex:expr, $replace_groups:expr) => {
+            if let Some(ref mut value) = value {
+                process_chunked_value(value, meta, |chunks| {
+                    apply_regex_to_chunks(chunks, rule, $regex, $replace_groups)
+                });
+            }
+        };
+    }
+
     match rule.ty {
         RuleType::RedactPair(ref redact_pair) => {
             if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
                 // The rule might specify to remove or to redact. If redaction is chosen, we need to
                 // chunk up the value, otherwise we need to simply mark the value for deletion.
-
-                if let (Some(value), true) = (value, should_redact_chunks) {
+                if value.is_some() && should_redact_chunks {
                     // If we're given a string value here, redact the value. However, we need to
                     // replace the rule's type with "Anything" so that it matches no matter what the
                     // value is. Then, we keep the redacted value.
-                    let mut value_rule = rule;
-                    value_rule.ty = &RuleType::Anything;
-                    process_chunked_value(value, meta, |chunks| {
-                        apply_rule_to_chunks(chunks, value_rule)
-                    });
-                    Ok(())
+                    apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0))
                 } else {
                     meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
-                    Err(ProcessingAction::DeleteValueHard)
+                    return Err(ProcessingAction::DeleteValueHard);
                 }
             } else {
-                Ok(())
+                // If we did not redact using the key, we will redact the entire value if the key
+                // appears in it.
+                //
+                // $replace_groups = None: Replace entire value if match is inside
+                // $replace_groups = Some(GROUP_0): Replace entire match
+                apply_regex!(&redact_pair.key_pattern, None)
             }
         }
-        RuleType::Never => Ok(()),
+        RuleType::Never => {}
         RuleType::Anything => {
-            if should_redact_chunks && value.is_some() {
-                // Handled in process_string
-                Ok(())
+            if value.is_some() && should_redact_chunks {
+                apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0))
             } else {
                 // The value is a container, @anything on a container can do nothing but delete.
                 meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
-                Err(ProcessingAction::DeleteValueHard)
+                return Err(ProcessingAction::DeleteValueHard);
             }
         }
 
-        // These are not handled by the container code but will be independently picked
-        // up by the string matching code later.
-        RuleType::Pattern(..)
-        | RuleType::Imei
-        | RuleType::Mac
-        | RuleType::Uuid
-        | RuleType::Email
-        | RuleType::Ip
-        | RuleType::Creditcard
-        | RuleType::Pemkey
-        | RuleType::UrlAuth
-        | RuleType::UsSsn
-        | RuleType::Userpath => Ok(()),
-
-        // These have been resolved by `collect_applications` and will never occur here.
-        RuleType::Alias(_) | RuleType::Multiple(_) => Ok(()),
-    }
-}
-
-fn apply_rule_to_chunks<'a>(mut chunks: Vec<Chunk<'a>>, rule: RuleRef<'_>) -> Vec<Chunk<'a>> {
-    macro_rules! apply_regex {
-        ($regex:expr, $replace_groups:expr) => {
-            chunks = apply_regex_to_chunks(chunks, rule, $regex, $replace_groups);
-        };
-    }
-
-    match rule.ty {
-        RuleType::Never => {}
-        RuleType::Anything => apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0)),
-        RuleType::Pattern(r) => apply_regex!(&r.pattern.0, r.replace_groups.as_ref()),
-
+        RuleType::Pattern(ref r) => apply_regex!(&r.pattern.0, r.replace_groups.as_ref()),
         RuleType::Imei => apply_regex!(&IMEI_REGEX, Some(&*GROUP_0)),
         RuleType::Mac => apply_regex!(&MAC_REGEX, Some(&*GROUP_0)),
         RuleType::Uuid => apply_regex!(&UUID_REGEX, Some(&*GROUP_0)),
         RuleType::Email => apply_regex!(&EMAIL_REGEX, Some(&*GROUP_0)),
         RuleType::Ip => {
             apply_regex!(&IPV4_REGEX, Some(&*GROUP_0));
-            apply_regex!(&IPV6_REGEX, Some(&*GROUP_1));
+            apply_regex!(&IPV6_REGEX, Some(&*GROUP_1))
         }
         RuleType::Creditcard => apply_regex!(&CREDITCARD_REGEX, Some(&*GROUP_0)),
         RuleType::Pemkey => apply_regex!(&PEM_KEY_REGEX, Some(&*GROUP_1)),
         RuleType::UrlAuth => apply_regex!(&URL_AUTH_REGEX, Some(&*GROUP_1)),
         RuleType::UsSsn => apply_regex!(&US_SSN_REGEX, Some(&*GROUP_0)),
         RuleType::Userpath => apply_regex!(&PATH_REGEX, Some(&*GROUP_1)),
-        RuleType::RedactPair(ref redact_pair) => apply_regex!(&redact_pair.key_pattern, None),
-        // does not apply here
-        RuleType::Alias(_) => {}
-        RuleType::Multiple(_) => {}
+
+        // These have been resolved by `collect_applications` and will never occur here.
+        RuleType::Alias(_) | RuleType::Multiple(_) => {}
     }
 
-    chunks
+    Ok(())
 }
 
 fn apply_regex_to_chunks<'a>(
