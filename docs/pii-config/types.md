@@ -16,7 +16,7 @@ Custom Perl-style regex (PCRE).
     }
   },
   "applications": {
-    "text": ["hash_device_id"]
+    "$string": ["hash_device_id"]
   }
 }
 ```
@@ -36,7 +36,7 @@ Matches an IMEI or IMEISV.
     }
   },
   "applications": {
-    "text": ["hash_imei"]
+    "$string": ["hash_imei"]
   }
 }
 ```
@@ -56,7 +56,7 @@ Matches a MAC address.
     }
   },
   "applications": {
-    "text": ["hash_mac"]
+    "$string": ["hash_mac"]
   }
 }
 ```
@@ -76,7 +76,7 @@ Matches any IP address.
     }
   },
   "applications": {
-    "text": ["hash_ip"]
+    "$string": ["hash_ip"]
   }
 }
 ```
@@ -96,7 +96,7 @@ Matches a creditcard number.
     }
   },
   "applications": {
-    "text": ["hash_cc"]
+    "$string": ["hash_cc"]
   }
 }
 ```
@@ -116,7 +116,7 @@ Matches a local path (e.g. `C:/Users/foo/`).
     }
   },
   "applications": {
-    "text": ["hash_userpath"]
+    "$string": ["hash_userpath"]
   }
 }
 ```
@@ -125,7 +125,7 @@ Matches a local path (e.g. `C:/Users/foo/`).
 
 Matches any value. This is basically equivalent to a wildcard regex.
 
-For example, to remove all data with the PII kind `text`:
+For example, to remove all strings:
 
 ```json
 {
@@ -138,7 +138,7 @@ For example, to remove all data with the PII kind `text`:
     }
   },
   "applications": {
-    "text": ["remove_everything"]
+    "$string": ["remove_everything"]
   }
 }
 ```
@@ -163,7 +163,7 @@ Combine multiple rules into one. This is a disjunction (OR): The field in questi
     }
   },
   "applications": {
-    "text": ["remove_ips_and_macs"]
+    "$string": ["remove_ips_and_macs"]
   }
 }
 ```
@@ -185,26 +185,7 @@ Alias one rule to the other. This is the same as `multiple` except that you can 
     }
   },
   "applications": {
-    "text": ["remove_ips"]
-  }
-}
-```
-
-
-Apply a regex to the key name. The value matches if the key matches the given regex. This is useful for removing tokens and keys, since those are usually completely random.
-
-```json
-{
-  "applications": {
-    "container": [
-      "remove_all_passwords"
-    ]
-  },
-  "rules": {
-    "remove_all_passwords": {
-      "keyPattern": "(password|token|credentials)",
-      "type": "redact_pair"
-    }
+    "$string": ["remove_ips"]
   }
 }
 ```

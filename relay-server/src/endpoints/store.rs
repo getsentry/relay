@@ -1,7 +1,6 @@
 //! Handles event store requests.
 
 use actix::prelude::*;
-use actix_web::middleware::cors::Cors;
 use actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use bytes::BytesMut;
 use futures::Future;
@@ -124,20 +123,7 @@ fn store_event(
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    Cors::for_app(app)
-        .allowed_methods(vec!["POST"])
-        .allowed_headers(vec![
-            "x-sentry-auth",
-            "x-requested-with",
-            "x-forwarded-for",
-            "origin",
-            "referer",
-            "accept",
-            "content-type",
-            "authentication",
-        ])
-        .expose_headers(vec!["X-Sentry-Error", "Retry-After"])
-        .max_age(3600)
+    common::cors(app)
         // Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs
         // in their URL handling. Since actix does not normalize such paths, allow any number of
         // slashes. The trailing slash can also be omitted, optionally.

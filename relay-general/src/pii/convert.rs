@@ -11,6 +11,10 @@ lazy_static::lazy_static! {
     // XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
     // compatibility with Python.
     static ref KNOWN_IP_FIELDS: SelectorSpec = "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)".parse().unwrap();
+
+    // Fields that the legacy data scrubber cannot strip. We define this list independently of
+    // `metastructure(pii = true/false)` because the new PII scrubber should be able to strip more.
+    static ref DATASCRUBBER_IGNORE: SelectorSpec = "$logentry.formatted".parse().unwrap();
 }
 
 pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
@@ -76,30 +80,28 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         return None;
     }
 
-    let mut applied_selector = SelectorSpec::Or(vec![
-        SelectorSpec::from(ValueType::String),
-        SelectorSpec::from(ValueType::Number),
-        SelectorSpec::from(ValueType::Array),
-    ]);
+    let mut conjunctions = vec![
+        SelectorSpec::Or(vec![
+            ValueType::String.into(),
+            ValueType::Number.into(),
+            ValueType::Array.into(),
+        ]),
+        SelectorSpec::Not(Box::new(DATASCRUBBER_IGNORE.clone())),
+    ];
 
-    let mut exclude_fields = datascrubbing_config
-        .exclude_fields
-        .iter()
-        .map(|x| x.trim())
-        .filter(|x| !x.is_empty())
-        .peekable();
+    for field in &datascrubbing_config.exclude_fields {
+        let field = field.trim();
 
-    if exclude_fields.peek().is_some() {
-        let mut conjunctions = vec![applied_selector];
-
-        for field in exclude_fields {
-            conjunctions.push(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
-                SelectorPathItem::Key(field.to_owned()),
-            ]))));
+        if field.is_empty() {
+            continue;
         }
 
-        applied_selector = SelectorSpec::And(conjunctions);
+        conjunctions.push(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
+            SelectorPathItem::Key(field.to_owned()),
+        ]))));
     }
+
+    let applied_selector = SelectorSpec::And(conjunctions);
 
     if !applied_rules.is_empty() {
         applications.insert(applied_selector, applied_rules);
@@ -197,7 +199,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string|$number|$array)": [
+            "(($string|$number|$array)&(~$logentry.formatted))": [
               "@common:filter"
             ],
             "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
@@ -222,7 +224,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string|$number|$array)": [
+            "(($string|$number|$array)&(~$logentry.formatted))": [
               "@common:filter"
             ],
             "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
@@ -256,7 +258,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string|$number|$array)": [
+            "(($string|$number|$array)&(~$logentry.formatted))": [
               "@common:filter",
               "strip-fields"
             ],
@@ -282,7 +284,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "(($string|$number|$array)&(~foobar))": [
+            "(($string|$number|$array)&(~$logentry.formatted)&(~foobar))": [
               "@common:filter"
             ],
             "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
@@ -1181,7 +1183,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($string|$number|$array)": [
+            "(($string|$number|$array)&(~$logentry.formatted))": [
               "@common:filter",
               "strip-fields"
             ],
@@ -1191,6 +1193,28 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           }
         }
         "###);
+
+        let pii_config = pii_config.unwrap();
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_event_message_not_strippable() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "logentry": {
+                    "formatted": "hello world!"
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["formatted".to_owned()],
+            ..simple_enabled_config()
+        });
 
         let pii_config = pii_config.unwrap();
         let mut pii_processor = PiiProcessor::new(&pii_config);

@@ -200,8 +200,10 @@ fn store_minidump(
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource(r"/api/{project:\d+}/minidump{trailing_slash:/?}", |r| {
-        r.name("store-minidump");
-        r.post().with(store_minidump);
-    })
+    common::cors(app)
+        .resource(r"/api/{project:\d+}/minidump{t:/?}", |r| {
+            r.name("store-minidump");
+            r.post().with(store_minidump);
+        })
+        .register()
 }

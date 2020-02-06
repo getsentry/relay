@@ -13,6 +13,7 @@ nav:
       - pii-config/index.md
       - pii-config/types.md
       - pii-config/methods.md
+      - pii-config/selectors.md
 
   - Architecture:
       - architecture/index.md

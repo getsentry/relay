@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use actix::fut::result;
 use actix::prelude::*;
@@ -710,13 +710,13 @@ impl EventManager {
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
         outcome_producer: Addr<OutcomeProducer>,
-        redis: Option<RedisPool>,
+        redis_pool: Option<RedisPool>,
     ) -> Result<Self, ServerError> {
         let thread_count = config.cpu_concurrency();
         log::info!("starting {} event processing workers", thread_count);
 
         #[cfg(not(feature = "processing"))]
-        let _ = redis;
+        let _ = redis_pool;
 
         #[cfg(feature = "processing")]
         let processor = {
@@ -727,7 +727,7 @@ impl EventManager {
                 None => None,
             };
 
-            let rate_limiter = redis.map(RateLimiter::new);
+            let rate_limiter = redis_pool.map(|pool| RateLimiter::new(config.clone(), pool));
 
             SyncArbiter::start(
                 thread_count,
@@ -982,14 +982,11 @@ impl Handler<HandleEnvelope> for EventManager {
                     .and_then(move |result| {
                         result.map_err(move |error| match error {
                             UpstreamRequestError::RateLimited(secs) => {
+                                // TODO: Maybe add a header that tells us the value for
+                                // RateLimitScope?
                                 ProcessingError::RateLimited(RateLimit(
-                                    // TODO: Maybe add a header that tells us the value for
-                                    // RateLimitScope?
                                     RateLimitScope::Key(public_key),
-                                    RetryAfter {
-                                        when: Instant::now() + Duration::from_secs(secs),
-                                        reason_code: None,
-                                    },
+                                    RetryAfter::new(secs),
                                 ))
                             }
                             other => ProcessingError::SendFailed(other),

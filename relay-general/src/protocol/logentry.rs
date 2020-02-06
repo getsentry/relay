@@ -13,7 +13,7 @@ pub struct LogEntry {
     pub message: Annotated<String>,
 
     /// The formatted message
-    #[metastructure(max_chars = "message")]
+    #[metastructure(max_chars = "message", pii = "true")]
     pub formatted: Annotated<String>,
 
     /// Positional parameters to be interpolated into the log message.

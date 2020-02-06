@@ -2,9 +2,10 @@ pytest
 pytest-localserver
 requests
 flask
+werkzeug==0.15.3
 confluent-kafka
 msgpack
 pytest-rerunfailures
-pytest-xdist
-redis
+pytest-xdist==1.31.0
+redis==3.4.1
 git+https://github.com/untitaker/pytest-sentry#egg=pytest-sentry

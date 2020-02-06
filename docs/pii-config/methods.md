@@ -1,4 +1,4 @@
-# PII Rule Redaction Methods
+# PII Redaction Methods
 
 #### remove
 
@@ -15,7 +15,7 @@ Remove the entire field. Relay may choose to either set it to `null` or to remov
     }
   },
   "applications": {
-    "text": ["remove_ip"]
+    "$string": ["remove_ip"]
   }
 }
 ```
@@ -31,12 +31,12 @@ Replace the key with a static string.
       "type": "ip",
       "redaction": {
         "method": "replace",
-        "text": "[censored]"
+        "text": [censored]"
       }
     }
   },
   "applications": {
-    "text": ["replace_ip"]
+    "$string": ["replace_ip"]
   }
 }
 ```
@@ -59,7 +59,7 @@ Replace every character of the matched string with a "masking" char. Compared to
     }
   },
   "applications": {
-    "text": ["mask_ip"]
+    "$string": ["mask_ip"]
   }
 }
 ```
@@ -84,7 +84,7 @@ Replace the string with a hashed version of itself. Equal strings will produce t
     "hashKey": "myDefaultKey"    // The default key to use
   }
   "applications": {
-    "text": ["mask_ip"]
+    "$string": ["mask_ip"]
   }
 }
 ```

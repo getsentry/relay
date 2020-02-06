@@ -994,7 +994,7 @@ mod tests {
     fn test_deserialize_envelope_session_data() {
         // With terminating newline
         let bytes = Bytes::from(&b"\
-            {\"sid\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"did\":\"319c9827ff324d07954331d1230e9ee3\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+            {\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
             {\"type\":\"session\",\"length\":83}\n\
             {\"op\":\"start\",\"ts\":1580740770.86862,\"attrs\":{\"os\":\"Android\",\"os_version\":\"8.0.0\"}}\n\
         "[..]);
@@ -1011,12 +1011,5 @@ mod tests {
             Bytes::from(&b"{\"op\":\"start\",\"ts\":1580740770.86862,\"attrs\":{\"os\":\"Android\",\"os_version\":\"8.0.0\"}}\n"[..])
         );
         assert_eq!(items[0].content_type(), None);
-
-        let meta = envelope.meta();
-        assert_eq!(
-            meta.session_id(),
-            Some(&"9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap())
-        );
-        assert_eq!(meta.distinct_id(), Some("319c9827ff324d07954331d1230e9ee3"));
     }
 }

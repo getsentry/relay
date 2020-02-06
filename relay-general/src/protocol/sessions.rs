@@ -9,44 +9,39 @@ use serde::{Deserialize, Serialize};
 /// The type of session event we're dealing with.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SessionEventOperation {
-    Start,
-    #[serde(rename = "fg")]
-    Foreground,
-    #[serde(rename = "bg")]
-    Background,
-    Crash,
-    Close,
+pub enum SessionStatus {
+    Ok,
+    Crashed,
+    Abnormal,
+    Exited,
 }
 
-/// An error used when parsing `SessionEventOperation`.
+/// An error used when parsing `SessionStatus`.
 #[derive(Debug, Fail)]
 #[fail(display = "invalid event type")]
-pub struct ParseSessionEventTypeError;
+pub struct ParseSessionStatusError;
 
-impl FromStr for SessionEventOperation {
-    type Err = ParseSessionEventTypeError;
+impl FromStr for SessionStatus {
+    type Err = ParseSessionStatusError;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         Ok(match string {
-            "start" => SessionEventOperation::Start,
-            "fg" => SessionEventOperation::Foreground,
-            "bg" => SessionEventOperation::Background,
-            "crash" => SessionEventOperation::Crash,
-            "close" => SessionEventOperation::Close,
-            _ => return Err(ParseSessionEventTypeError),
+            "ok" => SessionStatus::Ok,
+            "crashed" => SessionStatus::Crashed,
+            "abnormal" => SessionStatus::Abnormal,
+            "exited" => SessionStatus::Exited,
+            _ => return Err(ParseSessionStatusError),
         })
     }
 }
 
-impl fmt::Display for SessionEventOperation {
+impl fmt::Display for SessionStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            SessionEventOperation::Start => write!(f, "start"),
-            SessionEventOperation::Foreground => write!(f, "fg"),
-            SessionEventOperation::Background => write!(f, "bg"),
-            SessionEventOperation::Crash => write!(f, "crash"),
-            SessionEventOperation::Close => write!(f, "close"),
+            SessionStatus::Ok => write!(f, "ok"),
+            SessionStatus::Crashed => write!(f, "crashed"),
+            SessionStatus::Abnormal => write!(f, "abnormal"),
+            SessionStatus::Exited => write!(f, "exited"),
         }
     }
 }
@@ -55,21 +50,41 @@ impl fmt::Display for SessionEventOperation {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionEventAttributes {
     pub os: Option<String>,
-    pub api_level: Option<String>,
+    pub os_version: Option<String>,
+    pub device_family: Option<String>,
     pub release: Option<String>,
     pub environment: Option<String>,
-    pub device_family: Option<String>,
+}
+
+fn one() -> f32 {
+    1.0
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SessionEvent {
+pub struct SessionChangeEvent {
     /// Unique identifier of this event.
     pub id: Uuid,
-    /// The timestamp of the session event.
-    #[serde(rename = "ts")]
+    /// The session identifier
+    #[serde(rename = "sid")]
+    pub session_id: Uuid,
+    /// The distinct ID
+    #[serde(rename = "did")]
+    pub distinct_id: Option<Uuid>,
+    /// An optional logical clock.
+    pub seq: Option<u64>,
+    /// The timestamp of when the session change event was created.
+    #[serde(rename = "timestamp")]
     pub timestamp: DateTime<Utc>,
-    /// The session operation.
-    pub op: SessionEventOperation,
+    /// The timestamp of when the session itself started.
+    #[serde(rename = "timestamp")]
+    pub started: DateTime<Utc>,
+    /// The sample rate.
+    #[serde(default = "one")]
+    pub sample_rate: f32,
+    /// An optional duration of the session so far.
+    pub duration: Option<f64>,
+    /// The status of the session.
+    pub status: SessionStatus,
     /// The session event attributes.
     #[serde(rename = "attrs")]
     pub attributes: SessionEventAttributes,

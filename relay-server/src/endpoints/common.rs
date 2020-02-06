@@ -4,8 +4,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use actix::prelude::*;
-use actix_web::http::StatusCode;
-use actix_web::{HttpRequest, HttpResponse, ResponseError};
+use actix_web::middleware::cors::{Cors, CorsBuilder};
+use actix_web::{http::StatusCode, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
 use futures::prelude::*;
 use parking_lot::Mutex;
@@ -25,7 +25,7 @@ use crate::constants::ITEM_NAME_EVENT;
 use crate::envelope::{Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::{RequestMeta, StartTime};
 use crate::metrics::RelayCounters;
-use crate::service::ServiceState;
+use crate::service::{ServiceApp, ServiceState};
 use crate::utils::{ApiErrorResponse, FormDataIter, MultipartError};
 
 #[derive(Fail, Debug)]
@@ -252,6 +252,33 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
     }
 
     Ok(None)
+}
+
+/// Creates a preconfigured CORS middleware builder for store requests.
+///
+/// To configure CORS, register endpoints using `resource()` and finalize by calling `register()`, which
+/// returns an App. This configures POST as allowed method, allows default sentry headers, and
+/// exposes the return headers.
+pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
+    let mut builder = Cors::for_app(app);
+
+    builder
+        .allowed_methods(vec!["POST"])
+        .allowed_headers(vec![
+            "x-sentry-auth",
+            "x-requested-with",
+            "x-forwarded-for",
+            "origin",
+            "referer",
+            "accept",
+            "content-type",
+            "authentication",
+            "authorization",
+        ])
+        .expose_headers(vec!["x-sentry-error", "retry-after"])
+        .max_age(3600);
+
+    builder
 }
 
 /// Handles Sentry events.

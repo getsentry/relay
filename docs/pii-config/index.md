@@ -9,12 +9,12 @@ Say you have an exception message which, unfortunately, contains IP addresses wh
 ```json
 {
   "applications": {
-    "text": ["@ip:replace"]
+    "$string": ["@ip:replace"]
   }
 }
 ```
 
-It reads as "apply rule `@ip:replace` to all `text` fields.
+It reads as "apply rule `@ip:replace` to all `$string` fields.
 
 ## Rules
 
@@ -33,6 +33,7 @@ The following rules exist by default:
 Rules generally consist of two parts:
 
 - *Rule types* describe what to match. See [_PII Rule Types_](types.md) for an exhaustive list.
-- *Rule redaction methods* describe what to do with the match. See [_PII Rule Redaction Methods_](methods.md) for a list.  
+- *Rule redaction methods* describe what to do with the match. See [_PII Redaction Methods_](methods.md) for a list.
+* *Selectors* describe where to match. See [_PII Selectors_](selectors.md) for a list.
 
 Each page comes with examples. Try those examples out by pasting them into the "PII config" column of [_Piinguin_](https://getsentry.github.io/piinguin) and clicking on fields to get suggestions.

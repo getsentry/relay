@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use relay_common::{
-    tryf, Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError, Uuid,
+    tryf, Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError,
 };
 
 use crate::actors::project_keys::GetProjectId;
@@ -89,14 +89,6 @@ pub struct RequestMeta {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     user_agent: Option<String>,
 
-    /// The session id.
-    #[serde(default, rename = "sid", skip_serializing_if = "Option::is_none")]
-    session_id: Option<Uuid>,
-
-    /// The distinct id.
-    #[serde(default, rename = "did", skip_serializing_if = "Option::is_none")]
-    distinct_id: Option<String>,
-
     /// When the event has been sent, according to the SDK.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sent_at: Option<DateTime<Utc>>,
@@ -113,8 +105,6 @@ impl RequestMeta {
             remote_addr: Some("192.168.0.1".parse().unwrap()),
             forwarded_for: String::new(),
             user_agent: Some("sentry/agent".to_string()),
-            session_id: None,
-            distinct_id: None,
             sent_at: None,
         }
     }
@@ -138,11 +128,8 @@ impl RequestMeta {
         if let Some(user_agent) = other.user_agent {
             self.user_agent = Some(user_agent);
         }
-        if let Some(session_id) = other.session_id {
-            self.session_id = Some(session_id);
-        }
-        if let Some(distinct_id) = other.distinct_id {
-            self.distinct_id = Some(distinct_id);
+        if let Some(sent_at) = other.sent_at {
+            self.sent_at = Some(sent_at);
         }
     }
 
@@ -212,16 +199,6 @@ impl RequestMeta {
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.sent_at
-    }
-
-    /// Returns the session id if this contains session data.
-    pub fn session_id(&self) -> Option<&Uuid> {
-        self.session_id.as_ref()
-    }
-
-    /// Returns the "distinct id" if this contains session data.
-    pub fn distinct_id(&self) -> Option<&str> {
-        self.distinct_id.as_deref()
     }
 
     /// Formats the Sentry authentication header.
@@ -351,8 +328,6 @@ fn extract_event_meta(
             remote_addr,
             forwarded_for,
             user_agent,
-            session_id: None,
-            distinct_id: None,
             sent_at: None, // We only support this via envelopes
         })
     }))
