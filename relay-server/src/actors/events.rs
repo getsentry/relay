@@ -459,8 +459,10 @@ impl EventProcessor {
 
         let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
         metric!(timer(RelayTimers::EventProcessingProcess), {
-            process_value(event, &mut store_processor, ProcessingState::root())
-                .map_err(|_| ProcessingError::InvalidTransaction)?;
+            process_value(event, &mut store_processor, ProcessingState::root()).map_err(|e| {
+                log::trace!("{}", e);
+                ProcessingError::InvalidTransaction
+            })?;
         });
 
         // Event filters assume a normalized event. Unfortunately, this requires us to run
