@@ -401,7 +401,7 @@ fn apply_rule_to_value(
                     // If we're given a string value here, redact the value. However, we need to
                     // replace the rule's type with "Anything" so that it matches no matter what the
                     // value is. Then, we keep the redacted value.
-                    apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0))
+                    apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
                 } else {
                     meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
                     return Err(ProcessingAction::DeleteValueHard);
@@ -412,13 +412,13 @@ fn apply_rule_to_value(
                 //
                 // $replace_groups = None: Replace entire value if match is inside
                 // $replace_groups = Some(GROUP_0): Replace entire match
-                apply_regex!(&redact_pair.key_pattern, None)
+                apply_regex!(&redact_pair.key_pattern, None);
             }
         }
         RuleType::Never => {}
         RuleType::Anything => {
             if value.is_some() && should_redact_chunks {
-                apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0))
+                apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
             } else {
                 // The value is a container, @anything on a container can do nothing but delete.
                 meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
@@ -433,7 +433,7 @@ fn apply_rule_to_value(
         RuleType::Email => apply_regex!(&EMAIL_REGEX, Some(&*GROUP_0)),
         RuleType::Ip => {
             apply_regex!(&IPV4_REGEX, Some(&*GROUP_0));
-            apply_regex!(&IPV6_REGEX, Some(&*GROUP_1))
+            apply_regex!(&IPV6_REGEX, Some(&*GROUP_1));
         }
         RuleType::Creditcard => apply_regex!(&CREDITCARD_REGEX, Some(&*GROUP_0)),
         RuleType::Pemkey => apply_regex!(&PEM_KEY_REGEX, Some(&*GROUP_1)),
