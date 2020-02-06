@@ -377,6 +377,8 @@ fn apply_rule_to_value(
     key: Option<&str>,
     mut value: Option<&mut String>,
 ) -> ProcessingResult {
+    // The rule might specify to remove or to redact. If redaction is chosen, we need to
+    // chunk up the value, otherwise we need to simply mark the value for deletion.
     let should_redact_chunks = match *rule.redaction {
         Redaction::Default | Redaction::Remove => false,
         _ => true,
@@ -395,12 +397,9 @@ fn apply_rule_to_value(
     match rule.ty {
         RuleType::RedactPair(ref redact_pair) => {
             if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
-                // The rule might specify to remove or to redact. If redaction is chosen, we need to
-                // chunk up the value, otherwise we need to simply mark the value for deletion.
                 if value.is_some() && should_redact_chunks {
-                    // If we're given a string value here, redact the value. However, we need to
-                    // replace the rule's type with "Anything" so that it matches no matter what the
-                    // value is. Then, we keep the redacted value.
+                    // If we're given a string value here, redact the value like we would with
+                    // @anything.
                     apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
                 } else {
                     meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
