@@ -247,17 +247,17 @@ mod tests {
             ty: Annotated::new("mytype".to_string()),
             meta: Annotated::new(MechanismMeta {
                 errno: Annotated::new(CError {
-                    number: Annotated::from_error(ErrorKind::MissingAttribute, None),
+                    number: Annotated::empty(),
                     name: Annotated::new("ENOENT".to_string()),
                 }),
                 mach_exception: Annotated::new(MachException {
-                    ty: Annotated::from_error(ErrorKind::MissingAttribute, None),
-                    code: Annotated::from_error(ErrorKind::MissingAttribute, None),
-                    subcode: Annotated::from_error(ErrorKind::MissingAttribute, None),
+                    ty: Annotated::empty(),
+                    code: Annotated::empty(),
+                    subcode: Annotated::empty(),
                     name: Annotated::new("EXC_BAD_ACCESS".to_string()),
                 }),
                 signal: Annotated::new(PosixSignal {
-                    number: Annotated::from_error(ErrorKind::MissingAttribute, None),
+                    number: Annotated::empty(),
                     code: Annotated::empty(),
                     name: Annotated::new("SIGSEGV".to_string()),
                     code_name: Annotated::empty(),
