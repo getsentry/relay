@@ -10,8 +10,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionStatus {
-    /// The session is currently in progress.
-    Pending,
+    /// The session is healthy.
+    ///
+    /// This does not necessarily indicate that the session is still active.
+    Ok,
     /// The session terminated normally.
     Exited,
     /// The session resulted in an application crash.
@@ -22,7 +24,7 @@ pub enum SessionStatus {
 
 impl Default for SessionStatus {
     fn default() -> Self {
-        Self::Pending
+        Self::Ok
     }
 }
 
@@ -36,7 +38,7 @@ impl FromStr for SessionStatus {
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         Ok(match string {
-            "pending" => SessionStatus::Pending,
+            "ok" => SessionStatus::Ok,
             "crashed" => SessionStatus::Crashed,
             "abnormal" => SessionStatus::Abnormal,
             "exited" => SessionStatus::Exited,
@@ -48,7 +50,7 @@ impl FromStr for SessionStatus {
 impl fmt::Display for SessionStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            SessionStatus::Pending => write!(f, "pending"),
+            SessionStatus::Ok => write!(f, "ok"),
             SessionStatus::Crashed => write!(f, "crashed"),
             SessionStatus::Abnormal => write!(f, "abnormal"),
             SessionStatus::Exited => write!(f, "exited"),
@@ -151,7 +153,7 @@ mod tests {
   "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
-  "status": "pending"
+  "status": "ok"
 }"#;
 
         let update = SessionUpdate {
@@ -163,7 +165,7 @@ mod tests {
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
             sample_rate: 1.0,
             duration: None,
-            status: SessionStatus::Pending,
+            status: SessionStatus::Ok,
             attributes: SessionAttributes::default(),
         };
 
