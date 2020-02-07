@@ -83,7 +83,7 @@ pub enum ItemType {
     UnrealReport,
     /// User feedback encoded as JSON.
     UserReport,
-    /// Session data.
+    /// Session update data.
     Session,
 }
 
@@ -407,9 +407,11 @@ impl Item {
 
             // Form data items may contain partial event payloads, but those are only ever valid if they
             // occur together with an explicit event item, such as a minidump or apple crash report. For
-            // this reason, FormData alone does not constitute an event item.  Same for user reports
-            // and sessions.
-            ItemType::FormData | ItemType::UserReport | ItemType::Session => false,
+            // this reason, FormData alone does not constitute an event item.
+            ItemType::FormData => false,
+
+            // The remaining item types cannot carry event payloads.
+            ItemType::UserReport | ItemType::Session => false,
         }
     }
 
@@ -988,28 +990,5 @@ mod tests {
         Hello
 
         "###);
-    }
-
-    #[test]
-    fn test_deserialize_envelope_session_data() {
-        // With terminating newline
-        let bytes = Bytes::from(&b"\
-            {\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
-            {\"type\":\"session\",\"length\":83}\n\
-            {\"op\":\"start\",\"ts\":1580740770.86862,\"attrs\":{\"os\":\"Android\",\"os_version\":\"8.0.0\"}}\n\
-        "[..]);
-
-        let envelope = Envelope::parse_bytes(bytes).unwrap();
-
-        assert_eq!(envelope.len(), 1);
-        let items: Vec<_> = envelope.items().collect();
-
-        assert_eq!(items[0].ty(), ItemType::Session);
-        assert_eq!(items[0].len(), 83);
-        assert_eq!(
-            items[0].payload(),
-            Bytes::from(&b"{\"op\":\"start\",\"ts\":1580740770.86862,\"attrs\":{\"os\":\"Android\",\"os_version\":\"8.0.0\"}}\n"[..])
-        );
-        assert_eq!(items[0].content_type(), None);
     }
 }
