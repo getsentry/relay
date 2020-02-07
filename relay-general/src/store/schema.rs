@@ -214,7 +214,6 @@ mod tests {
     #[test]
     fn test_mechanism_missing_attributes() {
         use crate::protocol::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
-        use crate::types::ErrorKind;
 
         let mut mechanism = Annotated::new(Mechanism {
             ty: Annotated::new("mytype".to_string()),

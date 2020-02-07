@@ -10,15 +10,25 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionStatus {
-    Ok,
-    Crashed,
-    Abnormal,
+    /// The session is currently in progress.
+    Pending,
+    /// The session terminated normally.
     Exited,
+    /// The session resulted in an application crash.
+    Crashed,
+    /// The session an unexpected abrupt termination (not crashing).
+    Abnormal,
+}
+
+impl Default for SessionStatus {
+    fn default() -> Self {
+        Self::Pending
+    }
 }
 
 /// An error used when parsing `SessionStatus`.
 #[derive(Debug, Fail)]
-#[fail(display = "invalid event type")]
+#[fail(display = "invalid session status")]
 pub struct ParseSessionStatusError;
 
 impl FromStr for SessionStatus {
@@ -26,7 +36,7 @@ impl FromStr for SessionStatus {
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         Ok(match string {
-            "ok" => SessionStatus::Ok,
+            "pending" => SessionStatus::Pending,
             "crashed" => SessionStatus::Crashed,
             "abnormal" => SessionStatus::Abnormal,
             "exited" => SessionStatus::Exited,
@@ -38,7 +48,7 @@ impl FromStr for SessionStatus {
 impl fmt::Display for SessionStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            SessionStatus::Ok => write!(f, "ok"),
+            SessionStatus::Pending => write!(f, "pending"),
             SessionStatus::Crashed => write!(f, "crashed"),
             SessionStatus::Abnormal => write!(f, "abnormal"),
             SessionStatus::Exited => write!(f, "exited"),
@@ -46,46 +56,166 @@ impl fmt::Display for SessionStatus {
     }
 }
 
-/// Event specific attributes.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SessionEventAttributes {
+fn is_empty_string(opt: &Option<String>) -> bool {
+    opt.as_ref().map_or(true, |s| s.is_empty())
+}
+
+/// Additional attributes for Sessions.
+#[serde(default)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct SessionAttributes {
+    /// The operating system name, corresponding to the os context.
     pub os: Option<String>,
+    /// The full operating system version string, corresponding to the os context.
     pub os_version: Option<String>,
+    /// The device famility identifier, corresponding to the device context.
     pub device_family: Option<String>,
+    /// The release version string.
     pub release: Option<String>,
+    /// The environment identifier.
     pub environment: Option<String>,
 }
 
-fn one() -> f32 {
+impl SessionAttributes {
+    fn is_empty(&self) -> bool {
+        is_empty_string(&self.os)
+            && is_empty_string(&self.os_version)
+            && is_empty_string(&self.device_family)
+            && is_empty_string(&self.release)
+            && is_empty_string(&self.environment)
+    }
+}
+
+fn default_sample_rate() -> f32 {
     1.0
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_default_sample_rate(rate: &f32) -> bool {
+    (*rate - default_sample_rate()) < std::f32::EPSILON
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SessionChangeEvent {
-    /// Unique identifier of this event.
-    pub id: Uuid,
-    /// The session identifier
+pub struct SessionUpdate {
+    /// Unique identifier of this update event.
+    #[serde(rename = "id", default = "Uuid::new_v4")]
+    pub update_id: Uuid,
+    /// The session identifier.
     #[serde(rename = "sid")]
     pub session_id: Uuid,
-    /// The distinct ID
-    #[serde(rename = "did")]
+    /// The distinct identifier.
+    #[serde(rename = "did", default, skip_serializing_if = "Option::is_none")]
     pub distinct_id: Option<Uuid>,
     /// An optional logical clock.
-    pub seq: Option<u64>,
+    #[serde(rename = "seq", default, skip_serializing_if = "Option::is_none")]
+    pub sequence: Option<u64>,
     /// The timestamp of when the session change event was created.
-    #[serde(rename = "timestamp")]
     pub timestamp: DateTime<Utc>,
     /// The timestamp of when the session itself started.
-    #[serde(rename = "timestamp")]
     pub started: DateTime<Utc>,
     /// The sample rate.
-    #[serde(default = "one")]
+    #[serde(
+        default = "default_sample_rate",
+        skip_serializing_if = "is_default_sample_rate"
+    )]
     pub sample_rate: f32,
     /// An optional duration of the session so far.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
     /// The status of the session.
+    #[serde(default)]
     pub status: SessionStatus,
     /// The session event attributes.
-    #[serde(rename = "attrs")]
-    pub attributes: SessionEventAttributes,
+    #[serde(
+        rename = "attrs",
+        default,
+        skip_serializing_if = "SessionAttributes::is_empty"
+    )]
+    pub attributes: SessionAttributes,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_session_default_values() {
+        let json = r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "timestamp": "2020-02-07T15:17:00Z",
+  "started": "2020-02-07T14:16:00Z"
+}"#;
+
+        let output = r#"{
+  "id": "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2",
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "timestamp": "2020-02-07T15:17:00Z",
+  "started": "2020-02-07T14:16:00Z",
+  "status": "pending"
+}"#;
+
+        let update = SessionUpdate {
+            update_id: "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2".parse().unwrap(),
+            session_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
+            distinct_id: None,
+            sequence: None,
+            timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
+            started: "2020-02-07T14:16:00Z".parse().unwrap(),
+            sample_rate: 1.0,
+            duration: None,
+            status: SessionStatus::Pending,
+            attributes: SessionAttributes::default(),
+        };
+
+        // Since the update_id is defaulted randomly, ensure that it matches.
+        let mut parsed = serde_json::from_str::<SessionUpdate>(json).unwrap();
+        parsed.update_id = update.update_id;
+
+        assert_eq_dbg!(update, parsed);
+        assert_eq_str!(output, serde_json::to_string_pretty(&update).unwrap());
+    }
+
+    #[test]
+    fn test_session_roundtrip() {
+        let json = r#"{
+  "id": "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2",
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "did": "b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf",
+  "seq": 42,
+  "timestamp": "2020-02-07T15:17:00Z",
+  "started": "2020-02-07T14:16:00Z",
+  "sample_rate": 2.0,
+  "duration": 1947.49,
+  "status": "exited",
+  "attrs": {
+    "os": "iOS",
+    "os_version": "13.3.1",
+    "device_family": "iPhone12,3",
+    "release": "sentry-test@1.0.0",
+    "environment": "production"
+  }
+}"#;
+
+        let update = SessionUpdate {
+            update_id: "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2".parse().unwrap(),
+            session_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
+            distinct_id: Some("b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf".parse().unwrap()),
+            sequence: Some(42),
+            timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
+            started: "2020-02-07T14:16:00Z".parse().unwrap(),
+            sample_rate: 2.0,
+            duration: Some(1947.49),
+            status: SessionStatus::Exited,
+            attributes: SessionAttributes {
+                os: Some("iOS".to_owned()),
+                os_version: Some("13.3.1".to_owned()),
+                device_family: Some("iPhone12,3".to_owned()),
+                release: Some("sentry-test@1.0.0".to_owned()),
+                environment: Some("production".to_owned()),
+            },
+        };
+
+        assert_eq_dbg!(update, serde_json::from_str(json).unwrap());
+        assert_eq_str!(json, serde_json::to_string_pretty(&update).unwrap());
+    }
 }
