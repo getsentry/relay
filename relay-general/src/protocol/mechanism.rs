@@ -4,7 +4,6 @@ use crate::types::{Annotated, Error, FromValue, Object, Value};
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct CError {
     /// The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.
-    #[metastructure(required = "true")]
     pub number: Annotated<i64>,
 
     /// Optional name of the errno constant.
@@ -15,15 +14,13 @@ pub struct CError {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct MachException {
     /// The mach exception type.
-    #[metastructure(field = "exception", required = "true")]
+    #[metastructure(field = "exception")]
     pub ty: Annotated<i64>,
 
     /// The mach exception code.
-    #[metastructure(required = "true")]
     pub code: Annotated<u64>,
 
     /// The mach exception subcode.
-    #[metastructure(required = "true")]
     pub subcode: Annotated<u64>,
 
     /// Optional name of the mach exception.
@@ -34,7 +31,6 @@ pub struct MachException {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct PosixSignal {
     /// The POSIX signal number.
-    #[metastructure(required = "true")]
     pub number: Annotated<i64>,
 
     /// An optional signal code present on Apple systems.
@@ -125,7 +121,6 @@ impl FromValue for Mechanism {
 
         #[derive(Debug, FromValue)]
         struct LegacyPosixSignal {
-            #[metastructure(required = "true")]
             pub signal: Annotated<i64>,
             pub code: Annotated<i64>,
             pub name: Annotated<String>,
@@ -134,11 +129,8 @@ impl FromValue for Mechanism {
 
         #[derive(Debug, FromValue)]
         struct LegacyMachException {
-            #[metastructure(required = "true")]
             pub exception: Annotated<i64>,
-            #[metastructure(required = "true")]
             pub code: Annotated<u64>,
-            #[metastructure(required = "true")]
             pub subcode: Annotated<u64>,
             pub exception_name: Annotated<String>,
         }

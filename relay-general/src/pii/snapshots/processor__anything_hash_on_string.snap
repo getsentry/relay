@@ -1,0 +1,26 @@
+---
+source: relay-general/src/pii/processor.rs
+expression: event
+---
+{
+  "extra": {
+    "myvalue": "168197CA3A9D4FE60EDE05116B0A125DA1AB3BD0"
+  },
+  "_meta": {
+    "extra": {
+      "myvalue": {
+        "": {
+          "rem": [
+            [
+              "@anything:hash",
+              "p",
+              0,
+              40
+            ]
+          ],
+          "len": 6
+        }
+      }
+    }
+  }
+}

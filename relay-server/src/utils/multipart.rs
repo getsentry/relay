@@ -277,7 +277,15 @@ impl MultipartItems {
         self,
         request: &HttpRequest<ServiceState>,
     ) -> ResponseFuture<Items, MultipartError> {
-        let future = consume_stream(self, request.multipart()).and_then(|multipart_opt| {
+        // Do NOT use `request.multipart()` here. It calls request.payload() unconditionally, which
+        // causes keep-alive streams to break. Instead, rely on the middleware to consume the
+        // stream. This can happen, for instance, when the boundary is malformed.
+        let multipart = match multipart::Multipart::boundary(request.headers()) {
+            Ok(boundary) => multipart::Multipart::new(Ok(boundary), request.payload()),
+            Err(error) => return Box::new(future::err(MultipartError::InvalidMultipart(error))),
+        };
+
+        let future = consume_stream(self, multipart).and_then(|multipart_opt| {
             let multipart = multipart_opt.ok_or(MultipartError::Overflow)?;
             let mut items = multipart.items;
 

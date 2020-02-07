@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.2
+
+**Relay**:
+
+- Fix trivial Redis-related crash when running in non-processing mode.
+- Limit the maximum retry-after of a rate limit. This is necessary because of
+  the "Delete and ignore future events" feature in Sentry.
+- Project caches are now evicted after `project_grace_period` has passed. If
+  you have that parameter set to a high number you may see increased memory
+  consumption.
+
+**Store**:
+
+- Misc bugfixes in PII processor. Those bugs do not affect the legacy data scrubber exposed in Python.
+- Polishing documentation around PII configuration format.
+- Signal codes in mach mechanism are no longer required.
+
 ## 0.5.1
 
 **Relay**:
