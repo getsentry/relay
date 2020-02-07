@@ -12,7 +12,7 @@ mod mechanism;
 mod metrics;
 mod request;
 mod security_report;
-mod sessions;
+mod session;
 mod span;
 mod stacktrace;
 mod tags;
@@ -43,7 +43,7 @@ pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, Posix
 pub use self::metrics::Metrics;
 pub use self::request::{Cookies, HeaderName, HeaderValue, Headers, Query, Request};
 pub use self::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp, SecurityReportType};
-pub use self::sessions::{
+pub use self::session::{
     ParseSessionStatusError, SessionChangeEvent, SessionEventAttributes, SessionStatus,
 };
 pub use self::span::Span;
