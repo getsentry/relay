@@ -93,7 +93,13 @@ api-docs: setup-git
 .PHONY: api-docs
 
 prose-docs: .venv/bin/python extract-doc
-	.venv/bin/pip install -U mkdocs markdown==3.1.1 mkdocs-material pygments pymdown-extensions==6.2.1 Jinja2
+	.venv/bin/pip install -U \
+		mkdocs==1.0.4 \
+		markdown==3.2 \
+		mkdocs-material==4.6.2 \
+		pygments==2.5.2 \
+		pymdown-extensions==6.3 \
+		Jinja2==2.11.1
 	.venv/bin/mkdocs build
 	touch site/.nojekyll
 .PHONY: prose-docs
