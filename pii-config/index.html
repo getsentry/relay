@@ -34,7 +34,7 @@
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
       <link rel="shortcut icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.6.0">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.6.2">
     
     
       
@@ -42,12 +42,12 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/application.1b62728e.css">
+      <link rel="stylesheet" href="../assets/stylesheets/application.adb8469c.css">
       
       
     
     
-      <script src="../assets/javascripts/modernizr.268332fc.js"></script>
+      <script src="../assets/javascripts/modernizr.86422ebf.js"></script>
     
     
       
@@ -81,7 +81,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="#pii-configuration" tabindex="1" class="md-skip">
+      <a href="#pii-configuration" tabindex="0" class="md-skip">
         Skip to content
       </a>
     
@@ -90,7 +90,7 @@
   <nav class="md-header-nav md-grid">
     <div class="md-flex">
       <div class="md-flex__cell md-flex__cell--shrink">
-        <a href=".." title="Sentry Relay" class="md-header-nav__button md-logo">
+        <a href=".." title="Sentry Relay" aria-label="Sentry Relay" class="md-header-nav__button md-logo">
           
             <i class="md-icon"></i>
           
@@ -121,7 +121,7 @@
   <label class="md-search__overlay" for="__search"></label>
   <div class="md-search__inner" role="search">
     <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <input type="text" class="md-search__input" aria-label="search" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
       <label class="md-icon md-search__icon" for="__search"></label>
       <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
         &#xE5CD;
@@ -321,22 +321,16 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rules" class="md-nav__link">
-    Rules
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#writing-your-own-rules" class="md-nav__link">
-    Writing your own rules
+  <a href="#built-in-rules" class="md-nav__link">
+    Built-in rules
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#writing-your-own-rules" class="md-nav__link">
+    Writing your own rules
+  </a>
   
 </li>
       
@@ -480,22 +474,16 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rules" class="md-nav__link">
-    Rules
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#writing-your-own-rules" class="md-nav__link">
-    Writing your own rules
+  <a href="#built-in-rules" class="md-nav__link">
+    Built-in rules
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#writing-your-own-rules" class="md-nav__link">
+    Writing your own rules
+  </a>
   
 </li>
       
@@ -522,31 +510,32 @@
 <p>The following document explores the syntax and semantics of PII configs for Relay. To get started with PII configs, it's recommended to use <a href="https://getsentry.github.io/piinguin"><em>Piinguin</em></a> and refer back to this document when needed.</p>
 <h2 id="a-basic-example">A basic example</h2>
 <p>Say you have an exception message which, unfortunately, contains IP addresses which are not supposed to be there. You'd write:</p>
-<div class="codehilite"><pre><span></span><span class="p">{</span>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
     <span class="nt">&quot;$string&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;@ip:replace&quot;</span><span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
-</pre></div>
+</code></pre></div>
 
-<p>It reads as "apply rule <code>@ip:replace</code> to all <code>$string</code> fields.</p>
-<h2 id="rules">Rules</h2>
+<p>It reads as "replace all IP addresses in all strings", or "apply <code>@ip:replace</code> to all <code>$string</code> fields".</p>
+<p><code>@ip:replace</code> is called a rule, and <code>$string</code> is a <a href="selectors/"><em>selector</em></a>.</p>
+<h2 id="built-in-rules">Built-in rules</h2>
 <p>The following rules exist by default:</p>
 <ul>
-<li><code>@ip:replace</code> and <code>@ip:hash</code> for pattern-matching IP addresses</li>
-<li><code>@imei:replace</code> and <code>@imei:hash</code> for pattern-matching IMEIs</li>
-<li><code>@mac:replace</code>, <code>@mac:mask</code> and <code>@mac:hash</code> for pattern-matching MAC addresses</li>
-<li><code>@email:mask</code>, <code>@email:replace</code> and <code>@email:hash</code> for pattern-matching email addresses</li>
-<li><code>@creditcard:mask</code>, <code>@creditcard:replace</code> and <code>@creditcard:hash</code> for pattern-matching creditcard numbers</li>
-<li><code>@userpath:replace</code> and <code>@userpath:hash</code> for pattern-matching local paths (e.g. <code>C:/Users/foo/</code>)</li>
-<li><code>@password:remove</code> for pattern matching passwords. In this case we're pattern matching against the field's key, whether it contains <code>password</code>, <code>credentials</code> or similar strings.</li>
+<li><code>@ip:replace</code> and <code>@ip:hash</code> for replacing IP addresses.</li>
+<li><code>@imei:replace</code> and <code>@imei:hash</code> for replacing IMEIs</li>
+<li><code>@mac:replace</code>, <code>@mac:mask</code> and <code>@mac:hash</code> for matching MAC addresses</li>
+<li><code>@email:mask</code>, <code>@email:replace</code> and <code>@email:hash</code> for matching email addresses</li>
+<li><code>@creditcard:mask</code>, <code>@creditcard:replace</code> and <code>@creditcard:hash</code> for matching creditcard numbers</li>
+<li><code>@userpath:replace</code> and <code>@userpath:hash</code> for matching local paths (e.g. <code>C:/Users/foo/</code>)</li>
+<li><code>@password:remove</code> for removing passwords. In this case we're pattern matching against the field's key, whether it contains <code>password</code>, <code>credentials</code> or similar strings.</li>
+<li><code>@anything:remove</code>, <code>@anything:replace</code> and <code>@anything:hash</code> for removing, replacing or hashing any value. It is essentially equivalent to a wildcard-regex, but it will also match much more than strings.</li>
 </ul>
-<h3 id="writing-your-own-rules">Writing your own rules</h3>
+<h2 id="writing-your-own-rules">Writing your own rules</h2>
 <p>Rules generally consist of two parts:</p>
 <ul>
 <li><em>Rule types</em> describe what to match. See <a href="types/"><em>PII Rule Types</em></a> for an exhaustive list.</li>
 <li><em>Rule redaction methods</em> describe what to do with the match. See <a href="methods/"><em>PII Redaction Methods</em></a> for a list.</li>
-<li><em>Selectors</em> describe where to match. See <a href="selectors/"><em>PII Selectors</em></a> for a list.</li>
 </ul>
 <p>Each page comes with examples. Try those examples out by pasting them into the "PII config" column of <a href="https://getsentry.github.io/piinguin"><em>Piinguin</em></a> and clicking on fields to get suggestions.</p>
                 
@@ -607,9 +596,9 @@
       <div class="md-footer-copyright">
         
         powered by
-        <a href="https://www.mkdocs.org">MkDocs</a>
+        <a href="https://www.mkdocs.org" target="_blank" rel="noopener">MkDocs</a>
         and
-        <a href="https://squidfunk.github.io/mkdocs-material/">
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
           Material for MkDocs</a>
       </div>
       
@@ -619,7 +608,7 @@
       
     </div>
     
-      <script src="../assets/javascripts/application.808e90bb.js"></script>
+      <script src="../assets/javascripts/application.c33a9706.js"></script>
       
       <script>app.initialize({version:"1.0.4",url:{base:".."}})</script>
       
