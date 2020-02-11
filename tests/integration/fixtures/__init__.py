@@ -1,9 +1,23 @@
 import datetime
+import json
 import time
+import os
 
 import requests
 
 session = requests.session()
+
+
+# HACK: import the envelope module from librelay without requiring to build the cabi
+with open(
+    os.path.abspath(os.path.dirname(__file__)) + "/../../../py/sentry_relay/envelope.py"
+) as f:
+    envelope_namespace = {}
+    eval(compile(f.read(), "envelope.py", "exec"), envelope_namespace)
+
+Envelope = envelope_namespace["Envelope"]
+Item = envelope_namespace["Item"]
+PayloadRef = envelope_namespace["PayloadRef"]
 
 
 class SentryLike(object):
