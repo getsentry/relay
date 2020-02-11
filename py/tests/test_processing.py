@@ -164,3 +164,42 @@ def test_validate_pii_config():
 
     with pytest.raises(ValueError):
         sentry_relay.validate_pii_config('{"applications": true}')
+
+
+def test_convert_datascrubbing_config():
+    assert sentry_relay.convert_datascrubbing_config(
+        {
+            "scrubData": True,
+            "excludeFields": [],
+            "scrubIpAddresses": True,
+            "sensitiveFields": [],
+            "scrubDefaults": True,
+        }
+    ) == {
+        "applications": {
+            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+                "@anything:remove"
+            ],
+            "(($string|$number|$array)&(~$logentry.formatted))": ["@common:filter"],
+        },
+        "rules": {},
+        "vars": {"hashKey": None},
+    }
+
+    assert (
+        sentry_relay.convert_datascrubbing_config(
+            {
+                "scrubData": False,
+                "excludeFields": [],
+                "scrubIpAddresses": False,
+                "sensitiveFields": [],
+                "scrubDefaults": False,
+            }
+        )
+        == {}
+    )
+
+
+def test_pii_strip_event():
+    event = {"logentry": {"message": "hi"}}
+    assert sentry_relay.pii_strip_event({}, event) == event

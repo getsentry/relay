@@ -116,6 +116,7 @@ ffi_fn! {
 }
 
 ffi_fn! {
+    /// Scrub an event using old data scrubbing settings.
     unsafe fn relay_scrub_event(
         config: *const RelayStr,
         event: *const RelayStr,
@@ -125,6 +126,47 @@ ffi_fn! {
             Some(pii_config) => PiiProcessor::new(pii_config),
             None => return Ok(RelayStr::new((*event).as_str())),
         };
+
+        let mut event = Annotated::<Event>::from_json((*event).as_str())?;
+        process_value(&mut event, &mut processor, ProcessingState::root())?;
+
+        Ok(RelayStr::from_string(event.to_json()?))
+    }
+}
+
+ffi_fn! {
+    /// Validate a PII config against the schema. Used in project options UI.
+    unsafe fn relay_validate_pii_config(
+        value: *const RelayStr
+    ) -> Result<RelayStr> {
+        match serde_json::from_str((*value).as_str()) {
+            Ok(PiiConfig { .. }) => Ok(RelayStr::new("")),
+            Err(e) => Ok(RelayStr::from_string(e.to_string()))
+        }
+    }
+}
+
+ffi_fn! {
+    /// Convert an old datascrubbing config to the new PII config format.
+    unsafe fn relay_convert_datascrubbing_config(
+        config: *const RelayStr
+    ) -> Result<RelayStr> {
+        let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
+        match config.pii_config() {
+            Some(config) => Ok(RelayStr::from_string(config.to_json()?)),
+            None => Ok(RelayStr::new("{}"))
+        }
+    }
+}
+
+ffi_fn! {
+    /// Scrub an event using new PII stripping config.
+    unsafe fn relay_pii_strip_event(
+        config: *const RelayStr,
+        event: *const RelayStr
+    ) -> Result<RelayStr> {
+        let config = serde_json::from_str((*config).as_str())?;
+        let mut processor = PiiProcessor::new(&config);
 
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut processor, ProcessingState::root())?;
@@ -169,18 +211,6 @@ ffi_fn! {
             options.allow_newline = true;
         }
         Ok(glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options))
-    }
-}
-
-ffi_fn! {
-    /// Validate a PII config against the schema. Used in project options UI.
-    unsafe fn relay_validate_pii_config(
-        value: *const RelayStr
-    ) -> Result<RelayStr> {
-        match serde_json::from_str((*value).as_str()) {
-            Ok(PiiConfig { .. }) => Ok(RelayStr::new("")),
-            Err(e) => Ok(RelayStr::from_string(e.to_string()))
-        }
     }
 }
 
