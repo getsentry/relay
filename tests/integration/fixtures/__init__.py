@@ -29,6 +29,20 @@ class SentryLike(object):
     def url(self):
         return "http://{}:{}".format(*self.server_address)
 
+    @property
+    def dsn(self):
+        """DSN for which you will find the events in self.captured_events"""
+        # bogus, we never check the DSN
+        return "http://{}@{}:{}/42".format(self.dsn_public_key, *self.server_address)
+
+    @property
+    def auth_header(self):
+        return (
+            "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
+            "sentry_client=raven-node/2.6.3, "
+            "sentry_key={}".format(self.dsn_public_key)
+        )
+
     def _wait(self, path):
         backoff = 0.1
         while True:
@@ -50,12 +64,6 @@ class SentryLike(object):
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
-
-    @property
-    def dsn(self):
-        """DSN for which you will find the events in self.captured_events"""
-        # bogus, we never check the DSN
-        return "http://{}@{}:{}/42".format(self.dsn_public_key, *self.server_address)
 
     def iter_public_keys(self):
         try:
@@ -137,11 +145,7 @@ class SentryLike(object):
 
         headers = {
             "Content-Type": "application/octet-stream",
-            "X-Sentry-Auth": (
-                "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
-                "sentry_client=raven-node/2.6.3, "
-                "sentry_key={}".format(self.dsn_public_key)
-            ),
+            "X-Sentry-Auth": self.auth_header,
             **(headers or {}),
         }
 
@@ -152,6 +156,22 @@ class SentryLike(object):
 
         response = self.post(url, headers=headers, **kwargs)
         response.raise_for_status()
+
+    def send_envelope(self, project_id, envelope, headers=None):
+        url = "/api/%s/store/" % project_id
+        headers = {
+            "Content-Type": "application/x-sentry-envelope",
+            "X-Sentry-Auth": self.auth_header,
+            **(headers or {}),
+        }
+
+        response = self.post(url, headers=headers, data=envelope.serialize())
+        response.raise_for_status()
+
+    def send_session(self, project_id, payload):
+        session_item = Item(json.dumps(payload), {"type": "session"})
+        envelope = Envelope(headers={"dsn": self.dsn}, items=[session_item])
+        self.send_envelope(project_id, envelope)
 
     def send_security_report(
         self, project_id, content_type, payload, release, environment
