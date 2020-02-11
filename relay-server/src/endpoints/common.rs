@@ -93,8 +93,7 @@ impl BadStoreRequest {
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
             BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
             BadStoreRequest::InvalidMsgpack(_) => Outcome::Invalid(DiscardReason::InvalidMsgpack),
-            BadStoreRequest::InvalidMultipart(err) => {
-                log::warn!("multipart error: {}", err);
+            BadStoreRequest::InvalidMultipart(_) => {
                 Outcome::Invalid(DiscardReason::InvalidMultipart)
             }
             BadStoreRequest::InvalidMinidump => Outcome::Invalid(DiscardReason::InvalidMinidump),
