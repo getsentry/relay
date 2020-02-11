@@ -35,7 +35,7 @@ use crate::utils::{self, FormDataIter, FutureExt, RedisPool};
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
+    crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     crate::quotas::{QuotasError, RateLimiter},
     crate::service::ServerErrorKind,
     failure::ResultExt,
@@ -929,7 +929,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     if let Some(store_forwarder) = store_forwarder {
                         log::trace!("sending envelope to kafka");
                         let future = store_forwarder
-                            .send(StoreEvent {
+                            .send(StoreEnvelope {
                                 envelope,
                                 start_time,
                                 organization_id: organization_id.load(Ordering::Relaxed),

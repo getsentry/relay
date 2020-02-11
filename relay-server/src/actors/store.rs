@@ -359,14 +359,14 @@ impl KafkaMessage {
 
 /// Message sent to the StoreForwarder containing an event
 #[derive(Clone, Debug)]
-pub struct StoreEvent {
+pub struct StoreEnvelope {
     pub envelope: Envelope,
     pub start_time: Instant,
     pub project_id: ProjectId,
     pub organization_id: u64,
 }
 
-impl Message for StoreEvent {
+impl Message for StoreEnvelope {
     type Result = Result<(), StoreError>;
 }
 
@@ -377,11 +377,11 @@ fn is_slow_item(item: &Item) -> bool {
     item.ty() == ItemType::Attachment || item.ty() == ItemType::UserReport
 }
 
-impl Handler<StoreEvent> for StoreForwarder {
+impl Handler<StoreEnvelope> for StoreForwarder {
     type Result = Result<(), StoreError>;
 
-    fn handle(&mut self, message: StoreEvent, _ctx: &mut Self::Context) -> Self::Result {
-        let StoreEvent {
+    fn handle(&mut self, message: StoreEnvelope, _ctx: &mut Self::Context) -> Self::Result {
+        let StoreEnvelope {
             envelope,
             start_time,
             project_id,
