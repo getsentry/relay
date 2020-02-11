@@ -398,12 +398,15 @@ pub enum KafkaTopic {
     Attachments,
     /// Transaction events topic.
     Transactions,
-    /// All outcomes are sent through this channel.
+    /// Shared outcomes topic for Relay and Sentry.
     Outcomes,
+    /// Session health updates.
+    Sessions,
 }
 
 /// Configuration for topics.
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
 pub struct TopicNames {
     /// Simple events topic name.
     pub events: String,
@@ -413,6 +416,20 @@ pub struct TopicNames {
     pub transactions: String,
     /// Event outcomes topic name.
     pub outcomes: String,
+    /// Session health topic name.
+    pub sessions: String,
+}
+
+impl Default for TopicNames {
+    fn default() -> Self {
+        Self {
+            events: "ingest-events".to_owned(),
+            attachments: "ingest-attachments".to_owned(),
+            transactions: "ingest-transactions".to_owned(),
+            outcomes: "outcomes".to_owned(),
+            sessions: "ingest-sessions".to_owned(),
+        }
+    }
 }
 
 /// A name value pair of Kafka config parameter.
@@ -461,6 +478,7 @@ pub struct Processing {
     /// Kafka producer configurations.
     pub kafka_config: Vec<KafkaConfigParam>,
     /// Kafka topic names.
+    #[serde(default)]
     pub topics: TopicNames,
     /// Redis hosts to connect to for storing state for rate limits.
     pub redis: Option<Redis>,
@@ -484,12 +502,7 @@ impl Default for Processing {
             max_secs_in_future: 0,
             max_secs_in_past: 0,
             kafka_config: Vec::new(),
-            topics: TopicNames {
-                events: String::new(),
-                attachments: String::new(),
-                transactions: String::new(),
-                outcomes: String::new(),
-            },
+            topics: TopicNames::default(),
             redis: Some(Redis::default()),
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
@@ -977,6 +990,7 @@ impl Config {
             KafkaTopic::Events => topics.events.as_str(),
             KafkaTopic::Transactions => topics.transactions.as_str(),
             KafkaTopic::Outcomes => topics.outcomes.as_str(),
+            KafkaTopic::Sessions => topics.sessions.as_str(),
         }
     }
 

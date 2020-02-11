@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -7,7 +8,7 @@ use actix::fut::result;
 use actix::prelude::*;
 use failure::Fail;
 use futures::prelude::*;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, LogError};
@@ -16,7 +17,7 @@ use relay_general::pii::PiiProcessor;
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
-    SecurityReportType, SessionUpdate, Values,
+    SecurityReportType, Values,
 };
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 
@@ -547,27 +548,6 @@ impl EventProcessor {
             };
         }
 
-        // TODO(ja): Clean this up by introducing separate envelope types.
-        envelope.retain_items(|item| {
-            if item.ty() != ItemType::Session {
-                return true;
-            }
-
-            let result = serde_json::from_slice(&item.payload())
-                .and_then(|session: SessionUpdate| serde_json::to_vec(&session));
-
-            match result {
-                Ok(json) => {
-                    item.set_payload(ContentType::Json, json);
-                    true
-                }
-                Err(err) => {
-                    log::debug!("dropped invalid session: {}", err);
-                    false
-                }
-            }
-        });
-
         // Unreal endpoint puts the whole request into an item. This is done to make the endpoint
         // fast. For envelopes containing an Unreal request, we will look into the unreal item and
         // expand it so it can be consumed like any other event (e.g. `__sentry-event`). External
@@ -909,7 +889,7 @@ impl Handler<HandleEnvelope> for EventManager {
         // This is used to add the respective organization id to the outcome emitted in the error
         // case. The organization id can only be obtained via the project state, which has not been
         // loaded at this time.
-        let org_id_for_err = Rc::new(Mutex::new(None::<u64>));
+        let organization_id = Rc::new(AtomicU64::new(0));
 
         metric!(set(RelaySets::UniqueProjects) = project_id as i64);
 
@@ -927,8 +907,11 @@ impl Handler<HandleEnvelope> for EventManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
             }))
-            .and_then(clone!(org_id_for_err, |project_state| {
-                *org_id_for_err.lock() = project_state.organization_id;
+            .and_then(clone!(organization_id, |project_state| {
+                if let Some(id) = project_state.organization_id {
+                    organization_id.store(id, Ordering::Relaxed);
+                }
+
                 processor
                     .send(ProcessEnvelope {
                         envelope,
@@ -938,7 +921,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .flatten()
             }))
-            .and_then(clone!(captured_events, |processed| {
+            .and_then(clone!(captured_events, organization_id, |processed| {
                 let envelope = processed.envelope;
 
                 #[cfg(feature = "processing")]
@@ -949,6 +932,7 @@ impl Handler<HandleEnvelope> for EventManager {
                             .send(StoreEvent {
                                 envelope,
                                 start_time,
+                                organization_id: organization_id.load(Ordering::Relaxed),
                                 project_id,
                             })
                             .map_err(ProcessingError::ScheduleFailed)
@@ -1118,10 +1102,15 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
 
                 if let Some(outcome) = outcome_params {
+                    let org_id = match organization_id.load(Ordering::Relaxed) {
+                        0 => None,
+                        id => Some(id),
+                    };
+
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),
                         project_id: project_id,
-                        org_id: *(org_id_for_err.lock()),
+                        org_id,
                         key_id: None,
                         outcome,
                         event_id,

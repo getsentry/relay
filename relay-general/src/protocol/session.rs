@@ -1,10 +1,11 @@
 use std::fmt;
 use std::str::FromStr;
-use uuid::Uuid;
+use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
 use failure::Fail;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// The type of session event we're dealing with.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
@@ -88,6 +89,13 @@ impl SessionAttributes {
     }
 }
 
+fn default_sequence() -> u64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
 fn default_sample_rate() -> f32 {
     1.0
 }
@@ -106,11 +114,11 @@ pub struct SessionUpdate {
     #[serde(rename = "sid")]
     pub session_id: Uuid,
     /// The distinct identifier.
-    #[serde(rename = "did", default, skip_serializing_if = "Option::is_none")]
-    pub distinct_id: Option<Uuid>,
+    #[serde(rename = "did", default)]
+    pub distinct_id: Uuid,
     /// An optional logical clock.
-    #[serde(rename = "seq", default, skip_serializing_if = "Option::is_none")]
-    pub sequence: Option<u64>,
+    #[serde(rename = "seq", default = "default_sequence")]
+    pub sequence: u64,
     /// The timestamp of when the session change event was created.
     pub timestamp: DateTime<Utc>,
     /// The timestamp of when the session itself started.
@@ -136,6 +144,24 @@ pub struct SessionUpdate {
     pub attributes: SessionAttributes,
 }
 
+impl SessionUpdate {
+    /// Parses a session update from JSON.
+    pub fn parse(payload: &[u8]) -> Result<Self, serde_json::Error> {
+        let mut session = serde_json::from_slice::<Self>(payload)?;
+
+        if session.distinct_id.is_nil() {
+            session.distinct_id = session.session_id;
+        }
+
+        Ok(session)
+    }
+
+    /// Serializes a session update back into JSON.
+    pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,6 +177,8 @@ mod tests {
         let output = r#"{
   "id": "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2",
   "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "did": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "seq": 4711,
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
   "status": "ok"
@@ -159,8 +187,8 @@ mod tests {
         let update = SessionUpdate {
             update_id: "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2".parse().unwrap(),
             session_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
-            distinct_id: None,
-            sequence: None,
+            distinct_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
+            sequence: 4711, // this would be a timestamp instead
             timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
             sample_rate: 1.0,
@@ -172,6 +200,10 @@ mod tests {
         // Since the update_id is defaulted randomly, ensure that it matches.
         let mut parsed = serde_json::from_str::<SessionUpdate>(json).unwrap();
         parsed.update_id = update.update_id;
+
+        // Sequence is defaulted to the current timestamp. Override for snapshot.
+        assert_eq!(parsed.sequence, default_sequence());
+        parsed.sequence = 4711;
 
         assert_eq_dbg!(update, parsed);
         assert_eq_str!(output, serde_json::to_string_pretty(&update).unwrap());
@@ -201,8 +233,8 @@ mod tests {
         let update = SessionUpdate {
             update_id: "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2".parse().unwrap(),
             session_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
-            distinct_id: Some("b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf".parse().unwrap()),
-            sequence: Some(42),
+            distinct_id: "b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf".parse().unwrap(),
+            sequence: 42,
             timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
             sample_rate: 2.0,
