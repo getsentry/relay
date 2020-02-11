@@ -924,6 +924,9 @@ impl Handler<HandleEnvelope> for EventManager {
             .and_then(clone!(captured_events, organization_id, |processed| {
                 let envelope = processed.envelope;
 
+                // avoid warnings since this is only used in the
+                let _ = organization_id;
+
                 #[cfg(feature = "processing")]
                 {
                     if let Some(store_forwarder) = store_forwarder {

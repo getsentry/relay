@@ -198,7 +198,7 @@ mod tests {
         };
 
         // Since the update_id is defaulted randomly, ensure that it matches.
-        let mut parsed = serde_json::from_str::<SessionUpdate>(json).unwrap();
+        let mut parsed = SessionUpdate::parse(json.as_bytes()).unwrap();
         parsed.update_id = update.update_id;
 
         // Sequence is defaulted to the current timestamp. Override for snapshot.
@@ -249,7 +249,7 @@ mod tests {
             },
         };
 
-        assert_eq_dbg!(update, serde_json::from_str(json).unwrap());
+        assert_eq_dbg!(update, SessionUpdate::parse(json.as_bytes()).unwrap());
         assert_eq_str!(json, serde_json::to_string_pretty(&update).unwrap());
     }
 }
