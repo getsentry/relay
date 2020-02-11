@@ -61,7 +61,6 @@ fn get_embedded_minidump(
             None
         })
         .and_then(move |field| consume_field(field, max_size))
-        .and_then(|data_opt| data_opt.ok_or(MultipartError::Overflow))
         .into_future()
         .map_err(|(err, _)| BadStoreRequest::InvalidMultipart(err))
         .map(|(data, _)| data.map(Bytes::from));
