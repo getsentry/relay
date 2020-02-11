@@ -799,7 +799,7 @@ fn test_newtypes_do_not_add_to_depth() {
 fn test_frame_hard_limit() {
     fn create_frame(filename: &str) -> Annotated<Frame> {
         Annotated::new(Frame {
-            filename: Annotated::new(filename.to_string()),
+            filename: Annotated::new(filename.into()),
             ..Default::default()
         })
     }
@@ -835,7 +835,7 @@ fn test_frame_hard_limit() {
 #[test]
 fn test_slim_frame_data_under_max() {
     let mut frames = vec![Annotated::new(Frame {
-        filename: Annotated::new("foo".to_string()),
+        filename: Annotated::new("foo".into()),
         pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
         context_line: Annotated::new("b".to_string()),
         post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
@@ -854,7 +854,7 @@ fn test_slim_frame_data_over_max() {
 
     for n in 0..5 {
         frames.push(Annotated::new(Frame {
-            filename: Annotated::new(format!("foo {}", n)),
+            filename: Annotated::new(format!("foo {}", n).into()),
             pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
             context_line: Annotated::new("b".to_string()),
             post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
@@ -866,33 +866,33 @@ fn test_slim_frame_data_over_max() {
 
     let expected = vec![
         Annotated::new(Frame {
-            filename: Annotated::new("foo 0".to_string()),
+            filename: Annotated::new("foo 0".into()),
             pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
             context_line: Annotated::new("b".to_string()),
             post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
             ..Default::default()
         }),
         Annotated::new(Frame {
-            filename: Annotated::new("foo 1".to_string()),
+            filename: Annotated::new("foo 1".into()),
             pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
             context_line: Annotated::new("b".to_string()),
             post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
             ..Default::default()
         }),
         Annotated::new(Frame {
-            filename: Annotated::new("foo 2".to_string()),
+            filename: Annotated::new("foo 2".into()),
             context_line: Annotated::new("b".to_string()),
             ..Default::default()
         }),
         Annotated::new(Frame {
-            filename: Annotated::new("foo 3".to_string()),
+            filename: Annotated::new("foo 3".into()),
             pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
             context_line: Annotated::new("b".to_string()),
             post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
             ..Default::default()
         }),
         Annotated::new(Frame {
-            filename: Annotated::new("foo 4".to_string()),
+            filename: Annotated::new("foo 4".into()),
             pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
             context_line: Annotated::new("b".to_string()),
             post_context: Annotated::new(vec![Annotated::new("c".to_string())]),

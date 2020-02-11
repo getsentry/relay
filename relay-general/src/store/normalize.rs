@@ -1283,7 +1283,7 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
             RawStacktrace {
                 frames: Annotated::new(vec![Annotated::new(Frame {
                     module: Annotated::new("MyModule".to_string()),
-                    filename: Annotated::new("MyFilename".to_string()),
+                    filename: Annotated::new("MyFilename".into()),
                     function: Annotated::new("Void FooBar()".to_string()),
                     ..Frame::default()
                 })]),
@@ -1301,8 +1301,8 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
         RawStacktrace {
             frames: Annotated::new(vec![Annotated::new(Frame {
                 module: Annotated::new("MyModule".to_string()),
-                filename: Annotated::new("MyFilename".to_string()),
-                abs_path: Annotated::new("MyFilename".to_string()),
+                filename: Annotated::new("MyFilename".into()),
+                abs_path: Annotated::new("MyFilename".into()),
                 function: Annotated::new("Void FooBar()".to_string()),
                 ..Frame::default()
             })]),
