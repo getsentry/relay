@@ -20,13 +20,14 @@ pub enum MultipartError {
     InvalidMultipart(actix_web::error::MultipartError),
 }
 
+/// A wrapper around an actix payload that always ends with a newline.
 #[derive(Clone, Debug)]
-struct SafePayload {
+struct TerminatedPayload {
     inner: Option<Payload>,
     end: Option<Bytes>,
 }
 
-impl SafePayload {
+impl TerminatedPayload {
     pub fn new(payload: Payload) -> Self {
         Self {
             inner: Some(payload),
@@ -35,7 +36,7 @@ impl SafePayload {
     }
 }
 
-impl Stream for SafePayload {
+impl Stream for TerminatedPayload {
     type Item = Bytes;
     type Error = PayloadError;
 
@@ -43,7 +44,10 @@ impl Stream for SafePayload {
     fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
         if let Some(ref mut inner) = self.inner {
             match inner.poll() {
-                Ok(Async::Ready(option)) if option.is_none() => (),
+                Ok(Async::Ready(option)) if option.is_none() => {
+                    // Remove the stream to fuse, then fall through.
+                    self.inner = None;
+                }
                 poll => return poll,
             }
         }
@@ -203,7 +207,7 @@ where
 
 fn consume_item(
     mut content: MultipartItems,
-    item: multipart::MultipartItem<SafePayload>,
+    item: multipart::MultipartItem<TerminatedPayload>,
 ) -> ResponseFuture<MultipartItems, MultipartError> {
     let field = match item {
         multipart::MultipartItem::Nested(nested) => return consume_stream(content, nested),
@@ -245,7 +249,7 @@ fn consume_item(
 
 fn consume_stream(
     content: MultipartItems,
-    stream: multipart::Multipart<SafePayload>,
+    stream: multipart::Multipart<TerminatedPayload>,
 ) -> ResponseFuture<MultipartItems, MultipartError> {
     let future = stream
         .map_err(MultipartError::InvalidMultipart)
@@ -309,7 +313,7 @@ impl MultipartItems {
         };
 
         // The payload is internally clonable which allows to consume it at the end of this future.
-        let payload = SafePayload::new(request.payload());
+        let payload = TerminatedPayload::new(request.payload());
         let multipart = multipart::Multipart::new(Ok(boundary), payload.clone());
 
         let future = consume_stream(self, multipart)
