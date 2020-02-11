@@ -589,6 +589,17 @@ impl Envelope {
         self.items.iter()
     }
 
+    /// Retains only the elements specified by the predicate.
+    ///
+    /// In other words, remove all elements e such that `f(&item)` returns `false`. This method
+    /// operates in place and preserves the order of the retained elements.
+    pub fn retain_items<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut Item) -> bool,
+    {
+        self.items.retain(f);
+    }
+
     /// Returns the an option with a reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     pub fn get_item_by<F>(&self, mut pred: F) -> Option<&Item>

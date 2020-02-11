@@ -16,7 +16,7 @@ use relay_general::pii::PiiProcessor;
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
-    SecurityReportType, Values,
+    SecurityReportType, SessionUpdate, Values,
 };
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 
@@ -546,6 +546,27 @@ impl EventProcessor {
                 }
             };
         }
+
+        // TODO(ja): Clean this up by introducing separate envelope types.
+        envelope.retain_items(|item| {
+            if item.ty() != ItemType::Session {
+                return true;
+            }
+
+            let result = serde_json::from_slice(&item.payload())
+                .and_then(|session: SessionUpdate| serde_json::to_vec(&session));
+
+            match result {
+                Ok(json) => {
+                    item.set_payload(ContentType::Json, json);
+                    true
+                }
+                Err(err) => {
+                    log::debug!("dropped invalid session: {}", err);
+                    false
+                }
+            }
+        });
 
         // Unreal endpoint puts the whole request into an item. This is done to make the endpoint
         // fast. For envelopes containing an Unreal request, we will look into the unreal item and
