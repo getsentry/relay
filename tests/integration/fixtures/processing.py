@@ -49,6 +49,7 @@ def processing_config(get_topic_name):
                 "attachments": get_topic_name("attachments"),
                 "transactions": get_topic_name("transactions"),
                 "outcomes": get_topic_name("outcomes"),
+                "sessions": get_topic_name("sessions"),
             }
 
         if not processing.get("redis"):
@@ -196,18 +197,35 @@ def attachments_consumer(kafka_consumer):
     return lambda: AttachmentsConsumer(kafka_consumer("attachments"))
 
 
+@pytest.fixture
+def sessions_consumer(kafka_consumer):
+    return lambda: SessionsConsumer(kafka_consumer("sessions"))
+
+
+class SessionsConsumer(ConsumerBase):
+    def __init__(self, consumer):
+        self.consumer = consumer
+
+    def get_session(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        return json.loads(message.value())
+
+
 class EventsConsumer(ConsumerBase):
     def __init__(self, consumer):
         self.consumer = consumer
 
     def get_event(self):
-        event = self.poll()
-        assert event is not None
-        assert event.error() is None
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
 
-        v = msgpack.unpackb(event.value(), raw=False, use_list=False)
-        assert v["type"] == "event"
-        return json.loads(v["payload"].decode("utf8")), v
+        event = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        assert event["type"] == "event"
+        return json.loads(event["payload"].decode("utf8")), event
 
     def get_message(self):
         message = self.poll()
