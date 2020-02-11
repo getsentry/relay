@@ -189,6 +189,10 @@ fn decode_bytes<B: Into<Bytes> + AsRef<[u8]>>(body: B) -> Result<Bytes, StorePay
     // TODO: Switch to a streaming decoder
     // see https://github.com/alicemaz/rust-base64/pull/56
     let binary_body = base64::decode(&body).map_err(StorePayloadError::Decode)?;
+    if binary_body.starts_with(b"{") {
+        return Ok(binary_body.into());
+    }
+
     let mut decode_stream = ZlibDecoder::new(binary_body.as_slice());
     let mut bytes = vec![];
     decode_stream
