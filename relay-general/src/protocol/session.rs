@@ -93,7 +93,7 @@ fn default_sequence() -> u64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
-        .as_secs()
+        .as_millis() as u64
 }
 
 fn default_sample_rate() -> f32 {
@@ -107,9 +107,6 @@ fn is_default_sample_rate(rate: &f32) -> bool {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionUpdate {
-    /// Unique identifier of this update event.
-    #[serde(rename = "id", default = "Uuid::new_v4")]
-    pub update_id: Uuid,
     /// The session identifier.
     #[serde(rename = "sid")]
     pub session_id: Uuid,
@@ -175,7 +172,6 @@ mod tests {
 }"#;
 
         let output = r#"{
-  "id": "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2",
   "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
   "did": "8333339f-5675-4f89-a9a0-1c935255ab58",
   "seq": 4711,
@@ -185,7 +181,6 @@ mod tests {
 }"#;
 
         let update = SessionUpdate {
-            update_id: "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2".parse().unwrap(),
             session_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
             distinct_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
             sequence: 4711, // this would be a timestamp instead
@@ -197,9 +192,7 @@ mod tests {
             attributes: SessionAttributes::default(),
         };
 
-        // Since the update_id is defaulted randomly, ensure that it matches.
         let mut parsed = SessionUpdate::parse(json.as_bytes()).unwrap();
-        parsed.update_id = update.update_id;
 
         // Sequence is defaulted to the current timestamp. Override for snapshot.
         assert_eq!(parsed.sequence, default_sequence());
@@ -212,7 +205,6 @@ mod tests {
     #[test]
     fn test_session_roundtrip() {
         let json = r#"{
-  "id": "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2",
   "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
   "did": "b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf",
   "seq": 42,
@@ -231,7 +223,6 @@ mod tests {
 }"#;
 
         let update = SessionUpdate {
-            update_id: "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2".parse().unwrap(),
             session_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
             distinct_id: "b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf".parse().unwrap(),
             sequence: 42,

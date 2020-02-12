@@ -8,7 +8,6 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
     relay.send_session(
         42,
         {
-            "id": "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2",
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "did": "b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf",
             "seq": 42,
@@ -31,7 +30,6 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
     assert session == {
         "org_id": 1,
         "project_id": 42,
-        "event_id": "94ecab99-184a-45ee-ac18-6ed2c2c2e9f2",
         "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
         "distinct_id": "b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf",
         "seq": 42,
@@ -39,11 +37,11 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
         "started": "2020-02-07T14:16:00+00:00",
         "sample_rate": 2.0,
         "duration": 1947.49,
-        "status": 1,
+        "status": "exited",
         "os": "iOS",
         "os_version": "13.3.1",
         "device_family": "iPhone12,3",
         "release": "sentry-test@1.0.0",
         "environment": "production",
-        "retention_days": None,
+        "retention_days": 90,
     }

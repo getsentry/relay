@@ -150,17 +150,15 @@ impl StoreForwarder {
             }
         };
 
-        let status = match session.status {
-            SessionStatus::Ok => 0,
-            SessionStatus::Exited => 1,
-            SessionStatus::Crashed => 2,
-            SessionStatus::Abnormal => 3,
-        };
+        if session.sequence == u64::max_value() {
+            // TODO(ja): Move this to normalization eventually.
+            log::trace!("skipping session due to sequence overflow");
+            return Ok(());
+        }
 
         let message = KafkaMessage::Session(SessionKafkaMessage {
             org_id,
             project_id,
-            event_id: session.update_id,
             session_id: session.session_id,
             distinct_id: session.distinct_id,
             seq: session.sequence,
@@ -168,13 +166,13 @@ impl StoreForwarder {
             started: session.started.to_rfc3339(),
             sample_rate: session.sample_rate,
             duration: session.duration.unwrap_or(0.0),
-            status,
+            status: session.status,
             os: session.attributes.os,
             os_version: session.attributes.os_version,
             device_family: session.attributes.device_family,
             release: session.attributes.release,
             environment: session.attributes.environment,
-            retention_days: (),
+            retention_days: 90, // TODO: Project config
         });
 
         self.produce(KafkaTopic::Sessions, message)
@@ -304,7 +302,6 @@ struct UserReportKafkaMessage {
 struct SessionKafkaMessage {
     org_id: u64,
     project_id: u64,
-    event_id: Uuid,
     session_id: Uuid,
     distinct_id: Uuid,
     seq: u64,
@@ -312,13 +309,13 @@ struct SessionKafkaMessage {
     started: String,
     sample_rate: f32,
     duration: f64,
-    status: u8,
+    status: SessionStatus,
     os: Option<String>,
     os_version: Option<String>,
     device_family: Option<String>,
     release: Option<String>,
     environment: Option<String>,
-    retention_days: (), // TODO: Project config
+    retention_days: u16,
 }
 
 /// An enum over all possible ingest messages.
@@ -341,7 +338,7 @@ impl KafkaMessage {
             Self::Attachment(message) => &message.event_id.0,
             Self::AttachmentChunk(message) => &message.event_id.0,
             Self::UserReport(message) => &message.event_id.0,
-            Self::Session(message) => &message.event_id,
+            Self::Session(message) => &message.session_id,
         };
 
         event_id.as_bytes()
