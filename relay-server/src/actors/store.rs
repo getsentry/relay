@@ -150,6 +150,12 @@ impl StoreForwarder {
             }
         };
 
+        if session.sequence == u64::max_value() {
+            // TODO(ja): Move this to normalization eventually.
+            log::trace!("skipping session due to sequence overflow");
+            return Ok(());
+        }
+
         let status = match session.status {
             SessionStatus::Ok => 0,
             SessionStatus::Exited => 1,
@@ -160,7 +166,6 @@ impl StoreForwarder {
         let message = KafkaMessage::Session(SessionKafkaMessage {
             org_id,
             project_id,
-            event_id: session.update_id,
             session_id: session.session_id,
             distinct_id: session.distinct_id,
             seq: session.sequence,
@@ -174,7 +179,7 @@ impl StoreForwarder {
             device_family: session.attributes.device_family,
             release: session.attributes.release,
             environment: session.attributes.environment,
-            retention_days: (),
+            retention_days: 90, // TODO: Project config
         });
 
         self.produce(KafkaTopic::Sessions, message)
@@ -304,7 +309,6 @@ struct UserReportKafkaMessage {
 struct SessionKafkaMessage {
     org_id: u64,
     project_id: u64,
-    event_id: Uuid,
     session_id: Uuid,
     distinct_id: Uuid,
     seq: u64,
@@ -318,7 +322,7 @@ struct SessionKafkaMessage {
     device_family: Option<String>,
     release: Option<String>,
     environment: Option<String>,
-    retention_days: (), // TODO: Project config
+    retention_days: u16,
 }
 
 /// An enum over all possible ingest messages.
@@ -341,7 +345,7 @@ impl KafkaMessage {
             Self::Attachment(message) => &message.event_id.0,
             Self::AttachmentChunk(message) => &message.event_id.0,
             Self::UserReport(message) => &message.event_id.0,
-            Self::Session(message) => &message.event_id,
+            Self::Session(message) => &message.session_id,
         };
 
         event_id.as_bytes()
