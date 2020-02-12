@@ -37,7 +37,7 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
         "started": "2020-02-07T14:16:00+00:00",
         "sample_rate": 2.0,
         "duration": 1947.49,
-        "status": 1,
+        "status": "exited",
         "os": "iOS",
         "os_version": "13.3.1",
         "device_family": "iPhone12,3",

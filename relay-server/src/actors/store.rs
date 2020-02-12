@@ -156,13 +156,6 @@ impl StoreForwarder {
             return Ok(());
         }
 
-        let status = match session.status {
-            SessionStatus::Ok => 0,
-            SessionStatus::Exited => 1,
-            SessionStatus::Crashed => 2,
-            SessionStatus::Abnormal => 3,
-        };
-
         let message = KafkaMessage::Session(SessionKafkaMessage {
             org_id,
             project_id,
@@ -173,7 +166,7 @@ impl StoreForwarder {
             started: session.started.to_rfc3339(),
             sample_rate: session.sample_rate,
             duration: session.duration.unwrap_or(0.0),
-            status,
+            status: session.status,
             os: session.attributes.os,
             os_version: session.attributes.os_version,
             device_family: session.attributes.device_family,
@@ -316,7 +309,7 @@ struct SessionKafkaMessage {
     started: String,
     sample_rate: f32,
     duration: f64,
-    status: u8,
+    status: SessionStatus,
     os: Option<String>,
     os_version: Option<String>,
     device_family: Option<String>,
