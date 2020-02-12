@@ -13,7 +13,7 @@ mod value;
 pub use self::annotated::{
     Annotated, MetaMap, MetaTree, ProcessingAction, ProcessingResult, SerializableAnnotated,
 };
-pub use self::impls::SerializePayload;
+pub use self::impls::{datetime_to_timestamp, SerializePayload};
 pub use self::meta::{Error, ErrorKind, Meta, Range, Remark, RemarkType};
 pub use self::traits::{Empty, FromValue, SkipSerialization, ToValue};
 pub use self::value::{to_value, Array, Map, Object, Timestamp, Value, ValueDescription};

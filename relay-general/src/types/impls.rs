@@ -402,7 +402,7 @@ impl ToValue for Value {
     }
 }
 
-fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
+pub fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
     // f64s cannot store nanoseconds. To verify this just try to fit the current timestamp in
     // nanoseconds into a 52-bit number (which is the significand of a double).
     //
