@@ -17,6 +17,7 @@ use rmp_serde::encode::Error as RmpError;
 use relay_common::{metric, LogError, ProjectId, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{EventId, EventType, SessionStatus, SessionUpdate};
+use relay_general::types;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::RelayCounters;
@@ -162,8 +163,8 @@ impl StoreForwarder {
             session_id: session.session_id,
             distinct_id: session.distinct_id,
             seq: session.sequence,
-            timestamp: session.timestamp.to_rfc3339(),
-            started: session.started.to_rfc3339(),
+            timestamp: types::datetime_to_timestamp(session.timestamp),
+            started: types::datetime_to_timestamp(session.started),
             sample_rate: session.sample_rate,
             duration: session.duration.unwrap_or(0.0),
             status: session.status,
@@ -305,8 +306,8 @@ struct SessionKafkaMessage {
     session_id: Uuid,
     distinct_id: Uuid,
     seq: u64,
-    timestamp: String,
-    started: String,
+    timestamp: f64,
+    started: f64,
     sample_rate: f32,
     duration: f64,
     status: SessionStatus,
