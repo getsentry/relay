@@ -77,6 +77,8 @@ lazy_static! {
         # Dragon Web Extension from Nuance Communications
         # See: https://forum.sentry.io/t/error-in-raven-js-plugin-setsuspendstate/481/
         plugin\.setSuspendState\sis\snot\sa\sfunction
+        # Chrome extension message passing failure
+        Extension context invalidated
     "#
     )
     .expect("Invalid browser extensions filter (Exec Vals) Regex");
@@ -197,7 +199,6 @@ mod tests {
         let exceptions = [
             "what does conduitPage even do",
             "null is not an object (evaluating 'elt.parentNode')",
-            "plugin.setSuspendState is not a function",
             "some error on top.GLOBALS",
             "biiig problem on originalCreateNotification",
             "canvas.contentDocument",
@@ -215,6 +216,7 @@ mod tests {
             "conduitPage",
             "null is not an object (evaluating 'elt.parentNode')",
             "plugin.setSuspendState is not a function",
+            "Extension context invalidated",
         ];
 
         for exc_value in &exceptions {
