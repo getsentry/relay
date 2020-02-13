@@ -76,7 +76,7 @@ lazy_static! {
         null\sis\snot\san\sobject\s\(evaluating\s'elt.parentNode'\)|
         # Dragon Web Extension from Nuance Communications
         # See: https://forum.sentry.io/t/error-in-raven-js-plugin-setsuspendstate/481/
-        plugin\.setSuspendState\sis\snot\sa\sfunction
+        plugin\.setSuspendState\sis\snot\sa\sfunction|
         # Chrome extension message passing failure
         Extension context invalidated
     "#
