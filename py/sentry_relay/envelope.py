@@ -15,7 +15,7 @@ class Envelope(object):
     def __init__(self, headers=None, items=None):
         if headers is not None:
             headers = dict(headers)
-        self.headers = headers
+        self.headers = headers or {}
         if items is None:
             items = []
         else:
@@ -35,7 +35,7 @@ class Envelope(object):
         return iter(self.items)
 
     def serialize_into(self, f):
-        f.write(json.dumps(self.headers))
+        f.write(json.dumps(self.headers).encode("utf-8"))
         f.write(b"\n")
         for item in self.items:
             item.serialize_into(f)
@@ -76,7 +76,7 @@ class PayloadRef(object):
                 with open(self.path, "rb") as f:
                     self.bytes = f.read()
             elif self.event is not None:
-                self.bytes = json.dumps(self.event)
+                self.bytes = json.dumps(self.event).encode("utf-8")
             else:
                 self.bytes = b""
         return self.bytes
@@ -155,7 +155,7 @@ class Item(object):
         headers = dict(self.headers)
         length, writer = self.payload.prepare_serialize()
         headers["length"] = length
-        f.write(json.dumps(headers))
+        f.write(json.dumps(headers).encode("utf-8"))
         f.write(b"\n")
         writer(f)
         f.write(b"\n")

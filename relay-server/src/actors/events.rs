@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -7,7 +8,7 @@ use actix::fut::result;
 use actix::prelude::*;
 use failure::Fail;
 use futures::prelude::*;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, LogError};
@@ -34,7 +35,7 @@ use crate::utils::{self, FormDataIter, FutureExt, RedisPool};
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{StoreError, StoreEvent, StoreForwarder},
+    crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     crate::quotas::{QuotasError, RateLimiter},
     crate::service::ServerErrorKind,
     failure::ResultExt,
@@ -525,10 +526,16 @@ impl EventProcessor {
             // These may be forwarded to upstream / store:
             ItemType::Attachment => false,
             ItemType::UserReport => false,
+
+            // session data is never considered as part of deduplication
+            ItemType::Session => false,
         }
     }
 
-    fn process(&self, message: ProcessEvent) -> Result<ProcessEventResponse, ProcessingError> {
+    fn process(
+        &self,
+        message: ProcessEnvelope,
+    ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
         let mut envelope = message.envelope;
 
         macro_rules! if_processing {
@@ -614,7 +621,7 @@ impl EventProcessor {
             // envelope only contains attachments or user reports. We should not run filters or
             // apply rate limits.
             log::trace!("no event for envelope, skipping processing");
-            return Ok(ProcessEventResponse { envelope });
+            return Ok(ProcessEnvelopeResponse { envelope });
         }
 
         if_processing! {
@@ -650,7 +657,7 @@ impl EventProcessor {
         }
         envelope.add_item(event_item);
 
-        Ok(ProcessEventResponse { envelope })
+        Ok(ProcessEnvelopeResponse { envelope })
     }
 }
 
@@ -658,25 +665,25 @@ impl Actor for EventProcessor {
     type Context = SyncContext<Self>;
 }
 
-struct ProcessEvent {
+struct ProcessEnvelope {
     pub envelope: Envelope,
     pub project_state: Arc<ProjectState>,
     pub start_time: Instant,
 }
 
 #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-struct ProcessEventResponse {
+struct ProcessEnvelopeResponse {
     envelope: Envelope,
 }
 
-impl Message for ProcessEvent {
-    type Result = Result<ProcessEventResponse, ProcessingError>;
+impl Message for ProcessEnvelope {
+    type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
 }
 
-impl Handler<ProcessEvent> for EventProcessor {
-    type Result = Result<ProcessEventResponse, ProcessingError>;
+impl Handler<ProcessEnvelope> for EventProcessor {
+    type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
 
-    fn handle(&mut self, message: ProcessEvent, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
         metric!(timer(RelayTimers::EventWaitTime) = message.start_time.elapsed());
         metric!(timer(RelayTimers::EventProcessingTime), {
             self.process(message)
@@ -882,7 +889,7 @@ impl Handler<HandleEnvelope> for EventManager {
         // This is used to add the respective organization id to the outcome emitted in the error
         // case. The organization id can only be obtained via the project state, which has not been
         // loaded at this time.
-        let org_id_for_err = Rc::new(Mutex::new(None::<u64>));
+        let organization_id = Rc::new(AtomicU64::new(0));
 
         metric!(set(RelaySets::UniqueProjects) = project_id as i64);
 
@@ -900,10 +907,13 @@ impl Handler<HandleEnvelope> for EventManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
             }))
-            .and_then(clone!(org_id_for_err, |project_state| {
-                *org_id_for_err.lock() = project_state.organization_id;
+            .and_then(clone!(organization_id, |project_state| {
+                if let Some(id) = project_state.organization_id {
+                    organization_id.store(id, Ordering::Relaxed);
+                }
+
                 processor
-                    .send(ProcessEvent {
+                    .send(ProcessEnvelope {
                         envelope,
                         project_state,
                         start_time,
@@ -911,17 +921,21 @@ impl Handler<HandleEnvelope> for EventManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .flatten()
             }))
-            .and_then(clone!(captured_events, |processed| {
+            .and_then(clone!(captured_events, organization_id, |processed| {
                 let envelope = processed.envelope;
+
+                // avoid warnings since this is only used in the
+                let _ = organization_id;
 
                 #[cfg(feature = "processing")]
                 {
                     if let Some(store_forwarder) = store_forwarder {
                         log::trace!("sending envelope to kafka");
                         let future = store_forwarder
-                            .send(StoreEvent {
+                            .send(StoreEnvelope {
                                 envelope,
                                 start_time,
+                                organization_id: organization_id.load(Ordering::Relaxed),
                                 project_id,
                             })
                             .map_err(ProcessingError::ScheduleFailed)
@@ -1091,10 +1105,15 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
 
                 if let Some(outcome) = outcome_params {
+                    let org_id = match organization_id.load(Ordering::Relaxed) {
+                        0 => None,
+                        id => Some(id),
+                    };
+
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),
                         project_id: project_id,
-                        org_id: *(org_id_for_err.lock()),
+                        org_id,
                         key_id: None,
                         outcome,
                         event_id,

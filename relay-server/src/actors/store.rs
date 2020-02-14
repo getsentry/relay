@@ -14,9 +14,10 @@ use serde::{ser::Error, Serialize};
 
 use rmp_serde::encode::Error as RmpError;
 
-use relay_common::{metric, ProjectId, Uuid};
+use relay_common::{metric, LogError, ProjectId, Uuid};
 use relay_config::{Config, KafkaTopic};
-use relay_general::protocol::{EventId, EventType};
+use relay_general::protocol::{EventId, EventType, SessionStatus, SessionUpdate};
+use relay_general::types;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::RelayCounters;
@@ -30,7 +31,9 @@ pub enum StoreError {
     #[fail(display = "failed to send kafka message")]
     SendFailed(#[cause] KafkaError),
     #[fail(display = "failed to serialize kafka message")]
-    SerializeFailed(#[cause] RmpError),
+    InvalidMsgPack(#[cause] RmpError),
+    #[fail(display = "failed to serialize json message")]
+    InvalidJson(#[cause] serde_json::Error),
     #[fail(display = "failed to store event because event id was missing")]
     NoEventId,
 }
@@ -58,20 +61,11 @@ impl StoreForwarder {
         })
     }
 
-    fn produce(
-        &self,
-        topic: KafkaTopic,
-        event_id: Option<EventId>,
-        message: KafkaMessage,
-    ) -> Result<(), StoreError> {
-        let serialized = rmp_serde::to_vec_named(&message).map_err(StoreError::SerializeFailed)?;
-        let mut record = BaseRecord::to(self.config.kafka_topic_name(topic)).payload(&serialized);
-
-        // Use the event id as partition routing key.
-        if let Some(ref event_id) = event_id {
-            // TODO: consider routing for event-id less envelopes.
-            record = record.key(event_id.0.as_bytes().as_ref());
-        };
+    fn produce(&self, topic: KafkaTopic, message: KafkaMessage) -> Result<(), StoreError> {
+        let serialized = message.serialize()?;
+        let record = BaseRecord::to(self.config.kafka_topic_name(topic))
+            .key(message.key())
+            .payload(&serialized);
 
         match self.producer.send(record) {
             Ok(_) => Ok(()),
@@ -106,7 +100,7 @@ impl StoreForwarder {
                 chunk_index,
             });
 
-            self.produce(KafkaTopic::Attachments, Some(event_id), attachment_message)?;
+            self.produce(KafkaTopic::Attachments, attachment_message)?;
             offset += chunk_size;
             chunk_index += 1;
         }
@@ -132,17 +126,57 @@ impl StoreForwarder {
         start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
-        self.produce(
-            KafkaTopic::Attachments,
-            Some(event_id),
-            KafkaMessage::UserReport(UserReportKafkaMessage {
-                project_id,
-                payload: item.payload(),
-                start_time: instant_to_unix_timestamp(start_time),
-            }),
-        )?;
+        let message = KafkaMessage::UserReport(UserReportKafkaMessage {
+            project_id,
+            event_id,
+            payload: item.payload(),
+            start_time: instant_to_unix_timestamp(start_time),
+        });
 
-        Ok(())
+        self.produce(KafkaTopic::Attachments, message)
+    }
+
+    fn produce_session(
+        &self,
+        org_id: u64,
+        project_id: ProjectId,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let session = match SessionUpdate::parse(&item.payload()) {
+            Ok(session) => session,
+            Err(error) => {
+                // Skip gracefully here to allow sending other messages.
+                log::error!("failed to store session: {}", LogError(&error));
+                return Ok(());
+            }
+        };
+
+        if session.sequence == u64::max_value() {
+            // TODO(ja): Move this to normalization eventually.
+            log::trace!("skipping session due to sequence overflow");
+            return Ok(());
+        }
+
+        let message = KafkaMessage::Session(SessionKafkaMessage {
+            org_id,
+            project_id,
+            session_id: session.session_id,
+            distinct_id: session.distinct_id,
+            seq: session.sequence,
+            timestamp: types::datetime_to_timestamp(session.timestamp),
+            started: types::datetime_to_timestamp(session.started),
+            sample_rate: session.sample_rate,
+            duration: session.duration.unwrap_or(0.0),
+            status: session.status,
+            os: session.attributes.os,
+            os_version: session.attributes.os_version,
+            device_family: session.attributes.device_family,
+            release: session.attributes.release,
+            environment: session.attributes.environment,
+            retention_days: 90, // TODO: Project config
+        });
+
+        self.produce(KafkaTopic::Sessions, message)
     }
 }
 
@@ -210,7 +244,7 @@ struct EventKafkaMessage {
     /// Time at which the event was received by Relay.
     start_time: u64,
     /// The event id.
-    event_id: Option<EventId>,
+    event_id: EventId,
     /// The project id for the current event.
     project_id: ProjectId,
     /// The client ip address.
@@ -259,27 +293,78 @@ struct UserReportKafkaMessage {
     project_id: ProjectId,
     start_time: u64,
     payload: Bytes,
+
+    // Used for KafkaMessage::key
+    #[serde(skip)]
+    event_id: EventId,
+}
+
+#[derive(Debug, Serialize)]
+struct SessionKafkaMessage {
+    org_id: u64,
+    project_id: u64,
+    session_id: Uuid,
+    distinct_id: Uuid,
+    seq: u64,
+    timestamp: f64,
+    started: f64,
+    sample_rate: f32,
+    duration: f64,
+    status: SessionStatus,
+    os: Option<String>,
+    os_version: Option<String>,
+    device_family: Option<String>,
+    release: Option<String>,
+    environment: Option<String>,
+    retention_days: u16,
 }
 
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
 enum KafkaMessage {
     Event(EventKafkaMessage),
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
     UserReport(UserReportKafkaMessage),
+    Session(SessionKafkaMessage),
+}
+
+impl KafkaMessage {
+    /// Returns the partitioning key for this kafka message determining.
+    fn key(&self) -> &[u8] {
+        let event_id = match self {
+            Self::Event(message) => &message.event_id.0,
+            Self::Attachment(message) => &message.event_id.0,
+            Self::AttachmentChunk(message) => &message.event_id.0,
+            Self::UserReport(message) => &message.event_id.0,
+            Self::Session(message) => &message.session_id,
+        };
+
+        event_id.as_bytes()
+    }
+
+    /// Serializes the message into its binary format.
+    fn serialize(&self) -> Result<Vec<u8>, StoreError> {
+        if let KafkaMessage::Session(ref message) = *self {
+            return serde_json::to_vec(&message).map_err(StoreError::InvalidJson);
+        }
+
+        rmp_serde::to_vec_named(&self).map_err(StoreError::InvalidMsgPack)
+    }
 }
 
 /// Message sent to the StoreForwarder containing an event
 #[derive(Clone, Debug)]
-pub struct StoreEvent {
+pub struct StoreEnvelope {
     pub envelope: Envelope,
     pub start_time: Instant,
     pub project_id: ProjectId,
+    pub organization_id: u64,
 }
 
-impl Message for StoreEvent {
+impl Message for StoreEnvelope {
     type Result = Result<(), StoreError>;
 }
 
@@ -290,14 +375,15 @@ fn is_slow_item(item: &Item) -> bool {
     item.ty() == ItemType::Attachment || item.ty() == ItemType::UserReport
 }
 
-impl Handler<StoreEvent> for StoreForwarder {
+impl Handler<StoreEnvelope> for StoreForwarder {
     type Result = Result<(), StoreError>;
 
-    fn handle(&mut self, message: StoreEvent, _ctx: &mut Self::Context) -> Self::Result {
-        let StoreEvent {
+    fn handle(&mut self, message: StoreEnvelope, _ctx: &mut Self::Context) -> Self::Result {
+        let StoreEnvelope {
             envelope,
             start_time,
             project_id,
+            organization_id,
         } = message;
 
         let event_id = envelope.event_id();
@@ -332,6 +418,7 @@ impl Handler<StoreEvent> for StoreForwarder {
                         item,
                     )?
                 }
+                ItemType::Session => self.produce_session(organization_id, project_id, item)?,
                 _ => {}
             }
         }
@@ -341,13 +428,13 @@ impl Handler<StoreEvent> for StoreForwarder {
             let event_message = KafkaMessage::Event(EventKafkaMessage {
                 payload: event_item.payload(),
                 start_time: instant_to_unix_timestamp(start_time),
-                event_id,
+                event_id: event_id.ok_or(StoreError::NoEventId)?,
                 project_id,
                 remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
                 attachments,
             });
 
-            self.produce(topic, event_id, event_message)?;
+            self.produce(topic, event_message)?;
             metric!(
                 counter(RelayCounters::ProcessingEventProduced) += 1,
                 event_type = "event"
@@ -361,7 +448,7 @@ impl Handler<StoreEvent> for StoreForwarder {
                     attachment,
                 });
 
-                self.produce(topic, event_id, attachment_message)?;
+                self.produce(topic, attachment_message)?;
                 metric!(
                     counter(RelayCounters::ProcessingEventProduced) += 1,
                     event_type = "attachment"

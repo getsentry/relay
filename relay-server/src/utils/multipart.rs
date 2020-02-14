@@ -5,7 +5,7 @@ use actix::prelude::*;
 use actix_web::{dev::Payload, error::PayloadError, multipart, HttpMessage, HttpRequest};
 use bytes::Bytes;
 use failure::Fail;
-use futures::{future, Future, Stream};
+use futures::{future, Async, Future, Poll, Stream};
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{ContentType, Item, ItemType, Items};
@@ -18,6 +18,42 @@ pub enum MultipartError {
 
     #[fail(display = "{}", _0)]
     InvalidMultipart(actix_web::error::MultipartError),
+}
+
+/// A wrapper around an actix payload that always ends with a newline.
+#[derive(Clone, Debug)]
+struct TerminatedPayload {
+    inner: Option<Payload>,
+    end: Option<Bytes>,
+}
+
+impl TerminatedPayload {
+    pub fn new(payload: Payload) -> Self {
+        Self {
+            inner: Some(payload),
+            end: Some(Bytes::from_static(b"\r\n")),
+        }
+    }
+}
+
+impl Stream for TerminatedPayload {
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    #[inline]
+    fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
+        if let Some(ref mut inner) = self.inner {
+            match inner.poll() {
+                Ok(Async::Ready(option)) if option.is_none() => {
+                    // Remove the stream to fuse, then fall through.
+                    self.inner = None;
+                }
+                poll => return poll,
+            }
+        }
+
+        Ok(Async::Ready(self.end.take()))
+    }
 }
 
 /// Type used for encoding string lengths.
@@ -150,21 +186,19 @@ impl<'a> Iterator for FormDataIter<'a> {
 pub fn consume_field<S>(
     field: multipart::Field<S>,
     max_size: usize,
-) -> ResponseFuture<Option<Vec<u8>>, MultipartError>
+) -> ResponseFuture<Vec<u8>, MultipartError>
 where
     S: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     let future = field.map_err(MultipartError::InvalidMultipart).fold(
-        Some(Vec::with_capacity(512)),
-        move |body_opt, chunk| {
-            Ok(body_opt.and_then(|mut body| {
-                if (body.len() + chunk.len()) > max_size {
-                    None
-                } else {
-                    body.extend_from_slice(&chunk);
-                    Some(body)
-                }
-            }))
+        Vec::with_capacity(512),
+        move |mut body, chunk| {
+            if (body.len() + chunk.len()) > max_size {
+                Err(MultipartError::Overflow)
+            } else {
+                body.extend_from_slice(&chunk);
+                Ok(body)
+            }
         },
     );
 
@@ -173,8 +207,8 @@ where
 
 fn consume_item(
     mut content: MultipartItems,
-    item: multipart::MultipartItem<Payload>,
-) -> ResponseFuture<Option<MultipartItems>, MultipartError> {
+    item: multipart::MultipartItem<TerminatedPayload>,
+) -> ResponseFuture<MultipartItems, MultipartError> {
     let field = match item {
         multipart::MultipartItem::Nested(nested) => return consume_stream(content, nested),
         multipart::MultipartItem::Field(field) => field,
@@ -183,8 +217,7 @@ fn consume_item(
     let content_type = field.content_type().to_string();
     let content_disposition = field.content_disposition();
 
-    let future = consume_field(field, content.remaining_size).map(move |data_opt| {
-        let data = data_opt?;
+    let future = consume_field(field, content.remaining_size).map(move |data| {
         content.remaining_size -= data.len();
 
         let field_name = content_disposition.as_ref().and_then(|d| d.get_name());
@@ -207,7 +240,8 @@ fn consume_item(
         } else {
             log::trace!("multipart content without name or file_name");
         }
-        Some(content)
+
+        content
     });
 
     Box::new(future)
@@ -215,18 +249,11 @@ fn consume_item(
 
 fn consume_stream(
     content: MultipartItems,
-    stream: multipart::Multipart<Payload>,
-) -> ResponseFuture<Option<MultipartItems>, MultipartError> {
-    // Ensure that we consume the entire stream here. If we overflow at a certain point,
-    // `consume_item` will return `None`. We need to continue folding, however, to ensure that we
-    // consume the entire request payload.
-    let future = stream.map_err(MultipartError::InvalidMultipart).fold(
-        Some(content),
-        move |content_opt, item| match content_opt {
-            Some(content) => consume_item(content, item),
-            None => Box::new(future::ok(None)),
-        },
-    );
+    stream: multipart::Multipart<TerminatedPayload>,
+) -> ResponseFuture<MultipartItems, MultipartError> {
+    let future = stream
+        .map_err(MultipartError::InvalidMultipart)
+        .fold(content, consume_item);
 
     Box::new(future)
 }
@@ -280,22 +307,30 @@ impl MultipartItems {
         // Do NOT use `request.multipart()` here. It calls request.payload() unconditionally, which
         // causes keep-alive streams to break. Instead, rely on the middleware to consume the
         // stream. This can happen, for instance, when the boundary is malformed.
-        let multipart = match multipart::Multipart::boundary(request.headers()) {
-            Ok(boundary) => multipart::Multipart::new(Ok(boundary), request.payload()),
+        let boundary = match multipart::Multipart::boundary(request.headers()) {
+            Ok(boundary) => boundary,
             Err(error) => return Box::new(future::err(MultipartError::InvalidMultipart(error))),
         };
 
-        let future = consume_stream(self, multipart).and_then(|multipart_opt| {
-            let multipart = multipart_opt.ok_or(MultipartError::Overflow)?;
-            let mut items = multipart.items;
+        // The payload is internally clonable which allows to consume it at the end of this future.
+        let payload = TerminatedPayload::new(request.payload());
+        let multipart = multipart::Multipart::new(Ok(boundary), payload.clone());
 
-            let form_data = multipart.form_data.into_item();
-            if !form_data.is_empty() {
-                items.push(form_data);
-            }
+        let future = consume_stream(self, multipart)
+            .and_then(|multipart| {
+                let mut items = multipart.items;
 
-            Ok(items)
-        });
+                let form_data = multipart.form_data.into_item();
+                if !form_data.is_empty() {
+                    items.push(form_data);
+                }
+
+                Ok(items)
+            })
+            .then(move |result| {
+                // Consume the remaining stream but ignore errors.
+                payload.for_each(|_| Ok(())).then(|_| result)
+            });
 
         Box::new(future)
     }

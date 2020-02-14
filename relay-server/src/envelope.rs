@@ -83,6 +83,8 @@ pub enum ItemType {
     UnrealReport,
     /// User feedback encoded as JSON.
     UserReport,
+    /// Session update data.
+    Session,
 }
 
 impl fmt::Display for ItemType {
@@ -94,6 +96,7 @@ impl fmt::Display for ItemType {
             Self::SecurityReport => write!(f, "security report"),
             Self::UnrealReport => write!(f, "unreal report"),
             Self::UserReport => write!(f, "user feedback"),
+            Self::Session => write!(f, "session"),
         }
     }
 }
@@ -405,7 +408,10 @@ impl Item {
             // Form data items may contain partial event payloads, but those are only ever valid if they
             // occur together with an explicit event item, such as a minidump or apple crash report. For
             // this reason, FormData alone does not constitute an event item.
-            ItemType::FormData | ItemType::UserReport => false,
+            ItemType::FormData => false,
+
+            // The remaining item types cannot carry event payloads.
+            ItemType::UserReport | ItemType::Session => false,
         }
     }
 
@@ -413,10 +419,14 @@ impl Item {
     ///
     /// This is true for all items except session health events.
     pub fn requires_event(&self) -> bool {
-        // NOTE: Item types should be explicitly white listed here.
         match self.ty() {
-            // TODO: whitelist item types
-            _ => true,
+            ItemType::Event => true,
+            ItemType::Attachment => true,
+            ItemType::FormData => true,
+            ItemType::SecurityReport => true,
+            ItemType::UnrealReport => true,
+            ItemType::UserReport => true,
+            ItemType::Session => false,
         }
     }
 }

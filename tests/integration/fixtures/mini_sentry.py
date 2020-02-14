@@ -1,4 +1,3 @@
-import os
 import gzip
 import json
 import uuid
@@ -11,20 +10,7 @@ import pytest
 from flask import Flask, request as flask_request, jsonify
 from pytest_localserver.http import WSGIServer
 
-from . import SentryLike
-
-
-# HACK: import the envelope module from librelay without requiring to build the cabi
-with open(
-    os.path.abspath(os.path.dirname(__file__)) + "/../../../py/sentry_relay/envelope.py"
-) as f:
-    envelope_namespace = {}
-    eval(compile(f.read(), "envelope.py", "exec"), envelope_namespace)
-
-
-Envelope = envelope_namespace["Envelope"]
-Item = envelope_namespace["Item"]
-PayloadRef = envelope_namespace["PayloadRef"]
+from . import SentryLike, Envelope, Item
 
 
 class Sentry(SentryLike):
