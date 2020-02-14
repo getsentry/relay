@@ -24,3 +24,7 @@ pub const ITEM_NAME_BREADCRUMBS2: &str = "__sentry-breadcrumb2";
 
 /// Envelope header used to store the UE4 user id.
 pub const UNREAL_USER_HEADER: &str = "unreal_user_id";
+
+/// The default retention for events if the server does not specify a value in project
+/// configurations.
+pub const DEFAULT_EVENT_RETENTION: u16 = 90;

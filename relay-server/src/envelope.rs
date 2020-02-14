@@ -43,6 +43,7 @@ use smallvec::SmallVec;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 
+use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::RequestMeta;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
@@ -447,6 +448,13 @@ pub struct EnvelopeHeaders {
     #[serde(flatten)]
     meta: RequestMeta,
 
+    /// Data retention in days for the items of this envelope.
+    ///
+    /// This value is always overwritten in processing mode by the value specified in the project
+    /// configuration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    retention: Option<u16>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -465,6 +473,7 @@ impl Envelope {
             headers: EnvelopeHeaders {
                 event_id,
                 meta,
+                retention: None,
                 other: BTreeMap::new(),
             },
             items: Items::new(),
@@ -561,6 +570,17 @@ impl Envelope {
     /// Returns event metadata information.
     pub fn meta(&self) -> &RequestMeta {
         &self.headers.meta
+    }
+
+    /// Returns the data retention in days for items in this envelope.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
+    pub fn retention(&self) -> u16 {
+        self.headers.retention.unwrap_or(DEFAULT_EVENT_RETENTION)
+    }
+
+    /// Sets the data retention in days for items in this envelope.
+    pub fn set_retention(&mut self, retention: u16) {
+        self.headers.retention = Some(retention);
     }
 
     /// Returns the specified header value, if present.
