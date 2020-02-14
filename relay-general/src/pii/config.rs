@@ -109,8 +109,6 @@ pub struct RedactPairRule {
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuleType {
-    /// Never matches
-    Never,
     /// Matches any value.
     Anything,
     /// Applies a regular expression.
@@ -148,7 +146,6 @@ impl<'de> Deserialize<'de> for RuleType {
         #[derive(Deserialize)]
         #[serde(tag = "type", rename_all = "snake_case")]
         enum RuleTypeWithLegacy {
-            Never,
             Anything,
             Pattern(PatternRule),
             Imei,
@@ -169,7 +166,6 @@ impl<'de> Deserialize<'de> for RuleType {
         }
 
         Ok(match RuleTypeWithLegacy::deserialize(deserializer)? {
-            RuleTypeWithLegacy::Never => RuleType::Never,
             RuleTypeWithLegacy::Anything => RuleType::Anything,
             RuleTypeWithLegacy::Pattern(r) => RuleType::Pattern(r),
             RuleTypeWithLegacy::Imei => RuleType::Imei,
@@ -190,12 +186,6 @@ impl<'de> Deserialize<'de> for RuleType {
     }
 }
 
-impl Default for RuleType {
-    fn default() -> RuleType {
-        RuleType::Never
-    }
-}
-
 /// A single rule configuration.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RuleSpec {
@@ -203,15 +193,6 @@ pub struct RuleSpec {
     pub ty: RuleType,
     #[serde(default)]
     pub redaction: Redaction,
-}
-
-impl Default for RuleSpec {
-    fn default() -> RuleSpec {
-        RuleSpec {
-            ty: RuleType::Never,
-            redaction: Redaction::Default,
-        }
-    }
 }
 
 /// Configuration for rule parameters.

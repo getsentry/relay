@@ -414,7 +414,6 @@ fn apply_rule_to_value(
                 apply_regex!(&redact_pair.key_pattern, None);
             }
         }
-        RuleType::Never => {}
         RuleType::Anything => {
             if value.is_some() && should_redact_chunks {
                 apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
