@@ -21,6 +21,8 @@ __all__ = [
     "is_glob_match",
     "parse_release",
     "validate_pii_config",
+    "convert_datascrubbing_config",
+    "pii_strip_event",
     "VALID_PLATFORMS",
 ]
 
@@ -179,6 +181,25 @@ def validate_pii_config(config):
     error = decode_str(raw_error, free=True)
     if error:
         raise ValueError(error)
+
+
+def convert_datascrubbing_config(config):
+    """
+    Convert an old datascrubbing config to the new PII config format.
+    """
+    raw_config = encode_str(json.dumps(config))
+    raw_rv = rustcall(lib.relay_convert_datascrubbing_config, raw_config)
+    return json.loads(decode_str(raw_rv, free=True))
+
+
+def pii_strip_event(config, event):
+    """
+    Scrub an event using new PII stripping config.
+    """
+    raw_config = encode_str(json.dumps(config))
+    raw_event = encode_str(json.dumps(event))
+    raw_rv = rustcall(lib.relay_pii_strip_event, raw_config, raw_event)
+    return json.loads(decode_str(raw_rv, free=True))
 
 
 def parse_release(release):
