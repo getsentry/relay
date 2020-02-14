@@ -140,6 +140,7 @@ impl StoreForwarder {
         &self,
         org_id: u64,
         project_id: ProjectId,
+        event_retention: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let session = match SessionUpdate::parse(&item.payload()) {
@@ -173,7 +174,7 @@ impl StoreForwarder {
             device_family: session.attributes.device_family,
             release: session.attributes.release,
             environment: session.attributes.environment,
-            retention_days: 90, // TODO: Project config
+            retention_days: event_retention,
         });
 
         self.produce(KafkaTopic::Sessions, message)
@@ -386,6 +387,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
             organization_id,
         } = message;
 
+        let retention = envelope.retention();
         let event_id = envelope.event_id();
         let event_item = envelope.get_item_by(|item| item.ty() == ItemType::Event);
 
@@ -403,11 +405,12 @@ impl Handler<StoreEnvelope> for StoreForwarder {
             match item.ty() {
                 ItemType::Attachment => {
                     debug_assert!(topic == KafkaTopic::Attachments);
-                    attachments.push(self.produce_attachment_chunks(
+                    let attachment = self.produce_attachment_chunks(
                         event_id.ok_or(StoreError::NoEventId)?,
                         project_id,
                         item,
-                    )?);
+                    )?;
+                    attachments.push(attachment);
                 }
                 ItemType::UserReport => {
                     debug_assert!(topic == KafkaTopic::Attachments);
@@ -416,9 +419,11 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         project_id,
                         start_time,
                         item,
-                    )?
+                    )?;
                 }
-                ItemType::Session => self.produce_session(organization_id, project_id, item)?,
+                ItemType::Session => {
+                    self.produce_session(organization_id, project_id, retention, item)?;
+                }
                 _ => {}
             }
         }

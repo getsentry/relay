@@ -72,6 +72,9 @@ pub struct ProjectConfig {
     /// Configuration for data scrubbers.
     #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
     pub datascrubbing_settings: DataScrubbingConfig,
+    /// Maximum event retention for the organization.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_retention: Option<u16>,
 }
 
 impl Default for ProjectConfig {
@@ -83,6 +86,7 @@ impl Default for ProjectConfig {
             grouping_config: None,
             filter_settings: FiltersConfig::default(),
             datascrubbing_settings: DataScrubbingConfig::default(),
+            event_retention: None,
         }
     }
 }
@@ -717,6 +721,7 @@ impl RetryAfter {
     }
 
     /// Returns the optional reason for this rate limit.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn reason_code(&self) -> Option<&str> {
         self.reason_code.as_deref()
     }

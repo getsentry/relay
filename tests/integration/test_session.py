@@ -4,7 +4,7 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
 
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
     relay.send_session(
         42,
         {
@@ -45,3 +45,28 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
         "environment": "production",
         "retention_days": 90,
     }
+
+
+def test_session_with_custom_retention(
+    mini_sentry, relay_with_processing, sessions_consumer
+):
+    relay = relay_with_processing()
+    relay.wait_relay_healthcheck()
+
+    sessions_consumer = sessions_consumer()
+
+    project_config = mini_sentry.full_project_config()
+    project_config["config"]["eventRetention"] = 17
+    mini_sentry.project_configs[42] = project_config
+
+    relay.send_session(
+        42,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "timestamp": "2020-02-07T15:17:00Z",
+            "started": "2020-02-07T14:16:00Z",
+        },
+    )
+
+    session = sessions_consumer.get_session()
+    assert session["retention_days"] == 17
