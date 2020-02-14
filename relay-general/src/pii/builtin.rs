@@ -37,7 +37,6 @@ macro_rules! rule_alias {
                 hide_inner: true,
             }),
             redaction: Redaction::Default,
-            ..Default::default()
         }
     };
 }
@@ -59,7 +58,6 @@ declare_builtin_rules! {
             hide_inner: false,
         }),
         redaction: Redaction::Default,
-        ..Default::default()
     };
     // legacy data scrubbing equivalent. Note
     "@common:filter" => RuleSpec {
@@ -75,7 +73,6 @@ declare_builtin_rules! {
             hide_inner: false,
         }),
         redaction: Redaction::Default,
-        ..Default::default()
     };
 
     // anything
@@ -83,14 +80,12 @@ declare_builtin_rules! {
     "@anything:remove" => RuleSpec {
         ty: RuleType::Anything,
         redaction: Redaction::Remove,
-        ..Default::default()
     };
     "@anything:replace" => RuleSpec {
         ty: RuleType::Anything,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[redacted]".into(),
         }),
-        ..Default::default()
     };
     "@anything:hash" => RuleSpec {
         ty: RuleType::Anything,
@@ -98,7 +93,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-        ..Default::default()
     };
 
     // ip rules
@@ -108,7 +102,6 @@ declare_builtin_rules! {
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[ip]".into(),
         }),
-        ..Default::default()
     };
     "@ip:hash" => RuleSpec {
         ty: RuleType::Ip,
@@ -116,7 +109,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-        ..Default::default()
     };
 
     // imei rules
@@ -126,7 +118,6 @@ declare_builtin_rules! {
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[imei]".into(),
         }),
-        ..Default::default()
     };
     "@imei:hash" => RuleSpec {
         ty: RuleType::Imei,
@@ -134,7 +125,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-        ..Default::default()
     };
 
     // mac rules
@@ -144,7 +134,6 @@ declare_builtin_rules! {
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[mac]".into(),
         }),
-        ..Default::default()
     };
     "@mac:mask" => RuleSpec {
         ty: RuleType::Mac,
@@ -153,7 +142,6 @@ declare_builtin_rules! {
             chars_to_ignore: "-:".into(),
             range: (Some(9), None),
         }),
-        ..Default::default()
     };
     "@mac:hash" => RuleSpec {
         ty: RuleType::Mac,
@@ -161,7 +149,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-        ..Default::default()
     };
 
     // uuid rules
@@ -171,7 +158,6 @@ declare_builtin_rules! {
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[uuid]".into(),
         }),
-        ..Default::default()
     };
     "@uuid:mask" => RuleSpec {
         ty: RuleType::Uuid,
@@ -180,7 +166,6 @@ declare_builtin_rules! {
             chars_to_ignore: "-".into(),
             range: (None, None),
         }),
-        ..Default::default()
     };
     "@uuid:hash" => RuleSpec {
         ty: RuleType::Uuid,
@@ -188,7 +173,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-        ..Default::default()
     };
 
     // email rules
@@ -200,14 +184,12 @@ declare_builtin_rules! {
             chars_to_ignore: ".@".into(),
             range: (None, None),
         }),
-        ..Default::default()
     };
     "@email:replace" => RuleSpec {
         ty: RuleType::Email,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[email]".into(),
         }),
-        ..Default::default()
     };
     "@email:hash" => RuleSpec {
         ty: RuleType::Email,
@@ -215,7 +197,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-        ..Default::default()
     };
 
     // creditcard rules
@@ -227,21 +208,18 @@ declare_builtin_rules! {
             chars_to_ignore: " -".into(),
             range: (None, Some(-4)),
         }),
-        ..Default::default()
     };
     "@creditcard:replace" => RuleSpec {
         ty: RuleType::Creditcard,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[creditcard]".into(),
         }),
-        ..Default::default()
     };
     "@creditcard:filter" => RuleSpec {
         ty: RuleType::Creditcard,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[Filtered]".into(),
         }),
-        ..Default::default()
     };
     "@creditcard:hash" => RuleSpec {
         ty: RuleType::Creditcard,
@@ -249,7 +227,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-        ..Default::default()
     };
 
     // pem rules
@@ -259,14 +236,12 @@ declare_builtin_rules! {
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[pemkey]".into(),
         }),
-        ..Default::default()
     };
     "@pemkey:filter" => RuleSpec {
         ty: RuleType::Pemkey,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[Filtered]".into(),
         }),
-        ..Default::default()
     };
     "@pemkey:hash" => RuleSpec {
         ty: RuleType::Pemkey,
@@ -274,7 +249,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-        ..Default::default()
     };
 
     // url secrets
@@ -284,7 +258,6 @@ declare_builtin_rules! {
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[auth]".into(),
         }),
-        ..Default::default()
     };
     "@urlauth:legacy" => RuleSpec {
         ty: RuleType::Pattern(PatternRule {
@@ -295,7 +268,6 @@ declare_builtin_rules! {
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[Filtered]".into(),
         }),
-        ..Default::default()
     };
     "@urlauth:hash" => RuleSpec {
         ty: RuleType::UrlAuth,
@@ -303,7 +275,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-        ..Default::default()
     };
 
     // US SSN
@@ -313,14 +284,12 @@ declare_builtin_rules! {
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[us-ssn]".into(),
         }),
-        ..Default::default()
     };
     "@usssn:filter" => RuleSpec {
         ty: RuleType::UsSsn,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[Filtered]".into(),
         }),
-        ..Default::default()
     };
     "@usssn:mask" => RuleSpec {
         ty: RuleType::UsSsn,
@@ -329,7 +298,6 @@ declare_builtin_rules! {
             chars_to_ignore: "-".into(),
             range: (None, None),
         }),
-        ..Default::default()
     };
     "@usssn:hash" => RuleSpec {
         ty: RuleType::UsSsn,
@@ -337,7 +305,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-        ..Default::default()
     };
 
     // user path rules
@@ -347,7 +314,6 @@ declare_builtin_rules! {
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[user]".into(),
         }),
-        ..Default::default()
     };
     "@userpath:hash" => RuleSpec {
         ty: RuleType::Userpath,
@@ -355,7 +321,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-        ..Default::default()
     };
 
     // password field removal
@@ -367,14 +332,12 @@ declare_builtin_rules! {
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[Filtered]".into(),
         }),
-        ..Default::default()
     };
     "@password:remove" => RuleSpec {
         ty: RuleType::RedactPair(RedactPairRule {
             key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),
         }),
         redaction: Redaction::Remove,
-        ..Default::default()
     };
 }
 
