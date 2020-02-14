@@ -47,7 +47,9 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
     }
 
 
-def test_session_with_custom_retention(mini_sentry, relay_with_processing, sessions_consumer):
+def test_session_with_custom_retention(
+    mini_sentry, relay_with_processing, sessions_consumer
+):
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
 
@@ -61,20 +63,8 @@ def test_session_with_custom_retention(mini_sentry, relay_with_processing, sessi
         42,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-            "did": "b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf",
-            "seq": 42,
             "timestamp": "2020-02-07T15:17:00Z",
             "started": "2020-02-07T14:16:00Z",
-            "sample_rate": 2.0,
-            "duration": 1947.49,
-            "status": "exited",
-            "attrs": {
-                "os": "iOS",
-                "os_version": "13.3.1",
-                "device_family": "iPhone12,3",
-                "release": "sentry-test@1.0.0",
-                "environment": "production",
-            },
         },
     )
 
