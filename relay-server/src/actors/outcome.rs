@@ -20,10 +20,10 @@ use crate::ServerError;
 // Choose the outcome module implementation (either the real one or the fake, no-op one).
 // Real outcome implementation
 #[cfg(feature = "processing")]
-pub use self::real_implementation::*;
+pub use self::kafka::*;
 // No-op outcome implementation
 #[cfg(not(feature = "processing"))]
-pub use self::no_op_implementation::*;
+pub use self::noop::*;
 
 /// Tracks an outcome of an event.
 ///
@@ -172,7 +172,7 @@ pub enum DiscardReason {
 
 /// This is the implementation that uses kafka queues and does stuff
 #[cfg(feature = "processing")]
-mod real_implementation {
+mod kafka {
     use super::*;
 
     use chrono::{DateTime, SecondsFormat, Utc};
@@ -403,7 +403,7 @@ mod real_implementation {
 /// without processing this module will be included and will serve as a 'no op' actor that just
 /// returns a success future whenever a message is sent to it.
 #[cfg(not(feature = "processing"))]
-mod no_op_implementation {
+mod noop {
     use super::*;
 
     #[derive(Debug)]
@@ -419,21 +419,13 @@ mod no_op_implementation {
 
     impl Actor for OutcomeProducer {
         type Context = Context<Self>;
-
-        fn started(&mut self, _ctx: &mut Self::Context) {
-            log::info!("Fake OutcomeProducer started.");
-        }
-
-        fn stopped(&mut self, _ctx: &mut Self::Context) {
-            log::info!("Fake OutcomeProducer stopped.");
-        }
     }
 
     impl Handler<TrackOutcome> for OutcomeProducer {
         type Result = ResponseFuture<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            log::trace!("Tracking outcome (no_op): {:?}", message);
+            log::trace!("Tracking outcome (noop): {:?}", message);
             // nothing to do here
             Box::new(futures::future::ok(()))
         }

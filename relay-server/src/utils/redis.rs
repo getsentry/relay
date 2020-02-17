@@ -1,11 +1,11 @@
 #[cfg(feature = "processing")]
-pub use real_implementation::*;
+pub use real::*;
 
 #[cfg(not(feature = "processing"))]
-pub use noop_implementation::*;
+pub use noop::*;
 
 #[cfg(feature = "processing")]
-mod real_implementation {
+mod real {
     use failure::Fail;
     use r2d2::Pool;
 
@@ -71,7 +71,7 @@ mod real_implementation {
 }
 
 #[cfg(not(feature = "processing"))]
-mod noop_implementation {
+mod noop {
     use failure::Fail;
 
     use relay_config::Config;
