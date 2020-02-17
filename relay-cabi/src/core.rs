@@ -6,6 +6,8 @@ use std::slice;
 use std::str;
 
 use failure::Error;
+use sentry_release_parser::InvalidRelease;
+
 use relay_auth::{KeyParseError, UnpackError};
 use relay_common::Uuid;
 use relay_general::types::ProcessingAction;
@@ -19,6 +21,9 @@ pub enum RelayErrorCode {
     Panic = 1,
     Unknown = 2,
 
+    InvalidJsonError = 101, // serde_json::Error
+    GeoIpError = 102,       // maxminddb::MaxMindDBError
+
     // relay_auth::KeyParseError
     KeyParseErrorBadEncoding = 1000,
     KeyParseErrorBadKey = 1001,
@@ -30,6 +35,11 @@ pub enum RelayErrorCode {
 
     // relay_general::types::annotated::ProcessingAction
     ProcessingActionInvalidTransaction = 2000,
+
+    // sentry_release_parser::InvalidRelease
+    InvalidReleaseErrorTooLong = 3001,
+    InvalidReleaseErrorRestrictedName = 3002,
+    InvalidReleaseErrorBadCharacters = 3003,
 }
 
 impl RelayErrorCode {
@@ -38,6 +48,12 @@ impl RelayErrorCode {
         for cause in error.iter_chain() {
             if let Some(..) = cause.downcast_ref::<Panic>() {
                 return RelayErrorCode::Panic;
+            }
+            if cause.downcast_ref::<serde_json::Error>().is_some() {
+                return RelayErrorCode::InvalidJsonError;
+            }
+            if cause.downcast_ref::<maxminddb::MaxMindDBError>().is_some() {
+                return RelayErrorCode::GeoIpError;
             }
             if let Some(err) = cause.downcast_ref::<KeyParseError>() {
                 return match err {
@@ -58,6 +74,17 @@ impl RelayErrorCode {
                         RelayErrorCode::ProcessingActionInvalidTransaction
                     }
                     _ => RelayErrorCode::Unknown,
+                };
+            }
+            if let Some(err) = cause.downcast_ref::<InvalidRelease>() {
+                return match err {
+                    InvalidRelease::TooLong => RelayErrorCode::InvalidReleaseErrorTooLong,
+                    InvalidRelease::RestrictedName => {
+                        RelayErrorCode::InvalidReleaseErrorRestrictedName
+                    }
+                    InvalidRelease::BadCharacters => {
+                        RelayErrorCode::InvalidReleaseErrorBadCharacters
+                    }
                 };
             }
         }
