@@ -268,7 +268,7 @@ pub struct Event {
     /// Program's release identifier.
     #[metastructure(
         max_chars = "tag_value",  // release ends in tag
-        match_regex = r"^[^\r\n\f/]*\z",
+        match_regex = r"^[^\r\n\f\t/]*\z",
         required = "false",
         trim_whitespace = "true",
         nonempty = "true",
