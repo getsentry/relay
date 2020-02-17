@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.3
+
+**Relay**:
+
+- Allow base64 encoded JSON event payloads (#466)
+- Fix multipart requests without trailing newline (#465)
+- Support for ingesting session updates (#449)
+
+**Store**:
+
+- Validate release names during event ingestion (#479)
+- Add browser extension filter (#470)
+
+**Python**:
+
+- Add missing errors for JSON parsing and release validation (#478)
+- Expose more datascrubbing utils (#464)
+
 ## 0.5.2
 
 **Relay**:
