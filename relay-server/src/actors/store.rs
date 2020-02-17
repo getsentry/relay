@@ -6,19 +6,20 @@ use std::time::Instant;
 
 use actix::prelude::*;
 use bytes::Bytes;
+use chrono::{Duration, Utc};
 use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
 use rdkafka::producer::{BaseRecord, DefaultProducerContext};
 use rdkafka::ClientConfig;
-use serde::{ser::Error, Serialize};
-
 use rmp_serde::encode::Error as RmpError;
+use serde::{ser::Error, Serialize};
 
 use relay_common::{metric, LogError, ProjectId, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{EventId, EventType, SessionStatus, SessionUpdate};
 use relay_general::types;
 
+use crate::constants::MAX_SESSION_DAYS;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::RelayCounters;
 use crate::service::{ServerError, ServerErrorKind};
@@ -155,6 +156,12 @@ impl StoreForwarder {
         if session.sequence == u64::max_value() {
             // TODO(ja): Move this to normalization eventually.
             log::trace!("skipping session due to sequence overflow");
+            return Ok(());
+        }
+
+        let session_age = Utc::now() - session.started;
+        if session_age > Duration::days(MAX_SESSION_DAYS.into()) {
+            log::trace!("skipping session older than {} days", MAX_SESSION_DAYS);
             return Ok(());
         }
 
