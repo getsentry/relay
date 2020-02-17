@@ -13,7 +13,7 @@ use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
     Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry, Request, SpanStatus,
-    Stacktrace, Tags, TraceContext, User, INVALID_ENVIRONMENTS, VALID_PLATFORMS,
+    Stacktrace, Tags, TraceContext, User, INVALID_ENVIRONMENTS, INVALID_RELEASES, VALID_PLATFORMS,
 };
 use crate::store::{GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -66,6 +66,12 @@ pub fn is_valid_platform(platform: &str) -> bool {
 
 pub fn is_valid_environment(environment: &str) -> bool {
     !INVALID_ENVIRONMENTS.contains(&environment)
+}
+
+pub fn is_valid_release(release: &str) -> bool {
+    !INVALID_RELEASES
+        .iter()
+        .any(|invalid| release.eq_ignore_ascii_case(invalid))
 }
 
 /// The processor that normalizes events for store.
@@ -428,6 +434,15 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         event.environment.apply(|environment, meta| {
             if is_valid_environment(&environment) {
+                Ok(())
+            } else {
+                meta.add_error(ErrorKind::InvalidData);
+                Err(ProcessingAction::DeleteValueSoft)
+            }
+        })?;
+
+        event.release.apply(|release, meta| {
+            if is_valid_release(&release) {
                 Ok(())
             } else {
                 meta.add_error(ErrorKind::InvalidData);
@@ -963,6 +978,29 @@ fn test_none_environment_errors() {
         expected_original
     );
     assert_eq_dbg!(environment.value(), None);
+}
+
+#[test]
+fn test_invalid_release_removed() {
+    use crate::protocol::LenientString;
+
+    let mut event = Annotated::new(Event {
+        release: Annotated::new(LenientString("Latest".to_string())),
+        ..Event::default()
+    });
+
+    let mut processor = NormalizeProcessor::default();
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+    let release = &event.value().unwrap().release;
+    let expected_original = &Value::String("Latest".to_string());
+
+    assert_eq_dbg!(
+        release.meta().iter_errors().collect::<Vec<&Error>>(),
+        vec![&Error::new(ErrorKind::InvalidData)],
+    );
+    assert_eq_dbg!(release.meta().original_value().unwrap(), expected_original);
+    assert_eq_dbg!(release.value(), None);
 }
 
 #[test]
