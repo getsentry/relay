@@ -10,6 +10,7 @@ use sentry_release_parser::InvalidRelease;
 
 use relay_auth::{KeyParseError, UnpackError};
 use relay_common::Uuid;
+use relay_general::store::GeoIpError;
 use relay_general::types::ProcessingAction;
 
 use crate::utils::{set_panic_hook, Panic, LAST_ERROR};
@@ -22,7 +23,6 @@ pub enum RelayErrorCode {
     Unknown = 2,
 
     InvalidJsonError = 101, // serde_json::Error
-    GeoIpError = 102,       // maxminddb::MaxMindDBError
 
     // relay_auth::KeyParseError
     KeyParseErrorBadEncoding = 1000,
@@ -34,7 +34,8 @@ pub enum RelayErrorCode {
     UnpackErrorSignatureExpired = 1005,
 
     // relay_general::types::annotated::ProcessingAction
-    ProcessingActionInvalidTransaction = 2000,
+    ProcessingErrorInvalidTransaction = 2001,
+    ProcessingErrorInvalidGeoIp = 2002,
 
     // sentry_release_parser::InvalidRelease
     InvalidReleaseErrorTooLong = 3001,
@@ -52,8 +53,8 @@ impl RelayErrorCode {
             if cause.downcast_ref::<serde_json::Error>().is_some() {
                 return RelayErrorCode::InvalidJsonError;
             }
-            if cause.downcast_ref::<maxminddb::MaxMindDBError>().is_some() {
-                return RelayErrorCode::GeoIpError;
+            if cause.downcast_ref::<GeoIpError>().is_some() {
+                return RelayErrorCode::ProcessingErrorInvalidGeoIp;
             }
             if let Some(err) = cause.downcast_ref::<KeyParseError>() {
                 return match err {
@@ -71,7 +72,7 @@ impl RelayErrorCode {
             if let Some(err) = cause.downcast_ref::<ProcessingAction>() {
                 return match err {
                     ProcessingAction::InvalidTransaction(_) => {
-                        RelayErrorCode::ProcessingActionInvalidTransaction
+                        RelayErrorCode::ProcessingErrorInvalidTransaction
                     }
                     _ => RelayErrorCode::Unknown,
                 };

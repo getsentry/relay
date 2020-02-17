@@ -10,12 +10,15 @@ type ReaderType = memmap::Mmap;
 #[cfg(not(feature = "mmap"))]
 type ReaderType = Vec<u8>;
 
+/// An error in the `GeoIpLookup`.
+pub type GeoIpError = maxminddb::MaxMindDBError;
+
 /// A geo ip lookup helper based on maxmind db files.
 pub struct GeoIpLookup(maxminddb::Reader<ReaderType>);
 
 impl GeoIpLookup {
     /// Opens a maxminddb file by path.
-    pub fn open<P>(path: P) -> Result<Self, maxminddb::MaxMindDBError>
+    pub fn open<P>(path: P) -> Result<Self, GeoIpError>
     where
         P: AsRef<Path>,
     {
@@ -27,7 +30,7 @@ impl GeoIpLookup {
     }
 
     /// Looks up an IP address.
-    pub fn lookup(&self, ip_address: &str) -> Result<Option<Geo>, maxminddb::MaxMindDBError> {
+    pub fn lookup(&self, ip_address: &str) -> Result<Option<Geo>, GeoIpError> {
         // XXX: Why do we parse the IP again after deserializing?
         let ip_address = match ip_address.parse() {
             Ok(x) => x,
@@ -36,7 +39,7 @@ impl GeoIpLookup {
 
         let city: maxminddb::geoip2::City = match self.0.lookup(ip_address) {
             Ok(x) => x,
-            Err(maxminddb::MaxMindDBError::AddressNotFoundError(_)) => return Ok(None),
+            Err(GeoIpError::AddressNotFoundError(_)) => return Ok(None),
             Err(e) => return Err(e),
         };
 

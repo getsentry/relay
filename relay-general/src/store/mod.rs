@@ -18,7 +18,7 @@ mod schema;
 mod transactions;
 mod trimming;
 
-pub use crate::store::geo::GeoIpLookup;
+pub use crate::store::geo::{GeoIpError, GeoIpLookup};
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
