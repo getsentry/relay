@@ -56,12 +56,12 @@ pub struct Frame {
 
     /// The source file name (basename only).
     #[metastructure(max_chars = "path")]
-    #[metastructure(skip_serialization = "empty", pii = "true")]
+    #[metastructure(skip_serialization = "empty", pii = "maybe")]
     pub filename: Annotated<NativeImagePath>,
 
     /// Absolute path to the source file.
     #[metastructure(max_chars = "path")]
-    #[metastructure(skip_serialization = "empty", pii = "true")]
+    #[metastructure(skip_serialization = "empty", pii = "maybe")]
     pub abs_path: Annotated<NativeImagePath>,
 
     /// Line number within the source file.

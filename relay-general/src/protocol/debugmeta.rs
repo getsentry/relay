@@ -181,7 +181,7 @@ pub struct NativeDebugImage {
 
     /// Path and name of the image file (required).
     #[metastructure(required = "true", legacy_alias = "name")]
-    #[metastructure(pii = "true")]
+    #[metastructure(pii = "maybe")]
     pub code_file: Annotated<NativeImagePath>,
 
     /// Unique debug identifier of the image.
@@ -189,7 +189,7 @@ pub struct NativeDebugImage {
     pub debug_id: Annotated<DebugId>,
 
     /// Path and name of the debug companion file (required).
-    #[metastructure(pii = "true")]
+    #[metastructure(pii = "maybe")]
     pub debug_file: Annotated<NativeImagePath>,
 
     /// CPU architecture target.

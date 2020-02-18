@@ -717,6 +717,7 @@ impl RetryAfter {
     }
 
     /// Returns the optional reason for this rate limit.
+    #[cfg(feature = "processing")]
     pub fn reason_code(&self) -> Option<&str> {
         self.reason_code.as_deref()
     }

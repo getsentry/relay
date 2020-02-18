@@ -11,7 +11,7 @@ use sha2::{Sha256, Sha512};
 use crate::pii::config::RuleRef;
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, process_value, Chunk, ProcessValue, ProcessingState, Processor,
+    process_chunked_value, process_value, Chunk, Pii, ProcessValue, ProcessingState, Processor,
     SelectorSpec, ValueType,
 };
 use crate::protocol::{AsPair, NativeImagePath, PairList};
@@ -218,7 +218,7 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
     type Item = RuleRef<'a>;
 
     fn next(&mut self) -> Option<RuleRef<'a>> {
-        if !self.state.attrs().pii {
+        if self.state.attrs().pii == Pii::False {
             return None;
         }
 
@@ -228,6 +228,9 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
             }
 
             while let Some((selector, rules)) = self.application_iter.next() {
+                if self.state.attrs().pii == Pii::Maybe && !selector.is_specific() {
+                    continue;
+                }
                 if self.state.path().matches_selector(selector) {
                     self.pending_refs = Some(rules.iter());
                     continue 'outer;
@@ -891,7 +894,10 @@ fn test_remove_debugmeta_path() {
     let config = PiiConfig::from_json(
         r##"
         {
-            "applications": {"$string": ["@anything:remove"]}
+            "applications": {
+                "debug_meta.images.*.code_file": ["@anything:remove"],
+                "debug_meta.images.*.debug_file": ["@anything:remove"]
+            }
         }
         "##,
     )
@@ -936,7 +942,10 @@ fn test_replace_debugmeta_path() {
     let config = PiiConfig::from_json(
         r##"
         {
-            "applications": {"$string": ["@anything:replace"]}
+            "applications": {
+                "debug_meta.images.*.code_file": ["@anything:replace"],
+                "debug_meta.images.*.debug_file": ["@anything:replace"]
+            }
         }
         "##,
     )
@@ -981,7 +990,60 @@ fn test_hash_debugmeta_path() {
     let config = PiiConfig::from_json(
         r##"
         {
-            "applications": {"$string": ["@anything:hash"]}
+            "applications": {
+                "debug_meta.images.*.code_file": ["@anything:hash"],
+                "debug_meta.images.*.debug_file": ["@anything:hash"]
+            }
+        }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        debug_meta: Annotated::new(DebugMeta {
+            images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
+                NativeDebugImage {
+                    code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
+                    code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
+                    debug_id: Annotated::new(
+                        "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
+                    ),
+                    debug_file: Annotated::new("wntdll.pdb".into()),
+                    arch: Annotated::new("arm64".to_string()),
+                    image_addr: Annotated::new(Addr(0)),
+                    image_size: Annotated::new(4096),
+                    image_vmaddr: Annotated::new(Addr(32768)),
+                    other: {
+                        let mut map = Object::new();
+                        map.insert(
+                            "other".to_string(),
+                            Annotated::new(Value::String("value".to_string())),
+                        );
+                        map
+                    },
+                },
+            )))]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_debugmeta_path_not_addressible_with_wildcard_selector() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "$string": ["@anything:remove"],
+                "**": ["@anything:remove"],
+                "debug_meta.**": ["@anything:remove"],
+                "(debug_meta.images.**.code_file & $string)": ["@anything:remove"]
+            }
         }
         "##,
     )

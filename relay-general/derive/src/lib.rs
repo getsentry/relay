@@ -677,6 +677,23 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
     rv
 }
 
+#[derive(Copy, Clone, Debug)]
+enum Pii {
+    True,
+    False,
+    Maybe,
+}
+
+impl Pii {
+    fn as_tokens(self) -> TokenStream {
+        match self {
+            Pii::True => quote!(crate::processor::Pii::True),
+            Pii::False => quote!(crate::processor::Pii::False),
+            Pii::Maybe => quote!(crate::processor::Pii::Maybe),
+        }
+    }
+}
+
 #[derive(Default)]
 struct FieldAttrs {
     additional_properties: bool,
@@ -684,7 +701,7 @@ struct FieldAttrs {
     required: Option<bool>,
     nonempty: Option<bool>,
     trim_whitespace: Option<bool>,
-    pii: Option<bool>,
+    pii: Option<Pii>,
     retain: bool,
     match_regex: Option<String>,
     max_chars: Option<TokenStream>,
@@ -727,11 +744,11 @@ impl FieldAttrs {
         };
 
         let pii = if let Some(pii) = self.pii {
-            quote!(#pii)
+            pii.as_tokens()
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.pii)
         } else {
-            quote!(false)
+            quote!(crate::processor::Pii::False)
         };
 
         let retain = self.retain;
@@ -941,8 +958,9 @@ fn parse_field_attributes(
                             } else if ident == "pii" {
                                 match name_value.lit {
                                     Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.pii = Some(true),
-                                        "false" => rv.pii = Some(false),
+                                        "true" => rv.pii = Some(Pii::True),
+                                        "false" => rv.pii = Some(Pii::False),
+                                        "maybe" => rv.pii = Some(Pii::Maybe),
                                         other => panic!("Unknown value {}", other),
                                     },
                                     _ => {

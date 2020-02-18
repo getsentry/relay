@@ -4,7 +4,6 @@ use std::str::FromStr;
 
 use failure::Fail;
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::processor::{ProcessValue, SelectorPathItem, SelectorSpec};
@@ -195,13 +194,16 @@ impl BagSize {
     }
 }
 
-/// The type of PII contained on a field.
-#[derive(Debug, Clone, Copy, PartialEq, Hash, PartialOrd, Ord, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum PiiKind {
-    Text,
-    Value,
-    Container,
+/// Whether an attribute should be PII-strippable/should be subject to datascrubbers
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum Pii {
+    /// The field will be stripped by default
+    True,
+    /// The field cannot be stripped at all
+    False,
+    /// The field will only be stripped when addressed with a specific path selector, but generic
+    /// selectors such as `$string` do not apply.
+    Maybe,
 }
 
 /// Meta information about a field.
@@ -222,7 +224,7 @@ pub struct FieldAttrs {
     /// The maximum bag size of this field.
     pub bag_size: Option<BagSize>,
     /// The type of PII on the field.
-    pub pii: bool,
+    pub pii: Pii,
     /// Whether additional properties should be retained during normalization.
     pub retain: bool,
 }
@@ -236,7 +238,7 @@ lazy_static::lazy_static! {
         match_regex: None,
         max_chars: None,
         bag_size: None,
-        pii: false,
+        pii: Pii::False,
         retain: false,
     };
 }
@@ -250,7 +252,7 @@ lazy_static::lazy_static! {
         match_regex: None,
         max_chars: None,
         bag_size: None,
-        pii: true,
+        pii: Pii::True,
         retain: false,
     };
 }
@@ -264,7 +266,7 @@ lazy_static::lazy_static! {
         match_regex: None,
         max_chars: None,
         bag_size: None,
-        pii: false,
+        pii: Pii::False,
         retain: true,
     };
 }
@@ -446,7 +448,7 @@ impl<'a> ProcessingState<'a> {
 
     /// Derives the attrs for recursion.
     pub fn inner_attrs(&self) -> Option<Cow<'_, FieldAttrs>> {
-        if self.attrs().pii {
+        if self.attrs().pii == Pii::True {
             Some(Cow::Borrowed(FieldAttrs::default_pii()))
         } else {
             None
