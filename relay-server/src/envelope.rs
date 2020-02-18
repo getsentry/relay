@@ -36,6 +36,7 @@ use std::fmt;
 use std::io::{self, Write};
 
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use failure::Fail;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -455,6 +456,12 @@ pub struct EnvelopeHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     retention: Option<u16>,
 
+    /// Timestamp when the event has been sent, according to the SDK.
+    ///
+    /// This can be used to perform drift correction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sent_at: Option<DateTime<Utc>>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -474,6 +481,7 @@ impl Envelope {
                 event_id,
                 meta,
                 retention: None,
+                sent_at: None,
                 other: BTreeMap::new(),
             },
             items: Items::new(),
@@ -576,6 +584,12 @@ impl Envelope {
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn retention(&self) -> u16 {
         self.headers.retention.unwrap_or(DEFAULT_EVENT_RETENTION)
+    }
+
+    /// When the event has been sent, according to the SDK.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
+    pub fn sent_at(&self) -> Option<DateTime<Utc>> {
+        self.headers.sent_at
     }
 
     /// Sets the data retention in days for items in this envelope.
