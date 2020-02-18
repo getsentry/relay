@@ -41,7 +41,7 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
         "seq": 42,
         "timestamp": timestamp.timestamp(),
         "started": started.timestamp(),
-        "sample_rate": 2.0,
+        "sample_rate": 0.1,
         "duration": 1947.49,
         "status": "exited",
         "os": "iOS",
