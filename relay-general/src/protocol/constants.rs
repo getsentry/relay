@@ -20,4 +20,8 @@ pub const VALID_PLATFORMS: &[&str] = &[
     "ruby",
 ];
 
+/// Invalid environment strings (case sensitive).
 pub const INVALID_ENVIRONMENTS: &[&str] = &["none"];
+
+/// Invalid release version strings (case insensitive).
+pub const INVALID_RELEASES: &[&str] = &["latest", "..", "."];

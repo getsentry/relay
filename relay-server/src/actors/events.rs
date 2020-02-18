@@ -548,6 +548,12 @@ impl EventProcessor {
             };
         }
 
+        // Set the event retention. Effectively, this value will only be available in processing
+        // mode when the full project config is queried from the upstream.
+        if let Some(retention) = message.project_state.config.event_retention {
+            envelope.set_retention(retention);
+        }
+
         // Unreal endpoint puts the whole request into an item. This is done to make the endpoint
         // fast. For envelopes containing an Unreal request, we will look into the unreal item and
         // expand it so it can be consumed like any other event (e.g. `__sentry-event`). External

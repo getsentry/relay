@@ -24,7 +24,7 @@ mod user_report;
 
 pub use self::breadcrumb::Breadcrumb;
 pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
-pub use self::constants::{INVALID_ENVIRONMENTS, VALID_PLATFORMS};
+pub use self::constants::{INVALID_ENVIRONMENTS, INVALID_RELEASES, VALID_PLATFORMS};
 pub use self::contexts::{
     AppContext, BrowserContext, Context, ContextInner, Contexts, DeviceContext, GpuContext,
     OperationType, OsContext, RuntimeContext, SpanId, SpanStatus, TraceContext, TraceId,

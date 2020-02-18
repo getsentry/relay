@@ -205,3 +205,27 @@ def test_convert_datascrubbing_config():
 def test_pii_strip_event():
     event = {"logentry": {"message": "hi"}}
     assert sentry_relay.pii_strip_event({}, event) == event
+
+
+def test_parse_release():
+    parsed = sentry_relay.parse_release("org.example.FooApp@1.0rc1+20200101100")
+    assert parsed == {
+        "build_hash": None,
+        "description": "1.0.0-rc1 (20200101100)",
+        "format": "qualified_versioned",
+        "package": "org.example.FooApp",
+        "version_parsed": {
+            "build_code": "20200101100",
+            "major": 1,
+            "minor": 0,
+            "normalized_build_code": "02020010110000000000000000000000",
+            "patch": 0,
+            "pre": "rc1",
+        },
+        "version_raw": "1.0rc1+20200101100",
+    }
+
+
+def test_parse_release_error():
+    with pytest.raises(sentry_relay.InvalidReleaseErrorBadCharacters):
+        sentry_relay.parse_release("/var/foo/foo")

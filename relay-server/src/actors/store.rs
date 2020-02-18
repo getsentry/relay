@@ -6,19 +6,20 @@ use std::time::Instant;
 
 use actix::prelude::*;
 use bytes::Bytes;
+use chrono::{Duration, Utc};
 use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
 use rdkafka::producer::{BaseRecord, DefaultProducerContext};
 use rdkafka::ClientConfig;
-use serde::{ser::Error, Serialize};
-
 use rmp_serde::encode::Error as RmpError;
+use serde::{ser::Error, Serialize};
 
 use relay_common::{metric, LogError, ProjectId, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{EventId, EventType, SessionStatus, SessionUpdate};
 use relay_general::types;
 
+use crate::constants::MAX_SESSION_DAYS;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::RelayCounters;
 use crate::service::{ServerError, ServerErrorKind};
@@ -140,6 +141,7 @@ impl StoreForwarder {
         &self,
         org_id: u64,
         project_id: ProjectId,
+        event_retention: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let session = match SessionUpdate::parse(&item.payload()) {
@@ -157,6 +159,12 @@ impl StoreForwarder {
             return Ok(());
         }
 
+        let session_age = Utc::now() - session.started;
+        if session_age > Duration::days(MAX_SESSION_DAYS.into()) {
+            log::trace!("skipping session older than {} days", MAX_SESSION_DAYS);
+            return Ok(());
+        }
+
         let message = KafkaMessage::Session(SessionKafkaMessage {
             org_id,
             project_id,
@@ -166,16 +174,17 @@ impl StoreForwarder {
             timestamp: types::datetime_to_timestamp(session.timestamp),
             started: types::datetime_to_timestamp(session.started),
             sample_rate: session.sample_rate,
-            duration: session.duration.unwrap_or(0.0),
+            duration: session.duration,
             status: session.status,
             os: session.attributes.os,
             os_version: session.attributes.os_version,
             device_family: session.attributes.device_family,
             release: session.attributes.release,
             environment: session.attributes.environment,
-            retention_days: 90, // TODO: Project config
+            retention_days: event_retention,
         });
 
+        log::trace!("Sending session item to kafka");
         self.produce(KafkaTopic::Sessions, message)
     }
 }
@@ -309,7 +318,7 @@ struct SessionKafkaMessage {
     timestamp: f64,
     started: f64,
     sample_rate: f32,
-    duration: f64,
+    duration: Option<f64>,
     status: SessionStatus,
     os: Option<String>,
     os_version: Option<String>,
@@ -386,6 +395,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
             organization_id,
         } = message;
 
+        let retention = envelope.retention();
         let event_id = envelope.event_id();
         let event_item = envelope.get_item_by(|item| item.ty() == ItemType::Event);
 
@@ -403,11 +413,12 @@ impl Handler<StoreEnvelope> for StoreForwarder {
             match item.ty() {
                 ItemType::Attachment => {
                     debug_assert!(topic == KafkaTopic::Attachments);
-                    attachments.push(self.produce_attachment_chunks(
+                    let attachment = self.produce_attachment_chunks(
                         event_id.ok_or(StoreError::NoEventId)?,
                         project_id,
                         item,
-                    )?);
+                    )?;
+                    attachments.push(attachment);
                 }
                 ItemType::UserReport => {
                     debug_assert!(topic == KafkaTopic::Attachments);
@@ -416,9 +427,11 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         project_id,
                         start_time,
                         item,
-                    )?
+                    )?;
                 }
-                ItemType::Session => self.produce_session(organization_id, project_id, item)?,
+                ItemType::Session => {
+                    self.produce_session(organization_id, project_id, retention, item)?;
+                }
                 _ => {}
             }
         }
@@ -439,7 +452,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 counter(RelayCounters::ProcessingEventProduced) += 1,
                 event_type = "event"
             );
-        } else {
+        } else if !attachments.is_empty() {
             log::trace!("Sending individual attachments of envelope to kafka");
             for attachment in attachments {
                 let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {

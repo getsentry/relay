@@ -35,10 +35,6 @@ DOCKER_RUN_OPTS="
 docker run $DOCKER_RUN_OPTS \
   make build-linux-release RELAY_FEATURES="${RELAY_FEATURES}"
 
-# Smoke test
-docker run $DOCKER_RUN_OPTS \
-  make test-process-event CARGO_ARGS="--release --target=${TARGET}"
-
 # Fix permissions for shared directories
 USER_ID=$(id -u)
 GROUP_ID=$(id -g)
