@@ -4,6 +4,7 @@
 
 **Relay**:
 
+- Properly strip the linux binary to reduce its size
 - Allow base64 encoded JSON event payloads (#466)
 - Fix multipart requests without trailing newline (#465)
 - Support for ingesting session updates (#449)
