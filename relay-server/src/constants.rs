@@ -31,4 +31,5 @@ pub const DEFAULT_EVENT_RETENTION: u16 = 90;
 
 /// The maximum age of an ingested session in days. Session updates for sessions older than this
 /// will be discarded.
+#[cfg_attr(not(feature = "processing"), allow(dead_code))]
 pub const MAX_SESSION_DAYS: u8 = 5;
