@@ -3,24 +3,52 @@ skip_tags: true
 branches:
   only:
     - master
-    - /^release\/[\d.]+$/
+    - /^release\/.*$/
 
 cache:
   - "target"
   - '%USERPROFILE%\.cargo'
 
+build:
+  verbosity: minimal
+
+matrix:
+  fast_finish: true
+
 environment:
   ZEUS_HOOK_BASE:
     secure: dcqtt6sxxBV0tDkXmPZOyz96KWmjtSz6ZqRd9mw9GXC/C4Zcwqofxt2Kh4EP7hPEFIewRRl6xkhW53HgItdt7iVmFSHuufpGoSpzse8cgg3zfE08f/u0a2EOvuRjdtoi4E/9Znrj2HY+CC+G4j2UKWzp6EcSc++qbgSMl1h6zMs=
   CARGO_HTTP_CHECK_REVOKE: false
-  matrix:
-    #    - channel: stable
-    #      arch: i686
-    - channel: stable
-      arch: x86_64
+  channel: stable
+  arch: x86_64
 
-build:
-  verbosity: minimal
+configuration:
+  - Test
+  - Release
+
+for:
+  - matrix:
+      only:
+        - configuration: Test
+
+    build: off # Skip default build discovery and just run tests
+    test_script:
+      - C:\MinGW\bin\mingw32-make test-rust
+
+  - matrix:
+      only:
+        - configuration: Release
+
+    branches:
+      only:
+        - /^release\/.*$/
+
+    build_script:
+      - C:\MinGW\bin\mingw32-make release
+    after_build:
+      - zeus upload -t "application/octet-stream" -n relay-Windows-%arch%.exe .\target\release\relay.exe
+      - 7z a .\relay-pdb.zip .\target\release\relay.pdb
+      - zeus upload -t "application/octet-stream" -n relay-Windows-%arch%-pdb.zip .\relay-pdb.zip
 
 install:
   # Push job information to Zeus
@@ -36,23 +64,11 @@ install:
   # Check out submodules
   - git submodule update --init --recursive
 
-build_script:
-  - C:\MinGW\bin\mingw32-make release
-
-test_script:
-  - C:\MinGW\bin\mingw32-make test-rust
-
 on_success:
-  - zeus upload -t "application/octet-stream" -n relay-Windows-%arch%.exe .\target\release\relay.exe ||
-    echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
-  - 7z a .\relay-pdb.zip .\target\release\relay.pdb
-  - zeus upload -t "application/octet-stream" -n relay-Windows-%arch%-pdb.zip .\relay-pdb.zip ||
-    echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
-  - zeus job update --status=passed ||
-    echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
-  - C:\MinGW\bin\mingw32-make clean-target-dir
+  - zeus job update --status=passed || echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
 
 on_failure:
-  - zeus job update --status=failed ||
-    echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
+  - zeus job update --status=failed || echo "%$APPVEYOR_REPO_BRANCH%" | findstr /V "release/">nul
+
+on_finish:
   - C:\MinGW\bin\mingw32-make clean-target-dir
