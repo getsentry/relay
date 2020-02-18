@@ -277,7 +277,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 
     let mut from_value_body = TokenStream::new();
     let mut to_value_body = TokenStream::new();
-    let mut process_child_values_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
 
@@ -290,7 +289,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 
     for (index, bi) in variant.bindings().iter().enumerate() {
         let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
-        let field_attrs_name = Ident::new(&format!("__field_attrs_{}", index), Span::call_site());
         let field_name = field_attrs.field_name.clone();
 
         let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
@@ -310,19 +308,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 )));
             })
             .to_tokens(&mut to_value_body);
-
-            let additional_state = if field_attrs.retain {
-                quote! {
-                    &__state.enter_nothing(
-                        Some(::std::borrow::Cow::Borrowed(crate::processor::FieldAttrs::default_retain()))
-                    )
-                }
-            } else {
-                quote! { __state }
-            };
-
-            (quote! { __processor.process_other(#bi, #additional_state); })
-                .to_tokens(&mut process_child_values_body);
 
             (quote! {
                 for (__key, __value) in #bi.iter() {
@@ -396,36 +381,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 }
             })
             .to_tokens(&mut extract_child_meta_body);
-
-            let enter_state = if is_tuple_struct {
-                quote! {
-                    __state.enter_index(
-                        #index,
-                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
-                        crate::processor::ValueType::for_field(#bi),
-                    )
-                }
-            } else {
-                quote! {
-                    __state.enter_static(
-                        #field_name,
-                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
-                        crate::processor::ValueType::for_field(#bi),
-                    )
-                }
-            };
-
-            let field_attrs_tokens = field_attrs.as_tokens(None);
-
-            (quote! {
-                ::lazy_static::lazy_static! {
-                    static ref #field_attrs_name: crate::processor::FieldAttrs =
-                        #field_attrs_tokens;
-                }
-
-                let #bi = crate::processor::process_value(#bi, __processor, &#enter_state);
-            })
-            .to_tokens(&mut process_child_values_body);
         }
     }
 

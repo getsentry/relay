@@ -309,7 +309,7 @@ pub struct Event {
     pub request: Annotated<Request>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
-    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.Contexts")]
+    #[metastructure(legacy_alias = "sentry.interfaces.Contexts")]
     pub contexts: Annotated<Contexts>,
 
     /// List of breadcrumbs recorded before this event.
@@ -337,7 +337,7 @@ pub struct Event {
     pub threads: Annotated<Values<Thread>>,
 
     /// Custom tags for this event.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty", pii = "maybe")]
     pub tags: Annotated<Tags>,
 
     /// Arbitrary extra information set by the user.

@@ -1,12 +1,15 @@
 ---
-source: general/tests/test_fixtures.rs
+source: relay-general/tests/test_fixtures.rs
 expression: SerializableAnnotated(&event)
 ---
 event_id: ae3a2cc6e08741c5b09946c65c022469
 level: error
 type: error
 culprit: io.sentry.sample.MainActivity in lambda$onCreate$2
+logger: ""
 platform: java
+timestamp: "[timestamp]"
+received: "[received]"
 release: io.sentry.sample-1.0
 dist: "1"
 contexts:

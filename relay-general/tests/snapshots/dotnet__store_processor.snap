@@ -1,9 +1,11 @@
 ---
-source: general/tests/test_fixtures.rs
+source: relay-general/tests/test_fixtures.rs
 expression: SerializableAnnotated(&event)
 ---
 event_id: 04e03764d7024caab8736daeefbb9bee
 level: error
+type: error
+logger: ""
 modules:
   Microsoft.AI.DependencyCollector: 2.4.1.0
   Microsoft.ApplicationInsights: 2.4.0.0
@@ -171,13 +173,37 @@ modules:
   nbxk3h5b.orp: 0.0.0.0
   netstandard: 2.0.0.0
 platform: csharp
-timestamp: 1532343443.750303
+timestamp: "[timestamp]"
+received: "[received]"
 release: e386dfd
 environment: Production
+user:
+  ip_address: "::1"
 request:
   url: /Home/PostIndex
   method: POST
-  data: "{\n    \"a\": \"b\",\n    \"c\": [ { \"d\": \"e\",\n           \"f\": \"g\" } ]\n}\n"
+  data:
+    a: b
+    c:
+      - d: e
+        f: g
+  cookies:
+    - - ".AspNetCore.Antiforgery._2NlYY4B078"
+      - CfDJ8ChafIEN-7pHv152tZrpaC_lvW7hdfN_EdO5t5Zh63rpzWqqsA5O2nEyfM5KDfb0QyrEiEK_I3phDQyTPdGKKImqEXWHWHjLJyUU8VRQNNsFvKgwyLiiOc1mDPNxlDbsXhWV44nuF4SzFe9gy9mm_g0
+    - - wcsid
+      - 9BYRwrV1RfdG7uxS3m39N0NXoA7d3ajb
+    - - hblid
+      - 0rGfY7BTWnTdUr7n3m39N0No36X7badA
+    - - _okdetect
+      - "{\"token\":\"15323434361710\",\"proto\":\"http:\",\"host\":\"localhost:4040\"}"
+    - - olfsk
+      - olfsk36178984508065715
+    - - _okbk
+      - "cd4=true,vi5=0,vi4=1532343436427,vi3=active,vi2=false,vi1=false,cd8=chat,cd6=0,cd5=away,cd3=false,cd2=0,cd1=0,"
+    - - _ok
+      - 1700-237-10-3483
+    - - _oklv
+      - "1532343437829,9BYRwrV1RfdG7uxS3m39N0NXoA7d3ajb"
   headers:
     - - Accept
       - "application/json, text/javascript, */*; q=0.01"
@@ -191,8 +217,6 @@ request:
       - "65"
     - - Content-Type
       - application/json; charset=UTF-8
-    - - Cookie
-      - ".AspNetCore.Antiforgery._2NlYY4B078=CfDJ8ChafIEN-7pHv152tZrpaC_lvW7hdfN_EdO5t5Zh63rpzWqqsA5O2nEyfM5KDfb0QyrEiEK_I3phDQyTPdGKKImqEXWHWHjLJyUU8VRQNNsFvKgwyLiiOc1mDPNxlDbsXhWV44nuF4SzFe9gy9mm_g0; wcsid=9BYRwrV1RfdG7uxS3m39N0NXoA7d3ajb; hblid=0rGfY7BTWnTdUr7n3m39N0No36X7badA; _okdetect=%7B%22token%22%3A%2215323434361710%22%2C%22proto%22%3A%22http%3A%22%2C%22host%22%3A%22localhost%3A4040%22%7D; olfsk=olfsk36178984508065715; _okbk=cd4%3Dtrue%2Cvi5%3D0%2Cvi4%3D1532343436427%2Cvi3%3Dactive%2Cvi2%3Dfalse%2Cvi1%3Dfalse%2Ccd8%3Dchat%2Ccd6%3D0%2Ccd5%3Daway%2Ccd3%3Dfalse%2Ccd2%3D0%2Ccd1%3D0%2C; _ok=1700-237-10-3483; _oklv=1532343437829%2C9BYRwrV1RfdG7uxS3m39N0NXoA7d3ajb"
     - - Host
       - "localhost:62919"
     - - MS-ASPNETCORE-TOKEN
@@ -215,8 +239,11 @@ request:
     SERVER_NAME: TAMPERE
     SERVER_PORT: "15446"
     SERVER_SOFTWARE: Kestrel
+  inferred_content_type: application/json
 contexts:
   server-os:
+    name: Windows
+    version: 10.0.17134
     raw_description: "Microsoft Windows 10.0.17134 "
     type: os
   server-runtime:
@@ -227,42 +254,59 @@ contexts:
 breadcrumbs:
   values:
     - timestamp: 1532343407.0
+      type: default
       category: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager
+      level: info
       message: "User profile is available. Using 'C:\\Users\\bruno\\AppData\\Local\\ASP.NET\\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest."
     - timestamp: 1532343443.0
+      type: default
       category: Microsoft.AspNetCore.Hosting.Internal.WebHost
+      level: info
       message: "Request starting HTTP/1.1 POST http://localhost:62919/Home/PostIndex application/json; charset=UTF-8 65"
       data:
         eventId: "1"
     - timestamp: 1532343443.0
+      type: default
       category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
+      level: info
       message: Executing action method Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.PostIndex (Sentry.Samples.AspNetCore.Mvc) with arguments () - ModelState is Valid
       data:
         eventId: "1"
     - timestamp: 1532343443.0
+      type: default
       category: Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController
       level: warning
       message: Param is null!
     - timestamp: 1532343443.0
+      type: default
       category: Sentry.Samples.AspNetCore.Mvc.GameService
+      level: info
       message: Fetching dungeons and mana level in parallel.
     - timestamp: 1532343443.0
+      type: default
       category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
+      level: info
       message: Executed action Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.PostIndex (Sentry.Samples.AspNetCore.Mvc) in 43.7868ms
       data:
         eventId: "2"
     - timestamp: 1532343443.0
+      type: default
       category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
+      level: info
       message: Executing action method Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.Error (Sentry.Samples.AspNetCore.Mvc) with arguments ((null)) - ModelState is Valid
       data:
         eventId: "1"
     - timestamp: 1532343443.0
+      type: default
       category: Microsoft.AspNetCore.Mvc.ViewFeatures.Internal.ViewResultExecutor
+      level: info
       message: "Executing ViewResult, running view at path /Views/Shared/Error.cshtml."
       data:
         eventId: "1"
     - timestamp: 1532343443.0
+      type: default
       category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
+      level: info
       message: Executed action Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.Error (Sentry.Samples.AspNetCore.Mvc) in 146.9482ms
       data:
         eventId: "2"
@@ -277,56 +321,50 @@ exception:
             module: Sentry.Samples.AspNetCore.Mvc.GameService
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
             filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
             lineno: 25
             colno: 17
             context_line: Void MoveNext()
             in_app: true
-            instruction_offset: 261
           - function: GetResult
             module: "System.Runtime.CompilerServices.TaskAwaiter`1"
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: TResult GetResult()
             in_app: false
-            instruction_offset: 11
           - function: HandleNonSuccessAndDebuggerNotification
             module: System.Runtime.CompilerServices.TaskAwaiter
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
             in_app: false
-            instruction_offset: 46
           - function: Throw
             module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void Throw()
             in_app: false
-            instruction_offset: 12
           - function: ExecuteWithThreadLocal
             module: System.Threading.Tasks.Task
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void ExecuteWithThreadLocal(System.Threading.Tasks.Task ByRef)
             in_app: false
-            instruction_offset: 158
           - function: Run
             module: System.Threading.ExecutionContext
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: "Void Run(System.Threading.ExecutionContext, System.Threading.ContextCallback, System.Object)"
             in_app: false
-            instruction_offset: 61
           - function: InnerInvoke
             module: "System.Threading.Tasks.Task`1"
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void InnerInvoke()
             in_app: false
-            instruction_offset: 15
           - function: "FetchNextPhaseDataAsync { <lambda> }"
             module: Sentry.Samples.AspNetCore.Mvc.GameService+<>c
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
             filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
             lineno: 19
             colno: 64
             context_line: Int32 <FetchNextPhaseDataAsync>b__2_0()
             in_app: true
-            instruction_offset: 10
       thread_id: 25
     - type: System.Data.DataException
       value: "Invalid Mana level: -10"
@@ -338,28 +376,25 @@ exception:
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void ExecuteWithThreadLocal(System.Threading.Tasks.Task ByRef)
             in_app: false
-            instruction_offset: 158
           - function: Run
             module: System.Threading.ExecutionContext
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: "Void Run(System.Threading.ExecutionContext, System.Threading.ContextCallback, System.Object)"
             in_app: false
-            instruction_offset: 61
           - function: InnerInvoke
             module: "System.Threading.Tasks.Task`1"
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void InnerInvoke()
             in_app: false
-            instruction_offset: 15
           - function: "FetchNextPhaseDataAsync { <lambda> }"
             module: Sentry.Samples.AspNetCore.Mvc.GameService+<>c
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
             filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
             lineno: 20
             colno: 60
             context_line: Int32 <FetchNextPhaseDataAsync>b__2_1()
             in_app: true
-            instruction_offset: 10
       thread_id: 25
     - type: System.AggregateException
       value: "One or more errors occurred. (Failed to fetch available Dungeons) (Invalid Mana level: -10)"
@@ -370,38 +405,35 @@ exception:
             module: Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
             filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
+            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
             lineno: 38
             colno: 17
             context_line: Void MoveNext()
             in_app: true
-            instruction_offset: 174
           - function: GetResult
             module: "System.Runtime.CompilerServices.TaskAwaiter`1"
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: TResult GetResult()
             in_app: false
-            instruction_offset: 11
           - function: HandleNonSuccessAndDebuggerNotification
             module: System.Runtime.CompilerServices.TaskAwaiter
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
             in_app: false
-            instruction_offset: 46
           - function: Throw
             module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void Throw()
             in_app: false
-            instruction_offset: 12
           - function: FetchNextPhaseDataAsync
             module: Sentry.Samples.AspNetCore.Mvc.GameService
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
             filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
             lineno: 31
             colno: 17
             context_line: Void MoveNext()
             in_app: true
-            instruction_offset: 375
       thread_id: 25
     - type: System.InvalidOperationException
       value: Bad POST! See Inner exception for details.
@@ -413,166 +445,140 @@ exception:
             package: "Microsoft.AspNetCore.Diagnostics, Version=2.0.3.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: Void MoveNext()
             in_app: false
-            instruction_offset: 130
           - function: HandleNonSuccessAndDebuggerNotification
             module: System.Runtime.CompilerServices.TaskAwaiter
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
             in_app: false
-            instruction_offset: 46
           - function: Throw
             module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void Throw()
             in_app: false
-            instruction_offset: 12
           - function: Invoke
             module: Microsoft.AspNetCore.Builder.RouterMiddleware
             package: "Microsoft.AspNetCore.Routing, Version=2.0.3.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: Void MoveNext()
             in_app: false
-            instruction_offset: 459
           - function: HandleNonSuccessAndDebuggerNotification
             module: System.Runtime.CompilerServices.TaskAwaiter
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
             in_app: false
-            instruction_offset: 46
           - function: Throw
             module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void Throw()
             in_app: false
-            instruction_offset: 12
           - function: InvokeAsync
             module: Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker
             package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: Void MoveNext()
             in_app: false
-            instruction_offset: 235
           - function: HandleNonSuccessAndDebuggerNotification
             module: System.Runtime.CompilerServices.TaskAwaiter
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
             in_app: false
-            instruction_offset: 46
           - function: Throw
             module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void Throw()
             in_app: false
-            instruction_offset: 12
           - function: InvokeFilterPipelineAsync
             module: Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker
             package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: Void MoveNext()
             in_app: false
-            instruction_offset: 47
           - function: Next
             module: Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker
             package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: "System.Threading.Tasks.Task Next(State ByRef, Scope ByRef, System.Object ByRef, Boolean ByRef)"
             in_app: false
-            instruction_offset: 2457
           - function: Rethrow
             module: Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker
             package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: Void Rethrow(Microsoft.AspNetCore.Mvc.Filters.ResourceExecutedContext)
             in_app: false
-            instruction_offset: 32
           - function: Throw
             module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void Throw()
             in_app: false
-            instruction_offset: 12
           - function: InvokeNextResourceFilter
             module: Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker
             package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: Void MoveNext()
             in_app: false
-            instruction_offset: 166
           - function: HandleNonSuccessAndDebuggerNotification
             module: System.Runtime.CompilerServices.TaskAwaiter
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
             in_app: false
-            instruction_offset: 46
           - function: Throw
             module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void Throw()
             in_app: false
-            instruction_offset: 12
           - function: InvokeInnerFilterAsync
             module: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
             package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: Void MoveNext()
             in_app: false
-            instruction_offset: 47
           - function: Next
             module: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
             package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: "System.Threading.Tasks.Task Next(State ByRef, Scope ByRef, System.Object ByRef, Boolean ByRef)"
             in_app: false
-            instruction_offset: 764
           - function: Rethrow
             module: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
             package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: Void Rethrow(Microsoft.AspNetCore.Mvc.Filters.ActionExecutedContext)
             in_app: false
-            instruction_offset: 32
           - function: Throw
             module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void Throw()
             in_app: false
-            instruction_offset: 12
           - function: InvokeNextActionFilterAsync
             module: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
             package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: Void MoveNext()
             in_app: false
-            instruction_offset: 165
           - function: HandleNonSuccessAndDebuggerNotification
             module: System.Runtime.CompilerServices.TaskAwaiter
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
             in_app: false
-            instruction_offset: 46
           - function: Throw
             module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void Throw()
             in_app: false
-            instruction_offset: 12
           - function: InvokeActionMethodAsync
             module: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
             package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
             context_line: Void MoveNext()
             in_app: false
-            instruction_offset: 423
           - function: HandleNonSuccessAndDebuggerNotification
             module: System.Runtime.CompilerServices.TaskAwaiter
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
             in_app: false
-            instruction_offset: 46
           - function: Throw
             module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
             package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
             context_line: Void Throw()
             in_app: false
-            instruction_offset: 12
           - function: PostIndex
             module: Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
             filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
+            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
             lineno: 53
             colno: 17
             context_line: Void MoveNext()
             in_app: true
-            instruction_offset: 252
       thread_id: 25
 tags:
   - - RequestId
