@@ -1,0 +1,14 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "stacktrace": {
+    "frames": [
+      {
+        "filename": "C:\\Windows\\BogusValue\\foo.txt",
+        "abs_path": "C:\\Windows\\BogusValue\\foo.txt"
+      }
+    ]
+  }
+}

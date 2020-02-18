@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::protocol::{Addr, RegVal};
+use crate::protocol::{Addr, NativeImagePath, RegVal};
 use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// Holds information about a single stacktrace frame.
@@ -56,13 +56,13 @@ pub struct Frame {
 
     /// The source file name (basename only).
     #[metastructure(max_chars = "path")]
-    #[metastructure(skip_serialization = "empty")]
-    pub filename: Annotated<String>,
+    #[metastructure(skip_serialization = "empty", pii = "maybe")]
+    pub filename: Annotated<NativeImagePath>,
 
     /// Absolute path to the source file.
     #[metastructure(max_chars = "path")]
-    #[metastructure(skip_serialization = "empty")]
-    pub abs_path: Annotated<String>,
+    #[metastructure(skip_serialization = "empty", pii = "maybe")]
+    pub abs_path: Annotated<NativeImagePath>,
 
     /// Line number within the source file.
     pub lineno: Annotated<u64>,
@@ -268,8 +268,8 @@ fn test_frame_roundtrip() {
         symbol: Annotated::new("_main@8".to_string()),
         module: Annotated::new("app".to_string()),
         package: Annotated::new("/my/app".to_string()),
-        filename: Annotated::new("myfile.rs".to_string()),
-        abs_path: Annotated::new("/path/to".to_string()),
+        filename: Annotated::new("myfile.rs".into()),
+        abs_path: Annotated::new("/path/to".into()),
         lineno: Annotated::new(2),
         colno: Annotated::new(42),
         platform: Annotated::new("rust".to_string()),

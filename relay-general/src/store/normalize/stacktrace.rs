@@ -32,12 +32,12 @@ pub fn process_non_raw_frame(frame: &mut Frame, _meta: &mut Meta) -> ProcessingR
         if let Some(abs_path) = frame.abs_path.value_mut() {
             frame.filename = Annotated::new(abs_path.clone());
 
-            if is_url(abs_path) {
-                if let Ok(url) = Url::parse(abs_path) {
+            if is_url(abs_path.as_str()) {
+                if let Ok(url) = Url::parse(abs_path.as_str()) {
                     let path = url.path();
 
                     if !path.is_empty() && path != "/" {
-                        frame.filename = Annotated::new(path.to_string());
+                        frame.filename = Annotated::new(path.into());
                     }
                 }
             }
@@ -51,77 +51,92 @@ pub fn process_non_raw_frame(frame: &mut Frame, _meta: &mut Meta) -> ProcessingR
 fn test_coerces_url_filenames() {
     let mut frame = Annotated::new(Frame {
         lineno: Annotated::new(1),
-        filename: Annotated::new("http://foo.com/foo.js".to_string()),
+        filename: Annotated::new("http://foo.com/foo.js".into()),
         ..Default::default()
     });
 
     frame.apply(process_non_raw_frame).unwrap();
     let frame = frame.value().unwrap();
 
-    assert_eq!(frame.filename.as_str(), Some("/foo.js"));
-    assert_eq!(frame.abs_path.as_str(), Some("http://foo.com/foo.js"));
+    assert_eq!(frame.filename.value().unwrap().as_str(), "/foo.js");
+    assert_eq!(
+        frame.abs_path.value().unwrap().as_str(),
+        "http://foo.com/foo.js"
+    );
 }
 
 #[test]
 fn test_does_not_overwrite_filename() {
     let mut frame = Annotated::new(Frame {
         lineno: Annotated::new(1),
-        filename: Annotated::new("foo.js".to_string()),
-        abs_path: Annotated::new("http://foo.com/foo.js".to_string()),
+        filename: Annotated::new("foo.js".into()),
+        abs_path: Annotated::new("http://foo.com/foo.js".into()),
         ..Default::default()
     });
 
     frame.apply(process_non_raw_frame).unwrap();
     let frame = frame.value().unwrap();
 
-    assert_eq!(frame.filename.as_str(), Some("foo.js"));
-    assert_eq!(frame.abs_path.as_str(), Some("http://foo.com/foo.js"));
+    assert_eq!(frame.filename.value().unwrap().as_str(), "foo.js");
+    assert_eq!(
+        frame.abs_path.value().unwrap().as_str(),
+        "http://foo.com/foo.js"
+    );
 }
 
 #[test]
 fn test_ignores_results_with_empty_path() {
     let mut frame = Annotated::new(Frame {
         lineno: Annotated::new(1),
-        abs_path: Annotated::new("http://foo.com".to_string()),
+        abs_path: Annotated::new("http://foo.com".into()),
         ..Default::default()
     });
 
     frame.apply(process_non_raw_frame).unwrap();
     let frame = frame.value().unwrap();
 
-    assert_eq!(frame.filename.as_str(), Some("http://foo.com"));
-    assert_eq!(frame.abs_path.as_str(), frame.filename.as_str());
+    assert_eq!(frame.filename.value().unwrap().as_str(), "http://foo.com");
+    assert_eq!(
+        frame.abs_path.value().unwrap().as_str(),
+        frame.filename.value().unwrap().as_str()
+    );
 }
 
 #[test]
 fn test_ignores_results_with_slash_path() {
     let mut frame = Annotated::new(Frame {
         lineno: Annotated::new(1),
-        abs_path: Annotated::new("http://foo.com/".to_string()),
+        abs_path: Annotated::new("http://foo.com/".into()),
         ..Default::default()
     });
 
     frame.apply(process_non_raw_frame).unwrap();
     let frame = frame.value().unwrap();
 
-    assert_eq!(frame.filename.as_str(), Some("http://foo.com/"));
-    assert_eq!(frame.abs_path.as_str(), frame.filename.as_str());
+    assert_eq!(frame.filename.value().unwrap().as_str(), "http://foo.com/");
+    assert_eq!(
+        frame.abs_path.value().unwrap().as_str(),
+        frame.filename.value().unwrap().as_str()
+    );
 }
 
 #[test]
 fn test_coerce_empty_filename() {
     let mut frame = Annotated::new(Frame {
         lineno: Annotated::new(1),
-        filename: Annotated::new("".to_string()),
-        abs_path: Annotated::new("http://foo.com/foo.js".to_string()),
+        filename: Annotated::new("".into()),
+        abs_path: Annotated::new("http://foo.com/foo.js".into()),
         ..Default::default()
     });
 
     frame.apply(process_non_raw_frame).unwrap();
     let frame = frame.value().unwrap();
 
-    assert_eq!(frame.filename.as_str(), Some("/foo.js"));
-    assert_eq!(frame.abs_path.as_str(), Some("http://foo.com/foo.js"));
+    assert_eq!(frame.filename.value().unwrap().as_str(), "/foo.js");
+    assert_eq!(
+        frame.abs_path.value().unwrap().as_str(),
+        "http://foo.com/foo.js"
+    );
 }
 
 #[test]

@@ -128,7 +128,7 @@ mod tests {
         let ex = Exception {
             stacktrace: Annotated::from(Stacktrace(RawStacktrace {
                 frames: Annotated::new(vec![Annotated::new(Frame {
-                    abs_path: Annotated::new(src.to_string()),
+                    abs_path: Annotated::new(src.into()),
                     ..Frame::default()
                 })]),
                 ..RawStacktrace::default()

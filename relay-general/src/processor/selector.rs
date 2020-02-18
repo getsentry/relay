@@ -82,6 +82,28 @@ pub enum SelectorSpec {
     Path(Vec<SelectorPathItem>),
 }
 
+impl SelectorSpec {
+    /// A selector is specific if it directly addresses a single event location by path. We use
+    /// this distinction in the PII processor to decide whether pii=maybe should be scrubbed.
+    pub fn is_specific(&self) -> bool {
+        match *self {
+            SelectorSpec::And(_) | SelectorSpec::Or(_) | SelectorSpec::Not(_) => false,
+            SelectorSpec::Path(ref path) => {
+                path.iter().all(|item| {
+                    match *item {
+                        SelectorPathItem::Type(_) => false,
+                        SelectorPathItem::Index(_) => true,
+                        SelectorPathItem::Key(_) => true,
+                        // necessary because of array indices
+                        SelectorPathItem::Wildcard => true,
+                        SelectorPathItem::DeepWildcard => false,
+                    }
+                })
+            }
+        }
+    }
+}
+
 impl fmt::Display for SelectorSpec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {

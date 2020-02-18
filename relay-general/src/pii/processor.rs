@@ -7,15 +7,14 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
-use smallvec::SmallVec;
 
 use crate::pii::config::RuleRef;
 use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, process_value, Chunk, ProcessValue, ProcessingState, Processor,
+    process_chunked_value, process_value, Chunk, Pii, ProcessValue, ProcessingState, Processor,
     SelectorSpec, ValueType,
 };
-use crate::protocol::{AsPair, PairList};
+use crate::protocol::{AsPair, NativeImagePath, PairList};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 lazy_static! {
@@ -219,7 +218,7 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
     type Item = RuleRef<'a>;
 
     fn next(&mut self) -> Option<RuleRef<'a>> {
-        if !self.state.attrs().pii {
+        if self.state.attrs().pii == Pii::False {
             return None;
         }
 
@@ -229,6 +228,9 @@ impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
             }
 
             while let Some((selector, rules)) = self.application_iter.next() {
+                if self.state.attrs().pii == Pii::Maybe && !selector.is_specific() {
+                    continue;
+                }
                 if self.state.path().matches_selector(selector) {
                     self.pending_refs = Some(rules.iter());
                     continue 'outer;
@@ -276,19 +278,46 @@ impl<'a> Processor for PiiProcessor<'a> {
             return Ok(());
         }
 
-        let mut rules = self.iter_rules(state).peekable();
-        if rules.peek().is_some() {
-            let rules: SmallVec<[RuleRef; 16]> = rules.collect();
+        // same as before_process. duplicated here because we can only check for "true",
+        // "false" etc in process_string.
+        for rule in self.iter_rules(state) {
+            match apply_rule_to_value(meta, rule, state.path().key(), Some(value)) {
+                Ok(()) => continue,
+                other => return other,
+            }
+        }
+        Ok(())
+    }
 
-            // same as before_process. duplicated here because we can only check for "true",
-            // "false" etc in process_string.
-            for rule in &rules {
-                match apply_rule_to_value(meta, *rule, state.path().key(), Some(value)) {
-                    Ok(()) => continue,
-                    other => return other,
+    fn process_native_image_path(
+        &mut self,
+        NativeImagePath(ref mut value): &mut NativeImagePath,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        // In NativeImagePaths we must not strip the file's basename because that would break
+        // processing.
+        //
+        // We pop the basename from the end of the string, call process_string and push the
+        // basename again.
+        //
+        // The ranges in Meta should still be right as long as we only pop/push from the end of the
+        // string. If we decide that we need to preserve anything other than suffixes all PII
+        // tooltips/annotations are potentially wrong.
+
+        if let Some(index) = value.rfind(|c| c == '/' || c == '\\') {
+            let basename = value.split_off(index);
+            match self.process_string(value, meta, state) {
+                Ok(()) => value.push_str(&basename),
+                Err(ProcessingAction::DeleteValueHard) | Err(ProcessingAction::DeleteValueSoft) => {
+                    *value = basename[1..].to_owned();
+                }
+                Err(ProcessingAction::InvalidTransaction(x)) => {
+                    return Err(ProcessingAction::InvalidTransaction(x))
                 }
             }
         }
+
         Ok(())
     }
 
@@ -628,7 +657,10 @@ fn hash_value(
 
 #[cfg(test)]
 use {
-    crate::protocol::{Event, ExtraValue, Headers, LogEntry, Request},
+    crate::protocol::{
+        Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
+        Request,
+    },
     crate::types::{Annotated, Object, Value},
 };
 
@@ -848,6 +880,200 @@ fn test_anything_hash_on_container() {
             );
             Annotated::new(map)
         },
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_remove_debugmeta_path() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "debug_meta.images.*.code_file": ["@anything:remove"],
+                "debug_meta.images.*.debug_file": ["@anything:remove"]
+            }
+        }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        debug_meta: Annotated::new(DebugMeta {
+            images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
+                NativeDebugImage {
+                    code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
+                    code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
+                    debug_id: Annotated::new(
+                        "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
+                    ),
+                    debug_file: Annotated::new("wntdll.pdb".into()),
+                    arch: Annotated::new("arm64".to_string()),
+                    image_addr: Annotated::new(Addr(0)),
+                    image_size: Annotated::new(4096),
+                    image_vmaddr: Annotated::new(Addr(32768)),
+                    other: {
+                        let mut map = Object::new();
+                        map.insert(
+                            "other".to_string(),
+                            Annotated::new(Value::String("value".to_string())),
+                        );
+                        map
+                    },
+                },
+            )))]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_replace_debugmeta_path() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "debug_meta.images.*.code_file": ["@anything:replace"],
+                "debug_meta.images.*.debug_file": ["@anything:replace"]
+            }
+        }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        debug_meta: Annotated::new(DebugMeta {
+            images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
+                NativeDebugImage {
+                    code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
+                    code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
+                    debug_id: Annotated::new(
+                        "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
+                    ),
+                    debug_file: Annotated::new("wntdll.pdb".into()),
+                    arch: Annotated::new("arm64".to_string()),
+                    image_addr: Annotated::new(Addr(0)),
+                    image_size: Annotated::new(4096),
+                    image_vmaddr: Annotated::new(Addr(32768)),
+                    other: {
+                        let mut map = Object::new();
+                        map.insert(
+                            "other".to_string(),
+                            Annotated::new(Value::String("value".to_string())),
+                        );
+                        map
+                    },
+                },
+            )))]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_hash_debugmeta_path() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "debug_meta.images.*.code_file": ["@anything:hash"],
+                "debug_meta.images.*.debug_file": ["@anything:hash"]
+            }
+        }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        debug_meta: Annotated::new(DebugMeta {
+            images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
+                NativeDebugImage {
+                    code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
+                    code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
+                    debug_id: Annotated::new(
+                        "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
+                    ),
+                    debug_file: Annotated::new("wntdll.pdb".into()),
+                    arch: Annotated::new("arm64".to_string()),
+                    image_addr: Annotated::new(Addr(0)),
+                    image_size: Annotated::new(4096),
+                    image_vmaddr: Annotated::new(Addr(32768)),
+                    other: {
+                        let mut map = Object::new();
+                        map.insert(
+                            "other".to_string(),
+                            Annotated::new(Value::String("value".to_string())),
+                        );
+                        map
+                    },
+                },
+            )))]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_debugmeta_path_not_addressible_with_wildcard_selector() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "$string": ["@anything:remove"],
+                "**": ["@anything:remove"],
+                "debug_meta.**": ["@anything:remove"],
+                "(debug_meta.images.**.code_file & $string)": ["@anything:remove"]
+            }
+        }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        debug_meta: Annotated::new(DebugMeta {
+            images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
+                NativeDebugImage {
+                    code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
+                    code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
+                    debug_id: Annotated::new(
+                        "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
+                    ),
+                    debug_file: Annotated::new("wntdll.pdb".into()),
+                    arch: Annotated::new("arm64".to_string()),
+                    image_addr: Annotated::new(Addr(0)),
+                    image_size: Annotated::new(4096),
+                    image_vmaddr: Annotated::new(Addr(32768)),
+                    other: {
+                        let mut map = Object::new();
+                        map.insert(
+                            "other".to_string(),
+                            Annotated::new(Value::String("value".to_string())),
+                        );
+                        map
+                    },
+                },
+            )))]),
+            ..Default::default()
+        }),
         ..Default::default()
     });
 

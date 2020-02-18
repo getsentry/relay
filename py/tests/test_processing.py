@@ -180,7 +180,9 @@ def test_convert_datascrubbing_config():
             "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
                 "@anything:remove"
             ],
-            "(($string|$number|$array)&(~$logentry.formatted))": ["@common:filter"],
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
+                "@common:filter"
+            ],
         },
         "rules": {},
         "vars": {"hashKey": None},

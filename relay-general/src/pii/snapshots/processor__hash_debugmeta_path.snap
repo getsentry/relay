@@ -1,0 +1,43 @@
+---
+source: relay-general/src/pii/processor.rs
+expression: event
+---
+{
+  "debug_meta": {
+    "images": [
+      {
+        "code_id": "59b0d8f3183000",
+        "code_file": "16941E20B31710B72716F91FE4F0F27DE81DD6F1\\ntdll.dll",
+        "debug_id": "971f98e5-ce60-41ff-b2d7-235bbeb34578-1",
+        "debug_file": "wntdll.pdb",
+        "arch": "arm64",
+        "image_addr": "0x0",
+        "image_size": 4096,
+        "image_vmaddr": "0x8000",
+        "other": "value",
+        "type": "symbolic"
+      }
+    ]
+  },
+  "_meta": {
+    "debug_meta": {
+      "images": {
+        "0": {
+          "code_file": {
+            "": {
+              "rem": [
+                [
+                  "@anything:hash",
+                  "p",
+                  0,
+                  40
+                ]
+              ],
+              "len": 19
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -14,7 +14,12 @@ lazy_static::lazy_static! {
 
     // Fields that the legacy data scrubber cannot strip. We define this list independently of
     // `metastructure(pii = true/false)` because the new PII scrubber should be able to strip more.
-    static ref DATASCRUBBER_IGNORE: SelectorSpec = "$logentry.formatted".parse().unwrap();
+    static ref DATASCRUBBER_IGNORE: SelectorSpec = "( \
+          debug_meta.** \
+        | $frame.filename \
+        | $frame.abs_path \
+        | $logentry.formatted \
+    )".parse().unwrap();
 }
 
 pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
@@ -199,7 +204,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "(($string|$number|$array)&(~$logentry.formatted))": [
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
               "@common:filter"
             ],
             "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
@@ -224,7 +229,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "(($string|$number|$array)&(~$logentry.formatted))": [
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
               "@common:filter"
             ],
             "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
@@ -258,7 +263,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "(($string|$number|$array)&(~$logentry.formatted))": [
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
               "@common:filter",
               "strip-fields"
             ],
@@ -284,7 +289,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "(($string|$number|$array)&(~$logentry.formatted)&(~foobar))": [
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted))&(~foobar))": [
               "@common:filter"
             ],
             "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
@@ -1183,7 +1188,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "(($string|$number|$array)&(~$logentry.formatted))": [
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
               "@common:filter",
               "strip-fields"
             ],
@@ -1213,6 +1218,61 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["formatted".to_owned()],
+            ..simple_enabled_config()
+        });
+
+        let pii_config = pii_config.unwrap();
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_debug_meta_files_not_strippable() {
+        let mut data = dbg!(Event::from_value(
+            serde_json::json!({
+                "debug_meta": {
+                    "images": [
+                        {
+                            "type": "macho",
+                            "code_file": "foo/bar.txt",
+                            "debug_file": "foo/bar.txt",
+                        }
+                    ]
+                }
+            })
+            .into(),
+        ));
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["debug_file".to_owned(), "code_file".to_owned()],
+            ..simple_enabled_config()
+        });
+
+        let pii_config = pii_config.unwrap();
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_stacktrace_paths_not_strippable() {
+        let mut data = dbg!(Event::from_value(
+            serde_json::json!({
+                "stacktrace": {
+                    "frames": [
+                        {
+                            "filename": "C:\\Windows\\BogusValue\\foo.txt",
+                            "abs_path": "C:\\Windows\\BogusValue\\foo.txt"
+                        }
+                    ]
+                }
+            })
+            .into(),
+        ));
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["filename".to_owned(), "abs_path".to_owned()],
             ..simple_enabled_config()
         });
 

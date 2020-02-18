@@ -1,11 +1,62 @@
 use debugid::{CodeId, DebugId};
 use uuid::Uuid;
 
-use crate::processor::ProcessValue;
+use crate::processor::{ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::Addr;
 use crate::types::{
-    Annotated, Array, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value,
+    Annotated, Array, Empty, Error, FromValue, Meta, Object, ProcessingResult, SkipSerialization,
+    ToValue, Value,
 };
+
+/// A type for strings that are generally paths, might contain system user names, but still cannot
+/// be stripped liberally because it would break processing for certain platforms.
+///
+/// Those strings get special treatment in our PII processor to avoid stripping the basename.
+#[derive(Debug, FromValue, ToValue, Empty, Clone, PartialEq)]
+pub struct NativeImagePath(pub String);
+
+impl NativeImagePath {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl<T: Into<String>> From<T> for NativeImagePath {
+    fn from(value: T) -> NativeImagePath {
+        NativeImagePath(value.into())
+    }
+}
+
+impl ProcessValue for NativeImagePath {
+    #[inline]
+    fn value_type(&self) -> Option<ValueType> {
+        Some(ValueType::String)
+    }
+
+    #[inline]
+    fn process_value<P>(
+        &mut self,
+        meta: &mut Meta,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        P: Processor,
+    {
+        processor.process_native_image_path(self, meta, state)
+    }
+
+    fn process_child_values<P>(
+        &mut self,
+        _processor: &mut P,
+        _state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        P: Processor,
+    {
+        Ok(())
+    }
+}
 
 /// Holds information about the system SDK.
 ///
@@ -130,14 +181,16 @@ pub struct NativeDebugImage {
 
     /// Path and name of the image file (required).
     #[metastructure(required = "true", legacy_alias = "name")]
-    pub code_file: Annotated<String>,
+    #[metastructure(pii = "maybe")]
+    pub code_file: Annotated<NativeImagePath>,
 
     /// Unique debug identifier of the image.
     #[metastructure(required = "true", legacy_alias = "id")]
     pub debug_id: Annotated<DebugId>,
 
     /// Path and name of the debug companion file (required).
-    pub debug_file: Annotated<String>,
+    #[metastructure(pii = "maybe")]
+    pub debug_file: Annotated<NativeImagePath>,
 
     /// CPU architecture target.
     pub arch: Annotated<String>,
@@ -314,9 +367,9 @@ fn test_debug_image_symbolic_roundtrip() {
 
     let image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
         code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
-        code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".to_string()),
+        code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
         debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
-        debug_file: Annotated::new("wntdll.pdb".to_string()),
+        debug_file: Annotated::new("wntdll.pdb".into()),
         arch: Annotated::new("arm64".to_string()),
         image_addr: Annotated::new(Addr(0)),
         image_size: Annotated::new(4096),
@@ -350,7 +403,7 @@ fn test_debug_image_symbolic_legacy() {
 
     let image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
         code_id: Annotated::empty(),
-        code_file: Annotated::new("CoreFoundation".to_string()),
+        code_file: Annotated::new("CoreFoundation".into()),
         debug_id: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6-1234".parse().unwrap()),
         debug_file: Annotated::empty(),
         arch: Annotated::new("arm64".to_string()),
@@ -381,7 +434,7 @@ fn test_debug_image_symbolic_default_values() {
 }"#;
 
     let image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
-        code_file: Annotated::new("CoreFoundation".to_string()),
+        code_file: Annotated::new("CoreFoundation".into()),
         debug_id: Annotated::new(
             "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234"
                 .parse::<DebugId>()
@@ -412,7 +465,7 @@ fn test_debug_image_elf_roundtrip() {
 
     let image = Annotated::new(DebugImage::Elf(Box::new(NativeDebugImage {
         code_id: Annotated::new("f1c3bcc0279865fe3058404b2831d9e64135386c".parse().unwrap()),
-        code_file: Annotated::new("crash".to_string()),
+        code_file: Annotated::new("crash".into()),
         debug_id: Annotated::new("c0bcc3f1-9827-fe65-3058-404b2831d9e6".parse().unwrap()),
         debug_file: Annotated::empty(),
         arch: Annotated::new("arm64".to_string()),
@@ -449,7 +502,7 @@ fn test_debug_image_macho_roundtrip() {
 
     let image = Annotated::new(DebugImage::MachO(Box::new(NativeDebugImage {
         code_id: Annotated::new("67E9247C-814E-392B-A027-DBDE6748FCBF".parse().unwrap()),
-        code_file: Annotated::new("crash".to_string()),
+        code_file: Annotated::new("crash".into()),
         debug_id: Annotated::new("67e9247c-814e-392b-a027-dbde6748fcbf".parse().unwrap()),
         debug_file: Annotated::empty(),
         arch: Annotated::new("arm64".to_string()),
@@ -486,9 +539,9 @@ fn test_debug_image_pe_roundtrip() {
 
     let image = Annotated::new(DebugImage::Pe(Box::new(NativeDebugImage {
         code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
-        code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".to_string()),
+        code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
         debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
-        debug_file: Annotated::new("wntdll.pdb".to_string()),
+        debug_file: Annotated::new("wntdll.pdb".into()),
         arch: Annotated::new("arm64".to_string()),
         image_addr: Annotated::new(Addr(0)),
         image_size: Annotated::new(4096),

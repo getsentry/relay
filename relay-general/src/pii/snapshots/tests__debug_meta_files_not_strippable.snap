@@ -1,0 +1,15 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "debug_meta": {
+    "images": [
+      {
+        "code_file": "foo/bar.txt",
+        "debug_file": "foo/bar.txt",
+        "type": "macho"
+      }
+    ]
+  }
+}

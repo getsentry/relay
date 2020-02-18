@@ -19,7 +19,7 @@ impl Processor for LegacyProcessor {
         if let DebugImage::Apple(ref mut apple) = image {
             let native = NativeDebugImage {
                 code_id: Annotated::empty(),
-                code_file: mem::replace(&mut apple.name, Annotated::empty()),
+                code_file: mem::replace(&mut apple.name, Annotated::empty()).map_value(From::from),
                 debug_id: mem::replace(&mut apple.uuid, Annotated::empty())
                     .map_value(DebugId::from),
                 debug_file: Annotated::empty(),
