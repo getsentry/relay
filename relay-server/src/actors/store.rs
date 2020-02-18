@@ -184,6 +184,7 @@ impl StoreForwarder {
             retention_days: event_retention,
         });
 
+        log::trace!("Sending session item to kafka");
         self.produce(KafkaTopic::Sessions, message)
     }
 }
@@ -451,7 +452,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 counter(RelayCounters::ProcessingEventProduced) += 1,
                 event_type = "event"
             );
-        } else {
+        } else if !attachments.is_empty() {
             log::trace!("Sending individual attachments of envelope to kafka");
             for attachment in attachments {
                 let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
