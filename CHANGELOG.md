@@ -13,6 +13,8 @@
 
 - Validate release names during event ingestion (#479)
 - Add browser extension filter (#470)
+- Add `pii=maybe`, a new kind of event schema field that can only be scrubbed if explicitly addressed.
+- Add way to scrub filepaths in a way that does not break processing.
 
 **Python**:
 
