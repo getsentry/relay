@@ -276,7 +276,7 @@ impl EventProcessor {
         }
 
         let payload = item.payload();
-        let deserializer = &mut rmp_serde::Deserializer::from_slice(&payload);
+        let deserializer = &mut rmp_serde::Deserializer::from_read_ref(&payload);
         Annotated::deserialize_with_meta(deserializer).map_err(ProcessingError::InvalidMsgpack)
     }
 
@@ -293,7 +293,7 @@ impl EventProcessor {
         }
 
         let payload = item.payload();
-        let deserializer = &mut rmp_serde::Deserializer::from_slice(&payload);
+        let deserializer = &mut rmp_serde::Deserializer::from_read_ref(&payload);
 
         match Annotated::deserialize_with_meta(deserializer) {
             Ok(annotated) => Ok(annotated.into_value()),
