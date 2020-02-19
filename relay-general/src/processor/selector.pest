@@ -4,7 +4,10 @@ DeepWildcard = @{ "**" }
 Quote = _{ "'" }
 WHITESPACE = _{ " " }
 Index = @{ ASCII_DIGIT+ }
-Key = @{ (ASCII_ALPHANUMERIC | "-" | "_") + }
+UnquotedKey = @{ (ASCII_ALPHANUMERIC | "-" | "_") + }
+RootUnquotedKey = { SOI ~ UnquotedKey ~ EOI }
+QuotedKey = @{ ((!"'") ~ ANY)+ }
+Key = { UnquotedKey | Quote ~ QuotedKey ~ Quote }
 SelectorPathItem = { ObjectType | DeepWildcard | Wildcard | Index | Key }
 SelectorPath = { SelectorPathItem ~ ("." ~ SelectorPathItem)* }
 
@@ -16,3 +19,4 @@ OrSelector = { "(" ~ Selector ~ ("|" ~ Selector)+ ~ ")" }
 NotSelector = { "(~" ~ Selector ~ ")" }
 Selector = { NotSelector | AndSelector | OrSelector | "(" ~ Selector ~ ")" | SelectorPath }
 RootSelector = { SOI ~ Selector ~ EOI }
+

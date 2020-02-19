@@ -51,7 +51,13 @@ impl fmt::Display for SelectorPathItem {
         match *self {
             SelectorPathItem::Type(ty) => write!(f, "${}", ty),
             SelectorPathItem::Index(index) => write!(f, "{}", index),
-            SelectorPathItem::Key(ref key) => write!(f, "{}", key),
+            SelectorPathItem::Key(ref key) => {
+                if key_needs_quoting(key) {
+                    write!(f, "'{}'", key)
+                } else {
+                    write!(f, "{}", key)
+                }
+            }
             SelectorPathItem::Wildcard => write!(f, "*"),
             SelectorPathItem::DeepWildcard => write!(f, "**"),
         }
@@ -237,10 +243,16 @@ fn handle_selector_path_item(pair: Pair<Rule>) -> Result<SelectorPathItem, Inval
                 .parse()
                 .map_err(|_| InvalidSelectorError::InvalidIndex)?,
         )),
-        Rule::Key => Ok(SelectorPathItem::Key(pair.as_str().to_owned())),
+        Rule::Key => Ok(SelectorPathItem::Key(
+            pair.into_inner().next().unwrap().as_str().to_owned(),
+        )),
         rule => Err(InvalidSelectorError::UnexpectedToken(
             format!("{:?}", rule),
             "a selector path item",
         )),
     }
+}
+
+fn key_needs_quoting(key: &str) -> bool {
+    SelectorParser::parse(Rule::RootUnquotedKey, key).is_err()
 }

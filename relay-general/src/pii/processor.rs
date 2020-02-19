@@ -1081,3 +1081,37 @@ fn test_debugmeta_path_not_addressible_with_wildcard_selector() {
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
+
+#[test]
+fn test_quoted_keys() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "extra.'special garbage'": ["@anything:remove"]
+            }
+        }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        extra: {
+            let mut map = Object::new();
+            map.insert(
+                "do not strip".to_string(),
+                Annotated::new(ExtraValue(Value::String("foo".to_string()))),
+            );
+            map.insert(
+                "special garbage".to_string(),
+                Annotated::new(ExtraValue(Value::String("bar".to_string()))),
+            );
+            Annotated::new(map)
+        },
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}

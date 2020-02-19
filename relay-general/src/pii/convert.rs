@@ -101,6 +101,10 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
             continue;
         }
 
+        if field.contains('\'') {
+            continue;
+        }
+
         conjunctions.push(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
             SelectorPathItem::Key(field.to_owned()),
         ]))));
@@ -1273,6 +1277,30 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["filename".to_owned(), "abs_path".to_owned()],
+            ..simple_enabled_config()
+        });
+
+        let pii_config = pii_config.unwrap();
+        let mut pii_processor = PiiProcessor::new(&pii_config);
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_odd_keys() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "do not ßtrip": "foo",
+                    "special gärbage": "bar",
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["special gärbage".to_owned()],
+            exclude_fields: vec!["do not ßtrip".to_owned()],
             ..simple_enabled_config()
         });
 
