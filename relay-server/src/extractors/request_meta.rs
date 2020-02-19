@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::net::IpAddr;
 
 use actix::ResponseFuture;
@@ -234,11 +233,8 @@ fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
         .get("sentry_key")
         .ok_or(BadEventMeta::MissingAuth)?;
 
-    Auth::from_pairs(std::iter::once((
-        Cow::Borrowed("key"),
-        Cow::Borrowed(sentry_key),
-    )))
-    .map_err(|_| BadEventMeta::MissingAuth)
+    Auth::from_pairs(std::iter::once(("sentry_key", sentry_key)))
+        .map_err(|_| BadEventMeta::MissingAuth)
 }
 
 fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Option<Url> {
