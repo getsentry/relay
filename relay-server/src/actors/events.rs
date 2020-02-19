@@ -267,8 +267,13 @@ impl EventProcessor {
 
     fn extract_attached_event(
         config: &Config,
-        item: Item,
+        item: Option<Item>,
     ) -> Result<Annotated<Event>, ProcessingError> {
+        let item = match item {
+            Some(item) if !item.is_empty() => item,
+            _ => return Ok(Annotated::new(Event::default())),
+        };
+
         // Protect against blowing up during deserialization. Attachments can have a significantly
         // larger size than regular events and may cause significant processing delays.
         if item.len() > config.max_event_payload_size() {
@@ -276,14 +281,20 @@ impl EventProcessor {
         }
 
         let payload = item.payload();
-        let deserializer = &mut rmp_serde::Deserializer::from_read_ref(&payload);
+        let deserializer = &mut rmp_serde::Deserializer::from_read_ref(payload.as_ref());
         Annotated::deserialize_with_meta(deserializer).map_err(ProcessingError::InvalidMsgpack)
     }
 
     fn parse_msgpack_breadcrumbs(
         config: &Config,
-        item: Item,
-    ) -> Result<Option<Array<Breadcrumb>>, ProcessingError> {
+        item: Option<Item>,
+    ) -> Result<Array<Breadcrumb>, ProcessingError> {
+        let mut breadcrumbs = Array::new();
+        let item = match item {
+            Some(item) if !item.is_empty() => item,
+            _ => return Ok(breadcrumbs),
+        };
+
         // Validate that we do not exceed the maximum breadcrumb payload length. Breadcrumbs are
         // truncated to a maximum of 100 in event normalization, but this is to protect us from
         // blowing up during deserialization. As approximation, we use the maximum event payload
@@ -293,12 +304,15 @@ impl EventProcessor {
         }
 
         let payload = item.payload();
-        let deserializer = &mut rmp_serde::Deserializer::from_read_ref(&payload);
+        let mut deserializer = rmp_serde::Deserializer::new(payload.as_ref());
 
-        match Annotated::deserialize_with_meta(deserializer) {
-            Ok(annotated) => Ok(annotated.into_value()),
-            Err(error) => Err(ProcessingError::InvalidMsgpack(error)),
+        while !deserializer.get_ref().is_empty() {
+            let breadcrumb = Annotated::deserialize_with_meta(&mut deserializer)
+                .map_err(ProcessingError::InvalidMsgpack)?;
+            breadcrumbs.push(breadcrumb);
         }
+
+        Ok(breadcrumbs)
     }
 
     fn event_from_attachments(
@@ -311,20 +325,9 @@ impl EventProcessor {
             + breadcrumbs_item1.as_ref().map_or(0, |item| item.len())
             + breadcrumbs_item2.as_ref().map_or(0, |item| item.len());
 
-        let mut event = match event_item {
-            Some(item) => Self::extract_attached_event(config, item)?,
-            None => Annotated::new(Event::default()),
-        };
-
-        let mut breadcrumbs1 = match breadcrumbs_item1 {
-            Some(item) => Self::parse_msgpack_breadcrumbs(config, item)?.unwrap_or_default(),
-            None => Array::new(),
-        };
-
-        let mut breadcrumbs2 = match breadcrumbs_item2 {
-            Some(item) => Self::parse_msgpack_breadcrumbs(config, item)?.unwrap_or_default(),
-            None => Array::new(),
-        };
+        let mut event = Self::extract_attached_event(config, event_item)?;
+        let mut breadcrumbs1 = Self::parse_msgpack_breadcrumbs(config, breadcrumbs_item1)?;
+        let mut breadcrumbs2 = Self::parse_msgpack_breadcrumbs(config, breadcrumbs_item2)?;
 
         let timestamp1 = breadcrumbs1
             .iter()
@@ -1158,30 +1161,24 @@ impl Handler<GetCapturedEvent> for EventManager {
 mod tests {
     use super::*;
 
-    use chrono::naive::{NaiveDate, NaiveDateTime};
-    use chrono::{DateTime, Utc};
-    use serde_json::Map as SerdeMap;
+    use chrono::{DateTime, TimeZone, Utc};
 
-    fn create_breadcrumbs_envelope(breadcrumbs: &[(Option<NaiveDateTime>, &str)]) -> Item {
-        let breadcrumbs: Vec<SerdeValue> = breadcrumbs
-            .iter()
-            .map(|(ndt, msg)| {
-                let mut m = SerdeMap::new();
-                ndt.map(|ndt| {
-                    m.insert(
-                        "timestamp".into(),
-                        SerdeValue::from(DateTime::<Utc>::from_utc(ndt, Utc).to_rfc3339()),
-                    )
-                });
-                m.insert("message".into(), SerdeValue::from(*msg));
-                m.into()
-            })
-            .collect();
+    fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
+        let mut data = Vec::new();
 
-        let v = rmp_serde::to_vec(&breadcrumbs).unwrap();
-        let mut ret_val = Item::new(ItemType::Attachment);
-        ret_val.set_payload(ContentType::OctetStream, v);
-        ret_val
+        for (date, message) in breadcrumbs {
+            let mut breadcrumb = BTreeMap::new();
+            breadcrumb.insert("message", message.to_string());
+            if let Some(date) = date {
+                breadcrumb.insert("timestamp", date.to_rfc3339());
+            }
+
+            rmp_serde::encode::write(&mut data, &breadcrumb).expect("write msgpack");
+        }
+
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_payload(ContentType::MsgPack, data);
+        item
     }
 
     fn breadcrumbs_from_event(event: &Annotated<Event>) -> &Vec<Annotated<Breadcrumb>> {
@@ -1197,83 +1194,114 @@ mod tests {
     }
 
     #[test]
-    fn test_breadcrumbs_replace_existing() {
-        let item = create_breadcrumbs_envelope(&[(None, "new1")]);
+    fn test_breadcrumbs_file1() {
+        let item = create_breadcrumbs_item(&[(None, "item1")]);
 
-        let evt =
-            EventProcessor::event_from_attachments(&Config::default(), None, Some(item), None)
-                .unwrap()
-                .0;
+        // NOTE: using (Some, None) here:
+        let result =
+            EventProcessor::event_from_attachments(&Config::default(), None, Some(item), None);
 
-        let breadcrumbs = breadcrumbs_from_event(&evt);
+        let event = result.unwrap().0;
+        let breadcrumbs = breadcrumbs_from_event(&event);
 
         assert_eq!(breadcrumbs.len(), 1);
         let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
-        assert_eq!("new1", first_breadcrumb_message);
+        assert_eq!("item1", first_breadcrumb_message);
+    }
 
-        let item = create_breadcrumbs_envelope(&[(None, "new2")]);
+    #[test]
+    fn test_breadcrumbs_file2() {
+        let item = create_breadcrumbs_item(&[(None, "item2")]);
 
-        let evt =
-            EventProcessor::event_from_attachments(&Config::default(), None, None, Some(item))
-                .unwrap()
-                .0;
+        // NOTE: using (None, Some) here:
+        let result =
+            EventProcessor::event_from_attachments(&Config::default(), None, None, Some(item));
 
-        let breadcrumbs = breadcrumbs_from_event(&evt);
+        let event = result.unwrap().0;
+        let breadcrumbs = breadcrumbs_from_event(&event);
         assert_eq!(breadcrumbs.len(), 1);
 
         let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
-        assert_eq!("new2", first_breadcrumb_message);
+        assert_eq!("item2", first_breadcrumb_message);
+    }
+
+    #[test]
+    fn test_breadcrumbs_truncation() {
+        let item1 = create_breadcrumbs_item(&[(None, "crumb1")]);
+        let item2 = create_breadcrumbs_item(&[(None, "crumb2"), (None, "crumb3")]);
+
+        let result = EventProcessor::event_from_attachments(
+            &Config::default(),
+            None,
+            Some(item1),
+            Some(item2),
+        );
+
+        let event = result.unwrap().0;
+        let breadcrumbs = breadcrumbs_from_event(&event);
+        assert_eq!(breadcrumbs.len(), 2);
     }
 
     #[test]
     fn test_breadcrumbs_order_with_none() {
-        let d1 = NaiveDate::from_ymd(2019, 10, 10).and_hms(12, 10, 10);
-        let d2 = NaiveDate::from_ymd(2019, 10, 11).and_hms(12, 10, 10);
+        let d1 = Utc.ymd(2019, 10, 10).and_hms(12, 10, 10);
+        let d2 = Utc.ymd(2019, 10, 11).and_hms(12, 10, 10);
 
-        let item1 = create_breadcrumbs_envelope(&[(None, "none"), (Some(d1), "d1")]);
-        let item2 = create_breadcrumbs_envelope(&[(Some(d2), "d2")]);
+        let item1 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
+        let item2 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
 
-        let event = EventProcessor::event_from_attachments(
+        let result = EventProcessor::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
             Some(item2),
-        )
-        .unwrap()
-        .0;
+        );
 
+        let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
         assert_eq!(breadcrumbs.len(), 2);
 
-        let message1 = breadcrumbs[0].value().unwrap().message.value().unwrap();
-        let message2 = breadcrumbs[1].value().unwrap().message.value().unwrap();
-        assert_eq!("d1", message1);
-        assert_eq!("d2", message2);
+        assert_eq!(Some("d1"), breadcrumbs[0].value().unwrap().message.as_str());
+        assert_eq!(Some("d2"), breadcrumbs[1].value().unwrap().message.as_str());
     }
 
     #[test]
     fn test_breadcrumbs_reversed_with_none() {
-        let d1 = NaiveDate::from_ymd(2019, 10, 10).and_hms(12, 10, 10);
-        let d2 = NaiveDate::from_ymd(2019, 10, 11).and_hms(12, 10, 10);
+        let d1 = Utc.ymd(2019, 10, 10).and_hms(12, 10, 10);
+        let d2 = Utc.ymd(2019, 10, 11).and_hms(12, 10, 10);
 
-        let item1 = create_breadcrumbs_envelope(&[(Some(d2), "d2")]);
-        let item2 = create_breadcrumbs_envelope(&[(None, "none"), (Some(d1), "d1")]);
+        let item1 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
+        let item2 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
 
-        let event = EventProcessor::event_from_attachments(
+        let result = EventProcessor::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
             Some(item2),
-        )
-        .unwrap()
-        .0;
+        );
 
+        let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
         assert_eq!(breadcrumbs.len(), 2);
 
-        let message1 = breadcrumbs[0].value().unwrap().message.value().unwrap();
-        let message2 = breadcrumbs[1].value().unwrap().message.value().unwrap();
-        assert_eq!("d1", message1);
-        assert_eq!("d2", message2);
+        assert_eq!(Some("d1"), breadcrumbs[0].value().unwrap().message.as_str());
+        assert_eq!(Some("d2"), breadcrumbs[1].value().unwrap().message.as_str());
+    }
+
+    #[test]
+    fn test_empty_breadcrumbs_item() {
+        let item1 = create_breadcrumbs_item(&[]);
+        let item2 = create_breadcrumbs_item(&[]);
+        let item3 = create_breadcrumbs_item(&[]);
+
+        let result = EventProcessor::event_from_attachments(
+            &Config::default(),
+            Some(item1),
+            Some(item2),
+            Some(item3),
+        );
+
+        // regression test to ensure we don't fail parsing an empty file
+        result.expect("event_from_attachments");
     }
 }
