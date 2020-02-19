@@ -18,10 +18,6 @@ pub use crate::retry::*;
 pub use crate::utils::*;
 
 pub use sentry_types::protocol::LATEST as PROTOCOL_VERSION;
-pub use sentry_types::{Auth, AuthParseError, Dsn, DsnParseError, Scheme, Uuid};
-
-/// Represents a project ID.
-pub type ProjectId = u64;
-
-/// Raised if a project ID cannot be parsed from a string.
-pub type ProjectIdParseError = std::num::ParseIntError;
+pub use sentry_types::{
+    Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ProjectId, Scheme, Uuid,
+};
