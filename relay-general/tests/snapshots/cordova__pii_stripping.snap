@@ -1,16 +1,21 @@
 ---
-source: general/tests/test_fixtures.rs
+source: relay-general/tests/test_fixtures.rs
 expression: SerializableAnnotated(&event)
 ---
 event_id: ae3a2cc6e08741c5b09946c65c022469
 level: fatal
+type: error
 transaction: main at EventEmitter.ipcMain.on
 logentry:
   formatted: "Error: Error triggered in main processes"
+logger: ""
+platform: other
+timestamp: "[timestamp]"
+received: "[received]"
 release: sentry-electron-test@2.0.2
 environment: development
 user:
-  ip_address: "{{auto}}"
+  ip_address: ~
 contexts:
   app:
     app_name: Sentry Crash Test
@@ -42,33 +47,42 @@ breadcrumbs:
     - timestamp: 1532692006.665
       type: ui
       category: electron
+      level: info
       message: app.will-finish-launching
     - timestamp: 1532692006.715
       type: ui
       category: electron
+      level: info
       message: app.ready
     - timestamp: 1532692006.734
       type: ui
       category: electron
+      level: info
       message: app.session-created
     - timestamp: 1532692006.754
       type: ui
       category: electron
+      level: info
       message: app.web-contents-created
     - timestamp: 1532692006.796
       type: ui
       category: electron
+      level: info
       message: app.browser-window-created
     - timestamp: 1532692006.918
       type: ui
       category: electron
+      level: info
       message: app.browser-window-focus
     - timestamp: 1532692007.165
       type: ui
       category: electron
+      level: info
       message: "WebContents[1].dom-ready"
     - timestamp: 1532692011.34
+      type: default
       category: ui.click
+      level: info
       message: body > div.main > div.group > a.crash
 exception:
   values:
@@ -78,7 +92,8 @@ exception:
         frames:
           - function: "WebContents.emitter.emit.args [as emit]"
             module: backend
-            filename: /Users/haza/Projects/sentry-electron/dist/main/backend.js
+            filename: "/Users/[user]/Projects/sentry-electron/dist/main/backend.js"
+            abs_path: "/Users/[user]/Projects/sentry-electron/dist/main/backend.js"
             lineno: 278
             colno: 20
             pre_context:
@@ -102,18 +117,21 @@ exception:
           - function: WebContents.emit
             module: events
             filename: events.js
+            abs_path: events.js
             lineno: 214
             colno: 7
             in_app: false
           - function: emitTwo
             module: events
             filename: events.js
+            abs_path: events.js
             lineno: 126
             colno: 13
             in_app: false
           - function: WebContents.<anonymous>
             module: "electron.dist.Electron.app.Contents.Resources.electron.asar.browser.api:web-contents"
             filename: "app:///node_modules/electron/dist/Electron.app/Contents/Resources/electron.asar/browser/api/web-contents.js"
+            abs_path: "app:///node_modules/electron/dist/Electron.app/Contents/Resources/electron.asar/browser/api/web-contents.js"
             lineno: 286
             colno: 13
             pre_context:
@@ -137,18 +155,21 @@ exception:
           - function: EventEmitter.emit
             module: events
             filename: events.js
+            abs_path: events.js
             lineno: 211
             colno: 7
             in_app: false
           - function: emitOne
             module: events
             filename: events.js
+            abs_path: events.js
             lineno: 116
             colno: 13
             in_app: false
           - function: EventEmitter.ipcMain.on
             module: main
             filename: "app:///main.js"
+            abs_path: "app:///main.js"
             lineno: 38
             colno: 9
             pre_context:
@@ -182,3 +203,32 @@ sdk:
       version: 4.0.0-beta.11
     - name: "npm:@sentry/node"
       version: 0.8.0
+_meta:
+  exception:
+    values:
+      "0":
+        stacktrace:
+          frames:
+            "0":
+              abs_path:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 7
+                      - 13
+                  len: 46
+              filename:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 7
+                      - 13
+                  len: 46
+  user:
+    ip_address:
+      "":
+        rem:
+          - - "@anything:remove"
+            - x

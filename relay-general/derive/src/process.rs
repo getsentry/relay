@@ -78,51 +78,49 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
             let field_attrs_name = Ident::new(&format!("FIELD_ATTRS_{}", index), Span::call_site());
             let field_name = field_attrs.field_name.clone();
 
-            if field_attrs.additional_properties {
+            let field_attrs_tokens = field_attrs.as_tokens(None);
+
+            (quote! {
+                ::lazy_static::lazy_static! {
+                    static ref #field_attrs_name: crate::processor::FieldAttrs =
+                        #field_attrs_tokens;
+                }
+            })
+            .to_tokens(&mut body);
+
+            let enter_state = if field_attrs.additional_properties {
                 if is_tuple_struct {
                     panic!("additional_properties not allowed in tuple struct");
                 }
 
-                let additional_state = if field_attrs.retain {
-                    quote! {
-                        &__state.enter_nothing(
-                            Some(::std::borrow::Cow::Borrowed(crate::processor::FieldAttrs::default_retain()))
-                        )
-                    }
-                } else {
-                    quote! { __state }
-                };
-
-                (quote! {
-                    __processor.process_other(#ident, #additional_state)?;
-                }).to_tokens(&mut body);
+                quote! {
+                    __state.enter_nothing(Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)))
+                }
+            } else if is_tuple_struct {
+                quote! {
+                    __state.enter_index(
+                        #index,
+                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                        crate::processor::ValueType::for_field(#ident),
+                    )
+                }
             } else {
-                let enter_state = if is_tuple_struct {
-                    quote! {
-                        __state.enter_index(
-                            #index,
-                            Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
-                            crate::processor::ValueType::for_field(#ident),
-                        )
-                    }
-                } else {
-                    quote! {
-                        __state.enter_static(
-                            #field_name,
-                            Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
-                            crate::processor::ValueType::for_field(#ident),
-                        )
-                    }
-                };
+                quote! {
+                    __state.enter_static(
+                        #field_name,
+                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                        crate::processor::ValueType::for_field(#ident),
+                    )
+                }
+            };
 
-                let field_attrs_tokens = field_attrs.as_tokens(None);
-
+            if field_attrs.additional_properties {
                 (quote! {
-                    ::lazy_static::lazy_static! {
-                        static ref #field_attrs_name: crate::processor::FieldAttrs =
-                            #field_attrs_tokens;
-                    }
-
+                    __processor.process_other(#ident, &#enter_state)?;
+                })
+                .to_tokens(&mut body);
+            } else {
+                (quote! {
                     crate::processor::process_value(#ident, __processor, &#enter_state)?;
                 })
                 .to_tokens(&mut body);

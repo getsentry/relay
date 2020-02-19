@@ -1,5 +1,5 @@
 ---
-source: general/tests/test_fixtures.rs
+source: relay-general/tests/test_fixtures.rs
 expression: SerializableAnnotated(&event)
 ---
 event_id: 04e03764d7024caab8736daeefbb9bee
@@ -178,7 +178,7 @@ received: "[received]"
 release: e386dfd
 environment: Production
 user:
-  ip_address: "::1"
+  ip_address: ~
 request:
   url: /Home/PostIndex
   method: POST
@@ -191,11 +191,11 @@ request:
     - - ".AspNetCore.Antiforgery._2NlYY4B078"
       - CfDJ8ChafIEN-7pHv152tZrpaC_lvW7hdfN_EdO5t5Zh63rpzWqqsA5O2nEyfM5KDfb0QyrEiEK_I3phDQyTPdGKKImqEXWHWHjLJyUU8VRQNNsFvKgwyLiiOc1mDPNxlDbsXhWV44nuF4SzFe9gy9mm_g0
     - - wcsid
-      - 9BYRwrV1RfdG7uxS3m39N0NXoA7d3ajb
+      - "[redacted]"
     - - hblid
-      - 0rGfY7BTWnTdUr7n3m39N0No36X7badA
+      - "[redacted]"
     - - _okdetect
-      - "{\"token\":\"15323434361710\",\"proto\":\"http:\",\"host\":\"localhost:4040\"}"
+      - "{[ok detect token],\"proto\":\"http:\",\"host\":\"localhost:4040\"}"
     - - olfsk
       - olfsk36178984508065715
     - - _okbk
@@ -220,13 +220,13 @@ request:
     - - Host
       - "localhost:62919"
     - - MS-ASPNETCORE-TOKEN
-      - 517bea28-e8ae-456f-986e-48f93d89220b
+      - "[redacted]"
     - - Origin
       - "http://localhost:62919"
     - - Referer
       - "http://localhost:62919/"
     - - User-Agent
-      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36"
+      - "[redacted]"
     - - X-Original-For
       - "127.0.0.1:50788"
     - - X-Original-Proto
@@ -234,7 +234,7 @@ request:
     - - X-Requested-With
       - XMLHttpRequest
   env:
-    DOCUMENT_ROOT: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\wwwroot"
+    DOCUMENT_ROOT: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\wwwroot"
     REMOTE_ADDR: "::1"
     SERVER_NAME: TAMPERE
     SERVER_PORT: "15446"
@@ -257,12 +257,12 @@ breadcrumbs:
       type: default
       category: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager
       level: info
-      message: "User profile is available. Using 'C:\\Users\\bruno\\AppData\\Local\\ASP.NET\\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest."
+      message: "User profile is available. Using 'C:\\Users\\[user]\\AppData\\Local\\ASP.NET\\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest."
     - timestamp: 1532343443.0
       type: default
       category: Microsoft.AspNetCore.Hosting.Internal.WebHost
       level: info
-      message: "Request starting HTTP/1.1 POST http://localhost:62919/Home/PostIndex application/json; charset=UTF-8 65"
+      message: "Request starting HTTP/1.1 POST http://localhost:62919/Home/[user]/json; charset=UTF-8 65"
       data:
         eventId: "1"
     - timestamp: 1532343443.0
@@ -320,8 +320,8 @@ exception:
           - function: FetchNextPhaseDataAsync
             module: Sentry.Samples.AspNetCore.Mvc.GameService
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
             lineno: 25
             colno: 17
             context_line: Void MoveNext()
@@ -359,8 +359,8 @@ exception:
           - function: "FetchNextPhaseDataAsync { <lambda> }"
             module: Sentry.Samples.AspNetCore.Mvc.GameService+<>c
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
             lineno: 19
             colno: 64
             context_line: Int32 <FetchNextPhaseDataAsync>b__2_0()
@@ -389,8 +389,8 @@ exception:
           - function: "FetchNextPhaseDataAsync { <lambda> }"
             module: Sentry.Samples.AspNetCore.Mvc.GameService+<>c
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
             lineno: 20
             colno: 60
             context_line: Int32 <FetchNextPhaseDataAsync>b__2_1()
@@ -404,8 +404,8 @@ exception:
           - function: PostIndex
             module: Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
-            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
+            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
+            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
             lineno: 38
             colno: 17
             context_line: Void MoveNext()
@@ -428,8 +428,8 @@ exception:
           - function: FetchNextPhaseDataAsync
             module: Sentry.Samples.AspNetCore.Mvc.GameService
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
+            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
             lineno: 31
             colno: 17
             context_line: Void MoveNext()
@@ -573,8 +573,8 @@ exception:
           - function: PostIndex
             module: Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController
             package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
-            abs_path: "C:\\Users\\bruno\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
+            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
+            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
             lineno: 53
             colno: 17
             context_line: Void MoveNext()
@@ -582,7 +582,7 @@ exception:
       thread_id: 25
 tags:
   - - RequestId
-    - "0HLFGHBU6V1A6:00000002"
+    - ~
 extra:
   "Response:HasStarted": true
   "System.AggregateException.Data[inventory]":
@@ -604,3 +604,210 @@ extra:
 sdk:
   name: Sentry.AspNetCore
   version: 0.0.1-preview3
+_meta:
+  breadcrumbs:
+    values:
+      "0":
+        message:
+          "":
+            rem:
+              - - "@userpath:replace"
+                - s
+                - 43
+                - 49
+            len: 152
+      "1":
+        message:
+          "":
+            rem:
+              - - "@userpath:replace"
+                - s
+                - 59
+                - 65
+            len: 103
+  exception:
+    values:
+      "0":
+        stacktrace:
+          frames:
+            "0":
+              abs_path:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 70
+              filename:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 70
+            "7":
+              abs_path:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 70
+              filename:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 70
+      "1":
+        stacktrace:
+          frames:
+            "3":
+              abs_path:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 70
+              filename:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 70
+      "2":
+        stacktrace:
+          frames:
+            "0":
+              abs_path:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 82
+              filename:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 82
+            "4":
+              abs_path:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 70
+              filename:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 70
+      "3":
+        stacktrace:
+          frames:
+            "26":
+              abs_path:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 82
+              filename:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 9
+                      - 15
+                  len: 82
+  request:
+    cookies:
+      "1":
+        "1":
+          "":
+            rem:
+              - - "@anything:replace"
+                - s
+                - 0
+                - 10
+            len: 32
+      "2":
+        "1":
+          "":
+            rem:
+              - - "@anything:replace"
+                - s
+                - 0
+                - 10
+            len: 32
+      "3":
+        "1":
+          "":
+            rem:
+              - - removeOkDetectToken
+                - s
+                - 1
+                - 18
+            len: 66
+    env:
+      DOCUMENT_ROOT:
+        "":
+          rem:
+            - - "@userpath:replace"
+              - s
+              - 9
+              - 15
+          len: 78
+    headers:
+      "10":
+        "1":
+          "":
+            rem:
+              - - "@anything:replace"
+                - s
+                - 0
+                - 10
+            len: 114
+      "7":
+        "1":
+          "":
+            rem:
+              - - "@anything:replace"
+                - s
+                - 0
+                - 10
+            len: 36
+  tags:
+    "0":
+      "1":
+        "":
+          rem:
+            - - "@anything:remove"
+              - x
+  user:
+    ip_address:
+      "":
+        rem:
+          - - "@anything:remove"
+            - x

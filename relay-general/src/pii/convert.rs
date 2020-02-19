@@ -476,7 +476,21 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             serde_json::json!({
                 "contexts": {
                     "secret": SENSITIVE_VARS.clone(),
-                    "biz": SENSITIVE_VARS.clone()
+                    "biz": SENSITIVE_VARS.clone(),
+
+                    // all the structured contexts are not properly scrubbed. We introduced quite a
+                    // few regressions here when porting old datascrubbers to rust, but that's fine
+                    // because we saw in real data that nobody tried to scrub contexts in the first
+                    // place. We're just snapshotting this so that we don't randomly change
+                    // behavior further.
+                    "device": SENSITIVE_VARS.clone(),
+                    "os": SENSITIVE_VARS.clone(),
+                    "runtime": SENSITIVE_VARS.clone(),
+                    "app": SENSITIVE_VARS.clone(),
+                    "browser": SENSITIVE_VARS.clone(),
+                    "gpu": SENSITIVE_VARS.clone(),
+                    "trace": SENSITIVE_VARS.clone(),
+                    "monitor": SENSITIVE_VARS.clone(),
                 }
             })
             .into(),
@@ -1229,7 +1243,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_debug_meta_files_not_strippable() {
-        let mut data = dbg!(Event::from_value(
+        let mut data = Event::from_value(
             serde_json::json!({
                 "debug_meta": {
                     "images": [
@@ -1242,7 +1256,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 }
             })
             .into(),
-        ));
+        );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["debug_file".to_owned(), "code_file".to_owned()],
@@ -1257,7 +1271,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_stacktrace_paths_not_strippable() {
-        let mut data = dbg!(Event::from_value(
+        let mut data = Event::from_value(
             serde_json::json!({
                 "stacktrace": {
                     "frames": [
@@ -1269,7 +1283,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 }
             })
             .into(),
-        ));
+        );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["filename".to_owned(), "abs_path".to_owned()],

@@ -16,6 +16,7 @@ pub struct Span {
 
     /// Human readable description of a span (e.g. method URL).
     #[metastructure(max_chars = "summary")]
+    #[metastructure(pii = "maybe")]
     pub description: Annotated<String>,
 
     /// Span type (see `OperationType` docs).
@@ -35,7 +36,7 @@ pub struct Span {
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true")]
+    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
 }
 
