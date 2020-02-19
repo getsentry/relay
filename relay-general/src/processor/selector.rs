@@ -54,6 +54,10 @@ impl fmt::Display for SelectorPathItem {
             SelectorPathItem::Key(ref key) => {
                 if key_needs_quoting(key) {
                     write!(f, "'{}'", key)
+                } else if key.contains('\'') {
+                    // Such keys should never be constructed, so this codepath is just an
+                    // additional safety guard to prevent us from emitting unparseable configs.
+                    write!(f, "'{}'", key.replace("'", ""))
                 } else {
                     write!(f, "{}", key)
                 }
