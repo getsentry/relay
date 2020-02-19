@@ -311,7 +311,7 @@ struct UserReportKafkaMessage {
 #[derive(Debug, Serialize)]
 struct SessionKafkaMessage {
     org_id: u64,
-    project_id: u64,
+    project_id: ProjectId,
     session_id: Uuid,
     distinct_id: Uuid,
     seq: u64,

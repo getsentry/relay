@@ -442,7 +442,7 @@ impl EventProcessor {
         }
 
         let store_config = StoreConfig {
-            project_id: Some(envelope.meta().project_id()),
+            project_id: Some(envelope.meta().project_id().value()),
             client_ip: envelope.meta().client_addr().map(IpAddr::from),
             client: envelope.meta().client().map(str::to_owned),
             key_id,
@@ -897,7 +897,7 @@ impl Handler<HandleEnvelope> for EventManager {
         // loaded at this time.
         let organization_id = Rc::new(AtomicU64::new(0));
 
-        metric!(set(RelaySets::UniqueProjects) = project_id as i64);
+        metric!(set(RelaySets::UniqueProjects) = project_id.value() as i64);
 
         let future = project
             .send(GetEventAction::fetched(meta_clone))

@@ -227,7 +227,7 @@ impl ProjectState {
         // To spread out project state updates more evenly, they are shifted deterministically
         // within the grid window. A 5 minute interval results in 300 theoretical slots that can be
         // chosen for each project based on its project id.
-        let project_shift = project_id % window;
+        let project_shift = project_id.value() % window;
 
         // Based on the last fetch, compute the timestamp of the next fetch. The time stamp is
         // shifted by the project shift to move the grid accordingly. Note that if the remainder is

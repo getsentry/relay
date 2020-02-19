@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use actix::prelude::*;
 
+use relay_common::ProjectId;
 use relay_config::Config;
 use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
@@ -35,7 +36,7 @@ pub struct TrackOutcome {
     /// Organization id.
     pub org_id: Option<u64>,
     /// Project id.
-    pub project_id: u64,
+    pub project_id: ProjectId,
     /// The DSN project key id.
     pub key_id: Option<u64>,
     /// The outcome.
@@ -266,7 +267,7 @@ mod kafka {
         /// Organization id.
         org_id: Option<u64>,
         /// Project id.
-        project_id: u64,
+        project_id: ProjectId,
         /// The DSN project key id.
         key_id: Option<u64>,
         /// The outcome.

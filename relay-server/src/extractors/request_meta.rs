@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use relay_common::{
-    tryf, Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError,
+    tryf, Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ProjectId,
 };
 
 use crate::actors::project_keys::GetProjectId;
@@ -25,13 +25,13 @@ pub enum BadEventMeta {
     MissingAuth,
 
     #[fail(display = "bad project path parameter")]
-    BadProject(#[cause] ProjectIdParseError),
+    BadProject(#[cause] ParseProjectIdError),
 
     #[fail(display = "bad x-sentry-auth header")]
-    BadAuth(#[fail(cause)] AuthParseError),
+    BadAuth(#[fail(cause)] ParseAuthError),
 
     #[fail(display = "bad sentry DSN")]
-    BadDsn(#[fail(cause)] DsnParseError),
+    BadDsn(#[fail(cause)] ParseDsnError),
 
     #[fail(display = "bad project key: project does not exist")]
     BadProjectKey,
@@ -134,8 +134,7 @@ impl RequestMeta {
 
     /// Returns the project identifier that the DSN points to.
     pub fn project_id(&self) -> ProjectId {
-        // TODO(ja): sentry-types does not expose the DSN at the moment.
-        unsafe { std::mem::transmute(self.dsn().project_id()) }
+        self.dsn().project_id()
     }
 
     /// Returns the public key part of the DSN for authentication.
