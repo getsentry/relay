@@ -31,8 +31,6 @@ macro_rules! event_snapshot {
                     "tags.server_name": ["removeDotLocal"],
                     "tags.RequestId": ["@anything:remove"],
 
-                    "contexts.device.name": ["@anything:remove"],
-                    "contexts.device.battery_level": ["@anything:remove"],
                     "contexts.device.boot_time": ["@anything:remove"],
                     "contexts.device.screen_resolution": ["@anything:remove"],
                     "contexts.device.screen_density": ["@anything:remove"],
@@ -41,7 +39,6 @@ macro_rules! event_snapshot {
                     "contexts.device.screen_dpi": ["@anything:remove"],
                     "contexts.device.memory_size": ["@anything:remove"],
                     "contexts.device.timezone": ["@anything:remove"],
-                    "contexts.device.orientation": ["@anything:remove"],
 
                     "user.ip_address": ["@anything:remove"],
                     "user.email": ["@anything:hash"],
