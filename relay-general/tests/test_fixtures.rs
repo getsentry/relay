@@ -67,17 +67,10 @@ macro_rules! event_snapshot {
             #[test]
             fn test_processing() {
                 let mut event = load_fixture();
-                // This could be its own test, but if this deserializes wrong it makes no sense to
-                // even look at the processing snapshots.
-                assert_yaml_snapshot!("from_value", SerializableAnnotated(&event));
 
                 let config = StoreConfig::default();
                 let mut processor = StoreProcessor::new(config, None);
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-                assert_yaml_snapshot!("store_processor", SerializableAnnotated(&event), {
-                    ".received" => "[received]",
-                    ".timestamp" => "[timestamp]"
-                });
 
                 let mut processor = PiiProcessor::new(&*PII_CONFIG);
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
