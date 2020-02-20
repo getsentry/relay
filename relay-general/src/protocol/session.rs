@@ -21,6 +21,8 @@ pub enum SessionStatus {
     Crashed,
     /// The session an unexpected abrupt termination (not crashing).
     Abnormal,
+    /// The session degraded (unhealthy but did not crash)
+    Degraded,
 }
 
 impl Default for SessionStatus {
@@ -42,6 +44,7 @@ impl FromStr for SessionStatus {
             "ok" => SessionStatus::Ok,
             "crashed" => SessionStatus::Crashed,
             "abnormal" => SessionStatus::Abnormal,
+            "degraded" => SessionStatus::Degraded,
             "exited" => SessionStatus::Exited,
             _ => return Err(ParseSessionStatusError),
         })
@@ -54,6 +57,7 @@ impl fmt::Display for SessionStatus {
             SessionStatus::Ok => write!(f, "ok"),
             SessionStatus::Crashed => write!(f, "crashed"),
             SessionStatus::Abnormal => write!(f, "abnormal"),
+            SessionStatus::Degraded => write!(f, "degraded"),
             SessionStatus::Exited => write!(f, "exited"),
         }
     }
@@ -67,12 +71,6 @@ fn is_empty_string(opt: &Option<String>) -> bool {
 #[serde(default)]
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SessionAttributes {
-    /// The operating system name, corresponding to the os context.
-    pub os: Option<String>,
-    /// The full operating system version string, corresponding to the os context.
-    pub os_version: Option<String>,
-    /// The device famility identifier, corresponding to the device context.
-    pub device_family: Option<String>,
     /// The release version string.
     pub release: Option<String>,
     /// The environment identifier.
@@ -81,11 +79,7 @@ pub struct SessionAttributes {
 
 impl SessionAttributes {
     fn is_empty(&self) -> bool {
-        is_empty_string(&self.os)
-            && is_empty_string(&self.os_version)
-            && is_empty_string(&self.device_family)
-            && is_empty_string(&self.release)
-            && is_empty_string(&self.environment)
+        is_empty_string(&self.release) && is_empty_string(&self.environment)
     }
 }
 
@@ -112,7 +106,7 @@ pub struct SessionUpdate {
     pub session_id: Uuid,
     /// The distinct identifier.
     #[serde(rename = "did", default)]
-    pub distinct_id: Uuid,
+    pub distinct_id: Option<Uuid>,
     /// An optional logical clock.
     #[serde(rename = "seq", default = "default_sequence")]
     pub sequence: u64,
@@ -144,13 +138,7 @@ pub struct SessionUpdate {
 impl SessionUpdate {
     /// Parses a session update from JSON.
     pub fn parse(payload: &[u8]) -> Result<Self, serde_json::Error> {
-        let mut session = serde_json::from_slice::<Self>(payload)?;
-
-        if session.distinct_id.is_nil() {
-            session.distinct_id = session.session_id;
-        }
-
-        Ok(session)
+        Ok(serde_json::from_slice::<Self>(payload)?)
     }
 
     /// Serializes a session update back into JSON.
@@ -182,7 +170,7 @@ mod tests {
 
         let update = SessionUpdate {
             session_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
-            distinct_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
+            distinct_id: Some("8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap()),
             sequence: 4711, // this would be a timestamp instead
             timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
@@ -214,9 +202,6 @@ mod tests {
   "duration": 1947.49,
   "status": "exited",
   "attrs": {
-    "os": "iOS",
-    "os_version": "13.3.1",
-    "device_family": "iPhone12,3",
     "release": "sentry-test@1.0.0",
     "environment": "production"
   }
@@ -224,7 +209,7 @@ mod tests {
 
         let update = SessionUpdate {
             session_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
-            distinct_id: "b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf".parse().unwrap(),
+            distinct_id: Some("b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf".parse().unwrap()),
             sequence: 42,
             timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
@@ -232,9 +217,6 @@ mod tests {
             duration: Some(1947.49),
             status: SessionStatus::Exited,
             attributes: SessionAttributes {
-                os: Some("iOS".to_owned()),
-                os_version: Some("13.3.1".to_owned()),
-                device_family: Some("iPhone12,3".to_owned()),
                 release: Some("sentry-test@1.0.0".to_owned()),
                 environment: Some("production".to_owned()),
             },
