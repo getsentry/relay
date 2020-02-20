@@ -21,7 +21,7 @@ use relay_general::types;
 
 use crate::constants::MAX_SESSION_DAYS;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-use crate::metrics::{RelayCounters, RelayHistograms};
+use crate::metrics::RelayCounters;
 use crate::service::{ServerError, ServerErrorKind};
 use crate::utils::instant_to_unix_timestamp;
 
@@ -64,15 +64,6 @@ impl StoreForwarder {
 
     fn produce(&self, topic: KafkaTopic, message: KafkaMessage) -> Result<(), StoreError> {
         let serialized = message.serialize()?;
-
-        sentry::configure_scope(|scope| {
-            scope.set_extra(
-                "StoreForwarder.produce.serialized.len",
-                serialized.len().into(),
-            );
-        });
-        metric!(histogram(RelayHistograms::IngestTopicMessageSize) = serialized.len() as u64);
-
         let record = BaseRecord::to(self.config.kafka_topic_name(topic))
             .key(message.key())
             .payload(&serialized);
@@ -397,8 +388,6 @@ impl Handler<StoreEnvelope> for StoreForwarder {
     type Result = Result<(), StoreError>;
 
     fn handle(&mut self, message: StoreEnvelope, _ctx: &mut Self::Context) -> Self::Result {
-        let _sentry_scope_guard = sentry::Hub::current().push_scope();
-
         let StoreEnvelope {
             envelope,
             start_time,
@@ -417,15 +406,6 @@ impl Handler<StoreEnvelope> for StoreForwarder {
         } else {
             KafkaTopic::Events
         };
-
-        sentry::configure_scope(|scope| {
-            scope.set_tag("StoreForwarder.StoreEnvelope.topic", topic);
-            scope.set_tag("StoreForwarder.StoreEnvelope.project_id", project_id);
-            scope.set_tag(
-                "StoreForwarder.StoreEnvelope.organization_id",
-                organization_id,
-            );
-        });
 
         let mut attachments = Vec::new();
 
