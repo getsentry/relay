@@ -43,6 +43,8 @@ pub enum RelayHistograms {
     ProjectStateReceived,
     /// Number of project states currently held in the ProjectState cache.
     ProjectStateCacheSize,
+    /// Bytes length of (msgpack-encoded) message on ingest topic.
+    IngestTopicMessageSize,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -56,6 +58,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
             RelayHistograms::ProjectStateReceived => "project_state.received",
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
+            RelayHistograms::IngestTopicMessageSize => "ingest_topic.message_size",
         }
     }
 }
