@@ -170,7 +170,7 @@ class SentryLike(object):
 
     def send_session(self, project_id, payload):
         session_item = Item(json.dumps(payload), {"type": "session"})
-        envelope = Envelope(headers={"dsn": self.dsn}, items=[session_item])
+        envelope = Envelope(items=[session_item])
         self.send_envelope(project_id, envelope)
 
     def send_security_report(
