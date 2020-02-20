@@ -27,6 +27,11 @@ use crate::utils::instant_to_unix_timestamp;
 
 type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
 
+lazy_static::lazy_static! {
+    static ref NAMESPACE_DID: Uuid = Uuid::new_v5(
+        &Uuid::NAMESPACE_URL, b"https://sentry.io/#did");
+}
+
 #[derive(Fail, Debug)]
 pub enum StoreError {
     #[fail(display = "failed to send kafka message")]
@@ -43,6 +48,11 @@ pub enum StoreError {
 pub struct StoreForwarder {
     config: Arc<Config>,
     producer: Arc<ThreadedProducer>,
+}
+
+fn make_distinct_id(s: &str) -> Uuid {
+    s.parse()
+        .unwrap_or_else(|_| Uuid::new_v5(&NAMESPACE_DID, s.as_bytes()))
 }
 
 impl StoreForwarder {
@@ -169,11 +179,14 @@ impl StoreForwarder {
             org_id,
             project_id,
             session_id: session.session_id,
-            distinct_id: session.distinct_id,
+            distinct_id: session
+                .distinct_id
+                .as_ref()
+                .map(|x| make_distinct_id(x.as_str()))
+                .unwrap_or(session.session_id),
             seq: session.sequence,
             timestamp: types::datetime_to_timestamp(session.timestamp),
             started: types::datetime_to_timestamp(session.started),
-            sample_rate: session.sample_rate,
             duration: session.duration,
             status: session.status,
             os: session.attributes.os,
@@ -317,7 +330,6 @@ struct SessionKafkaMessage {
     seq: u64,
     timestamp: f64,
     started: f64,
-    sample_rate: f32,
     duration: Option<f64>,
     status: SessionStatus,
     os: Option<String>,
