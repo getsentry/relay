@@ -176,6 +176,7 @@ pub fn init_logging(config: &Config) {
         Some(log),
         sentry::integrations::log::LoggerOptions {
             global_filter: Some(global_filter),
+            attach_stacktraces: config.enable_backtraces(),
             ..Default::default()
         },
     );
