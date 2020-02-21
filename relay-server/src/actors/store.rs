@@ -28,8 +28,8 @@ use crate::utils::instant_to_unix_timestamp;
 type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
 
 lazy_static::lazy_static! {
-    static ref NAMESPACE_DID: Uuid = Uuid::new_v5(
-        &Uuid::NAMESPACE_URL, b"https://sentry.io/#did");
+    static ref NAMESPACE_DID: Uuid =
+        Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did");
 }
 
 #[derive(Fail, Debug)]
@@ -190,8 +190,8 @@ impl StoreForwarder {
             session_id: session.session_id,
             distinct_id: session
                 .distinct_id
-                .as_ref()
-                .map(|x| make_distinct_id(x.as_str()))
+                .as_deref()
+                .map(make_distinct_id)
                 .unwrap_or_default(),
             seq: session.sequence,
             timestamp: types::datetime_to_timestamp(session.timestamp),
