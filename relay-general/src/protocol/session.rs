@@ -19,9 +19,9 @@ pub enum SessionStatus {
     Exited,
     /// The session resulted in an application crash.
     Crashed,
-    /// The session an unexpected abrupt termination (not crashing).
+    /// The session had an unexpected abrupt termination (not crashing).
     Abnormal,
-    /// The session degraded (unhealthy but did not crash)
+    /// The session is degraded (errors happened but it did not crash)
     Degraded,
 }
 
@@ -90,15 +90,6 @@ fn default_sequence() -> u64 {
         .as_millis() as u64
 }
 
-fn default_sample_rate() -> f32 {
-    1.0
-}
-
-#[allow(clippy::trivially_copy_pass_by_ref)]
-fn is_default_sample_rate(rate: &f32) -> bool {
-    (*rate - default_sample_rate()) < std::f32::EPSILON
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionUpdate {
     /// The session identifier.
@@ -106,7 +97,7 @@ pub struct SessionUpdate {
     pub session_id: Uuid,
     /// The distinct identifier.
     #[serde(rename = "did", default)]
-    pub distinct_id: Option<Uuid>,
+    pub distinct_id: Option<String>,
     /// An optional logical clock.
     #[serde(rename = "seq", default = "default_sequence")]
     pub sequence: u64,
@@ -114,12 +105,6 @@ pub struct SessionUpdate {
     pub timestamp: DateTime<Utc>,
     /// The timestamp of when the session itself started.
     pub started: DateTime<Utc>,
-    /// The sample rate.
-    #[serde(
-        default = "default_sample_rate",
-        skip_serializing_if = "is_default_sample_rate"
-    )]
-    pub sample_rate: f32,
     /// An optional duration of the session so far.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
@@ -161,7 +146,7 @@ mod tests {
 
         let output = r#"{
   "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-  "did": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "did": null,
   "seq": 4711,
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
@@ -170,11 +155,10 @@ mod tests {
 
         let update = SessionUpdate {
             session_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
-            distinct_id: Some("8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap()),
+            distinct_id: None,
             sequence: 4711, // this would be a timestamp instead
             timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
-            sample_rate: 1.0,
             duration: None,
             status: SessionStatus::Ok,
             attributes: SessionAttributes::default(),
@@ -194,11 +178,10 @@ mod tests {
     fn test_session_roundtrip() {
         let json = r#"{
   "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-  "did": "b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf",
+  "did": "foobarbaz",
   "seq": 42,
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
-  "sample_rate": 2.0,
   "duration": 1947.49,
   "status": "exited",
   "attrs": {
@@ -209,11 +192,10 @@ mod tests {
 
         let update = SessionUpdate {
             session_id: "8333339f-5675-4f89-a9a0-1c935255ab58".parse().unwrap(),
-            distinct_id: Some("b3ef3211-58a4-4b36-a9a1-5a55df0d9aaf".parse().unwrap()),
+            distinct_id: Some("foobarbaz".into()),
             sequence: 42,
             timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
-            sample_rate: 2.0,
             duration: Some(1947.49),
             status: SessionStatus::Exited,
             attributes: SessionAttributes {
