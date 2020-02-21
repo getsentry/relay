@@ -404,18 +404,6 @@ pub enum KafkaTopic {
     Sessions,
 }
 
-impl fmt::Display for KafkaTopic {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            KafkaTopic::Events => write!(f, "events"),
-            KafkaTopic::Attachments => write!(f, "attachments"),
-            KafkaTopic::Transactions => write!(f, "transactions"),
-            KafkaTopic::Outcomes => write!(f, "outcomes"),
-            KafkaTopic::Sessions => write!(f, "sessions"),
-        }
-    }
-}
-
 /// Configuration for topics.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
