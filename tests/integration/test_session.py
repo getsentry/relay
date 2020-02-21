@@ -21,10 +21,7 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
             "started": started.isoformat(),
             "duration": 1947.49,
             "status": "exited",
-            "attrs": {
-                "release": "sentry-test@1.0.0",
-                "environment": "production",
-            },
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
         },
     )
 
