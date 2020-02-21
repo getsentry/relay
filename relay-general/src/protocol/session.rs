@@ -123,7 +123,7 @@ pub struct SessionUpdate {
 impl SessionUpdate {
     /// Parses a session update from JSON.
     pub fn parse(payload: &[u8]) -> Result<Self, serde_json::Error> {
-        Ok(serde_json::from_slice::<Self>(payload)?)
+        serde_json::from_slice(payload)
     }
 
     /// Serializes a session update back into JSON.
