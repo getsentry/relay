@@ -1,4 +1,5 @@
 use std::fmt;
+use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::SystemTime;
 
@@ -75,11 +76,18 @@ pub struct SessionAttributes {
     pub release: Option<String>,
     /// The environment identifier.
     pub environment: Option<String>,
+    /// The ip address of the user.
+    pub ip_address: Option<IpAddr>,
+    /// The user agent of the user.
+    pub user_agent: Option<String>,
 }
 
 impl SessionAttributes {
     fn is_empty(&self) -> bool {
-        is_empty_string(&self.release) && is_empty_string(&self.environment)
+        is_empty_string(&self.release)
+            && is_empty_string(&self.environment)
+            && self.ip_address.is_none()
+            && is_empty_string(&self.user_agent)
     }
 }
 
@@ -101,6 +109,9 @@ pub struct SessionUpdate {
     /// An optional logical clock.
     #[serde(rename = "seq", default = "default_sequence")]
     pub sequence: u64,
+    /// A flag that indicates that this is the initial transmission of the session.
+    #[serde(default)]
+    pub init: bool,
     /// The timestamp of when the session change event was created.
     pub timestamp: DateTime<Utc>,
     /// The timestamp of when the session itself started.
@@ -148,6 +159,7 @@ mod tests {
   "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
   "did": null,
   "seq": 4711,
+  "init": false,
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
   "status": "ok"
@@ -160,6 +172,7 @@ mod tests {
             timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
             duration: None,
+            init: false,
             status: SessionStatus::Ok,
             attributes: SessionAttributes::default(),
         };
@@ -180,13 +193,16 @@ mod tests {
   "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
   "did": "foobarbaz",
   "seq": 42,
+  "init": true,
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
   "duration": 1947.49,
   "status": "exited",
   "attrs": {
     "release": "sentry-test@1.0.0",
-    "environment": "production"
+    "environment": "production",
+    "ip_address": "::1",
+    "user_agent": "Firefox/72.0"
   }
 }"#;
 
@@ -198,9 +214,12 @@ mod tests {
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
             duration: Some(1947.49),
             status: SessionStatus::Exited,
+            init: true,
             attributes: SessionAttributes {
                 release: Some("sentry-test@1.0.0".to_owned()),
                 environment: Some("production".to_owned()),
+                ip_address: Some("::1".parse().unwrap()),
+                user_agent: Some("Firefox/72.0".to_owned()),
             },
         };
 
