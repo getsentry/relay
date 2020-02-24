@@ -98,6 +98,11 @@ fn default_sequence() -> u64 {
         .as_millis() as u64
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_false(val: &bool) -> bool {
+    !val
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionUpdate {
     /// The session identifier.
@@ -110,7 +115,7 @@ pub struct SessionUpdate {
     #[serde(rename = "seq", default = "default_sequence")]
     pub sequence: u64,
     /// A flag that indicates that this is the initial transmission of the session.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub init: bool,
     /// The timestamp of when the session change event was created.
     #[serde(default = "Utc::now")]
@@ -163,7 +168,6 @@ mod tests {
   "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
   "did": null,
   "seq": 4711,
-  "init": false,
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
   "status": "ok",

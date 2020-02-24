@@ -189,11 +189,10 @@ impl StoreForwarder {
             started: types::datetime_to_timestamp(session.started),
             duration: session.duration,
             status: session.status,
-            errors: match (session.errors, session.status) {
-                (0, SessionStatus::Crashed) => 1,
-                (num, _) if num >= std::u16::MAX as u64 => std::u16::MAX,
-                (num, _) => num as u16,
-            },
+            errors: session
+                .errors
+                .min(u16::max_value().into())
+                .max((session.status == SessionStatus::Crashed) as _) as _,
             release: session.attributes.release,
             environment: session.attributes.environment,
             retention_days: event_retention,
