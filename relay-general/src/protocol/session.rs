@@ -122,6 +122,9 @@ pub struct SessionUpdate {
     /// The status of the session.
     #[serde(default)]
     pub status: SessionStatus,
+    /// The number of errors that ocurred.
+    #[serde(default)]
+    pub errors: u64,
     /// The session event attributes.
     #[serde(
         rename = "attrs",
@@ -162,7 +165,8 @@ mod tests {
   "init": false,
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
-  "status": "ok"
+  "status": "ok",
+  "errors": 0
 }"#;
 
         let update = SessionUpdate {
@@ -174,6 +178,7 @@ mod tests {
             duration: None,
             init: false,
             status: SessionStatus::Ok,
+            errors: 0,
             attributes: SessionAttributes::default(),
         };
 
@@ -198,6 +203,7 @@ mod tests {
   "started": "2020-02-07T14:16:00Z",
   "duration": 1947.49,
   "status": "exited",
+  "errors": 0,
   "attrs": {
     "release": "sentry-test@1.0.0",
     "environment": "production",
@@ -214,6 +220,7 @@ mod tests {
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
             duration: Some(1947.49),
             status: SessionStatus::Exited,
+            errors: 0,
             init: true,
             attributes: SessionAttributes {
                 release: Some("sentry-test@1.0.0".to_owned()),
