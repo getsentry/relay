@@ -171,7 +171,9 @@ def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consum
     assert sessions_consumer.poll() is None
 
 
-def test_session_force_errors_on_crash(mini_sentry, relay_with_processing, sessions_consumer):
+def test_session_force_errors_on_crash(
+    mini_sentry, relay_with_processing, sessions_consumer
+):
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
 
