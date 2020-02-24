@@ -101,7 +101,7 @@ fn default_sequence() -> u64 {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionUpdate {
     /// The session identifier.
-    #[serde(rename = "sid")]
+    #[serde(rename = "sid", default = "Uuid::new_v4")]
     pub session_id: Uuid,
     /// The distinct identifier.
     #[serde(rename = "did", default)]
@@ -113,6 +113,7 @@ pub struct SessionUpdate {
     #[serde(default)]
     pub init: bool,
     /// The timestamp of when the session change event was created.
+    #[serde(default = "Utc::now")]
     pub timestamp: DateTime<Utc>,
     /// The timestamp of when the session itself started.
     pub started: DateTime<Utc>,
@@ -190,6 +191,16 @@ mod tests {
 
         assert_eq_dbg!(update, parsed);
         assert_eq_str!(output, serde_json::to_string_pretty(&update).unwrap());
+    }
+
+    #[test]
+    fn test_session_default_timestamp_and_sid() {
+        let json = r#"{
+  "started": "2020-02-07T14:16:00Z"
+}"#;
+
+        let parsed = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert!(!parsed.session_id.is_nil());
     }
 
     #[test]
