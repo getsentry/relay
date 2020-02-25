@@ -1,4 +1,5 @@
 use std::fmt;
+use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::SystemTime;
 
@@ -75,11 +76,18 @@ pub struct SessionAttributes {
     pub release: Option<String>,
     /// The environment identifier.
     pub environment: Option<String>,
+    /// The ip address of the user.
+    pub ip_address: Option<IpAddr>,
+    /// The user agent of the user.
+    pub user_agent: Option<String>,
 }
 
 impl SessionAttributes {
     fn is_empty(&self) -> bool {
-        is_empty_string(&self.release) && is_empty_string(&self.environment)
+        is_empty_string(&self.release)
+            && is_empty_string(&self.environment)
+            && self.ip_address.is_none()
+            && is_empty_string(&self.user_agent)
     }
 }
 
@@ -90,10 +98,15 @@ fn default_sequence() -> u64 {
         .as_millis() as u64
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_false(val: &bool) -> bool {
+    !val
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionUpdate {
     /// The session identifier.
-    #[serde(rename = "sid")]
+    #[serde(rename = "sid", default = "Uuid::new_v4")]
     pub session_id: Uuid,
     /// The distinct identifier.
     #[serde(rename = "did", default)]
@@ -101,7 +114,11 @@ pub struct SessionUpdate {
     /// An optional logical clock.
     #[serde(rename = "seq", default = "default_sequence")]
     pub sequence: u64,
+    /// A flag that indicates that this is the initial transmission of the session.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub init: bool,
     /// The timestamp of when the session change event was created.
+    #[serde(default = "Utc::now")]
     pub timestamp: DateTime<Utc>,
     /// The timestamp of when the session itself started.
     pub started: DateTime<Utc>,
@@ -111,6 +128,9 @@ pub struct SessionUpdate {
     /// The status of the session.
     #[serde(default)]
     pub status: SessionStatus,
+    /// The number of errors that ocurred.
+    #[serde(default)]
+    pub errors: u64,
     /// The session event attributes.
     #[serde(
         rename = "attrs",
@@ -150,7 +170,8 @@ mod tests {
   "seq": 4711,
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
-  "status": "ok"
+  "status": "ok",
+  "errors": 0
 }"#;
 
         let update = SessionUpdate {
@@ -160,7 +181,9 @@ mod tests {
             timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
             duration: None,
+            init: false,
             status: SessionStatus::Ok,
+            errors: 0,
             attributes: SessionAttributes::default(),
         };
 
@@ -175,18 +198,32 @@ mod tests {
     }
 
     #[test]
+    fn test_session_default_timestamp_and_sid() {
+        let json = r#"{
+  "started": "2020-02-07T14:16:00Z"
+}"#;
+
+        let parsed = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert!(!parsed.session_id.is_nil());
+    }
+
+    #[test]
     fn test_session_roundtrip() {
         let json = r#"{
   "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
   "did": "foobarbaz",
   "seq": 42,
+  "init": true,
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
   "duration": 1947.49,
   "status": "exited",
+  "errors": 0,
   "attrs": {
     "release": "sentry-test@1.0.0",
-    "environment": "production"
+    "environment": "production",
+    "ip_address": "::1",
+    "user_agent": "Firefox/72.0"
   }
 }"#;
 
@@ -198,9 +235,13 @@ mod tests {
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
             duration: Some(1947.49),
             status: SessionStatus::Exited,
+            errors: 0,
+            init: true,
             attributes: SessionAttributes {
                 release: Some("sentry-test@1.0.0".to_owned()),
                 environment: Some("production".to_owned()),
+                ip_address: Some("::1".parse().unwrap()),
+                user_agent: Some("Firefox/72.0".to_owned()),
             },
         };
 

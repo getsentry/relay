@@ -184,11 +184,15 @@ impl StoreForwarder {
                 .as_deref()
                 .map(make_distinct_id)
                 .unwrap_or_default(),
-            seq: session.sequence,
+            seq: if session.init { 0 } else { session.sequence },
             timestamp: types::datetime_to_timestamp(session.timestamp),
             started: types::datetime_to_timestamp(session.started),
             duration: session.duration,
             status: session.status,
+            errors: session
+                .errors
+                .min(u16::max_value().into())
+                .max((session.status == SessionStatus::Crashed) as _) as _,
             release: session.attributes.release,
             environment: session.attributes.environment,
             retention_days: event_retention,
@@ -329,6 +333,7 @@ struct SessionKafkaMessage {
     started: f64,
     duration: Option<f64>,
     status: SessionStatus,
+    errors: u16,
     release: Option<String>,
     environment: Option<String>,
     retention_days: u16,
