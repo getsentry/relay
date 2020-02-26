@@ -22,8 +22,6 @@ pub enum SessionStatus {
     Crashed,
     /// The session had an unexpected abrupt termination (not crashing).
     Abnormal,
-    /// The session is degraded (errors happened but it did not crash)
-    Degraded,
 }
 
 impl Default for SessionStatus {
@@ -45,7 +43,6 @@ impl FromStr for SessionStatus {
             "ok" => SessionStatus::Ok,
             "crashed" => SessionStatus::Crashed,
             "abnormal" => SessionStatus::Abnormal,
-            "degraded" => SessionStatus::Degraded,
             "exited" => SessionStatus::Exited,
             _ => return Err(ParseSessionStatusError),
         })
@@ -58,7 +55,6 @@ impl fmt::Display for SessionStatus {
             SessionStatus::Ok => write!(f, "ok"),
             SessionStatus::Crashed => write!(f, "crashed"),
             SessionStatus::Abnormal => write!(f, "abnormal"),
-            SessionStatus::Degraded => write!(f, "degraded"),
             SessionStatus::Exited => write!(f, "exited"),
         }
     }

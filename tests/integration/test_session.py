@@ -35,7 +35,7 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         # seq is forced to 0 when init is true
         "seq": 0,
-        "timestamp": timestamp.timestamp(),
+        "received": timestamp.timestamp(),
         "started": started.timestamp(),
         "duration": 1947.49,
         "status": "exited",
@@ -79,7 +79,7 @@ def test_session_with_processing_two_events(
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         # seq is forced to 0 when init is true
         "seq": 0,
-        "timestamp": timestamp.timestamp(),
+        "received": timestamp.timestamp(),
         "started": started.timestamp(),
         "duration": None,
         "status": "ok",
@@ -109,7 +109,7 @@ def test_session_with_processing_two_events(
         "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         "seq": 43,
-        "timestamp": timestamp.timestamp(),
+        "received": timestamp.timestamp(),
         "started": started.timestamp(),
         "duration": 1947.49,
         "status": "exited",
@@ -205,7 +205,7 @@ def test_session_force_errors_on_crash(
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         # seq is forced to 0 when init is true
         "seq": 0,
-        "timestamp": timestamp.timestamp(),
+        "received": timestamp.timestamp(),
         "started": started.timestamp(),
         "duration": None,
         "status": "crashed",
