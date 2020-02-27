@@ -79,4 +79,4 @@ If the object key you want to match contains whitespace or special characters, y
 }
 ```
 
-It's not possible to match keys that contain `'` at the moment.
+To escape `'` within the quotes, replace it with `''`.
