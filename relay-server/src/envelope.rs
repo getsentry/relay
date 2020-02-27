@@ -38,14 +38,14 @@ use std::io::{self, Write};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use failure::Fail;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
-use crate::extractors::RequestMeta;
+use crate::extractors::{PartialMeta, RequestMeta};
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -437,7 +437,7 @@ pub type Items = SmallVec<[Item; 3]>;
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct EnvelopeHeaders {
+pub struct EnvelopeHeaders<M = RequestMeta> {
     /// Unique identifier of the event associated to this envelope.
     ///
     /// Envelopes without contained events do not contain an event id.  This is for instance
@@ -447,7 +447,7 @@ pub struct EnvelopeHeaders {
 
     /// Further event information derived from a store request.
     #[serde(flatten)]
-    meta: RequestMeta,
+    meta: M,
 
     /// Data retention in days for the items of this envelope.
     ///
@@ -465,6 +465,45 @@ pub struct EnvelopeHeaders {
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
+}
+
+impl EnvelopeHeaders<PartialMeta> {
+    /// Validate and apply request meta into partial envelope headers.
+    ///
+    /// If there is a mismatch, `EnvelopeError::HeaderMismatch` is returned.
+    ///
+    /// This method validates the following headers:
+    ///  - DSN project (required)
+    ///  - DSN public key (required)
+    ///  - Origin (if present)
+    fn complete(self, request_meta: RequestMeta) -> Result<EnvelopeHeaders, EnvelopeError> {
+        let meta = self.meta;
+
+        // Relay does not read the envelope's headers before running initial validation and fully
+        // relies on request headers at the moment. Technically, the envelope's meta is checked
+        // again once the event goes into the EventManager, but we want to be as accurate as
+        // possible in the endpoint already.
+        if meta.origin().is_some() && meta.origin() != request_meta.origin() {
+            return Err(EnvelopeError::HeaderMismatch("origin"));
+        }
+
+        if let Some(dsn) = meta.dsn() {
+            if dsn.project_id() != request_meta.dsn().project_id() {
+                return Err(EnvelopeError::HeaderMismatch("project id"));
+            }
+            if dsn.public_key() != request_meta.dsn().public_key() {
+                return Err(EnvelopeError::HeaderMismatch("public key"));
+            }
+        }
+
+        Ok(EnvelopeHeaders {
+            event_id: self.event_id,
+            meta: meta.copy_to(request_meta),
+            retention: self.retention,
+            sent_at: self.sent_at,
+            other: self.other,
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -489,66 +528,31 @@ impl Envelope {
     }
 
     /// Parses an envelope from bytes.
+    #[allow(dead_code)]
     pub fn parse_bytes(bytes: Bytes) -> Result<Self, EnvelopeError> {
-        let (headers, mut offset) = Self::parse_headers(&bytes)?;
+        let (headers, offset) = Self::parse_headers(&bytes)?;
+        let items = Self::parse_items(&bytes, offset)?;
 
-        let mut envelope = Envelope {
-            headers,
-            items: Items::new(),
-        };
-
-        while offset < bytes.len() {
-            let (item, item_size) = Self::parse_item(bytes.slice_from(offset))?;
-            offset += item_size;
-            envelope.items.push(item);
-        }
-
-        Ok(envelope)
+        Ok(Envelope { headers, items })
     }
 
     /// Parses an envelope taking into account a request.
     ///
     /// This method is intended to be used when parsing an envelope that was sent as part of a web
-    /// request. It validates that request headers are in line with the envelope's headers. If there
-    /// is a mismatch, `EnvelopeError::HeaderMismatch` is returned.
-    ///
-    /// This method validates the following headers:
-    ///  - DSN project (required)
-    ///  - DSN public key (required)
-    ///  - Origin (if present)
+    /// request. It validates that request headers are in line with the envelope's headers.
     ///
     /// If no event id is provided explicitly, one is created on the fly.
     pub fn parse_request(bytes: Bytes, request_meta: RequestMeta) -> Result<Self, EnvelopeError> {
-        let mut envelope = Self::parse_bytes(bytes)?;
-
-        // Validate certain key attributes between the envelope and request meta. Envelopes may only
-        // be submitted to endpoints that match their interior header information.
-        //
-        // Relay does not read the envelope's headers before running initial validation and fully
-        // relies on request headers at the moment. Technically, the envelope's meta is checked
-        // again once the event goes into the EventManager, but we want to be as accurate as
-        // possible in the endpoint already.
-        let meta = &mut envelope.headers.meta;
-        if meta.dsn().project_id() != request_meta.dsn().project_id() {
-            return Err(EnvelopeError::HeaderMismatch("project id"));
-        } else if meta.dsn().public_key() != request_meta.dsn().public_key() {
-            return Err(EnvelopeError::HeaderMismatch("public key"));
-        } else if meta.origin().is_some() && meta.origin() != request_meta.origin() {
-            return Err(EnvelopeError::HeaderMismatch("origin"));
-        }
-
-        // TODO(ja): RequestMeta's `forwarded` for is extracted from the header as well as the remote
-        // address. There is currently no straight-forward way to merge it with the envelope's
-        // `forwarded`. This requires us to always send appropriate headers.
-
-        envelope.headers.meta.merge(request_meta);
+        let (partial_headers, offset) = Self::parse_headers::<PartialMeta>(&bytes)?;
+        let mut headers = partial_headers.complete(request_meta)?;
 
         // Event-related envelopes *must* contain an event id.
-        if envelope.items().any(Item::requires_event) {
-            envelope.headers.event_id.get_or_insert_with(EventId::new);
+        let items = Self::parse_items(&bytes, offset)?;
+        if items.iter().any(Item::requires_event) {
+            headers.event_id.get_or_insert_with(EventId::new);
         }
 
-        Ok(envelope)
+        Ok(Envelope { headers, items })
     }
 
     /// Returns the number of items in this envelope.
@@ -673,7 +677,10 @@ impl Envelope {
         Ok(vec)
     }
 
-    fn parse_headers(slice: &[u8]) -> Result<(EnvelopeHeaders, usize), EnvelopeError> {
+    fn parse_headers<M>(slice: &[u8]) -> Result<(EnvelopeHeaders<M>, usize), EnvelopeError>
+    where
+        M: DeserializeOwned,
+    {
         let mut stream = serde_json::Deserializer::from_slice(slice).into_iter();
 
         let headers = match stream.next() {
@@ -686,6 +693,18 @@ impl Envelope {
         Self::require_termination(slice, stream.byte_offset())?;
 
         Ok((headers, stream.byte_offset() + 1))
+    }
+
+    fn parse_items(bytes: &Bytes, mut offset: usize) -> Result<Items, EnvelopeError> {
+        let mut items = Items::new();
+
+        while offset < bytes.len() {
+            let (item, item_size) = Self::parse_item(bytes.slice_from(offset))?;
+            offset += item_size;
+            items.push(item);
+        }
+
+        Ok(items)
     }
 
     fn parse_item(bytes: Bytes) -> Result<(Item, usize), EnvelopeError> {
@@ -738,6 +757,8 @@ impl Envelope {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use relay_common::ProjectId;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -855,7 +876,7 @@ mod tests {
             .parse()
             .unwrap();
         assert_eq!(*meta.dsn(), dsn);
-        assert_eq!(meta.project_id(), 42);
+        assert_eq!(meta.project_id(), ProjectId::new(42));
         assert_eq!(meta.public_key(), "e12d836b15bb49d7bbf99e64295d995b");
         assert_eq!(meta.client(), Some("sentry/javascript"));
         assert_eq!(meta.version(), 6);
@@ -929,7 +950,7 @@ mod tests {
 
     #[test]
     fn test_parse_request_envelope() {
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42\",\"client\":\"sentry/javascript\",\"version\":6,\"origin\":\"http://origin/\",\"remote_addr\":\"127.0.0.1\",\"forwarded_for\":\"8.8.8.8\",\"user_agent\":\"sentry-cli/1.0\"}");
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}");
         let envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
         let meta = envelope.meta();
 
@@ -941,7 +962,7 @@ mod tests {
             .parse()
             .unwrap();
         assert_eq!(*meta.dsn(), dsn);
-        assert_eq!(meta.project_id(), 42);
+        assert_eq!(meta.project_id(), ProjectId::new(42));
         assert_eq!(meta.public_key(), "e12d836b15bb49d7bbf99e64295d995b");
         assert_eq!(meta.client(), Some("sentry/client"));
         assert_eq!(meta.version(), 7);
@@ -949,6 +970,16 @@ mod tests {
         assert_eq!(meta.remote_addr(), Some("192.168.0.1".parse().unwrap()));
         assert_eq!(meta.forwarded_for(), "");
         assert_eq!(meta.user_agent(), Some("sentry/agent"));
+    }
+
+    #[test]
+    fn test_parse_request_no_dsn() {
+        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}");
+        let envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
+        let meta = envelope.meta();
+
+        // DSN should be assumed from the request.
+        assert_eq!(meta.dsn(), request_meta().dsn());
     }
 
     #[test]

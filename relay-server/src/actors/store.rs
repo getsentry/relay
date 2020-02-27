@@ -27,6 +27,11 @@ use crate::utils::instant_to_unix_timestamp;
 
 type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
 
+lazy_static::lazy_static! {
+    static ref NAMESPACE_DID: Uuid =
+        Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did");
+}
+
 #[derive(Fail, Debug)]
 pub enum StoreError {
     #[fail(display = "failed to send kafka message")]
@@ -43,6 +48,11 @@ pub enum StoreError {
 pub struct StoreForwarder {
     config: Arc<Config>,
     producer: Arc<ThreadedProducer>,
+}
+
+fn make_distinct_id(s: &str) -> Uuid {
+    s.parse()
+        .unwrap_or_else(|_| Uuid::new_v5(&NAMESPACE_DID, s.as_bytes()))
 }
 
 impl StoreForwarder {
@@ -169,16 +179,20 @@ impl StoreForwarder {
             org_id,
             project_id,
             session_id: session.session_id,
-            distinct_id: session.distinct_id,
-            seq: session.sequence,
-            timestamp: types::datetime_to_timestamp(session.timestamp),
+            distinct_id: session
+                .distinct_id
+                .as_deref()
+                .map(make_distinct_id)
+                .unwrap_or_default(),
+            seq: if session.init { 0 } else { session.sequence },
+            received: types::datetime_to_timestamp(session.timestamp),
             started: types::datetime_to_timestamp(session.started),
-            sample_rate: session.sample_rate,
             duration: session.duration,
             status: session.status,
-            os: session.attributes.os,
-            os_version: session.attributes.os_version,
-            device_family: session.attributes.device_family,
+            errors: session
+                .errors
+                .min(u16::max_value().into())
+                .max((session.status == SessionStatus::Crashed) as _) as _,
             release: session.attributes.release,
             environment: session.attributes.environment,
             retention_days: event_retention,
@@ -311,18 +325,15 @@ struct UserReportKafkaMessage {
 #[derive(Debug, Serialize)]
 struct SessionKafkaMessage {
     org_id: u64,
-    project_id: u64,
+    project_id: ProjectId,
     session_id: Uuid,
     distinct_id: Uuid,
     seq: u64,
-    timestamp: f64,
+    received: f64,
     started: f64,
-    sample_rate: f32,
     duration: Option<f64>,
     status: SessionStatus,
-    os: Option<String>,
-    os_version: Option<String>,
-    device_family: Option<String>,
+    errors: u16,
     release: Option<String>,
     environment: Option<String>,
     retention_days: u16,

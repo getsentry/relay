@@ -1,5 +1,5 @@
 ---
-source: general/tests/test_fixtures.rs
+source: relay-general/tests/test_fixtures.rs
 expression: SerializableAnnotated(&event)
 ---
 event_id: 498b1ef84dd242d4b265fcc39c42f744
@@ -14,7 +14,7 @@ release: io.sentry.sentry-ios-cocoapods-1.0
 dist: "1"
 user:
   id: "1234"
-  email: hello@sentry.io
+  email: 08C2CF67C31871F7BAD220E0702F5C61461C822B
 contexts:
   app:
     app_start_time: "2018-07-24T14:36:26Z"
@@ -31,11 +31,11 @@ contexts:
     model: "iPhone10,5"
     model_id: simulator
     arch: x86
-    memory_size: 17179869184
+    memory_size: ~
     free_memory: 170725376
     usable_memory: 14726877184
     storage_size: 250030215168
-    boot_time: "2018-07-09T14:14:11Z"
+    boot_time: ~
     type: device
   os:
     name: iOS
@@ -1688,6 +1688,18 @@ errors:
     name: threads.values.9.stacktrace.frames
     reason: expected a non-empty value
 _meta:
+  contexts:
+    device:
+      boot_time:
+        "":
+          rem:
+            - - "@anything:remove"
+              - x
+      memory_size:
+        "":
+          rem:
+            - - "@anything:remove"
+              - x
   threads:
     values:
       "9":
@@ -1697,3 +1709,12 @@ _meta:
               err:
                 - - invalid_data
                   - reason: expected a non-empty value
+  user:
+    email:
+      "":
+        rem:
+          - - "@anything:hash"
+            - p
+            - 0
+            - 40
+        len: 15

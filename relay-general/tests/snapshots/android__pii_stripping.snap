@@ -1,12 +1,15 @@
 ---
-source: general/tests/test_fixtures.rs
+source: relay-general/tests/test_fixtures.rs
 expression: SerializableAnnotated(&event)
 ---
 event_id: ae3a2cc6e08741c5b09946c65c022469
 level: error
 type: error
 culprit: io.sentry.sample.MainActivity in lambda$onCreate$2
+logger: ""
 platform: java
+timestamp: "[timestamp]"
+received: "[received]"
 release: io.sentry.sample-1.0
 dist: "1"
 contexts:
@@ -25,25 +28,25 @@ contexts:
     orientation: portrait
     manufacturer: Google
     brand: google
-    screen_resolution: 1136x768
-    screen_density: 3.0
-    screen_dpi: 480
+    screen_resolution: ~
+    screen_density: ~
+    screen_dpi: ~
     online: true
     charging: true
     low_memory: false
     simulator: true
-    memory_size: 1055186944
+    memory_size: ~
     free_memory: 658702336
     storage_size: 817143808
     free_storage: 508784640
     external_storage_size: 534761472
     external_free_storage: 534702080
-    boot_time: "2019-12-11T11:38:15Z"
-    timezone: America/Los_Angeles
+    boot_time: ~
+    timezone: ~
     archs:
       - x86
-    screen_height_pixels: 1136
-    screen_width_pixels: 768
+    screen_height_pixels: ~
+    screen_width_pixels: ~
     type: device
   os:
     name: Android
@@ -473,3 +476,46 @@ sdk:
       version: 2.0.0-beta01
     - name: sentry-android-ndk
       version: 2.0.0-beta01
+_meta:
+  contexts:
+    device:
+      boot_time:
+        "":
+          rem:
+            - - "@anything:remove"
+              - x
+      memory_size:
+        "":
+          rem:
+            - - "@anything:remove"
+              - x
+      screen_density:
+        "":
+          rem:
+            - - "@anything:remove"
+              - x
+      screen_dpi:
+        "":
+          rem:
+            - - "@anything:remove"
+              - x
+      screen_height_pixels:
+        "":
+          rem:
+            - - "@anything:remove"
+              - x
+      screen_resolution:
+        "":
+          rem:
+            - - "@anything:remove"
+              - x
+      screen_width_pixels:
+        "":
+          rem:
+            - - "@anything:remove"
+              - x
+      timezone:
+        "":
+          rem:
+            - - "@anything:remove"
+              - x

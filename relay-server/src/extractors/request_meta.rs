@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::net::IpAddr;
 
 use actix::ResponseFuture;
@@ -11,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use relay_common::{
-    tryf, Auth, AuthParseError, Dsn, DsnParseError, ProjectId, ProjectIdParseError,
+    tryf, Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ProjectId,
 };
 
 use crate::actors::project_keys::GetProjectId;
@@ -25,13 +24,13 @@ pub enum BadEventMeta {
     MissingAuth,
 
     #[fail(display = "bad project path parameter")]
-    BadProject(#[cause] ProjectIdParseError),
+    BadProject(#[cause] ParseProjectIdError),
 
     #[fail(display = "bad x-sentry-auth header")]
-    BadAuth(#[fail(cause)] AuthParseError),
+    BadAuth(#[fail(cause)] ParseAuthError),
 
     #[fail(display = "bad sentry DSN")]
-    BadDsn(#[fail(cause)] DsnParseError),
+    BadDsn(#[fail(cause)] ParseDsnError),
 
     #[fail(display = "bad project key: project does not exist")]
     BadProjectKey,
@@ -54,15 +53,15 @@ impl ResponseError for BadEventMeta {
     }
 }
 
-fn default_version() -> u16 {
+const fn default_version() -> u16 {
     relay_common::PROTOCOL_VERSION
 }
 
 /// Request information for sentry ingest data, such as events, envelopes or metrics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RequestMeta {
+pub struct RequestMeta<D = Dsn> {
     /// The DSN describing the target of this envelope.
-    dsn: Dsn,
+    dsn: D,
 
     /// The client SDK that sent this event.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -89,60 +88,7 @@ pub struct RequestMeta {
     user_agent: Option<String>,
 }
 
-impl RequestMeta {
-    #[cfg(test)]
-    pub fn new(dsn: Dsn) -> Self {
-        RequestMeta {
-            dsn,
-            client: Some("sentry/client".to_string()),
-            version: 7,
-            origin: Some("http://origin/".parse().unwrap()),
-            remote_addr: Some("192.168.0.1".parse().unwrap()),
-            forwarded_for: String::new(),
-            user_agent: Some("sentry/agent".to_string()),
-        }
-    }
-
-    /// Overwrites this event meta instance with information from another.
-    ///
-    /// All fields that are not set in the other instance will remain.
-    pub fn merge(&mut self, other: RequestMeta) {
-        self.dsn = other.dsn;
-        if let Some(client) = other.client {
-            self.client = Some(client);
-        }
-        self.version = other.version;
-        if let Some(origin) = other.origin {
-            self.origin = Some(origin);
-        }
-        if let Some(remote_addr) = other.remote_addr {
-            self.remote_addr = Some(remote_addr);
-        }
-        self.forwarded_for = other.forwarded_for;
-        if let Some(user_agent) = other.user_agent {
-            self.user_agent = Some(user_agent);
-        }
-    }
-
-    /// Returns a reference to the DSN.
-    ///
-    /// The DSN declares the project and auth information and upstream address. When RequestMeta is
-    /// constructed from a web request, the DSN is set to point to the upstream host.
-    pub fn dsn(&self) -> &Dsn {
-        &self.dsn
-    }
-
-    /// Returns the project identifier that the DSN points to.
-    pub fn project_id(&self) -> ProjectId {
-        // TODO(ja): sentry-types does not expose the DSN at the moment.
-        unsafe { std::mem::transmute(self.dsn().project_id()) }
-    }
-
-    /// Returns the public key part of the DSN for authentication.
-    pub fn public_key(&self) -> &str {
-        &self.dsn.public_key()
-    }
-
+impl<D> RequestMeta<D> {
     /// Returns the client that sent this event (Sentry SDK identifier).
     pub fn client(&self) -> Option<&str> {
         self.client.as_ref().map(String::as_str)
@@ -185,6 +131,39 @@ impl RequestMeta {
     pub fn user_agent(&self) -> Option<&str> {
         self.user_agent.as_ref().map(String::as_str)
     }
+}
+
+impl RequestMeta {
+    #[cfg(test)]
+    pub fn new(dsn: Dsn) -> Self {
+        RequestMeta {
+            dsn,
+            client: Some("sentry/client".to_string()),
+            version: 7,
+            origin: Some("http://origin/".parse().unwrap()),
+            remote_addr: Some("192.168.0.1".parse().unwrap()),
+            forwarded_for: String::new(),
+            user_agent: Some("sentry/agent".to_string()),
+        }
+    }
+
+    /// Returns a reference to the DSN.
+    ///
+    /// The DSN declares the project and auth information and upstream address. When RequestMeta is
+    /// constructed from a web request, the DSN is set to point to the upstream host.
+    pub fn dsn(&self) -> &Dsn {
+        &self.dsn
+    }
+
+    /// Returns the project identifier that the DSN points to.
+    pub fn project_id(&self) -> ProjectId {
+        self.dsn().project_id()
+    }
+
+    /// Returns the public key part of the DSN for authentication.
+    pub fn public_key(&self) -> &str {
+        &self.dsn.public_key()
+    }
 
     /// Formats the Sentry authentication header.
     ///
@@ -202,6 +181,46 @@ impl RequestMeta {
         }
 
         auth
+    }
+}
+
+pub type PartialMeta = RequestMeta<Option<Dsn>>;
+
+impl PartialMeta {
+    /// Returns a reference to the DSN.
+    ///
+    /// The DSN declares the project and auth information and upstream address. When RequestMeta is
+    /// constructed from a web request, the DSN is set to point to the upstream host.
+    pub fn dsn(&self) -> Option<&Dsn> {
+        self.dsn.as_ref()
+    }
+
+    /// Completes missing information with complete `RequestMeta`.
+    ///
+    /// All fields that set in this instance will remain.
+    pub fn copy_to(self, mut complete: RequestMeta) -> RequestMeta {
+        // DSN needs to be validated by the caller and will not be copied over.
+
+        if self.client.is_some() {
+            complete.client = self.client;
+        }
+        if self.version != default_version() {
+            complete.version = self.version;
+        }
+        if self.origin.is_some() {
+            complete.origin = self.origin;
+        }
+        if self.remote_addr.is_some() {
+            complete.remote_addr = self.remote_addr;
+        }
+        if !self.forwarded_for.is_empty() {
+            complete.forwarded_for = self.forwarded_for;
+        }
+        if self.user_agent.is_some() {
+            complete.user_agent = self.user_agent;
+        }
+
+        complete
     }
 }
 
@@ -235,11 +254,8 @@ fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
         .get("sentry_key")
         .ok_or(BadEventMeta::MissingAuth)?;
 
-    Auth::from_pairs(std::iter::once((
-        Cow::Borrowed("key"),
-        Cow::Borrowed(sentry_key),
-    )))
-    .map_err(|_| BadEventMeta::MissingAuth)
+    Auth::from_pairs(std::iter::once(("sentry_key", sentry_key)))
+        .map_err(|_| BadEventMeta::MissingAuth)
 }
 
 fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Option<Url> {

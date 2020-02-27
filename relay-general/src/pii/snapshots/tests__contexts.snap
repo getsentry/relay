@@ -1,9 +1,18 @@
 ---
-source: general/src/datascrubbing/convert.rs
+source: relay-general/src/pii/convert.rs
 expression: data
 ---
 {
   "contexts": {
+    "app": {
+      "a_password_here": "hello",
+      "apiKey": "secret_key",
+      "api_key": "secret_key",
+      "foo": "bar",
+      "password": "hello",
+      "the_secret": "hello",
+      "type": "app"
+    },
     "biz": {
       "a_password_here": "[Filtered]",
       "apiKey": "[Filtered]",
@@ -13,6 +22,60 @@ expression: data
       "the_secret": "[Filtered]",
       "type": "biz"
     },
+    "browser": {
+      "a_password_here": "hello",
+      "apiKey": "secret_key",
+      "api_key": "secret_key",
+      "foo": "bar",
+      "password": "hello",
+      "the_secret": "hello",
+      "type": "browser"
+    },
+    "device": {
+      "a_password_here": "hello",
+      "apiKey": "secret_key",
+      "api_key": "secret_key",
+      "foo": "bar",
+      "password": "hello",
+      "the_secret": "hello",
+      "type": "device"
+    },
+    "gpu": {
+      "a_password_here": "hello",
+      "apiKey": "secret_key",
+      "api_key": "secret_key",
+      "foo": "bar",
+      "password": "hello",
+      "the_secret": "hello",
+      "type": "gpu"
+    },
+    "monitor": {
+      "a_password_here": "hello",
+      "apiKey": "secret_key",
+      "api_key": "secret_key",
+      "foo": "bar",
+      "password": "hello",
+      "the_secret": "hello",
+      "type": "monitor"
+    },
+    "os": {
+      "a_password_here": "hello",
+      "apiKey": "secret_key",
+      "api_key": "secret_key",
+      "foo": "bar",
+      "password": "hello",
+      "the_secret": "hello",
+      "type": "os"
+    },
+    "runtime": {
+      "a_password_here": "hello",
+      "apiKey": "secret_key",
+      "api_key": "secret_key",
+      "foo": "bar",
+      "password": "hello",
+      "the_secret": "hello",
+      "type": "runtime"
+    },
     "secret": {
       "a_password_here": "[Filtered]",
       "apiKey": "[Filtered]",
@@ -21,6 +84,15 @@ expression: data
       "password": "[Filtered]",
       "the_secret": "[Filtered]",
       "type": "[Filtered]"
+    },
+    "trace": {
+      "a_password_here": "hello",
+      "apiKey": "secret_key",
+      "api_key": "secret_key",
+      "foo": "bar",
+      "password": "hello",
+      "the_secret": "hello",
+      "type": "trace"
     }
   },
   "_meta": {

@@ -1,5 +1,5 @@
 ---
-source: general/tests/test_fixtures.rs
+source: relay-general/tests/test_fixtures.rs
 expression: SerializableAnnotated(&event)
 ---
 event_id: c99bf5ef2eb447d59183ced79601b547
@@ -134,8 +134,8 @@ exception:
             in_app: false
           - function: Object.<anonymous>
             module: main
-            filename: /Users/kamilogorek/Projects/sentry/tmp/main.js
-            abs_path: /Users/kamilogorek/Projects/sentry/tmp/main.js
+            filename: "/Users/[user]/Projects/sentry/tmp/main.js"
+            abs_path: "/Users/[user]/Projects/sentry/tmp/main.js"
             lineno: 21
             colno: 7
             pre_context:
@@ -158,8 +158,8 @@ exception:
             in_app: true
           - function: Raven.captureException
             module: "raven.lib:client"
-            filename: /Users/kamilogorek/Projects/sentry/tmp/node_modules/raven/lib/client.js
-            abs_path: /Users/kamilogorek/Projects/sentry/tmp/node_modules/raven/lib/client.js
+            filename: "/Users/[user]/Projects/sentry/tmp/node_modules/raven/lib/client.js"
+            abs_path: "/Users/[user]/Projects/sentry/tmp/node_modules/raven/lib/client.js"
             lineno: 407
             colno: 15
             pre_context:
@@ -184,8 +184,58 @@ tags:
   - - git_commit
     - c0deb10c4
   - - server_name
-    - Kamils-MacBook-Pro.local
+    - "[.local hostname]"
 extra:
   node: v8.11.2
   planet:
     name: Earth
+_meta:
+  exception:
+    values:
+      "0":
+        stacktrace:
+          frames:
+            "8":
+              abs_path:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 7
+                      - 13
+                  len: 38
+              filename:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 7
+                      - 13
+                  len: 38
+            "9":
+              abs_path:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 7
+                      - 13
+                  len: 61
+              filename:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 7
+                      - 13
+                  len: 61
+  tags:
+    "1":
+      "1":
+        "":
+          rem:
+            - - removeDotLocal
+              - s
+              - 0
+              - 17
+          len: 24

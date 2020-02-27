@@ -149,6 +149,27 @@ impl fmt::Display for RelayMode {
     }
 }
 
+/// Checks if we are running in docker.
+fn is_docker() -> bool {
+    if fs::metadata("/.dockerenv").is_ok() {
+        return true;
+    }
+
+    fs::read_to_string("/proc/self/cgroup")
+        .map(|s| s.find("/docker").is_some())
+        .unwrap_or(false)
+}
+
+/// Default value for the "bind" configuration.
+fn default_host() -> IpAddr {
+    if is_docker() {
+        // Docker images rely on this service being exposed
+        "0.0.0.0".parse().unwrap()
+    } else {
+        "127.0.0.1".parse().unwrap()
+    }
+}
+
 /// Relay specific configuration values.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -173,10 +194,8 @@ impl Default for Relay {
     fn default() -> Self {
         Relay {
             mode: RelayMode::Managed,
-            upstream: "https://sentry.io/"
-                .parse::<UpstreamDescriptor<'_>>()
-                .unwrap(),
-            host: "127.0.0.1".parse().unwrap(),
+            upstream: "https://sentry.io/".parse().unwrap(),
+            host: default_host(),
             port: 3000,
             tls_port: None,
             tls_identity_path: None,
@@ -219,7 +238,7 @@ impl Default for Logging {
             level: log::LevelFilter::Info,
             log_failed_payloads: false,
             format: LogFormat::Auto,
-            enable_backtraces: true,
+            enable_backtraces: false,
         }
     }
 }
@@ -457,7 +476,7 @@ fn default_projectconfig_cache_prefix() -> String {
     "relayconfig".to_owned()
 }
 
-fn default_rate_limit() -> Option<u32> {
+fn default_max_rate_limit() -> Option<u32> {
     Some(300) // 5 minutes
 }
 
@@ -481,6 +500,7 @@ pub struct Processing {
     #[serde(default)]
     pub topics: TopicNames,
     /// Redis hosts to connect to for storing state for rate limits.
+    #[serde(default)]
     pub redis: Option<Redis>,
     /// Maximum chunk size of attachments for Kafka.
     #[serde(default = "default_chunk_size")]
@@ -489,7 +509,7 @@ pub struct Processing {
     #[serde(default = "default_projectconfig_cache_prefix")]
     pub projectconfig_cache_prefix: String,
     /// Maximum rate limit to report to clients.
-    #[serde(default = "default_rate_limit")]
+    #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
 }
 
@@ -503,10 +523,10 @@ impl Default for Processing {
             max_secs_in_past: 0,
             kafka_config: Vec::new(),
             topics: TopicNames::default(),
-            redis: Some(Redis::default()),
+            redis: None,
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
-            max_rate_limit: default_rate_limit(),
+            max_rate_limit: default_max_rate_limit(),
         }
     }
 }
@@ -522,20 +542,6 @@ pub enum Redis {
     },
     /// Connect to a single redis instance
     Single(String),
-}
-
-impl Default for Redis {
-    fn default() -> Self {
-        Redis::Single("redis://127.0.0.1".to_owned())
-    }
-}
-
-/// Controls interal reporting to Sentry.
-#[derive(Serialize, Deserialize, Debug, Default)]
-#[serde(default)]
-pub struct MinimalSentry {
-    /// Set to true to enable sentry reporting to the default dsn.
-    pub enabled: bool,
 }
 
 /// Minimal version of a config for dumping out.

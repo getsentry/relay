@@ -40,12 +40,15 @@ pub struct DeviceContext {
     pub brand: Annotated<String>,
 
     /// Device screen resolution.
+    #[metastructure(pii = "maybe")]
     pub screen_resolution: Annotated<String>,
 
     /// Device screen density.
+    #[metastructure(pii = "maybe")]
     pub screen_density: Annotated<f64>,
 
     /// Screen density as dots-per-inch.
+    #[metastructure(pii = "maybe")]
     pub screen_dpi: Annotated<u64>,
 
     /// Whether the device was online or not.
@@ -61,34 +64,43 @@ pub struct DeviceContext {
     pub simulator: Annotated<bool>,
 
     /// Total memory available in bytes.
+    #[metastructure(pii = "maybe")]
     pub memory_size: Annotated<u64>,
 
     /// How much memory is still available in bytes.
+    #[metastructure(pii = "maybe")]
     pub free_memory: Annotated<u64>,
 
     /// How much memory is usable for the app in bytes.
+    #[metastructure(pii = "maybe")]
     pub usable_memory: Annotated<u64>,
 
     /// Total storage size of the device in bytes.
+    #[metastructure(pii = "maybe")]
     pub storage_size: Annotated<u64>,
 
     /// How much storage is free in bytes.
+    #[metastructure(pii = "maybe")]
     pub free_storage: Annotated<u64>,
 
     /// Total size of the attached external storage in bytes (eg: android SDK card).
+    #[metastructure(pii = "maybe")]
     pub external_storage_size: Annotated<u64>,
 
     /// Free size of the attached external storage in bytes (eg: android SDK card).
+    #[metastructure(pii = "maybe")]
     pub external_free_storage: Annotated<u64>,
 
     /// Indicator when the device was booted.
+    #[metastructure(pii = "maybe")]
     pub boot_time: Annotated<String>,
 
     /// Timezone of the device.
+    #[metastructure(pii = "maybe")]
     pub timezone: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true")]
+    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
 }
 
@@ -109,19 +121,22 @@ pub struct OsContext {
     pub version: Annotated<String>,
 
     /// Internal build number of the operating system.
+    #[metastructure(pii = "maybe")]
     pub build: Annotated<LenientString>,
 
     /// Current kernel version.
+    #[metastructure(pii = "maybe")]
     pub kernel_version: Annotated<String>,
 
     /// Indicator if the OS is rooted (mobile mostly).
     pub rooted: Annotated<bool>,
 
     /// Unprocessed operating system info.
+    #[metastructure(pii = "maybe")]
     pub raw_description: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true")]
+    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
 }
 
@@ -142,13 +157,15 @@ pub struct RuntimeContext {
     pub version: Annotated<String>,
 
     /// Application build string, if it is separate from the version.
+    #[metastructure(pii = "maybe")]
     pub build: Annotated<LenientString>,
 
     /// Unprocessed runtime info.
+    #[metastructure(pii = "maybe")]
     pub raw_description: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true")]
+    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
 }
 
@@ -163,9 +180,11 @@ impl RuntimeContext {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct AppContext {
     /// Start time of the app.
+    #[metastructure(pii = "maybe")]
     pub app_start_time: Annotated<String>,
 
     /// Device app hash (app specific device ID)
+    #[metastructure(pii = "maybe")]
     pub device_app_hash: Annotated<String>,
 
     /// Build identicator.
@@ -184,7 +203,7 @@ pub struct AppContext {
     pub app_build: Annotated<LenientString>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true")]
+    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
 }
 
@@ -205,7 +224,7 @@ pub struct BrowserContext {
     pub version: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true")]
+    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
 }
 
@@ -227,7 +246,7 @@ lazy_static::lazy_static! {
 
 /// GPU information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-pub struct GpuContext(pub Object<Value>);
+pub struct GpuContext(#[metastructure(pii = "maybe")] pub Object<Value>);
 
 impl From<Object<Value>> for GpuContext {
     fn from(object: Object<Value>) -> Self {
@@ -258,7 +277,7 @@ impl GpuContext {
 
 /// Monitor information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-pub struct MonitorContext(pub Object<Value>);
+pub struct MonitorContext(#[metastructure(pii = "maybe")] pub Object<Value>);
 
 impl From<Object<Value>> for MonitorContext {
     fn from(object: Object<Value>) -> Self {
@@ -358,7 +377,7 @@ pub struct TraceContext {
     pub status: Annotated<SpanStatus>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true")]
+    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
 }
 
@@ -607,7 +626,7 @@ pub enum Context {
     Monitor(Box<MonitorContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
-    Other(Object<Value>),
+    Other(#[metastructure(pii = "true")] Object<Value>),
 }
 
 impl Context {

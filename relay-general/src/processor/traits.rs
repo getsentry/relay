@@ -99,7 +99,11 @@ pub trait Processor: Sized {
             process_value(
                 value,
                 self,
-                &state.enter_borrowed(key.as_str(), None, ValueType::for_field(value)),
+                &state.enter_borrowed(
+                    key.as_str(),
+                    state.inner_attrs(),
+                    ValueType::for_field(value),
+                ),
             )?;
         }
 

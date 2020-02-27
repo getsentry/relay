@@ -241,46 +241,16 @@ lazy_static::lazy_static! {
         pii: Pii::False,
         retain: false,
     };
-}
 
-lazy_static::lazy_static! {
-    static ref PII_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-        name: None,
-        required: false,
-        nonempty: false,
-        trim_whitespace: false,
-        match_regex: None,
-        max_chars: None,
-        bag_size: None,
+    static ref PII_TRUE_FIELD_ATTRS: FieldAttrs = FieldAttrs {
         pii: Pii::True,
-        retain: false,
+        ..DEFAULT_FIELD_ATTRS.clone()
     };
-}
 
-lazy_static::lazy_static! {
-    static ref RETAIN_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-        name: None,
-        required: false,
-        nonempty: false,
-        trim_whitespace: false,
-        match_regex: None,
-        max_chars: None,
-        bag_size: None,
-        pii: Pii::False,
-        retain: true,
+    static ref PII_MAYBE_FIELD_ATTRS: FieldAttrs = FieldAttrs {
+        pii: Pii::Maybe,
+        ..DEFAULT_FIELD_ATTRS.clone()
     };
-}
-
-impl FieldAttrs {
-    /// Like default but with `pii` set to true.
-    pub fn default_pii() -> &'static FieldAttrs {
-        &*PII_FIELD_ATTRS
-    }
-
-    /// Like default but with `retain` set to true.
-    pub fn default_retain() -> &'static FieldAttrs {
-        &*RETAIN_FIELD_ATTRS
-    }
 }
 
 impl Default for FieldAttrs {
@@ -448,10 +418,10 @@ impl<'a> ProcessingState<'a> {
 
     /// Derives the attrs for recursion.
     pub fn inner_attrs(&self) -> Option<Cow<'_, FieldAttrs>> {
-        if self.attrs().pii == Pii::True {
-            Some(Cow::Borrowed(FieldAttrs::default_pii()))
-        } else {
-            None
+        match self.attrs().pii {
+            Pii::True => Some(Cow::Borrowed(&PII_TRUE_FIELD_ATTRS)),
+            Pii::False => None,
+            Pii::Maybe => Some(Cow::Borrowed(&PII_MAYBE_FIELD_ATTRS)),
         }
     }
 

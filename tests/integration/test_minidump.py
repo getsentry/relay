@@ -70,8 +70,14 @@ def test_minidump_attachments(mini_sentry, relay):
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
 
     event = {"event_id": "2dd132e467174db48dbaddabd3cbed57", "user": {"id": "123"}}
-    breadcrumbs1 = [{"timestamp": 1461185755, "message": "A",}]
-    breadcrumbs2 = [{"timestamp": 1461185750, "message": "B",}]
+    breadcrumbs1 = {
+        "timestamp": 1461185755,
+        "message": "A",
+    }
+    breadcrumbs2 = {
+        "timestamp": 1461185750,
+        "message": "B",
+    }
 
     sentry_event = msgpack.packb(event)
     sentry_breadcrumbs1 = msgpack.packb(breadcrumbs1)
