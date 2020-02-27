@@ -185,7 +185,7 @@ impl StoreForwarder {
                 .map(make_distinct_id)
                 .unwrap_or_default(),
             seq: if session.init { 0 } else { session.sequence },
-            timestamp: types::datetime_to_timestamp(session.timestamp),
+            received: types::datetime_to_timestamp(session.timestamp),
             started: types::datetime_to_timestamp(session.started),
             duration: session.duration,
             status: session.status,
@@ -329,7 +329,7 @@ struct SessionKafkaMessage {
     session_id: Uuid,
     distinct_id: Uuid,
     seq: u64,
-    timestamp: f64,
+    received: f64,
     started: f64,
     duration: Option<f64>,
     status: SessionStatus,
