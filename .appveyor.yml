@@ -5,10 +5,6 @@ branches:
     - master
     - /^release\/.*$/
 
-cache:
-  - "target"
-  - '%USERPROFILE%\.cargo'
-
 build:
   verbosity: minimal
 
