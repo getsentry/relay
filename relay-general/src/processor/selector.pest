@@ -1,13 +1,19 @@
+WHITESPACE = _{ " " }
+
 ObjectType = @{ "$" ~ ('a' .. 'z')+ }
 Wildcard = @{ "*" }
 DeepWildcard = @{ "**" }
+
 Quote = _{ "'" }
-WHITESPACE = _{ " " }
-Index = @{ ASCII_DIGIT+ }
+EscapedQuote = @{ Quote ~ "'" }
+
 UnquotedKey = @{ (ASCII_ALPHANUMERIC | "-" | "_") + }
 RootUnquotedKey = { SOI ~ UnquotedKey ~ EOI }
-QuotedKey = @{ ((!"'") ~ ANY)+ }
+QuotedKey = @{ (((!"'") ~ ANY) | EscapedQuote)+ }
 Key = { UnquotedKey | Quote ~ QuotedKey ~ Quote }
+
+Index = @{ ASCII_DIGIT+ }
+
 SelectorPathItem = { ObjectType | DeepWildcard | Wildcard | Index | Key }
 SelectorPath = { SelectorPathItem ~ ("." ~ SelectorPathItem)* }
 

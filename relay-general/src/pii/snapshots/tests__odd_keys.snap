@@ -4,12 +4,12 @@ expression: data
 ---
 {
   "extra": {
-    "do not ßtrip": "foo",
-    "special gärbage": "[Filtered]"
+    "do not ,./<>?!@#$%^&*())'ßtrip'": "foo",
+    "special ,./<>?!@#$%^&*())'gärbage'": "[Filtered]"
   },
   "_meta": {
     "extra": {
-      "special gärbage": {
+      "special ,./<>?!@#$%^&*())'gärbage'": {
         "": {
           "rem": [
             [

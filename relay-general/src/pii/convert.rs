@@ -1291,15 +1291,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut data = Event::from_value(
             serde_json::json!({
                 "extra": {
-                    "do not ßtrip": "foo",
-                    "special gärbage": "bar",
+                    "do not ,./<>?!@#$%^&*())'ßtrip'": "foo",
+                    "special ,./<>?!@#$%^&*())'gärbage'": "bar",
                 }
             })
             .into(),
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["special gärbage".to_owned()],
+            sensitive_fields: vec!["special ,./<>?!@#$%^&*())'gärbage'".to_owned()],
             exclude_fields: vec!["do not ßtrip".to_owned()],
             ..simple_enabled_config()
         });
