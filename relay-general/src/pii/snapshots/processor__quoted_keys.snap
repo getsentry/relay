@@ -4,12 +4,12 @@ expression: event
 ---
 {
   "extra": {
-    "do not strip": "foo",
-    "special garbage": null
+    "do not ,./<>?!@#$%^&*())'ßtrip'": "foo",
+    "special ,./<>?!@#$%^&*())'gärbage'": null
   },
   "_meta": {
     "extra": {
-      "special garbage": {
+      "special ,./<>?!@#$%^&*())'gärbage'": {
         "": {
           "rem": [
             [

@@ -5,11 +5,12 @@ Wildcard = @{ "*" }
 DeepWildcard = @{ "**" }
 
 Quote = _{ "'" }
-EscapedQuote = @{ Quote ~ "'" }
+EscapedQuote = @{ "'" }
 
 UnquotedKey = @{ (ASCII_ALPHANUMERIC | "-" | "_") + }
 RootUnquotedKey = { SOI ~ UnquotedKey ~ EOI }
-QuotedKey = @{ (((!"'") ~ ANY) | EscapedQuote)+ }
+QuotedCharacter = @{ ((!"'") ~ ANY) }
+QuotedKey = ${ (QuotedCharacter | ("'" ~ EscapedQuote))+ }
 Key = { UnquotedKey | Quote ~ QuotedKey ~ Quote }
 
 Index = @{ ASCII_DIGIT+ }

@@ -1088,7 +1088,7 @@ fn test_quoted_keys() {
         r##"
         {
             "applications": {
-                "extra.'special garbage'": ["@anything:remove"]
+                "extra.'special ,./<>?!@#$%^&*())''gärbage'''": ["@anything:remove"]
             }
         }
         "##,
@@ -1099,11 +1099,11 @@ fn test_quoted_keys() {
         extra: {
             let mut map = Object::new();
             map.insert(
-                "do not strip".to_string(),
+                "do not ,./<>?!@#$%^&*())'ßtrip'".to_string(),
                 Annotated::new(ExtraValue(Value::String("foo".to_string()))),
             );
             map.insert(
-                "special garbage".to_string(),
+                "special ,./<>?!@#$%^&*())'gärbage'".to_string(),
                 Annotated::new(ExtraValue(Value::String("bar".to_string()))),
             );
             Annotated::new(map)

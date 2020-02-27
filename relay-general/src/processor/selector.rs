@@ -53,11 +53,7 @@ impl fmt::Display for SelectorPathItem {
             SelectorPathItem::Index(index) => write!(f, "{}", index),
             SelectorPathItem::Key(ref key) => {
                 if key_needs_quoting(key) {
-                    write!(f, "'{}'", key)
-                } else if key.contains('\'') {
-                    // Such keys should never be constructed, so this codepath is just an
-                    // additional safety guard to prevent us from emitting unparseable configs.
-                    write!(f, "'{}'", key.replace("'", ""))
+                    write!(f, "'{}'", key.replace("'", "''"))
                 } else {
                     write!(f, "{}", key)
                 }
@@ -247,12 +243,28 @@ fn handle_selector_path_item(pair: Pair<Rule>) -> Result<SelectorPathItem, Inval
                 .parse()
                 .map_err(|_| InvalidSelectorError::InvalidIndex)?,
         )),
-        Rule::Key => Ok(SelectorPathItem::Key(
-            pair.into_inner().next().unwrap().as_str().to_owned(),
-        )),
+        Rule::Key => Ok(SelectorPathItem::Key(handle_key(pair)?)),
         rule => Err(InvalidSelectorError::UnexpectedToken(
             format!("{:?}", rule),
             "a selector path item",
+        )),
+    }
+}
+
+fn handle_key(pair: Pair<Rule>) -> Result<String, InvalidSelectorError> {
+    let pair = pair.into_inner().next().unwrap();
+    match pair.as_rule() {
+        Rule::UnquotedKey => Ok(pair.as_str().to_owned()),
+        Rule::QuotedKey => Ok({
+            let mut key = String::new();
+            for token in pair.into_inner() {
+                key.push_str(token.as_str());
+            }
+            key
+        }),
+        rule => Err(InvalidSelectorError::UnexpectedToken(
+            format!("{:?}", rule),
+            "a key",
         )),
     }
 }
