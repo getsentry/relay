@@ -66,3 +66,17 @@ Examples:
     }
   }
   ```
+
+## Escaping specal characters
+
+If the object key you want to match contains whitespace or special characters, you can use quotes to escape it:
+
+```json
+{
+  "applications": {
+    "extra.'my special value'": ["@anything:remove"]
+  }
+}
+```
+
+To escape `'` within the quotes, replace it with `''`.

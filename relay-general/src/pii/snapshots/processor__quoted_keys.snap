@@ -1,0 +1,24 @@
+---
+source: relay-general/src/pii/processor.rs
+expression: event
+---
+{
+  "extra": {
+    "do not ,./<>?!@#$%^&*())'ßtrip'": "foo",
+    "special ,./<>?!@#$%^&*())'gärbage'": null
+  },
+  "_meta": {
+    "extra": {
+      "special ,./<>?!@#$%^&*())'gärbage'": {
+        "": {
+          "rem": [
+            [
+              "@anything:remove",
+              "x"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}
