@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.4
+
+**Store**:
+
+- Add event contexts to `pii=maybe`.
+- Fix parsing of msgpack breadcrumbs in Rust store.
+- Envelopes sent to Rust store can omit the DSN in headers.
+- Ability to quote/escape special characters in selectors in PII configs.
+
 ## 0.5.3
 
 **Relay**:
