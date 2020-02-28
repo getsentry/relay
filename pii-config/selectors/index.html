@@ -370,6 +370,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#escaping-specal-characters" class="md-nav__link">
+    Escaping specal characters
+  </a>
+  
+</li>
+      
       
       
       
@@ -487,6 +494,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#escaping-specal-characters" class="md-nav__link">
+    Escaping specal characters
+  </a>
+  
+</li>
+      
       
       
       
@@ -568,6 +582,17 @@
   <span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
+
+<h2 id="escaping-specal-characters">Escaping specal characters</h2>
+<p>If the object key you want to match contains whitespace or special characters, you can use quotes to escape it:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;extra.&#39;my special value&#39;&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;@anything:remove&quot;</span><span class="p">]</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>To escape <code>'</code> within the quotes, replace it with <code>''</code>.</p>
                 
                   
                 
