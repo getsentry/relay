@@ -95,13 +95,6 @@ class SentryLike(object):
             "config": {
                 "allowedDomains": ["*"],
                 "trustedRelays": list(self.iter_public_keys()),
-                "piiConfig": {
-                    "rules": {},
-                    "applications": {
-                        "$string": ["@email", "@mac", "@creditcard", "@userpath"],
-                        "$object": ["@password"],
-                    },
-                },
             },
             "slug": "python",
         }

@@ -67,12 +67,31 @@ def test_store_node_base64(mini_sentry, relay_chain):
 
     assert event["logentry"] == {"formatted": "Error: yo mark"}
 
-
-def test_store_pii_stripping(mini_sentry, relay):
+@pytest.mark.parametrize("config_update", [
+    {
+                "piiConfig": {
+                        "applications": {
+                            "$string": ["@email"],
+                        },
+                    }
+                ,
+    },
+    {
+                "piiConfigs": [
+                    {
+                        "applications": {
+                            "$string": ["@email"],
+                        },
+                    }
+                ],
+    }
+])
+def test_store_pii_stripping(mini_sentry, relay, config_update):
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
 
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    mini_sentry.project_configs[42] = cfg = relay.basic_project_config()
+    cfg['config'].update(config_update)
     relay.send_event(42, {"message": "hi", "extra": {"foo": "test@mail.org"}})
 
     event = mini_sentry.captured_events.get(timeout=2).get_event()

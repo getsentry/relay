@@ -61,15 +61,19 @@ pub struct ProjectConfig {
     pub allowed_domains: Vec<String>,
     /// List of relay public keys that are permitted to access this project.
     pub trusted_relays: Vec<PublicKey>,
-    /// Configuration for PII stripping.
+    /// Configuration for PII stripping. DEPRECATED in favor of pii_configs.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub pii_config: Option<PiiConfig>,
+    /// Configuration for PII stripping that must be applied in the exact order as specified.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pii_configs: Vec<PiiConfig>,
     /// The grouping configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grouping_config: Option<Value>,
     /// Configuration for filter rules.
     #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
     pub filter_settings: FiltersConfig,
-    /// Configuration for data scrubbers.
+    /// Configuration for data scrubbers. DEPRECATED in favor of pii_configs.
     #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
     pub datascrubbing_settings: DataScrubbingConfig,
     /// Maximum event retention for the organization.
@@ -83,6 +87,7 @@ impl Default for ProjectConfig {
             allowed_domains: vec!["*".to_string()],
             trusted_relays: vec![],
             pii_config: None,
+            pii_configs: vec![],
             grouping_config: None,
             filter_settings: FiltersConfig::default(),
             datascrubbing_settings: DataScrubbingConfig::default(),
@@ -97,11 +102,13 @@ impl ProjectConfig {
     /// Yields multiple because:
     ///
     /// 1. User will be able to define PII config themselves (in Sentry, `self.pii_config`)
-    /// 2. datascrubbing settings (in Sentry, `self.datascrubbing_settings`) are converted in Relay to a PII config.
+    /// 2. Organization and project have separate PII configs.
+    /// 3. datascrubbing settings (in Sentry, `self.datascrubbing_settings`) are converted in Relay to a PII config.
     pub fn pii_configs(&self) -> impl Iterator<Item = &PiiConfig> {
         self.pii_config
             .as_ref()
             .into_iter()
+            .chain(self.pii_configs.iter())
             .chain(self.datascrubbing_settings.pii_config().into_iter())
     }
 }

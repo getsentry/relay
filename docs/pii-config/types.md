@@ -176,7 +176,7 @@ Alias one rule to the other. This is the same as `multiple` except that you can 
 {
   "rules": {
     "remove_ips": {
-      "type": "multiple",
+      "type": "alias",
       "rule": "@ip",
       "hide_rule": false,  // Hide the inner rule when showing which rules have been applied. Defaults to false.
       "redaction": {
