@@ -383,7 +383,7 @@ fn collect_rules<'a, 'b>(
         None => rule,
     };
 
-    match rule.ty {
+    match rule.ty() {
         RuleType::Multiple(m) => {
             let parent = if m.hide_inner { Some(rule) } else { None };
             for rule_id in &m.rules {
@@ -408,7 +408,7 @@ fn apply_rule_to_value(
 ) -> ProcessingResult {
     // The rule might specify to remove or to redact. If redaction is chosen, we need to
     // chunk up the value, otherwise we need to simply mark the value for deletion.
-    let should_redact_chunks = match *rule.redaction {
+    let should_redact_chunks = match *rule.redaction() {
         Redaction::Default | Redaction::Remove => false,
         _ => true,
     };
@@ -423,7 +423,7 @@ fn apply_rule_to_value(
         };
     }
 
-    match rule.ty {
+    match rule.ty() {
         RuleType::RedactPair(ref redact_pair) => {
             if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
                 if value.is_some() && should_redact_chunks {
@@ -431,7 +431,7 @@ fn apply_rule_to_value(
                     // @anything.
                     apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
                 } else {
-                    meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
+                    meta.add_remark(Remark::new(RemarkType::Removed, rule.remark_rule_id()));
                     return Err(ProcessingAction::DeleteValueHard);
                 }
             } else {
@@ -448,7 +448,7 @@ fn apply_rule_to_value(
                 apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
             } else {
                 // The value is a container, @anything on a container can do nothing but delete.
-                meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
+                meta.add_remark(Remark::new(RemarkType::Removed, rule.remark_rule_id()));
                 return Err(ProcessingAction::DeleteValueHard);
             }
         }
@@ -580,11 +580,11 @@ fn in_range(range: (Option<i32>, Option<i32>), pos: usize, len: usize) -> bool {
 }
 
 fn insert_replacement_chunks(rule: RuleRef<'_>, text: &str, output: &mut Vec<Chunk<'_>>) {
-    match rule.redaction {
+    match rule.redaction() {
         Redaction::Default | Redaction::Remove => {
             output.push(Chunk::Redaction {
                 text: Cow::Borrowed(""),
-                rule_id: Cow::Owned(rule.origin.to_string()),
+                rule_id: Cow::Owned(rule.remark_rule_id()),
                 ty: RemarkType::Removed,
             });
         }
@@ -601,26 +601,26 @@ fn insert_replacement_chunks(rule: RuleRef<'_>, text: &str, output: &mut Vec<Chu
             }
             output.push(Chunk::Redaction {
                 ty: RemarkType::Masked,
-                rule_id: Cow::Owned(rule.origin.to_string()),
+                rule_id: Cow::Owned(rule.remark_rule_id()),
                 text: buf.into_iter().collect(),
             })
         }
         Redaction::Hash(hash) => {
             output.push(Chunk::Redaction {
                 ty: RemarkType::Pseudonymized,
-                rule_id: Cow::Owned(rule.origin.to_string()),
+                rule_id: Cow::Owned(rule.remark_rule_id()),
                 text: Cow::Owned(hash_value(
                     hash.algorithm,
                     text,
                     hash.key.as_ref().map(String::as_str),
-                    rule.config,
+                    rule.config(),
                 )),
             });
         }
         Redaction::Replace(replace) => {
             output.push(Chunk::Redaction {
                 ty: RemarkType::Substituted,
-                rule_id: Cow::Owned(rule.origin.to_string()),
+                rule_id: Cow::Owned(rule.remark_rule_id()),
                 text: Cow::Owned(replace.text.clone()),
             });
         }
@@ -1108,6 +1108,36 @@ fn test_quoted_keys() {
             );
             Annotated::new(map)
         },
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_prefixes() {
+    use crate::protocol::{TagEntry, Tags};
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "logentry.formatted": ["@anything:remove"]
+            },
+            "vars": {
+                "rulePrefix": "organization:"
+            }
+        }
+    "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        logentry: Annotated::new(LogEntry {
+            formatted: Annotated::new("Hello world!".to_string()),
+            ..Default::default()
+        }),
         ..Default::default()
     });
 

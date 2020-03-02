@@ -197,26 +197,37 @@ pub struct RuleSpec {
 
 /// Configuration for rule parameters.
 #[derive(Serialize, Deserialize, Debug, Default, Clone, Eq, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct Vars {
     /// The default secret key for hashing operations.
-    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hash_key: Option<String>,
+    /// A string to prefix all annotations in `_meta` with. This is useful to distinguish multiple
+    /// PII configs applied in serial.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule_prefix: Option<String>,
+}
+
+impl Vars {
+    fn is_default(&self) -> bool {
+        self == &Default::default()
+    }
 }
 
 /// A set of named rule configurations.
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+#[serde(default)]
 pub struct PiiConfig {
     /// A map of custom PII rules.
-    #[serde(default)]
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub rules: BTreeMap<String, RuleSpec>,
 
     /// Parameters for PII rules.
-    #[serde(default)]
+    #[serde(skip_serializing_if = "Vars::is_default")]
     pub vars: Vars,
 
     /// Mapping of selectors to rules.
-    #[serde(default)]
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub applications: BTreeMap<SelectorSpec, Vec<String>>,
 }
 
@@ -250,11 +261,11 @@ impl PiiConfig {
 /// Reference to a PII rule.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RuleRef<'a> {
-    pub config: &'a PiiConfig,
-    pub id: &'a str,
-    pub origin: &'a str,
-    pub ty: &'a RuleType,
-    pub redaction: &'a Redaction,
+    config: &'a PiiConfig,
+    id: &'a str,
+    origin: &'a str,
+    ty: &'a RuleType,
+    redaction: &'a Redaction,
 }
 
 impl<'a> RuleRef<'a> {
@@ -265,6 +276,27 @@ impl<'a> RuleRef<'a> {
             origin: id,
             ty: &spec.ty,
             redaction: &spec.redaction,
+        }
+    }
+
+    pub fn ty(self) -> &'a RuleType {
+        self.ty
+    }
+
+    pub fn redaction(self) -> &'a Redaction {
+        self.redaction
+    }
+
+    pub fn config(self) -> &'a PiiConfig {
+        self.config
+    }
+
+    /// Prefixed rule ID for use in remarks.
+    pub fn remark_rule_id(self) -> String {
+        if let Some(ref prefix) = self.config.vars.rule_prefix {
+            format!("{}{}", prefix, self.origin)
+        } else {
+            self.origin.to_owned()
         }
     }
 

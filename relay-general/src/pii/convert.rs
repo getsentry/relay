@@ -199,10 +199,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     fn test_convert_default_pii_config() {
         insta::assert_json_snapshot!(simple_enabled_pii_config(), @r###"
         {
-          "rules": {},
-          "vars": {
-            "hashKey": null
-          },
           "applications": {
             "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
               "@common:filter"
@@ -224,10 +220,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r###"
         {
-          "rules": {},
-          "vars": {
-            "hashKey": null
-          },
           "applications": {
             "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
               "@common:filter"
@@ -259,9 +251,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               }
             }
           },
-          "vars": {
-            "hashKey": null
-          },
           "applications": {
             "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
               "@common:filter",
@@ -284,10 +273,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r###"
         {
-          "rules": {},
-          "vars": {
-            "hashKey": null
-          },
           "applications": {
             "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted))&(~foobar))": [
               "@common:filter"
@@ -311,10 +296,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r###"
         {
-          "rules": {},
-          "vars": {
-            "hashKey": null
-          },
           "applications": {
             "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
               "@anything:remove"
@@ -1197,9 +1178,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 "text": "[Filtered]"
               }
             }
-          },
-          "vars": {
-            "hashKey": null
           },
           "applications": {
             "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
