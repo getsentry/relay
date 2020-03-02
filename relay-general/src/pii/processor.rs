@@ -1118,7 +1118,6 @@ fn test_quoted_keys() {
 
 #[test]
 fn test_prefixes() {
-    use crate::protocol::{TagEntry, Tags};
     let config = PiiConfig::from_json(
         r##"
         {
