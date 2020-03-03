@@ -560,7 +560,6 @@ fn apply_regex_to_chunks<'a>(
     }
 
     process_text(&search_string[pos..], &mut rv, &mut replacement_chunks);
-    debug_assert!(replacement_chunks.is_empty());
 
     rv
 }

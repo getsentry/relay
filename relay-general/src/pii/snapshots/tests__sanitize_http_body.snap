@@ -1,5 +1,5 @@
 ---
-source: general/src/datascrubbing/convert.rs
+source: relay-general/src/pii/convert.rs
 expression: data.value().unwrap().request
 ---
 {
@@ -14,7 +14,7 @@ expression: data.value().unwrap().request
         "": {
           "rem": [
             [
-              "@password:filter",
+              "@anything:filter",
               "s",
               0,
               10
