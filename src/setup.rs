@@ -80,9 +80,13 @@ pub fn init_logging(config: &Config) {
             LevelFilter::Off => "",
             LevelFilter::Error => "ERROR",
             LevelFilter::Warn => "WARN",
-            LevelFilter::Info => "INFO",
+            LevelFilter::Info => {
+                "INFO,\
+                 trust_dns_proto=WARN"
+            }
             LevelFilter::Debug => {
                 "INFO,\
+                 trust_dns_proto=WARN,\
                  actix_web::pipeline=DEBUG,\
                  relay_auth=DEBUG,\
                  relay_common=DEBUG,\
@@ -94,6 +98,7 @@ pub fn init_logging(config: &Config) {
             }
             LevelFilter::Trace => {
                 "INFO,\
+                 trust_dns_proto=WARN,\
                  actix_web::pipeline=DEBUG,\
                  relay_auth=TRACE,\
                  relay_common=TRACE,\
