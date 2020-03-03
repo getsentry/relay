@@ -97,14 +97,6 @@ pub struct AliasRule {
     pub hide_inner: bool,
 }
 
-/// A pair redaction rule.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct RedactPairRule {
-    /// A pattern to match for keys.
-    pub key_pattern: Pattern,
-}
-
 /// Supported stripping rules.
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -133,8 +125,6 @@ pub enum RuleType {
     UrlAuth,
     /// US SSN.
     UsSsn,
-    /// When a regex matches a key, a value is removed
-    RedactPair(RedactPairRule),
     /// Applies multiple rules.
     Multiple(MultipleRule),
     /// Applies another rule.  Works like a single multiple.
@@ -158,9 +148,6 @@ impl<'de> Deserialize<'de> for RuleType {
             Pemkey,
             UrlAuth,
             UsSsn,
-            RedactPair(RedactPairRule),
-            #[serde(rename = "redactPair")]
-            RedactPairLegacy(RedactPairRule),
             Multiple(MultipleRule),
             Alias(AliasRule),
         }
@@ -178,8 +165,6 @@ impl<'de> Deserialize<'de> for RuleType {
             RuleTypeWithLegacy::Pemkey => RuleType::Pemkey,
             RuleTypeWithLegacy::UrlAuth => RuleType::UrlAuth,
             RuleTypeWithLegacy::UsSsn => RuleType::UsSsn,
-            RuleTypeWithLegacy::RedactPair(r) => RuleType::RedactPair(r),
-            RuleTypeWithLegacy::RedactPairLegacy(r) => RuleType::RedactPair(r),
             RuleTypeWithLegacy::Multiple(r) => RuleType::Multiple(r),
             RuleTypeWithLegacy::Alias(r) => RuleType::Alias(r),
         })

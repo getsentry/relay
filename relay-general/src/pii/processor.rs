@@ -260,7 +260,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 
         // apply rules based on key/path
         for rule in self.iter_rules(state) {
-            match apply_rule_to_value(meta, rule, state.path().key(), None) {
+            match apply_rule_to_value(meta, rule, None) {
                 Ok(()) => continue,
                 other => return other,
             }
@@ -281,7 +281,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         // same as before_process. duplicated here because we can only check for "true",
         // "false" etc in process_string.
         for rule in self.iter_rules(state) {
-            match apply_rule_to_value(meta, rule, state.path().key(), Some(value)) {
+            match apply_rule_to_value(meta, rule, Some(value)) {
                 Ok(()) => continue,
                 other => return other,
             }
@@ -403,7 +403,6 @@ fn collect_rules<'a, 'b>(
 fn apply_rule_to_value(
     meta: &mut Meta,
     rule: RuleRef<'_>,
-    key: Option<&str>,
     mut value: Option<&mut String>,
 ) -> ProcessingResult {
     // The rule might specify to remove or to redact. If redaction is chosen, we need to
@@ -424,25 +423,6 @@ fn apply_rule_to_value(
     }
 
     match rule.ty {
-        RuleType::RedactPair(ref redact_pair) => {
-            if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
-                if value.is_some() && should_redact_chunks {
-                    // If we're given a string value here, redact the value like we would with
-                    // @anything.
-                    apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
-                } else {
-                    meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
-                    return Err(ProcessingAction::DeleteValueHard);
-                }
-            } else {
-                // If we did not redact using the key, we will redact the entire value if the key
-                // appears in it.
-                //
-                // $replace_groups = None: Replace entire value if match is inside
-                // $replace_groups = Some(GROUP_0): Replace entire match
-                apply_regex!(&redact_pair.key_pattern, None);
-            }
-        }
         RuleType::Anything => {
             if value.is_some() && should_redact_chunks {
                 apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
@@ -669,15 +649,11 @@ fn test_basic_stripping() {
     let config = PiiConfig::from_json(
         r##"
         {
-            "rules": {
-                "remove_bad_headers": {
-                    "type": "redact_pair",
-                    "keyPattern": "(?i)cookie|secret[-_]?key"
-                }
-            },
             "applications": {
                 "$string": ["@ip"],
-                "$object.**": ["remove_bad_headers"]
+                "$object.cookie": ["@anything:remove"],
+                "$object.secret-key": ["@anything:remove"],
+                "$object.secret_key": ["@anything:remove"]
             }
         }
     "##,
