@@ -97,7 +97,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         // remove keys
         for field in &sensitive_fields {
             let selector = with_exclude_fields(vec![SelectorSpec::Path(vec![
-                SelectorPathItem::KeySubstring(field.to_string()),
+                SelectorPathItem::KeySubstring((*field).to_owned()),
             ])]);
             applications.insert(selector, vec!["@anything:filter".to_owned()]);
         }
@@ -155,37 +155,34 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
 /// produces non-optimal selectors, but goes 90% of the way of trimming down unnecessarily long
 /// selectors created by the converter.
 fn simplify_selector(selector: &mut SelectorSpec) {
-    match selector {
-        SelectorSpec::And(ref mut conjunctions) => {
-            let mut require_substrings = BTreeSet::new();
+    if let SelectorSpec::And(ref mut conjunctions) = selector {
+        let mut require_substrings = BTreeSet::new();
 
-            for inner in conjunctions.iter() {
-                if let SelectorSpec::Path(ref segments) = inner {
-                    if let Some(SelectorPathItem::KeySubstring(key))
-                    | Some(SelectorPathItem::Key(key)) = segments.last()
-                    {
-                        require_substrings.insert(key.to_owned());
-                    }
+        for inner in conjunctions.iter() {
+            if let SelectorSpec::Path(ref segments) = inner {
+                if let Some(SelectorPathItem::KeySubstring(key))
+                | Some(SelectorPathItem::Key(key)) = segments.last()
+                {
+                    require_substrings.insert(key.to_owned());
                 }
             }
+        }
 
-            conjunctions.retain(|inner| {
-                if let SelectorSpec::Not(ref inner) = inner {
-                    if let SelectorSpec::Path(ref segments) = **inner {
-                        if let Some(SelectorPathItem::Key(key)) = segments.last() {
-                            for substring in &require_substrings {
-                                if !key.contains(substring.as_str()) {
-                                    return false;
-                                }
+        conjunctions.retain(|inner| {
+            if let SelectorSpec::Not(ref inner) = inner {
+                if let SelectorSpec::Path(ref segments) = **inner {
+                    if let Some(SelectorPathItem::Key(key)) = segments.last() {
+                        for substring in &require_substrings {
+                            if !key.contains(substring.as_str()) {
+                                return false;
                             }
                         }
                     }
                 }
+            }
 
-                true
-            });
-        }
-        _ => {}
+            true
+        });
     }
 }
 
