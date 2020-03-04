@@ -91,7 +91,7 @@ pub struct RequestMeta<D = Dsn> {
 impl<D> RequestMeta<D> {
     /// Returns the client that sent this event (Sentry SDK identifier).
     pub fn client(&self) -> Option<&str> {
-        self.client.as_ref().map(String::as_str)
+        self.client.as_deref()
     }
 
     /// Returns the protocol version of the event payload.
@@ -129,7 +129,7 @@ impl<D> RequestMeta<D> {
     /// This is the value of the `User-Agent` header. In contrast, `auth.client_agent()` identifies
     /// the SDK that sent the event.
     pub fn user_agent(&self) -> Option<&str> {
-        self.user_agent.as_ref().map(String::as_str)
+        self.user_agent.as_deref()
     }
 }
 

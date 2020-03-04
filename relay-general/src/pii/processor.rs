@@ -612,7 +612,7 @@ fn insert_replacement_chunks(rule: RuleRef<'_>, text: &str, output: &mut Vec<Chu
                 text: Cow::Owned(hash_value(
                     hash.algorithm,
                     text,
-                    hash.key.as_ref().map(String::as_str),
+                    hash.key.as_deref(),
                     rule.config,
                 )),
             });
@@ -633,14 +633,7 @@ fn hash_value(
     key: Option<&str>,
     config: &PiiConfig,
 ) -> String {
-    let key = key.unwrap_or_else(|| {
-        config
-            .vars
-            .hash_key
-            .as_ref()
-            .map(String::as_str)
-            .unwrap_or("")
-    });
+    let key = key.unwrap_or_else(|| config.vars.hash_key.as_deref().unwrap_or(""));
     macro_rules! hmac {
         ($ty:ident) => {{
             let mut mac = Hmac::<$ty>::new_varkey(key.as_bytes()).unwrap();

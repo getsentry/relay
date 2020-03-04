@@ -745,7 +745,7 @@ impl Config {
 
     /// Returns the custom HTTP "Host" header.
     pub fn http_host_header(&self) -> Option<&str> {
-        self.values.http.host_header.as_ref().map(String::as_str)
+        self.values.http.host_header.as_deref()
     }
 
     /// Returns the listen address.
@@ -765,20 +765,12 @@ impl Config {
 
     /// Returns the path to the identity bundle
     pub fn tls_identity_path(&self) -> Option<&Path> {
-        self.values
-            .relay
-            .tls_identity_path
-            .as_ref()
-            .map(PathBuf::as_path)
+        self.values.relay.tls_identity_path.as_deref()
     }
 
     /// Returns the password for the identity bundle
     pub fn tls_identity_password(&self) -> Option<&str> {
-        self.values
-            .relay
-            .tls_identity_password
-            .as_ref()
-            .map(String::as_str)
+        self.values.relay.tls_identity_password.as_deref()
     }
 
     /// Returns the log level.
@@ -966,11 +958,7 @@ impl Config {
 
     /// The path to the GeoIp database required for event processing.
     pub fn geoip_path(&self) -> Option<&Path> {
-        self.values
-            .processing
-            .geoip_path
-            .as_ref()
-            .map(PathBuf::as_path)
+        self.values.processing.geoip_path.as_deref()
     }
 
     /// Maximum future timestamp of ingested events.
