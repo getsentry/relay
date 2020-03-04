@@ -163,7 +163,7 @@ impl fmt::Display for SelectorSpec {
                 let needs_parens = match **x {
                     SelectorSpec::And(_) => true,
                     SelectorSpec::Or(_) => true,
-                    SelectorSpec::Not(_) => false,
+                    SelectorSpec::Not(_) => true,
                     SelectorSpec::Path(_) => false,
                 };
 
@@ -327,4 +327,17 @@ fn handle_key(pair: Pair<Rule>) -> Result<String, InvalidSelectorError> {
 
 fn key_needs_quoting(key: &str) -> bool {
     SelectorParser::parse(Rule::RootUnquotedKey, key).is_err()
+}
+
+#[test]
+fn test_roundtrip() {
+    fn check_roundtrip(s: &str) {
+        assert_eq!(SelectorSpec::from_str(s).unwrap().to_string(), s);
+    }
+
+    check_roundtrip("!(!a)");
+    check_roundtrip("!a || !b");
+    check_roundtrip("!a && !b");
+    check_roundtrip("!(a && !b)");
+    check_roundtrip("!(a && b)");
 }
