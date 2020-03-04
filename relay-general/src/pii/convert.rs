@@ -1,12 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use regex::RegexBuilder;
 
 use crate::pii::{
-    DataScrubbingConfig, Pattern, PatternRule, PiiConfig, Redaction, ReplaceRedaction, RuleSpec,
-    RuleType, Vars,
+    DataScrubbingConfig, Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType, Vars,
 };
-use crate::processor::{SelectorPathItem, SelectorSpec};
+use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
 
 lazy_static::lazy_static! {
     // XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
@@ -15,175 +14,109 @@ lazy_static::lazy_static! {
 
     // Fields that the legacy data scrubber cannot strip. We define this list independently of
     // `metastructure(pii = true/false)` because the new PII scrubber should be able to strip more.
-    static ref DATASCRUBBER_IGNORE: Vec<SelectorSpec> = vec![
-        "$object".parse().unwrap(),
-        "$logentry.formatted".parse().unwrap(),
-    ];
+    static ref DATASCRUBBER_IGNORE: SelectorSpec = "( \
+          debug_meta.** \
+        | $frame.filename \
+        | $frame.abs_path \
+        | $logentry.formatted \
+    )".parse().unwrap();
 }
 
-static PASSWORD_FIELDS: &[&str] = &[
-    "password",
-    "secret",
-    "passwd",
-    "api_key",
-    "apikey",
-    "access_token",
-    "auth",
-    "credentials",
-    "mysql_pwd",
-    "stripetoken",
-];
-
 pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
-    let mut rules = BTreeMap::new();
+    let mut custom_rules = BTreeMap::new();
+    let mut applied_rules = Vec::new();
     let mut applications = BTreeMap::new();
 
-    let with_exclude_fields = |mut conjunctions: Vec<SelectorSpec>| {
-        for field in &datascrubbing_config.exclude_fields {
-            let field = field.trim();
-
-            if field.is_empty() {
-                continue;
-            }
-
-            conjunctions.push(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
-                SelectorPathItem::Key(field.to_owned()),
-            ]))));
-        }
-
-        for path in DATASCRUBBER_IGNORE.iter() {
-            conjunctions.push(SelectorSpec::Not(Box::new(path.clone())));
-        }
-
-        let mut rv = SelectorSpec::And(conjunctions);
-        simplify_selector(&mut rv);
-        rv
-    };
+    if datascrubbing_config.scrub_data && datascrubbing_config.scrub_defaults {
+        applied_rules.push("@common:filter".to_owned());
+    }
 
     if datascrubbing_config.scrub_ip_addresses {
-        // Legacy IP settings ignore safe_fields setting
         applications.insert(KNOWN_IP_FIELDS.clone(), vec!["@anything:remove".to_owned()]);
     }
 
-    let mut wildcard_rules = vec![];
-    let mut sensitive_fields: Vec<&str> = vec![];
-
-    if datascrubbing_config.scrub_data && datascrubbing_config.scrub_defaults {
-        wildcard_rules.push("@creditcard:filter".into());
-        wildcard_rules.push("@pemkey:filter".into());
-        wildcard_rules.push("@urlauth:legacy".into());
-        wildcard_rules.push("@userpath:filter".into());
-        wildcard_rules.push("@usssn:filter".into());
-
-        sensitive_fields.extend(PASSWORD_FIELDS.iter());
-    }
-
     if datascrubbing_config.scrub_data {
-        sensitive_fields.extend(
-            datascrubbing_config
-                .sensitive_fields
-                .iter()
-                .map(String::as_str),
-        );
-    }
+        let mut sensitive_fields = datascrubbing_config
+            .sensitive_fields
+            .iter()
+            .map(|x| x.trim())
+            .filter(|x| !x.is_empty())
+            .peekable();
 
-    let sensitive_fields = sensitive_fields
-        .iter()
-        .map(|x| x.trim())
-        .filter(|x| !x.is_empty())
-        .collect::<Vec<_>>();
+        let sensitive_fields_re = if sensitive_fields.peek().is_some() {
+            let mut re = ".*(".to_owned();
 
-    if !sensitive_fields.is_empty() {
-        // remove keys
-        for field in &sensitive_fields {
-            let selector = with_exclude_fields(vec![SelectorSpec::Path(vec![
-                SelectorPathItem::KeySubstring((*field).to_owned()),
-            ])]);
-            applications.insert(selector, vec!["@anything:filter".to_owned()]);
-        }
+            for (idx, field) in sensitive_fields.enumerate() {
+                if idx != 0 {
+                    re.push('|');
+                }
 
-        // remove values
-        let mut re = ".*(".to_owned();
-        for (idx, field) in sensitive_fields.iter().enumerate() {
-            if idx != 0 {
-                re.push('|');
+                // ugly: regex::escape returns owned string
+                re.push_str(&regex::escape(field));
             }
 
-            // ugly: regex::escape returns owned string
-            re.push_str(&regex::escape(field));
+            re.push_str(").*");
+            Some(re)
+        } else {
+            None
+        };
+
+        if let Some(key_pattern) = sensitive_fields_re {
+            custom_rules.insert(
+                "strip-fields".to_owned(),
+                RuleSpec {
+                    ty: RuleType::RedactPair(RedactPairRule {
+                        key_pattern: Pattern(
+                            RegexBuilder::new(&key_pattern)
+                                .case_insensitive(true)
+                                .build()
+                                .unwrap(),
+                        ),
+                    }),
+                    redaction: Redaction::Replace("[Filtered]".to_owned().into()),
+                },
+            );
+
+            applied_rules.push("strip-fields".to_owned());
         }
-        re.push_str(").*");
-
-        let value_rule_name = "remove-keywords".to_owned();
-        rules.insert(
-            value_rule_name.clone(),
-            RuleSpec {
-                ty: RuleType::Pattern(PatternRule {
-                    pattern: Pattern(
-                        RegexBuilder::new(&re)
-                            .case_insensitive(true)
-                            .build()
-                            .unwrap(),
-                    ),
-
-                    replace_groups: None,
-                }),
-                redaction: Redaction::Replace(ReplaceRedaction {
-                    text: "[Filtered]".into(),
-                }),
-            },
-        );
-        wildcard_rules.push(value_rule_name);
     }
 
-    if !wildcard_rules.is_empty() {
-        applications.insert(with_exclude_fields(vec![]), wildcard_rules);
-    }
-
-    if applications.is_empty() {
+    if applied_rules.is_empty() && applications.is_empty() {
         return None;
     }
 
+    let mut conjunctions = vec![
+        SelectorSpec::Or(vec![
+            ValueType::String.into(),
+            ValueType::Number.into(),
+            ValueType::Array.into(),
+        ]),
+        SelectorSpec::Not(Box::new(DATASCRUBBER_IGNORE.clone())),
+    ];
+
+    for field in &datascrubbing_config.exclude_fields {
+        let field = field.trim();
+
+        if field.is_empty() {
+            continue;
+        }
+
+        conjunctions.push(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
+            SelectorPathItem::Key(field.to_owned()),
+        ]))));
+    }
+
+    let applied_selector = SelectorSpec::And(conjunctions);
+
+    if !applied_rules.is_empty() {
+        applications.insert(applied_selector, applied_rules);
+    }
+
     Some(PiiConfig {
-        rules,
+        rules: custom_rules,
         vars: Vars::default(),
         applications,
     })
-}
-
-/// Simplify the selector to be equivalent in logic but shorter. This is very primitive and still
-/// produces non-optimal selectors, but goes 90% of the way of trimming down unnecessarily long
-/// selectors created by the converter.
-fn simplify_selector(selector: &mut SelectorSpec) {
-    if let SelectorSpec::And(ref mut conjunctions) = selector {
-        let mut require_substrings = BTreeSet::new();
-
-        for inner in conjunctions.iter() {
-            if let SelectorSpec::Path(ref segments) = inner {
-                if let Some(SelectorPathItem::KeySubstring(key))
-                | Some(SelectorPathItem::Key(key)) = segments.last()
-                {
-                    require_substrings.insert(key.to_owned());
-                }
-            }
-        }
-
-        conjunctions.retain(|inner| {
-            if let SelectorSpec::Not(ref inner) = inner {
-                if let SelectorSpec::Path(ref segments) = **inner {
-                    if let Some(SelectorPathItem::Key(key)) = segments.last() {
-                        for substring in &require_substrings {
-                            if !key.contains(substring.as_str()) {
-                                return false;
-                            }
-                        }
-                    }
-                }
-            }
-
-            true
-        });
-    }
 }
 
 #[cfg(test)]
@@ -266,60 +199,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     fn test_convert_default_pii_config() {
         insta::assert_json_snapshot!(simple_enabled_pii_config(), @r###"
         {
-          "rules": {
-            "remove-keywords": {
-              "type": "pattern",
-              "pattern": ".*(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken).*",
-              "replaceGroups": null,
-              "redaction": {
-                "method": "replace",
-                "text": "[Filtered]"
-              }
-            }
-          },
+          "rules": {},
           "vars": {
             "hashKey": null
           },
           "applications": {
-            "!$object && !$logentry.formatted": [
-              "@creditcard:filter",
-              "@pemkey:filter",
-              "@urlauth:legacy",
-              "@userpath:filter",
-              "@usssn:filter",
-              "remove-keywords"
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
+              "@common:filter"
             ],
-            "*access_token* && !$object": [
-              "@anything:filter"
-            ],
-            "*api_key* && !$object": [
-              "@anything:filter"
-            ],
-            "*apikey* && !$object": [
-              "@anything:filter"
-            ],
-            "*auth* && !$object": [
-              "@anything:filter"
-            ],
-            "*credentials* && !$object": [
-              "@anything:filter"
-            ],
-            "*mysql_pwd* && !$object": [
-              "@anything:filter"
-            ],
-            "*passwd* && !$object": [
-              "@anything:filter"
-            ],
-            "*password* && !$object": [
-              "@anything:filter"
-            ],
-            "*secret* && !$object": [
-              "@anything:filter"
-            ],
-            "*stripetoken* && !$object": [
-              "@anything:filter"
-            ],
-            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
               "@anything:remove"
             ]
           }
@@ -336,60 +224,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r###"
         {
-          "rules": {
-            "remove-keywords": {
-              "type": "pattern",
-              "pattern": ".*(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken).*",
-              "replaceGroups": null,
-              "redaction": {
-                "method": "replace",
-                "text": "[Filtered]"
-              }
-            }
-          },
+          "rules": {},
           "vars": {
             "hashKey": null
           },
           "applications": {
-            "!$object && !$logentry.formatted": [
-              "@creditcard:filter",
-              "@pemkey:filter",
-              "@urlauth:legacy",
-              "@userpath:filter",
-              "@usssn:filter",
-              "remove-keywords"
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
+              "@common:filter"
             ],
-            "*access_token* && !$object": [
-              "@anything:filter"
-            ],
-            "*api_key* && !$object": [
-              "@anything:filter"
-            ],
-            "*apikey* && !$object": [
-              "@anything:filter"
-            ],
-            "*auth* && !$object": [
-              "@anything:filter"
-            ],
-            "*credentials* && !$object": [
-              "@anything:filter"
-            ],
-            "*mysql_pwd* && !$object": [
-              "@anything:filter"
-            ],
-            "*passwd* && !$object": [
-              "@anything:filter"
-            ],
-            "*password* && !$object": [
-              "@anything:filter"
-            ],
-            "*secret* && !$object": [
-              "@anything:filter"
-            ],
-            "*stripetoken* && !$object": [
-              "@anything:filter"
-            ],
-            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
               "@anything:remove"
             ]
           }
@@ -407,10 +250,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(pii_config, @r###"
         {
           "rules": {
-            "remove-keywords": {
-              "type": "pattern",
-              "pattern": ".*(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken|fieldy_field|moar_other_field).*",
-              "replaceGroups": null,
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": ".*(fieldy_field|moar_other_field).*",
               "redaction": {
                 "method": "replace",
                 "text": "[Filtered]"
@@ -421,51 +263,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "!$object && !$logentry.formatted": [
-              "@creditcard:filter",
-              "@pemkey:filter",
-              "@urlauth:legacy",
-              "@userpath:filter",
-              "@usssn:filter",
-              "remove-keywords"
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
+              "@common:filter",
+              "strip-fields"
             ],
-            "*access_token* && !$object": [
-              "@anything:filter"
-            ],
-            "*api_key* && !$object": [
-              "@anything:filter"
-            ],
-            "*apikey* && !$object": [
-              "@anything:filter"
-            ],
-            "*auth* && !$object": [
-              "@anything:filter"
-            ],
-            "*credentials* && !$object": [
-              "@anything:filter"
-            ],
-            "*fieldy_field* && !$object": [
-              "@anything:filter"
-            ],
-            "*moar_other_field* && !$object": [
-              "@anything:filter"
-            ],
-            "*mysql_pwd* && !$object": [
-              "@anything:filter"
-            ],
-            "*passwd* && !$object": [
-              "@anything:filter"
-            ],
-            "*password* && !$object": [
-              "@anything:filter"
-            ],
-            "*secret* && !$object": [
-              "@anything:filter"
-            ],
-            "*stripetoken* && !$object": [
-              "@anything:filter"
-            ],
-            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
               "@anything:remove"
             ]
           }
@@ -482,60 +284,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r###"
         {
-          "rules": {
-            "remove-keywords": {
-              "type": "pattern",
-              "pattern": ".*(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken).*",
-              "replaceGroups": null,
-              "redaction": {
-                "method": "replace",
-                "text": "[Filtered]"
-              }
-            }
-          },
+          "rules": {},
           "vars": {
             "hashKey": null
           },
           "applications": {
-            "!foobar && !$object && !$logentry.formatted": [
-              "@creditcard:filter",
-              "@pemkey:filter",
-              "@urlauth:legacy",
-              "@userpath:filter",
-              "@usssn:filter",
-              "remove-keywords"
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted))&(~foobar))": [
+              "@common:filter"
             ],
-            "*access_token* && !$object": [
-              "@anything:filter"
-            ],
-            "*api_key* && !$object": [
-              "@anything:filter"
-            ],
-            "*apikey* && !$object": [
-              "@anything:filter"
-            ],
-            "*auth* && !$object": [
-              "@anything:filter"
-            ],
-            "*credentials* && !$object": [
-              "@anything:filter"
-            ],
-            "*mysql_pwd* && !$object": [
-              "@anything:filter"
-            ],
-            "*passwd* && !$object": [
-              "@anything:filter"
-            ],
-            "*password* && !$object": [
-              "@anything:filter"
-            ],
-            "*secret* && !$object": [
-              "@anything:filter"
-            ],
-            "*stripetoken* && !$object": [
-              "@anything:filter"
-            ],
-            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
               "@anything:remove"
             ]
           }
@@ -559,7 +316,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
               "@anything:remove"
             ]
           }
@@ -1432,10 +1189,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(pii_config, @r###"
         {
           "rules": {
-            "remove-keywords": {
-              "type": "pattern",
-              "pattern": ".*(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken|session_key).*",
-              "replaceGroups": null,
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": ".*(session_key).*",
               "redaction": {
                 "method": "replace",
                 "text": "[Filtered]"
@@ -1446,48 +1202,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "!$object && !$logentry.formatted": [
-              "@creditcard:filter",
-              "@pemkey:filter",
-              "@urlauth:legacy",
-              "@userpath:filter",
-              "@usssn:filter",
-              "remove-keywords"
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
+              "@common:filter",
+              "strip-fields"
             ],
-            "*access_token* && !$object": [
-              "@anything:filter"
-            ],
-            "*api_key* && !$object": [
-              "@anything:filter"
-            ],
-            "*apikey* && !$object": [
-              "@anything:filter"
-            ],
-            "*auth* && !$object": [
-              "@anything:filter"
-            ],
-            "*credentials* && !$object": [
-              "@anything:filter"
-            ],
-            "*mysql_pwd* && !$object": [
-              "@anything:filter"
-            ],
-            "*passwd* && !$object": [
-              "@anything:filter"
-            ],
-            "*password* && !$object": [
-              "@anything:filter"
-            ],
-            "*secret* && !$object": [
-              "@anything:filter"
-            ],
-            "*session_key* && !$object": [
-              "@anything:filter"
-            ],
-            "*stripetoken* && !$object": [
-              "@anything:filter"
-            ],
-            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
               "@anything:remove"
             ]
           }

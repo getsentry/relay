@@ -1,5 +1,5 @@
 ---
-source: relay-general/src/pii/convert.rs
+source: general/src/datascrubbing/convert.rs
 expression: data
 ---
 {
@@ -14,7 +14,7 @@ expression: data
         "": {
           "rem": [
             [
-              "@anything:filter",
+              "@password:filter",
               "s",
               0,
               10
@@ -27,7 +27,7 @@ expression: data
         "": {
           "rem": [
             [
-              "@anything:filter",
+              "@password:filter",
               "s",
               0,
               10

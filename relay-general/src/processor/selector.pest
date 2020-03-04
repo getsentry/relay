@@ -5,9 +5,6 @@ Wildcard = @{ "*" }
 DeepWildcard = @{ "**" }
 
 Quote = _{ "'" }
-And = _{ "&&" | "&" }
-Or = _{ "||" | "|" }
-Not = _{ "~" | "!" }
 EscapedQuote = @{ "'" }
 
 UnquotedKey = @{ (ASCII_ALPHANUMERIC | "-" | "_") + }
@@ -15,16 +12,18 @@ RootUnquotedKey = { SOI ~ UnquotedKey ~ EOI }
 QuotedCharacter = @{ ((!"'") ~ ANY) }
 QuotedKey = ${ (QuotedCharacter | ("'" ~ EscapedQuote))+ }
 Key = { UnquotedKey | Quote ~ QuotedKey ~ Quote }
-KeySubstring = { "*" ~ Key ~ "*" }
 
 Index = @{ ASCII_DIGIT+ }
 
-SelectorPathItem = { ObjectType | Index | Key | KeySubstring | DeepWildcard | Wildcard }
+SelectorPathItem = { ObjectType | DeepWildcard | Wildcard | Index | Key }
 SelectorPath = { SelectorPathItem ~ ("." ~ SelectorPathItem)* }
 
-ParenthesisOrPath = { "(" ~ OrSelector ~ ")" | SelectorPath }
-NotSelector = { Not ~ ParenthesisOrPath }
-MaybeNotSelector = { NotSelector | ParenthesisOrPath } 
-AndSelector = { MaybeNotSelector ~ (And ~ MaybeNotSelector)* }
-OrSelector = { AndSelector ~ (Or ~ AndSelector)* }
-RootSelector = { SOI ~ OrSelector ~ EOI }
+// enforce parenthesis everywhere as long as we don't have clear precedence
+// rules, such that we can introduce them without breaking existing configs.
+
+AndSelector = { "(" ~ Selector ~ ("&" ~ Selector)+ ~ ")" }
+OrSelector = { "(" ~ Selector ~ ("|" ~ Selector)+ ~ ")" }
+NotSelector = { "(~" ~ Selector ~ ")" }
+Selector = { NotSelector | AndSelector | OrSelector | "(" ~ Selector ~ ")" | SelectorPath }
+RootSelector = { SOI ~ Selector ~ EOI }
+
