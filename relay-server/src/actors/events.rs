@@ -435,7 +435,7 @@ impl EventProcessor {
         envelope: &Envelope,
         project_state: &ProjectState,
     ) -> Result<(), ProcessingError> {
-        let geoip_lookup = self.geoip_lookup.as_ref().map(Arc::as_ref);
+        let geoip_lookup = self.geoip_lookup.as_deref();
         let key_id = project_state
             .get_public_key_config(&envelope.meta().public_key())
             .and_then(|k| Some(k.numeric_id?.to_string()));

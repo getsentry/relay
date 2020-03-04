@@ -383,12 +383,7 @@ impl CspRaw {
         let mut bits = self.violated_directive.split_ascii_whitespace();
         let mut culprit = bits.next().unwrap_or_default().to_owned();
 
-        let document_uri = self
-            .document_uri
-            .as_ref()
-            .map(String::as_str)
-            .unwrap_or_default();
-
+        let document_uri = self.document_uri.as_deref().unwrap_or("");
         let normalized_uri = normalize_uri(document_uri);
 
         for bit in bits {

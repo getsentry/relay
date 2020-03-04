@@ -390,7 +390,7 @@ mod __quota_serialization {
             match *self {
                 Quota::RejectAll(RejectAllQuota { ref reason_code }) => QuotaSerdeHelper {
                     limit: Some(0),
-                    reason_code: reason_code.as_ref().map(String::as_str).map(Cow::Borrowed),
+                    reason_code: reason_code.as_deref().map(Cow::Borrowed),
                     ..Default::default()
                 },
                 Quota::Redis(RedisQuota {
@@ -401,9 +401,9 @@ mod __quota_serialization {
                     window,
                 }) => QuotaSerdeHelper {
                     limit,
-                    reason_code: reason_code.as_ref().map(String::as_str).map(Cow::Borrowed),
+                    reason_code: reason_code.as_deref().map(Cow::Borrowed),
                     prefix: Some(Cow::Borrowed(&prefix)),
-                    subscope: subscope.as_ref().map(String::as_str).map(Cow::Borrowed),
+                    subscope: subscope.as_deref().map(Cow::Borrowed),
                     window: Some(window),
                 },
             }
@@ -502,7 +502,7 @@ impl Project {
     }
 
     pub fn state(&self) -> Option<&ProjectState> {
-        self.state.as_ref().map(AsRef::as_ref)
+        self.state.as_deref()
     }
 
     fn get_or_fetch_state(

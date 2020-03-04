@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use failure::Fail;
 
@@ -54,8 +54,7 @@ impl RateLimiter {
         let timestamp = UnixTimestamp(
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .as_ref()
-                .map(Duration::as_secs)
+                .map(|d| d.as_secs())
                 .unwrap_or(0),
         );
 
@@ -156,7 +155,7 @@ fn get_redis_key(
         "quota:{}{{{}}}{}:{}",
         quota.prefix,
         organization_id,
-        quota.subscope.as_ref().map(String::as_str).unwrap_or(""),
+        quota.subscope.as_deref().unwrap_or(""),
         (timestamp.0 - shift) / quota.window
     )
 }

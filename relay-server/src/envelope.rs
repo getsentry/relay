@@ -351,7 +351,7 @@ impl Item {
     /// Returns the file name of this item, if it is an attachment.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn filename(&self) -> Option<&str> {
-        self.headers.filename.as_ref().map(String::as_str)
+        self.headers.filename.as_deref()
     }
 
     /// Sets the file name of this item.
@@ -364,7 +364,7 @@ impl Item {
 
     /// Returns the name header of the item.
     pub fn name(&self) -> Option<&str> {
-        self.headers.name.as_ref().map(String::as_str)
+        self.headers.name.as_deref()
     }
 
     /// Sets the name header of the item.
