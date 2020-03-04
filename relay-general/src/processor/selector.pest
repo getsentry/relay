@@ -12,10 +12,11 @@ RootUnquotedKey = { SOI ~ UnquotedKey ~ EOI }
 QuotedCharacter = @{ ((!"'") ~ ANY) }
 QuotedKey = ${ (QuotedCharacter | ("'" ~ EscapedQuote))+ }
 Key = { UnquotedKey | Quote ~ QuotedKey ~ Quote }
+KeySubstring = { "*" ~ Key ~ "*" }
 
 Index = @{ ASCII_DIGIT+ }
 
-SelectorPathItem = { ObjectType | DeepWildcard | Wildcard | Index | Key }
+SelectorPathItem = { ObjectType | Index | Key | KeySubstring | DeepWildcard | Wildcard }
 SelectorPath = { SelectorPathItem ~ ("." ~ SelectorPathItem)* }
 
 // enforce parenthesis everywhere as long as we don't have clear precedence

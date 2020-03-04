@@ -1,5 +1,5 @@
 ---
-source: general/src/pii/processor.rs
+source: relay-general/src/pii/processor.rs
 expression: event
 ---
 {
@@ -34,7 +34,7 @@ expression: event
           "": {
             "rem": [
               [
-                "remove_bad_headers",
+                "@anything:remove",
                 "x"
               ]
             ]
@@ -47,7 +47,7 @@ expression: event
             "": {
               "rem": [
                 [
-                  "remove_bad_headers",
+                  "@anything:remove",
                   "x"
                 ]
               ]

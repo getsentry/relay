@@ -13,7 +13,7 @@ expression: data
         "": {
           "rem": [
             [
-              "strip-fields",
+              "@anything:filter",
               "s",
               0,
               10

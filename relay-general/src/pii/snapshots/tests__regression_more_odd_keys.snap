@@ -3,13 +3,58 @@ source: relay-general/src/pii/convert.rs
 expression: pii_config
 ---
 {
-  "rules": {},
+  "rules": {
+    "remove-keywords": {
+      "type": "pattern",
+      "pattern": ".*(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken).*",
+      "replaceGroups": null,
+      "redaction": {
+        "method": "replace",
+        "text": "[Filtered]"
+      }
+    }
+  },
   "vars": {
     "hashKey": null
   },
   "applications": {
-    "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted))&(~url)&(~message)&(~'http.request.url')&(~'*url*')&(~'*message*')&(~'*http.request.url*'))": [
-      "@common:filter"
+    "((~url)&(~message)&(~'http.request.url')&(~'*url*')&(~'*message*')&(~'*http.request.url*')&(~$object)&(~$logentry.formatted))": [
+      "@creditcard:filter",
+      "@pemkey:filter",
+      "@urlauth:legacy",
+      "@userpath:filter",
+      "@usssn:filter",
+      "remove-keywords"
+    ],
+    "(*access_token*&(~$object))": [
+      "@anything:filter"
+    ],
+    "(*api_key*&(~$object))": [
+      "@anything:filter"
+    ],
+    "(*apikey*&(~$object))": [
+      "@anything:filter"
+    ],
+    "(*auth*&(~$object))": [
+      "@anything:filter"
+    ],
+    "(*credentials*&(~$object))": [
+      "@anything:filter"
+    ],
+    "(*mysql_pwd*&(~$object))": [
+      "@anything:filter"
+    ],
+    "(*passwd*&(~$object))": [
+      "@anything:filter"
+    ],
+    "(*password*&(~$object))": [
+      "@anything:filter"
+    ],
+    "(*secret*&(~$object))": [
+      "@anything:filter"
+    ],
+    "(*stripetoken*&(~$object))": [
+      "@anything:filter"
     ],
     "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
       "@anything:remove"

@@ -1,5 +1,5 @@
 ---
-source: general/src/datascrubbing/convert.rs
+source: relay-general/src/pii/convert.rs
 expression: data
 ---
 {
@@ -18,7 +18,7 @@ expression: data
             "": {
               "rem": [
                 [
-                  "strip-fields",
+                  "remove-keywords",
                   "s",
                   0,
                   10

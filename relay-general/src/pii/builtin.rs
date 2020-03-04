@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 use lazy_static::lazy_static;
 
 use crate::pii::{
-    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, PatternRule,
-    RedactPairRule, Redaction, ReplaceRedaction, RuleSpec, RuleType,
+    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, PatternRule, Redaction,
+    ReplaceRedaction, RuleSpec, RuleType,
 };
 
 pub static BUILTIN_SELECTORS: &[&str] = &["text", "container"];
@@ -42,39 +42,6 @@ macro_rules! rule_alias {
 }
 
 declare_builtin_rules! {
-    // collections
-    "@common" => RuleSpec {
-        ty: RuleType::Multiple(MultipleRule {
-            rules: vec![
-                "@ip".into(),
-                "@email".into(),
-                "@creditcard".into(),
-                "@pemkey".into(),
-                "@urlauth".into(),
-                "@userpath".into(),
-                "@password".into(),
-                "@usssn".into(),
-            ],
-            hide_inner: false,
-        }),
-        redaction: Redaction::Default,
-    };
-    // legacy data scrubbing equivalent. Note
-    "@common:filter" => RuleSpec {
-        ty: RuleType::Multiple(MultipleRule {
-            rules: vec![
-                "@creditcard:filter".into(),
-                "@pemkey:filter".into(),
-                "@urlauth:legacy".into(),
-                "@userpath:filter".into(),
-                "@password:filter".into(),
-                "@usssn:filter".into(),
-            ],
-            hide_inner: false,
-        }),
-        redaction: Redaction::Default,
-    };
-
     // anything
     "@anything" => rule_alias!("@anything:replace");
     "@anything:remove" => RuleSpec {
@@ -92,6 +59,12 @@ declare_builtin_rules! {
         redaction: Redaction::Hash(HashRedaction {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
+        }),
+    };
+    "@anything:filter" => RuleSpec {
+        ty: RuleType::Anything,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into()
         }),
     };
 
@@ -321,23 +294,6 @@ declare_builtin_rules! {
             algorithm: HashAlgorithm::HmacSha1,
             key: None,
         }),
-    };
-
-    // password field removal
-    "@password" => rule_alias!("@password:remove");
-    "@password:filter" => RuleSpec {
-        ty: RuleType::RedactPair(RedactPairRule {
-            key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),
-        }),
-        redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[Filtered]".into(),
-        }),
-    };
-    "@password:remove" => RuleSpec {
-        ty: RuleType::RedactPair(RedactPairRule {
-            key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),
-        }),
-        redaction: Redaction::Remove,
     };
 }
 
