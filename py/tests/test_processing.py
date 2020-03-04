@@ -167,7 +167,7 @@ def test_validate_pii_config():
 
 
 def test_convert_datascrubbing_config():
-    cfg = sentry_relay.convert_datascrubbing_config(
+    assert sentry_relay.convert_datascrubbing_config(
         {
             "scrubData": True,
             "excludeFields": [],
@@ -175,9 +175,18 @@ def test_convert_datascrubbing_config():
             "sensitiveFields": [],
             "scrubDefaults": True,
         }
-    )
-
-    assert cfg["applications"]
+    ) == {
+        "applications": {
+            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+                "@anything:remove"
+            ],
+            "(($string|$number|$array)&(~(debug_meta.**|$frame.filename|$frame.abs_path|$logentry.formatted)))": [
+                "@common:filter"
+            ],
+        },
+        "rules": {},
+        "vars": {"hashKey": None},
+    }
 
     assert (
         sentry_relay.convert_datascrubbing_config(

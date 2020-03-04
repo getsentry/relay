@@ -42,7 +42,6 @@ pub enum SelectorPathItem {
     Type(ValueType),
     Index(usize),
     Key(String),
-    KeySubstring(String),
     Wildcard,
     DeepWildcard,
 }
@@ -59,13 +58,6 @@ impl fmt::Display for SelectorPathItem {
                     write!(f, "{}", key)
                 }
             }
-            SelectorPathItem::KeySubstring(ref key) => {
-                if key_needs_quoting(key) {
-                    write!(f, "*'{}'*", key.replace("'", "''"))
-                } else {
-                    write!(f, "*{}*", key)
-                }
-            }
             SelectorPathItem::Wildcard => write!(f, "*"),
             SelectorPathItem::DeepWildcard => write!(f, "**"),
         }
@@ -79,11 +71,6 @@ impl SelectorPathItem {
             SelectorPathItem::DeepWildcard => true,
             SelectorPathItem::Type(ty) => state.value_type() == Some(ty),
             SelectorPathItem::Index(idx) => state.path().index() == Some(idx),
-            SelectorPathItem::KeySubstring(ref key) => state
-                .path()
-                .key()
-                .map(|k| k.to_lowercase().contains(&key.to_lowercase()))
-                .unwrap_or(false),
             SelectorPathItem::Key(ref key) => state
                 .path()
                 .key()
@@ -115,7 +102,6 @@ impl SelectorSpec {
                         SelectorPathItem::Key(_) => true,
                         // necessary because of array indices
                         SelectorPathItem::Wildcard => true,
-                        SelectorPathItem::KeySubstring(_) => false,
                         SelectorPathItem::DeepWildcard => false,
                     }
                 })
@@ -257,9 +243,6 @@ fn handle_selector_path_item(pair: Pair<Rule>) -> Result<SelectorPathItem, Inval
                 .parse()
                 .map_err(|_| InvalidSelectorError::InvalidIndex)?,
         )),
-        Rule::KeySubstring => Ok(SelectorPathItem::KeySubstring(handle_key(
-            pair.into_inner().next().unwrap(),
-        )?)),
         Rule::Key => Ok(SelectorPathItem::Key(handle_key(pair)?)),
         rule => Err(InvalidSelectorError::UnexpectedToken(
             format!("{:?}", rule),
