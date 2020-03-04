@@ -281,7 +281,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "((~$object)&(~$logentry.formatted))": [
+            "!$object && !$logentry.formatted": [
               "@creditcard:filter",
               "@pemkey:filter",
               "@urlauth:legacy",
@@ -289,37 +289,37 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:filter",
               "remove-keywords"
             ],
-            "(*access_token*&(~$object))": [
+            "*access_token* && !$object": [
               "@anything:filter"
             ],
-            "(*api_key*&(~$object))": [
+            "*api_key* && !$object": [
               "@anything:filter"
             ],
-            "(*apikey*&(~$object))": [
+            "*apikey* && !$object": [
               "@anything:filter"
             ],
-            "(*auth*&(~$object))": [
+            "*auth* && !$object": [
               "@anything:filter"
             ],
-            "(*credentials*&(~$object))": [
+            "*credentials* && !$object": [
               "@anything:filter"
             ],
-            "(*mysql_pwd*&(~$object))": [
+            "*mysql_pwd* && !$object": [
               "@anything:filter"
             ],
-            "(*passwd*&(~$object))": [
+            "*passwd* && !$object": [
               "@anything:filter"
             ],
-            "(*password*&(~$object))": [
+            "*password* && !$object": [
               "@anything:filter"
             ],
-            "(*secret*&(~$object))": [
+            "*secret* && !$object": [
               "@anything:filter"
             ],
-            "(*stripetoken*&(~$object))": [
+            "*stripetoken* && !$object": [
               "@anything:filter"
             ],
-            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ]
           }
@@ -351,7 +351,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "((~$object)&(~$logentry.formatted))": [
+            "!$object && !$logentry.formatted": [
               "@creditcard:filter",
               "@pemkey:filter",
               "@urlauth:legacy",
@@ -359,37 +359,37 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:filter",
               "remove-keywords"
             ],
-            "(*access_token*&(~$object))": [
+            "*access_token* && !$object": [
               "@anything:filter"
             ],
-            "(*api_key*&(~$object))": [
+            "*api_key* && !$object": [
               "@anything:filter"
             ],
-            "(*apikey*&(~$object))": [
+            "*apikey* && !$object": [
               "@anything:filter"
             ],
-            "(*auth*&(~$object))": [
+            "*auth* && !$object": [
               "@anything:filter"
             ],
-            "(*credentials*&(~$object))": [
+            "*credentials* && !$object": [
               "@anything:filter"
             ],
-            "(*mysql_pwd*&(~$object))": [
+            "*mysql_pwd* && !$object": [
               "@anything:filter"
             ],
-            "(*passwd*&(~$object))": [
+            "*passwd* && !$object": [
               "@anything:filter"
             ],
-            "(*password*&(~$object))": [
+            "*password* && !$object": [
               "@anything:filter"
             ],
-            "(*secret*&(~$object))": [
+            "*secret* && !$object": [
               "@anything:filter"
             ],
-            "(*stripetoken*&(~$object))": [
+            "*stripetoken* && !$object": [
               "@anything:filter"
             ],
-            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ]
           }
@@ -421,7 +421,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "((~$object)&(~$logentry.formatted))": [
+            "!$object && !$logentry.formatted": [
               "@creditcard:filter",
               "@pemkey:filter",
               "@urlauth:legacy",
@@ -429,43 +429,43 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:filter",
               "remove-keywords"
             ],
-            "(*access_token*&(~$object))": [
+            "*access_token* && !$object": [
               "@anything:filter"
             ],
-            "(*api_key*&(~$object))": [
+            "*api_key* && !$object": [
               "@anything:filter"
             ],
-            "(*apikey*&(~$object))": [
+            "*apikey* && !$object": [
               "@anything:filter"
             ],
-            "(*auth*&(~$object))": [
+            "*auth* && !$object": [
               "@anything:filter"
             ],
-            "(*credentials*&(~$object))": [
+            "*credentials* && !$object": [
               "@anything:filter"
             ],
-            "(*fieldy_field*&(~$object))": [
+            "*fieldy_field* && !$object": [
               "@anything:filter"
             ],
-            "(*moar_other_field*&(~$object))": [
+            "*moar_other_field* && !$object": [
               "@anything:filter"
             ],
-            "(*mysql_pwd*&(~$object))": [
+            "*mysql_pwd* && !$object": [
               "@anything:filter"
             ],
-            "(*passwd*&(~$object))": [
+            "*passwd* && !$object": [
               "@anything:filter"
             ],
-            "(*password*&(~$object))": [
+            "*password* && !$object": [
               "@anything:filter"
             ],
-            "(*secret*&(~$object))": [
+            "*secret* && !$object": [
               "@anything:filter"
             ],
-            "(*stripetoken*&(~$object))": [
+            "*stripetoken* && !$object": [
               "@anything:filter"
             ],
-            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ]
           }
@@ -497,7 +497,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "((~foobar)&(~$object)&(~$logentry.formatted))": [
+            "!foobar && !$object && !$logentry.formatted": [
               "@creditcard:filter",
               "@pemkey:filter",
               "@urlauth:legacy",
@@ -505,37 +505,37 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:filter",
               "remove-keywords"
             ],
-            "(*access_token*&(~$object))": [
+            "*access_token* && !$object": [
               "@anything:filter"
             ],
-            "(*api_key*&(~$object))": [
+            "*api_key* && !$object": [
               "@anything:filter"
             ],
-            "(*apikey*&(~$object))": [
+            "*apikey* && !$object": [
               "@anything:filter"
             ],
-            "(*auth*&(~$object))": [
+            "*auth* && !$object": [
               "@anything:filter"
             ],
-            "(*credentials*&(~$object))": [
+            "*credentials* && !$object": [
               "@anything:filter"
             ],
-            "(*mysql_pwd*&(~$object))": [
+            "*mysql_pwd* && !$object": [
               "@anything:filter"
             ],
-            "(*passwd*&(~$object))": [
+            "*passwd* && !$object": [
               "@anything:filter"
             ],
-            "(*password*&(~$object))": [
+            "*password* && !$object": [
               "@anything:filter"
             ],
-            "(*secret*&(~$object))": [
+            "*secret* && !$object": [
               "@anything:filter"
             ],
-            "(*stripetoken*&(~$object))": [
+            "*stripetoken* && !$object": [
               "@anything:filter"
             ],
-            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ]
           }
@@ -559,7 +559,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ]
           }
@@ -1446,7 +1446,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "((~$object)&(~$logentry.formatted))": [
+            "!$object && !$logentry.formatted": [
               "@creditcard:filter",
               "@pemkey:filter",
               "@urlauth:legacy",
@@ -1454,40 +1454,40 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:filter",
               "remove-keywords"
             ],
-            "(*access_token*&(~$object))": [
+            "*access_token* && !$object": [
               "@anything:filter"
             ],
-            "(*api_key*&(~$object))": [
+            "*api_key* && !$object": [
               "@anything:filter"
             ],
-            "(*apikey*&(~$object))": [
+            "*apikey* && !$object": [
               "@anything:filter"
             ],
-            "(*auth*&(~$object))": [
+            "*auth* && !$object": [
               "@anything:filter"
             ],
-            "(*credentials*&(~$object))": [
+            "*credentials* && !$object": [
               "@anything:filter"
             ],
-            "(*mysql_pwd*&(~$object))": [
+            "*mysql_pwd* && !$object": [
               "@anything:filter"
             ],
-            "(*passwd*&(~$object))": [
+            "*passwd* && !$object": [
               "@anything:filter"
             ],
-            "(*password*&(~$object))": [
+            "*password* && !$object": [
               "@anything:filter"
             ],
-            "(*secret*&(~$object))": [
+            "*secret* && !$object": [
               "@anything:filter"
             ],
-            "(*session_key*&(~$object))": [
+            "*session_key* && !$object": [
               "@anything:filter"
             ],
-            "(*stripetoken*&(~$object))": [
+            "*stripetoken* && !$object": [
               "@anything:filter"
             ],
-            "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+            "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
               "@anything:remove"
             ]
           }

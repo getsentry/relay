@@ -128,26 +128,51 @@ impl fmt::Display for SelectorSpec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             SelectorSpec::And(ref xs) => {
-                write!(f, "(")?;
                 for (idx, x) in xs.iter().enumerate() {
                     if idx > 0 {
-                        write!(f, "&")?;
+                        write!(f, " && ")?;
                     }
-                    write!(f, "{}", x)?;
+
+                    let needs_parens = match *x {
+                        SelectorSpec::And(_) => false,
+                        SelectorSpec::Or(_) => true,
+                        SelectorSpec::Not(_) => false,
+                        SelectorSpec::Path(_) => false,
+                    };
+
+                    if needs_parens {
+                        write!(f, "({})", x)?;
+                    } else {
+                        write!(f, "{}", x)?;
+                    }
                 }
-                write!(f, ")")?;
             }
             SelectorSpec::Or(ref xs) => {
-                write!(f, "(")?;
                 for (idx, x) in xs.iter().enumerate() {
                     if idx > 0 {
-                        write!(f, "|")?;
+                        write!(f, " || ")?;
                     }
+
+                    // OR has weakest precedence, so everything else binds stronger and does not
+                    // need parens
+
                     write!(f, "{}", x)?;
                 }
-                write!(f, ")")?;
             }
-            SelectorSpec::Not(ref x) => write!(f, "(~{})", x)?,
+            SelectorSpec::Not(ref x) => {
+                let needs_parens = match **x {
+                    SelectorSpec::And(_) => true,
+                    SelectorSpec::Or(_) => true,
+                    SelectorSpec::Not(_) => true,
+                    SelectorSpec::Path(_) => false,
+                };
+
+                if needs_parens {
+                    write!(f, "!({})", x)?;
+                } else {
+                    write!(f, "!{}", x)?;
+                }
+            }
             SelectorSpec::Path(ref path) => {
                 for (idx, item) in path.iter().enumerate() {
                     if idx > 0 {
@@ -201,8 +226,30 @@ impl From<ValueType> for SelectorSpec {
 }
 
 fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorError> {
+    fn map_multiple_or_inner<F>(
+        pair: Pair<Rule>,
+        f: F,
+    ) -> Result<SelectorSpec, InvalidSelectorError>
+    where
+        F: Fn(Vec<SelectorSpec>) -> SelectorSpec,
+    {
+        let mut iter = pair.into_inner().map(handle_selector).peekable();
+        let first = iter.next().unwrap()?;
+        if iter.peek().is_none() {
+            Ok(first)
+        } else {
+            let mut items = vec![first];
+            for item in iter {
+                items.push(item?);
+            }
+            Ok(f(items))
+        }
+    }
+
     match pair.as_rule() {
-        Rule::Selector => handle_selector(pair.into_inner().next().unwrap()),
+        Rule::ParenthesisOrPath | Rule::MaybeNotSelector => {
+            handle_selector(pair.into_inner().next().unwrap())
+        }
         Rule::SelectorPath => {
             let mut used_deep_wildcard = false;
             let items = pair
@@ -222,16 +269,8 @@ fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorErro
 
             Ok(SelectorSpec::Path(items))
         }
-        Rule::AndSelector => Ok(SelectorSpec::And(
-            pair.into_inner()
-                .map(handle_selector)
-                .collect::<Result<_, _>>()?,
-        )),
-        Rule::OrSelector => Ok(SelectorSpec::Or(
-            pair.into_inner()
-                .map(handle_selector)
-                .collect::<Result<_, _>>()?,
-        )),
+        Rule::AndSelector => map_multiple_or_inner(pair, SelectorSpec::And),
+        Rule::OrSelector => map_multiple_or_inner(pair, SelectorSpec::Or),
         Rule::NotSelector => Ok(SelectorSpec::Not(Box::new(handle_selector(
             pair.into_inner().next().unwrap(),
         )?))),
@@ -288,4 +327,17 @@ fn handle_key(pair: Pair<Rule>) -> Result<String, InvalidSelectorError> {
 
 fn key_needs_quoting(key: &str) -> bool {
     SelectorParser::parse(Rule::RootUnquotedKey, key).is_err()
+}
+
+#[test]
+fn test_roundtrip() {
+    fn check_roundtrip(s: &str) {
+        assert_eq!(SelectorSpec::from_str(s).unwrap().to_string(), s);
+    }
+
+    check_roundtrip("!(!a)");
+    check_roundtrip("!a || !b");
+    check_roundtrip("!a && !b");
+    check_roundtrip("!(a && !b)");
+    check_roundtrip("!(a && b)");
 }
