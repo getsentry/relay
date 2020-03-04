@@ -24,19 +24,19 @@ use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
     EventAction, GetEventAction, GetProjectState, Project, ProjectState, RateLimit, RateLimitScope,
-    RetryAfter,
 };
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
+use crate::quotas::RetryAfter;
 use crate::service::ServerError;
 use crate::utils::{self, FormDataIter, FutureExt, RedisPool};
 
 #[cfg(feature = "processing")]
 use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
-    crate::quotas::{QuotasError, RateLimiter},
+    crate::quotas::{DataCategory, ItemScoping, QuotasError, RateLimiter},
     crate::service::ServerErrorKind,
     failure::ResultExt,
     relay_filter::FilterStatKey,
@@ -429,6 +429,64 @@ impl EventProcessor {
     }
 
     #[cfg(feature = "processing")]
+    fn enforce_quotas(
+        &self,
+        envelope: &Envelope,
+        project_state: &ProjectState,
+    ) -> Result<(), ProcessingError> {
+        // The organization id is effectively always available to Relays in processing mode. Relay
+        // uses the same project config as in non-processing mode, which is why it is optional.
+        // However, in case it were missing, rather over-accept than drop the event.
+        let organization_id = match project_state.organization_id {
+            Some(organization_id) => organization_id,
+            None => return Ok(()),
+        };
+
+        let rate_limiter = match self.rate_limiter.as_ref() {
+            Some(rate_limiter) => rate_limiter,
+            None => return Ok(()),
+        };
+
+        // The key configuration may be missing if the event has been queued for extended times and
+        // project was refetched in between. In such a case, access to legacy-qutoas and the key id
+        // are not availabe, but we can gracefully execute all other quotas.
+        let key_config = project_state.get_public_key_config(&envelope.meta().public_key());
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error, // TODO(ja): Infer data category
+            organization_id,
+            project_id: envelope.meta().project_id(),
+            key_id: key_config.as_ref().and_then(|config| config.numeric_id),
+        };
+
+        let quotas = if !project_state.config.quotas.is_empty() {
+            project_state.config.quotas.as_slice()
+        } else if let Some(ref key_config) = key_config {
+            key_config.legacy_quotas.as_slice()
+        } else {
+            &[]
+        };
+
+        if quotas.is_empty() {
+            return Ok(());
+        }
+
+        let rate_limit = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
+            rate_limiter
+                .is_rate_limited(quotas, &scoping)
+                .map_err(ProcessingError::QuotasFailed)?
+        });
+
+        if let Some(retry_after) = rate_limit {
+            // TODO(ja): Return actual QuotaScope
+            let scope = RateLimitScope::Key(key_config.expect("TODO(ja)").public_key.clone());
+            return Err(ProcessingError::RateLimited(RateLimit(scope, retry_after)));
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "processing")]
     fn store_process_event(
         &self,
         event: &mut Annotated<Event>,
@@ -492,22 +550,7 @@ impl EventProcessor {
         // dropped or filtered for a different reason before that, it should not count against
         // quotas. Also, this allows to reduce the number of requests to the rate limiter (currently
         // implemented in Redis).
-        if let Some(organization_id) = project_state.organization_id {
-            let key_config = project_state.get_public_key_config(&envelope.meta().public_key());
-            if let (Some(ref rate_limiter), Some(key_config)) = (&self.rate_limiter, key_config) {
-                let rate_limit = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-                    rate_limiter
-                        .is_rate_limited(&key_config.quotas, organization_id)
-                        .map_err(ProcessingError::QuotasFailed)?
-                });
-
-                if let Some(retry_after) = rate_limit {
-                    // TODO: Use quota prefix to determine scope
-                    let scope = RateLimitScope::Key(key_config.public_key.clone());
-                    return Err(ProcessingError::RateLimited(RateLimit(scope, retry_after)));
-                }
-            }
-        }
+        self.enforce_quotas(envelope, project_state)?;
 
         Ok(())
     }

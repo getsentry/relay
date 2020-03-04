@@ -23,7 +23,7 @@ use crate::constants::MAX_SESSION_DAYS;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::RelayCounters;
 use crate::service::{ServerError, ServerErrorKind};
-use crate::utils::instant_to_unix_timestamp;
+use crate::utils::UnixTimestamp;
 
 type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
 
@@ -141,7 +141,7 @@ impl StoreForwarder {
             project_id,
             event_id,
             payload: item.payload(),
-            start_time: instant_to_unix_timestamp(start_time),
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
         });
 
         self.produce(KafkaTopic::Attachments, message)
@@ -451,7 +451,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
             log::trace!("Sending event item of envelope to kafka");
             let event_message = KafkaMessage::Event(EventKafkaMessage {
                 payload: event_item.payload(),
-                start_time: instant_to_unix_timestamp(start_time),
+                start_time: UnixTimestamp::from_instant(start_time).as_secs(),
                 event_id: event_id.ok_or(StoreError::NoEventId)?,
                 project_id,
                 remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
