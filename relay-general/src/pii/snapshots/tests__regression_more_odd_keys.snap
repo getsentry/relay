@@ -18,7 +18,7 @@ expression: pii_config
     "hashKey": null
   },
   "applications": {
-    "((~url)&(~message)&(~'http.request.url')&(~'*url*')&(~'*message*')&(~'*http.request.url*')&(~$object)&(~$logentry.formatted))": [
+    "!url && !message && !'http.request.url' && !'*url*' && !'*message*' && !'*http.request.url*' && !$object && !$logentry.formatted": [
       "@creditcard:filter",
       "@pemkey:filter",
       "@urlauth:legacy",
@@ -26,37 +26,37 @@ expression: pii_config
       "@usssn:filter",
       "remove-keywords"
     ],
-    "(*access_token*&(~$object))": [
+    "*access_token* && !$object": [
       "@anything:filter"
     ],
-    "(*api_key*&(~$object))": [
+    "*api_key* && !$object": [
       "@anything:filter"
     ],
-    "(*apikey*&(~$object))": [
+    "*apikey* && !$object": [
       "@anything:filter"
     ],
-    "(*auth*&(~$object))": [
+    "*auth* && !$object": [
       "@anything:filter"
     ],
-    "(*credentials*&(~$object))": [
+    "*credentials* && !$object": [
       "@anything:filter"
     ],
-    "(*mysql_pwd*&(~$object))": [
+    "*mysql_pwd* && !$object": [
       "@anything:filter"
     ],
-    "(*passwd*&(~$object))": [
+    "*passwd* && !$object": [
       "@anything:filter"
     ],
-    "(*password*&(~$object))": [
+    "*password* && !$object": [
       "@anything:filter"
     ],
-    "(*secret*&(~$object))": [
+    "*secret* && !$object": [
       "@anything:filter"
     ],
-    "(*stripetoken*&(~$object))": [
+    "*stripetoken* && !$object": [
       "@anything:filter"
     ],
-    "($request.env.REMOTE_ADDR|$user.ip_address|$sdk.client_ip)": [
+    "$request.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
       "@anything:remove"
     ]
   }
