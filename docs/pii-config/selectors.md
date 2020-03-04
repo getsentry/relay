@@ -14,9 +14,9 @@ You have the possibility to select a region of the event using JSON-path-like sy
 
 You can combine selectors using boolean logic.
 
-* Prefix with `~` to invert the selector. `foo` matches the JSON key `foo`, while `(~foo)` matches everything but `foo`.
-* Build the conjunction (AND) using `&`, such as: `(foo&(~extra.foo))` to match the key `foo` except when inside of `extra`.
-* Build the disjunction (OR) using `|`, such as: `(foo|bar)` to match `foo` or `bar`.
+* Prefix with `!` to invert the selector. `foo` matches the JSON key `foo`, while `(~foo)` matches everything but `foo`.
+* Build the conjunction (AND) using `&&`, such as: `foo && !extra.foo` to match the key `foo` except when inside of `extra`.
+* Build the disjunction (OR) using `||`, such as: `foo || bar` to match `foo` or `bar`.
 
 ## Wildcards
 
