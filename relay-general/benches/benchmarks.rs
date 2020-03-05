@@ -3,7 +3,7 @@ use std::fs;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
-use relay_general::pii::PiiProcessor;
+use relay_general::pii::{DataScrubbingConfig, PiiProcessor};
 use relay_general::processor::process_value;
 use relay_general::protocol::{Event, IpAddr};
 use relay_general::store::{StoreConfig, StoreProcessor};
@@ -101,18 +101,54 @@ fn bench_store_processor(c: &mut Criterion) {
     group.finish();
 }
 
+fn datascrubbing_config() -> DataScrubbingConfig {
+    let mut config = DataScrubbingConfig::new_disabled();
+    config.exclude_fields = vec!["safe1".to_owned(), "safe2".to_owned(), "safe3".to_owned()];
+    config.sensitive_fields = vec![
+        "sensitive1".to_owned(),
+        "sensitive2".to_owned(),
+        "sensitive3".to_owned(),
+    ];
+    config.scrub_defaults = true;
+    config.scrub_data = true;
+    config.scrub_ip_addresses = true;
+    config
+}
+
+fn bench_pii_convert(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bench_pii_convert");
+
+    // using BenchmarkInput here for no reason, but eventually we might want to bench more
+    // datascrubbing configs
+
+    let input = BenchmarkInput {
+        name: "pii_convert".to_owned(),
+        data: datascrubbing_config(),
+    };
+
+    group.bench_with_input(BenchmarkId::from_parameter(&input), &input, |b, input| {
+        b.iter(|| input.data.pii_config())
+    });
+
+    group.finish();
+}
+
 fn bench_pii_stripping(c: &mut Criterion) {
     let mut group = c.benchmark_group("bench_pii_stripping");
 
     for BenchmarkInput { name, data } in load_all_fixtures() {
         let event = Annotated::<Event>::from_json(&data).expect("failed to deserialize");
-        let input = BenchmarkInput { name, data: event };
+
+        let input = BenchmarkInput {
+            name,
+            data: (event, datascrubbing_config().pii_config().unwrap().clone()),
+        };
 
         group.bench_with_input(BenchmarkId::from_parameter(&input), &input, |b, input| {
             b.iter(|| {
-                let mut event = input.data.clone();
-                let pii_config = Default::default();
-                let mut processor = PiiProcessor::new(&pii_config);
+                let (mut event, config) = input.data.clone();
+
+                let mut processor = PiiProcessor::new(&config);
                 process_value(&mut event, &mut processor, &Default::default()).unwrap();
                 event
             })
@@ -127,6 +163,7 @@ criterion_group!(
     bench_from_value,
     bench_to_json,
     bench_store_processor,
+    bench_pii_convert,
     bench_pii_stripping,
 );
 criterion_main!(benches);
