@@ -10,14 +10,6 @@ use crate::pii::builtin::BUILTIN_RULES_MAP;
 use crate::pii::Redaction;
 use crate::processor::SelectorSpec;
 
-pub fn regex_from_user_input(pattern: &str) -> RegexBuilder {
-    // user-defined regexes should not create massive cache state.
-    let mut builder = RegexBuilder::new(pattern);
-    builder.dfa_size_limit(2048);
-    builder.size_limit(262_144);
-    builder
-}
-
 /// A regex pattern for text replacement.
 #[derive(Clone)]
 pub struct Pattern(pub Regex);
@@ -32,7 +24,7 @@ impl Deref for Pattern {
 
 impl From<&'static str> for Pattern {
     fn from(pattern: &'static str) -> Pattern {
-        Pattern(regex_from_user_input(pattern).build().unwrap())
+        Pattern(Regex::new(pattern).unwrap())
     }
 }
 
@@ -51,7 +43,10 @@ impl Serialize for Pattern {
 impl<'de> Deserialize<'de> for Pattern {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(deserializer)?;
-        let pattern = regex_from_user_input(&raw).build().map_err(Error::custom)?;
+        let pattern = RegexBuilder::new(&raw)
+            .size_limit(262_144)
+            .build()
+            .map_err(Error::custom)?;
         Ok(Pattern(pattern))
     }
 }
