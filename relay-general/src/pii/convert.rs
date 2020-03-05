@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
-use crate::pii::config::regex_from_user_input;
+use regex::RegexBuilder;
+
 use crate::pii::{
     DataScrubbingConfig, Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType, Vars,
 };
@@ -66,7 +67,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
                         key_pattern: Pattern(
-                            regex_from_user_input(&key_pattern)
+                            RegexBuilder::new(&key_pattern)
                                 .case_insensitive(true)
                                 .build()
                                 .unwrap(),
