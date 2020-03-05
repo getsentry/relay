@@ -20,6 +20,8 @@ use relay_general::protocol::{
     SecurityReportType, Values,
 };
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
+use relay_quotas::RetryAfter;
+use relay_redis::RedisPool;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
@@ -29,19 +31,18 @@ use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
-use crate::quotas::RetryAfter;
 use crate::service::ServerError;
-use crate::utils::{self, FormDataIter, FutureExt, RedisPool};
+use crate::utils::{self, FormDataIter, FutureExt};
 
 #[cfg(feature = "processing")]
 use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
-    crate::quotas::{DataCategory, ItemScoping, QuotasError, RateLimiter},
     crate::service::ServerErrorKind,
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_quotas::{DataCategory, ItemScoping, RateLimiter, RateLimitingError},
 };
 
 #[derive(Debug, Fail)]
@@ -112,7 +113,7 @@ enum ProcessingError {
 
     #[cfg(feature = "processing")]
     #[fail(display = "failed to apply quotas")]
-    QuotasFailed(#[cause] QuotasError),
+    QuotasFailed(#[cause] RateLimitingError),
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,

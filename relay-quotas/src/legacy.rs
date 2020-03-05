@@ -1,7 +1,13 @@
+//! Conversions for the legacy quota schema.
+
+// Required due to remote
+#![allow(missing_docs)]
+
 use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::quotas::{DataCategory, Quota, QuotaScope};
+use crate::types::{DataCategory, Quota, QuotaScope};
 
+/// Legacy format of the `Quota` type.
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", remote = "Quota")]
 pub struct LegacyQuota {
@@ -58,6 +64,7 @@ impl From<LegacyQuota> for Quota {
     }
 }
 
+/// Deserializes a list of `Quota` objects using `LegacyQuota`.
 pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<Quota>, D::Error>
 where
     D: Deserializer<'de>,
@@ -69,6 +76,7 @@ where
     Ok(v.into_iter().map(|Wrapper(q)| q).collect())
 }
 
+/// Serializes a list of `Quota` objects using `LegacyQuota`.
 pub fn serialize<S>(quotas: &[Quota], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,

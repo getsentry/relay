@@ -10,13 +10,14 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{metric, ProjectId};
 use relay_config::{Config, RelayMode};
+use relay_redis::RedisPool;
 
 use crate::actors::project::{Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::actors::upstream::UpstreamRelay;
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{RedisPool, Response};
+use crate::utils::Response;
 
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};

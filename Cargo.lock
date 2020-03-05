@@ -2312,6 +2312,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-quotas"
+version = "0.5.4"
+dependencies = [
+ "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "relay-common 0.5.4",
+ "relay-config 0.5.4",
+ "relay-redis 0.5.4",
+ "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "relay-redis"
+version = "0.5.4"
+dependencies = [
+ "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "r2d2 0.8.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "redis 0.15.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "relay-config 0.5.4",
+]
+
+[[package]]
 name = "relay-server"
 version = "0.5.4"
 dependencies = [
@@ -2333,15 +2356,15 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "native-tls 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "r2d2 0.8.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "rdkafka 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "redis 0.15.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "relay-auth 0.5.4",
  "relay-common 0.5.4",
  "relay-config 0.5.4",
  "relay-filter 0.5.4",
  "relay-general 0.5.4",
+ "relay-quotas 0.5.4",
+ "relay-redis 0.5.4",
  "rmp-serde 0.14.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "sentry 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sentry-actix 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -1,7 +1,7 @@
 [package]
 name = "relay-server"
 authors = ["Sentry <oss@sentry.io>"]
-description = "Server components for the Relay"
+description = "Server components for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 version = "0.5.4"
@@ -13,7 +13,13 @@ publish = false
 [features]
 default = ["with_ssl"]
 with_ssl = ["native-tls", "actix-web/tls"]
-processing = ["rdkafka", "redis", "r2d2", "symbolic", "relay-config/processing"]
+processing = [
+    "rdkafka",
+    "relay-config/processing",
+    "relay-quotas/rate-limit",
+    "relay-redis/impl",
+    "symbolic",
+]
 
 [dependencies]
 actix = "0.7.9"
@@ -32,15 +38,15 @@ listenfd = "0.3.3"
 log = "0.4.8"
 native-tls = { version = "0.2.3", optional = true }
 parking_lot = "0.10.0"
-r2d2 = { version = "0.8.8", optional = true }
 rdkafka = { version = "0.22.0", optional = true }
-redis = { version = "0.15.1", optional = true, features = ["cluster", "r2d2"] }
 regex = "1.2.0"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
 relay-filter = { path = "../relay-filter" }
 relay-general = { path = "../relay-general" }
+relay-quotas = { path = "../relay-quotas", features = ["legacy"] }
+relay-redis = { path = "../relay-redis" }
 rmp-serde = "0.14.3"
 sentry = "0.18.0"
 sentry-actix = "0.18.0"

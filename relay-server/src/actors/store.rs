@@ -14,7 +14,7 @@ use rdkafka::ClientConfig;
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
-use relay_common::{metric, LogError, ProjectId, Uuid};
+use relay_common::{metric, LogError, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{EventId, EventType, SessionStatus, SessionUpdate};
 use relay_general::types;
@@ -23,7 +23,6 @@ use crate::constants::MAX_SESSION_DAYS;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::RelayCounters;
 use crate::service::{ServerError, ServerErrorKind};
-use crate::utils::UnixTimestamp;
 
 type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
 

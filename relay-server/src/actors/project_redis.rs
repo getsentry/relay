@@ -4,10 +4,10 @@ use actix::prelude::*;
 use failure::Fail;
 use relay_common::{LogError, ProjectId};
 use relay_config::Config;
+use relay_redis::{RedisError, RedisPool};
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
-use crate::utils::{RedisError, RedisPool};
 
 pub struct RedisProjectSource {
     config: Arc<Config>,
@@ -41,23 +41,14 @@ impl RedisProjectSource {
     }
 
     fn get_config(&self, id: ProjectId) -> Result<Option<ProjectState>, RedisProjectError> {
-        let mut command = redis::cmd("GET");
-        command.arg(format!(
-            "{}:{}",
-            self.config.projectconfig_cache_prefix(),
-            id
-        ));
+        let mut command = relay_redis::redis::cmd("GET");
 
-        let raw_response_opt: Option<String> = match self.redis {
-            RedisPool::Cluster(ref pool) => {
-                let mut client = pool.get().map_err(RedisError::RedisPool)?;
-                command.query(&mut *client).map_err(RedisError::Redis)?
-            }
-            RedisPool::Single(ref pool) => {
-                let mut client = pool.get().map_err(RedisError::RedisPool)?;
-                command.query(&mut *client).map_err(RedisError::Redis)?
-            }
-        };
+        let prefix = self.config.projectconfig_cache_prefix();
+        command.arg(format!("{}:{}", prefix, id));
+
+        let raw_response_opt: Option<String> = command
+            .query(&mut self.redis.client()?.connection())
+            .map_err(RedisError::Redis)?;
 
         let raw_response = match raw_response_opt {
             Some(response) => response,

@@ -4,15 +4,23 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::ProjectId;
 
+/// Data categorization and scoping information.
+///
+/// This structure holds information of all scopes required for attributing an item to quotas.
 #[derive(Clone, Debug)]
 pub struct ItemScoping {
+    /// The data category of the item.
     pub category: DataCategory,
+    /// The organization id.
     pub organization_id: u64,
+    /// The project id.
     pub project_id: ProjectId,
+    /// The public key's id (not the public key).
     pub key_id: Option<u64>,
 }
 
 impl ItemScoping {
+    /// Returns the identifier of the given scope.
     pub fn scope_id(&self, scope: QuotaScope) -> Option<u64> {
         match scope {
             QuotaScope::Organization => Some(self.organization_id),
@@ -23,6 +31,7 @@ impl ItemScoping {
     }
 }
 
+/// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename = "lowercase")]
 pub enum DataCategory {
@@ -43,6 +52,7 @@ pub enum DataCategory {
     Unknown,
 }
 
+/// The scope that a quota applies to.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename = "lowercase")]
 pub enum QuotaScope {
@@ -83,8 +93,8 @@ pub struct Quota {
     #[serde(default)]
     pub id: Option<String>,
 
-    ///  A set of data categories that this quota applies to. If missing or empty, this quota
-    ///  applies to all data.
+    /// A set of data categories that this quota applies to. If missing or empty, this quota
+    /// applies to all data.
     #[serde(default = "Vec::new")]
     pub categories: Vec<DataCategory>,
 
@@ -197,6 +207,7 @@ impl RetryAfter {
         self.reason_code.as_deref()
     }
 
+    /// Returns whether this rate limit has expired.
     pub fn expired(&self) -> bool {
         self.remaining_seconds() == 0
     }

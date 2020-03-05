@@ -189,7 +189,6 @@ mod kafka {
 
     use crate::metrics::RelayCounters;
     use crate::service::ServerErrorKind;
-    use crate::utils;
 
     type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
 
@@ -287,7 +286,7 @@ mod kafka {
                 Some(reason) => Some(reason.to_string()),
             };
 
-            let start_time = utils::instant_to_system_time(msg.timestamp);
+            let start_time = relay_common::instant_to_system_time(msg.timestamp);
             let date_time: DateTime<Utc> = start_time.into();
 
             // convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ

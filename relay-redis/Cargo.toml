@@ -1,0 +1,20 @@
+[package]
+name = "relay-redis"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Redis pool implementation for Relay"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "0.5.4"
+edition = "2018"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+failure = "0.1.5"
+r2d2 = { version = "0.8.8", optional = true }
+redis = { version = "0.15.1", optional = true, features = ["cluster", "r2d2"] }
+relay-config = { path = "../relay-config" }
+
+[features]
+default = []
+impl = ["r2d2", "redis"]

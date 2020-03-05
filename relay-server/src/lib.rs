@@ -17,7 +17,6 @@ mod envelope;
 mod extractors;
 mod metrics;
 mod middlewares;
-mod quotas;
 mod service;
 mod utils;
 

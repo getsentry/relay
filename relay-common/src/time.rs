@@ -45,6 +45,11 @@ impl UnixTimestamp {
     pub fn as_secs(self) -> u64 {
         self.0.as_secs()
     }
+
+    /// Returns the number of milliseconds since the UNIX epoch start.
+    pub fn as_millis(self) -> u128 {
+        self.0.as_millis()
+    }
 }
 
 impl std::ops::Sub for UnixTimestamp {

@@ -11,6 +11,7 @@ use sentry_actix::SentryMiddleware;
 
 use relay_common::clone;
 use relay_config::Config;
+use relay_redis::RedisPool;
 
 use crate::actors::events::EventManager;
 use crate::actors::healthcheck::Healthcheck;
@@ -22,7 +23,6 @@ use crate::actors::upstream::UpstreamRelay;
 use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
 use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware};
-use crate::utils::RedisPool;
 
 /// Common error type for the relay server.
 #[derive(Debug)]

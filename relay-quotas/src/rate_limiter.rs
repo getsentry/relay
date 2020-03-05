@@ -3,10 +3,11 @@ use std::sync::Arc;
 
 use failure::Fail;
 
+use relay_common::UnixTimestamp;
 use relay_config::Config;
+use relay_redis::{redis::Script, RedisError, RedisPool};
 
-use crate::quotas::{ItemScoping, Quota, QuotaScope, RetryAfter};
-use crate::utils::{RedisError, RedisPool, UnixTimestamp};
+use crate::types::{ItemScoping, Quota, QuotaScope, RetryAfter};
 
 /// The `grace` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -17,14 +18,16 @@ const GRACE: u64 = 60;
 /// typically happens for disabled keys, projects, or organizations.
 const REJECT_ALL_SECS: u64 = 60;
 
+/// An error returned by `RateLimiter`.
 #[derive(Debug, Fail)]
-pub enum QuotasError {
-    #[fail(display = "failed to talk to redis")]
-    Redis(#[cause] crate::utils::RedisError),
+pub enum RateLimitingError {
+    /// Failed to communicate with Redis.
+    #[fail(display = "failed to communicate with redis")]
+    Redis(#[cause] RedisError),
 }
 
-fn load_lua_script() -> redis::Script {
-    redis::Script::new(include_str!("is_rate_limited.lua"))
+fn load_lua_script() -> Script {
+    Script::new(include_str!("is_rate_limited.lua"))
 }
 
 fn get_refunded_quota_key(counter_key: &str) -> String {
@@ -61,11 +64,7 @@ struct RedisQuota<'a> {
 }
 
 impl<'a> RedisQuota<'a> {
-    pub fn new(
-        quota: &'a Quota,
-        scoping: &'a ItemScoping,
-        timestamp: UnixTimestamp,
-    ) -> Option<Self> {
+    fn new(quota: &'a Quota, scoping: &'a ItemScoping, timestamp: UnixTimestamp) -> Option<Self> {
         // These fields indicate that we *can* track this quota.
         let prefix = quota.id.as_deref()?;
         let window = quota.window?;
@@ -124,14 +123,23 @@ impl std::ops::Deref for RedisQuota<'_> {
     }
 }
 
+/// A service that executes quotas and checks for rate limits in a shared cache.
+///
+/// Quotas handle tracking a project's usage and respond whether or not a project has been
+/// configured to throttle incoming data if they go beyond the specified quota.
+///
+/// Quotas can specify a window to be tracked in, such as per minute or per hour. Additionally,
+/// quotas allow to specify the data categories they apply to, for example error events or
+/// attachments. For more information on quota parameters, see `QuotaConfig`.
 #[derive(Clone)]
 pub struct RateLimiter {
     config: Arc<Config>,
     pool: RedisPool,
-    script: Arc<redis::Script>,
+    script: Arc<Script>,
 }
 
 impl RateLimiter {
+    /// Creates a new `RateLimiter` instance.
     pub fn new(config: Arc<Config>, pool: RedisPool) -> Self {
         RateLimiter {
             config,
@@ -140,11 +148,20 @@ impl RateLimiter {
         }
     }
 
+    /// Checks whether any of the quotas in effect for the given project and project key has been
+    /// exceeded and records consumption of the quota.
+    ///
+    /// By invoking this method, the caller signals that data is being ingested and needs to be
+    /// counted against the quota. This increment happens atomically if none of the quotas have been
+    /// exceeded. Otherwise, a rate limit is returned and data is not counted against the quotas.
+    ///
+    /// If no key is specified, then only organization-wide and project-wide quotas are checked. If
+    /// a key is specified, then key-quotas are also checked.
     pub fn is_rate_limited(
         &self,
         quotas: &[Quota],
         scoping: &ItemScoping,
-    ) -> Result<Option<RetryAfter>, QuotasError> {
+    ) -> Result<Option<RetryAfter>, RateLimitingError> {
         let timestamp = UnixTimestamp::now();
 
         let mut invocation = self.script.prepare_invoke();
@@ -186,28 +203,11 @@ impl RateLimiter {
             return Ok(None);
         }
 
-        let rejections: Vec<bool> = match self.pool {
-            RedisPool::Cluster(ref pool) => {
-                let mut client = pool
-                    .get()
-                    .map_err(RedisError::RedisPool)
-                    .map_err(QuotasError::Redis)?;
-                invocation
-                    .invoke(&mut *client)
-                    .map_err(RedisError::Redis)
-                    .map_err(QuotasError::Redis)?
-            }
-            RedisPool::Single(ref pool) => {
-                let mut client = pool
-                    .get()
-                    .map_err(RedisError::RedisPool)
-                    .map_err(QuotasError::Redis)?;
-                invocation
-                    .invoke(&mut *client)
-                    .map_err(RedisError::Redis)
-                    .map_err(QuotasError::Redis)?
-            }
-        };
+        let mut client = self.pool.client().map_err(RateLimitingError::Redis)?;
+        let rejections: Vec<bool> = invocation
+            .invoke(&mut client.connection())
+            .map_err(RedisError::Redis)
+            .map_err(RateLimitingError::Redis)?;
 
         let mut worst_case = None;
 
@@ -240,11 +240,11 @@ mod tests {
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use redis::Commands;
+    use relay_redis::redis::Commands;
 
     use relay_common::ProjectId;
 
-    use crate::quotas::DataCategory;
+    use crate::types::DataCategory;
 
     use super::*;
 
@@ -335,12 +335,8 @@ mod tests {
             .map(|duration| duration.as_secs())
             .unwrap();
 
-        let conn_guard = match &RATE_LIMITER.pool {
-            RedisPool::Single(ref conn_guard) => conn_guard,
-            _ => unreachable!(),
-        };
-
-        let mut conn = conn_guard.get().unwrap();
+        let mut client = RATE_LIMITER.pool.client().expect("get client");
+        let mut conn = client.connection();
 
         // define a few keys with random seed such that they do not collide with repeated test runs
         let foo = format!("foo___{}", now);
@@ -366,13 +362,13 @@ mod tests {
 
         // The item should not be rate limited by either key.
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut *conn).unwrap(),
+            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
             vec![false, false]
         );
 
         // The item should be rate limited by the first key (1).
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut *conn).unwrap(),
+            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
             vec![true, false]
         );
 
@@ -381,7 +377,7 @@ mod tests {
         // we've checked the quotas. This ensures items that are rejected by a lower
         // quota don't affect unrelated items that share a parent quota.
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut *conn).unwrap(),
+            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
             vec![true, false]
         );
 
@@ -407,13 +403,13 @@ mod tests {
 
         // increment
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut *conn).unwrap(),
+            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
             vec![false]
         );
 
         // test that it's rate limited without refund
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut *conn).unwrap(),
+            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
             vec![true]
         );
 
@@ -422,7 +418,7 @@ mod tests {
 
         // test that refund key is used
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut *conn).unwrap(),
+            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
             vec![false]
         );
     }
