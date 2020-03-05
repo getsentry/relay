@@ -44,7 +44,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
             .peekable();
 
         let sensitive_fields_re = if sensitive_fields.peek().is_some() {
-            let mut re = ".*(".to_owned();
+            let mut re = "(".to_owned();
 
             for (idx, field) in sensitive_fields.enumerate() {
                 if idx != 0 {
@@ -55,7 +55,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
                 re.push_str(&regex::escape(field));
             }
 
-            re.push_str(").*");
+            re.push_str(")");
             Some(re)
         } else {
             None
@@ -252,7 +252,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           "rules": {
             "strip-fields": {
               "type": "redact_pair",
-              "keyPattern": ".*(fieldy_field|moar_other_field).*",
+              "keyPattern": "(fieldy_field|moar_other_field)",
               "redaction": {
                 "method": "replace",
                 "text": "[Filtered]"
@@ -1191,7 +1191,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           "rules": {
             "strip-fields": {
               "type": "redact_pair",
-              "keyPattern": ".*(session_key).*",
+              "keyPattern": "(session_key)",
               "redaction": {
                 "method": "replace",
                 "text": "[Filtered]"
