@@ -81,9 +81,20 @@ impl ProjectCache {
     fn evict_stale_project_caches(&mut self) {
         metric!(counter(RelayCounters::EvictingStaleProjectCaches) += 1);
         let eviction_start = Instant::now();
-        let eviction_threshold = eviction_start
-            - 2 * self.config.project_cache_expiry()
-            - self.config.project_grace_period();
+        let eviction_threshold = match eviction_start
+            .checked_sub(2 * self.config.project_cache_expiry())
+            .and_then(|x| x.checked_sub(self.config.project_grace_period()))
+        {
+            Some(x) => x,
+            None => {
+                // There was an underflow when subtracting from `eviction_start`, which means
+                // we produced the smallest possible instant. There is no way we have projects
+                // that need to be evicted.
+                log::warn!("Overflow/underflow while computing eviction_threshold. No projects will be evicted");
+                return;
+            }
+        };
+
         self.projects
             .retain(|_, entry| entry.last_updated_at > eviction_threshold);
 
