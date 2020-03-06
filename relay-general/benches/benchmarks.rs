@@ -4,7 +4,7 @@ use std::fs;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
 use relay_general::pii::{DataScrubbingConfig, PiiProcessor};
-use relay_general::processor::process_value;
+use relay_general::processor::{process_value, SelectorSpec};
 use relay_general::protocol::{Event, IpAddr};
 use relay_general::store::{StoreConfig, StoreProcessor};
 use relay_general::types::Annotated;
@@ -29,6 +29,15 @@ fn load_all_fixtures() -> Vec<BenchmarkInput<String>> {
 struct BenchmarkInput<T> {
     name: String,
     data: T,
+}
+
+impl<T> BenchmarkInput<T> {
+    fn new(name: impl Into<String>, data: T) -> BenchmarkInput<T> {
+        BenchmarkInput {
+            name: name.into(),
+            data,
+        }
+    }
 }
 
 impl<T> fmt::Display for BenchmarkInput<T> {
@@ -158,6 +167,20 @@ fn bench_pii_stripping(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_parse_pii_selector(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bench_parse_pii_selector");
+
+    let mut bench = |input: BenchmarkInput<&str>| {
+        group.bench_with_input(BenchmarkId::from_parameter(&input), &input, |b, input| {
+            b.iter(|| input.data.parse::<SelectorSpec>().unwrap())
+        });
+    };
+
+    bench(BenchmarkInput::new("complex_legacy", "(($string | $number | $array) & (~(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted)))"));
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_from_value,
@@ -165,5 +188,6 @@ criterion_group!(
     bench_store_processor,
     bench_pii_convert,
     bench_pii_stripping,
+    bench_parse_pii_selector,
 );
 criterion_main!(benches);
