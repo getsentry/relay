@@ -36,6 +36,7 @@ pub struct DataScrubbingConfig {
 }
 
 impl DataScrubbingConfig {
+    /// Creates a new data scrubbing configuration that does nothing on the event.
     pub fn new_disabled() -> Self {
         DataScrubbingConfig {
             exclude_fields: vec![],
@@ -46,6 +47,7 @@ impl DataScrubbingConfig {
             pii_config: AtomicLazyCell::new(),
         }
     }
+
     /// Returns true if datascrubbing is disabled.
     pub fn is_disabled(&self) -> bool {
         !self.scrub_data && !self.scrub_ip_addresses
