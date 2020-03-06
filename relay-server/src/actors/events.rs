@@ -646,6 +646,9 @@ impl EventProcessor {
         // Run PII stripping last since normalization can add PII (e.g. IP addresses).
         metric!(timer(RelayTimers::EventProcessingPii), {
             for pii_config in message.project_state.config.pii_configs() {
+                // Clone the entire config to clone regexes, which wipes their caches. This should
+                // avoid memory growing out of bounds.
+                let pii_config = pii_config.clone();
                 let mut processor = PiiProcessor::new(pii_config);
                 process_value(&mut event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
