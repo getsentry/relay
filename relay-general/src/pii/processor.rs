@@ -12,7 +12,7 @@ use crate::pii::compiledconfig::RuleRef;
 use crate::pii::{CompiledPiiConfig, HashAlgorithm, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, process_value, Chunk, Pii, ProcessValue, ProcessingState, Processor,
-    SelectorSpec, ValueType,
+    ValueType,
 };
 use crate::protocol::{AsPair, NativeImagePath, PairList};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
@@ -186,46 +186,38 @@ impl<'a> PiiProcessor<'a> {
     }
 
     /// Iterate over all matching rules.
-    fn iter_rules<'b>(&self, state: &'b ProcessingState<'b>) -> RuleIterator<'a, 'b> {
-        RuleIterator {
-            state,
-            application_iter: self.compiled_config.applications.iter(),
-            pending_refs: None,
-        }
-    }
-}
+    fn iter_rules<'b>(
+        &'a self,
+        state: &'b ProcessingState<'b>,
+    ) -> impl Iterator<Item = &'a RuleRef> {
+        let mut rv = BTreeSet::new();
+        if state.attrs().pii != Pii::False {
+            if let Some(key) = state.path().key() {
+                for mat in self.compiled_config.key_patterns.find_iter(&key) {
+                    for (selector, rules) in &self.compiled_config.key_applications[mat.pattern()] {
+                        if state.attrs().pii == Pii::Maybe && !selector.is_specific() {
+                            continue;
+                        }
 
-struct RuleIterator<'a, 'b> {
-    state: &'b ProcessingState<'b>,
-    application_iter: std::slice::Iter<'a, (SelectorSpec, BTreeSet<RuleRef>)>,
-    pending_refs: Option<std::collections::btree_set::Iter<'a, RuleRef>>,
-}
-
-impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
-    type Item = &'a RuleRef;
-
-    fn next(&mut self) -> Option<&'a RuleRef> {
-        if self.state.attrs().pii == Pii::False {
-            return None;
-        }
-
-        'outer: loop {
-            if let Some(rv) = self.pending_refs.as_mut().and_then(Iterator::next) {
-                return Some(rv);
+                        if state.path().matches_selector(selector) {
+                            rv.extend(rules);
+                        }
+                    }
+                }
             }
 
-            while let Some((selector, rules)) = self.application_iter.next() {
-                if self.state.attrs().pii == Pii::Maybe && !selector.is_specific() {
+            for (selector, rules) in &self.compiled_config.non_key_applications {
+                if state.attrs().pii == Pii::Maybe && !selector.is_specific() {
                     continue;
                 }
-                if self.state.path().matches_selector(selector) {
-                    self.pending_refs = Some(rules.iter());
-                    continue 'outer;
+
+                if state.path().matches_selector(selector) {
+                    rv.extend(rules);
                 }
             }
-
-            return None;
         }
+
+        rv.into_iter()
     }
 }
 
@@ -1057,6 +1049,70 @@ fn test_quoted_keys() {
 
     let compiled = config.compiled();
     let mut processor = PiiProcessor::new(&compiled);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_impossible_selector() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "myvalue && !**": ["@anything:remove"],
+                "foobar && !**": ["@anything:remove"],
+                "myvalue && foobar": ["@anything:remove"],
+                "myvalue && !$string": ["@anything:remove"],
+                "foobar && !$string": ["@anything:remove"]
+            }
+        }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        extra: {
+            let mut map = Object::new();
+            map.insert(
+                "myvalue".to_string(),
+                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+            );
+            Annotated::new(map)
+        },
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    assert_annotated_snapshot!(event);
+}
+
+#[test]
+fn test_weird_wildcard_selectors() {
+    let config = PiiConfig::from_json(
+        r##"
+        {
+            "applications": {
+                "randomstring || !$object": ["@anything:remove"]
+            }
+        }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        extra: {
+            let mut map = Object::new();
+            map.insert(
+                "myvalue".to_string(),
+                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+            );
+            Annotated::new(map)
+        },
+        ..Default::default()
+    });
+
+    let mut processor = PiiProcessor::new(&config);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }

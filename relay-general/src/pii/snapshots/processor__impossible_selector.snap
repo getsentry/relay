@@ -1,0 +1,9 @@
+---
+source: relay-general/src/pii/processor.rs
+expression: event
+---
+{
+  "extra": {
+    "myvalue": "foobar"
+  }
+}

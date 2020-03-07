@@ -496,7 +496,7 @@ pub struct Path<'a>(&'a ProcessingState<'a>);
 impl<'a> Path<'a> {
     /// Returns the current key if there is one
     #[inline]
-    pub fn key(&self) -> Option<&str> {
+    pub fn key(&self) -> Option<&'a str> {
         PathItem::key(self.0.path_item()?)
     }
 

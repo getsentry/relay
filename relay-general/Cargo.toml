@@ -35,6 +35,7 @@ uaparser = { version = "0.3.3", optional = true }
 url = "2.0.0"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 relay-common = { path = "../relay-common" }
+aho-corasick = "0.7.10"
 
 [dev-dependencies]
 difference = "2.0.0"
