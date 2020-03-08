@@ -124,44 +124,42 @@ fn datascrubbing_config() -> DataScrubbingConfig {
     config
 }
 
-fn bench_pii_convert(c: &mut Criterion) {
-    let mut group = c.benchmark_group("bench_pii_convert");
-
-    // using BenchmarkInput here for no reason, but eventually we might want to bench more
-    // datascrubbing configs
-
-    let input = BenchmarkInput {
-        name: "pii_convert".to_owned(),
-        data: datascrubbing_config(),
-    };
-
-    group.bench_with_input(BenchmarkId::from_parameter(&input), &input, |b, input| {
-        b.iter(|| input.data.pii_config())
-    });
-
-    group.finish();
-}
-
 fn bench_pii_stripping(c: &mut Criterion) {
     let mut group = c.benchmark_group("bench_pii_stripping");
+
+    let datascrubbing_config = datascrubbing_config();
+    let config_name = "simple_enabled";
+
+    group.bench_with_input(
+        BenchmarkId::new("convert_config", config_name),
+        &datascrubbing_config,
+        |b, datascrubbing_config| b.iter(|| datascrubbing_config.pii_config()),
+    );
+
+    let pii_config = datascrubbing_config.pii_config().unwrap();
+
+    group.bench_with_input(
+        BenchmarkId::new("new_processor", config_name),
+        &pii_config,
+        |b, pii_config| b.iter(|| PiiProcessor::new(pii_config)),
+    );
+
+    let mut processor = PiiProcessor::new(&pii_config);
 
     for BenchmarkInput { name, data } in load_all_fixtures() {
         let event = Annotated::<Event>::from_json(&data).expect("failed to deserialize");
 
-        let input = BenchmarkInput {
-            name,
-            data: (event, datascrubbing_config().pii_config().unwrap().clone()),
-        };
-
-        group.bench_with_input(BenchmarkId::from_parameter(&input), &input, |b, input| {
-            b.iter(|| {
-                let (mut event, config) = input.data.clone();
-
-                let mut processor = PiiProcessor::new(&config);
-                process_value(&mut event, &mut processor, &Default::default()).unwrap();
-                event
-            })
-        });
+        group.bench_with_input(
+            BenchmarkId::new("run_processor", name),
+            &event,
+            |b, event| {
+                b.iter(|| {
+                    let mut event = event.clone();
+                    process_value(&mut event, &mut processor, &Default::default()).unwrap();
+                    event
+                })
+            },
+        );
     }
 
     group.finish();
@@ -186,7 +184,6 @@ criterion_group!(
     bench_from_value,
     bench_to_json,
     bench_store_processor,
-    bench_pii_convert,
     bench_pii_stripping,
     bench_parse_pii_selector,
 );
