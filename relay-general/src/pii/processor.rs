@@ -8,8 +8,8 @@ use regex::Regex;
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 
-use crate::pii::config::RuleRef;
-use crate::pii::{HashAlgorithm, PiiConfig, Redaction, RuleType};
+use crate::pii::compiledconfig::RuleRef;
+use crate::pii::{CompiledPiiConfig, HashAlgorithm, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, process_value, Chunk, Pii, ProcessValue, ProcessingState, Processor,
     SelectorSpec, ValueType,
@@ -171,38 +171,30 @@ lazy_static! {
 
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
-    config: &'a PiiConfig,
-    applications: Vec<(&'a SelectorSpec, BTreeSet<RuleRef<'a>>)>,
+    compiled_config: &'a CompiledPiiConfig,
 }
 
 impl<'a> PiiProcessor<'a> {
     /// Creates a new processor based on a config.
-    pub fn new(config: &'a PiiConfig) -> PiiProcessor<'_> {
-        let mut applications = Vec::new();
-        for (selector, rules) in &config.applications {
-            let mut rule_set = BTreeSet::default();
-            for rule_id in rules {
-                collect_rules(config, &mut rule_set, &rule_id, None);
-            }
-            applications.push((selector, rule_set));
-        }
-
+    pub fn new<C>(config: C) -> PiiProcessor<'a>
+    where
+        C: Into<&'a CompiledPiiConfig>,
+    {
+        // this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
+        // any init logic into CompiledPiiConfig::new.
+        //
+        // Note: We accept both `PiiConfig` and `CompiledPiiConfig` because the latter makes more
+        // sense for benchmarks while the former is obviously the cleaner API for relay-server.
         PiiProcessor {
-            config,
-            applications,
+            compiled_config: config.into(),
         }
-    }
-
-    /// Returns a reference to the config.
-    pub fn config(&self) -> &PiiConfig {
-        self.config
     }
 
     /// Iterate over all matching rules.
-    fn iter_rules<'b>(&'a self, state: &'b ProcessingState<'b>) -> RuleIterator<'a, 'b> {
+    fn iter_rules<'b>(&self, state: &'b ProcessingState<'b>) -> RuleIterator<'a, 'b> {
         RuleIterator {
             state,
-            application_iter: self.applications.iter(),
+            application_iter: self.compiled_config.applications.iter(),
             pending_refs: None,
         }
     }
@@ -210,20 +202,20 @@ impl<'a> PiiProcessor<'a> {
 
 struct RuleIterator<'a, 'b> {
     state: &'b ProcessingState<'b>,
-    application_iter: std::slice::Iter<'a, (&'a SelectorSpec, BTreeSet<RuleRef<'a>>)>,
-    pending_refs: Option<std::collections::btree_set::Iter<'a, RuleRef<'a>>>,
+    application_iter: std::slice::Iter<'a, (SelectorSpec, BTreeSet<RuleRef>)>,
+    pending_refs: Option<std::collections::btree_set::Iter<'a, RuleRef>>,
 }
 
 impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
-    type Item = RuleRef<'a>;
+    type Item = &'a RuleRef;
 
-    fn next(&mut self) -> Option<RuleRef<'a>> {
+    fn next(&mut self) -> Option<&'a RuleRef> {
         if self.state.attrs().pii == Pii::False {
             return None;
         }
 
         'outer: loop {
-            if let Some(&rv) = self.pending_refs.as_mut().and_then(Iterator::next) {
+            if let Some(rv) = self.pending_refs.as_mut().and_then(Iterator::next) {
                 return Some(rv);
             }
 
@@ -363,52 +355,15 @@ impl<'a> Processor for PiiProcessor<'a> {
     }
 }
 
-fn collect_rules<'a, 'b>(
-    config: &'a PiiConfig,
-    rules: &'b mut BTreeSet<RuleRef<'a>>,
-    rule_id: &'a str,
-    parent: Option<RuleRef<'a>>,
-) {
-    let rule = match config.rule(rule_id) {
-        Some(rule) => rule,
-        None => return,
-    };
-
-    if rules.contains(&rule) {
-        return;
-    }
-
-    let rule = match parent {
-        Some(parent) => rule.for_parent(parent),
-        None => rule,
-    };
-
-    match rule.ty {
-        RuleType::Multiple(m) => {
-            let parent = if m.hide_inner { Some(rule) } else { None };
-            for rule_id in &m.rules {
-                collect_rules(config, rules, &rule_id, parent);
-            }
-        }
-        RuleType::Alias(a) => {
-            let parent = if a.hide_inner { Some(rule) } else { None };
-            collect_rules(config, rules, &a.rule, parent);
-        }
-        _ => {
-            rules.insert(rule);
-        }
-    }
-}
-
 fn apply_rule_to_value(
     meta: &mut Meta,
-    rule: RuleRef<'_>,
+    rule: &RuleRef,
     key: Option<&str>,
     mut value: Option<&mut String>,
 ) -> ProcessingResult {
     // The rule might specify to remove or to redact. If redaction is chosen, we need to
     // chunk up the value, otherwise we need to simply mark the value for deletion.
-    let should_redact_chunks = match *rule.redaction {
+    let should_redact_chunks = match rule.redaction {
         Redaction::Default | Redaction::Remove => false,
         _ => true,
     };
@@ -431,7 +386,7 @@ fn apply_rule_to_value(
                     // @anything.
                     apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
                 } else {
-                    meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
+                    meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
                     return Err(ProcessingAction::DeleteValueHard);
                 }
             } else {
@@ -448,7 +403,7 @@ fn apply_rule_to_value(
                 apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
             } else {
                 // The value is a container, @anything on a container can do nothing but delete.
-                meta.add_remark(Remark::new(RemarkType::Removed, rule.origin));
+                meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
                 return Err(ProcessingAction::DeleteValueHard);
             }
         }
@@ -477,7 +432,7 @@ fn apply_rule_to_value(
 
 fn apply_regex_to_chunks<'a>(
     chunks: Vec<Chunk<'a>>,
-    rule: RuleRef<'_>,
+    rule: &RuleRef,
     regex: &Regex,
     replace_groups: Option<&BTreeSet<u8>>,
 ) -> Vec<Chunk<'a>> {
@@ -544,7 +499,7 @@ fn apply_regex_to_chunks<'a>(
                                 &mut rv,
                                 &mut replacement_chunks,
                             );
-                            insert_replacement_chunks(rule, g.as_str(), &mut rv);
+                            insert_replacement_chunks(&rule, g.as_str(), &mut rv);
                             pos = g.end();
                         }
                     }
@@ -552,7 +507,7 @@ fn apply_regex_to_chunks<'a>(
             }
             None => {
                 process_text(&"", &mut rv, &mut replacement_chunks);
-                insert_replacement_chunks(rule, &search_string, &mut rv);
+                insert_replacement_chunks(&rule, &search_string, &mut rv);
                 pos = search_string.len();
                 break;
             }
@@ -579,8 +534,8 @@ fn in_range(range: (Option<i32>, Option<i32>), pos: usize, len: usize) -> bool {
     pos >= start && pos < end
 }
 
-fn insert_replacement_chunks(rule: RuleRef<'_>, text: &str, output: &mut Vec<Chunk<'_>>) {
-    match rule.redaction {
+fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<'_>>) {
+    match &rule.redaction {
         Redaction::Default | Redaction::Remove => {
             output.push(Chunk::Redaction {
                 text: Cow::Borrowed(""),
@@ -609,12 +564,7 @@ fn insert_replacement_chunks(rule: RuleRef<'_>, text: &str, output: &mut Vec<Chu
             output.push(Chunk::Redaction {
                 ty: RemarkType::Pseudonymized,
                 rule_id: Cow::Owned(rule.origin.to_string()),
-                text: Cow::Owned(hash_value(
-                    hash.algorithm,
-                    text,
-                    hash.key.as_deref(),
-                    rule.config,
-                )),
+                text: Cow::Owned(hash_value(hash.algorithm, text, hash.key.as_deref())),
             });
         }
         Redaction::Replace(replace) => {
@@ -627,13 +577,8 @@ fn insert_replacement_chunks(rule: RuleRef<'_>, text: &str, output: &mut Vec<Chu
     }
 }
 
-fn hash_value(
-    algorithm: HashAlgorithm,
-    text: &str,
-    key: Option<&str>,
-    config: &PiiConfig,
-) -> String {
-    let key = key.unwrap_or_else(|| config.vars.hash_key.as_deref().unwrap_or(""));
+fn hash_value(algorithm: HashAlgorithm, text: &str, key: Option<&str>) -> String {
+    let key = key.unwrap_or("");
     macro_rules! hmac {
         ($ty:ident) => {{
             let mut mac = Hmac::<$ty>::new_varkey(key.as_bytes()).unwrap();
@@ -650,6 +595,7 @@ fn hash_value(
 
 #[cfg(test)]
 use {
+    crate::pii::PiiConfig,
     crate::protocol::{
         Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
         Request,

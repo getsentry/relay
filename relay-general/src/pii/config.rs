@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::ops::Deref;
@@ -6,8 +5,8 @@ use std::ops::Deref;
 use regex::{Regex, RegexBuilder};
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::pii::builtin::BUILTIN_RULES_MAP;
-use crate::pii::Redaction;
+use crate::pii::utils::SerdeFriendlyLazyCell;
+use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::SelectorSpec;
 
 /// A regex pattern for text replacement.
@@ -218,6 +217,12 @@ pub struct PiiConfig {
     /// Mapping of selectors to rules.
     #[serde(default)]
     pub applications: BTreeMap<SelectorSpec, Vec<String>>,
+
+    /// PII config derived from datascrubbing settings.
+    ///
+    /// Cached because the conversion process is expensive.
+    #[serde(skip)]
+    pub(super) compiled: SerdeFriendlyLazyCell<CompiledPiiConfig>,
 }
 
 impl PiiConfig {
@@ -236,68 +241,17 @@ impl PiiConfig {
         serde_json::to_string_pretty(&self)
     }
 
-    pub(crate) fn rule<'a>(&'a self, id: &'a str) -> Option<RuleRef<'a>> {
-        if let Some(spec) = self.rules.get(id) {
-            Some(RuleRef::new(self, id, spec))
-        } else if let Some(spec) = BUILTIN_RULES_MAP.get(id) {
-            Some(RuleRef::new(self, id, spec))
-        } else {
-            None
-        }
-    }
-}
-
-/// Reference to a PII rule.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct RuleRef<'a> {
-    pub config: &'a PiiConfig,
-    pub id: &'a str,
-    pub origin: &'a str,
-    pub ty: &'a RuleType,
-    pub redaction: &'a Redaction,
-}
-
-impl<'a> RuleRef<'a> {
-    fn new(config: &'a PiiConfig, id: &'a str, spec: &'a RuleSpec) -> Self {
-        RuleRef {
-            config,
-            id,
-            origin: id,
-            ty: &spec.ty,
-            redaction: &spec.redaction,
-        }
+    /// Get a representation of the `PiiConfig` that is more (CPU-)efficient for processing. Result
+    /// is cached in lazycell and directly returned on second call.
+    pub fn compiled(&self) -> &CompiledPiiConfig {
+        self.compiled
+            .get_or_insert_with(|| self.compiled_uncached())
     }
 
-    pub fn for_parent(self, parent: Self) -> Self {
-        RuleRef {
-            config: self.config,
-            id: self.id,
-            origin: parent.origin,
-            ty: self.ty,
-            redaction: match parent.redaction {
-                Redaction::Default => self.redaction,
-                _ => parent.redaction,
-            },
-        }
-    }
-}
-
-impl PartialEq for RuleRef<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Eq for RuleRef<'_> {}
-
-impl PartialOrd for RuleRef<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.id.partial_cmp(other.id)
-    }
-}
-
-impl Ord for RuleRef<'_> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.id.cmp(other.id)
+    /// Like `self.compiled` but without internal caching. Useful for benchmarks but not much
+    /// else.
+    #[inline]
+    pub fn compiled_uncached(&self) -> CompiledPiiConfig {
+        CompiledPiiConfig::new(&self)
     }
 }

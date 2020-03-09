@@ -116,6 +116,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         rules: custom_rules,
         vars: Vars::default(),
         applications,
+        ..Default::default()
     })
 }
 
