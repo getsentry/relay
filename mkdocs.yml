@@ -19,6 +19,7 @@ nav:
       - architecture/index.md
       - architecture/actors.md
       - architecture/ingest-event-path.md
+      - architecture/project-configuration.md
 
 markdown_extensions:
   - admonition: {}
