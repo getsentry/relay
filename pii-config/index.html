@@ -507,7 +507,10 @@
                 
                 
                 <h1 id="pii-configuration">PII Configuration</h1>
-<p>The following document explores the syntax and semantics of PII configs for Relay. To get started with PII configs, it's recommended to use <a href="https://getsentry.github.io/piinguin"><em>Piinguin</em></a> and refer back to this document when needed.</p>
+<p>The following document explores the syntax and semantics of the new
+datascrubbing ("PII") configuration consumed by
+<a href="https://github.com/getsentry/relay">Relay</a>.</p>
+<p>This type of configuration is supposed to eventually replace our existing <a href="https://docs.sentry.io/data-management/sensitive-data/#server-side-scrubbing">server-side data scrubbing feature</a>. <strong>We are currently beta-testing this feature on <code>sentry.io</code></strong>. If you are interested in gaining early access to this feature, please refer to <a href="https://github.com/getsentry/relay/issues/453">this issue</a> or contact us at <code>markus@sentry.io</code>.</p>
 <h2 id="a-basic-example">A basic example</h2>
 <p>Say you have an exception message which, unfortunately, contains IP addresses which are not supposed to be there. You'd write:</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>

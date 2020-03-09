@@ -532,9 +532,9 @@
 <h2 id="boolean-logic">Boolean logic</h2>
 <p>You can combine selectors using boolean logic.</p>
 <ul>
-<li>Prefix with <code>~</code> to invert the selector. <code>foo</code> matches the JSON key <code>foo</code>, while <code>(~foo)</code> matches everything but <code>foo</code>.</li>
-<li>Build the conjunction (AND) using <code>&amp;</code>, such as: <code>(foo&amp;(~extra.foo))</code> to match the key <code>foo</code> except when inside of <code>extra</code>.</li>
-<li>Build the disjunction (OR) using <code>|</code>, such as: <code>(foo|bar)</code> to match <code>foo</code> or <code>bar</code>.</li>
+<li>Prefix with <code>!</code> to invert the selector. <code>foo</code> matches the JSON key <code>foo</code>, while <code>(~foo)</code> matches everything but <code>foo</code>.</li>
+<li>Build the conjunction (AND) using <code>&amp;&amp;</code>, such as: <code>foo &amp;&amp; !extra.foo</code> to match the key <code>foo</code> except when inside of <code>extra</code>.</li>
+<li>Build the disjunction (OR) using <code>||</code>, such as: <code>foo || bar</code> to match <code>foo</code> or <code>bar</code>.</li>
 </ul>
 <h2 id="wildcards">Wildcards</h2>
 <ul>
