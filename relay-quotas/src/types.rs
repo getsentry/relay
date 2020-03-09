@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use relay_common::ProjectId;
 
@@ -52,6 +53,11 @@ pub enum DataCategory {
     Unknown,
 }
 
+/// An efficient container for data categories that avoids allocations.
+///
+/// `DataCategories` is to be treated like a set.
+pub type DataCategories = SmallVec<[DataCategory; 8]>;
+
 /// The scope that a quota applies to.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename = "lowercase")]
@@ -95,8 +101,8 @@ pub struct Quota {
 
     /// A set of data categories that this quota applies to. If missing or empty, this quota
     /// applies to all data.
-    #[serde(default = "Vec::new")]
-    pub categories: Vec<DataCategory>,
+    #[serde(default = "DataCategories::new")]
+    pub categories: DataCategories,
 
     /// A scope for this quota. This quota is enforced separately within each instance of this scope
     /// (e.g. for each project key separately). Defaults to `QuotaScope::Organization`.
@@ -202,7 +208,6 @@ impl RetryAfter {
     }
 
     /// Returns the optional reason for this rate limit.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn reason_code(&self) -> Option<&str> {
         self.reason_code.as_deref()
     }

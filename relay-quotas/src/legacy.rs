@@ -4,6 +4,7 @@
 #![allow(missing_docs)]
 
 use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+use smallvec::smallvec;
 
 use crate::types::{DataCategory, Quota, QuotaScope};
 
@@ -33,13 +34,10 @@ pub struct LegacyQuota {
 
 impl From<LegacyQuota> for Quota {
     fn from(legacy: LegacyQuota) -> Self {
-        let categories = vec![
+        let categories = smallvec![
             DataCategory::Default,
             DataCategory::Error,
             DataCategory::Security,
-            // TODO(ja): Attachments should probably not be part of this list. This requires Sentry
-            // to emit attachment limits, however.
-            DataCategory::Attachment,
             // NB: For now, we allow transactions until Sentry emits those explicitly.
             DataCategory::Transaction,
         ];

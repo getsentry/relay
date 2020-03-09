@@ -244,7 +244,7 @@ mod tests {
 
     use relay_common::ProjectId;
 
-    use crate::types::DataCategory;
+    use crate::types::{DataCategories, DataCategory};
 
     use super::*;
 
@@ -261,7 +261,7 @@ mod tests {
         let quotas = &[
             Quota {
                 id: None,
-                categories: Vec::new(),
+                categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
                 limit: Some(0),
@@ -270,7 +270,7 @@ mod tests {
             },
             Quota {
                 id: Some("42".to_owned()),
-                categories: Vec::new(),
+                categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
                 limit: None,
@@ -298,7 +298,7 @@ mod tests {
     fn test_simple_quota() {
         let quotas = &[Quota {
             id: Some(format!("test_simple_quota_{:?}", SystemTime::now())),
-            categories: Vec::new(),
+            categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: Some(5),
@@ -444,7 +444,7 @@ mod tests {
         let quotas = &[
             Quota {
                 id: Some("q0".to_string()),
-                categories: Vec::new(),
+                categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
                 limit: None,
@@ -453,7 +453,7 @@ mod tests {
             },
             Quota {
                 id: Some("q1".to_string()),
-                categories: Vec::new(),
+                categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
                 limit: Some(1),
@@ -487,7 +487,7 @@ mod tests {
     fn test_get_redis_key_scoped() {
         let quota = Quota {
             id: Some("foo".to_owned()),
-            categories: Vec::new(),
+            categories: DataCategories::new(),
             scope: QuotaScope::Project,
             scope_id: Some("42".to_owned()),
             window: Some(2),
@@ -511,7 +511,7 @@ mod tests {
     fn test_get_redis_key_unscoped() {
         let quota = Quota {
             id: Some("foo".to_owned()),
-            categories: Vec::new(),
+            categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
             window: Some(10),
