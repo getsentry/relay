@@ -108,11 +108,12 @@ Here's what happens in the Upstream actor
 **Legend**
 
 * ProjStateCh - Project State Channel
+* UpstreamProjSrc - Upstream Project Source
 
 ```mermaid
 sequenceDiagram
 participant extern as Some Actor
-participant upstream as Upstream Actor
+participant upstream as UpstreamProjSrc
 participant timer as Timer
 participant channel as Proj State Ch
 participant http as Upstream Server
