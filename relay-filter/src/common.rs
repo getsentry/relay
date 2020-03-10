@@ -1,8 +1,8 @@
 use std::fmt;
 
 use globset::GlobBuilder;
-use lazycell::AtomicLazyCell;
 use regex::bytes::{Regex, RegexBuilder};
+use relay_common::UpsertingLazyCell;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Returns `true` if any of the patterns match the given message.
@@ -11,10 +11,10 @@ fn is_match(globs: &[Regex], message: &[u8]) -> bool {
 }
 
 /// A list of patterns for glob matching.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct GlobPatterns {
     patterns: Vec<String>,
-    globs: AtomicLazyCell<Vec<Regex>>,
+    globs: UpsertingLazyCell<Vec<Regex>>,
 }
 
 impl GlobPatterns {
@@ -22,7 +22,7 @@ impl GlobPatterns {
     pub fn new(patterns: Vec<String>) -> Self {
         Self {
             patterns,
-            globs: AtomicLazyCell::new(),
+            globs: UpsertingLazyCell::new(),
         }
     }
 
@@ -43,23 +43,8 @@ impl GlobPatterns {
             return false;
         }
 
-        // Parse globs lazily to ensure that this work is not done upon deserialization.
-        // Deserialization usually happens in web workers but parsing / matching in CPU pools.
-        if let Some(globs) = self.globs.borrow() {
-            return is_match(globs, message);
-        }
-
-        // If filling the lazy cell fails, another thread has filled it in the meanwhile. Use the
-        // globs to respond right away, instead of borrowing again.
-        if let Err(globs) = self.globs.fill(self.parse_globs()) {
-            return is_match(&globs, message);
-        }
-
-        // The lazy cell was filled successfully, so it is safe to assume that this cannot panic.
-        match self.globs.borrow() {
-            Some(globs) => is_match(globs, message),
-            None => unreachable!(),
-        }
+        let globs = self.globs.get_or_insert_with(|| self.parse_globs());
+        is_match(&*globs, message)
     }
 
     /// Parses valid patterns from the list.
@@ -84,15 +69,6 @@ impl GlobPatterns {
         }
 
         globs
-    }
-}
-
-impl Default for GlobPatterns {
-    fn default() -> Self {
-        GlobPatterns {
-            patterns: Vec::new(),
-            globs: AtomicLazyCell::new(),
-        }
     }
 }
 

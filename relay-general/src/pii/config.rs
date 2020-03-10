@@ -3,9 +3,9 @@ use std::fmt;
 use std::ops::Deref;
 
 use regex::{Regex, RegexBuilder};
+use relay_common::{LazyCellRef, UpsertingLazyCell};
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::pii::utils::SerdeFriendlyLazyCell;
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::SelectorSpec;
 
@@ -204,7 +204,7 @@ pub struct Vars {
 }
 
 /// A set of named rule configurations.
-#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct PiiConfig {
     /// A map of custom PII rules.
     #[serde(default)]
@@ -222,7 +222,22 @@ pub struct PiiConfig {
     ///
     /// Cached because the conversion process is expensive.
     #[serde(skip)]
-    pub(super) compiled: SerdeFriendlyLazyCell<CompiledPiiConfig>,
+    pub(super) compiled: UpsertingLazyCell<CompiledPiiConfig>,
+}
+
+impl PartialEq for PiiConfig {
+    fn eq(&self, other: &PiiConfig) -> bool {
+        // This is written in this way such that people will not forget to update this PartialEq
+        // impl when they add more fields.
+        let PiiConfig {
+            rules,
+            vars,
+            applications,
+            compiled: _,
+        } = &self;
+
+        rules == &other.rules && vars == &other.vars && applications == &other.applications
+    }
 }
 
 impl PiiConfig {
@@ -243,7 +258,7 @@ impl PiiConfig {
 
     /// Get a representation of the `PiiConfig` that is more (CPU-)efficient for processing. Result
     /// is cached in lazycell and directly returned on second call.
-    pub fn compiled(&self) -> &CompiledPiiConfig {
+    pub fn compiled(&self) -> LazyCellRef<CompiledPiiConfig> {
         self.compiled
             .get_or_insert_with(|| self.compiled_uncached())
     }

@@ -166,7 +166,7 @@ ffi_fn! {
         event: *const RelayStr
     ) -> Result<RelayStr> {
         let config = serde_json::from_str::<PiiConfig>((*config).as_str())?;
-        let mut processor = PiiProcessor::new(&config);
+        let compiled = config.compiled(); let mut processor = PiiProcessor::new(&*compiled);
 
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut processor, ProcessingState::root())?;

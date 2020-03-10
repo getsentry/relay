@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::pii::utils::SerdeFriendlyLazyCell;
+use relay_common::{LazyCellRef, UpsertingLazyCell};
 
 use crate::pii::{convert, PiiConfig};
 
@@ -11,7 +11,7 @@ fn is_flag_default(flag: &bool) -> bool {
 }
 
 /// Configuration for Sentry's datascrubbing
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct DataScrubbingConfig {
     /// List with the fields to be excluded.
@@ -32,7 +32,7 @@ pub struct DataScrubbingConfig {
     ///
     /// Cached because the conversion process is expensive.
     #[serde(skip)]
-    pub(super) pii_config: SerdeFriendlyLazyCell<Option<PiiConfig>>,
+    pub(super) pii_config: UpsertingLazyCell<Option<PiiConfig>>,
 }
 
 impl DataScrubbingConfig {
@@ -44,7 +44,7 @@ impl DataScrubbingConfig {
             scrub_ip_addresses: false,
             sensitive_fields: vec![],
             scrub_defaults: false,
-            pii_config: SerdeFriendlyLazyCell::new(),
+            pii_config: UpsertingLazyCell::new(),
         }
     }
 
@@ -55,10 +55,9 @@ impl DataScrubbingConfig {
 
     /// Get the PII config derived from datascrubbing settings. Result is cached in lazycell and
     /// directly returned on second call.
-    pub fn pii_config(&self) -> Option<&PiiConfig> {
+    pub fn pii_config(&self) -> LazyCellRef<Option<PiiConfig>> {
         self.pii_config
             .get_or_insert_with(|| self.pii_config_uncached())
-            .as_ref()
     }
 
     /// Like `self.pii_config` but without internal caching. Useful for benchmarks but not much
@@ -66,18 +65,5 @@ impl DataScrubbingConfig {
     #[inline]
     pub fn pii_config_uncached(&self) -> Option<PiiConfig> {
         convert::to_pii_config(&self)
-    }
-}
-
-impl Default for DataScrubbingConfig {
-    fn default() -> DataScrubbingConfig {
-        DataScrubbingConfig {
-            exclude_fields: Vec::new(),
-            scrub_data: false,
-            scrub_ip_addresses: false,
-            sensitive_fields: Vec::new(),
-            scrub_defaults: false,
-            pii_config: SerdeFriendlyLazyCell::new(),
-        }
     }
 }

@@ -176,10 +176,7 @@ pub struct PiiProcessor<'a> {
 
 impl<'a> PiiProcessor<'a> {
     /// Creates a new processor based on a config.
-    pub fn new<C>(config: C) -> PiiProcessor<'a>
-    where
-        C: Into<&'a CompiledPiiConfig>,
-    {
+    pub fn new(config: &'a CompiledPiiConfig) -> PiiProcessor<'a> {
         // this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
         // any init logic into CompiledPiiConfig::new.
         //
@@ -662,7 +659,8 @@ fn test_basic_stripping() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&*compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -692,7 +690,8 @@ fn test_redact_containers() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&*compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -732,7 +731,8 @@ fn test_redact_custom_pattern() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&*compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -762,7 +762,8 @@ fn test_no_field_upsert() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&*compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -792,7 +793,8 @@ fn test_anything_hash_on_string() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&*compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -822,7 +824,8 @@ fn test_anything_hash_on_container() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&*compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -870,7 +873,8 @@ fn test_remove_debugmeta_path() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&*compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -918,7 +922,8 @@ fn test_replace_debugmeta_path() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&*compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -966,7 +971,8 @@ fn test_hash_debugmeta_path() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&*compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -1016,7 +1022,8 @@ fn test_debugmeta_path_not_addressible_with_wildcard_selector() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&*compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -1050,7 +1057,8 @@ fn test_quoted_keys() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&*compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }

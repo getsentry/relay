@@ -13,12 +13,6 @@ pub struct CompiledPiiConfig {
     pub(super) applications: Vec<(SelectorSpec, BTreeSet<RuleRef>)>,
 }
 
-impl<'a> From<&'a PiiConfig> for &'a CompiledPiiConfig {
-    fn from(config: &'a PiiConfig) -> &'a CompiledPiiConfig {
-        config.compiled()
-    }
-}
-
 impl CompiledPiiConfig {
     pub fn new(config: &PiiConfig) -> Self {
         let mut applications = Vec::new();
