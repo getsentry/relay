@@ -1082,7 +1082,8 @@ fn test_impossible_selector() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -1112,7 +1113,8 @@ fn test_weird_wildcard_selectors() {
         ..Default::default()
     });
 
-    let mut processor = PiiProcessor::new(&config);
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
