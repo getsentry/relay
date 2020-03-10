@@ -25,7 +25,6 @@ impl CompiledPiiConfig {
         let mut non_key_applications = Vec::new();
 
         for (selector, rules) in &config.applications {
-            // XXX(markus): Flatten into applications
             let mut rule_set = BTreeSet::default();
             for rule_id in rules {
                 collect_rules(config, &mut rule_set, &rule_id, None);
