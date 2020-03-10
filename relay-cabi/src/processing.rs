@@ -122,11 +122,14 @@ ffi_fn! {
         event: *const RelayStr,
     ) -> Result<RelayStr> {
         let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
-        let mut processor = match config.pii_config() {
-            Some(pii_config) => PiiProcessor::new(pii_config),
+        let pii_config = config.pii_config();
+        let pii_config = match *pii_config {
+            Some(ref pii_config) => pii_config,
             None => return Ok(RelayStr::new((*event).as_str())),
         };
 
+        let compiled = pii_config.compiled();
+        let mut processor = PiiProcessor::new(&*compiled);
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut processor, ProcessingState::root())?;
 
@@ -152,8 +155,8 @@ ffi_fn! {
         config: *const RelayStr
     ) -> Result<RelayStr> {
         let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
-        match config.pii_config() {
-            Some(config) => Ok(RelayStr::from_string(config.to_json()?)),
+        match *config.pii_config() {
+            Some(ref config) => Ok(RelayStr::from_string(config.to_json()?)),
             None => Ok(RelayStr::new("{}"))
         }
     }

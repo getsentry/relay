@@ -233,7 +233,7 @@ impl PartialEq for PiiConfig {
             rules,
             vars,
             applications,
-            compiled: _,
+            compiled: _compiled,
         } = &self;
 
         rules == &other.rules && vars == &other.vars && applications == &other.applications

@@ -176,15 +176,13 @@ pub struct PiiProcessor<'a> {
 
 impl<'a> PiiProcessor<'a> {
     /// Creates a new processor based on a config.
-    pub fn new(config: &'a CompiledPiiConfig) -> PiiProcessor<'a> {
+    pub fn new(compiled_config: &'a CompiledPiiConfig) -> PiiProcessor<'a> {
         // this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
         // any init logic into CompiledPiiConfig::new.
         //
         // Note: We accept both `PiiConfig` and `CompiledPiiConfig` because the latter makes more
         // sense for benchmarks while the former is obviously the cleaner API for relay-server.
-        PiiProcessor {
-            compiled_config: config.into(),
-        }
+        PiiProcessor { compiled_config }
     }
 
     /// Iterate over all matching rules.
