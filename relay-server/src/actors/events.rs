@@ -645,8 +645,23 @@ impl EventProcessor {
 
         // Run PII stripping last since normalization can add PII (e.g. IP addresses).
         metric!(timer(RelayTimers::EventProcessingPii), {
-            for pii_config in message.project_state.config.pii_configs() {
-                let mut processor = PiiProcessor::new(pii_config);
+            if let Some(ref config) = message.project_state.config.pii_config {
+                let compiled = config.compiled();
+                let mut processor = PiiProcessor::new(&compiled);
+                process_value(&mut event, &mut processor, ProcessingState::root())
+                    .map_err(ProcessingError::ProcessingFailed)?;
+            }
+
+            let config = message
+                .project_state
+                .config
+                .datascrubbing_settings
+                .pii_config();
+
+            if let Some(ref config) = *config {
+                let compiled = config.compiled();
+
+                let mut processor = PiiProcessor::new(&compiled);
                 process_value(&mut event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use lazycell::AtomicLazyCell;
+use relay_common::{LazyCellRef, UpsertingLazyCell};
 
 use crate::pii::{convert, PiiConfig};
 
@@ -11,7 +11,7 @@ fn is_flag_default(flag: &bool) -> bool {
 }
 
 /// Configuration for Sentry's datascrubbing
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct DataScrubbingConfig {
     /// List with the fields to be excluded.
@@ -31,8 +31,8 @@ pub struct DataScrubbingConfig {
     /// PII config derived from datascrubbing settings.
     ///
     /// Cached because the conversion process is expensive.
-    #[serde(skip, default = "AtomicLazyCell::new")]
-    pub(super) pii_config: AtomicLazyCell<Option<PiiConfig>>,
+    #[serde(skip)]
+    pub(super) pii_config: UpsertingLazyCell<Option<PiiConfig>>,
 }
 
 impl DataScrubbingConfig {
@@ -44,7 +44,7 @@ impl DataScrubbingConfig {
             scrub_ip_addresses: false,
             sensitive_fields: vec![],
             scrub_defaults: false,
-            pii_config: AtomicLazyCell::new(),
+            pii_config: UpsertingLazyCell::new(),
         }
     }
 
@@ -53,38 +53,17 @@ impl DataScrubbingConfig {
         !self.scrub_data && !self.scrub_ip_addresses
     }
 
-    /// Get the PII config derived from datascrubbing settings.
-    pub fn pii_config(&self) -> Option<&PiiConfig> {
-        if let Some(pii_config) = self.pii_config.borrow() {
-            return pii_config.as_ref();
-        }
-
-        let pii_config = convert::to_pii_config(&self);
-        self.pii_config.fill(pii_config).ok();
-
-        // If filling the lazy cell fails, another thread is currently inserting. There are two
-        // possible states:
-        //  1. The cell is now filled. If we borrow the value now, we will get a response.
-        //  2. The cell is locked but not filled. If we borrow the value now, we will get `None` and
-        //     have to try again. Practically, this loop only executes once or twice.
-        loop {
-            match self.pii_config.borrow() {
-                Some(pii_config) => break pii_config.as_ref(),
-                None => std::thread::sleep(std::time::Duration::from_micros(1)),
-            }
-        }
+    /// Get the PII config derived from datascrubbing settings. Result is cached in lazycell and
+    /// directly returned on second call.
+    pub fn pii_config(&self) -> LazyCellRef<Option<PiiConfig>> {
+        self.pii_config
+            .get_or_insert_with(|| self.pii_config_uncached())
     }
-}
 
-impl Default for DataScrubbingConfig {
-    fn default() -> DataScrubbingConfig {
-        DataScrubbingConfig {
-            exclude_fields: Vec::new(),
-            scrub_data: false,
-            scrub_ip_addresses: false,
-            sensitive_fields: Vec::new(),
-            scrub_defaults: false,
-            pii_config: AtomicLazyCell::new(),
-        }
+    /// Like `self.pii_config` but without internal caching. Useful for benchmarks but not much
+    /// else.
+    #[inline]
+    pub fn pii_config_uncached(&self) -> Option<PiiConfig> {
+        convert::to_pii_config(&self)
     }
 }
