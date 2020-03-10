@@ -133,18 +133,26 @@ fn bench_pii_stripping(c: &mut Criterion) {
     group.bench_with_input(
         BenchmarkId::new("convert_config", config_name),
         &datascrubbing_config,
-        |b, datascrubbing_config| b.iter(|| datascrubbing_config.pii_config()),
+        |b, datascrubbing_config| b.iter(|| datascrubbing_config.pii_config_uncached()),
     );
 
-    let pii_config = datascrubbing_config.pii_config().unwrap();
+    let pii_config = datascrubbing_config.pii_config_uncached().unwrap();
+
+    group.bench_with_input(
+        BenchmarkId::new("compile_pii_config", config_name),
+        &pii_config,
+        |b, pii_config| b.iter(|| pii_config.compiled_uncached()),
+    );
+
+    let compiled_pii_config = pii_config.compiled_uncached();
 
     group.bench_with_input(
         BenchmarkId::new("new_processor", config_name),
-        &pii_config,
-        |b, pii_config| b.iter(|| PiiProcessor::new(pii_config)),
+        &compiled_pii_config,
+        |b, compiled_pii_config| b.iter(|| PiiProcessor::new(compiled_pii_config)),
     );
 
-    let mut processor = PiiProcessor::new(&pii_config);
+    let mut processor = PiiProcessor::new(&compiled_pii_config);
 
     for BenchmarkInput { name, data } in load_all_fixtures() {
         let event = Annotated::<Event>::from_json(&data).expect("failed to deserialize");
