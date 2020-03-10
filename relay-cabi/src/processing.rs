@@ -129,7 +129,7 @@ ffi_fn! {
         };
 
         let compiled = pii_config.compiled();
-        let mut processor = PiiProcessor::new(&*compiled);
+        let mut processor = PiiProcessor::new(&compiled);
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut processor, ProcessingState::root())?;
 
@@ -169,7 +169,8 @@ ffi_fn! {
         event: *const RelayStr
     ) -> Result<RelayStr> {
         let config = serde_json::from_str::<PiiConfig>((*config).as_str())?;
-        let compiled = config.compiled(); let mut processor = PiiProcessor::new(&*compiled);
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
 
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut processor, ProcessingState::root())?;

@@ -28,6 +28,15 @@ impl<'a, T> Deref for LazyCellRef<'a, T> {
     }
 }
 
+impl<'a, T> AsRef<T> for LazyCellRef<'a, T> {
+    fn as_ref(&self) -> &T {
+        match *self {
+            LazyCellRef::Owned(ref t) => t,
+            LazyCellRef::Borrowed(t) => t,
+        }
+    }
+}
+
 impl<T> Default for UpsertingLazyCell<T> {
     fn default() -> Self {
         UpsertingLazyCell::new()

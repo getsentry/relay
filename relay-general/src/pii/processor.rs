@@ -658,7 +658,7 @@ fn test_basic_stripping() {
     });
 
     let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&*compiled);
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -689,7 +689,7 @@ fn test_redact_containers() {
     });
 
     let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&*compiled);
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -730,7 +730,7 @@ fn test_redact_custom_pattern() {
     });
 
     let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&*compiled);
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -761,7 +761,7 @@ fn test_no_field_upsert() {
     });
 
     let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&*compiled);
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -792,7 +792,7 @@ fn test_anything_hash_on_string() {
     });
 
     let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&*compiled);
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -823,7 +823,7 @@ fn test_anything_hash_on_container() {
     });
 
     let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&*compiled);
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -872,7 +872,7 @@ fn test_remove_debugmeta_path() {
     });
 
     let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&*compiled);
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -921,7 +921,7 @@ fn test_replace_debugmeta_path() {
     });
 
     let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&*compiled);
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -970,7 +970,7 @@ fn test_hash_debugmeta_path() {
     });
 
     let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&*compiled);
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -1021,7 +1021,7 @@ fn test_debugmeta_path_not_addressible_with_wildcard_selector() {
     });
 
     let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&*compiled);
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
@@ -1056,7 +1056,7 @@ fn test_quoted_keys() {
     });
 
     let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&*compiled);
+    let mut processor = PiiProcessor::new(&compiled);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }

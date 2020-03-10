@@ -73,7 +73,7 @@ macro_rules! event_snapshot {
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
                 let compiled = PII_CONFIG.compiled();
-                let mut processor = PiiProcessor::new(&*compiled);
+                let mut processor = PiiProcessor::new(&compiled);
 
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
                 assert_yaml_snapshot!("pii_stripping", SerializableAnnotated(&event), {

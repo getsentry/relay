@@ -371,7 +371,7 @@ mod tests {
             };
             let input = $input.to_string();
             let compiled = config.compiled();
-            let mut processor = PiiProcessor::new(&*compiled);
+            let mut processor = PiiProcessor::new(&compiled);
             let mut root = Annotated::new(FreeformRoot {
                 value: Annotated::new(input),
             });

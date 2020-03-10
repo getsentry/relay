@@ -647,7 +647,7 @@ impl EventProcessor {
         metric!(timer(RelayTimers::EventProcessingPii), {
             if let Some(ref config) = message.project_state.config.pii_config {
                 let compiled = config.compiled();
-                let mut processor = PiiProcessor::new(&*compiled);
+                let mut processor = PiiProcessor::new(&compiled);
                 process_value(&mut event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
@@ -661,7 +661,7 @@ impl EventProcessor {
             if let Some(ref config) = *config {
                 let compiled = config.compiled();
 
-                let mut processor = PiiProcessor::new(&*compiled);
+                let mut processor = PiiProcessor::new(&compiled);
                 process_value(&mut event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
