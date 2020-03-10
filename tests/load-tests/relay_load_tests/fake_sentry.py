@@ -179,11 +179,11 @@ def _fake_sentry_thread(config):
 
     @app.route("/api/0/relays/projectconfigs/", methods=["POST"])
     def get_project_config():
+        request_body = flask_request.json
+        print("get_project_config called for:{}".format(request_body))
         rv = {}
-        for project_id in flask_request.json["projects"]:
-            print("Start full_project_config()")
+        for project_id in request_body["projects"]:
             rv[project_id] = sentry.full_project_config()
-            print("End full_project_config() end")
         return jsonify(configs=rv)
 
     @app.route("/api/0/relays/publickeys/", methods=["POST"])
