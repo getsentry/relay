@@ -17,12 +17,6 @@ pub struct GlobPatterns {
     globs: UpsertingLazyCell<Vec<Regex>>,
 }
 
-impl PartialEq for GlobPatterns {
-    fn eq(&self, other: &GlobPatterns) -> bool {
-        self.patterns == other.patterns
-    }
-}
-
 impl GlobPatterns {
     /// Creates a new
     pub fn new(patterns: Vec<String>) -> Self {
