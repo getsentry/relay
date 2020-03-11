@@ -218,6 +218,7 @@ impl UpstreamProjectSource {
                                         Some(ProjectState::err())
                                     })
                                     .unwrap_or_else(ProjectState::missing);
+
                                 channel.send(state);
                             }
                         }
