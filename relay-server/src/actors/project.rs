@@ -54,7 +54,7 @@ pub enum PublicKeyStatus {
 }
 
 /// These are config values that the user can modify in the UI.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ProjectConfig {
     /// URLs that are permitted for cross original JavaScript requests.
@@ -95,9 +95,6 @@ impl Default for ProjectConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectState {
-    /// The timestamp of when the state was received.
-    #[serde(default = "Utc::now")]
-    pub last_fetch: DateTime<Utc>,
     /// The timestamp of when the state was last changed.
     ///
     /// This might be `None` in some rare cases like where states
@@ -128,11 +125,36 @@ pub struct ProjectState {
     pub invalid: bool,
 }
 
+impl PartialEq for ProjectState {
+    fn eq(&self, other: &ProjectState) -> bool {
+        // This is written in this way such that people will not forget to update this PartialEq
+        // impl when they add more fields.
+        let ProjectState {
+            last_change,
+            disabled,
+            public_keys,
+            slug,
+            config,
+            rev,
+            organization_id,
+            invalid,
+        } = &self;
+
+        last_change == &other.last_change
+            && disabled == &other.disabled
+            && public_keys == &other.public_keys
+            && slug == &other.slug
+            && config == &other.config
+            && rev == &other.rev
+            && organization_id == &other.organization_id
+            && invalid == &other.invalid
+    }
+}
+
 impl ProjectState {
     /// Project state for a missing project.
     pub fn missing() -> Self {
         ProjectState {
-            last_fetch: Utc::now(),
             last_change: None,
             disabled: true,
             public_keys: Vec::new(),
@@ -197,7 +219,12 @@ impl ProjectState {
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
-    pub fn outdated(&self, project_id: ProjectId, config: &Config) -> Outdated {
+    pub fn outdated(
+        &self,
+        last_fetch: DateTime<Utc>,
+        project_id: ProjectId,
+        config: &Config,
+    ) -> Outdated {
         let expiry = match self.slug {
             Some(_) => config.project_cache_expiry(),
             None => config.cache_miss_expiry(),
@@ -217,7 +244,7 @@ impl ProjectState {
         // Based on the last fetch, compute the timestamp of the next fetch. The time stamp is
         // shifted by the project shift to move the grid accordingly. Note that if the remainder is
         // zero, the next fetch is one full window ahead to avoid instant reloading.
-        let last_fetch = self.last_fetch.timestamp() as u64;
+        let last_fetch = last_fetch.timestamp() as u64;
         let remainder = (last_fetch - project_shift) % window;
         let next_fetch = last_fetch + (window - remainder);
 
@@ -266,6 +293,7 @@ impl ProjectState {
     /// Determines whether the given event should be accepted or dropped.
     pub fn get_event_action(
         &self,
+        last_fetch: DateTime<Utc>,
         project_id: ProjectId,
         meta: &RequestMeta,
         config: &Config,
@@ -275,7 +303,7 @@ impl ProjectState {
             return EventAction::Discard(DiscardReason::Cors);
         }
 
-        if self.outdated(project_id, config) == Outdated::HardOutdated {
+        if self.outdated(last_fetch, project_id, config) == Outdated::HardOutdated {
             // if the state is out of date, we proceed as if it was still up to date. The
             // upstream relay (or sentry) will still filter events.
 
@@ -317,7 +345,7 @@ impl ProjectState {
 }
 
 /// Represents a public key received from the projectconfig endpoint.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicKeyConfig {
     /// Public part of key (random hash).
@@ -339,7 +367,7 @@ pub struct PublicKeyConfig {
 }
 
 /// Data for applying rate limits in Redis
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Quota {
     RejectAll(RejectAllQuota),
     Redis(RedisQuota),
@@ -430,7 +458,7 @@ mod __quota_serialization {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RedisQuota {
     /// How many events should be accepted within the window.
     ///
@@ -456,7 +484,7 @@ pub struct RedisQuota {
     pub window: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RejectAllQuota {
     /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
     /// comes to that.
@@ -467,6 +495,7 @@ pub struct Project {
     id: ProjectId,
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
+    last_fetch: DateTime<Utc>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
     rate_limits: HashMap<RateLimitScope, RetryAfter>,
@@ -479,6 +508,7 @@ impl Project {
             id,
             config,
             manager,
+            last_fetch: Utc::now(),
             state: None,
             state_channel: None,
             rate_limits: HashMap::new(),
@@ -499,7 +529,7 @@ impl Project {
 
         let state = self.state.as_ref();
         let outdated = state
-            .map(|s| s.outdated(self.id, &self.config))
+            .map(|s| s.outdated(self.last_fetch, self.id, &self.config))
             .unwrap_or(Outdated::HardOutdated);
 
         let alternative_rv = match (state, outdated, self.is_local) {
@@ -557,11 +587,35 @@ impl Project {
                     .as_ref()
                     .map(|resp| resp.is_local)
                     .unwrap_or(false);
-                slf.state = state_result.map(|resp| resp.state).ok();
+                match state_result {
+                    Ok(response) => {
+                        let send_state = if let Some(ref mut saved_state) = slf.state {
+                            if *saved_state != response.state {
+                                log::debug!("project {} state did change, updated", id);
+                                *saved_state = response.state.clone();
+                            } else {
+                                // Avoid assigning the newly parsed state if it didn't actually change.
+                                // We have a few lazycells and internal caches of regexes in
+                                // projectconfigs (related to PII processing) that would otherwise be
+                                // unnecessarily wiped.
+                                log::debug!("project {} state did not change", id);
+                            }
 
-                if let Some(ref state) = slf.state {
-                    log::debug!("project {} state updated", id);
-                    sender.send(state.clone()).ok();
+                            saved_state.clone()
+                        } else {
+                            log::debug!("project {} state created", id);
+                            slf.state = Some(response.state.clone());
+                            response.state
+                        };
+
+                        slf.last_fetch = Utc::now();
+                        sender.send(send_state).ok();
+                    }
+                    Err(()) => {
+                        // should be unreachable
+                        log::error!("received unit-error from FetchProjectState");
+                        slf.state = None;
+                    }
                 }
             })
             .drop_err()
@@ -632,6 +686,7 @@ impl Handler<GetEventAction> for Project {
 
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
         let project_id = self.id;
+        let last_fetch = self.last_fetch;
 
         // Check for an eventual rate limit. Note that we need to check for all variants of
         // RateLimitScope, otherwise we might miss a rate limit.
@@ -657,15 +712,16 @@ impl Handler<GetEventAction> for Project {
             // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
             // This will return synchronously if the state is still cached.
             let config = self.config.clone();
-            self.get_or_fetch_state(context)
-                .map(move |state| state.get_event_action(project_id, &message.meta, &config))
+            self.get_or_fetch_state(context).map(move |state| {
+                state.get_event_action(last_fetch, project_id, &message.meta, &config)
+            })
         } else {
             self.get_or_fetch_state(context);
             // message.fetch == false: Fetching must not block the store request. In case the state
             // is not cached, assume that the event can be accepted. The EventManager will later
             // reevaluate the event action using the fetched project state.
             Response::ok(self.state().map_or(EventAction::Accept, |state| {
-                state.get_event_action(project_id, &message.meta, &self.config)
+                state.get_event_action(last_fetch, project_id, &message.meta, &self.config)
             }))
         }
     }

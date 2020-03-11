@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::common::GlobPatterns;
 
 /// Common configuration for event filters.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FilterConfig {
     /// Specifies whether this filter is enabled.
@@ -86,7 +86,7 @@ impl Serialize for LegacyBrowser {
 }
 
 /// Configuration for the client ips filter.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ClientIpsFilterConfig {
     /// Blacklisted client ip addresses.
@@ -101,7 +101,7 @@ impl ClientIpsFilterConfig {
 }
 
 /// Configuration for the CSP filter.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CspFilterConfig {
     /// Disallowed sources for CSP reports.
@@ -116,7 +116,7 @@ impl CspFilterConfig {
 }
 
 /// Configuration for the error messages filter.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct ErrorMessagesFilterConfig {
     /// List of error message patterns that will be filtered.
     pub patterns: GlobPatterns,
@@ -130,7 +130,7 @@ impl ErrorMessagesFilterConfig {
 }
 
 /// Configuration for the releases filter.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct ReleasesFilterConfig {
     /// List of release names that will be filtered.
     pub releases: GlobPatterns,
@@ -144,7 +144,7 @@ impl ReleasesFilterConfig {
 }
 
 /// Configuration for the legacy browsers filter.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LegacyBrowsersFilterConfig {
     /// Specifies whether this filter is enabled.
@@ -162,7 +162,7 @@ impl LegacyBrowsersFilterConfig {
 }
 
 /// Configuration for all event filters.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FiltersConfig {
     /// Configuration for the Browser Extensions filter.
