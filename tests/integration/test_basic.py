@@ -171,12 +171,21 @@ def test_store_post_trailing_slash(mini_sentry, relay, trailing_slashes):
     assert event["logentry"]["formatted"] == "hi"
 
 
+def id_fun1(param):
+    allowed, should_be_allowed = param
+    should_it = "" if should_be_allowed else "not"
+    return f"{str(allowed)} should {should_it} be allowed"
+
+
 @pytest.mark.parametrize(
-    "allowed_origins", [["*"], ["http://valid.com"], ["http://*"], ["valid.com"], [],]
+    "allowed_origins", [(["*"], True), (["http://valid.com"], True), (["http://*"], True), (["valid.com"], True),
+                        ([], False), (["invalid.com"], False)],
+    ids=id_fun1
 )
 def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
+    allowed_domains, should_be_allowed = allowed_origins
     config = mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
-    config["config"]["allowedDomains"] = allowed_origins
+    config["config"]["allowedDomains"] = allowed_domains
 
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
@@ -187,7 +196,7 @@ def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
         json={"message": "hi"},
     )
 
-    if allowed_origins:
+    if should_be_allowed:
         mini_sentry.captured_events.get(timeout=1).get_event()
     assert mini_sentry.captured_events.empty()
 
