@@ -99,7 +99,7 @@ Relay does not do any sort of management of project states in Redis. From Relay'
 
 If Relay obtains the project state from Upstream it will **NOT** insert it in Redis. It is up to other, external systems, to manage project states and add/remove/refresh them in Redis.
 
-### Fetching the project state from Upstream 
+## Fetching the project state from Upstream 
 
 If everything else fails and the ProjectCache can't obtain a project state from one of the chaches the Upstream will be queried for the ProjectState.
 
@@ -108,11 +108,12 @@ Here's what happens in the Upstream actor
 **Legend**
 
 * ProjStateCh - Project State Channel
+* UpstreamProjSrc - Upstream Project Source
 
 ```mermaid
 sequenceDiagram
 participant extern as Some Actor
-participant upstream as Upstream Actor
+participant upstream as UpstreamProjSrc
 participant timer as Timer
 participant channel as Proj State Ch
 participant http as Upstream Server
@@ -147,4 +148,3 @@ deactivate extern
 ```
 
 .
-
