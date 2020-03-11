@@ -35,6 +35,27 @@ pub struct DataScrubbingConfig {
     pub(super) pii_config: UpsertingLazyCell<Option<PiiConfig>>,
 }
 
+impl PartialEq for DataScrubbingConfig {
+    fn eq(&self, other: &DataScrubbingConfig) -> bool {
+        // This is written in this way such that people will not forget to update this PartialEq
+        // impl when they add more fields.
+        let DataScrubbingConfig {
+            exclude_fields,
+            scrub_data,
+            scrub_ip_addresses,
+            sensitive_fields,
+            scrub_defaults,
+            pii_config: _pii_config,
+        } = &self;
+
+        exclude_fields == &other.exclude_fields
+            && scrub_data == &other.scrub_data
+            && scrub_ip_addresses == &other.scrub_ip_addresses
+            && sensitive_fields == &other.sensitive_fields
+            && scrub_defaults == &other.scrub_defaults
+    }
+}
+
 impl DataScrubbingConfig {
     /// Creates a new data scrubbing configuration that does nothing on the event.
     pub fn new_disabled() -> Self {
