@@ -10,14 +10,19 @@ This document describes how Relay deals with project configurations.
 
 Here is how we obtain a Project actor ( used to get project configuration).
 
+**Legend**
+
+* Redis Proj Cache = Redis Project Cache
+* Upstream Source = Upstream Project Source
+
 ```mermaid
 sequenceDiagram
 
-participant extern as SomeActor
+participant extern as Some Actor
 participant projCache as Project Cache
 participant proj as Project
-participant redis as Redis Project<br>Cache
-participant upstream as Upstream Project<br>Source
+participant redis as Redis Proj Cache
+participant upstream as Upstream Source
 
 Note over extern, upstream : Getting a Project returns a Project actor from the cache or simply creates a new Project actor and returns it
 extern->>projCache: GetProject(projId)
@@ -38,22 +43,19 @@ Here is how we obtain project configuration.
 
 **Legend**
 
-* ProjCache = Project Cache
-
-* ProjLInfo = Project Local Info
-
-* RedisProjCache = Redis Project Cache
-
-* UpstrProjSrc = Upstream Project Source
+* Proj Cache = Project Cache
+* Proj Loc Info = Project Local Info
+* Redis Proj Cache = Redis Project Cache
+* Upstream Source = Upstream Project Source
 
 ``` mermaid
 sequenceDiagram
 participant extern as Some Actor
-participant projCache as ProjCache
-participant local as ProjLInfo
+participant projCache as Proj Cache
+participant local as Proj Loc Info
 participant proj as Project
-participant redis as RedisProjCache
-participant upstream as UpstrProjSrc
+participant redis as Redis Proj Cache
+participant upstream as Upstream Source
 
 Note over extern, upstream : Fetching a Project state
 extern->>projCache: FetchProjectState(projId)
@@ -107,16 +109,16 @@ Here's what happens in the Upstream actor
 
 **Legend**
 
-* ProjStateCh - Project State Channel
-* UpstreamProjSrc - Upstream Project Source
+* State Channel - Project State Channel
+* Upstream Source - Upstream Project Source
 
 ```mermaid
 sequenceDiagram
 participant extern as Some Actor
-participant upstream as UpstreamProjSrc
+participant upstream as Upstream Source
 participant timer as Timer
-participant channel as Proj State Ch
-participant http as Upstream Server
+participant channel as State Channel
+participant http as Upstream Source
 
 extern->>upstream: FetchProjectState(projId)
 activate extern
