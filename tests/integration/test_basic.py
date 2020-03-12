@@ -178,9 +178,16 @@ def id_fun1(param):
 
 
 @pytest.mark.parametrize(
-    "allowed_origins", [(["*"], True), (["http://valid.com"], True), (["http://*"], True), (["valid.com"], True),
-                        ([], False), (["invalid.com"], False)],
-    ids=id_fun1
+    "allowed_origins",
+    [
+        (["*"], True),
+        (["http://valid.com"], True),
+        (["http://*"], True),
+        (["valid.com"], True),
+        ([], False),
+        (["invalid.com"], False),
+    ],
+    ids=id_fun1,
 )
 def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
     allowed_domains, should_be_allowed = allowed_origins

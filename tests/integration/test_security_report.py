@@ -18,13 +18,16 @@ def id_fun1(origins):
 
 
 @pytest.mark.parametrize(
-    "allowed_origins", [(["*"], True), (["valid.com"], True),([], False), (["invalid.com"], False)],
-    ids=id_fun1
+    "allowed_origins",
+    [(["*"], True), (["valid.com"], True), ([], False), (["invalid.com"], False)],
+    ids=id_fun1,
 )
 @pytest.mark.parametrize(
     "report_type", ("csp", "expect_ct", "expect_staple", "hpkp"),
 )
-def test_uses_origins(mini_sentry, relay, json_fixture_provider, allowed_origins, report_type):
+def test_uses_origins(
+    mini_sentry, relay, json_fixture_provider, allowed_origins, report_type
+):
     # report_type = "csp"
     allowed_domains, should_be_allowed = allowed_origins
     fixture_provider = json_fixture_provider(__file__)
@@ -40,7 +43,7 @@ def test_uses_origins(mini_sentry, relay, json_fixture_provider, allowed_origins
         payload=report,
         release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
         environment="production",
-        origin="http://valid.com"
+        origin="http://valid.com",
     )
 
     if should_be_allowed:
@@ -48,7 +51,7 @@ def test_uses_origins(mini_sentry, relay, json_fixture_provider, allowed_origins
     assert mini_sentry.captured_events.empty()
 
 
-@pytest.mark.parametrize("test_case", [("csp", CSP_IGNORED_FIELDS), ], ids=("csp",))
+@pytest.mark.parametrize("test_case", [("csp", CSP_IGNORED_FIELDS),], ids=("csp",))
 def test_security_reports_with_processing(
     mini_sentry,
     relay_with_processing,

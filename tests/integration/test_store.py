@@ -41,6 +41,25 @@ def test_legacy_store(mini_sentry, relay_chain):
     assert mini_sentry.get_hits("/api/0/relays/projectids/") == 1
 
 
+@pytest.mark.parametrize("method_to_test", [("GET", False), ("POST", True)])
+def test_options_response(mini_sentry, relay, method_to_test):
+    method, should_succeed = method_to_test
+    relay = relay(mini_sentry)
+    mini_sentry.project_configs[42] = relay.basic_project_config()
+    relay.wait_relay_healthcheck()
+
+    headers = {
+        "Access-Control-Request-Method": method,
+        "Access-Control-Request-Headers": "X-Sentry-Auth",
+    }
+
+    result = relay.send_options(42, headers)
+
+    assert result.ok == should_succeed
+
+    print(result)
+
+
 def test_store_node_base64(mini_sentry, relay_chain):
     relay = relay_chain()
     relay.wait_relay_healthcheck()
