@@ -38,7 +38,7 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name):
     assert unreal_item.payload is not None
 
 
-def test_unreal_with_processing(
+def test_unreal_minidump_with_processing(
     mini_sentry, relay_with_processing, attachments_consumer, events_consumer
 ):
     project_id = 42
