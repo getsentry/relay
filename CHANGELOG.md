@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.5
+
+**Store**:
+
+- Small performance improvements in datascrubbing config converter.
+- New, C-style selector syntax (old one still works)
+
+**Relay**:
+
+- Suppress verbose DNS lookup logs.
+
 ## 0.5.4
 
 **Store**:

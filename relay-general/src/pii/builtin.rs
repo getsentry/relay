@@ -346,7 +346,7 @@ declare_builtin_rules! {
 mod tests {
     use std::collections::BTreeMap;
 
-    use crate::pii::config::{PiiConfig, Vars};
+    use crate::pii::config::PiiConfig;
     use crate::pii::processor::PiiProcessor;
     use crate::processor::{process_value, ProcessingState, ValueType};
     use crate::types::{Annotated, Remark, RemarkType};
@@ -362,16 +362,16 @@ mod tests {
             rule = $rule:expr; input = $input:expr; output = $output:expr; remarks = $remarks:expr;
         ) => {{
             let config = PiiConfig {
-                rules: BTreeMap::new(),
-                vars: Vars::default(),
                 applications: {
                     let mut map = BTreeMap::new();
                     map.insert(ValueType::String.into(), vec![$rule.to_string()]);
                     map
                 },
+                ..PiiConfig::default()
             };
             let input = $input.to_string();
-            let mut processor = PiiProcessor::new(&config);
+            let compiled = config.compiled();
+            let mut processor = PiiProcessor::new(&compiled);
             let mut root = Annotated::new(FreeformRoot {
                 value: Annotated::new(input),
             });

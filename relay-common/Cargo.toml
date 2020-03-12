@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Common utilities for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "0.5.4"
+version = "0.5.5"
 edition = "2018"
 license-file = "../LICENSE"
 publish = false
@@ -15,6 +15,7 @@ cadence = "0.17.1"
 failure = "0.1.5"
 globset = "0.4.4"
 lazy_static = "1.3.0"
+lazycell = "1.2.1"
 log = { version = "0.4.8", features = ["serde"] }
 lru = "0.4.0"
 parking_lot = "0.10.0"

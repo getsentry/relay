@@ -238,7 +238,22 @@ impl UpstreamProjectSource {
                 }
 
                 if !slf.state_channels.is_empty() {
+                    // we still have some project configs waiting for state
+                    // try again next time
                     slf.schedule_fetch(ctx);
+                } else {
+                    // No open channels left, if this is because we fetched everything we
+                    // have already reset the backoff. If however, this is because we had
+                    // failures but the channels have been cleaned up because the requests
+                    // expired we need to reset the backoff so that the next request is not
+                    // simply ignored (by handle) and does a schedule_fetch().
+                    // Explanation 2: We use the backoff member for two purposes:
+                    //  -1 to schedule repeated fetch requests (at less and less frequent intervals)
+                    //  -2 as a flag to know if a fetch is already scheduled.
+                    // Resetting it in here signals that we don't have a backoff scheduled (either
+                    // because everything went fine or because all the requests have expired).
+                    // Next time a user wants a project it should schedule fetch requests.
+                    slf.backoff.reset();
                 }
 
                 fut::ok(())

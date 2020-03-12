@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Sentry Event filters"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "0.5.4"
+version = "0.5.5"
 edition = "2018"
 license-file = "../LICENSE"
 publish = false
@@ -13,9 +13,9 @@ publish = false
 globset = "0.4.4"
 ipnetwork = "0.14.0"
 lazy_static = "1.3.0"
-lazycell = "1.2.1"
 regex = "1.2.0"
 relay-general = { path = "../relay-general" }
+relay-common = { path = "../relay-common" }
 serde = { version = "1.0.98", features = ["derive"] }
 url = "2.0.0"
 

@@ -94,21 +94,6 @@ impl Default for ProjectConfig {
     }
 }
 
-impl ProjectConfig {
-    /// Get all PII configs that should be applied to this project.
-    ///
-    /// Yields multiple because:
-    ///
-    /// 1. User will be able to define PII config themselves (in Sentry, `self.pii_config`)
-    /// 2. datascrubbing settings (in Sentry, `self.datascrubbing_settings`) are converted in Relay to a PII config.
-    pub fn pii_configs(&self) -> impl Iterator<Item = &PiiConfig> {
-        self.pii_config
-            .as_ref()
-            .into_iter()
-            .chain(self.datascrubbing_settings.pii_config().into_iter())
-    }
-}
-
 /// The project state is a cached server state of a project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

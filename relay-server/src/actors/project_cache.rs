@@ -82,11 +82,10 @@ impl ProjectCache {
     fn evict_stale_project_caches(&mut self) {
         metric!(counter(RelayCounters::EvictingStaleProjectCaches) += 1);
         let eviction_start = Instant::now();
-        let eviction_threshold = eviction_start
-            - 2 * self.config.project_cache_expiry()
-            - self.config.project_grace_period();
+        let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
+
         self.projects
-            .retain(|_, entry| entry.last_updated_at > eviction_threshold);
+            .retain(|_, entry| entry.last_updated_at + delta > eviction_start);
 
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
     }
