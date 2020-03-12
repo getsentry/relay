@@ -3,8 +3,8 @@ import os
 import queue
 import datetime
 import uuid
-import time
 import redis
+import time
 
 import flask
 import pytest
@@ -100,7 +100,7 @@ def test_store_pii_stripping(mini_sentry, relay):
     assert event["extra"]["foo"] == "[email]"
 
 
-def test_event_timeout(mini_sentry, relay):
+def test_store_timeout(mini_sentry, relay):
     from time import sleep
 
     get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
@@ -128,7 +128,7 @@ def test_event_timeout(mini_sentry, relay):
     mini_sentry.test_failures.clear()
 
 
-def test_rate_limit(mini_sentry, relay):
+def test_store_rate_limit(mini_sentry, relay):
     from time import sleep
 
     store_event_original = mini_sentry.app.view_functions["store_event"]
@@ -166,7 +166,7 @@ def test_rate_limit(mini_sentry, relay):
     assert event["logentry"] == {"formatted": "correct"}
 
 
-def test_static_config(mini_sentry, relay):
+def test_store_static_config(mini_sentry, relay):
     from time import sleep
 
     project_config = mini_sentry.basic_project_config()
@@ -192,7 +192,7 @@ def test_static_config(mini_sentry, relay):
         )
 
 
-def test_proxy_config(mini_sentry, relay):
+def test_store_proxy_config(mini_sentry, relay):
     from time import sleep
 
     project_config = mini_sentry.basic_project_config()
@@ -210,7 +210,7 @@ def test_proxy_config(mini_sentry, relay):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
-def test_event_buffer_size(mini_sentry, relay):
+def test_store_buffer_size(mini_sentry, relay):
     relay = relay(mini_sentry, {"cache": {"event_buffer_size": 0}})
     relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = relay.basic_project_config()
@@ -225,7 +225,7 @@ def test_event_buffer_size(mini_sentry, relay):
     mini_sentry.test_failures.clear()
 
 
-def test_max_concurrent_requests(mini_sentry, relay):
+def test_store_max_concurrent_requests(mini_sentry, relay):
     from time import sleep
     from threading import Semaphore
 
@@ -261,8 +261,22 @@ def test_max_concurrent_requests(mini_sentry, relay):
     store_count.acquire(timeout=4)
 
 
+def test_store_not_normalized(mini_sentry, relay):
+    """
+    Tests that relay does not normalize when processing is disabled
+    """
+    relay = relay(mini_sentry, {"processing": {"enabled": False}})
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    relay.send_event(42, {"message": "some_message"})
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event.get("key_id") is None
+    assert event.get("project") is None
+    assert event.get("version") is None
+
+
 @pytest.mark.parametrize("event_type", ["default", "transaction"])
-def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kafka(
+def test_processing(
     mini_sentry,
     relay_with_processing,
     events_consumer,
@@ -331,23 +345,9 @@ def test_when_processing_is_enabled_relay_normalizes_events_and_puts_them_in_kaf
     assert event.get("version") is not None
 
 
-def test_when_processing_is_not_enabled_relay_does_not_normalize_events(
-    mini_sentry, relay
+def test_processing_quotas(
+    mini_sentry, relay_with_processing, outcomes_consumer, events_consumer
 ):
-    """
-    Tests that relay does not normalize when processing is disabled
-    """
-    relay = relay(mini_sentry, {"processing": {"enabled": False}})
-    relay.wait_relay_healthcheck()
-    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
-    relay.send_event(42, {"message": "some_message"})
-    event = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert event.get("key_id") is None
-    assert event.get("project") is None
-    assert event.get("version") is None
-
-
-def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_consumer):
     relay = relay_with_processing({"processing": {"max_rate_limit": 120}})
     relay.wait_relay_healthcheck()
 
@@ -404,69 +404,3 @@ def test_quotas(mini_sentry, relay_with_processing, outcomes_consumer, events_co
         event, _ = events_consumer.get_event()
 
         assert event["logentry"]["formatted"] == f"otherkey{i}"
-
-
-def test_query_retry_maxed_out(
-    mini_sentry, relay_with_processing, outcomes_consumer, events_consumer
-):
-    """
-    Assert that a query is not retried an infinite amount of times.
-
-    This is not specific to processing or store, but here we have the outcomes
-    consumer which we can use to assert that an event has been dropped.
-    """
-
-    request_count = 0
-
-    outcomes_consumer = outcomes_consumer()
-    events_consumer = events_consumer()
-
-    @mini_sentry.app.endpoint("get_project_config")
-    def get_project_config():
-        nonlocal request_count
-        request_count += 1
-        time.sleep(1)
-        print("RETRY", request_count)
-        return "no", 500
-
-    relay = relay_with_processing({"limits": {"query_timeout": 10}})
-    relay.wait_relay_healthcheck()
-
-    relay.send_event(42)
-
-    outcomes_consumer.assert_dropped_internal()
-    assert request_count <= 30  # 30 secs to fetch, each request takes 1 second at least
-
-    for (_, error) in mini_sentry.test_failures:
-        assert isinstance(error, AssertionError)
-        assert "error fetching project states" in str(error)
-
-    mini_sentry.test_failures.clear()
-
-
-@pytest.mark.parametrize("disabled", (True, False))
-def test_fetch_config_from_redis(
-    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer, disabled
-):
-    outcomes_consumer = outcomes_consumer()
-    events_consumer = events_consumer()
-
-    relay = relay_with_processing({"limits": {"query_timeout": 10}})
-    relay.wait_relay_healthcheck()
-
-    cfg = mini_sentry.full_project_config()
-    cfg["disabled"] = disabled
-
-    redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
-    projectconfig_cache_prefix = relay.options["processing"][
-        "projectconfig_cache_prefix"
-    ]
-    redis_client.setex(f"{projectconfig_cache_prefix}:42", 3600, json.dumps(cfg))
-
-    relay.send_event(42)
-
-    if disabled:
-        outcomes_consumer.assert_dropped_unknown_project()
-    else:
-        event, v = events_consumer.get_event()
-        assert event["logentry"] == {"formatted": "Hello, World!"}

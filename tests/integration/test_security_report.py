@@ -52,7 +52,7 @@ def test_uses_origins(
 
 
 @pytest.mark.parametrize("test_case", [("csp", CSP_IGNORED_FIELDS),], ids=("csp",))
-def test_security_reports_with_processing(
+def test_security_report_with_processing(
     mini_sentry,
     relay_with_processing,
     events_consumer,
@@ -108,9 +108,7 @@ def test_security_reports_with_processing(
         "hpkp",
     ),
 )
-def test_security_reports_no_processing(
-    mini_sentry, relay, test_case, json_fixture_provider
-):
+def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
     fixture_provider = json_fixture_provider(__file__)
     test_name, ignored_properties = test_case
     proj_id = 42
