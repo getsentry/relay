@@ -849,31 +849,31 @@ impl HpkpRaw {
 /// Schema as defined in RFC7469, Section 3
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct Hpkp {
-    /// > Indicates the time the UA observed the Pin Validation failure.
+    /// Indicates the time the UA observed the Pin Validation failure.
     pub date_time: Annotated<String>,
-    /// > Hostname to which the UA made the original request that failed Pin Validation.
+    /// Hostname to which the UA made the original request that failed Pin Validation.
     pub hostname: Annotated<String>,
-    /// > The port to which the UA made the original request that failed Pin Validation.
+    /// The port to which the UA made the original request that failed Pin Validation.
     pub port: Annotated<u64>,
-    /// > Effective Expiration Date for the noted pins.
+    /// Effective Expiration Date for the noted pins.
     pub effective_expiration_date: Annotated<String>,
-    /// > Indicates whether or not the UA has noted the includeSubDomains directive for the Known
+    /// Indicates whether or not the UA has noted the includeSubDomains directive for the Known
     /// Pinned Host.
     pub include_subdomains: Annotated<bool>,
 
-    /// > Indicates the hostname that the UA noted when it noted the Known Pinned Host.  This field
-    /// > allows operators to understand why Pin Validation was performed for, e.g., foo.example.com
-    /// > when the noted Known Pinned Host was example.com with includeSubDomains set.
+    /// Indicates the hostname that the UA noted when it noted the Known Pinned Host.  This field
+    /// allows operators to understand why Pin Validation was performed for, e.g., foo.example.com
+    /// when the noted Known Pinned Host was example.com with includeSubDomains set.
     pub noted_hostname: Annotated<String>,
-    /// > The certificate chain, as served by the Known Pinned Host during TLS session setup.  It
-    /// > is provided as an array of strings; each string pem1, ... pemN is the Privacy-Enhanced Mail
-    /// > (PEM) representation of each X.509 certificate as described in [RFC7468].
+    /// The certificate chain, as served by the Known Pinned Host during TLS session setup.  It
+    /// is provided as an array of strings; each string pem1, ... pemN is the Privacy-Enhanced Mail
+    /// (PEM) representation of each X.509 certificate as described in [RFC7468].
     pub served_certificate_chain: Annotated<Array<String>>,
-    /// > The certificate chain, as constructed by the UA during certificate chain verification.
+    /// The certificate chain, as constructed by the UA during certificate chain verification.
     pub validated_certificate_chain: Annotated<Array<String>>,
 
-    /// > Pins that the UA has noted for the Known Pinned Host.
-    // TODO: regex ths string for 'pin-sha256="ABC123"' syntax
+    /// Pins that the UA has noted for the Known Pinned Host.
+    // TODO: regex this string for 'pin-sha256="ABC123"' syntax
     #[metastructure(required = "true")]
     pub known_pins: Annotated<Array<String>>,
 

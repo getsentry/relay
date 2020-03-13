@@ -539,12 +539,6 @@ impl EventProcessor {
                 // If the event should be filtered, no more processing is needed
                 return Err(ProcessingError::EventFiltered(reason));
             }
-
-            // TODO: Remove this once cutover is complete.
-            event.other.insert(
-                "_relay_processed".to_owned(),
-                Annotated::new(Value::Bool(true)),
-            );
         }
 
         // Run rate limiting after normalizing the event and running all filters. If the event is

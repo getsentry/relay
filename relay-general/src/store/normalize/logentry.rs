@@ -74,7 +74,7 @@ pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> Processin
     if logentry.formatted.value().is_none()
         || logentry.message.value() == logentry.formatted.value()
     {
-        logentry.formatted = std::mem::replace(&mut logentry.message, Annotated::empty());
+        logentry.formatted = std::mem::take(&mut logentry.message);
     }
 
     Ok(())
