@@ -203,12 +203,12 @@ impl<'a> NormalizeProcessor<'a> {
             })?;
         }
 
-        let server_name = std::mem::replace(&mut event.server_name, Annotated::empty());
+        let server_name = std::mem::take(&mut event.server_name);
         if server_name.value().is_some() {
             tags.insert("server_name".to_string(), server_name);
         }
 
-        let site = std::mem::replace(&mut event.site, Annotated::empty());
+        let site = std::mem::take(&mut event.site);
         if site.value().is_some() {
             tags.insert("site".to_string(), site);
         }
@@ -511,7 +511,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     ) -> ProcessingResult {
         if !user.other.is_empty() {
             let data = user.data.value_mut().get_or_insert_with(Object::new);
-            data.extend(std::mem::replace(&mut user.other, Object::new()).into_iter());
+            data.extend(std::mem::take(&mut user.other).into_iter());
         }
 
         user.process_child_values(self, state)?;
