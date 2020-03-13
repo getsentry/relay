@@ -62,11 +62,13 @@ test-rust-all: setup-geoip setup-git
 .PHONY: test-rust-all
 
 test-python: setup-geoip setup-git setup-venv
+	.venv/bin/pip install -U pytest
 	RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
 	.venv/bin/pytest -v py
 .PHONY: test-python
 
 test-integration: build setup-geoip setup-venv
+	.venv/bin/pip install -U -r requirements-test.txt
 	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
 
@@ -96,6 +98,7 @@ prose-docs: .venv/bin/python extract-doc
 .PHONY: prose-docs
 
 extract-doc: .venv/bin/python
+	.venv/bin/pip install -U -r requirements-doc.txt
 	cd scripts && ../.venv/bin/python extract_metric_docs.py
 
 docserver: prose-docs
@@ -124,6 +127,7 @@ style-rust:
 .PHONY: style-rust
 
 style-python: setup-venv
+	.venv/bin/pip install -U -r requirements-dev.txt
 	.venv/bin/black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
 .PHONY: style-python
 
@@ -138,6 +142,7 @@ lint-rust: setup-git
 .PHONY: lint-rust
 
 lint-python: setup-venv
+	.venv/bin/pip install -U -r requirements-dev.txt
 	.venv/bin/flake8 py
 .PHONY: lint-python
 
@@ -152,6 +157,7 @@ format-rust:
 .PHONY: format-rust
 
 format-python: setup-venv
+	.venv/bin/pip install -U -r requirements-dev.txt
 	.venv/bin/black py tests scripts --exclude '\.eggs|sentry_relay/_lowlevel.*'
 .PHONY: format-python
 
@@ -185,11 +191,10 @@ clean-target-dir:
 
 # Dependencies
 
-.venv/bin/python: Makefile tests/requirements.txt
+.venv/bin/python: Makefile
 	@rm -rf .venv
 	@which virtualenv || sudo pip install virtualenv
 	virtualenv -p $$RELAY_PYTHON_VERSION .venv
-	.venv/bin/pip install -U -r tests/requirements.txt
 
 # GNU tar requires `--wildcards`, but bsd tar does not.
 ifneq (, $(findstring GNU tar,$(shell tar --version)))
