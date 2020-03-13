@@ -17,6 +17,7 @@ impl CompiledPiiConfig {
     pub fn new(config: &PiiConfig) -> Self {
         let mut applications = Vec::new();
         for (selector, rules) in &config.applications {
+            #[allow(clippy::mutable_key_type)]
             let mut rule_set = BTreeSet::default();
             for rule_id in rules {
                 collect_rules(config, &mut rule_set, &rule_id, None);
@@ -38,6 +39,7 @@ fn get_rule(config: &PiiConfig, id: &str) -> Option<RuleRef> {
     }
 }
 
+#[allow(clippy::mutable_key_type)]
 fn collect_rules(
     config: &PiiConfig,
     rules: &mut BTreeSet<RuleRef>,

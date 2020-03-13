@@ -433,7 +433,6 @@ pub struct MetaInner {
 
 impl MetaInner {
     pub fn is_empty(&self) -> bool {
-        // TODO(ja): Evaluate which meta info is relevant enough to keep if the value is gone.
         self.original_length.is_none()
             && self.remarks.is_empty()
             && self.errors.is_empty()

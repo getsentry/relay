@@ -360,7 +360,6 @@ pub struct Event {
     pub errors: Annotated<Array<EventProcessingError>>,
 
     /// Project key which sent this event.
-    // TODO: capsize?
     pub key_id: Annotated<String>,
 
     /// Project which sent this event.

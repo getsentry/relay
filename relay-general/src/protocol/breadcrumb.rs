@@ -3,7 +3,7 @@ use chrono::TimeZone;
 
 use chrono::{DateTime, Utc};
 
-use crate::protocol::{EventId, Level};
+use crate::protocol::Level;
 use crate::types::{Annotated, Object, Value};
 
 /// A breadcrumb.
@@ -32,10 +32,6 @@ pub struct Breadcrumb {
     #[metastructure(pii = "true", bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,
-
-    /// Identifier of the event this breadcrumb belongs to.
-    // TODO: Remove this?
-    pub event_id: Annotated<EventId>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
@@ -73,7 +69,6 @@ fn test_breadcrumb_roundtrip() {
     let breadcrumb = Annotated::new(Breadcrumb {
         timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
         ty: Annotated::new("mytype".to_string()),
-        event_id: Default::default(),
         category: Annotated::new("mycategory".to_string()),
         level: Annotated::new(Level::Fatal),
         message: Annotated::new("my message".to_string()),
