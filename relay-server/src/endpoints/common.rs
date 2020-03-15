@@ -4,8 +4,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use actix::prelude::*;
+use actix_web::http::{header, StatusCode};
 use actix_web::middleware::cors::{Cors, CorsBuilder};
-use actix_web::{http::StatusCode, HttpRequest, HttpResponse, ResponseError};
+use actix_web::{HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
 use futures::prelude::*;
 use parking_lot::Mutex;
@@ -15,10 +16,11 @@ use serde::Deserialize;
 
 use relay_common::{clone, metric, tryf, LogError};
 use relay_general::protocol::EventId;
+use relay_quotas::{DataCategory, RateLimits};
 
 use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{EventAction, GetEventAction, RateLimit};
+use crate::actors::project::{EventAction, GetEventAction};
 use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
 use crate::constants::ITEM_NAME_EVENT;
@@ -26,7 +28,7 @@ use crate::envelope::{Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::{RequestMeta, StartTime};
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::{ApiErrorResponse, FormDataIter, MultipartError};
+use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -72,8 +74,8 @@ pub enum BadStoreRequest {
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] StorePayloadError),
 
-    #[fail(display = "event rejected due to rate limit: {:?}", _0)]
-    RateLimited(RateLimit),
+    #[fail(display = "event rejected due to rate limit")]
+    RateLimited(RateLimits),
 
     #[fail(display = "event submission rejected with_reason: {:?}", _0)]
     EventRejected(DiscardReason),
@@ -119,7 +121,13 @@ impl BadStoreRequest {
                 Outcome::Invalid(payload_error.discard_reason())
             }
 
-            BadStoreRequest::RateLimited(retry_after) => Outcome::RateLimited(retry_after.clone()),
+            BadStoreRequest::RateLimited(rate_limits) => {
+                let reason_code = rate_limits
+                    .longest()
+                    .and_then(|limit| limit.reason_code.clone());
+
+                Outcome::RateLimited(reason_code)
+            }
 
             // should actually never create an outcome
             BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
@@ -132,12 +140,20 @@ impl ResponseError for BadStoreRequest {
         let body = ApiErrorResponse::from_fail(self);
 
         match self {
-            BadStoreRequest::RateLimited(RateLimit(_, retry_after)) => {
+            BadStoreRequest::RateLimited(rate_limits) => {
+                let retry_after_header = rate_limits
+                    .longest()
+                    .map(|limit| limit.retry_after.remaining_seconds().to_string())
+                    .unwrap_or_default();
+
+                let rate_limits_header = utils::format_rate_limits(rate_limits);
+
                 // For rate limits, we return a special status code and indicate the client to hold
                 // off until the rate limit period has expired. Currently, we only support the
                 // delay-seconds variant of the Rate-Limit header.
                 HttpResponse::build(StatusCode::TOO_MANY_REQUESTS)
-                    .header("Retry-After", retry_after.remaining_seconds().to_string())
+                    .header(header::RETRY_AFTER, retry_after_header)
+                    .header(utils::RATE_LIMITS_HEADER, rate_limits_header)
                     .json(&body)
             }
             BadStoreRequest::ProjectFailed(project_error) => match project_error {
@@ -275,7 +291,11 @@ pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
             "authentication",
             "authorization",
         ])
-        .expose_headers(vec!["x-sentry-error", "retry-after"])
+        .expose_headers(vec![
+            "x-sentry-error",
+            "x-sentry-rate-limits",
+            "retry-after",
+        ])
         .max_age(3600);
 
     builder
@@ -343,13 +363,13 @@ where
                     *event_id.lock() = envelope.event_id();
 
                     project
-                        .send(GetEventAction::cached(cloned_meta))
+                        .send(GetEventAction::cached(cloned_meta, DataCategory::Error))
                         .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(move |action| {
                             match action.map_err(BadStoreRequest::ProjectFailed)? {
                                 EventAction::Accept => Ok(envelope),
-                                EventAction::RetryAfter(retry_after) => {
-                                    Err(BadStoreRequest::RateLimited(retry_after))
+                                EventAction::RateLimit(rate_limits) => {
+                                    Err(BadStoreRequest::RateLimited(rate_limits))
                                 }
                                 EventAction::Discard(reason) => {
                                     Err(BadStoreRequest::EventRejected(reason))

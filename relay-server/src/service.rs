@@ -124,19 +124,24 @@ impl ServiceState {
         let outcome_producer = OutcomeProducer::create(config.clone())?;
         let outcome_producer = Arbiter::start(move |_| outcome_producer);
 
-        let redis = RedisPool::from_config(&config).context(ServerErrorKind::RedisError)?;
+        let redis_pool = match config.redis() {
+            Some(redis_config) if config.processing_enabled() => {
+                Some(RedisPool::new(&redis_config).context(ServerErrorKind::RedisError)?)
+            }
+            _ => None,
+        };
 
         let event_manager = EventManager::create(
             config.clone(),
             upstream_relay.clone(),
             outcome_producer.clone(),
-            redis.clone(),
+            redis_pool.clone(),
         )
         .context(ServerErrorKind::ConfigError)?
         .start();
 
         let project_cache =
-            ProjectCache::new(config.clone(), upstream_relay.clone(), redis).start();
+            ProjectCache::new(config.clone(), upstream_relay.clone(), redis_pool).start();
 
         Ok(ServiceState {
             config: config.clone(),

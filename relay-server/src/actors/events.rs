@@ -20,12 +20,12 @@ use relay_general::protocol::{
     SecurityReportType, Values,
 };
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
-use relay_quotas::RetryAfter;
+use relay_quotas::{DataCategory, ItemScoping, RateLimits};
 use relay_redis::RedisPool;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
-    EventAction, GetEventAction, GetProjectState, Project, ProjectState, RateLimit, RateLimitScope,
+    EventAction, GetEventAction, GetProjectState, Project, ProjectState, UpdateRateLimits,
 };
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
@@ -42,7 +42,7 @@ use {
     relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::{DataCategory, ItemScoping, RateLimiter, RateLimitingError},
+    relay_quotas::{RateLimiter, RateLimitingError},
 };
 
 #[derive(Debug, Fail)]
@@ -108,8 +108,8 @@ enum ProcessingError {
     #[fail(display = "could not store event")]
     StoreFailed(#[cause] StoreError),
 
-    #[fail(display = "sending failed due to rate limit: {:?}", _0)]
-    RateLimited(RateLimit),
+    #[fail(display = "event rate limited")]
+    RateLimited(RateLimits),
 
     #[cfg(feature = "processing")]
     #[fail(display = "failed to apply quotas")]
@@ -454,9 +454,10 @@ impl EventProcessor {
         let key_config = project_state.get_public_key_config(&envelope.meta().public_key());
 
         let scoping = ItemScoping {
-            category: DataCategory::Error, // TODO(ja): Infer data category
+            category: DataCategory::Error,
             organization_id,
             project_id: envelope.meta().project_id(),
+            public_key: envelope.meta().public_key().to_owned(),
             key_id: key_config.as_ref().and_then(|config| config.numeric_id),
         };
 
@@ -472,16 +473,14 @@ impl EventProcessor {
             return Ok(());
         }
 
-        let rate_limit = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
+        let rate_limits = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             rate_limiter
                 .is_rate_limited(quotas, &scoping)
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
-        if let Some(retry_after) = rate_limit {
-            // TODO(ja): Return actual QuotaScope
-            let scope = RateLimitScope::Key(key_config.expect("TODO(ja)").public_key.clone());
-            return Err(ProcessingError::RateLimited(RateLimit(scope, retry_after)));
+        if rate_limits.is_limited() {
+            return Err(ProcessingError::RateLimited(rate_limits));
         }
 
         Ok(())
@@ -790,7 +789,8 @@ impl EventManager {
                 None => None,
             };
 
-            let rate_limiter = redis_pool.map(|pool| RateLimiter::new(config.clone(), pool));
+            let rate_limiter =
+                redis_pool.map(|pool| RateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
             SyncArbiter::start(
                 thread_count,
@@ -956,11 +956,11 @@ impl Handler<HandleEnvelope> for EventManager {
         metric!(set(RelaySets::UniqueProjects) = project_id.value() as i64);
 
         let future = project
-            .send(GetEventAction::fetched(meta_clone))
+            .send(GetEventAction::fetched(meta_clone, DataCategory::Error))
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
                 EventAction::Accept => Ok(()),
-                EventAction::RetryAfter(r) => Err(ProcessingError::RateLimited(r)),
+                EventAction::RateLimit(limits) => Err(ProcessingError::RateLimited(limits)),
                 EventAction::Discard(reason) => Err(ProcessingError::EventRejected(reason)),
             })
             .and_then(clone!(project, |_| {
@@ -985,9 +985,6 @@ impl Handler<HandleEnvelope> for EventManager {
             }))
             .and_then(clone!(captured_events, organization_id, |processed| {
                 let envelope = processed.envelope;
-
-                // avoid warnings since this is only used in the
-                let _ = organization_id;
 
                 #[cfg(feature = "processing")]
                 {
@@ -1023,7 +1020,13 @@ impl Handler<HandleEnvelope> for EventManager {
                     return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
                 }
 
-                let public_key = envelope.meta().public_key().to_string();
+                let scoping = ItemScoping {
+                    category: DataCategory::Error,
+                    organization_id: organization_id.load(Ordering::Relaxed),
+                    project_id: envelope.meta().project_id(),
+                    public_key: envelope.meta().public_key().to_owned(),
+                    key_id: None,
+                };
 
                 log::trace!("sending event to sentry endpoint");
                 let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
@@ -1051,13 +1054,8 @@ impl Handler<HandleEnvelope> for EventManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(move |result| {
                         result.map_err(move |error| match error {
-                            UpstreamRequestError::RateLimited(secs) => {
-                                // TODO: Maybe add a header that tells us the value for
-                                // RateLimitScope?
-                                ProcessingError::RateLimited(RateLimit(
-                                    RateLimitScope::Key(public_key),
-                                    RetryAfter::new(secs),
-                                ))
+                            UpstreamRequestError::RateLimited(upstream_limits) => {
+                                ProcessingError::RateLimited(upstream_limits.scope(&scoping))
                             }
                             other => ProcessingError::SendFailed(other),
                         })
@@ -1071,8 +1069,8 @@ impl Handler<HandleEnvelope> for EventManager {
             .map_err(clone!(project, captured_events, |error, _, _| {
                 // Rate limits need special handling: Cache them on the project to avoid
                 // expensive processing while the limit is active.
-                if let ProcessingError::RateLimited(ref rate_limit) = error {
-                    project.do_send(rate_limit.clone());
+                if let ProcessingError::RateLimited(ref rate_limits) = error {
+                    project.do_send(UpdateRateLimits(rate_limits.clone()));
                 }
 
                 // if we are in capture mode, we stash away the event instead of
@@ -1135,9 +1133,9 @@ impl Handler<HandleEnvelope> for EventManager {
                         Some(Outcome::Filtered(*filter_stat_key))
                     }
                     // Processing-only but not feature flagged
-                    ProcessingError::RateLimited(ref rate_limit) => {
-                        Some(Outcome::RateLimited(rate_limit.clone()))
-                    }
+                    ProcessingError::RateLimited(ref rate_limits) => rate_limits
+                        .longest()
+                        .map(|r| Outcome::RateLimited(r.reason_code.clone())),
 
                     // Internal errors
                     ProcessingError::SerializeFailed(_)

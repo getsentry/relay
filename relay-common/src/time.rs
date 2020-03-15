@@ -1,5 +1,6 @@
 //! Utilities to deal with date-time types. (DateTime, Instant, SystemTime, etc)
 
+use std::fmt;
 use std::time::{Duration, Instant, SystemTime};
 
 /// Converts an Instant into a SystemTime.
@@ -8,7 +9,7 @@ pub fn instant_to_system_time(instant: Instant) -> SystemTime {
 }
 
 /// A unix timestap (time elapsed since 1970).
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct UnixTimestamp(Duration);
 
 impl UnixTimestamp {
@@ -49,6 +50,12 @@ impl UnixTimestamp {
     /// Returns the number of milliseconds since the UNIX epoch start.
     pub fn as_millis(self) -> u128 {
         self.0.as_millis()
+    }
+}
+
+impl fmt::Debug for UnixTimestamp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "UnixTimestamp({})", self.as_secs())
     }
 }
 

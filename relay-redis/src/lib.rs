@@ -4,6 +4,9 @@
 //! actual Redis client is implemented.
 #![warn(missing_docs)]
 
+mod config;
+pub use self::config::*;
+
 #[cfg(feature = "impl")]
 mod real;
 #[cfg(feature = "impl")]

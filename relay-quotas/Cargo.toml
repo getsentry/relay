@@ -11,10 +11,9 @@ publish = false
 
 [features]
 default = []
-rate-limit = [
+rate-limiter = [
     "failure",
     "log",
-    "relay-config",
     "relay-redis/impl",
 ]
 legacy = []
@@ -23,10 +22,11 @@ legacy = []
 failure = { version = "0.1.5", optional = true }
 log = { version = "0.4.8", optional = true }
 relay-common = { path = "../relay-common" }
-relay-config = { path = "../relay-config", optional = true }
 relay-redis = { path = "../relay-redis", optional = true }
 serde = { version = "1.0.98", features = ["derive"] }
 smallvec = { version = "1.2.0", features = ["serde"] }
 
 [dev-dependencies]
 lazy_static = "1.3.0"
+insta = { version = "0.15.0", features = ["ron"] }
+serde_json = "1.0.40"

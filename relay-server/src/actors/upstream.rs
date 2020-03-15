@@ -16,6 +16,11 @@ use serde::ser::Serialize;
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_common::{tryf, LogError, RetryBackoff};
 use relay_config::{Config, RelayMode};
+use relay_quotas::{
+    DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter,
+};
+
+use crate::utils;
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -34,8 +39,8 @@ pub enum UpstreamRequestError {
     #[fail(display = "failed to create upstream request: {}", _0)]
     BuildFailed(ActixError),
 
-    #[fail(display = "upstream requests rate limited for {}s", _0)]
-    RateLimited(u64),
+    #[fail(display = "upstream requests rate limited")]
+    RateLimited(UpstreamRateLimits),
 
     #[fail(display = "upstream request returned error {}", _0)]
     ResponseError(StatusCode),
@@ -58,6 +63,58 @@ impl AuthState {
         // failures from queries.  Later we will need to
         // extend the states here for it.
         self == AuthState::Registered
+    }
+}
+
+#[derive(Debug)]
+pub struct UpstreamRateLimits {
+    retry_after: RetryAfter,
+    rate_limits: String,
+}
+
+impl UpstreamRateLimits {
+    fn new() -> Self {
+        Self {
+            retry_after: RetryAfter::from_secs(0),
+            rate_limits: String::new(),
+        }
+    }
+
+    fn retry_after(mut self, header: Option<&str>) -> Self {
+        if let Some(retry_after) = header.and_then(|s| s.parse().ok()) {
+            self.retry_after = retry_after;
+        }
+        self
+    }
+
+    fn rate_limits(mut self, header: Option<&str>) -> Self {
+        if let Some(rate_limits) = header {
+            self.rate_limits = rate_limits.to_owned();
+        }
+        self
+    }
+
+    pub fn scope(self, scoping: &ItemScoping) -> RateLimits {
+        // Try to parse the `X-Sentry-Rate-Limits` header in the most lenient way possible. If
+        // anything goes wrong, skip over the invalid parts.
+        let mut rate_limits = utils::parse_rate_limits(scoping, &self.rate_limits);
+
+        // If there are no new-style rate limits in the header, fall back to the `Retry-After`
+        // header. Create a default rate limit that only applies to the current data category at the
+        // most specific scope (Key).
+        if !rate_limits.is_limited() {
+            let mut categories = DataCategories::new();
+            categories.push(scoping.category);
+
+            rate_limits.add(RateLimit {
+                categories,
+                scope: RateLimitScope::for_quota(scoping, QuotaScope::Key),
+                reason_code: None,
+                retry_after: self.retry_after,
+            });
+        }
+
+        rate_limits
     }
 }
 
@@ -133,16 +190,20 @@ impl UpstreamRelay {
             .map_err(UpstreamRequestError::SendFailed)
             .and_then(|response| match response.status() {
                 StatusCode::TOO_MANY_REQUESTS => {
-                    let retry_after = response
-                        .headers()
+                    let headers = response.headers();
+                    let retry_after = headers
                         .get(header::RETRY_AFTER)
-                        .and_then(|v| v.to_str().ok())
-                        .and_then(|s| s.parse::<f64>().ok())
-                        .unwrap_or(0f64)
-                        .max(0f64)
-                        .ceil();
+                        .and_then(|v| v.to_str().ok());
 
-                    Err(UpstreamRequestError::RateLimited(retry_after as u64))
+                    let rate_limits = headers
+                        .get(utils::RATE_LIMITS_HEADER)
+                        .and_then(|v| v.to_str().ok());
+
+                    let upstream_limits = UpstreamRateLimits::new()
+                        .retry_after(retry_after)
+                        .rate_limits(rate_limits);
+
+                    Err(UpstreamRequestError::RateLimited(upstream_limits))
                 }
                 code if !code.is_success() => Err(UpstreamRequestError::ResponseError(code)),
                 _ => Ok(response),

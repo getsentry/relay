@@ -2,7 +2,7 @@ use failure::Fail;
 use r2d2::{Pool, PooledConnection};
 use redis::ConnectionLike;
 
-use relay_config::{Config, Redis};
+use crate::config::RedisConfig;
 
 pub use redis;
 
@@ -113,18 +113,13 @@ pub struct RedisPool {
 
 impl RedisPool {
     /// Creates a `RedisPool` from configuration.
-    pub fn from_config(config: &Config) -> Result<Option<Self>, RedisError> {
-        if !config.processing_enabled() {
-            return Ok(None);
-        }
-
-        match config.redis() {
-            Some(Redis::Cluster { ref cluster_nodes }) => {
+    pub fn new(config: &RedisConfig) -> Result<Self, RedisError> {
+        match config {
+            RedisConfig::Cluster { ref cluster_nodes } => {
                 let servers = cluster_nodes.iter().map(String::as_str).collect();
-                Self::cluster(servers).map(Some)
+                Self::cluster(servers)
             }
-            Some(Redis::Single(ref server)) => Self::single(server).map(Some),
-            None => Ok(None),
+            RedisConfig::Single(ref server) => Self::single(server),
         }
     }
 

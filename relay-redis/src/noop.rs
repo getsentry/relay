@@ -1,10 +1,10 @@
 use failure::Fail;
 
-use relay_config::Config;
+use crate::config::RedisConfig;
 
 /// This is an unconstructable type to make `Option<RedisPool>` zero-sized.
 #[derive(Clone)]
-pub enum RedisPool {}
+pub struct RedisPool;
 
 /// An error returned from `RedisPool`.
 #[derive(Debug, Fail)]
@@ -15,7 +15,7 @@ impl RedisPool {
     /// Creates a `RedisPool` from the given configuration.
     ///
     /// Always returns `Ok(None)`.
-    pub fn from_config(_config: &Config) -> Result<Option<RedisPool>, RedisError> {
-        Ok(None)
+    pub fn new(_config: &RedisConfig) -> Result<Self, RedisError> {
+        Ok(Self)
     }
 }

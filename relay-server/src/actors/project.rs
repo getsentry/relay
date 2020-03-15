@@ -1,5 +1,3 @@
-use std::collections::{hash_map::Entry, HashMap};
-use std::iter;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -14,7 +12,7 @@ use relay_common::{metric, ProjectId, Uuid};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_quotas::{Quota, RetryAfter};
+use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
@@ -353,7 +351,7 @@ pub struct Project {
     manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
-    rate_limits: HashMap<RateLimitScope, RetryAfter>,
+    rate_limits: RateLimits,
     is_local: bool,
 }
 
@@ -365,7 +363,7 @@ impl Project {
             manager,
             state: None,
             state_channel: None,
-            rate_limits: HashMap::new(),
+            rate_limits: RateLimits::new(),
             is_local: false,
         }
     }
@@ -483,26 +481,35 @@ impl Handler<GetProjectState> for Project {
 
 pub struct GetEventAction {
     meta: Arc<RequestMeta>,
+    category: DataCategory,
     fetch: bool,
 }
 
 impl GetEventAction {
-    pub fn fetched(meta: Arc<RequestMeta>) -> Self {
-        GetEventAction { meta, fetch: true }
+    pub fn fetched(meta: Arc<RequestMeta>, category: DataCategory) -> Self {
+        GetEventAction {
+            meta,
+            category,
+            fetch: true,
+        }
     }
 
-    pub fn cached(meta: Arc<RequestMeta>) -> Self {
-        GetEventAction { meta, fetch: false }
+    pub fn cached(meta: Arc<RequestMeta>, category: DataCategory) -> Self {
+        GetEventAction {
+            meta,
+            category,
+            fetch: false,
+        }
     }
 }
 
 /// Indicates what should happen to events based on their meta data.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub enum EventAction {
     /// The event should be discarded.
     Discard(DiscardReason),
     /// The event should be discarded and the client should back off for some time.
-    RetryAfter(RateLimit),
+    RateLimit(RateLimits),
     /// The event should be processed and sent to upstream.
     Accept,
 }
@@ -517,26 +524,30 @@ impl Handler<GetEventAction> for Project {
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
         let project_id = self.id;
 
-        // Check for an eventual rate limit. Note that we need to check for all variants of
-        // RateLimitScope, otherwise we might miss a rate limit.
-        let rate_limit = RateLimitScope::iter_variants(&message.meta)
-            .filter_map(|scope| {
-                if let Entry::Occupied(entry) = self.rate_limits.entry(scope.clone()) {
-                    if entry.get().expired() {
-                        entry.remove_entry();
-                        None
-                    } else {
-                        // TODO:
-                        Some(RateLimit(scope, entry.get().clone()))
-                    }
-                } else {
-                    None
-                }
-            })
-            .max_by_key(|rate_limit| rate_limit.remaining_seconds());
+        let rate_limits = self.rate_limits.check(&ItemScoping {
+            category: message.category,
+            // This is a hack covering three cases:
+            //  1. Relay has not fetched the project state. In this case we have no way of knowing
+            //     which organization this project belongs to and we need to ignore any
+            //     organization-wide rate limits stored globally. This project state cannot hold
+            //     organization rate limits yet.
+            //  2. The state has been loaded, but the organization_id is not available. This is only
+            //     the case for legacy Sentry servers that do not reply with organization rate
+            //     limits. Thus, the organization_id doesn't matter.
+            //  3. An organization id is available and can be matched against rate limits. In this
+            //     project, all organizations will match automatically, unless the organization id
+            //     has changed since the last fetch.
+            organization_id: self.state().and_then(|s| s.organization_id).unwrap_or(0),
+            project_id,
+            public_key: message.meta.public_key().to_owned(),
+            // The key_id is only required by the rate limiter during quota enforcement. Rate limits
+            // only require the public_key. We omit it since there's no guarantee that the key_id is
+            // available at any time.
+            key_id: None,
+        });
 
-        if let Some(rate_limit) = rate_limit {
-            Response::ok(EventAction::RetryAfter(rate_limit))
+        if rate_limits.is_limited() {
+            Response::ok(EventAction::RateLimit(rate_limits))
         } else if message.fetch {
             // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
             // This will return synchronously if the state is still cached.
@@ -555,46 +566,17 @@ impl Handler<GetEventAction> for Project {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum RateLimitScope {
-    Key(String), // TODO(ja): Add more here
-}
+pub struct UpdateRateLimits(pub RateLimits);
 
-impl RateLimitScope {
-    // TODO(ja): Get rid of this, or change it somehow.
-    fn iter_variants(meta: &RequestMeta) -> impl Iterator<Item = RateLimitScope> {
-        iter::once(RateLimitScope::Key(meta.public_key().to_owned()))
-    }
-}
-
-/// A scoped rate limit with optional reason code.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct RateLimit(pub RateLimitScope, pub RetryAfter);
-
-impl std::ops::Deref for RateLimit {
-    type Target = RetryAfter;
-
-    fn deref(&self) -> &Self::Target {
-        &self.1
-    }
-}
-
-impl Message for RateLimit {
+impl Message for UpdateRateLimits {
     type Result = ();
 }
 
-impl Handler<RateLimit> for Project {
+impl Handler<UpdateRateLimits> for Project {
     type Result = ();
 
-    fn handle(&mut self, message: RateLimit, _context: &mut Self::Context) -> Self::Result {
-        let RateLimit(scope, value) = message;
-
-        if let Some(old_value) = self.rate_limits.get(&scope) {
-            if old_value > &value {
-                return;
-            }
-        }
-
-        self.rate_limits.insert(scope, value);
+    fn handle(&mut self, message: UpdateRateLimits, _context: &mut Self::Context) -> Self::Result {
+        let UpdateRateLimits(rate_limits) = message;
+        self.rate_limits.merge(rate_limits);
     }
 }
