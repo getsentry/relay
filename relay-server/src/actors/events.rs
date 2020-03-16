@@ -1021,7 +1021,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
 
                 let scoping = ItemScoping {
-                    category: DataCategory::Unknown, // NOTE: DataCategory is not needed here.
+                    category: DataCategory::Error,
                     organization_id: organization_id.load(Ordering::Relaxed),
                     project_id: envelope.meta().project_id(),
                     public_key: envelope.meta().public_key().to_owned(),

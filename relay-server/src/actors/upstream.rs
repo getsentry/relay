@@ -95,9 +95,7 @@ impl UpstreamRateLimits {
     /// If multiple header values are given, this header should be joined. If the header is empty,
     /// an empty string should be passed.
     fn rate_limits(mut self, header: String) -> Self {
-        if !header.is_empty() {
-            self.rate_limits = header;
-        }
+        self.rate_limits = header;
         self
     }
 
