@@ -7,6 +7,8 @@
 !relay-config/
 !relay-filter/
 !relay-general/
+!relay-quotas/
+!relay-redis/
 !relay-server/
 !src/
 

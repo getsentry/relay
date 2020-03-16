@@ -1,7 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap};
-use std::iter;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
@@ -15,6 +12,7 @@ use relay_common::{metric, ProjectId, Uuid};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
@@ -75,6 +73,8 @@ pub struct ProjectConfig {
     /// Maximum event retention for the organization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_retention: Option<u16>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub quotas: Vec<Quota>,
 }
 
 impl Default for ProjectConfig {
@@ -87,6 +87,7 @@ impl Default for ProjectConfig {
             filter_settings: FiltersConfig::default(),
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: None,
+            quotas: Vec::new(),
         }
     }
 }
@@ -322,6 +323,7 @@ impl ProjectState {
 pub struct PublicKeyConfig {
     /// Public part of key (random hash).
     pub public_key: String,
+
     /// Whether this key can be used.
     pub is_enabled: bool,
 
@@ -334,133 +336,13 @@ pub struct PublicKeyConfig {
     /// List of quotas to apply to events that use this key.
     ///
     /// Only available for internal relays.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub quotas: Vec<Quota>,
-}
-
-/// Data for applying rate limits in Redis
-#[derive(Debug, Clone)]
-pub enum Quota {
-    RejectAll(RejectAllQuota),
-    Redis(RedisQuota),
-}
-
-mod __quota_serialization {
-    use std::borrow::Cow;
-
-    use super::{Quota, RedisQuota, RejectAllQuota};
-
-    use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
-
-    #[derive(Serialize, Deserialize, Default)]
-    #[serde(default, rename_all = "camelCase")]
-    struct QuotaSerdeHelper<'a> {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        limit: Option<u64>,
-        #[serde(borrow, skip_serializing_if = "Option::is_none")]
-        reason_code: Option<Cow<'a, str>>,
-        #[serde(borrow, skip_serializing_if = "Option::is_none")]
-        prefix: Option<Cow<'a, str>>,
-        #[serde(borrow, skip_serializing_if = "Option::is_none")]
-        subscope: Option<Cow<'a, str>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        window: Option<u64>,
-    }
-
-    impl Serialize for Quota {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
-            match *self {
-                Quota::RejectAll(RejectAllQuota { ref reason_code }) => QuotaSerdeHelper {
-                    limit: Some(0),
-                    reason_code: reason_code.as_deref().map(Cow::Borrowed),
-                    ..Default::default()
-                },
-                Quota::Redis(RedisQuota {
-                    limit,
-                    ref reason_code,
-                    ref prefix,
-                    ref subscope,
-                    window,
-                }) => QuotaSerdeHelper {
-                    limit,
-                    reason_code: reason_code.as_deref().map(Cow::Borrowed),
-                    prefix: Some(Cow::Borrowed(&prefix)),
-                    subscope: subscope.as_deref().map(Cow::Borrowed),
-                    window: Some(window),
-                },
-            }
-            .serialize(serializer)
-        }
-    }
-
-    impl<'de> Deserialize<'de> for Quota {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            let helper = QuotaSerdeHelper::deserialize(deserializer)?;
-
-            match (
-                helper.limit,
-                helper.reason_code,
-                helper.prefix,
-                helper.subscope,
-                helper.window,
-            ) {
-                (Some(0), reason_code, None, None, None) => Ok(Quota::RejectAll(RejectAllQuota {
-                    reason_code: reason_code.map(Cow::into_owned),
-                })),
-                (limit, reason_code, Some(prefix), subscope, Some(window)) => {
-                    Ok(Quota::Redis(RedisQuota {
-                        limit,
-                        reason_code: reason_code.map(Cow::into_owned),
-                        prefix: prefix.into_owned(),
-                        subscope: subscope.map(Cow::into_owned),
-                        window,
-                    }))
-                }
-                _ => Err(D::Error::custom(
-                    "Could not deserialize Quota, no variant matched",
-                )),
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RedisQuota {
-    /// How many events should be accepted within the window.
-    ///
-    /// "We should accept <limit> events per <window> seconds"
-    pub limit: Option<u64>,
-
-    /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
-    /// comes to that.
-    pub reason_code: Option<String>,
-
-    /// Type of quota.
-    ///
-    /// E.g. `k` for key quotas, or `p` for project quotas. This is used when creating the Redis
-    /// key where the counters and refunds are stored.
-    pub prefix: String,
-
-    /// Usually a project/key/organization ID, depending on type of quota.
-    pub subscope: Option<String>,
-
-    /// Size of the timewindow we look at (seconds).
-    ///
-    /// "We should accept <limit> events per <window> seconds"
-    pub window: u64,
-}
-
-#[derive(Debug, Clone)]
-pub struct RejectAllQuota {
-    /// Some string identifier that will be part of the 429 Rate Limit Exceeded response if it
-    /// comes to that.
-    pub reason_code: Option<String>,
+    #[serde(
+        default,
+        rename = "quotas",
+        with = "relay_quotas::legacy",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub legacy_quotas: Vec<Quota>,
 }
 
 pub struct Project {
@@ -469,7 +351,7 @@ pub struct Project {
     manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
-    rate_limits: HashMap<RateLimitScope, RetryAfter>,
+    rate_limits: RateLimits,
     is_local: bool,
 }
 
@@ -481,7 +363,7 @@ impl Project {
             manager,
             state: None,
             state_channel: None,
-            rate_limits: HashMap::new(),
+            rate_limits: RateLimits::new(),
             is_local: false,
         }
     }
@@ -599,26 +481,35 @@ impl Handler<GetProjectState> for Project {
 
 pub struct GetEventAction {
     meta: Arc<RequestMeta>,
+    category: DataCategory,
     fetch: bool,
 }
 
 impl GetEventAction {
-    pub fn fetched(meta: Arc<RequestMeta>) -> Self {
-        GetEventAction { meta, fetch: true }
+    pub fn fetched(meta: Arc<RequestMeta>, category: DataCategory) -> Self {
+        GetEventAction {
+            meta,
+            category,
+            fetch: true,
+        }
     }
 
-    pub fn cached(meta: Arc<RequestMeta>) -> Self {
-        GetEventAction { meta, fetch: false }
+    pub fn cached(meta: Arc<RequestMeta>, category: DataCategory) -> Self {
+        GetEventAction {
+            meta,
+            category,
+            fetch: false,
+        }
     }
 }
 
 /// Indicates what should happen to events based on their meta data.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub enum EventAction {
     /// The event should be discarded.
     Discard(DiscardReason),
     /// The event should be discarded and the client should back off for some time.
-    RetryAfter(RateLimit),
+    RateLimit(RateLimits),
     /// The event should be processed and sent to upstream.
     Accept,
 }
@@ -633,26 +524,30 @@ impl Handler<GetEventAction> for Project {
     fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
         let project_id = self.id;
 
-        // Check for an eventual rate limit. Note that we need to check for all variants of
-        // RateLimitScope, otherwise we might miss a rate limit.
-        let rate_limit = RateLimitScope::iter_variants(&message.meta)
-            .filter_map(|scope| {
-                if let Entry::Occupied(entry) = self.rate_limits.entry(scope.clone()) {
-                    if entry.get().expired() {
-                        entry.remove_entry();
-                        None
-                    } else {
-                        // TODO:
-                        Some(RateLimit(scope, entry.get().clone()))
-                    }
-                } else {
-                    None
-                }
-            })
-            .max_by_key(|rate_limit| rate_limit.remaining_seconds());
+        let rate_limits = self.rate_limits.check(&ItemScoping {
+            category: message.category,
+            // This is a hack covering three cases:
+            //  1. Relay has not fetched the project state. In this case we have no way of knowing
+            //     which organization this project belongs to and we need to ignore any
+            //     organization-wide rate limits stored globally. This project state cannot hold
+            //     organization rate limits yet.
+            //  2. The state has been loaded, but the organization_id is not available. This is only
+            //     the case for legacy Sentry servers that do not reply with organization rate
+            //     limits. Thus, the organization_id doesn't matter.
+            //  3. An organization id is available and can be matched against rate limits. In this
+            //     project, all organizations will match automatically, unless the organization id
+            //     has changed since the last fetch.
+            organization_id: self.state().and_then(|s| s.organization_id).unwrap_or(0),
+            project_id,
+            public_key: message.meta.public_key().to_owned(),
+            // The key_id is only required by the rate limiter during quota enforcement. Rate limits
+            // only require the public_key. We omit it since there's no guarantee that the key_id is
+            // available at any time.
+            key_id: None,
+        });
 
-        if let Some(rate_limit) = rate_limit {
-            Response::ok(EventAction::RetryAfter(rate_limit))
+        if rate_limits.is_limited() {
+            Response::ok(EventAction::RateLimit(rate_limits))
         } else if message.fetch {
             // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
             // This will return synchronously if the state is still cached.
@@ -671,90 +566,17 @@ impl Handler<GetEventAction> for Project {
     }
 }
 
-/// A rate limit with optional reason code.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct RetryAfter {
-    when: Instant,
-    reason_code: Option<String>,
-}
+pub struct UpdateRateLimits(pub RateLimits);
 
-impl RetryAfter {
-    /// Creates a retry after instance.
-    #[inline]
-    pub fn new(seconds: u64) -> Self {
-        Self::with_reason(seconds, None)
-    }
-
-    /// Creates a retry after instance with the given reason code.
-    #[inline]
-    pub fn with_reason(seconds: u64, reason_code: Option<String>) -> Self {
-        let when = Instant::now() + Duration::from_secs(seconds);
-        Self { when, reason_code }
-    }
-
-    /// Returns the remaining seconds until the rate limit expires.
-    ///
-    /// If the rate limit has expired, this function returns `0`.
-    pub fn remaining_seconds(&self) -> u64 {
-        let now = Instant::now();
-        if now > self.when {
-            return 0;
-        }
-
-        // Compensate for the missing subsec part by adding 1s
-        (self.when - now).as_secs() + 1
-    }
-
-    /// Returns the optional reason for this rate limit.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-    pub fn reason_code(&self) -> Option<&str> {
-        self.reason_code.as_deref()
-    }
-
-    pub fn expired(&self) -> bool {
-        self.remaining_seconds() == 0
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum RateLimitScope {
-    Key(String),
-}
-
-impl RateLimitScope {
-    fn iter_variants(meta: &RequestMeta) -> impl Iterator<Item = RateLimitScope> {
-        iter::once(RateLimitScope::Key(meta.public_key().to_owned()))
-    }
-}
-
-/// A scoped rate limit with optional reason code.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct RateLimit(pub RateLimitScope, pub RetryAfter);
-
-impl std::ops::Deref for RateLimit {
-    type Target = RetryAfter;
-
-    fn deref(&self) -> &Self::Target {
-        &self.1
-    }
-}
-
-impl Message for RateLimit {
+impl Message for UpdateRateLimits {
     type Result = ();
 }
 
-impl Handler<RateLimit> for Project {
+impl Handler<UpdateRateLimits> for Project {
     type Result = ();
 
-    fn handle(&mut self, message: RateLimit, _context: &mut Self::Context) -> Self::Result {
-        let RateLimit(scope, value) = message;
-
-        if let Some(ref old_value) = self.rate_limits.get(&scope) {
-            if old_value.when > value.when {
-                return;
-            }
-        }
-
-        self.rate_limits.insert(scope, value);
+    fn handle(&mut self, message: UpdateRateLimits, _context: &mut Self::Context) -> Self::Result {
+        let UpdateRateLimits(rate_limits) = message;
+        self.rate_limits.merge(rate_limits);
     }
 }

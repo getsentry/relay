@@ -15,14 +15,10 @@ mod constants;
 mod endpoints;
 mod envelope;
 mod extractors;
+mod metrics;
 mod middlewares;
 mod service;
 mod utils;
-
-mod metrics;
-
-#[cfg(feature = "processing")]
-mod quotas;
 
 use relay_config::Config;
 

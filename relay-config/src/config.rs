@@ -12,6 +12,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Dsn;
+use relay_redis::RedisConfig;
 
 use crate::types::ByteSize;
 use crate::upstream::UpstreamDescriptor;
@@ -501,7 +502,7 @@ pub struct Processing {
     pub topics: TopicNames,
     /// Redis hosts to connect to for storing state for rate limits.
     #[serde(default)]
-    pub redis: Option<Redis>,
+    pub redis: Option<RedisConfig>,
     /// Maximum chunk size of attachments for Kafka.
     #[serde(default = "default_chunk_size")]
     pub attachment_chunk_size: ByteSize,
@@ -529,19 +530,6 @@ impl Default for Processing {
             max_rate_limit: default_max_rate_limit(),
         }
     }
-}
-
-/// Redis hosts to connect to for storing state for rate limits.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
-pub enum Redis {
-    /// Connect to a redis cluster
-    Cluster {
-        /// List of `redis://` urls to use in cluster mode
-        cluster_nodes: Vec<String>,
-    },
-    /// Connect to a single redis instance
-    Single(String),
 }
 
 /// Minimal version of a config for dumping out.
@@ -989,7 +977,7 @@ impl Config {
     }
 
     /// Redis servers to connect to, for rate limiting.
-    pub fn redis(&self) -> Option<&Redis> {
+    pub fn redis(&self) -> Option<&RedisConfig> {
         self.values.processing.redis.as_ref()
     }
 
