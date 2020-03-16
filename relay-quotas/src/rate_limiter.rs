@@ -5,6 +5,7 @@ use failure::Fail;
 
 use relay_common::UnixTimestamp;
 use relay_redis::{redis::Script, RedisError, RedisPool};
+use sentry::protocol::value;
 
 use crate::types::{ItemScoping, Quota, QuotaScope, RateLimit, RateLimits, RetryAfter};
 
@@ -194,16 +195,19 @@ impl RateLimiter {
                 let refund_key = get_refunded_quota_key(&key);
 
                 invocation.key(key);
-                invocation.arg(quota.limit());
-
                 invocation.key(refund_key);
+
+                invocation.arg(quota.limit());
                 invocation.arg(quota.expiry().as_secs());
 
                 tracked_quotas.push(quota);
             } else {
                 // This quota is neither a static reject-all, nor can it be tracked in Redis due to
                 // missing fields. We're skipping this for forward-compatibility.
-                log::warn!("skipping unsupported quota");
+                sentry::with_scope(
+                    |scope| scope.set_extra("quota", value::to_value(quota).unwrap()),
+                    || log::warn!("skipping unsupported quota"),
+                )
             }
         }
 
