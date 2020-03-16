@@ -10,6 +10,7 @@ use actix_web::http::{header, Method, StatusCode};
 use actix_web::{error::JsonPayloadError, Error as ActixError, HttpMessage};
 use failure::Fail;
 use futures::prelude::*;
+use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
@@ -73,6 +74,7 @@ pub struct UpstreamRateLimits {
 }
 
 impl UpstreamRateLimits {
+    /// Creates an empty `UpstreamRateLimits` instance.
     fn new() -> Self {
         Self {
             retry_after: RetryAfter::from_secs(0),
@@ -80,6 +82,7 @@ impl UpstreamRateLimits {
         }
     }
 
+    /// Adds the `Retry-After` header to this rate limits instance.
     fn retry_after(mut self, header: Option<&str>) -> Self {
         if let Some(retry_after) = header.and_then(|s| s.parse().ok()) {
             self.retry_after = retry_after;
@@ -87,9 +90,13 @@ impl UpstreamRateLimits {
         self
     }
 
-    fn rate_limits(mut self, header: Option<&str>) -> Self {
-        if let Some(rate_limits) = header {
-            self.rate_limits = rate_limits.to_owned();
+    /// Adds the `X-Sentry-Rate-Limits` header to this instance.
+    ///
+    /// If multiple header values are given, this header should be joined. If the header is empty,
+    /// an empty string should be passed.
+    fn rate_limits(mut self, header: String) -> Self {
+        if !header.is_empty() {
+            self.rate_limits = header;
         }
         self
     }
@@ -196,8 +203,10 @@ impl UpstreamRelay {
                         .and_then(|v| v.to_str().ok());
 
                     let rate_limits = headers
-                        .get(utils::RATE_LIMITS_HEADER)
-                        .and_then(|v| v.to_str().ok());
+                        .get_all(utils::RATE_LIMITS_HEADER)
+                        .iter()
+                        .filter_map(|v| v.to_str().ok())
+                        .join(", ");
 
                     let upstream_limits = UpstreamRateLimits::new()
                         .retry_after(retry_after)
