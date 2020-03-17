@@ -6,7 +6,6 @@ import pytest
 import os
 import confluent_kafka as kafka
 from copy import deepcopy
-import time
 
 
 @pytest.fixture
@@ -233,6 +232,16 @@ class EventsConsumer(ConsumerBase):
         assert message.error() is None
 
         return message, msgpack.unpackb(message.value(), raw=False, use_list=False)
+
+    def try_get_event(self):
+        message = self.poll()
+        if message is None:
+            return None, None
+        assert message.error() is None
+
+        event = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        assert event["type"] == "event"
+        return json.loads(event["payload"].decode("utf8")), event
 
 
 class AttachmentsConsumer(EventsConsumer):

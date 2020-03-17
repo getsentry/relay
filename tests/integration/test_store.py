@@ -3,10 +3,7 @@ import os
 import queue
 import datetime
 import uuid
-import redis
-import time
 
-import flask
 import pytest
 
 from requests.exceptions import HTTPError
@@ -39,6 +36,121 @@ def test_legacy_store(mini_sentry, relay_chain):
 
     # Second request should have the project id cached
     assert mini_sentry.get_hits("/api/0/relays/projectids/") == 1
+
+
+@pytest.mark.parametrize(
+    "filter_config, should_filter",
+    [
+        ({"releases": {"releases": ["1.2.2", "1.2.3"]}}, True),
+        ({"releases": {"releases": ["1.2.2", "1.2.4"]}}, False),
+        ({"legacyBrowsers": {"options": ["ie9", "ie10"], "isEnabled": True}}, True),
+        ({"legacyBrowsers": {"options": ["ie9"], "isEnabled": True}}, False),
+        ({"errorMessages": {"patterns": ["Panic: originalCreateNotification"]}}, True),
+        ({"errorMessages": {"patterns": ["Warning"]}}, False),
+        ({"clientIps": {"blacklistedIps": ["127.0.0.1"]}}, True),
+        ({"clientIps": {"blacklistedIps": ["122.33.230.14"]}}, False),
+        ({"localhost": {"isEnabled": True}}, True),
+        ({"localhost": {"isEnabled": False}}, False),
+        ({"browserExtensions": {"isEnabled": True}}, True),
+        ({"browserExtensions": {"isEnabled": False}}, False),
+    ],
+    ids=[
+        "releases filtered",
+        "releases not filtered",
+        "legacy browsers filtered",
+        "legacy browsers not filtered",
+        "error messages filtered",
+        "error messages not filtered",
+        "client Ips filtered",
+        "client Ips not filtered",
+        "localhost filtered",
+        "localhost not filtered",
+        "browser extensions filtered",
+        "browser extensions not filtered",
+    ],
+)
+def test_filters_are_applied(
+    mini_sentry, relay_with_processing, events_consumer, filter_config, should_filter,
+):
+    """
+    Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
+    """
+    relay = relay_with_processing()
+    relay.wait_relay_healthcheck()
+    project_config = relay.full_project_config()
+    filter_settings = project_config["config"]["filterSettings"]
+    for key in filter_config.keys():
+        filter_settings[key] = filter_config[key]
+    mini_sentry.project_configs[42] = project_config
+
+    events_consumer = events_consumer()
+
+    # create a unique message so we can make sure we don't test with stale data
+    now = datetime.datetime.utcnow()
+    message_text = "some message {}".format(now.isoformat())
+
+    user_agent = (
+        "Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 7.0; InfoPath.3; .NET CLR 3.1.40767; "
+        "Trident/6.0; en-IN)"
+    )
+
+    event = {
+        "message": message_text,
+        "release": "1.2.3",
+        "request": {"headers": {"User-Agent": user_agent,}},
+        "exception": {
+            "values": [{"type": "Panic", "value": "originalCreateNotification"}]
+        },
+        "user": {"ip_address": "127.0.0.1"},
+    }
+
+    relay.send_event(42, event)
+
+    event, v = events_consumer.try_get_event()
+
+    if should_filter:
+        assert event is None
+    else:
+        assert event is not None
+
+
+@pytest.mark.parametrize(
+    "is_enabled, should_filter",
+    [(True, True), (False, False),],
+    ids=["web crawlers filtered", "web crawlers not filtered",],
+)
+def test_web_crawlers_filter_are_applied(
+    mini_sentry, relay_with_processing, events_consumer, is_enabled, should_filter,
+):
+    """
+    Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
+    """
+    relay = relay_with_processing()
+    relay.wait_relay_healthcheck()
+    project_config = relay.full_project_config()
+    filter_settings = project_config["config"]["filterSettings"]
+    filter_settings["webCrawlers"] = {"isEnabled": is_enabled}
+    mini_sentry.project_configs[42] = project_config
+
+    events_consumer = events_consumer()
+
+    # create a unique message so we can make sure we don't test with stale data
+    now = datetime.datetime.utcnow()
+    message_text = "some message {}".format(now.isoformat())
+
+    event = {
+        "message": message_text,
+        "request": {"headers": {"User-Agent": "BingBot",}},
+    }
+
+    relay.send_event(42, event)
+
+    event, v = events_consumer.try_get_event()
+
+    if should_filter:
+        assert event is None
+    else:
+        assert event is not None
 
 
 @pytest.mark.parametrize("method_to_test", [("GET", False), ("POST", True)])

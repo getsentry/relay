@@ -156,6 +156,7 @@ class SentryLike(object):
 
         response = self.post(url, headers=headers, **kwargs)
         response.raise_for_status()
+        return response.json()
 
     def send_options(self, project_id, headers=None):
         headers = {
