@@ -1,0 +1,26 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "foo": "foo [Filtered]"
+  },
+  "_meta": {
+    "extra": {
+      "foo": {
+        "": {
+          "rem": [
+            [
+              "@creditcard:filter",
+              "s",
+              4,
+              14
+            ]
+          ],
+          "len": 20
+        }
+      }
+    }
+  }
+}

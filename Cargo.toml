@@ -25,7 +25,7 @@ debug = true
 [dependencies]
 chrono = "0.4.7"
 clap = { version = "2.33.0", default-features = false, features = ["wrap_help"] }
-console = "0.9.1"
+console = "0.10.0"
 dialoguer = "0.5.0"
 env_logger = "0.7.1"
 failure = "0.1.5"

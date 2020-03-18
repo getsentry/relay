@@ -1,0 +1,9 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "foo": "postgres:///path"
+  }
+}

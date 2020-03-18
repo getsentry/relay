@@ -1,0 +1,34 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "breadcrumbs": {
+    "values": [
+      {
+        "message": "[Filtered]"
+      }
+    ]
+  },
+  "_meta": {
+    "breadcrumbs": {
+      "values": {
+        "0": {
+          "message": {
+            "": {
+              "rem": [
+                [
+                  "strip-fields",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 68
+            }
+          }
+        }
+      }
+    }
+  }
+}

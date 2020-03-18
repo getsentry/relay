@@ -1,0 +1,26 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "s": "\"\"-----BEGIN PRIVATE KEY-----\n[Filtered]\n-----END PRIVATE KEY-----\"\""
+  },
+  "_meta": {
+    "extra": {
+      "s": {
+        "": {
+          "rem": [
+            [
+              "@pemkey:filter",
+              "s",
+              30,
+              40
+            ]
+          ],
+          "len": 252
+        }
+      }
+    }
+  }
+}
