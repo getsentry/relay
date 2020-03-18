@@ -225,6 +225,12 @@ mod tests {
             "name": "Mac OS X",
             "version": "10.13.4",
             "type": "os"
+          },
+          "device": {
+            "family": "Mac",
+            "model": "Mac",
+            "brand": "Apple",
+            "type": "device"
           }
         }
         "###);
