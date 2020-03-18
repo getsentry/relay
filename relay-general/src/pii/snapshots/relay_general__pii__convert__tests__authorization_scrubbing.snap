@@ -1,0 +1,41 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "auXth": "foobar",
+    "auth": "[Filtered]",
+    "authorization": "[Filtered]"
+  },
+  "_meta": {
+    "extra": {
+      "auth": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 6
+        }
+      },
+      "authorization": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 6
+        }
+      }
+    }
+  }
+}

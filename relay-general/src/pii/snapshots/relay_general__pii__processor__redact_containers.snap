@@ -1,0 +1,19 @@
+---
+source: relay-general/src/pii/processor.rs
+expression: event
+---
+{
+  "extra": null,
+  "_meta": {
+    "extra": {
+      "": {
+        "rem": [
+          [
+            "@anything",
+            "x"
+          ]
+        ]
+      }
+    }
+  }
+}

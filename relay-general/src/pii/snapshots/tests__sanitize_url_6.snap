@@ -1,9 +1,0 @@
----
-source: general/src/datascrubbing/convert.rs
-expression: data
----
-{
-  "extra": {
-    "foo": "postgres:///path"
-  }
-}
