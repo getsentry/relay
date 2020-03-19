@@ -42,7 +42,6 @@ jobs:
         apt:
           packages:
             - libssl-dev
-            - libgeoip-dev
       services:
         - redis
       script: make -e test-rust-all

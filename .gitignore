@@ -9,8 +9,6 @@ target
 
 # Runtime files
 /.relay/
-GeoLite2-City.mmdb
-GeoLiteCity.dat
 
 # Docs
 /site

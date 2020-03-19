@@ -12,7 +12,6 @@ clean:
 	cargo clean
 	cargo clean --manifest-path cabi/Cargo.toml
 	rm -rf .venv
-	rm -f GeoLite2-City.mmdb
 .PHONY: clean
 
 # Builds
@@ -53,21 +52,21 @@ wheel-manylinux: setup-git
 test: test-rust-all test-python test-integration
 .PHONY: test
 
-test-rust: setup-geoip setup-git
+test-rust: setup-git
 	cargo test --all
 .PHONY: test-rust
 
-test-rust-all: setup-geoip setup-git
+test-rust-all: setup-git
 	cargo test --all --all-features
 .PHONY: test-rust-all
 
-test-python: setup-geoip setup-git setup-venv
+test-python: setup-git setup-venv
 	.venv/bin/pip install -U pytest
 	RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
 	.venv/bin/pytest -v py
 .PHONY: test-python
 
-test-integration: build setup-geoip setup-venv
+test-integration: build setup-venv
 	.venv/bin/pip install -U -r requirements-test.txt
 	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
@@ -163,7 +162,7 @@ format-python: setup-venv
 
 # Development
 
-setup: setup-geoip setup-git setup-venv
+setup: setup-git setup-venv
 .PHONY: setup
 
 init-submodules:
@@ -172,9 +171,6 @@ init-submodules:
 
 setup-git: .git/hooks/pre-commit init-submodules
 .PHONY: setup-git
-
-setup-geoip: GeoLite2-City.mmdb
-.PHONY: setup-geoip
 
 setup-venv: .venv/bin/python
 .PHONY: setup-venv
@@ -195,15 +191,6 @@ clean-target-dir:
 	@rm -rf .venv
 	@which virtualenv || sudo pip install virtualenv
 	virtualenv -p $$RELAY_PYTHON_VERSION .venv
-
-# GNU tar requires `--wildcards`, but bsd tar does not.
-ifneq (, $(findstring GNU tar,$(shell tar --version)))
-wildcards=--wildcards
-endif
-
-# See https://dev.maxmind.com/geoip/geoipupdate/#Direct_Downloads
-GeoLite2-City.mmdb:
-	@curl https://download.maxmind.com/app/geoip_download\?edition_id=GeoLite2-City\&license_key=${GEOIP_LICENSE}\&suffix=tar.gz | tar xz --to-stdout $(wildcards) '*/GeoLite2-City.mmdb' > $@
 
 .git/hooks/pre-commit:
 	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.py pre-commit
