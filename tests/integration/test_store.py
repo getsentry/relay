@@ -3,8 +3,6 @@ import os
 import queue
 import datetime
 import uuid
-import redis
-import time
 import six
 
 import pytest
