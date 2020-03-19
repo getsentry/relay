@@ -57,7 +57,8 @@ development:
   below for more information).
 - `make all`: Runs all checks and tests. This runs most of the tasks that are
   also performed in CI.
-- `make clean`: Removes all build artifacts, the virtualenv and cached files.
+- `make clean`: Removes all build artifacts, the Python virtual environment and
+  cached files.
 
 ### Building and Running
 
@@ -124,11 +125,11 @@ make test-rust-all
 ```
 
 The integration test suite requires `python`. By default, the integration test
-suite will create a virtualenv, build the Relay binary with processing enabled,
-and run a set of integration tests:
+suite will create a Python virtual environment, build the Relay binary with
+processing enabled, and run a set of integration tests:
 
 ```bash
-# Create a new virtualenv, build Relay and run integration tests
+# Prepare dependencies and run integration tests
 make test-integration
 
 # Build and run a single test manually
@@ -157,9 +158,9 @@ This first requires to expose new functions in the C ABI. For this, refer to the
 [Relay C-ABI readme](relay-cabi/README.md).
 
 We highly recommend to develop and test the python package in a **virtual
-environment**. Once the ABI has been updated and tested, ensure the virtualenv
-is active and install the package, which builds the native library. There are
-two ways to install this:
+environment**. Once the ABI has been updated and tested, ensure the virtual
+environment is active and install the package, which builds the native library.
+There are two ways to install this:
 
 ```bash
 # Install the release build, recommended:
@@ -169,12 +170,12 @@ pip install --editable ./py
 RELAY_DEBUG=1 pip install --editable ./py
 ```
 
-For testing, we use ubiquitous `pytest`. Again, ensure that your virtualenv is
-active and the latest version of the native library has been installed. Then,
-run:
+For testing, we use ubiquitous `pytest`. Again, ensure that your virtual
+environment is active and the latest version of the native library has been
+installed. Then, run:
 
 ```bash
-# Create a new virtualenv, install the release build and run tests
+# Prepare dependencies and run tests
 make test-python
 
 # Run a single test manually

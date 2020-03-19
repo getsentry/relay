@@ -187,10 +187,16 @@ clean-target-dir:
 
 # Dependencies
 
-.venv/bin/python: Makefile
+.venv/bin/python:
 	@rm -rf .venv
-	@which virtualenv || sudo pip install virtualenv
-	virtualenv -p $$RELAY_PYTHON_VERSION .venv
+ifeq ($(TRAVIS)$(basename $(RELAY_PYTHON_VERSION)), python3)
+	@# if (!TRAVIS && python3)
+	$(RELAY_PYTHON_VERSION) -m venv .venv
+else
+	@# if (TRAVIS || python2)
+	@# force use virtualenv in TRAVIS because of https://github.com/travis-ci/travis-ci/issues/8589
+	virtualenv -p $(RELAY_PYTHON_VERSION) .venv
+endif
 
 .git/hooks/pre-commit:
 	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.py pre-commit

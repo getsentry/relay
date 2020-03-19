@@ -38,7 +38,13 @@ setup-deps: setup-venv
 setup-venv: .venv/bin/python
 .PHONY: setup-venv
 
-.venv/bin/python: Makefile
+.venv/bin/python:
 	@rm -rf .venv
-	@which virtualenv || sudo easy_install virtualenv
-	virtualenv -p $$PYTHON_VERSION .venv
+ifeq ($(TRAVIS)$(basename $(PYTHON_VERSION)), python3)
+	@# if (!TRAVIS && python3)
+	$(PYTHON_VERSION) -m venv .venv
+else
+	@# if (TRAVIS || python2)
+	@# force use virtualenv in TRAVIS because of https://github.com/travis-ci/travis-ci/issues/8589
+	virtualenv -p $(PYTHON_VERSION) .venv
+endif
