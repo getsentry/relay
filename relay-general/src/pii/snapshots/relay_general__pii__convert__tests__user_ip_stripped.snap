@@ -1,0 +1,32 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "user": {
+    "ip_address": null,
+    "username": "secret",
+    "data": {
+      "a_password_here": "hello",
+      "apiKey": "secret_key",
+      "api_key": "secret_key",
+      "foo": "bar",
+      "password": "hello",
+      "the_secret": "hello"
+    }
+  },
+  "_meta": {
+    "user": {
+      "ip_address": {
+        "": {
+          "rem": [
+            [
+              "@anything:remove",
+              "x"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

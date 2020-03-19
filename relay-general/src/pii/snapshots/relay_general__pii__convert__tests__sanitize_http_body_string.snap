@@ -1,0 +1,22 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data.value().unwrap().request
+---
+{
+  "data": "[Filtered]",
+  "_meta": {
+    "data": {
+      "": {
+        "rem": [
+          [
+            "@password:filter",
+            "s",
+            0,
+            10
+          ]
+        ],
+        "len": 48
+      }
+    }
+  }
+}

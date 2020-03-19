@@ -1,0 +1,18 @@
+GeoIP2-Enterprise-Test.mmdb
+===========================
+
+Obtained from:
+https://github.com/maxmind/MaxMind-DB/blob/6e99232bb6a70d5169ecc96ed0614a52017ff654/test-data/GeoIP2-Enterprise-Test.mmdb
+
+Source:
+https://github.com/maxmind/MaxMind-DB/blob/6e99232bb6a70d5169ecc96ed0614a52017ff654/source-data/GeoIP2-Enterprise-Test.json
+
+README:
+The Enterprise file was a single example IP address, modified slightly to
+include all fields. It now has more than that.
+
+LICENSE:
+This work is licensed under the Creative Commons Attribution-ShareAlike 3.0
+Unported License. To view a copy of this license, visit
+http://creativecommons.org/licenses/by-sa/3.0/ or send a letter to Creative
+Commons, 444 Castro Street, Suite 900, Mountain View, California, 94041, USA.

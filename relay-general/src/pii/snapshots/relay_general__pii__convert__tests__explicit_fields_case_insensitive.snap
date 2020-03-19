@@ -1,0 +1,26 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "MYSTUFF": "[Filtered]"
+  },
+  "_meta": {
+    "extra": {
+      "MYSTUFF": {
+        "": {
+          "rem": [
+            [
+              "strip-fields",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 3
+        }
+      }
+    }
+  }
+}

@@ -750,20 +750,20 @@ fn test_exception_invalid() {
 fn test_geo_from_ip_address() {
     use crate::protocol::Geo;
 
-    let lookup = GeoIpLookup::open("../GeoLite2-City.mmdb").unwrap();
+    let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), Some(&lookup));
 
     let mut user = Annotated::new(User {
-        ip_address: Annotated::new(IpAddr("213.47.147.207".to_string())),
+        ip_address: Annotated::new(IpAddr("2.125.160.216".to_string())),
         ..User::default()
     });
 
     process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
 
     let expected = Annotated::new(Geo {
-        country_code: Annotated::new("AT".to_string()),
-        city: Annotated::new("Vienna".to_string()),
-        region: Annotated::new("Austria".to_string()),
+        country_code: Annotated::new("GB".to_string()),
+        city: Annotated::new("Boxford".to_string()),
+        region: Annotated::new("United Kingdom".to_string()),
         ..Geo::default()
     });
     assert_eq_dbg!(user.value().unwrap().geo, expected)
@@ -777,7 +777,7 @@ fn test_user_ip_from_remote_addr() {
                 let mut map = Object::new();
                 map.insert(
                     "REMOTE_ADDR".to_string(),
-                    Annotated::new(Value::String("213.47.147.207".to_string())),
+                    Annotated::new(Value::String("2.125.160.216".to_string())),
                 );
                 map
             }),
@@ -800,7 +800,7 @@ fn test_user_ip_from_remote_addr() {
 
     let ip_addr = user.ip_address.value().expect("ip address was not created");
 
-    assert_eq_dbg!(ip_addr, &IpAddr("213.47.147.207".to_string()));
+    assert_eq_dbg!(ip_addr, &IpAddr("2.125.160.216".to_string()));
 }
 
 #[test]
@@ -836,7 +836,7 @@ fn test_user_ip_from_client_ip_without_auto() {
     });
 
     let mut config = StoreConfig::default();
-    config.client_ip = Some(IpAddr::parse("213.47.147.207").unwrap());
+    config.client_ip = Some(IpAddr::parse("2.125.160.216").unwrap());
 
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -850,7 +850,7 @@ fn test_user_ip_from_client_ip_without_auto() {
 
     let ip_addr = user.ip_address.value().expect("ip address was not created");
 
-    assert_eq_dbg!(ip_addr, &IpAddr("213.47.147.207".to_string()));
+    assert_eq_dbg!(ip_addr, &IpAddr("2.125.160.216".to_string()));
 }
 
 #[test]
@@ -864,13 +864,9 @@ fn test_user_ip_from_client_ip_with_auto() {
     });
 
     let mut config = StoreConfig::default();
-    config.client_ip = Some(IpAddr::parse("213.47.147.207").unwrap());
+    config.client_ip = Some(IpAddr::parse("2.125.160.216").unwrap());
 
-    let geo = GeoIpLookup::open(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../GeoLite2-City.mmdb"
-    ))
-    .unwrap();
+    let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -878,7 +874,7 @@ fn test_user_ip_from_client_ip_with_auto() {
 
     let ip_addr = user.ip_address.value().expect("ip address missing");
 
-    assert_eq_dbg!(ip_addr, &IpAddr("213.47.147.207".to_string()));
+    assert_eq_dbg!(ip_addr, &IpAddr("2.125.160.216".to_string()));
     assert!(user.geo.value().is_some());
 }
 
@@ -887,13 +883,9 @@ fn test_user_ip_from_client_ip_without_appropriate_platform() {
     let mut event = Annotated::new(Event::default());
 
     let mut config = StoreConfig::default();
-    config.client_ip = Some(IpAddr::parse("213.47.147.207").unwrap());
+    config.client_ip = Some(IpAddr::parse("2.125.160.216").unwrap());
 
-    let geo = GeoIpLookup::open(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../GeoLite2-City.mmdb"
-    ))
-    .unwrap();
+    let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 

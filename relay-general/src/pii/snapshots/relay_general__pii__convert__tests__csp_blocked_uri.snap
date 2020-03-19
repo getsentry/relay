@@ -1,0 +1,26 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "csp": {
+    "blocked_uri": "https://example.com/?foo=[Filtered]&bar=baz"
+  },
+  "_meta": {
+    "csp": {
+      "blocked_uri": {
+        "": {
+          "rem": [
+            [
+              "@creditcard:filter",
+              "s",
+              25,
+              35
+            ]
+          ],
+          "len": 49
+        }
+      }
+    }
+  }
+}
