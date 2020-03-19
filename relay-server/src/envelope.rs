@@ -234,26 +234,38 @@ impl Default for AttachmentType {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ItemHeaders {
+    /// The type of the item.
     #[serde(rename = "type")]
     ty: ItemType,
 
-    length: u32,
+    /// Content length of the item.
+    ///
+    /// Can be omitted if the item does not contain new lines. In this case, the item payload is
+    /// parsed until the first newline is encountered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    length: Option<u32>,
 
+    /// If this is an event item, this may contain the event type.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     event_type: Option<EventType>,
 
+    /// If this is an attachment item, this may contain the attachment type.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     attachment_type: Option<AttachmentType>,
 
+    /// Content type of the payload.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     content_type: Option<ContentType>,
 
+    /// If this is an attachment item, this may contain the original file name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
 
+    /// If this item came from a multipart request, this may contain the field name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     name: Option<String>,
 
+    /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
 }
@@ -270,7 +282,7 @@ impl Item {
         Self {
             headers: ItemHeaders {
                 ty,
-                length: 0,
+                length: Some(0),
                 event_type: None,
                 attachment_type: None,
                 content_type: None,
@@ -343,7 +355,7 @@ impl Item {
         let length = std::cmp::min(u32::max_value() as usize, payload.len());
         payload.truncate(length);
 
-        self.headers.length = length as u32;
+        self.headers.length = Some(length as u32);
         self.headers.content_type = Some(content_type);
         self.payload = payload;
     }
@@ -722,14 +734,23 @@ impl Envelope {
         Self::require_termination(slice, headers_end)?;
 
         let payload_start = headers_end + 1;
-        let payload_end = payload_start + headers.length as usize;
-        if bytes.len() < payload_end {
-            // NB: `Bytes::slice` panics if the indices are out of range.
-            return Err(EnvelopeError::UnexpectedEof);
-        }
+        let payload_end = match headers.length {
+            Some(len) => {
+                let payload_end = payload_start + len as usize;
+                if bytes.len() < payload_end {
+                    // NB: `Bytes::slice` panics if the indices are out of range.
+                    return Err(EnvelopeError::UnexpectedEof);
+                }
 
-        // Each payload is terminated by a UNIX newline.
-        Self::require_termination(slice, headers_end)?;
+                // Each payload is terminated by a UNIX newline.
+                Self::require_termination(slice, payload_end)?;
+                payload_end
+            }
+            None => match bytes[payload_start..].iter().position(|b| *b == b'\n') {
+                Some(relative_end) => payload_start + relative_end,
+                None => bytes.len(),
+            },
+        };
 
         let payload = bytes.slice(payload_start, payload_end);
         let item = Item { headers, payload };
@@ -912,6 +933,42 @@ mod tests {
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items[0].len(), 0);
         assert_eq!(items[1].len(), 0);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_implicit_length() {
+        // With terminating newline after item payload
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\"}\n\
+             helloworld\n\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].len(), 10);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_implicit_length_eof() {
+        // With item ending the envelope
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\"}\n\
+             helloworld\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].len(), 10);
     }
 
     #[test]
