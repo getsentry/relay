@@ -1,0 +1,23 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "sdk": {
+    "client_ip": null
+  },
+  "_meta": {
+    "sdk": {
+      "client_ip": {
+        "": {
+          "rem": [
+            [
+              "@anything:remove",
+              "x"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

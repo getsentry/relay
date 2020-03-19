@@ -14,8 +14,8 @@ use relay_common::ProjectId;
 use relay_config::Config;
 use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
+use relay_quotas::ReasonCode;
 
-use crate::actors::project::RateLimit;
 use crate::ServerError;
 
 // Choose the outcome module implementation (either the real one or the fake, no-op one).
@@ -66,7 +66,7 @@ pub enum Outcome {
     Filtered(FilterStatKey),
 
     /// The event has been rate limited.
-    RateLimited(RateLimit),
+    RateLimited(Option<ReasonCode>),
 
     /// The event has been discarded because of invalid data.
     Invalid(DiscardReason),
@@ -189,7 +189,6 @@ mod kafka {
 
     use crate::metrics::RelayCounters;
     use crate::service::ServerErrorKind;
-    use crate::utils;
 
     type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
 
@@ -220,7 +219,7 @@ mod kafka {
                 Outcome::Accepted => None,
                 Outcome::Invalid(discard_reason) => Some(discard_reason.name()),
                 Outcome::Filtered(filter_key) => Some(filter_key.name()),
-                Outcome::RateLimited(rate_limit) => rate_limit.reason_code(),
+                Outcome::RateLimited(code_opt) => code_opt.as_ref().map(|code| code.as_str()),
                 Outcome::Abuse => None,
             }
         }
@@ -287,7 +286,7 @@ mod kafka {
                 Some(reason) => Some(reason.to_string()),
             };
 
-            let start_time = utils::instant_to_system_time(msg.timestamp);
+            let start_time = relay_common::instant_to_system_time(msg.timestamp);
             let date_time: DateTime<Utc> = start_time.into();
 
             // convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ

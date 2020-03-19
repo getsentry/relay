@@ -3,6 +3,9 @@ import os
 import queue
 import datetime
 import uuid
+import redis
+import time
+import six
 
 import pytest
 
@@ -457,7 +460,7 @@ def test_processing(
     assert event.get("version") is not None
 
 
-def test_processing_quotas(
+def test_processing_quotas_legacy(
     mini_sentry, relay_with_processing, outcomes_consumer, events_consumer
 ):
     relay = relay_with_processing({"processing": {"max_rate_limit": 120}})
@@ -469,6 +472,53 @@ def test_processing_quotas(
     limited_key["quotas"] = [
         {
             "prefix": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "limit": 5,
+            "window": 3600,
+            "reasonCode": "get_lost",
+        }
+    ]
+
+    events_consumer = events_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    for i in range(5):
+        relay.send_event(42, {"message": f"regular{i}"})
+
+        event, _ = events_consumer.get_event()
+        assert event["logentry"]["formatted"] == f"regular{i}"
+
+    # this one will not get a 429 but still get rate limited (silently) because
+    # of our caching
+    relay.send_event(42, {"message": "some_message"})
+
+    outcomes_consumer.assert_rate_limited("get_lost")
+
+    for _ in range(5):
+        with pytest.raises(HTTPError) as excinfo:
+            relay.send_event(42, {"message": "rate_limited"})
+
+        # The rate limit is actually for 1 hour, but we cap at 120s with the
+        # max_rate_limit parameter
+        retry_after = excinfo.value.response.headers["retry-after"]
+        assert int(retry_after) <= 120
+
+        outcomes_consumer.assert_rate_limited("get_lost")
+
+
+def test_processing_quotas(
+    mini_sentry, relay_with_processing, outcomes_consumer, events_consumer
+):
+    relay = relay_with_processing({"processing": {"max_rate_limit": 120}})
+    relay.wait_relay_healthcheck()
+
+    mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
+    public_keys = projectconfig["publicKeys"]
+
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "scope": "key",
+            "scopeId": six.text_type(public_keys[0]["numericId"]),
             "limit": 5,
             "window": 3600,
             "reasonCode": "get_lost",
@@ -501,12 +551,13 @@ def test_processing_quotas(
     for _ in range(5):
         with pytest.raises(HTTPError) as excinfo:
             relay.send_event(42, {"message": "rate_limited"})
+        headers = excinfo.value.response.headers
 
         # The rate limit is actually for 1 hour, but we cap at 120s with the
         # max_rate_limit parameter
-        retry_after = excinfo.value.response.headers["retry-after"]
+        retry_after = headers["retry-after"]
         assert int(retry_after) <= 120
-
+        assert headers["x-sentry-rate-limits"] == "120::key"
         outcomes_consumer.assert_rate_limited("get_lost")
 
     relay.dsn_public_key = second_key["publicKey"]

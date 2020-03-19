@@ -68,7 +68,7 @@ test-python: setup-geoip setup-git setup-venv
 .PHONY: test-python
 
 test-integration: build setup-geoip setup-venv
-	.venv/bin/pip install -U -r integration-test-requirements.txt
+	.venv/bin/pip install -U -r requirements-test.txt
 	.venv/bin/pytest tests -n12 --reruns 5 -v
 .PHONY: test-integration
 
@@ -93,19 +93,12 @@ api-docs: setup-git
 .PHONY: api-docs
 
 prose-docs: .venv/bin/python extract-doc
-	.venv/bin/pip install -U \
-		mkdocs==1.0.4 \
-		markdown==3.2 \
-		mkdocs-material==4.6.2 \
-		pygments==2.5.2 \
-		pymdown-extensions==6.3 \
-		Jinja2==2.11.1
 	.venv/bin/mkdocs build
 	touch site/.nojekyll
 .PHONY: prose-docs
 
 extract-doc: .venv/bin/python
-	.venv/bin/pip install -U Jinja2
+	.venv/bin/pip install -U -r requirements-doc.txt
 	cd scripts && ../.venv/bin/python extract_metric_docs.py
 
 docserver: prose-docs
@@ -134,7 +127,7 @@ style-rust:
 .PHONY: style-rust
 
 style-python: setup-venv
-	.venv/bin/pip install -U black
+	.venv/bin/pip install -U -r requirements-dev.txt
 	.venv/bin/black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
 .PHONY: style-python
 
@@ -149,7 +142,7 @@ lint-rust: setup-git
 .PHONY: lint-rust
 
 lint-python: setup-venv
-	.venv/bin/pip install -U flake8
+	.venv/bin/pip install -U -r requirements-dev.txt
 	.venv/bin/flake8 py
 .PHONY: lint-python
 
@@ -164,7 +157,7 @@ format-rust:
 .PHONY: format-rust
 
 format-python: setup-venv
-	.venv/bin/pip install -U black
+	.venv/bin/pip install -U -r requirements-dev.txt
 	.venv/bin/black py tests scripts --exclude '\.eggs|sentry_relay/_lowlevel.*'
 .PHONY: format-python
 

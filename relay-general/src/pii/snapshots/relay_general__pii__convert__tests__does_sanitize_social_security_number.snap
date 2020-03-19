@@ -1,0 +1,26 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "s": "[Filtered]"
+  },
+  "_meta": {
+    "extra": {
+      "s": {
+        "": {
+          "rem": [
+            [
+              "@usssn:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 11
+        }
+      }
+    }
+  }
+}

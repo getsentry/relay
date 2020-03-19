@@ -353,7 +353,6 @@ pub struct Request {
     pub method: Annotated<String>,
 
     /// Request data in any format that makes sense.
-    // TODO: Custom logic + info
     #[metastructure(pii = "true", bag_size = "large")]
     pub data: Annotated<Value>,
 

@@ -30,7 +30,7 @@ serde_json = "1.0.40"
 serde_urlencoded = "0.5.5"
 sha-1 = "0.8.1"
 sha2 = "0.8.1"
-smallvec = { version = "0.6.10", features = ["serde"] }
+smallvec = { version = "1.2.0", features = ["serde"] }
 uaparser = { version = "0.3.3", optional = true }
 url = "2.0.0"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
@@ -38,7 +38,7 @@ relay-common = { path = "../relay-common" }
 
 [dev-dependencies]
 difference = "2.0.0"
-insta = { version = "0.12.0", features =  ["ron", "redactions"] }
+insta = { version = "0.15.0", features =  ["ron", "redactions"] }
 criterion = "0.3"
 
 [features]

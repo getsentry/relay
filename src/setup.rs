@@ -61,7 +61,13 @@ pub fn init_logging(config: &Config) {
             .map(|dsn| dsn.to_string().parse().unwrap()),
         in_app_include: vec![
             "relay_common::",
+            "relay_auth::",
+            "relay_common::",
+            "relay_config::",
+            "relay_filter::",
             "relay_general::",
+            "relay_quotas::",
+            "relay_redis::",
             "relay_server::",
             "relay::",
         ],
@@ -93,6 +99,8 @@ pub fn init_logging(config: &Config) {
                  relay_config=DEBUG,\
                  relay_filter=DEBUG,\
                  relay_general=DEBUG,\
+                 relay_quotas=DEBUG,\
+                 relay_redis=DEBUG,\
                  relay_server=DEBUG,\
                  relay=DEBUG"
             }
@@ -105,6 +113,8 @@ pub fn init_logging(config: &Config) {
                  relay_config=TRACE,\
                  relay_filter=TRACE,\
                  relay_general=TRACE,\
+                 relay_quotas=TRACE,\
+                 relay_redis=TRACE,\
                  relay_server=TRACE,\
                  relay=TRACE"
             }
