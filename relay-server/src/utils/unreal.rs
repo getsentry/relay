@@ -143,7 +143,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         event
             .logentry
             .get_or_insert_with(LogEntry::default)
-            .formatted = Annotated::new(msg);
+            .formatted = Annotated::new(msg.into());
     }
 
     if let Some(username) = runtime_props.username.take() {

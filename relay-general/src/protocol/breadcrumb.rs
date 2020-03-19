@@ -71,7 +71,7 @@ fn test_breadcrumb_roundtrip() {
         ty: Annotated::new("mytype".to_string()),
         category: Annotated::new("mycategory".to_string()),
         level: Annotated::new(Level::Fatal),
-        message: Annotated::new("my message".to_string().into()),
+        message: Annotated::new("my message".to_string()),
         data: {
             let mut map = Map::new();
             map.insert(
