@@ -1060,3 +1060,47 @@ fn test_quoted_keys() {
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(event);
 }
+
+#[test]
+fn test_logentry_value_types() {
+    // Assert that logentry.formatted is addressable as $string, $message and $logentry.formatted
+    for formatted_selector in &[
+        "$logentry.formatted",
+        "$message",
+        "$logentry.formatted && $message",
+    ] {
+        let config = PiiConfig::from_json(&format!(
+            r##"
+            {{
+                "applications": {{
+                    "{formatted_selector}": ["@anything:remove"]
+                }}
+            }}
+            "##,
+            formatted_selector = dbg!(formatted_selector),
+        ))
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new("Hello world!".to_string().into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert!(event
+            .value()
+            .unwrap()
+            .logentry
+            .value()
+            .unwrap()
+            .formatted
+            .value()
+            .is_none());
+    }
+}
