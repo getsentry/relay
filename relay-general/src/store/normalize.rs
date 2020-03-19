@@ -1418,7 +1418,7 @@ fn test_grouping_config() {
 
     let mut event = Annotated::new(Event {
         logentry: Annotated::from(LogEntry {
-            message: Annotated::new("Hello World!".into()),
+            message: Annotated::new("Hello World!".to_string().into()),
             ..Default::default()
         }),
         ..Default::default()

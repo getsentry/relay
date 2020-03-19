@@ -459,7 +459,7 @@ fn test_event_roundtrip() {
         culprit: Annotated::new("myculprit".to_string()),
         transaction: Annotated::new("mytransaction".to_string()),
         logentry: Annotated::new(LogEntry {
-            formatted: Annotated::new("mymessage".to_string()),
+            formatted: Annotated::new("mymessage".to_string().into()),
             ..Default::default()
         }),
         logger: Annotated::new("mylogger".to_string()),

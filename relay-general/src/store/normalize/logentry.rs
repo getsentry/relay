@@ -61,8 +61,8 @@ pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> Processin
     if let Some(params) = logentry.params.value() {
         if logentry.formatted.value().is_none() {
             if let Some(message) = logentry.message.value() {
-                if let Some(formatted) = format_message(message, params) {
-                    logentry.formatted = formatted.into();
+                if let Some(formatted) = format_message(message.as_ref(), params) {
+                    logentry.formatted = Annotated::new(formatted.into());
                 }
             }
         }
@@ -86,7 +86,7 @@ use crate::types::Object;
 #[test]
 fn test_format_python() {
     let mut logentry = LogEntry {
-        message: "hello, %s!".to_string().into(),
+        message: Annotated::new("hello, %s!".to_string().into()),
         params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
             "world".to_string(),
         ))])),
@@ -100,7 +100,7 @@ fn test_format_python() {
 #[test]
 fn test_format_python_named() {
     let mut logentry = LogEntry {
-        message: "hello, %(name)s!".to_string().into(),
+        message: Annotated::new("hello, %(name)s!".to_string().into()),
         params: Annotated::new(Value::Object({
             let mut object = Object::new();
             object.insert(
@@ -119,7 +119,7 @@ fn test_format_python_named() {
 #[test]
 fn test_format_java() {
     let mut logentry = LogEntry {
-        message: "hello, {}!".to_string().into(),
+        message: Annotated::new("hello, {}!".to_string().into()),
         params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
             "world".to_string(),
         ))])),
@@ -133,7 +133,7 @@ fn test_format_java() {
 #[test]
 fn test_format_dotnet() {
     let mut logentry = LogEntry {
-        message: "hello, {0}!".to_string().into(),
+        message: Annotated::new("hello, {0}!".to_string().into()),
         params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
             "world".to_string(),
         ))])),
@@ -147,7 +147,7 @@ fn test_format_dotnet() {
 #[test]
 fn test_format_no_params() {
     let mut logentry = LogEntry {
-        message: "hello, %s!".to_string().into(),
+        message: Annotated::new("hello, %s!".to_string().into()),
         ..LogEntry::default()
     };
 
@@ -158,7 +158,7 @@ fn test_format_no_params() {
 #[test]
 fn test_only_message() {
     let mut logentry = LogEntry {
-        message: "hello, world!".to_string().into(),
+        message: Annotated::new("hello, world!".to_string().into()),
         ..LogEntry::default()
     };
 
@@ -170,8 +170,8 @@ fn test_only_message() {
 #[test]
 fn test_message_formatted_equal() {
     let mut logentry = LogEntry {
-        message: "hello, world!".to_string().into(),
-        formatted: "hello, world!".to_string().into(),
+        message: Annotated::new("hello, world!".to_string().into()),
+        formatted: Annotated::new("hello, world!".to_string().into()),
         ..LogEntry::default()
     };
 

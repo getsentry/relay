@@ -10,11 +10,11 @@ use crate::types::{Annotated, Error, FromValue, Meta, Object, Value};
 pub struct LogEntry {
     /// The log message with parameter placeholders.
     #[metastructure(max_chars = "message")]
-    pub message: Annotated<String>,
+    pub message: Annotated<Message>,
 
     /// The formatted message
     #[metastructure(max_chars = "message", pii = "true")]
-    pub formatted: Annotated<String>,
+    pub formatted: Annotated<Message>,
 
     /// Positional parameters to be interpolated into the log message.
     #[metastructure(bag_size = "medium")]
@@ -28,9 +28,25 @@ pub struct LogEntry {
 impl From<String> for LogEntry {
     fn from(formatted_msg: String) -> Self {
         LogEntry {
-            formatted: Annotated::new(formatted_msg),
+            formatted: Annotated::new(formatted_msg.into()),
             ..Self::default()
         }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[metastructure(value_type = "Message")]
+pub struct Message(String);
+
+impl From<String> for Message {
+    fn from(msg: String) -> Message {
+        Message(msg)
+    }
+}
+
+impl AsRef<str> for Message {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
     }
 }
 
@@ -63,8 +79,8 @@ impl FromValue for LogEntry {
                     };
 
                     LogEntry {
-                        message: helper.message,
-                        formatted: helper.formatted,
+                        message: helper.message.map_value(Message),
+                        formatted: helper.formatted.map_value(Message),
                         params,
                         other: helper.other,
                     }
@@ -77,7 +93,8 @@ impl FromValue for LogEntry {
             Annotated(Some(Value::Bool(false)), _) => Annotated(None, Meta::default()),
             x => Annotated::new(LogEntry {
                 formatted: JsonLenientString::from_value(x)
-                    .map_value(JsonLenientString::into_inner),
+                    .map_value(JsonLenientString::into_inner)
+                    .map_value(Message),
                 ..Default::default()
             }),
         }
@@ -96,7 +113,7 @@ fn test_logentry_roundtrip() {
 }"#;
 
     let entry = Annotated::new(LogEntry {
-        message: Annotated::new("Hello, %s %s!".to_string()),
+        message: Annotated::new("Hello, %s %s!".to_string().into()),
         formatted: Annotated::empty(),
         params: Annotated::new(Value::Array(vec![
             Annotated::new(Value::String("World".to_string())),
@@ -124,7 +141,7 @@ fn test_logentry_from_message() {
 }"#;
 
     let entry = Annotated::new(LogEntry {
-        formatted: Annotated::new("hi".to_string()),
+        formatted: Annotated::new("hi".to_string().into()),
         ..Default::default()
     });
 
@@ -154,7 +171,7 @@ fn test_logentry_named_params() {
 }"#;
 
     let entry = Annotated::new(LogEntry {
-        message: Annotated::new("Hello, %s!".to_string()),
+        message: Annotated::new("Hello, %s!".to_string().into()),
         params: Annotated::new(Value::Object({
             let mut object = Object::new();
             object.insert(
@@ -178,7 +195,7 @@ fn test_logentry_invalid_params() {
 }"#;
 
     let entry = Annotated::new(LogEntry {
-        message: Annotated::new("Hello, %s!".to_string()),
+        message: Annotated::new("Hello, %s!".to_string().into()),
         params: Annotated::from_error(Error::expected("message parameters"), Some(Value::I64(42))),
         ..LogEntry::default()
     });
