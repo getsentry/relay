@@ -128,12 +128,12 @@ suite will create a virtualenv, build the Relay binary with processing enabled,
 and run a set of integration tests:
 
 ```bash
-# Build Relay and run integration tests
+# Create a new virtualenv, build Relay and run integration tests
 make test-integration
 
 # Build and run a single test manually
 make build
-pytest tests/integration -k <test_name>
+.venv/bin/pytest tests/integration -k <test_name>
 ```
 
 ### Linting
@@ -174,11 +174,11 @@ active and the latest version of the native library has been installed. Then,
 run:
 
 ```bash
-# Run tests manually
-pytest ./py/tests
-
-# Creates a new virtualenv, installs the release build and runs tests:
+# Create a new virtualenv, install the release build and run tests
 make test-python
+
+# Run a single test manually
+.venv/bin/pytest py/tests -k <test_name>
 ```
 
 ### Development Server
