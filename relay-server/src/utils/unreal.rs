@@ -4,7 +4,7 @@ use symbolic::unreal::{
 
 use relay_general::protocol::{
     AsPair, Breadcrumb, Context, Contexts, DeviceContext, Event, EventId, GpuContext,
-    LenientString, LogEntry, OsContext, TagEntry, Tags, User, UserReport, Values,
+    LenientString, LogEntry, Message, OsContext, TagEntry, Tags, User, UserReport, Values,
 };
 use relay_general::types::{self, Annotated, Array, Object, Value};
 
@@ -143,7 +143,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         event
             .logentry
             .get_or_insert_with(LogEntry::default)
-            .formatted = Annotated::new(msg.into());
+            .formatted = Annotated::new(Message::from(msg));
     }
 
     if let Some(username) = runtime_props.username.take() {
