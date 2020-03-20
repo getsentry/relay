@@ -38,7 +38,7 @@ pub use self::event::{
 };
 pub use self::exception::Exception;
 pub use self::fingerprint::Fingerprint;
-pub use self::logentry::LogEntry;
+pub use self::logentry::{LogEntry, Message};
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
 pub use self::metrics::Metrics;
 pub use self::request::{Cookies, HeaderName, HeaderValue, Headers, Query, Request};

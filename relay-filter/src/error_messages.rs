@@ -16,9 +16,9 @@ pub fn should_filter(
 ) -> Result<(), FilterStatKey> {
     if let Some(logentry) = event.logentry.value() {
         if let Some(message) = logentry.formatted.value() {
-            should_filter_impl(message, config)?;
+            should_filter_impl(message.as_ref(), config)?;
         } else if let Some(message) = logentry.message.value() {
-            should_filter_impl(message, config)?;
+            should_filter_impl(message.as_ref(), config)?;
         }
     }
 
@@ -157,7 +157,7 @@ mod tests {
                         ..Default::default()
                     })])),
                     logentry: Annotated::new(LogEntry {
-                        formatted: Annotated::new(logentry_formatted.to_string()),
+                        formatted: Annotated::new(logentry_formatted.to_string().into()),
                         ..Default::default()
                     }),
                     ..Default::default()
