@@ -60,42 +60,41 @@ impl Processor for TransactionsProcessor {
             }
         }
 
-        if let Some(Contexts(ref contexts)) = event.contexts.value() {
-            match contexts.get("trace").and_then(Annotated::value) {
-                Some(ContextInner(Context::Trace(ref trace_context))) => {
-                    if trace_context.trace_id.value().is_none() {
-                        return Err(ProcessingAction::InvalidTransaction(
-                            "trace context is missing trace_id",
-                        ));
-                    }
+        let err_trace_context_required = Err(ProcessingAction::InvalidTransaction(
+            "trace context hard-required for transaction events",
+        ));
 
-                    if trace_context.span_id.value().is_none() {
-                        return Err(ProcessingAction::InvalidTransaction(
-                            "trace context is missing span_id",
-                        ));
-                    }
+        let contexts = match event.contexts.value_mut() {
+            Some(contexts) => contexts,
+            None => return err_trace_context_required,
+        };
 
-                    if trace_context.op.value().is_none() {
-                        return Err(ProcessingAction::InvalidTransaction(
-                            "trace context is missing op",
-                        ));
-                    }
-                }
-                Some(_) => {
+        let trace_context = match contexts.get_mut("trace").map(Annotated::value_mut) {
+            Some(Some(trace_context)) => trace_context,
+            _ => return err_trace_context_required,
+        };
+
+        match trace_context {
+            ContextInner(Context::Trace(trace_context)) => {
+                if trace_context.trace_id.value().is_none() {
                     return Err(ProcessingAction::InvalidTransaction(
-                        "context at event.contexts.trace must be of type trace.",
+                        "trace context is missing trace_id",
                     ));
                 }
-                None => {
+
+                if trace_context.span_id.value().is_none() {
                     return Err(ProcessingAction::InvalidTransaction(
-                        "trace context hard-required for transaction events",
+                        "trace context is missing span_id",
                     ));
                 }
+
+                trace_context.op.get_or_insert_with(|| "default".to_owned());
             }
-        } else {
-            return Err(ProcessingAction::InvalidTransaction(
-                "trace context hard-required for transaction events",
-            ));
+            _ => {
+                return Err(ProcessingAction::InvalidTransaction(
+                    "context at event.contexts.trace must be of type trace.",
+                ));
+            }
         }
 
         if let Some(spans) = event.spans.value() {
@@ -153,9 +152,7 @@ impl Processor for TransactionsProcessor {
             ));
         }
 
-        if span.op.value().is_none() {
-            return Err(ProcessingAction::InvalidTransaction("span is missing op"));
-        }
+        span.op.get_or_insert_with(|| "default".to_owned());
 
         span.process_child_values(self, state)?;
 
@@ -373,11 +370,14 @@ mod tests {
     }
 
     #[test]
-    fn test_discards_on_missing_op_in_context() {
+    fn test_defaults_missing_op_in_context() {
+        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
+        let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);
+
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(end),
+            start_timestamp: Annotated::new(start),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -395,16 +395,25 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::new(None),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "trace context is missing op"
-            ))
-        );
+        let mut processor = TransactionsProcessor::new(None);
+        processor.now = end;
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 946684810.0,
+          "start_timestamp": 946684800.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "default",
+              "type": "trace"
+            }
+          }
+        }
+        "###);
     }
 
     #[test]
@@ -674,11 +683,14 @@ mod tests {
     }
 
     #[test]
-    fn test_discards_transaction_event_with_span_with_missing_op() {
+    fn test_defaults_transaction_event_with_span_with_missing_op() {
+        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
+        let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);
+
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(end),
+            start_timestamp: Annotated::new(start),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -695,7 +707,7 @@ mod tests {
                 contexts
             })),
             spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 10)),
                 start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
                 trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
@@ -705,14 +717,34 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::new(None),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction("span is missing op"))
-        );
+        let mut processor = TransactionsProcessor::new(None);
+        processor.now = end;
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 946684810.0,
+          "start_timestamp": 946684800.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "http.server",
+              "type": "trace"
+            }
+          },
+          "spans": [
+            {
+              "timestamp": 946684810.0,
+              "start_timestamp": 946684800.0,
+              "op": "default",
+              "span_id": "fa90fdead5f74053",
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+            }
+          ]
+        }
+        "###);
     }
 
     #[test]
