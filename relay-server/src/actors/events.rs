@@ -1,10 +1,9 @@
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use actix::fut::result;
 use actix::prelude::*;
 use failure::Fail;
 use futures::prelude::*;
@@ -20,12 +19,13 @@ use relay_general::protocol::{
     SecurityReportType, Values,
 };
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
-use relay_quotas::{DataCategory, ItemScoping, RateLimits};
+use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
-    EventAction, GetEventAction, GetProjectState, Project, ProjectState, UpdateRateLimits,
+    EventAction, GetEventAction, GetProjectState, GetScoping, Project, ProjectState,
+    UpdateRateLimits,
 };
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
@@ -42,7 +42,7 @@ use {
     relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::{RateLimiter, RateLimitingError},
+    relay_quotas::{DataCategory, RateLimiter, RateLimitingError},
 };
 
 #[derive(Debug, Fail)]
@@ -78,9 +78,6 @@ enum ProcessingError {
 
     #[fail(display = "could not schedule project fetch")]
     ScheduleFailed(#[cause] MailboxError),
-
-    #[fail(display = "failed to determine event action")]
-    NoAction(#[cause] ProjectError),
 
     #[fail(display = "failed to resolve project information")]
     ProjectFailed(#[cause] ProjectError),
@@ -433,37 +430,17 @@ impl EventProcessor {
     fn enforce_quotas(
         &self,
         envelope: &Envelope,
-        project_state: &ProjectState,
+        state: &ProjectState,
     ) -> Result<(), ProcessingError> {
-        // The organization id is effectively always available to Relays in processing mode. Relay
-        // uses the same project config as in non-processing mode, which is why it is optional.
-        // However, in case it were missing, rather over-accept than drop the event.
-        let organization_id = match project_state.organization_id {
-            Some(organization_id) => organization_id,
-            None => return Ok(()),
-        };
-
         let rate_limiter = match self.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
             None => return Ok(()),
         };
 
-        // The key configuration may be missing if the event has been queued for extended times and
-        // project was refetched in between. In such a case, access to legacy-qutoas and the key id
-        // are not availabe, but we can gracefully execute all other quotas.
-        let key_config = project_state.get_public_key_config(&envelope.meta().public_key());
-
-        let scoping = ItemScoping {
-            category: DataCategory::Error,
-            organization_id,
-            project_id: envelope.meta().project_id(),
-            public_key: envelope.meta().public_key().to_owned(),
-            key_id: key_config.as_ref().and_then(|config| config.numeric_id),
-        };
-
-        let quotas = if !project_state.config.quotas.is_empty() {
-            project_state.config.quotas.as_slice()
-        } else if let Some(ref key_config) = key_config {
+        let public_key = envelope.meta().public_key();
+        let quotas = if !state.config.quotas.is_empty() {
+            state.config.quotas.as_slice()
+        } else if let Some(ref key_config) = state.get_public_key_config(public_key) {
             key_config.legacy_quotas.as_slice()
         } else {
             &[]
@@ -473,9 +450,13 @@ impl EventProcessor {
             return Ok(());
         }
 
+        // Fetch scoping again from the project state. This is a rather cheap operation at this
+        // point and it is easier than passing scoping through all layers of `process_envelope`.
+        let scoping = state.get_scoping(envelope.meta());
+
         let rate_limits = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             rate_limiter
-                .is_rate_limited(quotas, &scoping)
+                .is_rate_limited(quotas, scoping.item(DataCategory::Error))
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
@@ -760,11 +741,10 @@ pub struct EventManager {
     processor: Addr<EventProcessor>,
     current_active_events: u32,
     outcome_producer: Addr<OutcomeProducer>,
+    captured_events: Arc<RwLock<BTreeMap<EventId, CapturedEvent>>>,
 
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
-
-    captured_events: Arc<RwLock<BTreeMap<EventId, CapturedEvent>>>,
 }
 
 impl EventManager {
@@ -941,24 +921,28 @@ impl Handler<HandleEnvelope> for EventManager {
         let event_id = envelope.event_id();
         let project_id = envelope.meta().project_id();
         let remote_addr = envelope.meta().client_addr();
-        let meta_clone = Arc::new(envelope.meta().clone());
+        let shared_meta = Arc::new(envelope.meta().clone());
 
         // Compute whether this envelope contains an event. This is used in error handling to
         // appropriately emit an outecome. Envelopes not containing events (such as standalone
         // attachment uploads or user reports) should never create outcomes.
         let is_event = envelope.items().any(Item::creates_event);
 
-        // This is used to add the respective organization id to the outcome emitted in the error
-        // case. The organization id can only be obtained via the project state, which has not been
-        // loaded at this time.
-        let organization_id = Rc::new(AtomicU64::new(0));
+        let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
 
         metric!(set(RelaySets::UniqueProjects) = project_id.value() as i64);
 
         let future = project
-            .send(GetEventAction::fetched(meta_clone, DataCategory::Error))
+            .send(GetScoping::fetched(shared_meta.clone()))
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(|action| match action.map_err(ProcessingError::NoAction)? {
+            .and_then(|scoping_result| scoping_result.map_err(ProcessingError::ProjectFailed))
+            .and_then(clone!(project, scoping, |new_scoping| {
+                scoping.replace(new_scoping);
+                project
+                    .send(GetEventAction::new(shared_meta))
+                    .map_err(ProcessingError::ScheduleFailed)
+            }))
+            .and_then(|action| match action {
                 EventAction::Accept => Ok(()),
                 EventAction::RateLimit(limits) => Err(ProcessingError::RateLimited(limits)),
                 EventAction::Discard(reason) => Err(ProcessingError::EventRejected(reason)),
@@ -969,11 +953,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
             }))
-            .and_then(clone!(organization_id, |project_state| {
-                if let Some(id) = project_state.organization_id {
-                    organization_id.store(id, Ordering::Relaxed);
-                }
-
+            .and_then(move |project_state| {
                 processor
                     .send(ProcessEnvelope {
                         envelope,
@@ -982,8 +962,8 @@ impl Handler<HandleEnvelope> for EventManager {
                     })
                     .map_err(ProcessingError::ScheduleFailed)
                     .flatten()
-            }))
-            .and_then(clone!(captured_events, organization_id, |processed| {
+            })
+            .and_then(clone!(captured_events, scoping, |processed| {
                 let envelope = processed.envelope;
 
                 #[cfg(feature = "processing")]
@@ -994,8 +974,7 @@ impl Handler<HandleEnvelope> for EventManager {
                             .send(StoreEnvelope {
                                 envelope,
                                 start_time,
-                                organization_id: organization_id.load(Ordering::Relaxed),
-                                project_id,
+                                scoping: scoping.borrow().clone(),
                             })
                             .map_err(ProcessingError::ScheduleFailed)
                             .and_then(move |result| result.map_err(ProcessingError::StoreFailed));
@@ -1019,14 +998,6 @@ impl Handler<HandleEnvelope> for EventManager {
                     }
                     return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
                 }
-
-                let scoping = ItemScoping {
-                    category: DataCategory::Error,
-                    organization_id: organization_id.load(Ordering::Relaxed),
-                    project_id: envelope.meta().project_id(),
-                    public_key: envelope.meta().public_key().to_owned(),
-                    key_id: None,
-                };
 
                 log::trace!("sending event to sentry endpoint");
                 let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
@@ -1055,7 +1026,8 @@ impl Handler<HandleEnvelope> for EventManager {
                     .and_then(move |result| {
                         result.map_err(move |error| match error {
                             UpstreamRequestError::RateLimited(upstream_limits) => {
-                                ProcessingError::RateLimited(upstream_limits.scope(&scoping))
+                                let limits = upstream_limits.scope(&scoping.borrow());
+                                ProcessingError::RateLimited(limits)
                             }
                             other => ProcessingError::SendFailed(other),
                         })
@@ -1142,8 +1114,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     | ProcessingError::ScheduleFailed(_)
                     | ProcessingError::ProjectFailed(_)
                     | ProcessingError::Timeout
-                    | ProcessingError::ProcessingFailed(_)
-                    | ProcessingError::NoAction(_) => {
+                    | ProcessingError::ProcessingFailed(_) => {
                         Some(Outcome::Invalid(DiscardReason::Internal))
                     }
                     #[cfg(feature = "processing")]
@@ -1165,16 +1136,9 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
 
                 if let Some(outcome) = outcome_params {
-                    let org_id = match organization_id.load(Ordering::Relaxed) {
-                        0 => None,
-                        id => Some(id),
-                    };
-
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),
-                        project_id: project_id,
-                        org_id,
-                        key_id: None,
+                        scoping: scoping.borrow().clone(),
                         outcome,
                         event_id,
                         remote_addr,
@@ -1184,7 +1148,7 @@ impl Handler<HandleEnvelope> for EventManager {
             .then(move |x, slf, _| {
                 metric!(timer(RelayTimers::EventTotalTime) = start_time.elapsed());
                 slf.current_active_events -= 1;
-                result(x)
+                fut::result(x)
             })
             .drop_guard("process_event");
 

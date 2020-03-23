@@ -12,7 +12,7 @@ use relay_common::{metric, ProjectId, Uuid};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits};
+use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
@@ -264,6 +264,33 @@ impl ProjectState {
         matches_any_origin(Some(origin.as_str()), &allowed)
     }
 
+    /// TODO(ja): Doc this
+    pub fn get_scoping(&self, meta: &RequestMeta) -> Scoping {
+        let mut scoping = meta.get_partial_scoping();
+
+        // The key configuration may be missing if the event has been queued for extended times and
+        // project was refetched in between. In such a case, access to legacy-qutoas and the key id
+        // are not availabe, but we can gracefully execute all other rate limiting.
+        scoping.key_id = self
+            .get_public_key_config(&scoping.public_key)
+            .and_then(|config| config.numeric_id);
+
+        // This is a hack covering three cases:
+        //  1. Relay has not fetched the project state. In this case we have no way of knowing
+        //     which organization this project belongs to and we need to ignore any
+        //     organization-wide rate limits stored globally. This project state cannot hold
+        //     organization rate limits yet.
+        //  2. The state has been loaded, but the organization_id is not available. This is only
+        //     the case for legacy Sentry servers that do not reply with organization rate
+        //     limits. Thus, the organization_id doesn't matter.
+        //  3. An organization id is available and can be matched against rate limits. In this
+        //     project, all organizations will match automatically, unless the organization id
+        //     has changed since the last fetch.
+        scoping.organization_id = self.organization_id.unwrap_or(0);
+
+        scoping
+    }
+
     /// Determines whether the given event should be accepted or dropped.
     pub fn get_event_action(
         &self,
@@ -451,6 +478,13 @@ impl Project {
 
         receiver.shared()
     }
+
+    fn get_scoping(&mut self, meta: &RequestMeta) -> Scoping {
+        match self.state() {
+            Some(state) => state.get_scoping(meta),
+            None => meta.get_partial_scoping(),
+        }
+    }
 }
 
 impl Actor for Project {
@@ -479,27 +513,50 @@ impl Handler<GetProjectState> for Project {
     }
 }
 
-pub struct GetEventAction {
+pub struct GetScoping {
     meta: Arc<RequestMeta>,
-    category: DataCategory,
     fetch: bool,
 }
 
-impl GetEventAction {
-    pub fn fetched(meta: Arc<RequestMeta>, category: DataCategory) -> Self {
-        GetEventAction {
-            meta,
-            category,
-            fetch: true,
-        }
+impl GetScoping {
+    pub fn fetched(meta: Arc<RequestMeta>) -> Self {
+        Self { meta, fetch: true }
     }
 
-    pub fn cached(meta: Arc<RequestMeta>, category: DataCategory) -> Self {
-        GetEventAction {
-            meta,
-            category,
-            fetch: false,
+    pub fn cached(meta: Arc<RequestMeta>) -> Self {
+        Self { meta, fetch: false }
+    }
+}
+
+impl Message for GetScoping {
+    type Result = Result<Scoping, ProjectError>;
+}
+
+impl Handler<GetScoping> for Project {
+    type Result = Response<Scoping, ProjectError>;
+
+    fn handle(&mut self, message: GetScoping, context: &mut Self::Context) -> Self::Result {
+        if message.fetch {
+            // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
+            // This will return synchronously if the state is still cached.
+            self.get_or_fetch_state(context)
+                .map(move |state| state.get_scoping(&message.meta))
+        } else {
+            self.get_or_fetch_state(context);
+            // message.fetch == false: Fetching must not block the store request. The EventManager
+            // will later fetch the project state.
+            Response::ok(self.get_scoping(&message.meta))
         }
+    }
+}
+
+pub struct GetEventAction {
+    meta: Arc<RequestMeta>,
+}
+
+impl GetEventAction {
+    pub fn new(meta: Arc<RequestMeta>) -> Self {
+        GetEventAction { meta }
     }
 }
 
@@ -515,54 +572,29 @@ pub enum EventAction {
 }
 
 impl Message for GetEventAction {
-    type Result = Result<EventAction, ProjectError>;
+    type Result = EventAction;
 }
 
 impl Handler<GetEventAction> for Project {
-    type Result = Response<EventAction, ProjectError>;
+    type Result = MessageResult<GetEventAction>;
 
-    fn handle(&mut self, message: GetEventAction, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: GetEventAction, _context: &mut Self::Context) -> Self::Result {
         let project_id = self.id;
 
-        let rate_limits = self.rate_limits.check(&ItemScoping {
-            category: message.category,
-            // This is a hack covering three cases:
-            //  1. Relay has not fetched the project state. In this case we have no way of knowing
-            //     which organization this project belongs to and we need to ignore any
-            //     organization-wide rate limits stored globally. This project state cannot hold
-            //     organization rate limits yet.
-            //  2. The state has been loaded, but the organization_id is not available. This is only
-            //     the case for legacy Sentry servers that do not reply with organization rate
-            //     limits. Thus, the organization_id doesn't matter.
-            //  3. An organization id is available and can be matched against rate limits. In this
-            //     project, all organizations will match automatically, unless the organization id
-            //     has changed since the last fetch.
-            organization_id: self.state().and_then(|s| s.organization_id).unwrap_or(0),
-            project_id,
-            public_key: message.meta.public_key().to_owned(),
-            // The key_id is only required by the rate limiter during quota enforcement. Rate limits
-            // only require the public_key. We omit it since there's no guarantee that the key_id is
-            // available at any time.
-            key_id: None,
-        });
+        let scoping = self.get_scoping(&message.meta);
+        let rate_limits = self.rate_limits.check(scoping.item(DataCategory::Error));
 
-        if rate_limits.is_limited() {
-            Response::ok(EventAction::RateLimit(rate_limits))
-        } else if message.fetch {
-            // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
-            // This will return synchronously if the state is still cached.
-            let config = self.config.clone();
-            self.get_or_fetch_state(context)
-                .map(move |state| state.get_event_action(project_id, &message.meta, &config))
+        let event_action = if rate_limits.is_limited() {
+            EventAction::RateLimit(rate_limits)
         } else {
-            self.get_or_fetch_state(context);
-            // message.fetch == false: Fetching must not block the store request. In case the state
-            // is not cached, assume that the event can be accepted. The EventManager will later
-            // reevaluate the event action using the fetched project state.
-            Response::ok(self.state().map_or(EventAction::Accept, |state| {
+            // If the state is not loaded, we're probably in a preflight request. `EventManager`
+            // ensures to load the state before calling this function.
+            self.state().map_or(EventAction::Accept, |state| {
                 state.get_event_action(project_id, &message.meta, &self.config)
-            }))
-        }
+            })
+        };
+
+        MessageResult(event_action)
     }
 }
 

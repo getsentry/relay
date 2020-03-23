@@ -1,5 +1,6 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -9,18 +10,17 @@ use actix_web::middleware::cors::{Cors, CorsBuilder};
 use actix_web::{HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
 use futures::prelude::*;
-use parking_lot::Mutex;
 use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::Deserialize;
 
 use relay_common::{clone, metric, tryf, LogError};
 use relay_general::protocol::EventId;
-use relay_quotas::{DataCategory, RateLimits};
+use relay_quotas::RateLimits;
 
 use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{EventAction, GetEventAction};
+use crate::actors::project::{EventAction, GetEventAction, GetScoping};
 use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
 use crate::constants::ITEM_NAME_EVENT;
@@ -350,30 +350,35 @@ where
     let outcome_producer = request.state().outcome_producer();
     let remote_addr = meta.client_addr();
 
+    let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
     let cloned_meta = Arc::new(meta.clone());
-    let event_id = Rc::new(Mutex::new(None));
+    let event_id = Rc::new(RefCell::new(None));
 
     let future = project_manager
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
-        .and_then(clone!(event_id, |project| {
-            extract_envelope(&request, meta)
-                .into_future()
+        .and_then(clone!(event_id, scoping, |project| {
+            project
+                .send(GetScoping::cached(cloned_meta.clone()))
+                .map_err(BadStoreRequest::ScheduleFailed)
+                .and_then(|scoping_result| scoping_result.map_err(BadStoreRequest::ProjectFailed))
+                .and_then(move |new_scoping| {
+                    scoping.replace(new_scoping);
+                    extract_envelope(&request, meta)
+                })
                 .and_then(clone!(project, |envelope| {
-                    *event_id.lock() = envelope.event_id();
+                    event_id.replace(envelope.event_id());
 
                     project
-                        .send(GetEventAction::cached(cloned_meta, DataCategory::Error))
+                        .send(GetEventAction::new(cloned_meta))
                         .map_err(BadStoreRequest::ScheduleFailed)
-                        .and_then(move |action| {
-                            match action.map_err(BadStoreRequest::ProjectFailed)? {
-                                EventAction::Accept => Ok(envelope),
-                                EventAction::RateLimit(rate_limits) => {
-                                    Err(BadStoreRequest::RateLimited(rate_limits))
-                                }
-                                EventAction::Discard(reason) => {
-                                    Err(BadStoreRequest::EventRejected(reason))
-                                }
+                        .and_then(move |action| match action {
+                            EventAction::Accept => Ok(envelope),
+                            EventAction::RateLimit(rate_limits) => {
+                                Err(BadStoreRequest::RateLimited(rate_limits))
+                            }
+                            EventAction::Discard(reason) => {
+                                Err(BadStoreRequest::EventRejected(reason))
                             }
                         })
                 }))
@@ -395,11 +400,9 @@ where
             if is_event {
                 outcome_producer.do_send(TrackOutcome {
                     timestamp: start_time,
-                    project_id,
-                    org_id: None,
-                    key_id: None,
+                    scoping: scoping.borrow().clone(),
                     outcome: error.to_outcome(),
-                    event_id: *event_id.lock(),
+                    event_id: *event_id.borrow(),
                     remote_addr,
                 });
             }

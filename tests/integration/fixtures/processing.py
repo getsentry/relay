@@ -166,10 +166,12 @@ class OutcomesConsumer(ConsumerBase):
         assert outcome.error() is None
         return json.loads(outcome.value())
 
-    def assert_rate_limited(self, reason):
+    def assert_rate_limited(self, reason, key_id=None):
         outcome = self.get_outcome()
         assert outcome["outcome"] == 2, outcome
         assert outcome["reason"] == reason
+        if key_id is not None:
+            assert outcome["key_id"] == key_id
 
     def assert_dropped_internal(self):
         outcome = self.get_outcome()

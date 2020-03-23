@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use relay_quotas::{
-    DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
+    DataCategories, DataCategory, QuotaScope, RateLimit, RateLimitScope, RateLimits, Scoping,
 };
 
 /// Name of the rate limits header.
@@ -32,7 +32,7 @@ pub fn format_rate_limits(rate_limits: &RateLimits) -> String {
 }
 
 /// Parses the `X-Sentry-Rate-Limits` header.
-pub fn parse_rate_limits(scoping: &ItemScoping, string: &str) -> RateLimits {
+pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
     let mut rate_limits = RateLimits::new();
 
     for limit in string.split(',') {
@@ -111,8 +111,7 @@ mod tests {
 
     #[test]
     fn test_parse_invalid_rate_limits() {
-        let scoping = ItemScoping {
-            category: DataCategory::Unknown, // irrelevant for this test
+        let scoping = Scoping {
             organization_id: 42,
             project_id: ProjectId::new(21),
             public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
@@ -126,8 +125,7 @@ mod tests {
 
     #[test]
     fn test_parse_rate_limits() {
-        let scoping = ItemScoping {
-            category: DataCategory::Unknown, // irrelevant for this test
+        let scoping = Scoping {
             organization_id: 42,
             project_id: ProjectId::new(21),
             public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),

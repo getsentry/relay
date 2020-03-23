@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, Utc};
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{Context, ContextInner, Contexts, Event, EventType, Span};
+use crate::protocol::{ContextInner, Contexts, Event, EventType, Span};
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Timestamp};
 
 pub struct TransactionsProcessor {

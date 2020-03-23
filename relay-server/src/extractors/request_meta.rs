@@ -12,6 +12,7 @@ use url::Url;
 use relay_common::{
     tryf, Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ProjectId,
 };
+use relay_quotas::Scoping;
 
 use crate::actors::project_keys::GetProjectId;
 use crate::extractors::ForwardedFor;
@@ -181,6 +182,16 @@ impl RequestMeta {
         }
 
         auth
+    }
+
+    /// TODO(ja): Doc this
+    pub fn get_partial_scoping(&self) -> Scoping {
+        Scoping {
+            organization_id: 0,
+            project_id: self.project_id(),
+            public_key: self.public_key().to_owned(),
+            key_id: None,
+        }
     }
 }
 

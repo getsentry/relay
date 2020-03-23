@@ -55,7 +55,7 @@ struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,
     /// Scopes of the item being tracked.
-    scoping: &'a ItemScoping,
+    scoping: ItemScoping<'a>,
     /// The Redis key prefix mapped from the quota id.
     prefix: &'a str,
     /// The redis window in seconds mapped from the quota.
@@ -65,7 +65,7 @@ struct RedisQuota<'a> {
 }
 
 impl<'a> RedisQuota<'a> {
-    fn new(quota: &'a Quota, scoping: &'a ItemScoping, timestamp: UnixTimestamp) -> Option<Self> {
+    fn new(quota: &'a Quota, scoping: ItemScoping<'a>, timestamp: UnixTimestamp) -> Option<Self> {
         // These fields indicate that we *can* track this quota.
         let prefix = quota.id.as_deref()?;
         let window = quota.window?;
@@ -172,7 +172,7 @@ impl RateLimiter {
     pub fn is_rate_limited(
         &self,
         quotas: &[Quota],
-        scoping: &ItemScoping,
+        item_scoping: ItemScoping<'_>,
     ) -> Result<RateLimits, RateLimitingError> {
         let timestamp = UnixTimestamp::now();
 
@@ -181,15 +181,15 @@ impl RateLimiter {
         let mut rate_limits = RateLimits::new();
 
         for quota in quotas {
-            if !quota.matches(scoping) {
+            if !quota.matches(item_scoping) {
                 // Silently skip all quotas that do not apply to this item.
             } else if quota.limit == Some(0) {
                 // A zero-sized quota is strongest. Do not call into Redis at all, and do not
                 // increment any keys, as one quota has reached capacity (this is how regular quotas
                 // behave as well).
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
-                rate_limits.add(RateLimit::from_quota(quota, scoping, retry_after));
-            } else if let Some(quota) = RedisQuota::new(quota, scoping, timestamp) {
+                rate_limits.add(RateLimit::from_quota(quota, &*item_scoping, retry_after));
+            } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
                 // Remaining quotas are expected to be trackable in Redis.
                 let key = quota.key();
                 let refund_key = get_refunded_quota_key(&key);
@@ -226,7 +226,7 @@ impl RateLimiter {
         for (quota, is_rejected) in tracked_quotas.iter().zip(rejections) {
             if is_rejected {
                 let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-                rate_limits.add(RateLimit::from_quota(&*quota, scoping, retry_after));
+                rate_limits.add(RateLimit::from_quota(&*quota, &*item_scoping, retry_after));
             }
         }
 
@@ -251,7 +251,7 @@ mod tests {
     use relay_common::ProjectId;
     use relay_redis::redis::Commands;
 
-    use crate::types::{DataCategories, DataCategory, RateLimitScope, ReasonCode};
+    use crate::types::{DataCategories, DataCategory, RateLimitScope, ReasonCode, Scoping};
 
     use super::*;
 
@@ -288,14 +288,16 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(43),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(44),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(44),
+            },
         };
 
         let rate_limits: Vec<RateLimit> = RATE_LIMITER
-            .is_rate_limited(quotas, &scoping)
+            .is_rate_limited(quotas, scoping)
             .expect("rate limiting failed")
             .into_iter()
             .collect();
@@ -325,15 +327,17 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(43),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(44),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(44),
+            },
         };
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = RATE_LIMITER
-                .is_rate_limited(quotas, &scoping)
+                .is_rate_limited(quotas, scoping)
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -358,14 +362,16 @@ mod tests {
     fn test_bails_immediately_without_any_quota() {
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(43),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(44),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(44),
+            },
         };
 
         let rate_limits: Vec<RateLimit> = RATE_LIMITER
-            .is_rate_limited(&[], &scoping)
+            .is_rate_limited(&[], scoping)
             .expect("rate limiting failed")
             .into_iter()
             .collect();
@@ -398,15 +404,17 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(43),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(44),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(44),
+            },
         };
 
         for i in 0..1 {
             let rate_limits: Vec<RateLimit> = RATE_LIMITER
-                .is_rate_limited(quotas, &scoping)
+                .is_rate_limited(quotas, scoping)
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -441,14 +449,16 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            organization_id: 69420,
-            project_id: ProjectId::new(42),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(4711),
+            scoping: &Scoping {
+                organization_id: 69420,
+                project_id: ProjectId::new(42),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(4711),
+            },
         };
 
         let timestamp = UnixTimestamp::from_secs(123_123_123);
-        let redis_quota = RedisQuota::new(&quota, &scoping, timestamp).unwrap();
+        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
         assert_eq!(redis_quota.key(), "quota:foo{69420}42:61561561");
     }
 
@@ -466,14 +476,16 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            organization_id: 69420,
-            project_id: ProjectId::new(42),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(4711),
+            scoping: &Scoping {
+                organization_id: 69420,
+                project_id: ProjectId::new(42),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(4711),
+            },
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
-        let redis_quota = RedisQuota::new(&quota, &scoping, timestamp).unwrap();
+        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
         assert_eq!(redis_quota.key(), "quota:foo{69420}:23453");
     }
 
