@@ -45,10 +45,7 @@ def test_legacy_store(mini_sentry, relay_chain):
         ({"errorMessages": {"patterns": ["Panic: originalCreateNotification"]}}, True),
         ({"errorMessages": {"patterns": ["Warning"]}}, False),
     ],
-    ids=[
-        "error messages filtered",
-        "error messages not filtered",
-    ],
+    ids=["error messages filtered", "error messages not filtered",],
 )
 def test_filters_are_applied(
     mini_sentry, relay_with_processing, events_consumer, filter_config, should_filter,

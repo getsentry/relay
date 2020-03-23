@@ -17,12 +17,9 @@ def id_fun1(origins):
 
 
 @pytest.mark.parametrize(
-    "allowed_origins",
-    [(["valid.com"], True),(["invalid.com"], False)],
-    ids=id_fun1,
+    "allowed_origins", [(["valid.com"], True), (["invalid.com"], False)], ids=id_fun1,
 )
-def test_uses_origins(
-    mini_sentry, relay, json_fixture_provider, allowed_origins):
+def test_uses_origins(mini_sentry, relay, json_fixture_provider, allowed_origins):
     allowed_domains, should_be_allowed = allowed_origins
     fixture_provider = json_fixture_provider(__file__)
     proj_id = 42
