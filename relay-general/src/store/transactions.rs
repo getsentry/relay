@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, Utc};
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{Context, ContextInner, Contexts, Event, EventType, Span};
+use crate::protocol::{Context, ContextInner, Event, EventType, Span};
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Timestamp};
 
 pub struct TransactionsProcessor {
@@ -178,11 +178,13 @@ impl Processor for TransactionsProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::processor::process_value;
-    use crate::protocol::{SpanId, TraceContext, TraceId};
-    use crate::types::Object;
+
     use chrono::offset::TimeZone;
     use chrono::Utc;
+
+    use crate::processor::process_value;
+    use crate::protocol::{Contexts, SpanId, TraceContext, TraceId};
+    use crate::types::Object;
 
     #[test]
     fn test_skips_non_transaction_events() {

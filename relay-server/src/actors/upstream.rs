@@ -18,7 +18,7 @@ use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registrat
 use relay_common::{tryf, LogError, RetryBackoff};
 use relay_config::{Config, RelayMode};
 use relay_quotas::{
-    DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter,
+    DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
 
 use crate::utils;
@@ -67,6 +67,14 @@ impl AuthState {
     }
 }
 
+/// Rate limits returned by the upstream.
+///
+/// Upstream rate limits can come in two forms:
+///  - `Retry-After` header with a generic timeout for all categories.
+///  - `X-Sentry-Rate-Limits` header with fine-grained information on applied rate limits.
+///
+/// These limits do not carry scope information. Use `UpstreamRateLimits::scope` to attach scope
+/// identifiers and return a fully populated `RateLimits` instance.
 #[derive(Debug)]
 pub struct UpstreamRateLimits {
     retry_after: RetryAfter,
@@ -99,7 +107,8 @@ impl UpstreamRateLimits {
         self
     }
 
-    pub fn scope(self, scoping: &ItemScoping) -> RateLimits {
+    /// Creates a scoped rate limit instance based on the provided `Scoping`.
+    pub fn scope(self, scoping: &Scoping) -> RateLimits {
         // Try to parse the `X-Sentry-Rate-Limits` header in the most lenient way possible. If
         // anything goes wrong, skip over the invalid parts.
         let mut rate_limits = utils::parse_rate_limits(scoping, &self.rate_limits);
@@ -108,11 +117,8 @@ impl UpstreamRateLimits {
         // header. Create a default rate limit that only applies to the current data category at the
         // most specific scope (Key).
         if !rate_limits.is_limited() {
-            let mut categories = DataCategories::new();
-            categories.push(scoping.category);
-
             rate_limits.add(RateLimit {
-                categories,
+                categories: DataCategories::new(),
                 scope: RateLimitScope::for_quota(scoping, QuotaScope::Key),
                 reason_code: None,
                 retry_after: self.retry_after,

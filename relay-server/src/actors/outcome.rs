@@ -10,11 +10,10 @@ use std::time::Instant;
 
 use actix::prelude::*;
 
-use relay_common::ProjectId;
 use relay_config::Config;
 use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
-use relay_quotas::ReasonCode;
+use relay_quotas::{ReasonCode, Scoping};
 
 use crate::ServerError;
 
@@ -33,12 +32,8 @@ pub use self::noop::*;
 pub struct TrackOutcome {
     /// The timespan of the event outcome.
     pub timestamp: Instant,
-    /// Organization id.
-    pub org_id: Option<u64>,
-    /// Project id.
-    pub project_id: ProjectId,
-    /// The DSN project key id.
-    pub key_id: Option<u64>,
+    /// Scoping of the request.
+    pub scoping: Scoping,
     /// The outcome.
     pub outcome: Outcome,
     /// The event id.
@@ -184,7 +179,7 @@ mod kafka {
     use serde::Serialize;
     use serde_json::Error as SerdeSerializationError;
 
-    use relay_common::metric;
+    use relay_common::{metric, ProjectId};
     use relay_config::KafkaTopic;
 
     use crate::metrics::RelayCounters;
@@ -293,11 +288,16 @@ mod kafka {
             // e.g. something like: "2019-09-29T09:46:40.123456Z"
             let timestamp = date_time.to_rfc3339_opts(SecondsFormat::Micros, true);
 
+            let org_id = match msg.scoping.organization_id {
+                0 => None,
+                id => Some(id),
+            };
+
             OutcomePayload {
                 timestamp,
-                org_id: msg.org_id,
-                project_id: msg.project_id,
-                key_id: msg.key_id,
+                org_id,
+                project_id: msg.scoping.project_id,
+                key_id: msg.scoping.key_id,
                 outcome: msg.outcome.to_outcome_id(),
                 reason,
                 event_id: msg.event_id,

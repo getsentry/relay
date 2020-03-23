@@ -18,6 +18,7 @@ use relay_common::{metric, LogError, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{EventId, EventType, SessionStatus, SessionUpdate};
 use relay_general::types;
+use relay_quotas::Scoping;
 
 use crate::constants::MAX_SESSION_DAYS;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
@@ -379,8 +380,7 @@ impl KafkaMessage {
 pub struct StoreEnvelope {
     pub envelope: Envelope,
     pub start_time: Instant,
-    pub project_id: ProjectId,
-    pub organization_id: u64,
+    pub scoping: Scoping,
 }
 
 impl Message for StoreEnvelope {
@@ -401,8 +401,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
         let StoreEnvelope {
             envelope,
             start_time,
-            project_id,
-            organization_id,
+            scoping,
         } = message;
 
         let retention = envelope.retention();
@@ -425,7 +424,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                     debug_assert!(topic == KafkaTopic::Attachments);
                     let attachment = self.produce_attachment_chunks(
                         event_id.ok_or(StoreError::NoEventId)?,
-                        project_id,
+                        scoping.project_id,
                         item,
                     )?;
                     attachments.push(attachment);
@@ -434,13 +433,18 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                     debug_assert!(topic == KafkaTopic::Attachments);
                     self.produce_user_report(
                         event_id.ok_or(StoreError::NoEventId)?,
-                        project_id,
+                        scoping.project_id,
                         start_time,
                         item,
                     )?;
                 }
                 ItemType::Session => {
-                    self.produce_session(organization_id, project_id, retention, item)?;
+                    self.produce_session(
+                        scoping.organization_id,
+                        scoping.project_id,
+                        retention,
+                        item,
+                    )?;
                 }
                 _ => {}
             }
@@ -452,7 +456,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 payload: event_item.payload(),
                 start_time: UnixTimestamp::from_instant(start_time).as_secs(),
                 event_id: event_id.ok_or(StoreError::NoEventId)?,
-                project_id,
+                project_id: scoping.project_id,
                 remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
                 attachments,
             });
@@ -467,7 +471,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
             for attachment in attachments {
                 let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
                     event_id: event_id.ok_or(StoreError::NoEventId)?,
-                    project_id,
+                    project_id: scoping.project_id,
                     attachment,
                 });
 

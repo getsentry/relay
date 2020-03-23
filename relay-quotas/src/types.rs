@@ -7,14 +7,11 @@ use smallvec::SmallVec;
 
 use relay_common::ProjectId;
 
-/// Data categorization and scoping information.
+/// Data scoping information.
 ///
 /// This structure holds information of all scopes required for attributing an item to quotas.
 #[derive(Clone, Debug)]
-pub struct ItemScoping {
-    /// The data category of the item.
-    pub category: DataCategory,
-
+pub struct Scoping {
     /// The organization id.
     pub organization_id: u64,
 
@@ -28,7 +25,48 @@ pub struct ItemScoping {
     pub key_id: Option<u64>,
 }
 
-impl ItemScoping {
+impl Scoping {
+    /// Returns an `ItemScoping` for this scope.
+    ///
+    /// The item scoping will contain a reference to this scope and the information passed to this
+    /// function. This is a cheap operation to allow rate limiting for an individual item.
+    pub fn item(&self, category: DataCategory) -> ItemScoping<'_> {
+        ItemScoping {
+            category,
+            scoping: self,
+        }
+    }
+}
+
+/// Data categorization and scoping information.
+///
+/// `ItemScoping` is always attached to a `Scope` and references it internally. It is a cheap,
+/// copyable type intended for the use with `RateLimits` and `RateLimiter`. It implements
+/// `Deref<Target = Scoping>` and `AsRef<Scoping>` for ease of use.
+#[derive(Clone, Copy, Debug)]
+pub struct ItemScoping<'a> {
+    /// The data category of the item.
+    pub category: DataCategory,
+
+    /// Scoping of the data.
+    pub scoping: &'a Scoping,
+}
+
+impl AsRef<Scoping> for ItemScoping<'_> {
+    fn as_ref(&self) -> &Scoping {
+        &self.scoping
+    }
+}
+
+impl std::ops::Deref for ItemScoping<'_> {
+    type Target = Scoping;
+
+    fn deref(&self) -> &Self::Target {
+        &self.scoping
+    }
+}
+
+impl ItemScoping<'_> {
     /// Returns the identifier of the given scope.
     pub fn scope_id(&self, scope: QuotaScope) -> Option<u64> {
         match scope {
@@ -256,7 +294,7 @@ impl Quota {
     ///  - there is no `scope_id` constraint
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
-    fn matches_scope(&self, scoping: &ItemScoping) -> bool {
+    fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
         // Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.
@@ -277,7 +315,7 @@ impl Quota {
     }
 
     /// Checks whether the quota's constraints match the current item.
-    pub fn matches(&self, scoping: &ItemScoping) -> bool {
+    pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
         self.matches_scope(scoping) && scoping.matches_categories(&self.categories)
     }
 }
@@ -387,7 +425,7 @@ pub enum RateLimitScope {
 
 impl RateLimitScope {
     /// Extracts a rate limiting scope from the given item scoping for a specific quota.
-    pub fn for_quota(scoping: &ItemScoping, scope: QuotaScope) -> Self {
+    pub fn for_quota(scoping: &Scoping, scope: QuotaScope) -> Self {
         match scope {
             QuotaScope::Organization => RateLimitScope::Organization(scoping.organization_id),
             QuotaScope::Project => RateLimitScope::Project(scoping.project_id),
@@ -427,7 +465,7 @@ pub struct RateLimit {
 
 impl RateLimit {
     /// Creates a new rate limit for the given `Quota`.
-    pub fn from_quota(quota: &Quota, scoping: &ItemScoping, retry_after: RetryAfter) -> Self {
+    pub fn from_quota(quota: &Quota, scoping: &Scoping, retry_after: RetryAfter) -> Self {
         Self {
             categories: quota.categories.clone(),
             scope: RateLimitScope::for_quota(scoping, quota.scope),
@@ -437,12 +475,12 @@ impl RateLimit {
     }
 
     /// Checks whether the rate limit applies to the given item.
-    pub fn matches(&self, scoping: &ItemScoping) -> bool {
+    pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
         self.matches_scope(scoping) && scoping.matches_categories(&self.categories)
     }
 
     /// Returns `true` if the rate limiting scope matches the given item.
-    fn matches_scope(&self, scoping: &ItemScoping) -> bool {
+    fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
         match self.scope {
             RateLimitScope::Organization(org_id) => scoping.organization_id == org_id,
             RateLimitScope::Project(project_id) => scoping.project_id == project_id,
@@ -512,7 +550,7 @@ impl RateLimits {
     ///
     /// If no limits match, then the returned `RateLimits` instance evalutes `is_ok`. Otherwise, it
     /// contains rate limits that match the given scoping.
-    pub fn check(&mut self, scoping: &ItemScoping) -> Self {
+    pub fn check(&mut self, scoping: ItemScoping<'_>) -> Self {
         let mut applied_limits = Self::new();
 
         self.limits.retain(|limit| {
@@ -780,12 +818,14 @@ mod tests {
             reason_code: None,
         };
 
-        assert!(quota.matches(&ItemScoping {
+        assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(17),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(17),
+            }
         }));
     }
 
@@ -801,12 +841,14 @@ mod tests {
             reason_code: None,
         };
 
-        assert!(!quota.matches(&ItemScoping {
+        assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(17),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(17),
+            }
         }));
     }
 
@@ -822,20 +864,24 @@ mod tests {
             reason_code: None,
         };
 
-        assert!(quota.matches(&ItemScoping {
+        assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(17),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(17),
+            }
         }));
 
-        assert!(!quota.matches(&ItemScoping {
+        assert!(!quota.matches(ItemScoping {
             category: DataCategory::Transaction,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(17),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(17),
+            }
         }));
     }
 
@@ -851,12 +897,14 @@ mod tests {
             reason_code: None,
         };
 
-        assert!(!quota.matches(&ItemScoping {
+        assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(17),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(17),
+            }
         }));
     }
 
@@ -872,20 +920,24 @@ mod tests {
             reason_code: None,
         };
 
-        assert!(quota.matches(&ItemScoping {
+        assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(17),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(17),
+            }
         }));
 
-        assert!(!quota.matches(&ItemScoping {
+        assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 0,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(17),
+            scoping: &Scoping {
+                organization_id: 0,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(17),
+            }
         }));
     }
 
@@ -901,20 +953,24 @@ mod tests {
             reason_code: None,
         };
 
-        assert!(quota.matches(&ItemScoping {
+        assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(17),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(17),
+            }
         }));
 
-        assert!(!quota.matches(&ItemScoping {
+        assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(0),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(17),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(0),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(17),
+            }
         }));
     }
 
@@ -930,28 +986,34 @@ mod tests {
             reason_code: None,
         };
 
-        assert!(quota.matches(&ItemScoping {
+        assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(17),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(17),
+            }
         }));
 
-        assert!(!quota.matches(&ItemScoping {
+        assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: Some(0),
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(0),
+            }
         }));
 
-        assert!(!quota.matches(&ItemScoping {
+        assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: None,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: None,
+            }
         }));
     }
 
@@ -985,20 +1047,24 @@ mod tests {
             retry_after: RetryAfter::from_secs(1),
         };
 
-        assert!(rate_limit.matches(&ItemScoping {
+        assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: None,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: None,
+            }
         }));
 
-        assert!(!rate_limit.matches(&ItemScoping {
+        assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Transaction,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: None,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: None,
+            }
         }));
     }
 
@@ -1011,20 +1077,24 @@ mod tests {
             retry_after: RetryAfter::from_secs(1),
         };
 
-        assert!(rate_limit.matches(&ItemScoping {
+        assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: None,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: None,
+            }
         }));
 
-        assert!(!rate_limit.matches(&ItemScoping {
+        assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 0,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: None,
+            scoping: &Scoping {
+                organization_id: 0,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: None,
+            }
         }));
     }
 
@@ -1037,20 +1107,24 @@ mod tests {
             retry_after: RetryAfter::from_secs(1),
         };
 
-        assert!(rate_limit.matches(&ItemScoping {
+        assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: None,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: None,
+            }
         }));
 
-        assert!(!rate_limit.matches(&ItemScoping {
+        assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(0),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: None,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(0),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: None,
+            }
         }));
     }
 
@@ -1063,20 +1137,24 @@ mod tests {
             retry_after: RetryAfter::from_secs(1),
         };
 
-        assert!(rate_limit.matches(&ItemScoping {
+        assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: None,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: None,
+            }
         }));
 
-        assert!(!rate_limit.matches(&ItemScoping {
+        assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 0,
-            project_id: ProjectId::new(21),
-            public_key: "deadbeefdeadbeefdeadbeefdeadbeef".to_owned(),
-            key_id: None,
+            scoping: &Scoping {
+                organization_id: 0,
+                project_id: ProjectId::new(21),
+                public_key: "deadbeefdeadbeefdeadbeefdeadbeef".to_owned(),
+                key_id: None,
+            }
         }));
     }
 
@@ -1274,12 +1352,14 @@ mod tests {
         // Sanity check before running `check`
         assert_eq!(rate_limits.iter().count(), 3);
 
-        let applied_limits = rate_limits.check(&ItemScoping {
+        let applied_limits = rate_limits.check(ItemScoping {
             category: DataCategory::Error,
-            organization_id: 42,
-            project_id: ProjectId::new(21),
-            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
-            key_id: None,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(21),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: None,
+            },
         });
 
         // Check that the error limit is applied

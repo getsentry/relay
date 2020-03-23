@@ -335,8 +335,8 @@ def test_processing_quotas_legacy(
 
     mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
     public_keys = projectconfig["publicKeys"]
-    (limited_key,) = public_keys
-    limited_key["quotas"] = [
+    key_id = public_keys[0]["numericId"]
+    public_keys[0]["quotas"] = [
         {
             "prefix": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "limit": 5,
@@ -358,7 +358,7 @@ def test_processing_quotas_legacy(
     # of our caching
     relay.send_event(42, {"message": "some_message"})
 
-    outcomes_consumer.assert_rate_limited("get_lost")
+    outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
     for _ in range(5):
         with pytest.raises(HTTPError) as excinfo:
@@ -369,7 +369,7 @@ def test_processing_quotas_legacy(
         retry_after = excinfo.value.response.headers["retry-after"]
         assert int(retry_after) <= 120
 
-        outcomes_consumer.assert_rate_limited("get_lost")
+        outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
 
 def test_processing_quotas(
@@ -380,12 +380,13 @@ def test_processing_quotas(
 
     mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
     public_keys = projectconfig["publicKeys"]
+    key_id = public_keys[0]["numericId"]
 
     projectconfig["config"]["quotas"] = [
         {
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "scope": "key",
-            "scopeId": six.text_type(public_keys[0]["numericId"]),
+            "scopeId": six.text_type(key_id),
             "limit": 5,
             "window": 3600,
             "reasonCode": "get_lost",
@@ -413,7 +414,7 @@ def test_processing_quotas(
     # of our caching
     relay.send_event(42, {"message": "some_message"})
 
-    outcomes_consumer.assert_rate_limited("get_lost")
+    outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
     for _ in range(5):
         with pytest.raises(HTTPError) as excinfo:
@@ -425,7 +426,7 @@ def test_processing_quotas(
         retry_after = headers["retry-after"]
         assert int(retry_after) <= 120
         assert headers["x-sentry-rate-limits"] == "120::key"
-        outcomes_consumer.assert_rate_limited("get_lost")
+        outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
     relay.dsn_public_key = second_key["publicKey"]
 
