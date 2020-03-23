@@ -42,32 +42,12 @@ def test_legacy_store(mini_sentry, relay_chain):
 @pytest.mark.parametrize(
     "filter_config, should_filter",
     [
-        ({"releases": {"releases": ["1.2.2", "1.2.3"]}}, True),
-        ({"releases": {"releases": ["1.2.2", "1.2.4"]}}, False),
-        ({"legacyBrowsers": {"options": ["ie9", "ie10"], "isEnabled": True}}, True),
-        ({"legacyBrowsers": {"options": ["ie9"], "isEnabled": True}}, False),
         ({"errorMessages": {"patterns": ["Panic: originalCreateNotification"]}}, True),
         ({"errorMessages": {"patterns": ["Warning"]}}, False),
-        ({"clientIps": {"blacklistedIps": ["127.0.0.1"]}}, True),
-        ({"clientIps": {"blacklistedIps": ["122.33.230.14"]}}, False),
-        ({"localhost": {"isEnabled": True}}, True),
-        ({"localhost": {"isEnabled": False}}, False),
-        ({"browserExtensions": {"isEnabled": True}}, True),
-        ({"browserExtensions": {"isEnabled": False}}, False),
     ],
     ids=[
-        "releases filtered",
-        "releases not filtered",
-        "legacy browsers filtered",
-        "legacy browsers not filtered",
         "error messages filtered",
         "error messages not filtered",
-        "client Ips filtered",
-        "client Ips not filtered",
-        "localhost filtered",
-        "localhost not filtered",
-        "browser extensions filtered",
-        "browser extensions not filtered",
     ],
 )
 def test_filters_are_applied(

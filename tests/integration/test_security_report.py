@@ -18,22 +18,17 @@ def id_fun1(origins):
 
 @pytest.mark.parametrize(
     "allowed_origins",
-    [(["*"], True), (["valid.com"], True), ([], False), (["invalid.com"], False)],
+    [(["valid.com"], True),(["invalid.com"], False)],
     ids=id_fun1,
 )
-@pytest.mark.parametrize(
-    "report_type", ("csp", "expect_ct", "expect_staple", "hpkp"),
-)
 def test_uses_origins(
-    mini_sentry, relay, json_fixture_provider, allowed_origins, report_type
-):
-    # report_type = "csp"
+    mini_sentry, relay, json_fixture_provider, allowed_origins):
     allowed_domains, should_be_allowed = allowed_origins
     fixture_provider = json_fixture_provider(__file__)
     proj_id = 42
     relay = relay(mini_sentry)
     relay.wait_relay_healthcheck()
-    report = fixture_provider.load(report_type, ".input")
+    report = fixture_provider.load("csp", ".input")
     mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
 
     relay.send_security_report(
