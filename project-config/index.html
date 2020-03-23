@@ -273,11 +273,38 @@
     Basic Options
   </a>
   
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#disabled" class="md-nav__link">
+    disabled
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#publickeys" class="md-nav__link">
+    publicKeys
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
-  <a href="#config" class="md-nav__link">
-    Config
+  <a href="#configalloweddomains" class="md-nav__link">
+    config.allowedDomains
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configpiiconfig" class="md-nav__link">
+    config.piiConfig
   </a>
   
 </li>
@@ -474,11 +501,38 @@
     Basic Options
   </a>
   
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#disabled" class="md-nav__link">
+    disabled
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#publickeys" class="md-nav__link">
+    publicKeys
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
-  <a href="#config" class="md-nav__link">
-    Config
+  <a href="#configalloweddomains" class="md-nav__link">
+    config.allowedDomains
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configpiiconfig" class="md-nav__link">
+    config.piiConfig
   </a>
   
 </li>
@@ -503,39 +557,30 @@
                 
                 
                 <h1 id="project-configuration">Project Configuration</h1>
-<p>A Relay will generally not accept or forward events where it doesn't know the project. See <a href=".."><em>Getting Started</em></a> for a short introduction to project configs. This page enumerates all possible options.</p>
-<p>The configuration for a project with the ID <em>123</em> lives in the file
-<code>.relay/projects/123.json</code>. You can get the project ID from the path section
-of a DSN.</p>
+<p>See <a href=".."><em>Getting Started</em></a> for a short introduction to project configs.</p>
+<p>The configuration for a project with the ID <em>123</em> lives in the file <code>.relay/projects/123.json</code>. You can get the project ID from the path section of a DSN.</p>
+<p>This page enumerates a few options that may be relevant for running Relay in proxy mode. All other options are currently not stable enough that we feel confident in documenting them.</p>
 <h2 id="basic-options">Basic Options</h2>
-<p><code>disabled</code></p>
-<p>: <em>boolean, default: <code>false</code></em></p>
-<p>Whether the project is disabled. If set to <code>true</code>, the Relay will drop all
-  events sent to this project.</p>
-<p><code>publicKeys</code></p>
-<p>: <em>array of objects, required</em></p>
-<p>A map enumerating known public keys (the public key in a DSN) and whether
-  events using that key should be accepted. Example:</p>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-  <span class="nt">&quot;publicKeys&quot;</span><span class="p">:</span> <span class="p">[</span>
-      <span class="p">{</span>
-          <span class="nt">&quot;publicKey&quot;</span><span class="p">:</span> <span class="s2">&quot;___PUBLIC_KEY___&quot;</span><span class="p">,</span>
-          <span class="nt">&quot;isEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span>
-      <span class="p">}</span>
-  <span class="p">]</span>
-<span class="p">}</span>
+<h3 id="disabled"><code>disabled</code></h3>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;disabled&quot;</span><span class="p">:</span> <span class="kc">false</span><span class="p">}</span>
 </code></pre></div>
 
-<p>{:.config-key}</p>
-<h2 id="config">Config</h2>
-<p><code>config.allowedDomains</code></p>
-<p>: <em>array of origins (strings), default: <code>["*"]</code></em></p>
-<p>Configure origin URLs which Sentry should accept events from. This is
-  corresponds to the "Allowed Domains" setting in the Sentry UI.</p>
-<p>Note that an empty array will reject all origins. Use the default <code>["*"]</code> to
-  allow all origins.</p>
-<p><code>config.piiConfig</code></p>
-<p>: See <a href="../pii-config/"><em>PII Configuration</em></a>.</p>
+<p>Whether the project is disabled. If set to <code>true</code>, the Relay will drop all
+events sent to this project.</p>
+<h3 id="publickeys"><code>publicKeys</code></h3>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;publicKeys&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="nt">&quot;publicKey&quot;</span><span class="p">:</span> <span class="s2">&quot;deadbeef&quot;</span><span class="p">,</span> <span class="nt">&quot;isEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">}]}</span>
+</code></pre></div>
+
+<p>A map enumerating known public keys (the public key in a DSN) and whether
+events using that key should be accepted.</p>
+<h2 id="configalloweddomains"><code>config.allowedDomains</code></h2>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span><span class="nt">&quot;allowedDomains&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">]}}</span>
+</code></pre></div>
+
+<p>Configure origin URLs which Sentry should accept events from. This is corresponds to the "Allowed Domains" setting in the Sentry UI.</p>
+<p>Note that an empty array will reject all origins. Use the default <code>["*"]</code> to allow all origins.</p>
+<h2 id="configpiiconfig"><code>config.piiConfig</code></h2>
+<p>See <a href="../pii-config/"><em>PII Configuration</em></a>.</p>
                 
                   
                 

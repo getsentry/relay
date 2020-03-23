@@ -351,7 +351,7 @@
       
         <li class="md-nav__item">
   <a href="#boolean-logic" class="md-nav__link">
-    Boolean logic
+    Boolean Logic
   </a>
   
 </li>
@@ -365,14 +365,27 @@
       
         <li class="md-nav__item">
   <a href="#value-types" class="md-nav__link">
-    Value types
+    Value Types
   </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    Examples
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
         <li class="md-nav__item">
   <a href="#escaping-specal-characters" class="md-nav__link">
-    Escaping specal characters
+    Escaping Specal Characters
   </a>
   
 </li>
@@ -487,7 +500,7 @@
       
         <li class="md-nav__item">
   <a href="#boolean-logic" class="md-nav__link">
-    Boolean logic
+    Boolean Logic
   </a>
   
 </li>
@@ -501,14 +514,27 @@
       
         <li class="md-nav__item">
   <a href="#value-types" class="md-nav__link">
-    Value types
+    Value Types
   </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    Examples
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
         <li class="md-nav__item">
   <a href="#escaping-specal-characters" class="md-nav__link">
-    Escaping specal characters
+    Escaping Specal Characters
   </a>
   
 </li>
@@ -533,78 +559,91 @@
                 
                 
                 <h1 id="pii-selectors">PII Selectors</h1>
-<p>You have the possibility to select a region of the event using JSON-path-like syntax. To delete a specific key in "Additional Data", you could for example use:</p>
+<p>Selectors allow you to restrict rules to certain parts of the event. This is useful to unconditionally remove certain data by variable/field name from the event, but can also be used to conservatively test rules on real data.</p>
+<p>Data scrubbing always works on the raw event payload. Keep in mind that some fields in the UI may be called differently in the JSON schema. When looking at an event there should always be a link called "JSON" present that allows you to see what the data scrubber sees.</p>
+<p>For example, what is called "Additional Data" in the UI is called <code>extra</code> in the event payload. To remove a specific key called <code>foo</code>, you would write:</p>
+<div class="codehilite"><pre><span></span><code><span class="o">[</span><span class="n">Remove</span><span class="o">]</span><span class="w"> </span><span class="o">[</span><span class="n">Anything</span><span class="o">]</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="o">[</span><span class="n">extra.foo</span><span class="o">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>Another example. Sentry knows about two kinds of error messages: The exception message, and the top-level log message. Here is an example of how such an event payload as sent by the SDK (and downloadable from the UI) would look like:</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
-  <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;extra.foo&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;@anything:remove&quot;</span><span class="p">]</span>
+  <span class="nt">&quot;logentry&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;formatted&quot;</span><span class="p">:</span> <span class="s2">&quot;Failed to roll out the dinglebop&quot;</span>
+  <span class="p">},</span>
+  <span class="nt">&quot;exceptions&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;values&quot;</span><span class="p">:</span> <span class="p">[</span>
+      <span class="p">{</span>
+        <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;ZeroDivisionError&quot;</span><span class="p">,</span>
+        <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;integer division or modulo by zero&quot;</span><span class="p">,</span>
+      <span class="p">}</span>
+    <span class="p">]</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
 
-<h2 id="boolean-logic">Boolean logic</h2>
+<p>Since the "error message" is taken from the <code>exception</code>'s <code>value</code>, and the "message" is taken from <code>logentry</code>, we would have to write the following to remove both from the event:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">[Remove] [Anything] from [exception.value]</span>
+<span class="k">[Remove] [Anything] from [logentry.formatted]</span>
+</code></pre></div>
+
+<h3 id="boolean-logic">Boolean Logic</h3>
 <p>You can combine selectors using boolean logic.</p>
 <ul>
-<li>Prefix with <code>!</code> to invert the selector. <code>foo</code> matches the JSON key <code>foo</code>, while <code>(~foo)</code> matches everything but <code>foo</code>.</li>
+<li>Prefix with <code>!</code> to invert the selector. <code>foo</code> matches the JSON key <code>foo</code>, while <code>!foo</code> matches everything but <code>foo</code>.</li>
 <li>Build the conjunction (AND) using <code>&amp;&amp;</code>, such as: <code>foo &amp;&amp; !extra.foo</code> to match the key <code>foo</code> except when inside of <code>extra</code>.</li>
 <li>Build the disjunction (OR) using <code>||</code>, such as: <code>foo || bar</code> to match <code>foo</code> or <code>bar</code>.</li>
 </ul>
-<h2 id="wildcards">Wildcards</h2>
+<h3 id="wildcards">Wildcards</h3>
 <ul>
 <li><code>**</code> matches all subpaths, so that <code>foo.**</code> matches all JSON keys within <code>foo</code>.</li>
 <li><code>*</code> matches a single path item, so that <code>foo.*</code> matches all JSON keys one level below <code>foo</code>.</li>
 </ul>
-<h2 id="value-types">Value types</h2>
-<p>The following can be used to select subsections by JSON-type or semantic meaning.</p>
+<h3 id="value-types">Value Types</h3>
+<p>Select subsections by JSON-type using the following:</p>
 <ul>
-<li><code>$string</code></li>
-<li><code>$number</code></li>
-<li><code>$boolean</code></li>
-<li><code>$datetime</code></li>
-<li><code>$array</code></li>
-<li><code>$object</code></li>
-<li><code>$event</code></li>
-<li><code>$exception</code></li>
-<li><code>$stacktrace</code></li>
-<li><code>$frame</code></li>
-<li><code>$request</code></li>
-<li><code>$user</code></li>
-<li><code>$logentry</code> (also applies to <code>event.message</code>)</li>
-<li><code>$thread</code></li>
-<li><code>$breadcrumb</code></li>
-<li><code>$span</code></li>
-<li><code>$sdk</code></li>
+<li><code>$string</code> matches any string value</li>
+<li><code>$number</code> matches any integer or float value</li>
+<li><code>$datetime</code> matches any field in the event that represents a timestamp</li>
+<li><code>$array</code> matches any JSON array value</li>
+<li><code>$object</code> matches any JSON object</li>
 </ul>
-<p>Examples:</p>
+<p>Select known parts of the schema using the following:</p>
+<ul>
+<li><code>$exception</code> matches a single exception instance in <code>{"exception": {"values": [...]}}</code></li>
+<li><code>$stacktrace</code> matches a stack trace instance</li>
+<li><code>$frame</code> matches a frame</li>
+<li><code>$request</code> matches the HTTP request context of an event</li>
+<li><code>$user</code> matches the user context of an event</li>
+<li><code>$logentry</code> (also applies to the <code>message</code> attribute)</li>
+<li><code>$thread</code> matches a single thread instance in <code>{"threads": {"values": [...]}}</code></li>
+<li><code>$breadcrumb</code> matches a single breadcrumb in <code>{"breadcrumbs": [...]}</code></li>
+<li><code>$span</code> matches a <a href="{% link _documentation/performance/performance-glossary.md %}#span">trace span</a></li>
+<li><code>$sdk</code> matches the SDK context in <code>{"sdk": ...}</code></li>
+</ul>
+<h4 id="examples">Examples</h4>
 <ul>
 <li>Delete <code>event.user</code>:</li>
 </ul>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-  <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;$user&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;@anything:remove&quot;</span><span class="p">]</span>
-  <span class="p">}</span>
-<span class="p">}</span>
+<div class="codehilite"><pre><span></span><code><span class="o">[</span><span class="n">Remove</span><span class="o">]</span><span class="w"> </span><span class="o">[</span><span class="n">Anything</span><span class="o">]</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="o">[</span><span class="n">$user</span><span class="o">]</span><span class="w"></span>
 </code></pre></div>
 
 <ul>
 <li>Delete all frame-local variables:</li>
 </ul>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-  <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;$frame.vars&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;@anything:remove&quot;</span><span class="p">]</span>
-  <span class="p">}</span>
-<span class="p">}</span>
+<div class="codehilite"><pre><span></span><code><span class="o">[</span><span class="n">Remove</span><span class="o">]</span><span class="w"> </span><span class="o">[</span><span class="n">Anything</span><span class="o">]</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="o">[</span><span class="n">$frame.vars</span><span class="o">]</span><span class="w"></span>
 </code></pre></div>
 
-<h2 id="escaping-specal-characters">Escaping specal characters</h2>
+<h3 id="escaping-specal-characters">Escaping Specal Characters</h3>
 <p>If the object key you want to match contains whitespace or special characters, you can use quotes to escape it:</p>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-  <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;extra.&#39;my special value&#39;&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;@anything:remove&quot;</span><span class="p">]</span>
-  <span class="p">}</span>
-<span class="p">}</span>
+<div class="codehilite"><pre><span></span><code><span class="o">[</span><span class="n">Remove</span><span class="o">]</span><span class="w"> </span><span class="o">[</span><span class="n">Anything</span><span class="o">]</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="o">[</span><span class="n">extra.&#39;my special value&#39;</span><span class="o">]</span><span class="w"></span>
 </code></pre></div>
 
-<p>To escape <code>'</code> within the quotes, replace it with <code>''</code>.</p>
+<p>This matches the key <code>my special value</code> in <em>Additional Data</em>.</p>
+<p>To escape <code>'</code> (single quote) within the quotes, replace it with <code>''</code> (two quotes):</p>
+<div class="codehilite"><pre><span></span><code><span class="o">[</span><span class="n">Remove</span><span class="o">]</span><span class="w"> </span><span class="o">[</span><span class="n">Anything</span><span class="o">]</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="o">[</span><span class="n">extra.&#39;my special &#39;&#39; value&#39;</span><span class="o">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>This matches the key <code>my special ' value</code> in <em>Additional Data</em>.</p>
                 
                   
                 

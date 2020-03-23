@@ -249,6 +249,33 @@
     Getting started
   </a>
   
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-in-docker" class="md-nav__link">
+    Running in Docker
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upstream-registration" class="md-nav__link">
+    Upstream Registration
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics-and-crash-reporting" class="md-nav__link">
+    Metrics and Crash Reporting
+  </a>
+  
 </li>
       
         <li class="md-nav__item">
@@ -488,6 +515,33 @@
     Getting started
   </a>
   
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-in-docker" class="md-nav__link">
+    Running in Docker
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upstream-registration" class="md-nav__link">
+    Upstream Registration
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics-and-crash-reporting" class="md-nav__link">
+    Metrics and Crash Reporting
+  </a>
+  
 </li>
       
         <li class="md-nav__item">
@@ -534,10 +588,10 @@
 <p>The Sentry Relay is a work in progress service that pushes some functionality
 from the Sentry SDKs as well as the Sentry server into a proxy process.</p>
 <h2 id="getting-started">Getting started</h2>
-<p>The Relay server is called <code>relay</code>.  Binaries can be downloaded from the
-<a href="https://github.com/getsentry/relay/releases">GitHub releases page</a>.  After
-downloading place the binary somewhere on your <code>PATH</code> and make it executable.</p>
-<p>The <code>config init</code> command is provided to initialize the initial config.  The
+<p>The Relay server is called <code>relay</code>. Binaries can be downloaded from the <a href="https://github.com/getsentry/relay/releases">GitHub
+releases page</a>. After downloading,
+place the binary somewhere on your <code>PATH</code> and make it executable.</p>
+<p>The <code>config init</code> command is provided to initialize the initial config. The
 config will be created the folder it's run from in a hidden <code>.relay</code>
 subdirectory:</p>
 <div class="codehilite"><pre><span></span><code>$ relay config init
@@ -546,51 +600,74 @@ subdirectory:</p>
 
 <p>The wizard will ask a few questions:</p>
 <ol>
-<li>default vs custom config.  In the default config the relay will connect to
-   sentry.io for sending and will generally use the defaults.  In the custom
+<li>default vs custom config. In the default config the relay will connect to
+   sentry.io for sending and will generally use the defaults. In the custom
    config a different upstream can be configured.</li>
-<li>Relay internal crash reporting can be enabled or disabled.  When enabled the
+<li>Relay internal crash reporting can be enabled or disabled. When enabled the
    relay will report its own internal errors to sentry.io to help us debug it.</li>
 <li>Lastly the relay will ask it should run authenticated with credentials or
-   not.  Currently we do not yet support authenticated mode against sentry.io.</li>
+   not. Currently we do not yet support authenticated mode against sentry.io.</li>
 </ol>
 <p>You now have a folder named <code>.relay</code> in your current working directory. To
 launch the server, run:</p>
-<div class="codehilite"><pre><span></span><code><span class="err">relay run</span>
+<div class="codehilite"><pre><span></span><code>$ relay run
 </code></pre></div>
 
 
-<p>If you moved your config folder somewhere else, you can use the <code>-c</code> option:</p>
-<div class="codehilite"><pre><span></span><code><span class="err">relay run -c ./my/custom/relay_folder/</span>
+<p>If you moved your config folder somewhere else, you can use the <code>--config</code> option:</p>
+<div class="codehilite"><pre><span></span><code>$ relay run --config ./my/custom/relay_folder/
 </code></pre></div>
 
 
+<h3 id="running-in-docker">Running in Docker</h3>
+<p>Docker image for <code>relay</code> can be found at <code>us.gcr.io/sentryio/relay</code>.</p>
+<p>For example, you can start the latest version of <code>relay</code> as follows:</p>
+<div class="codehilite"><pre><span></span><code>docker run -v <span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>/configs/:/etc/relay/ us.gcr.io/sentryio/relay run --config /etc/relay
+</code></pre></div>
+
+<p>The command assumes that Relay's configuration (<code>config.yml</code> and
+<code>credentials.json</code>) are stored in <code>./configs/</code> directory on the host machine.</p>
+<h2 id="upstream-registration">Upstream Registration</h2>
+<p>When Relay runs, it registers with the upstream configured Sentry instance. Each
+Relay is identified by the <code>(relay_id, public_key)</code> tuple upstream. Multiple
+Relays can share the same public key if they run with different Relay IDs.</p>
+<p>At present, Sentry requires Relays to be explicitly whitelisted by their public
+key. This is done through the <code>SENTRY_RELAY_WHITELIST_PK</code> config key which is a
+list of permitted public keys.</p>
+<h2 id="metrics-and-crash-reporting">Metrics and Crash Reporting</h2>
+<p>By default, Relay currently reports directly to sentry.io. This can be disabled
+by setting the <code>sentry.enabled</code> key to <code>false</code>. Additionally a different DSN can
+be supplied with <code>sentry.dsn</code>. Crash reporting will become opt-in before the
+initial public release.</p>
+<p>Stats can be submitted to a statsd server by configuring <code>metrics.statsd</code> key.
+It can be put to a <code>ip:port</code> tuple. Additionally <code>metrics.prefix</code> can be
+configured to have a different prefix (the default is <code>sentry.relay</code>). This
+prefix is added in front of all metrics.</p>
 <h2 id="setting-up-a-project">Setting up a Project</h2>
 <p>Right now Relay is only really usable in "simple proxy mode" (without
 credentials), and as such calls the same exact endpoints on Sentry that an SDK
-would.  That also means you have to configure each project individually in
-Relay.</p>
+would. That also means you have to configure each project individually in Relay.</p>
 <p>Create a new file in the form <code>project_id.json</code>:</p>
 <div class="codehilite"><pre><span></span><code><span class="na">.relay</span><span class="err">/</span><span class="no">projects</span><span class="err">/</span><span class="no">___PROJECT_ID___.json</span>
 </code></pre></div>
 
 <p>With the following content:</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
-    <span class="nt">&quot;publicKeys&quot;</span><span class="p">:</span> <span class="p">[</span>
-        <span class="p">{</span>
-            <span class="nt">&quot;publicKey&quot;</span><span class="p">:</span> <span class="s2">&quot;___PUBLIC_KEY___&quot;</span><span class="p">,</span>
-            <span class="nt">&quot;isEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span>
-        <span class="p">}</span>
-    <span class="p">],</span>
-    <span class="nt">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="nt">&quot;allowedDomains&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>
-        <span class="nt">&quot;piiConfig&quot;</span><span class="p">:</span> <span class="p">{}</span>
+  <span class="nt">&quot;publicKeys&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="nt">&quot;publicKey&quot;</span><span class="p">:</span> <span class="s2">&quot;___PUBLIC_KEY___&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;isEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span>
     <span class="p">}</span>
+  <span class="p">],</span>
+  <span class="nt">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;allowedDomains&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>
+    <span class="nt">&quot;piiConfig&quot;</span><span class="p">:</span> <span class="p">{}</span>
+  <span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
 
 <p>The relay has to know all public keys (i.e. the secret part of the DSN) that
-will send events to it.  DSNs unknown for this project will be rejected.</p>
+will send events to it. DSNs unknown for this project will be rejected.</p>
 <h2 id="sending-a-test-event">Sending a Test Event</h2>
 <p>Launch the server with <code>relay run</code>, and set up any SDK with the following DSN:</p>
 <div class="codehilite"><pre><span></span><code><span class="nl">http</span><span class="p">:</span><span class="c1">//___PUBLIC_KEY___@127.0.0.1:3000/___PROJECT_ID___</span>
@@ -601,43 +678,46 @@ Relay setup. You should be able to use the SDK normally at this point. Events
 arrive at the Sentry instance that Relay is configured to use in
 <code>.relay/config.yml</code>.</p>
 <h2 id="pii-stripping">PII Stripping</h2>
-<p>Now let's get to the entire point of this proxy setup: Stripping sensitive
-data.</p>
-<p>The easiest way to go about this is if you already have a raw JSON payload from some SDK. Go to our PII config editor <a href="https://getsentry.github.io/piinguin/">Piinguin</a>, and:</p>
+<p>Now let's get to the entire point of this proxy setup: Stripping sensitive data.</p>
+<p>The easiest way to go about this is if you already have a raw JSON payload from
+some SDK. Go to our PII config editor
+<a href="https://getsentry.github.io/piinguin/">Piinguin</a>, and:</p>
 <ol>
 <li>Paste in a raw event</li>
 <li>Click on data you want eliminated</li>
-<li>Paste in other payloads and see if they look fine, go to step <strong>2</strong> if necessary.</li>
+<li>Paste in other payloads and see if they look fine, go to step <strong>2</strong> if
+   necessary.</li>
 </ol>
-<p>After iterating on the config, paste it back into the project config you created earlier:</p>
+<p>After iterating on the config, paste it back into the project config you created
+earlier:</p>
 <div class="codehilite"><pre><span></span><code><span class="na">.relay</span><span class="err">/</span><span class="no">projects</span><span class="err">/</span><span class="no">___PROJECT_ID___.json</span>
 </code></pre></div>
 
 <p>For example:</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
-    <span class="nt">&quot;publicKeys&quot;</span><span class="p">:</span> <span class="p">[</span>
-        <span class="p">{</span>
-            <span class="nt">&quot;publicKey&quot;</span><span class="p">:</span> <span class="s2">&quot;___PUBLIC_KEY___&quot;</span><span class="p">,</span>
-            <span class="nt">&quot;isEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span>
-        <span class="p">}</span>
-    <span class="p">],</span>
-    <span class="nt">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="nt">&quot;allowedDomains&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>
-        <span class="nt">&quot;piiConfig&quot;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
-                <span class="nt">&quot;device_id&quot;</span><span class="p">:</span> <span class="p">{</span>
-                    <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;pattern&quot;</span><span class="p">,</span>
-                    <span class="nt">&quot;pattern&quot;</span><span class="p">:</span> <span class="s2">&quot;d/[a-f0-9]{12}&quot;</span><span class="p">,</span>
-                    <span class="nt">&quot;redaction&quot;</span><span class="p">:</span> <span class="p">{</span>
-                        <span class="nt">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;hash&quot;</span>
-                    <span class="p">}</span>
-                <span class="p">}</span>
-            <span class="p">},</span>
-            <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-                <span class="nt">&quot;freeform&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;device_id&quot;</span><span class="p">]</span>
-            <span class="p">}</span>
-        <span class="p">}</span>
+  <span class="nt">&quot;publicKeys&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="nt">&quot;publicKey&quot;</span><span class="p">:</span> <span class="s2">&quot;___PUBLIC_KEY___&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;isEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span>
     <span class="p">}</span>
+  <span class="p">],</span>
+  <span class="nt">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;allowedDomains&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>
+    <span class="nt">&quot;piiConfig&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="nt">&quot;device_id&quot;</span><span class="p">:</span> <span class="p">{</span>
+          <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;pattern&quot;</span><span class="p">,</span>
+          <span class="nt">&quot;pattern&quot;</span><span class="p">:</span> <span class="s2">&quot;d/[a-f0-9]{12}&quot;</span><span class="p">,</span>
+          <span class="nt">&quot;redaction&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="nt">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;hash&quot;</span>
+          <span class="p">}</span>
+        <span class="p">}</span>
+      <span class="p">},</span>
+      <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="nt">&quot;freeform&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;device_id&quot;</span><span class="p">]</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
                 

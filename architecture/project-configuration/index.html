@@ -447,18 +447,12 @@
     Fetching the project state from Redis
   </a>
   
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fetching-the-project-state-from-upstream" class="md-nav__link">
     Fetching the project state from Upstream
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -524,18 +518,12 @@
     Fetching the project state from Redis
   </a>
   
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fetching-the-project-state-from-upstream" class="md-nav__link">
     Fetching the project state from Upstream
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -563,13 +551,18 @@
 <h2 id="overview">Overview</h2>
 <h2 id="getting-a-project">Getting a project</h2>
 <p>Here is how we obtain a Project actor ( used to get project configuration).</p>
+<p><strong>Legend</strong></p>
+<ul>
+<li>Redis Proj Cache = Redis Project Cache</li>
+<li>Upstream Source = Upstream Project Source</li>
+</ul>
 <div class="mermaid">sequenceDiagram
 
-participant extern as SomeActor
+participant extern as Some Actor
 participant projCache as Project Cache
 participant proj as Project
-participant redis as Redis Project&lt;br&gt;Cache
-participant upstream as Upstream Project&lt;br&gt;Source
+participant redis as Redis Proj Cache
+participant upstream as Upstream Source
 
 Note over extern, upstream : Getting a Project returns a Project actor from the cache or simply creates a new Project actor and returns it
 extern-&gt;&gt;projCache: GetProject(projId)
@@ -587,26 +580,18 @@ deactivate projCache
 <p>Here is how we obtain project configuration.</p>
 <p><strong>Legend</strong></p>
 <ul>
-<li>
-<p>ProjCache = Project Cache</p>
-</li>
-<li>
-<p>ProjLInfo = Project Local Info</p>
-</li>
-<li>
-<p>RedisProjCache = Redis Project Cache</p>
-</li>
-<li>
-<p>UpstrProjSrc = Upstream Project Source</p>
-</li>
+<li>Proj Cache = Project Cache</li>
+<li>Proj Loc Info = Project Local Info</li>
+<li>Redis Proj Cache = Redis Project Cache</li>
+<li>Upstream Source = Upstream Project Source</li>
 </ul>
 <div class="mermaid">sequenceDiagram
 participant extern as Some Actor
-participant projCache as ProjCache
-participant local as ProjLInfo
+participant projCache as Proj Cache
+participant local as Proj Loc Info
 participant proj as Project
-participant redis as RedisProjCache
-participant upstream as UpstrProjSrc
+participant redis as Redis Proj Cache
+participant upstream as Upstream Source
 
 Note over extern, upstream : Fetching a Project state
 extern-&gt;&gt;projCache: FetchProjectState(projId)
@@ -647,20 +632,20 @@ deactivate projCache</div>
 <p>Fetching the project state from redis is straight forward.</p>
 <p>Relay does not do any sort of management of project states in Redis. From Relay's point of view a project state is either in Redis (and then it uses it as a result) or it isn't and then it looks for the project state in other places (upstream).</p>
 <p>If Relay obtains the project state from Upstream it will <strong>NOT</strong> insert it in Redis. It is up to other, external systems, to manage project states and add/remove/refresh them in Redis.</p>
-<h3 id="fetching-the-project-state-from-upstream">Fetching the project state from Upstream</h3>
+<h2 id="fetching-the-project-state-from-upstream">Fetching the project state from Upstream</h2>
 <p>If everything else fails and the ProjectCache can't obtain a project state from one of the chaches the Upstream will be queried for the ProjectState.</p>
 <p>Here's what happens in the Upstream actor</p>
 <p><strong>Legend</strong></p>
 <ul>
-<li>ProjStateCh - Project State Channel</li>
-<li>UpstreamProjSrc - Upstream Project Source</li>
+<li>State Channel - Project State Channel</li>
+<li>Upstream Source - Upstream Project Source</li>
 </ul>
 <div class="mermaid">sequenceDiagram
 participant extern as Some Actor
-participant upstream as UpstreamProjSrc
+participant upstream as Upstream Source
 participant timer as Timer
-participant channel as Proj State Ch
-participant http as Upstream Server
+participant channel as State Channel
+participant http as Upstream Source
 
 extern-&gt;&gt;upstream: FetchProjectState(projId)
 activate extern
