@@ -184,7 +184,10 @@ impl RequestMeta {
         auth
     }
 
-    /// TODO(ja): Doc this
+    /// Returns scoping information from the request.
+    ///
+    /// The scoping returned from this function is not complete since it lacks info from the Project
+    /// state. To fetch full scoping information, invoke the `GetScoping` message on `Project`.
     pub fn get_partial_scoping(&self) -> Scoping {
         Scoping {
             organization_id: 0,

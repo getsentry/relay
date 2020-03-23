@@ -264,7 +264,11 @@ impl ProjectState {
         matches_any_origin(Some(origin.as_str()), &allowed)
     }
 
-    /// TODO(ja): Doc this
+    /// Returns `Scoping` information for this project state.
+    ///
+    /// This scoping amends `RequestMeta::get_partial_scoping` by adding organization and key info.
+    /// The processor must fetch the full scoping before attempting to rate limit with partial
+    /// scoping.
     pub fn get_scoping(&self, meta: &RequestMeta) -> Scoping {
         let mut scoping = meta.get_partial_scoping();
 
