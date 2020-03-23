@@ -39,9 +39,15 @@ def test_local_project_config(mini_sentry, relay):
     relay.config_dir.join("projects").join("42.json").write(
         json.dumps({"disabled": True})
     )
-    time.sleep(5)
+    time.sleep(2)
 
-    relay.send_event(42)
+    try:
+        # This may or may not respond with 403, depending on how quickly the future to fetch project
+        # states executes.
+        relay.send_event(42)
+    except HTTPError:
+        pass
+
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
 
