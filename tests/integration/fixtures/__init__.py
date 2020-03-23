@@ -156,6 +156,16 @@ class SentryLike(object):
 
         response = self.post(url, headers=headers, **kwargs)
         response.raise_for_status()
+        return response.json()
+
+    def send_options(self, project_id, headers=None):
+        headers = {
+            "X-Sentry-Auth": self.auth_header,
+            **(headers or {}),
+        }
+        url = f"/api/{project_id}/store/"
+        response = self.req_options(url, headers=headers)
+        return response
 
     def send_envelope(self, project_id, envelope, headers=None):
         url = "/api/%s/store/" % project_id
@@ -174,17 +184,22 @@ class SentryLike(object):
         self.send_envelope(project_id, envelope)
 
     def send_security_report(
-        self, project_id, content_type, payload, release, environment
+        self, project_id, content_type, payload, release, environment, origin=None
     ):
+        headers = {
+            "Content-Type": content_type,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+        }
+
+        if origin is not None:
+            headers["Origin"] = origin
+
         response = self.post(
             "/api/{}/security/?sentry_key={}&sentry_release={}&sentry_environment={}".format(
                 project_id, self.dsn_public_key, release, environment
             ),
-            headers={
-                "Content-Type": content_type,
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
-            },
+            headers=headers,
             json=payload,
         )
         response.raise_for_status()
@@ -264,6 +279,9 @@ class SentryLike(object):
 
     def post(self, path, **kwargs):
         return self.request("post", path, **kwargs)
+
+    def req_options(self, path, **kwargs):
+        return self.request("options", path, **kwargs)
 
     def get(self, path, **kwargs):
         return self.request("get", path, **kwargs)
