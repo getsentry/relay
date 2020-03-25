@@ -524,7 +524,7 @@ impl fmt::Display for SpanStatus {
             SpanStatus::Unimplemented => write!(f, "unimplemented"),
             SpanStatus::Unavailable => write!(f, "unavailable"),
             SpanStatus::InternalError => write!(f, "internal_error"),
-            // TODO: Switch this to "unknown" once snuba is updated
+            // TODO: Switch this to "unknown" once snuba is updated on saas and singletenant
             SpanStatus::Unknown => write!(f, "unknown_error"),
             SpanStatus::Cancelled => write!(f, "cancelled"),
             SpanStatus::AlreadyExists => write!(f, "already_exists"),
