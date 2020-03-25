@@ -290,6 +290,7 @@ pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
             "content-type",
             "authentication",
             "authorization",
+            "content-encoding",
         ])
         .expose_headers(vec![
             "x-sentry-error",
