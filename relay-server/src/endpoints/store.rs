@@ -10,7 +10,7 @@ use relay_general::protocol::EventId;
 
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
+use crate::envelope::{self, ContentType, Envelope, Item};
 use crate::extractors::{RequestMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
@@ -60,7 +60,7 @@ fn extract_envelope(
             // incoming store request. To uncouple it from the workload on the processing workers, this
             // requires to synchronously parse a minimal part of the JSON payload. If the JSON payload
             // is invalid, processing can be skipped altogether.
-            let event_id = common::event_id_from_json(&data)?.unwrap_or_else(EventId::new);
+            let minimal = common::minimal_event_from_json(&data)?;
 
             // Use the request's content type. If the content type is missing, assume "application/json".
             let content_type = match &content_type {
@@ -68,9 +68,10 @@ fn extract_envelope(
                 _ct => ContentType::from(content_type),
             };
 
-            let mut event_item = Item::new(ItemType::Event);
+            let mut event_item = Item::new_event(minimal.ty);
             event_item.set_payload(content_type, data);
 
+            let event_id = minimal.id.unwrap_or_else(EventId::new);
             let mut envelope = Envelope::from_request(Some(event_id), meta);
             envelope.add_item(event_item);
 

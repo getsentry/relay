@@ -2,7 +2,6 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::http::{header, StatusCode};
@@ -15,12 +14,12 @@ use sentry_actix::ActixWebHubExt;
 use serde::Deserialize;
 
 use relay_common::{clone, metric, tryf, LogError};
-use relay_general::protocol::EventId;
+use relay_general::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 
 use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{EventAction, GetEventAction, GetScoping};
+use crate::actors::project::CheckEnvelope;
 use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
 use crate::constants::ITEM_NAME_EVENT;
@@ -187,9 +186,19 @@ impl ResponseError for BadStoreRequest {
 }
 
 #[derive(Deserialize)]
-struct EventIdHelper {
+pub struct MinimalEvent {
     #[serde(default, rename = "event_id")]
-    id: Option<EventId>,
+    pub id: Option<EventId>,
+
+    #[serde(default, rename = "type")]
+    pub ty: EventType,
+}
+
+/// Parses a minimal subset of the event payload.
+///
+/// This function validates that the provided payload is valid and returns an `Err` on parse errors.
+pub fn minimal_event_from_json(data: &[u8]) -> Result<MinimalEvent, BadStoreRequest> {
+    serde_json::from_slice(data).map_err(BadStoreRequest::InvalidJson)
 }
 
 /// Extracts the event id from a JSON payload.
@@ -198,9 +207,7 @@ struct EventIdHelper {
 /// the provided is valid and returns an `Err` on parse errors. If the event id itself is malformed,
 /// an `Err` is returned.
 pub fn event_id_from_json(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
-    serde_json::from_slice(data)
-        .map(|helper: EventIdHelper| helper.id)
-        .map_err(BadStoreRequest::InvalidJson)
+    minimal_event_from_json(data).map(|event| event.id)
 }
 
 /// Extracts the event id from a MessagePack payload.
@@ -210,7 +217,7 @@ pub fn event_id_from_json(data: &[u8]) -> Result<Option<EventId>, BadStoreReques
 /// an `Err` is returned.
 pub fn event_id_from_msgpack(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
     rmp_serde::from_slice(data)
-        .map(|helper: EventIdHelper| helper.id)
+        .map(|MinimalEvent { id, .. }| id)
         .map_err(BadStoreRequest::InvalidMsgpack)
 }
 
@@ -352,38 +359,34 @@ where
     let remote_addr = meta.client_addr();
 
     let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
-    let cloned_meta = Arc::new(meta.clone());
     let event_id = Rc::new(RefCell::new(None));
 
     let future = project_manager
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(clone!(event_id, scoping, |project| {
-            project
-                .send(GetScoping::cached(cloned_meta.clone()))
-                .map_err(BadStoreRequest::ScheduleFailed)
-                .and_then(|scoping_result| scoping_result.map_err(BadStoreRequest::ProjectFailed))
-                .and_then(move |new_scoping| {
-                    scoping.replace(new_scoping);
-                    extract_envelope(&request, meta)
-                })
+            extract_envelope(&request, meta)
+                .into_future()
                 .and_then(clone!(project, |envelope| {
                     event_id.replace(envelope.event_id());
 
                     project
-                        .send(GetEventAction::new(cloned_meta))
+                        .send(CheckEnvelope::cached(envelope))
                         .map_err(BadStoreRequest::ScheduleFailed)
-                        .and_then(move |action| match action {
-                            EventAction::Accept => Ok(envelope),
-                            EventAction::RateLimit(rate_limits) => {
-                                Err(BadStoreRequest::RateLimited(rate_limits))
-                            }
-                            EventAction::Discard(reason) => {
-                                Err(BadStoreRequest::EventRejected(reason))
-                            }
-                        })
+                        .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
                 }))
-                .and_then(move |envelope| {
+                .and_then(clone!(scoping, |response| {
+                    scoping.replace(response.scoping);
+
+                    let checked = response.result.map_err(BadStoreRequest::EventRejected)?;
+                    if checked.envelope.is_empty() {
+                        // Skip over queuing and issue a rate limit right away
+                        Err(BadStoreRequest::RateLimited(checked.rate_limits))
+                    } else {
+                        Ok((checked.envelope, checked.rate_limits))
+                    }
+                }))
+                .and_then(move |(envelope, rate_limits)| {
                     event_manager
                         .send(QueueEnvelope {
                             envelope,
@@ -392,7 +395,14 @@ where
                         })
                         .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
-                        .map(create_response)
+                        .map(move |event_id| (event_id, rate_limits))
+                })
+                .and_then(move |(event_id, rate_limits)| {
+                    if rate_limits.is_limited() {
+                        Err(BadStoreRequest::RateLimited(rate_limits))
+                    } else {
+                        Ok(create_response(event_id))
+                    }
                 })
         }))
         .or_else(move |error: BadStoreRequest| {
