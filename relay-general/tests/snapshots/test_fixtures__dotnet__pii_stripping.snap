@@ -191,9 +191,9 @@ request:
     - - ".AspNetCore.Antiforgery._2NlYY4B078"
       - CfDJ8ChafIEN-7pHv152tZrpaC_lvW7hdfN_EdO5t5Zh63rpzWqqsA5O2nEyfM5KDfb0QyrEiEK_I3phDQyTPdGKKImqEXWHWHjLJyUU8VRQNNsFvKgwyLiiOc1mDPNxlDbsXhWV44nuF4SzFe9gy9mm_g0
     - - wcsid
-      - "[redacted]"
+      - "[Filtered]"
     - - hblid
-      - "[redacted]"
+      - "[Filtered]"
     - - _okdetect
       - "{[ok detect token],\"proto\":\"http:\",\"host\":\"localhost:4040\"}"
     - - olfsk
@@ -220,13 +220,13 @@ request:
     - - Host
       - "localhost:62919"
     - - MS-ASPNETCORE-TOKEN
-      - "[redacted]"
+      - "[Filtered]"
     - - Origin
       - "http://localhost:62919"
     - - Referer
       - "http://localhost:62919/"
     - - User-Agent
-      - "[redacted]"
+      - "[Filtered]"
     - - X-Original-For
       - "127.0.0.1:50788"
     - - X-Original-Proto

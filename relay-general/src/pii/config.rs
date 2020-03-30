@@ -132,6 +132,8 @@ pub enum RuleType {
     UrlAuth,
     /// US SSN.
     UsSsn,
+    /// Keys that look like passwords
+    Password,
     /// When a regex matches a key, a value is removed
     RedactPair(RedactPairRule),
     /// Applies multiple rules.
@@ -157,6 +159,7 @@ impl<'de> Deserialize<'de> for RuleType {
             Pemkey,
             UrlAuth,
             UsSsn,
+            Password,
             RedactPair(RedactPairRule),
             #[serde(rename = "redactPair")]
             RedactPairLegacy(RedactPairRule),
@@ -178,6 +181,7 @@ impl<'de> Deserialize<'de> for RuleType {
             RuleTypeWithLegacy::UrlAuth => RuleType::UrlAuth,
             RuleTypeWithLegacy::UsSsn => RuleType::UsSsn,
             RuleTypeWithLegacy::RedactPair(r) => RuleType::RedactPair(r),
+            RuleTypeWithLegacy::Password => RuleType::Password,
             RuleTypeWithLegacy::RedactPairLegacy(r) => RuleType::RedactPair(r),
             RuleTypeWithLegacy::Multiple(r) => RuleType::Multiple(r),
             RuleTypeWithLegacy::Alias(r) => RuleType::Alias(r),

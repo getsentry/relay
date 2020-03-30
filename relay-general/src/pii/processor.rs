@@ -167,6 +167,9 @@ lazy_static! {
             )\b
         "#
     ).unwrap();
+    static ref PASSWORD_KEY_REGEX: Regex = Regex::new(
+        r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)"
+    ).unwrap();
 }
 
 /// A processor that performs PII stripping.
@@ -374,8 +377,14 @@ fn apply_rule_to_value(
     }
 
     match rule.ty {
-        RuleType::RedactPair(ref redact_pair) => {
-            if redact_pair.key_pattern.is_match(key.unwrap_or("")) {
+        RuleType::RedactPair(_) | RuleType::Password => {
+            let key_pattern = match rule.ty {
+                RuleType::RedactPair(ref redact_pair) => &redact_pair.key_pattern.0,
+                RuleType::Password => &PASSWORD_KEY_REGEX,
+                _ => unreachable!(),
+            };
+
+            if key_pattern.is_match(key.unwrap_or("")) {
                 if value.is_some() && should_redact_chunks {
                     // If we're given a string value here, redact the value like we would with
                     // @anything.
@@ -390,7 +399,7 @@ fn apply_rule_to_value(
                 //
                 // $replace_groups = None: Replace entire value if match is inside
                 // $replace_groups = Some(GROUP_0): Replace entire match
-                apply_regex!(&redact_pair.key_pattern, None);
+                apply_regex!(&key_pattern, None);
             }
         }
         RuleType::Anything => {

@@ -26,17 +26,30 @@ fn default_mask_char() -> char {
     '*'
 }
 
+fn default_replace_text() -> String {
+    "[Filtered]".into()
+}
+
 /// Replaces a value with a specific string.
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ReplaceRedaction {
     /// The replacement string.
+    #[serde(default = "default_replace_text")]
     pub text: String,
 }
 
 impl From<String> for ReplaceRedaction {
     fn from(text: String) -> ReplaceRedaction {
         ReplaceRedaction { text }
+    }
+}
+
+impl Default for ReplaceRedaction {
+    fn default() -> Self {
+        ReplaceRedaction {
+            text: default_replace_text(),
+        }
     }
 }
 
@@ -55,6 +68,16 @@ pub struct MaskRedaction {
     pub range: (Option<i32>, Option<i32>),
 }
 
+impl Default for MaskRedaction {
+    fn default() -> Self {
+        MaskRedaction {
+            mask_char: default_mask_char(),
+            chars_to_ignore: String::new(),
+            range: (None, None),
+        }
+    }
+}
+
 /// Replaces the value with a hash
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -63,7 +86,17 @@ pub struct HashRedaction {
     #[serde(default)]
     pub algorithm: HashAlgorithm,
     /// The secret key (if not to use the default)
+    #[serde(default)]
     pub key: Option<String>,
+}
+
+impl Default for HashRedaction {
+    fn default() -> Self {
+        HashRedaction {
+            algorithm: HashAlgorithm::default(),
+            key: None,
+        }
+    }
 }
 
 /// Defines how replacements happen.

@@ -4,11 +4,9 @@ use std::collections::BTreeMap;
 use lazy_static::lazy_static;
 
 use crate::pii::{
-    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, PatternRule,
-    RedactPairRule, Redaction, ReplaceRedaction, RuleSpec, RuleType,
+    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, PatternRule, Redaction,
+    ReplaceRedaction, RuleSpec, RuleType,
 };
-
-pub static BUILTIN_SELECTORS: &[&str] = &["text", "container"];
 
 macro_rules! declare_builtin_rules {
     ($($rule_id:expr => $spec:expr;)*) => {
@@ -83,16 +81,15 @@ declare_builtin_rules! {
     };
     "@anything:replace" => RuleSpec {
         ty: RuleType::Anything,
-        redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[redacted]".into(),
-        }),
+        redaction: Redaction::Replace(ReplaceRedaction::default()),
     };
     "@anything:hash" => RuleSpec {
         ty: RuleType::Anything,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
-        }),
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
+    "@anything:mask" => RuleSpec {
+        ty: RuleType::Anything,
+        redaction: Redaction::Mask(MaskRedaction::default()),
     };
 
     // ip rules
@@ -105,10 +102,15 @@ declare_builtin_rules! {
     };
     "@ip:hash" => RuleSpec {
         ty: RuleType::Ip,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
-        }),
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
+    "@ip:mask" => RuleSpec {
+        ty: RuleType::Ip,
+        redaction: Redaction::Mask(MaskRedaction::default()),
+    };
+    "@ip:remove" => RuleSpec {
+        ty: RuleType::Ip,
+        redaction: Redaction::Remove,
     };
 
     // imei rules
@@ -121,10 +123,15 @@ declare_builtin_rules! {
     };
     "@imei:hash" => RuleSpec {
         ty: RuleType::Imei,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
-        }),
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
+    "@imei:mask" => RuleSpec {
+        ty: RuleType::Imei,
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
+    "@imei:remove" => RuleSpec {
+        ty: RuleType::Imei,
+        redaction: Redaction::Remove,
     };
 
     // mac rules
@@ -135,6 +142,10 @@ declare_builtin_rules! {
             text: "[mac]".into(),
         }),
     };
+    "@mac:hash" => RuleSpec {
+        ty: RuleType::Mac,
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
     "@mac:mask" => RuleSpec {
         ty: RuleType::Mac,
         redaction: Redaction::Mask(MaskRedaction {
@@ -143,12 +154,9 @@ declare_builtin_rules! {
             range: (Some(9), None),
         }),
     };
-    "@mac:hash" => RuleSpec {
+    "@mac:remove" => RuleSpec {
         ty: RuleType::Mac,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
-        }),
+        redaction: Redaction::Remove
     };
 
     // uuid rules
@@ -159,6 +167,10 @@ declare_builtin_rules! {
             text: "[uuid]".into(),
         }),
     };
+    "@uuid:hash" => RuleSpec {
+        ty: RuleType::Uuid,
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
     "@uuid:mask" => RuleSpec {
         ty: RuleType::Uuid,
         redaction: Redaction::Mask(MaskRedaction {
@@ -167,24 +179,13 @@ declare_builtin_rules! {
             range: (None, None),
         }),
     };
-    "@uuid:hash" => RuleSpec {
+    "@uuid:remove" => RuleSpec {
         ty: RuleType::Uuid,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
-        }),
+        redaction: Redaction::Remove,
     };
 
     // email rules
     "@email" => rule_alias!("@email:replace");
-    "@email:mask" => RuleSpec {
-        ty: RuleType::Email,
-        redaction: Redaction::Mask(MaskRedaction {
-            mask_char: '*',
-            chars_to_ignore: ".@".into(),
-            range: (None, None),
-        }),
-    };
     "@email:replace" => RuleSpec {
         ty: RuleType::Email,
         redaction: Redaction::Replace(ReplaceRedaction {
@@ -193,14 +194,33 @@ declare_builtin_rules! {
     };
     "@email:hash" => RuleSpec {
         ty: RuleType::Email,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
+    "@email:mask" => RuleSpec {
+        ty: RuleType::Email,
+        redaction: Redaction::Mask(MaskRedaction {
+            mask_char: '*',
+            chars_to_ignore: ".@".into(),
+            range: (None, None),
         }),
+    };
+    "@email:remove" => RuleSpec {
+        ty: RuleType::Email,
+        redaction: Redaction::Remove,
     };
 
     // creditcard rules
     "@creditcard" => rule_alias!("@creditcard:replace");
+    "@creditcard:hash" => RuleSpec {
+        ty: RuleType::Creditcard,
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
+    "@creditcard:replace" => RuleSpec {
+        ty: RuleType::Creditcard,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[creditcard]".into(),
+        }),
+    };
     "@creditcard:mask" => RuleSpec {
         ty: RuleType::Creditcard,
         redaction: Redaction::Mask(MaskRedaction {
@@ -209,24 +229,15 @@ declare_builtin_rules! {
             range: (None, Some(-4)),
         }),
     };
-    "@creditcard:replace" => RuleSpec {
-        ty: RuleType::Creditcard,
-        redaction: Redaction::Replace(ReplaceRedaction {
-            text: "[creditcard]".into(),
-        }),
-    };
     "@creditcard:filter" => RuleSpec {
         ty: RuleType::Creditcard,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[Filtered]".into(),
         }),
     };
-    "@creditcard:hash" => RuleSpec {
+    "@creditcard:remove" => RuleSpec {
         ty: RuleType::Creditcard,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
-        }),
+        redaction: Redaction::Remove
     };
 
     // pem rules
@@ -245,10 +256,15 @@ declare_builtin_rules! {
     };
     "@pemkey:hash" => RuleSpec {
         ty: RuleType::Pemkey,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
-        }),
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
+    "@pemkey:mask" => RuleSpec {
+        ty: RuleType::Pemkey,
+        redaction: Redaction::Mask(MaskRedaction::default()),
+    };
+    "@pemkey:remove" => RuleSpec {
+        ty: RuleType::Pemkey,
+        redaction: Redaction::Remove
     };
 
     // url secrets
@@ -259,6 +275,18 @@ declare_builtin_rules! {
             text: "[auth]".into(),
         }),
     };
+    "@urlauth:hash" => RuleSpec {
+        ty: RuleType::UrlAuth,
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
+    "@urlauth:mask" => RuleSpec {
+        ty: RuleType::UrlAuth,
+        redaction: Redaction::Mask(MaskRedaction::default()),
+    };
+    "@urlauth:remove" => RuleSpec {
+        ty: RuleType::UrlAuth,
+        redaction: Redaction::Remove,
+    };
     "@urlauth:legacy" => RuleSpec {
         ty: RuleType::Pattern(PatternRule {
             // Regex copied from legacy Sentry `URL_PASSWORD_RE`
@@ -267,13 +295,6 @@ declare_builtin_rules! {
         }),
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[Filtered]".into(),
-        }),
-    };
-    "@urlauth:hash" => RuleSpec {
-        ty: RuleType::UrlAuth,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
         }),
     };
 
@@ -301,10 +322,11 @@ declare_builtin_rules! {
     };
     "@usssn:hash" => RuleSpec {
         ty: RuleType::UsSsn,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
-        }),
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
+    "@usssn:remove" => RuleSpec {
+        ty: RuleType::UsSsn,
+        redaction: Redaction::Remove,
     };
 
     // user path rules
@@ -315,28 +337,43 @@ declare_builtin_rules! {
             text: "[user]".into(),
         }),
     };
+    "@userpath:mask" => RuleSpec {
+        ty: RuleType::Userpath,
+        redaction: Redaction::Mask(MaskRedaction::default()),
+    };
     "@userpath:hash" => RuleSpec {
         ty: RuleType::Userpath,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
-        }),
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
+    "@userpath:remove" => RuleSpec {
+        ty: RuleType::Userpath,
+        redaction: Redaction::Remove,
     };
 
     // password field removal
     "@password" => rule_alias!("@password:remove");
     "@password:filter" => RuleSpec {
-        ty: RuleType::RedactPair(RedactPairRule {
-            key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),
-        }),
+        ty: RuleType::Password,
         redaction: Redaction::Replace(ReplaceRedaction {
             text: "[Filtered]".into(),
         }),
     };
-    "@password:remove" => RuleSpec {
-        ty: RuleType::RedactPair(RedactPairRule {
-            key_pattern: r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)".into(),
+    "@password:hash" => RuleSpec {
+        ty: RuleType::Password,
+        redaction: Redaction::Hash(HashRedaction::default()),
+    };
+    "@password:replace" => RuleSpec {
+        ty: RuleType::Password,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[password]".into(),
         }),
+    };
+    "@password:mask" => RuleSpec {
+        ty: RuleType::Password,
+        redaction: Redaction::Mask(MaskRedaction::default()),
+    };
+    "@password:remove" => RuleSpec {
+        ty: RuleType::Password,
         redaction: Redaction::Remove,
     };
 }
@@ -350,6 +387,8 @@ mod tests {
     use crate::pii::processor::PiiProcessor;
     use crate::processor::{process_value, ProcessingState, ValueType};
     use crate::types::{Annotated, Remark, RemarkType};
+
+    use super::{BUILTIN_RULES, BUILTIN_RULES_MAP};
 
     #[derive(Clone, Debug, PartialEq, Empty, FromValue, ProcessValue, ToValue)]
     struct FreeformRoot {
@@ -778,5 +817,35 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
                 Remark::with_range(RemarkType::Pseudonymized, "@userpath:hash", (15, 55)),
             ];
         );
+    }
+
+    #[test]
+    fn test_builtin_rules_completeness() {
+        // Test that all combinations of ruletype and redactionmethod work, because that's what the
+        // UI assumes.
+        //
+        // Note: Keep these lists in sync with what is defined and exposed in the UI, not what we
+        // define internally.
+        for rule_type in &[
+            "creditcard",
+            "password",
+            "ip",
+            "imei",
+            "email",
+            "uuid",
+            "pemkey",
+            "urlauth",
+            "usssn",
+            "userpath",
+            "mac",
+            "anything",
+        ] {
+            for redaction_method in &["mask", "remove", "hash", "replace"] {
+                let key = format!("@{}:{}", rule_type, redaction_method);
+                println!("looking up {}", key);
+                assert!(BUILTIN_RULES.contains(&key.as_str()));
+                assert!(BUILTIN_RULES_MAP.contains_key(key.as_str()));
+            }
+        }
     }
 }
