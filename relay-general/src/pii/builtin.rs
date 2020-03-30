@@ -144,10 +144,7 @@ declare_builtin_rules! {
     };
     "@mac:hash" => RuleSpec {
         ty: RuleType::Mac,
-        redaction: Redaction::Hash(HashRedaction {
-            algorithm: HashAlgorithm::HmacSha1,
-            key: None,
-        }),
+        redaction: Redaction::Hash(HashRedaction::default()),
     };
     "@mac:mask" => RuleSpec {
         ty: RuleType::Mac,
