@@ -23,6 +23,7 @@ __all__ = [
     "validate_pii_config",
     "convert_datascrubbing_config",
     "pii_strip_event",
+    "pii_selectors_from_event",
     "VALID_PLATFORMS",
 ]
 
@@ -199,6 +200,17 @@ def pii_strip_event(config, event):
     raw_config = encode_str(json.dumps(config))
     raw_event = encode_str(json.dumps(event))
     raw_rv = rustcall(lib.relay_pii_strip_event, raw_config, raw_event)
+    return json.loads(decode_str(raw_rv, free=True))
+
+
+def pii_selectors_from_event(event):
+    """
+    Walk through the event and collect selectors that can be applied to it in a
+    PII config. This function is used in the UI to provide auto-completion of
+    selectors.
+    """
+    raw_event = encode_str(json.dumps(event))
+    raw_rv = rustcall(lib.relay_pii_selectors_from_event, raw_event)
     return json.loads(decode_str(raw_rv, free=True))
 
 

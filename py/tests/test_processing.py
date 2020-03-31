@@ -198,6 +198,15 @@ def test_pii_strip_event():
     assert sentry_relay.pii_strip_event({}, event) == event
 
 
+def test_pii_selectors_from_event():
+    event = {"logentry": {"formatted": "hi"}}
+    assert set(sentry_relay.pii_selectors_from_event(event)) == {
+        "$logentry.formatted",
+        "logentry.formatted",
+        "$message",
+    }
+
+
 def test_parse_release():
     parsed = sentry_relay.parse_release("org.example.FooApp@1.0rc1+20200101100")
     assert parsed == {

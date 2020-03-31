@@ -8,7 +8,7 @@ use std::slice;
 
 use json_forensics;
 use relay_common::{glob_match_bytes, GlobOptions};
-use relay_general::pii::{DataScrubbingConfig, PiiConfig, PiiProcessor};
+use relay_general::pii::{selectors_from_event, DataScrubbingConfig, PiiConfig, PiiProcessor};
 use relay_general::processor::{process_value, split_chunks, ProcessingState};
 use relay_general::protocol::{Event, VALID_PLATFORMS};
 use relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
@@ -176,6 +176,16 @@ ffi_fn! {
         process_value(&mut event, &mut processor, ProcessingState::root())?;
 
         Ok(RelayStr::from_string(event.to_json()?))
+    }
+}
+
+ffi_fn! {
+    /// Walk through the event and collect selectors that can be applied to it in a PII config. This
+    /// function is used in the UI to provide auto-completion of selectors.
+    unsafe fn relay_pii_selectors_from_event(event: *const RelayStr) -> Result<RelayStr> {
+        let event = Annotated::<Event>::from_json((*event).as_str())?;
+        let rv = selectors_from_event(event);
+        Ok(RelayStr::from_string(serde_json::to_string(&rv)?))
     }
 }
 
