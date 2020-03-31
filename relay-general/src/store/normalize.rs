@@ -655,7 +655,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         context
             .status
             .value_mut()
-            .get_or_insert(SpanStatus::UnknownError);
+            .get_or_insert(SpanStatus::Unknown);
         Ok(())
     }
 }

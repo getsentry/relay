@@ -404,7 +404,7 @@ pub enum SpanStatus {
     /// Unknown. Any non-standard HTTP status code.
     ///
     /// "We do not know whether the transaction failed or succeeded"
-    UnknownError = 2,
+    Unknown = 2,
 
     /// Client specified an invalid argument. 4xx.
     ///
@@ -499,7 +499,7 @@ impl FromStr for SpanStatus {
             "unavailable" => SpanStatus::Unavailable,
             "internal_error" => SpanStatus::InternalError,
             "failure" => SpanStatus::InternalError, // Backwards compat with initial schema
-            "unknown_error" => SpanStatus::UnknownError,
+            "unknown" | "unknown_error" => SpanStatus::Unknown,
             "cancelled" => SpanStatus::Cancelled,
             "already_exists" => SpanStatus::AlreadyExists,
             "failed_precondition" => SpanStatus::FailedPrecondition,
@@ -524,7 +524,8 @@ impl fmt::Display for SpanStatus {
             SpanStatus::Unimplemented => write!(f, "unimplemented"),
             SpanStatus::Unavailable => write!(f, "unavailable"),
             SpanStatus::InternalError => write!(f, "internal_error"),
-            SpanStatus::UnknownError => write!(f, "unknown_error"),
+            // TODO: Switch this to "unknown" once snuba is updated on saas and singletenant
+            SpanStatus::Unknown => write!(f, "unknown_error"),
             SpanStatus::Cancelled => write!(f, "cancelled"),
             SpanStatus::AlreadyExists => write!(f, "already_exists"),
             SpanStatus::FailedPrecondition => write!(f, "failed_precondition"),
@@ -550,7 +551,7 @@ impl FromValue for SpanStatus {
                 Some(match value {
                     0 => SpanStatus::Ok,
                     1 => SpanStatus::Cancelled,
-                    2 => SpanStatus::UnknownError,
+                    2 => SpanStatus::Unknown,
                     3 => SpanStatus::InvalidArgument,
                     4 => SpanStatus::DeadlineExceeded,
                     5 => SpanStatus::NotFound,
