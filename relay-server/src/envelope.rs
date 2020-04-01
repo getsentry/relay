@@ -331,6 +331,11 @@ impl Item {
         self.headers.event_type
     }
 
+    /// Sets the event type of this item.
+    pub fn set_event_type(&mut self, event_type: EventType) {
+        self.headers.event_type = Some(event_type);
+    }
+
     /// Returns the attachment type if this item is an attachment.
     pub fn attachment_type(&self) -> Option<AttachmentType> {
         self.headers.attachment_type
@@ -456,6 +461,7 @@ impl Item {
 
 pub type Items = SmallVec<[Item; 3]>;
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
+pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnvelopeHeaders<M = RequestMeta> {
@@ -672,6 +678,13 @@ impl Envelope {
     /// Note that iteration order may change when using `take_item`.
     pub fn items(&self) -> ItemIter<'_> {
         self.items.iter()
+    }
+
+    /// Returns an iterator over items in this envelope.
+    ///
+    /// Note that iteration order may change when using `take_item`.
+    pub fn items_mut(&mut self) -> ItemIterMut<'_> {
+        self.items.iter_mut()
     }
 
     /// Returns the an option with a reference to the first item that matches
