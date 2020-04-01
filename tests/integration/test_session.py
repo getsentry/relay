@@ -139,6 +139,7 @@ def test_session_with_custom_retention(
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),
             "started": timestamp.isoformat(),
+            "attrs": {"release": "sentry-test@1.0.0"},
         },
     )
 
@@ -165,6 +166,7 @@ def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consum
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),
             "started": started.isoformat(),
+            "attrs": {"release": "sentry-test@1.0.0"},
         },
     )
 

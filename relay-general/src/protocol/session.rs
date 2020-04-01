@@ -60,31 +60,23 @@ impl fmt::Display for SessionStatus {
     }
 }
 
-fn is_empty_string(opt: &Option<String>) -> bool {
-    opt.as_ref().map_or(true, |s| s.is_empty())
-}
-
 /// Additional attributes for Sessions.
-#[serde(default)]
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionAttributes {
     /// The release version string.
-    pub release: Option<String>,
-    /// The environment identifier.
-    pub environment: Option<String>,
-    /// The ip address of the user.
-    pub ip_address: Option<IpAddr>,
-    /// The user agent of the user.
-    pub user_agent: Option<String>,
-}
+    pub release: String,
 
-impl SessionAttributes {
-    fn is_empty(&self) -> bool {
-        is_empty_string(&self.release)
-            && is_empty_string(&self.environment)
-            && self.ip_address.is_none()
-            && is_empty_string(&self.user_agent)
-    }
+    /// The environment identifier.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub environment: Option<String>,
+
+    /// The ip address of the user.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ip_address: Option<IpAddr>,
+
+    /// The user agent of the user.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_agent: Option<String>,
 }
 
 fn default_sequence() -> u64 {
@@ -128,11 +120,7 @@ pub struct SessionUpdate {
     #[serde(default)]
     pub errors: u64,
     /// The session event attributes.
-    #[serde(
-        rename = "attrs",
-        default,
-        skip_serializing_if = "SessionAttributes::is_empty"
-    )]
+    #[serde(rename = "attrs")]
     pub attributes: SessionAttributes,
 }
 
@@ -157,7 +145,10 @@ mod tests {
         let json = r#"{
   "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
   "timestamp": "2020-02-07T15:17:00Z",
-  "started": "2020-02-07T14:16:00Z"
+  "started": "2020-02-07T14:16:00Z",
+  "attrs": {
+    "release": "sentry-test@1.0.0"
+  }
 }"#;
 
         let output = r#"{
@@ -167,7 +158,10 @@ mod tests {
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
   "status": "ok",
-  "errors": 0
+  "errors": 0,
+  "attrs": {
+    "release": "sentry-test@1.0.0"
+  }
 }"#;
 
         let update = SessionUpdate {
@@ -180,7 +174,12 @@ mod tests {
             init: false,
             status: SessionStatus::Ok,
             errors: 0,
-            attributes: SessionAttributes::default(),
+            attributes: SessionAttributes {
+                release: "sentry-test@1.0.0".to_owned(),
+                environment: None,
+                ip_address: None,
+                user_agent: None,
+            },
         };
 
         let mut parsed = SessionUpdate::parse(json.as_bytes()).unwrap();
@@ -196,7 +195,10 @@ mod tests {
     #[test]
     fn test_session_default_timestamp_and_sid() {
         let json = r#"{
-  "started": "2020-02-07T14:16:00Z"
+  "started": "2020-02-07T14:16:00Z",
+  "attrs": {
+      "release": "sentry-test@1.0.0"
+  }
 }"#;
 
         let parsed = SessionUpdate::parse(json.as_bytes()).unwrap();
@@ -234,7 +236,7 @@ mod tests {
             errors: 0,
             init: true,
             attributes: SessionAttributes {
-                release: Some("sentry-test@1.0.0".to_owned()),
+                release: "sentry-test@1.0.0".to_owned(),
                 environment: Some("production".to_owned()),
                 ip_address: Some("::1".parse().unwrap()),
                 user_agent: Some("Firefox/72.0".to_owned()),
