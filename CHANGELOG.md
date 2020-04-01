@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.6
+
+**Relay**:
+
+- Fix a bug where Relay would stop processing events if Sentry is down for only a short time.
+- Improvements to architecture documentation.
+- Initial support for rate limiting by event type ("scoped quotas")
+- Fix a bug where `key_id` was omitted from outcomes created by Relay.
+- Fix a bug where it was not permitted to send content-encoding as part of a
+  CORS request to store.
+
+**Store**:
+
+- Minor updates to PII processing: Aliases for value types (`$error` instead of
+  `$exception` to be in sync with Discover column naming) and adding a default
+  for replace-redactions.
+- It is now valid to send transactions and spans without `op` set, in which
+  case a default value will be inserted.
+
 ## 0.5.5
 
 **Store**:

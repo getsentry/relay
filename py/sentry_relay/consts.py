@@ -22,3 +22,4 @@ SPAN_STATUS_CODE_TO_NAME = {
 }
 
 SPAN_STATUS_NAME_TO_CODE = dict((v, k) for k, v in SPAN_STATUS_CODE_TO_NAME.items())
+SPAN_STATUS_NAME_TO_CODE["unknown"] = SPAN_STATUS_NAME_TO_CODE["unknown_error"]
