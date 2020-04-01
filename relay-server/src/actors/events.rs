@@ -120,6 +120,10 @@ enum ProcessingError {
 }
 
 impl ProcessingError {
+    fn from_limits(rate_limits: &RateLimits) -> Self {
+        Self::RateLimited(rate_limits.longest().cloned())
+    }
+
     fn to_outcome(&self) -> Option<Outcome> {
         match *self {
             // General outcomes for invalid events
@@ -499,6 +503,8 @@ impl EventProcessor {
             rate_limiter.is_rate_limited(quotas, item_scope)
         });
 
+        // In event processing, the event item is removed from the envelope. Explicitly tell the
+        // rate limiter about the data category so that it can handle dependent items correctly.
         if let Some(category) = category {
             envelope_limiter.assume_event(category);
         }
@@ -721,14 +727,13 @@ impl EventProcessor {
             // is dropped or filtered for a different reason before that, it should not count
             // against quotas.
             let category = utils::data_category_from_event(get_event_type(&event));
-            let scoping = project_state.get_scoping(envelope.meta());
-            rate_limits =
-                self.enforce_quotas(envelope, &project_state, &scoping, Some(category))?;
+            let scope = project_state.get_scoping(envelope.meta());
+            rate_limits = self.enforce_quotas(envelope, &project_state, &scope, Some(category))?;
 
             // Bail out if the event has been removed by probing the returned rate limits for the
             // event category. If the event has not been rate limited, we can continue ingestion,
             // since rate limited items have been removed from the envelope.
-            if rate_limits.check(scoping.item(category)).is_limited() {
+            if rate_limits.check(scope.item(category)).is_limited() {
                 return Ok(rate_limits);
             }
 
@@ -1034,23 +1039,22 @@ impl Handler<HandleEnvelope> for EventManager {
 
                 let checked = response.result.map_err(ProcessingError::EventRejected)?;
                 if checked.envelope.is_empty() {
-                    let limit = checked.rate_limits.longest().cloned();
-                    return Err(ProcessingError::RateLimited(limit));
+                    return Err(ProcessingError::from_limits(&checked.rate_limits));
                 }
 
-                Ok(checked)
+                Ok(checked.envelope)
             }))
-            .and_then(clone!(project, |checked| {
+            .and_then(clone!(project, |envelope| {
                 project
                     .send(GetProjectState)
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-                    .map(|state| (checked, state))
+                    .map(|state| (envelope, state))
             }))
-            .and_then(move |(checked, project_state)| {
+            .and_then(move |(envelope, project_state)| {
                 processor
                     .send(ProcessEnvelope {
-                        envelope: checked.envelope,
+                        envelope,
                         project_state,
                         start_time,
                     })
@@ -1058,15 +1062,19 @@ impl Handler<HandleEnvelope> for EventManager {
                     .flatten()
             })
             .and_then(clone!(project, |processed| {
-                if processed.envelope.is_empty() {
-                    let limit = processed.rate_limits.longest().cloned();
-                    project.do_send(UpdateRateLimits(processed.rate_limits));
-                    Err(ProcessingError::RateLimited(limit))
+                let result = if processed.envelope.is_empty() {
+                    Err(ProcessingError::from_limits(&processed.rate_limits))
                 } else {
                     Ok(processed.envelope)
+                };
+
+                if processed.rate_limits.is_limited() {
+                    project.do_send(UpdateRateLimits(processed.rate_limits));
                 }
+
+                result
             }))
-            .and_then(clone!(captured_events, scoping, |envelope| {
+            .and_then(clone!(scoping, |envelope| {
                 #[cfg(feature = "processing")]
                 {
                     if let Some(store_forwarder) = store_forwarder {
@@ -1141,7 +1149,7 @@ impl Handler<HandleEnvelope> for EventManager {
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .map(|_, _, _| metric!(counter(RelayCounters::EventAccepted) += 1))
-            .map_err(clone!(captured_events, |error, _, _| {
+            .map_err(move |error, slf, _| {
                 metric!(counter(RelayCounters::EventRejected) += 1);
 
                 // if we are in capture mode, we stash away the event instead of
@@ -1151,7 +1159,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     if let Some(event_id) = event_id {
                         log::debug!("capturing failed event {}", event_id);
                         let msg = LogError(&error).to_string();
-                        captured_events
+                        slf.captured_events
                             .write()
                             .insert(event_id, CapturedEvent::Err(msg));
                     } else {
@@ -1184,7 +1192,7 @@ impl Handler<HandleEnvelope> for EventManager {
                         remote_addr,
                     })
                 }
-            }))
+            })
             .then(move |x, slf, _| {
                 metric!(timer(RelayTimers::EventTotalTime) = start_time.elapsed());
                 slf.current_active_events -= 1;
