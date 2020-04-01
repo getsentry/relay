@@ -62,39 +62,41 @@ macro_rules! tryf {
     };
 }
 
-/// An alternative to a `move` closure.
+/// A cloning alternative to a `move` closure.
 ///
-/// When one needs to use a closure with move semantics one often needs to clone and
-/// move some of the free variables. This macro automates the process of cloning and moving
-/// variables.
+/// When one needs to use a closure with move semantics one often needs to clone and move some of
+/// the free variables. This macro automates the process of cloning and moving variables.
 ///
 /// The following code:
-/// ```compile_fail
-/// let arg1 = v1.clone()
-/// let arg2 = v2.clone()
 ///
-/// let result = some_function( move || f(arg1, arg2)})
 /// ```
+/// # let v1 = String::new(); let v2 = String::new();
+/// # fn f(_: String, _: String) {}
+/// # fn some_function<F: FnOnce()>(f: F) {}
+/// let arg1 = v1.clone();
+/// let arg2 = v2.clone();
+///
+/// let result = some_function(move || f(arg1, arg2));
+/// ```
+///
 /// Can be rewritten in a cleaner way by using the `clone!` macro like so:
 ///
-/// ```compile_fail
-/// let result = some_function( clone! { v1, v2, || f(v1,v2)})
+/// ```
+/// # let v1 = String::new(); let v2 = String::new();
+/// # fn f(_: String, _: String) {}
+/// # fn some_function<F: FnOnce()>(f: F) {}
+/// use relay_common::clone;
+///
+/// let result = some_function(clone!(v1, v2, || f(v1,v2)));
 /// ```
 #[macro_export]
 macro_rules! clone {
-    (@param _) => ( _ );
-    (@param ()) => (());
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ , || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move || $body
-        }
-    );
-    ($($n:ident),+ , |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move |$(clone!(@param $p),)+| $body
-        }
-    );
+    ($($n:ident ,)+ || $body:expr) => {{
+        $( let $n = $n.clone(); )+
+        move || $body
+    }};
+    ($($n:ident ,)+ |$($p:pat),+| $body:expr) => {{
+        $( let $n = $n.clone(); )+
+        move |$($p),+| $body
+    }};
 }
