@@ -185,7 +185,7 @@ impl ResponseError for BadStoreRequest {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize, PartialEq)]
 pub struct MinimalEvent {
     #[serde(default, rename = "event_id")]
     pub id: Option<EventId>,
@@ -440,4 +440,61 @@ pub fn create_text_event_id_response(id: Option<EventId>) -> HttpResponse {
     HttpResponse::Ok()
         .content_type("text/plain")
         .body(format!("{}", id.0.to_hyphenated()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_minimal_empty_event() {
+        let json = r#"{}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: None,
+                ty: EventType::Default
+            }
+        );
+    }
+
+    #[test]
+    fn test_minimal_event_id() {
+        let json = r#"{"event_id": "037af9ac1b49494bacd7ec5114f801d9"}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: Some("037af9ac1b49494bacd7ec5114f801d9".parse().unwrap()),
+                ty: EventType::Default
+            }
+        );
+    }
+
+    #[test]
+    fn test_minimal_event_type() {
+        let json = r#"{"type": "error"}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: None,
+                ty: EventType::Error,
+            }
+        );
+    }
+
+    #[test]
+    fn test_minimal_event_invalid_type() {
+        let json = r#"{"type": "invalid"}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: None,
+                ty: EventType::Default,
+            }
+        );
+    }
 }
