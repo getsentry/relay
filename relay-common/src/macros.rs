@@ -70,24 +70,29 @@ macro_rules! tryf {
 /// The following code:
 ///
 /// ```
-/// # let v1 = String::new(); let v2 = String::new();
-/// # fn f(_: String, _: String) {}
-/// # fn some_function<F: FnOnce()>(f: F) {}
-/// let arg1 = v1.clone();
-/// let arg2 = v2.clone();
+/// # use std::sync::{Arc, Mutex};
+/// let shared = Arc::new(Mutex::new(0));
 ///
-/// let result = some_function(move || f(arg1, arg2));
+/// let cloned = shared.clone();
+/// std::thread::spawn(move || {
+///     *cloned.lock().unwrap() = 42
+/// }).join();
+///
+/// assert_eq!(*shared.lock().unwrap(), 42);
 /// ```
 ///
 /// Can be rewritten in a cleaner way by using the `clone!` macro like so:
 ///
 /// ```
-/// # let v1 = String::new(); let v2 = String::new();
-/// # fn f(_: String, _: String) {}
-/// # fn some_function<F: FnOnce()>(f: F) {}
+/// # use std::sync::{Arc, Mutex};
 /// use relay_common::clone;
 ///
-/// let result = some_function(clone!(v1, v2, || f(v1,v2)));
+/// let shared = Arc::new(Mutex::new(0));
+/// std::thread::spawn(clone!(shared, || {
+///     *shared.lock().unwrap() = 42
+/// })).join();
+///
+/// assert_eq!(*shared.lock().unwrap(), 42);
 /// ```
 #[macro_export]
 macro_rules! clone {
