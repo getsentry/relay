@@ -334,7 +334,7 @@ struct SessionKafkaMessage {
     duration: Option<f64>,
     status: SessionStatus,
     errors: u16,
-    release: Option<String>,
+    release: String,
     environment: Option<String>,
     retention_days: u16,
 }
