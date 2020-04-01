@@ -211,15 +211,22 @@ where
     }
 
     fn should_remove(&self, item: &Item) -> bool {
+        // Remove event items and all items that depend on this event
         if self.remove_event && (item.creates_event() || item.requires_event()) {
-            true // Remove event items and all items that depend on this event
-        } else if self.remove_attachments && item.ty() == ItemType::Attachment {
-            !item.creates_event() // Remove attachments, except those required for processing
-        } else if self.remove_sessions && item.ty() == ItemType::Session {
-            true // Remove sessions independently of events
-        } else {
-            false // Retain the rest
+            return true;
         }
+
+        // Remove attachments, except those required for processing
+        if self.remove_attachments && item.ty() == ItemType::Attachment {
+            return !item.creates_event();
+        }
+
+        // Remove sessions independently of events
+        if self.remove_sessions && item.ty() == ItemType::Session {
+            return true;
+        }
+
+        false
     }
 }
 

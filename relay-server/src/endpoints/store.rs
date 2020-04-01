@@ -36,7 +36,7 @@ fn parse_envelope(meta: RequestMeta, data: Bytes) -> Result<Envelope, BadStoreRe
         }
     }
 
-    return Ok(envelope);
+    Ok(envelope)
 }
 
 /// Parses a JSON event body into an `Envelope`.
