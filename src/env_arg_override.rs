@@ -4,40 +4,14 @@ use std::env;
 use std::hash::Hash;
 
 use clap::ArgMatches;
+use relay_config::{Config, OverridableConfig};
 use serde_yaml::{self, Mapping, Number, Sequence, Value};
-
-#[derive(Debug, Default)]
-pub struct OverridableConfig {
-    upstream: Option<String>,
-    host: Option<String>,
-    port: Option<i32>,
-    processing: Option<bool>,
-    kafka_url: Option<String>,
-    redis_url: Option<String>,
-    id: Option<String>,
-    secret_key: Option<String>,
-    public_key: Option<String>,
-}
-
-impl OverridableConfig {
-    fn has_config(&self) -> bool {
-        self.upstream.is_some()
-            || self.host.is_some()
-            || self.port.is_some()
-            || self.processing.is_some()
-            || self.kafka_url.is_some()
-            || self.redis_url.is_some()
-    }
-    fn has_credentials(&self) -> bool {
-        self.id.is_some() || self.public_key.is_some() || self.secret_key.is_some()
-    }
-}
 
 /// Extract config arguments from a parsed command line arguments object
 pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
     let port = matches
         .value_of("port")
-        .and_then(|p| i32::from_str_radix(p, 10).ok());
+        .and_then(|p| u16::from_str_radix(p, 10).ok());
     let processing_enabled = if matches.is_present("processing-enabled") {
         Some(true)
     } else if matches.is_present("processing-disabled") {
@@ -74,7 +48,7 @@ pub fn extract_config_env_vars() -> OverridableConfig {
     };
 
     let port = if let Ok(port) = env::var("RELAY_PORT") {
-        if let Ok(port) = i32::from_str_radix(port.as_str(), 10) {
+        if let Ok(port) = u16::from_str_radix(port.as_str(), 10) {
             Some(port)
         } else {
             panic!("Invalid configuraton parameter 'port' expected an integer value")
@@ -96,36 +70,36 @@ pub fn extract_config_env_vars() -> OverridableConfig {
     }
 }
 
-/// Override configuration with a override object
-fn override_config(config: &mut Mapping, overrides: OverridableConfig) {
-    let relay = get_or_create_sub_obj(config, "relay").unwrap();
-
-    if let Some(upstream) = overrides.upstream {
-        set_string(relay, "upstream", upstream);
-    }
-
-    if let Some(host) = overrides.host {
-        set_string(relay, "host", host);
-    }
-    if let Some(port) = overrides.port {
-        set_number(relay, "port", port);
-    }
-
-    let processing = get_or_create_sub_obj(config, "processing").unwrap();
-
-    if let Some(procesing) = overrides.processing {
-        set_bool(processing, "enabled", procesing);
-    }
-
-    if let Some(redis_server_url) = overrides.redis_url {
-        set_string(processing, "redis", redis_server_url);
-    }
-
-    if let Some(kafka_servers_url) = overrides.kafka_url {
-        let kafka_config = get_or_create_sub_array(processing, "kafka_config").unwrap();
-        set_bootstrap_servers(kafka_config, kafka_servers_url);
-    }
-}
+// /// Override configuration with a override object
+// fn override_config(config: &mut Config, overrides: OverridableConfig) {
+//     let relay = get_or_create_sub_obj(config, "relay").unwrap();
+//
+//     if let Some(upstream) = overrides.upstream {
+//         set_string(relay, "upstream", upstream);
+//     }
+//
+//     if let Some(host) = overrides.host {
+//         set_string(relay, "host", host);
+//     }
+//     if let Some(port) = overrides.port {
+//         set_number(relay, "port", port);
+//     }
+//
+//     let processing = get_or_create_sub_obj(config, "processing").unwrap();
+//
+//     if let Some(procesing) = overrides.processing {
+//         set_bool(processing, "enabled", procesing);
+//     }
+//
+//     if let Some(redis_server_url) = overrides.redis_url {
+//         set_string(processing, "redis", redis_server_url);
+//     }
+//
+//     if let Some(kafka_servers_url) = overrides.kafka_url {
+//         let kafka_config = get_or_create_sub_array(processing, "kafka_config").unwrap();
+//         set_bootstrap_servers(kafka_config, kafka_servers_url);
+//     }
+// }
 
 fn get_or_create_sub_obj<'a>(hash: &'a mut Mapping, key: &str) -> Result<&'a mut Mapping, String> {
     let val_key = Value::String(key.into());

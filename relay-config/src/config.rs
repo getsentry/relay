@@ -13,9 +13,11 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Dsn;
 use relay_redis::RedisConfig;
+use serde_yaml::from_str;
 
 use crate::types::ByteSize;
 use crate::upstream::UpstreamDescriptor;
+use std::str::FromStr;
 
 macro_rules! ctry {
     ($expr:expr, $kind:expr, $path:expr) => {
@@ -87,6 +89,39 @@ pub enum ConfigErrorKind {
     /// compiled without the processing feature.
     #[fail(display = "was not compiled with processing, cannot enable processing")]
     ProcessingNotAvailable,
+    /// An override from a environment variable or a command line arg could not be
+    /// parsed into the proper type
+    #[fail(display = "Invalid override")]
+    InvalidOverride,
+}
+
+#[derive(Debug, Default)]
+pub struct OverridableConfig {
+    // TODO change to UpstreamDescriptor to mach Relay config
+    pub upstream: Option<String>,
+    //TODO change to IPAddr to match Relay config
+    pub host: Option<String>,
+    pub port: Option<u16>,
+    pub processing: Option<bool>,
+    pub kafka_url: Option<String>,
+    pub redis_url: Option<String>,
+    pub id: Option<String>,
+    pub secret_key: Option<String>,
+    pub public_key: Option<String>,
+}
+
+impl OverridableConfig {
+    fn has_config(&self) -> bool {
+        self.upstream.is_some()
+            || self.host.is_some()
+            || self.port.is_some()
+            || self.processing.is_some()
+            || self.kafka_url.is_some()
+            || self.redis_url.is_some()
+    }
+    fn has_credentials(&self) -> bool {
+        self.id.is_some() || self.public_key.is_some() || self.secret_key.is_some()
+    }
 }
 
 /// The relay credentials
@@ -632,6 +667,47 @@ impl Config {
         }
 
         Ok(config)
+    }
+
+    /// Override configuration with values coming from other sources (e.g. env variables or
+    /// command line parameters)
+    pub fn override_config(
+        &mut self,
+        overrides: OverridableConfig,
+    ) -> Result<&mut Self, ConfigError> {
+        let relay = &mut self.values.relay;
+
+        if let Some(upstream) = overrides.upstream {
+            relay.upstream = UpstreamDescriptor::from_str(upstream.as_ref()).map_err(|_| {
+                ConfigError::new(PathBuf::new(), ConfigErrorKind::InvalidOverride.into())
+            })?;
+        }
+
+        if let Some(host) = overrides.host {
+            relay.host = host.parse().map_err(|_| {
+                ConfigError::new(PathBuf::new(), ConfigErrorKind::InvalidOverride.into())
+            })?;
+        }
+
+        if let Some(port) = overrides.port {
+            relay.port = port;
+        }
+
+        let processing = &mut self.values.processing;
+        if let Some(enabled) = overrides.processing {
+            processing.enabled = enabled;
+        }
+
+        //TODO finish here
+        if let Some(redis) = overrides.redis_url {
+            //processing.redis = from_str(redis.as_str());
+        }
+
+        //
+        // if let Some(kafka_servers_url) = overrides.kafka_url {
+        //     let kafka_config = get_or_create_sub_array(processing, "kafka_config").unwrap();
+        //     set_bootstrap_servers(kafka_config, kafka_servers_url);
+        Ok(self)
     }
 
     /// Checks if the config is already initialized.

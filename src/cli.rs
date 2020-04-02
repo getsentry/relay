@@ -338,7 +338,7 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn run<'a>(config: Config, _matches: &ArgMatches<'a>) -> Result<(), Error> {
+pub fn run<'a>(mut config: Config, _matches: &ArgMatches<'a>) -> Result<(), Error> {
     setup::dump_spawn_infos(&config);
     setup::check_config(&config)?;
     setup::init_metrics(&config)?;
