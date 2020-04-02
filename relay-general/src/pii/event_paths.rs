@@ -28,6 +28,18 @@ impl Processor for EventPathsProcessor {
             return Ok(());
         }
 
+        macro_rules! insert_path {
+            ($expr:expr) => {{
+                let x = $expr;
+                if state.attrs().pii != Pii::Maybe || x.is_specific() {
+                    self.paths.insert(x.to_string());
+                    true
+                } else {
+                    false
+                }
+            }};
+        }
+
         let mut path = Vec::new();
 
         // Walk through processing state in reverse order and build selector path off of that.
@@ -45,20 +57,17 @@ impl Processor for EventPathsProcessor {
                 | ty @ Some(ValueType::Number)
                 | ty @ Some(ValueType::Boolean)
                 | ty @ Some(ValueType::DateTime) => {
-                    self.paths.insert(
-                        SelectorSpec::Path(vec![SelectorPathItem::Type(ty.unwrap())]).to_string(),
-                    );
+                    insert_path!(SelectorSpec::Path(vec![SelectorPathItem::Type(
+                        ty.unwrap()
+                    )]));
                 }
 
                 Some(ty) => {
-                    // Only generate type-based PII selectors for `pii = true`. Fields that are
-                    // designated with `pii = maybe` cannot be addressed with value types, so don't
-                    // bother generating suggestions for those.
-                    if state.attrs().pii != Pii::Maybe {
-                        let mut path = path.clone();
-                        path.push(SelectorPathItem::Type(ty));
-                        path.reverse();
-                        self.paths.insert(SelectorSpec::Path(path).to_string());
+                    let mut path = path.clone();
+                    path.push(SelectorPathItem::Type(ty));
+                    path.reverse();
+                    if insert_path!(SelectorSpec::Path(path)) {
+                        break;
                     }
                 }
 
@@ -81,7 +90,7 @@ impl Processor for EventPathsProcessor {
 
         if !path.is_empty() {
             path.reverse();
-            self.paths.insert(SelectorSpec::Path(path).to_string());
+            insert_path!(SelectorSpec::Path(path));
         }
 
         Ok(())

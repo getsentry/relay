@@ -95,13 +95,42 @@ impl SelectorSpec {
         match *self {
             SelectorSpec::And(_) | SelectorSpec::Or(_) | SelectorSpec::Not(_) => false,
             SelectorSpec::Path(ref path) => {
-                path.iter().all(|item| {
+                path.iter().enumerate().all(|(i, item)| {
                     match *item {
-                        SelectorPathItem::Type(_) => false,
+                        SelectorPathItem::Type(ty) => match ty {
+                            // "Generic" JSON value types cannot be part of a specific path
+                            ValueType::String
+                            | ValueType::Number
+                            | ValueType::Boolean
+                            | ValueType::DateTime
+                            | ValueType::Array
+                            | ValueType::Object => false,
+
+                            // Other schema-specific value types can be if they are on the first
+                            // position. This list is explicitly typed out such that the decision
+                            // to add new value types to this list has to be made consciously.
+                            //
+                            // It's easy to change a `false` to `true` later, but a breaking change
+                            // to go the other direction. If you're not sure, return `false` for
+                            // your new value type.
+                            ValueType::Event
+                            | ValueType::Exception
+                            | ValueType::Stacktrace
+                            | ValueType::Frame
+                            | ValueType::Request
+                            | ValueType::User
+                            | ValueType::LogEntry
+                            | ValueType::Message
+                            | ValueType::Thread
+                            | ValueType::Breadcrumb
+                            | ValueType::Span
+                            | ValueType::ClientSdkInfo => i == 0,
+                        },
                         SelectorPathItem::Index(_) => true,
                         SelectorPathItem::Key(_) => true,
                         // necessary because of array indices
                         SelectorPathItem::Wildcard => true,
+                        // a deep wildcard is too sweeping to be specific
                         SelectorPathItem::DeepWildcard => false,
                     }
                 })
@@ -323,4 +352,16 @@ fn test_roundtrip() {
     check_roundtrip("!a && !b");
     check_roundtrip("!(a && !b)");
     check_roundtrip("!(a && b)");
+}
+
+#[test]
+fn test_is_specific() {
+    assert!(SelectorSpec::from_str("$frame.vars.foo")
+        .unwrap()
+        .is_specific());
+    assert!(!SelectorSpec::from_str("foo.$frame.vars.foo")
+        .unwrap()
+        .is_specific());
+    assert!(!SelectorSpec::from_str("$object.foo").unwrap().is_specific());
+    assert!(SelectorSpec::from_str("extra.foo").unwrap().is_specific());
 }
