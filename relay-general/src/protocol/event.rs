@@ -67,13 +67,14 @@ impl_str_serde!(EventId);
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EventType {
-    Default,
     Error,
     Csp,
     Hpkp,
     ExpectCT,
     ExpectStaple,
     Transaction,
+    #[serde(other)]
+    Default,
 }
 
 /// An error used when parsing `EventType`.
