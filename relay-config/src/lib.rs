@@ -2,6 +2,7 @@
 #![warn(missing_docs)]
 
 mod config;
+mod env_arg_override;
 mod types;
 mod upstream;
 
