@@ -78,7 +78,7 @@ impl Processor for EventPathsProcessor {
 
             if let Some(key) = substate.path().key() {
                 path.push(SelectorPathItem::Key(key.to_owned()));
-            } else if let Some(_) = substate.path().index() {
+            } else if substate.path().index().is_some() {
                 path.push(SelectorPathItem::Wildcard);
             } else {
                 debug_assert!(substate.depth() == 0);
