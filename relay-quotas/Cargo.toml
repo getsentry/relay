@@ -11,7 +11,7 @@ publish = false
 
 [features]
 default = []
-redis = [
+rate-limiter = [
     "failure",
     "log",
     "relay-redis/impl",

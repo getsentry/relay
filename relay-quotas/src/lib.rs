@@ -2,20 +2,13 @@
 
 #![warn(missing_docs)]
 
-/// The default timeout to apply when a scope is fully rejected. This
-/// typically happens for disabled keys, projects, or organizations.
-const REJECT_ALL_SECS: u64 = 60;
-
-mod quota;
-mod rate_limit;
-
-pub use self::quota::*;
-pub use self::rate_limit::*;
+mod types;
+pub use self::types::*;
 
 #[cfg(feature = "legacy")]
 pub mod legacy;
 
-#[cfg(feature = "redis")]
-mod redis;
-#[cfg(feature = "redis")]
-pub use self::redis::*;
+#[cfg(feature = "rate-limiter")]
+mod rate_limiter;
+#[cfg(feature = "rate-limiter")]
+pub use self::rate_limiter::*;

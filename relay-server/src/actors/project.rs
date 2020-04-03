@@ -12,14 +12,13 @@ use relay_common::{metric, ProjectId, Uuid};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_quotas::{Quota, RateLimits, Scoping};
+use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
-use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
-use crate::utils::{ActorResponse, EnvelopeLimiter};
+use crate::utils::Response;
 
 /// The current status of a project state. Return value of `ProjectState::outdated`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -296,34 +295,16 @@ impl ProjectState {
         scoping
     }
 
-    /// Returns quotas declared in this project state.
-    pub fn get_quotas(&self, public_key: &str) -> &[Quota] {
-        if !self.config.quotas.is_empty() {
-            self.config.quotas.as_slice()
-        } else if let Some(ref key_config) = self.get_public_key_config(public_key) {
-            key_config.legacy_quotas.as_slice()
-        } else {
-            &[]
-        }
-    }
-
-    /// Determines whether the given request should be accepted or discarded.
-    ///
-    /// Returns `Ok(())` if the request should be accepted. Returns `Err(DiscardReason)` if the
-    /// request should be discarded, by indicating the reason. The checks preformed for this are:
-    ///
-    ///  - Allowed origin headers
-    ///  - Disabled or unknown projects
-    ///  - Disabled project keys (DSN)
-    pub fn check_request(
+    /// Determines whether the given event should be accepted or dropped.
+    pub fn get_event_action(
         &self,
         project_id: ProjectId,
         meta: &RequestMeta,
         config: &Config,
-    ) -> Result<(), DiscardReason> {
+    ) -> EventAction {
         // Try to verify the request origin with the project config.
         if !self.is_valid_origin(meta.origin()) {
-            return Err(DiscardReason::Cors);
+            return EventAction::Discard(DiscardReason::Cors);
         }
 
         if self.outdated(project_id, config) == Outdated::HardOutdated {
@@ -335,20 +316,20 @@ impl ProjectState {
             // except queueing events for unknown DSNs as they might have become
             // available in the meanwhile.
             match self.get_public_key_status(meta.public_key()) {
-                PublicKeyStatus::Enabled => Ok(()),
-                PublicKeyStatus::Disabled => Err(DiscardReason::ProjectId),
-                PublicKeyStatus::Unknown => Ok(()),
+                PublicKeyStatus::Enabled => EventAction::Accept,
+                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::ProjectId),
+                PublicKeyStatus::Unknown => EventAction::Accept,
             }
         } else {
             // if we recorded an invalid project state response from the upstream (i.e. parsing
             // failed), discard the event with a s
             if self.invalid() {
-                return Err(DiscardReason::ProjectState);
+                return EventAction::Discard(DiscardReason::ProjectState);
             }
 
             // only drop events if we know for sure the project is disabled.
             if self.disabled() {
-                return Err(DiscardReason::ProjectId);
+                return EventAction::Discard(DiscardReason::ProjectId);
             }
 
             // since the config has been fetched recently, we assume unknown
@@ -356,11 +337,11 @@ impl ProjectState {
             // an exception, where public keys are backfilled lazily after
             // events are sent to the upstream.
             match self.get_public_key_status(meta.public_key()) {
-                PublicKeyStatus::Enabled => Ok(()),
-                PublicKeyStatus::Disabled => Err(DiscardReason::ProjectId),
+                PublicKeyStatus::Enabled => EventAction::Accept,
+                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::ProjectId),
                 PublicKeyStatus::Unknown => match config.relay_mode() {
-                    RelayMode::Proxy => Ok(()),
-                    _ => Err(DiscardReason::ProjectId),
+                    RelayMode::Proxy => EventAction::Accept,
+                    _ => EventAction::Discard(DiscardReason::ProjectId),
                 },
             }
         }
@@ -425,7 +406,7 @@ impl Project {
     fn get_or_fetch_state(
         &mut self,
         context: &mut Context<Self>,
-    ) -> ActorResponse<Self, Arc<ProjectState>, ProjectError> {
+    ) -> Response<Arc<ProjectState>, ProjectError> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
 
@@ -446,7 +427,7 @@ impl Project {
             (Some(state), Outdated::SoftOutdated, false) => Some(state.clone()),
 
             // The project is not outdated, return early here to jump over fetching logic below.
-            (Some(state), Outdated::Updated, false) => return ActorResponse::ok(state.clone()),
+            (Some(state), Outdated::Updated, false) => return Response::ok(state.clone()),
         };
 
         let channel = match self.state_channel {
@@ -463,15 +444,14 @@ impl Project {
         };
 
         if let Some(rv) = alternative_rv {
-            return ActorResponse::ok(rv);
+            return Response::ok(rv);
         }
 
         let future = channel
             .map(|shared| (*shared).clone())
-            .map_err(|_| ProjectError::FetchFailed)
-            .into_actor(self);
+            .map_err(|_| ProjectError::FetchFailed);
 
-        ActorResponse::future(future)
+        Response::r#async(future)
     }
 
     fn fetch_state(
@@ -509,37 +489,6 @@ impl Project {
             None => meta.get_partial_scoping(),
         }
     }
-
-    fn check_envelope(
-        &mut self,
-        mut envelope: Envelope,
-        scoping: &Scoping,
-    ) -> Result<CheckedEnvelope, DiscardReason> {
-        if let Some(state) = self.state() {
-            state.check_request(self.id, envelope.meta(), &self.config)?;
-        }
-
-        self.rate_limits.clean_expired();
-
-        let key = &scoping.public_key;
-        let quotas = self.state().map(|s| s.get_quotas(key)).unwrap_or(&[]);
-        let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
-            Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
-        });
-
-        let rate_limits = envelope_limiter.enforce(&mut envelope, scoping)?;
-
-        Ok(CheckedEnvelope {
-            envelope,
-            rate_limits,
-        })
-    }
-
-    fn check_envelope_scoped(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
-        let scoping = self.get_scoping(message.envelope.meta());
-        let result = self.check_envelope(message.envelope, &scoping);
-        CheckEnvelopeResponse { result, scoping }
-    }
 }
 
 impl Actor for Project {
@@ -554,9 +503,6 @@ impl Actor for Project {
     }
 }
 
-/// Returns the project state.
-///
-/// The project state is fetched if it is missing or outdated.
 pub struct GetProjectState;
 
 impl Message for GetProjectState {
@@ -564,83 +510,95 @@ impl Message for GetProjectState {
 }
 
 impl Handler<GetProjectState> for Project {
-    type Result = ActorResponse<Self, Arc<ProjectState>, ProjectError>;
+    type Result = Response<Arc<ProjectState>, ProjectError>;
 
     fn handle(&mut self, _message: GetProjectState, context: &mut Context<Self>) -> Self::Result {
         self.get_or_fetch_state(context)
     }
 }
 
-/// Checks the envelope against project configuration and rate limits.
-///
-/// When `fetched`, then the project state is ensured to be up to date. When `cached`, an outdated
-/// project state may be used, or otherwise the envelope is passed through unaltered.
-///
-/// To check the envelope, this runs:
-///  - Validate origins and public keys
-///  - Quotas with a limit of `0`
-///  - Cached rate limits
-#[derive(Debug)]
-pub struct CheckEnvelope {
-    envelope: Envelope,
+pub struct GetScoping {
+    meta: Arc<RequestMeta>,
     fetch: bool,
 }
 
-impl CheckEnvelope {
-    /// Fetches the project state and checks the envelope.
-    pub fn fetched(envelope: Envelope) -> Self {
-        Self {
-            envelope,
-            fetch: true,
-        }
+impl GetScoping {
+    pub fn fetched(meta: Arc<RequestMeta>) -> Self {
+        Self { meta, fetch: true }
     }
 
-    /// Uses a cached project state and checks the envelope.
-    pub fn cached(envelope: Envelope) -> Self {
-        Self {
-            envelope,
-            fetch: false,
-        }
+    pub fn cached(meta: Arc<RequestMeta>) -> Self {
+        Self { meta, fetch: false }
     }
 }
 
-/// A checked envelope and associated rate limits.
-///
-/// Items violating the rate limits have been removed from the envelope.
-#[derive(Debug)]
-pub struct CheckedEnvelope {
-    pub envelope: Envelope,
-    pub rate_limits: RateLimits,
+impl Message for GetScoping {
+    type Result = Result<Scoping, ProjectError>;
 }
 
-/// Scoping information along with a checked envelope.
-#[derive(Debug)]
-pub struct CheckEnvelopeResponse {
-    pub result: Result<CheckedEnvelope, DiscardReason>,
-    pub scoping: Scoping,
-}
+impl Handler<GetScoping> for Project {
+    type Result = Response<Scoping, ProjectError>;
 
-impl Message for CheckEnvelope {
-    type Result = Result<CheckEnvelopeResponse, ProjectError>;
-}
-
-impl Handler<CheckEnvelope> for Project {
-    type Result = ActorResponse<Self, CheckEnvelopeResponse, ProjectError>;
-
-    fn handle(&mut self, message: CheckEnvelope, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: GetScoping, context: &mut Self::Context) -> Self::Result {
         if message.fetch {
             // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
             // This will return synchronously if the state is still cached.
             self.get_or_fetch_state(context)
-                .map(self, context, move |_, slf, _ctx| {
-                    slf.check_envelope_scoped(message)
-                })
+                .map(move |state| state.get_scoping(&message.meta))
         } else {
             self.get_or_fetch_state(context);
             // message.fetch == false: Fetching must not block the store request. The EventManager
             // will later fetch the project state.
-            ActorResponse::ok(self.check_envelope_scoped(message))
+            Response::ok(self.get_scoping(&message.meta))
         }
+    }
+}
+
+pub struct GetEventAction {
+    meta: Arc<RequestMeta>,
+}
+
+impl GetEventAction {
+    pub fn new(meta: Arc<RequestMeta>) -> Self {
+        GetEventAction { meta }
+    }
+}
+
+/// Indicates what should happen to events based on their meta data.
+#[derive(Clone, Debug)]
+pub enum EventAction {
+    /// The event should be discarded.
+    Discard(DiscardReason),
+    /// The event should be discarded and the client should back off for some time.
+    RateLimit(RateLimits),
+    /// The event should be processed and sent to upstream.
+    Accept,
+}
+
+impl Message for GetEventAction {
+    type Result = EventAction;
+}
+
+impl Handler<GetEventAction> for Project {
+    type Result = MessageResult<GetEventAction>;
+
+    fn handle(&mut self, message: GetEventAction, _context: &mut Self::Context) -> Self::Result {
+        let project_id = self.id;
+
+        let scoping = self.get_scoping(&message.meta);
+        let rate_limits = self.rate_limits.check(scoping.item(DataCategory::Error));
+
+        let event_action = if rate_limits.is_limited() {
+            EventAction::RateLimit(rate_limits)
+        } else {
+            // If the state is not loaded, we're probably in a preflight request. `EventManager`
+            // ensures to load the state before calling this function.
+            self.state().map_or(EventAction::Accept, |state| {
+                state.get_event_action(project_id, &message.meta, &self.config)
+            })
+        };
+
+        MessageResult(event_action)
     }
 }
 

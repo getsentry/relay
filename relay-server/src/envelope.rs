@@ -277,7 +277,8 @@ pub struct Item {
 }
 
 impl Item {
-    fn new_unchecked(ty: ItemType) -> Self {
+    /// Creates a new item with the given type.
+    pub fn new(ty: ItemType) -> Self {
         Self {
             headers: ItemHeaders {
                 ty,
@@ -291,19 +292,6 @@ impl Item {
             },
             payload: Bytes::new(),
         }
-    }
-
-    /// Creates a new item with the given type.
-    pub fn new(ty: ItemType) -> Self {
-        debug_assert!(ty != ItemType::Event, "use Item::new_event instead");
-        Self::new_unchecked(ty)
-    }
-
-    /// Creates an `Event` item with the given event type.
-    pub fn new_event(event_type: EventType) -> Self {
-        let mut item = Self::new_unchecked(ItemType::Event);
-        item.headers.event_type = Some(event_type);
-        item
     }
 
     /// Returns the `ItemType` of this item.
@@ -327,7 +315,9 @@ impl Item {
     }
 
     /// Returns the event type if this item is an event.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn event_type(&self) -> Option<EventType> {
+        // TODO: consider to replace this with an ItemType?
         self.headers.event_type
     }
 
@@ -338,6 +328,7 @@ impl Item {
 
     /// Returns the attachment type if this item is an attachment.
     pub fn attachment_type(&self) -> Option<AttachmentType> {
+        // TODO: consider to replace this with an ItemType?
         self.headers.attachment_type
     }
 
@@ -424,18 +415,13 @@ impl Item {
 
             // Attachments are only event items if they are crash reports.
             ItemType::Attachment => match self.attachment_type().unwrap_or_default() {
-                AttachmentType::AppleCrashReport
-                | AttachmentType::Minidump
-                | AttachmentType::EventPayload
-                | AttachmentType::Breadcrumbs => true,
-                AttachmentType::Attachment
-                | AttachmentType::UnrealContext
-                | AttachmentType::UnrealLogs => false,
+                AttachmentType::AppleCrashReport | AttachmentType::Minidump => true,
+                _ => false,
             },
 
-            // Form data items may contain partial event payloads, but those are only ever valid if
-            // they occur together with an explicit event item, such as a minidump or apple crash
-            // report. For this reason, FormData alone does not constitute an event item.
+            // Form data items may contain partial event payloads, but those are only ever valid if they
+            // occur together with an explicit event item, such as a minidump or apple crash report. For
+            // this reason, FormData alone does not constitute an event item.
             ItemType::FormData => false,
 
             // The remaining item types cannot carry event payloads.
@@ -461,7 +447,6 @@ impl Item {
 
 pub type Items = SmallVec<[Item; 3]>;
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
-pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnvelopeHeaders<M = RequestMeta> {
@@ -582,32 +567,6 @@ impl Envelope {
         Ok(Envelope { headers, items })
     }
 
-    /// Splits the envelope by the given predicate.
-    ///
-    /// The predicate passed to `split_by()` can return `true`, or `false`. If it returns `true` or
-    /// `false` for all items, then this returns `None`. Otherwise, a new envelope is constructed
-    /// with all items that return `true`. Items that return `false` remain in this envelope.
-    ///
-    /// The returned envelope assumes the same headers.
-    pub fn split_by<F>(&mut self, mut f: F) -> Option<Self>
-    where
-        F: FnMut(&Item) -> bool,
-    {
-        let split_count = self.items().filter(|item| f(item)).count();
-        if split_count == self.len() || split_count == 0 {
-            return None;
-        }
-
-        let old_items = std::mem::take(&mut self.items);
-        let (split_items, own_items) = old_items.into_iter().partition(f);
-        self.items = own_items;
-
-        Some(Envelope {
-            headers: self.headers.clone(),
-            items: split_items,
-        })
-    }
-
     /// Returns the number of items in this envelope.
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
@@ -680,13 +639,6 @@ impl Envelope {
         self.items.iter()
     }
 
-    /// Returns an iterator over items in this envelope.
-    ///
-    /// Note that iteration order may change when using `take_item`.
-    pub fn items_mut(&mut self) -> ItemIterMut<'_> {
-        self.items.iter_mut()
-    }
-
     /// Returns the an option with a reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     pub fn get_item_by<F>(&self, mut pred: F) -> Option<&Item>
@@ -708,17 +660,6 @@ impl Envelope {
     /// Adds a new item to this envelope.
     pub fn add_item(&mut self, item: Item) {
         self.items.push(item)
-    }
-
-    /// Retains only the items specified by the predicate.
-    ///
-    /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
-    /// in place and preserves the order of the retained items.
-    pub fn retain_items<F>(&mut self, f: F)
-    where
-        F: FnMut(&mut Item) -> bool,
-    {
-        self.items.retain(f)
     }
 
     /// Serializes this envelope into the given writer.
@@ -820,7 +761,7 @@ impl Envelope {
     fn require_termination(slice: &[u8], offset: usize) -> Result<(), EnvelopeError> {
         match slice.get(offset) {
             Some(&b'\n') | None => Ok(()),
-            Some(_) => Err(EnvelopeError::MissingNewline),
+            _ => Err(EnvelopeError::MissingNewline),
         }
     }
 
@@ -861,7 +802,7 @@ mod tests {
 
     #[test]
     fn test_item_set_payload() {
-        let mut item = Item::new_event(EventType::Default);
+        let mut item = Item::new(ItemType::Event);
 
         let payload = Bytes::from(&br#"{"event_id":"3adcb99a1be84a5d8057f2eb9a0161ce"}"#[..]);
         item.set_payload(ContentType::Json, payload.clone());
@@ -877,7 +818,7 @@ mod tests {
 
     #[test]
     fn test_item_set_header() {
-        let mut item = Item::new_event(EventType::Default);
+        let mut item = Item::new(ItemType::Event);
         item.set_header("custom", 42u64);
 
         assert_eq!(item.get_header("custom"), Some(&Value::from(42u64)));
@@ -1147,7 +1088,7 @@ mod tests {
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
         let mut envelope = Envelope::from_request(Some(event_id), request_meta());
 
-        let mut item = Item::new_event(EventType::Default);
+        let mut item = Item::new(ItemType::Event);
         item.set_payload(
             ContentType::Json,
             "{\"message\":\"hello world\",\"level\":\"error\"}",
@@ -1165,7 +1106,7 @@ mod tests {
         let stringified = String::from_utf8_lossy(&buffer);
         insta::assert_snapshot!(stringified, @r###"
         {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
-        {"type":"event","length":41,"event_type":"default","content_type":"application/json"}
+        {"type":"event","length":41,"content_type":"application/json"}
         {"message":"hello world","level":"error"}
         {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
         Hello

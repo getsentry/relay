@@ -7,16 +7,18 @@ use relay_common::UnixTimestamp;
 use relay_redis::{redis::Script, RedisError, RedisPool};
 use sentry::protocol::value;
 
-use crate::quota::{ItemScoping, Quota, QuotaScope};
-use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
-use crate::REJECT_ALL_SECS;
+use crate::types::{ItemScoping, Quota, QuotaScope, RateLimit, RateLimits, RetryAfter};
 
 /// The `grace` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
 /// metrics may not be in sync with the computer running this code.
 const GRACE: u64 = 60;
 
-/// An error returned by `RedisRateLimiter`.
+/// The default timeout to apply when a scope is fully rejected. This
+/// typically happens for disabled keys, projects, or organizations.
+const REJECT_ALL_SECS: u64 = 60;
+
+/// An error returned by `RateLimiter`.
 #[derive(Debug, Fail)]
 pub enum RateLimitingError {
     /// Failed to communicate with Redis.
@@ -131,18 +133,18 @@ impl std::ops::Deref for RedisQuota<'_> {
 /// quotas allow to specify the data categories they apply to, for example error events or
 /// attachments. For more information on quota parameters, see `QuotaConfig`.
 ///
-/// Requires the `redis` feature.
+/// Requires the `rate-limiter` feature.
 #[derive(Clone)]
-pub struct RedisRateLimiter {
+pub struct RateLimiter {
     pool: RedisPool,
     script: Arc<Script>,
     max_limit: Option<u64>,
 }
 
-impl RedisRateLimiter {
-    /// Creates a new `RedisRateLimiter` instance.
+impl RateLimiter {
+    /// Creates a new `RateLimiter` instance.
     pub fn new(pool: RedisPool) -> Self {
-        RedisRateLimiter {
+        RateLimiter {
             pool,
             script: Arc::new(load_lua_script()),
             max_limit: None,
@@ -249,13 +251,12 @@ mod tests {
     use relay_common::ProjectId;
     use relay_redis::redis::Commands;
 
-    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
-    use crate::rate_limit::RateLimitScope;
+    use crate::types::{DataCategories, DataCategory, RateLimitScope, ReasonCode, Scoping};
 
     use super::*;
 
     lazy_static::lazy_static! {
-        static ref RATE_LIMITER: RedisRateLimiter = RedisRateLimiter {
+        static ref RATE_LIMITER: RateLimiter = RateLimiter {
             pool: RedisPool::single("redis://127.0.0.1").unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: None,
