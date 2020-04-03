@@ -67,7 +67,9 @@ impl Processor for EventPathsProcessor {
                     path.push(SelectorPathItem::Type(ty));
                     path.reverse();
                     if insert_path!(SelectorSpec::Path(path)) {
-                        break;
+                        // If we managed to generate $http.header.Authorization, we do not want to
+                        // generate request.headers.Authorization as well.
+                        return Ok(());
                     }
                 }
 
@@ -76,12 +78,8 @@ impl Processor for EventPathsProcessor {
 
             if let Some(key) = substate.path().key() {
                 path.push(SelectorPathItem::Key(key.to_owned()));
-            } else if let Some(i) = substate.path().index() {
-                if i == 0 {
-                    path.push(SelectorPathItem::Wildcard);
-                } else {
-                    return Ok(());
-                }
+            } else if let Some(_) = substate.path().index() {
+                path.push(SelectorPathItem::Wildcard);
             } else {
                 debug_assert!(substate.depth() == 0);
                 break;
@@ -167,6 +165,19 @@ mod tests {
                         }
                       ]
                     }
+                  },
+                  {
+                    "type": "BrokenException",
+                    "value": "Something failed",
+                    "stacktrace": {
+                      "frames": [
+                        {
+                          "vars": {
+                            "bam": "bar"
+                          }
+                        }
+                      ]
+                    }
                   }
                 ]
               },
@@ -186,26 +197,17 @@ mod tests {
         let selectors = selectors_from_event(event);
         insta::assert_yaml_snapshot!(selectors, @r###"
         ---
-        - $error.stacktrace.frames.*.vars
-        - $error.stacktrace.frames.*.vars.foo
+        - $frame.abs_path
+        - $frame.filename
         - $frame.vars
+        - $frame.vars.bam
         - $frame.vars.foo
         - $http.headers
         - $http.headers.Authorization
-        - $logentry.formatted
         - $message
-        - $stack.frames.*.vars
-        - $stack.frames.*.vars.foo
         - $string
-        - exception.values.*.stacktrace.frames.*.abs_path
-        - exception.values.*.stacktrace.frames.*.filename
-        - exception.values.*.stacktrace.frames.*.vars
-        - exception.values.*.stacktrace.frames.*.vars.foo
         - extra
         - "extra.'My Custom Value'"
-        - logentry.formatted
-        - request.headers
-        - request.headers.Authorization
         "###);
     }
 }
