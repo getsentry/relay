@@ -4,10 +4,11 @@ mod builtin;
 mod compiledconfig;
 mod config;
 mod convert;
-mod event_paths;
+mod generate_selectors;
 mod legacy;
 mod processor;
 mod redactions;
+mod utils;
 
 pub use self::builtin::BUILTIN_RULES;
 pub use self::compiledconfig::CompiledPiiConfig;
@@ -15,7 +16,7 @@ pub use self::config::{
     AliasRule, MultipleRule, Pattern, PatternRule, PiiConfig, RedactPairRule, RuleSpec, RuleType,
     Vars,
 };
-pub use self::event_paths::selectors_from_event;
+pub use self::generate_selectors::selectors_from_value;
 pub use self::legacy::DataScrubbingConfig;
 pub use self::processor::PiiProcessor;
 pub use self::redactions::{

@@ -1,19 +1,18 @@
 use std::collections::BTreeSet;
 
+use crate::pii::utils::process_pairlist;
 use crate::processor::{
     process_value, Pii, ProcessValue, ProcessingState, Processor, SelectorPathItem, SelectorSpec,
     ValueType,
 };
-use crate::protocol::{AsPair, Event, PairList};
+use crate::protocol::{AsPair, PairList};
 use crate::types::{Annotated, Meta, ProcessingResult};
 
-use crate::pii::processor::process_pairlist;
-
-struct EventPathsProcessor {
+struct GenerateSelectorsProcessor {
     paths: BTreeSet<SelectorSpec>,
 }
 
-impl Processor for EventPathsProcessor {
+impl Processor for GenerateSelectorsProcessor {
     fn before_process<T: ProcessValue>(
         &mut self,
         value: Option<&T>,
@@ -101,7 +100,7 @@ impl Processor for EventPathsProcessor {
     }
 }
 
-/// Walk through the event and collect selectors that can be applied to it in a PII config. This
+/// Walk through a value and collect selectors that can be applied to it in a PII config. This
 /// function is used in the UI to provide auto-completion of selectors.
 ///
 /// This generates a couple of duplicate suggestions such as `request.headers` and `$http.headers`
@@ -111,14 +110,14 @@ impl Processor for EventPathsProcessor {
 /// The main value in autocompletion is that we can complete `$http.headers.Authorization` as soon
 /// as the user types `Auth`.
 ///
-/// XXX: This function should not have to take an event by value, we only do that
-/// due to restrictions on the Processor trait that we internally use to traverse the event.
-pub fn selectors_from_event(mut event: Annotated<Event>) -> BTreeSet<SelectorSpec> {
-    let mut processor = EventPathsProcessor {
+/// XXX: This function should not have to take a mutable ref, we only do that due to restrictions
+/// on the Processor trait that we internally use to traverse the event.
+pub fn selectors_from_value<T: ProcessValue>(value: &mut Annotated<T>) -> BTreeSet<SelectorSpec> {
+    let mut processor = GenerateSelectorsProcessor {
         paths: BTreeSet::new(),
     };
 
-    process_value(&mut event, &mut processor, ProcessingState::root())
+    process_value(value, &mut processor, ProcessingState::root())
         .expect("This processor is supposed to be infallible");
 
     processor.paths
@@ -126,14 +125,17 @@ pub fn selectors_from_event(mut event: Annotated<Event>) -> BTreeSet<SelectorSpe
 
 #[cfg(test)]
 mod tests {
+    use crate::protocol::Event;
+
     use super::*;
 
     #[test]
     fn test_empty() {
         // Test that an event without PII will generate empty list.
-        let event = Annotated::<Event>::from_json(r#"{"logentry": {"message": "hi"}}"#).unwrap();
+        let mut event =
+            Annotated::<Event>::from_json(r#"{"logentry": {"message": "hi"}}"#).unwrap();
 
-        let selectors = selectors_from_event(event);
+        let selectors = selectors_from_value(&mut event);
         insta::assert_yaml_snapshot!(selectors, @r###"
         ---
         []
@@ -142,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_full() {
-        let event = Annotated::<Event>::from_json(
+        let mut event = Annotated::<Event>::from_json(
             r##"
             {
               "message": "hi",
@@ -191,7 +193,7 @@ mod tests {
         )
         .unwrap();
 
-        let selectors = selectors_from_event(event);
+        let selectors = selectors_from_value(&mut event);
         insta::assert_yaml_snapshot!(selectors, @r###"
         ---
         - $string
