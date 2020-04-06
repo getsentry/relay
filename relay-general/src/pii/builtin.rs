@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use lazy_static::lazy_static;
 
 use crate::pii::{
-    AliasRule, HashAlgorithm, HashRedaction, MaskRedaction, MultipleRule, PatternRule, Redaction,
+    AliasRule, HashRedaction, MaskRedaction, MultipleRule, PatternRule, Redaction,
     ReplaceRedaction, RuleSpec, RuleType,
 };
 

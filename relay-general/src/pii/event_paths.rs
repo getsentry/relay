@@ -10,7 +10,7 @@ use crate::types::{Annotated, Meta, ProcessingResult};
 use crate::pii::processor::process_pairlist;
 
 struct EventPathsProcessor {
-    paths: BTreeSet<String>,
+    paths: BTreeSet<SelectorSpec>,
 }
 
 impl Processor for EventPathsProcessor {
@@ -28,17 +28,14 @@ impl Processor for EventPathsProcessor {
             return Ok(());
         }
 
-        macro_rules! insert_path {
-            ($expr:expr) => {{
-                let x = $expr;
-                if state.attrs().pii != Pii::Maybe || x.is_specific() {
-                    self.paths.insert(x.to_string());
-                    true
-                } else {
-                    false
-                }
-            }};
-        }
+        let mut insert_path = |path: SelectorSpec| {
+            if state.attrs().pii != Pii::Maybe || path.is_specific() {
+                self.paths.insert(path);
+                true
+            } else {
+                false
+            }
+        };
 
         let mut path = Vec::new();
 
@@ -57,8 +54,8 @@ impl Processor for EventPathsProcessor {
                 | ty @ Some(ValueType::Number)
                 | ty @ Some(ValueType::Boolean)
                 | ty @ Some(ValueType::DateTime) => {
-                    insert_path!(SelectorSpec::Path(vec![SelectorPathItem::Type(
-                        ty.unwrap()
+                    insert_path(SelectorSpec::Path(vec![SelectorPathItem::Type(
+                        ty.unwrap(),
                     )]));
                 }
 
@@ -66,7 +63,7 @@ impl Processor for EventPathsProcessor {
                     let mut path = path.clone();
                     path.push(SelectorPathItem::Type(ty));
                     path.reverse();
-                    if insert_path!(SelectorSpec::Path(path)) {
+                    if insert_path(SelectorSpec::Path(path)) {
                         // If we managed to generate $http.header.Authorization, we do not want to
                         // generate request.headers.Authorization as well.
                         return Ok(());
@@ -88,7 +85,7 @@ impl Processor for EventPathsProcessor {
 
         if !path.is_empty() {
             path.reverse();
-            insert_path!(SelectorSpec::Path(path));
+            insert_path(SelectorSpec::Path(path));
         }
 
         Ok(())
@@ -116,7 +113,7 @@ impl Processor for EventPathsProcessor {
 ///
 /// XXX: This function should not have to take an event by value, we only do that
 /// due to restrictions on the Processor trait that we internally use to traverse the event.
-pub fn selectors_from_event(mut event: Annotated<Event>) -> BTreeSet<String> {
+pub fn selectors_from_event(mut event: Annotated<Event>) -> BTreeSet<SelectorSpec> {
     let mut processor = EventPathsProcessor {
         paths: BTreeSet::new(),
     };
@@ -197,6 +194,7 @@ mod tests {
         let selectors = selectors_from_event(event);
         insta::assert_yaml_snapshot!(selectors, @r###"
         ---
+        - $string
         - $frame.abs_path
         - $frame.filename
         - $frame.vars
@@ -205,7 +203,6 @@ mod tests {
         - $http.headers
         - $http.headers.Authorization
         - $message
-        - $string
         - extra
         - "extra.'My Custom Value'"
         "###);
