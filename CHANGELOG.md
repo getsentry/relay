@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.7
+
+**Relay**:
+
+- Docker images are now also pushed to Docker Hub.
+- New helper function to generate PII selectors from event data.
+
+**Store**:
+
+- Release is now a required attribute for session data.
+- `unknown` can now be used in place of `unknown_error` for span statuses. A
+  future release will change the canonical format from `unknown_error` to
+  `unknown`.
+
 ## 0.5.6
 
 **Relay**:
