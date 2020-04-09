@@ -469,6 +469,9 @@ impl Handler<StoreEnvelope> for StoreForwarder {
         } else if !attachments.is_empty() {
             log::trace!("Sending individual attachments of envelope to kafka");
             for attachment in attachments {
+                // TODO(ja): describe this
+                debug_assert_eq!(attachment.attachment_type, AttachmentType::Attachment);
+
                 let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
                     event_id: event_id.ok_or(StoreError::NoEventId)?,
                     project_id: scoping.project_id,

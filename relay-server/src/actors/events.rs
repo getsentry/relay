@@ -734,6 +734,11 @@ impl EventProcessor {
             // event category. If the event has not been rate limited, we can continue ingestion,
             // since rate limited items have been removed from the envelope.
             if rate_limits.check(scope.item(category)).is_limited() {
+                // todo!(
+                //     "the category might not match the applied one. however, we do run after \
+                //     normalization, so it *should* match? we can also check against empty envelope, \
+                //     assuming that all items require the event, and it should be empty"
+                // );
                 return Ok(rate_limits);
             }
 

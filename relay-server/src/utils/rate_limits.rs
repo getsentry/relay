@@ -194,6 +194,10 @@ where
         }
 
         if !self.remove_event && self.attachment_quantity > 0 {
+            // todo!(
+            //     "attachments have a different quantity than events. they should not be\
+            //        executed for shared quotas. in general, shared quotas don't make sense here."
+            // );
             let item_scoping = scoping.item(DataCategory::Attachment);
             let attachment_limits = (&mut self.check)(item_scoping, self.attachment_quantity)?;
             self.remove_attachments = attachment_limits.is_limited();
@@ -212,7 +216,7 @@ where
 
     fn should_remove(&self, item: &Item) -> bool {
         // Remove event items and all items that depend on this event
-        if self.remove_event && (item.creates_event() || item.requires_event()) {
+        if self.remove_event && item.requires_event() {
             return true;
         }
 
