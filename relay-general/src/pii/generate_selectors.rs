@@ -197,6 +197,7 @@ mod tests {
         insta::assert_yaml_snapshot!(selectors, @r###"
         ---
         - $string
+        - $error.value
         - $frame.abs_path
         - $frame.filename
         - $frame.vars
