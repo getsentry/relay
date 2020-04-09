@@ -13,6 +13,7 @@ use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct DeviceContext {
     /// Name of the device.
+    #[metastructure(pii = "maybe")]
     pub name: Annotated<String>,
 
     /// Family of the device model.
