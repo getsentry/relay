@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.8
+
+**Store**:
+
+- Fix a bug where exception values and the device name were not PII-strippable.
+
 ## 0.5.7
 
 **Relay**:
