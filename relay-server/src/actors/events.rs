@@ -274,7 +274,7 @@ impl EventProcessor {
 
         // Protect against blowing up during deserialization. Attachments can have a significantly
         // larger size than regular events and may cause significant processing delays.
-        if item.len() > config.max_event_payload_size() {
+        if item.len() > config.max_event_size() {
             return Err(ProcessingError::PayloadTooLarge);
         }
 
@@ -297,7 +297,7 @@ impl EventProcessor {
         // truncated to a maximum of 100 in event normalization, but this is to protect us from
         // blowing up during deserialization. As approximation, we use the maximum event payload
         // size as bound, which is roughly in the right ballpark.
-        if item.len() > config.max_event_payload_size() {
+        if item.len() > config.max_event_size() {
             return Err(ProcessingError::PayloadTooLarge);
         }
 

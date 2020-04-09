@@ -13,7 +13,6 @@ use crate::utils::MultipartItems;
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-    max_payload_size: usize,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
     let event_id = tryf!(request
         .match_info()
@@ -22,6 +21,7 @@ fn extract_envelope(
         .parse::<EventId>()
         .map_err(|_| BadStoreRequest::InvalidEventId));
 
+    let max_payload_size = request.state().config().max_attachments_size();
     let future = MultipartItems::new(max_payload_size)
         .handle_request(request)
         .map_err(BadStoreRequest::InvalidMultipart)
@@ -47,14 +47,12 @@ fn store_attachment(
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    let attachment_size = request.state().config().max_attachment_payload_size();
-
     common::handle_store_like_request(
         meta,
         false,
         start_time,
         request,
-        move |data, meta| extract_envelope(data, meta, attachment_size),
+        extract_envelope,
         create_response,
     )
 }

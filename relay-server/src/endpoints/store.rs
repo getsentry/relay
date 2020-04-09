@@ -22,10 +22,11 @@ static PIXEL: &[u8] =
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-    max_event_payload_size: usize,
-    content_type: String,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
-    let future = StoreBody::new(&request, max_event_payload_size)
+    let max_payload_size = request.state().config().max_event_size();
+    let content_type = request.content_type().to_owned();
+
+    let future = StoreBody::new(&request, max_payload_size)
         .map_err(BadStoreRequest::PayloadError)
         .and_then(move |mut data| {
             if data.is_empty() {
@@ -94,7 +95,7 @@ fn create_response(id: Option<EventId>, is_get_request: bool) -> HttpResponse {
     }
 }
 
-/// Handler for the event store endpoint.
+/// Handler for the JSON event store endpoint.
 ///
 /// This simply delegates to `store_event` which does all the work.
 /// `handle_store_event` is an adaptor for `store_event` which cannot
@@ -106,8 +107,6 @@ fn store_event(
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let is_get_request = request.method() == "GET";
-    let content_type = request.content_type().to_owned();
-    let event_size = request.state().config().max_event_payload_size();
 
     common::handle_store_like_request(
         meta,
@@ -117,7 +116,7 @@ fn store_event(
         true,
         start_time,
         request,
-        move |data, meta| extract_envelope(data, meta, event_size, content_type),
+        extract_envelope,
         move |id| create_response(id, is_get_request),
     )
 }

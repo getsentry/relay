@@ -9,6 +9,7 @@ use crate::service::ServiceApp;
 
 mod attachments;
 mod common;
+mod envelope;
 mod events;
 mod forward;
 mod healthcheck;
@@ -30,6 +31,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
     .configure(project_configs::configure_app)
     .configure(public_keys::configure_app)
     .configure(store::configure_app)
+    .configure(envelope::configure_app)
     .configure(security_report::configure_app)
     .configure(minidump::configure_app)
     .configure(attachments::configure_app)
