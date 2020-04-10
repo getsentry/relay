@@ -22,10 +22,10 @@ struct SecurityReportParams {
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-    max_event_payload_size: usize,
     params: SecurityReportParams,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
-    let future = StoreBody::new(&request, max_event_payload_size)
+    let max_payload_size = request.state().config().max_event_size();
+    let future = StoreBody::new(&request, max_payload_size)
         .map_err(BadStoreRequest::PayloadError)
         .and_then(move |data| {
             if data.is_empty() {
@@ -66,13 +66,12 @@ fn store_security_report(
     request: HttpRequest<ServiceState>,
     params: Query<SecurityReportParams>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    let event_size = request.state().config().max_event_payload_size();
     common::handle_store_like_request(
         meta,
         true,
         start_time,
         request,
-        move |data, meta| extract_envelope(data, meta, event_size, params.into_inner()),
+        move |data, meta| extract_envelope(data, meta, params.into_inner()),
         |_| create_response(),
     )
 }

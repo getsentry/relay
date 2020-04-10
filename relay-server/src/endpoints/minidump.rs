@@ -81,13 +81,15 @@ fn get_embedded_minidump(
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-    max_payload_size: usize,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
+    let max_single_size = request.state().config().max_attachment_size();
+    let max_multipart_size = request.state().config().max_attachments_size();
+
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
     if MINIDUMP_RAW_CONTENT_TYPES.contains(&request.content_type()) {
-        let future = ForwardBody::new(request, max_payload_size)
+        let future = ForwardBody::new(request, max_single_size)
             .map_err(|_| BadStoreRequest::InvalidMinidump)
             .and_then(move |data| {
                 validate_minidump(&data)?;
@@ -107,7 +109,7 @@ fn extract_envelope(
         return Box::new(future);
     }
 
-    let future = MultipartItems::new(max_payload_size)
+    let future = MultipartItems::new(max_multipart_size)
         .handle_request(request)
         .map_err(BadStoreRequest::InvalidMultipart)
         .and_then(move |mut items| {
@@ -135,7 +137,7 @@ fn extract_envelope(
             // '--' up to the end of line) and manually construct a multipart with the detected
             // boundary. If we can extract a multipart with an embedded minidump, then use that
             // field.
-            let future = get_embedded_minidump(minidump_item.payload(), max_payload_size).and_then(
+            let future = get_embedded_minidump(minidump_item.payload(), max_single_size).and_then(
                 move |embedded_opt| {
                     if let Some(embedded) = embedded_opt {
                         let content_type = minidump_item
@@ -186,14 +188,12 @@ fn store_minidump(
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    let event_size = request.state().config().max_attachment_payload_size();
-
     common::handle_store_like_request(
         meta,
         true,
         start_time,
         request,
-        move |data, meta| extract_envelope(data, meta, event_size),
+        extract_envelope,
         common::create_text_event_id_response,
     )
 }
