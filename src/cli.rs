@@ -8,7 +8,7 @@ use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
 use relay_common::{LogError, Uuid};
-use relay_config::{Config, Credentials, MinimalConfig, RelayMode};
+use relay_config::{Config, Credentials, MinimalConfig, OverridableConfig, RelayMode};
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::Event;
@@ -50,16 +50,60 @@ pub fn execute() -> Result<(), Error> {
         return process_event(&matches);
     }
 
-    let config = Config::from_path(&config_path)?;
+    let mut config = Config::from_path(&config_path)?;
+    // override file config with environment variables
+    let env_config = extract_config_env_vars();
+    config.override_config(env_config)?;
     setup::init_logging(&config);
     if let Some(matches) = matches.subcommand_matches("config") {
         manage_config(&config, &matches)
     } else if let Some(matches) = matches.subcommand_matches("credentials") {
         manage_credentials(config, &matches)
     } else if let Some(matches) = matches.subcommand_matches("run") {
+        // override config with run command args
+        let arg_config = extract_config_args(matches);
+        config.override_config(arg_config)?;
         run(config, &matches)
     } else {
         unreachable!();
+    }
+}
+
+/// Extract config arguments from a parsed command line arguments object
+pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
+    let processing = if matches.is_present("processing-enabled") {
+        Some("true".to_owned())
+    } else if matches.is_present("processing-disabled") {
+        Some("false".to_owned())
+    } else {
+        None
+    };
+
+    OverridableConfig {
+        upstream: matches.value_of("upstream-url").map(str::to_owned),
+        host: matches.value_of("host").map(str::to_owned),
+        port: matches.value_of("redis-url").map(str::to_owned),
+        processing,
+        kafka_url: matches.value_of("kafka-broker-url").map(str::to_owned),
+        redis_url: matches.value_of("redis-url").map(str::to_owned),
+        id: matches.value_of("id").map(str::to_owned),
+        public_key: matches.value_of("public_key").map(str::to_owned),
+        secret_key: matches.value_of("secret_key").map(str::to_owned),
+    }
+}
+
+/// Extract config arguments from environment variables
+pub fn extract_config_env_vars() -> OverridableConfig {
+    OverridableConfig {
+        upstream: env::var("RELAY_UPSTREAM_URL").ok(),
+        host: env::var("RELAY_HOST").ok(),
+        port: env::var("RELAY_PORT").ok(),
+        processing: env::var("RELAY_PROCESSING_ENABLED").ok(),
+        kafka_url: env::var("RELAY_KAFKA_BROKER_URL").ok(),
+        redis_url: env::var("RELAY_REDIS_URL").ok(),
+        id: env::var("RELAY_ID").ok(),
+        public_key: env::var("RELAY_PUBLIC_KEY").ok(),
+        secret_key: env::var("RELAY_SECRET_KEY").ok(),
     }
 }
 
@@ -338,7 +382,7 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn run<'a>(mut config: Config, _matches: &ArgMatches<'a>) -> Result<(), Error> {
+pub fn run<'a>(config: Config, _matches: &ArgMatches<'a>) -> Result<(), Error> {
     setup::dump_spawn_infos(&config);
     setup::check_config(&config)?;
     setup::init_metrics(&config)?;

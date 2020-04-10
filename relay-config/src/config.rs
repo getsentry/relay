@@ -11,9 +11,8 @@ use failure::{Backtrace, Context, Fail};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
-use relay_common::Dsn;
+use relay_common::{Dsn, Uuid};
 use relay_redis::RedisConfig;
-use serde_yaml::from_str;
 
 use crate::types::ByteSize;
 use crate::upstream::UpstreamDescriptor;
@@ -23,29 +22,50 @@ macro_rules! ctry {
     ($expr:expr, $kind:expr, $path:expr) => {
         match $expr {
             Ok(val) => val,
-            Err(err) => return Err(ConfigError::new($path, err.context($kind))),
+            Err(err) => return Err(ConfigError::new_file_error($path, err.context($kind))),
         }
     };
+}
+
+/// Defines the source of a config error
+#[derive(Debug)]
+enum ErrorSource {
+    /// an error originating from a configuration file
+    File(PathBuf),
+    /// an error originating in a field override (an Env. Var. or a CLI parameter)
+    FieldOverride { name: String, value: String },
 }
 
 /// Indicates config related errors.
 #[derive(Debug)]
 pub struct ConfigError {
-    filename: PathBuf,
+    error_source: ErrorSource,
     inner: Context<ConfigErrorKind>,
 }
 
 impl ConfigError {
-    fn new<P: AsRef<Path>>(p: P, inner: Context<ConfigErrorKind>) -> Self {
+    fn new_file_error<P: AsRef<Path>>(p: P, inner: Context<ConfigErrorKind>) -> Self {
         ConfigError {
-            filename: p.as_ref().to_path_buf(),
+            error_source: ErrorSource::File(p.as_ref().to_path_buf()),
             inner,
         }
     }
-
-    /// Returns the filename that failed.
-    pub fn filename(&self) -> &Path {
-        &self.filename
+    fn new_field_error<NameT, ValueT>(
+        name: NameT,
+        value: ValueT,
+        inner: Context<ConfigErrorKind>,
+    ) -> Self
+    where
+        NameT: Into<String>,
+        ValueT: Into<String>,
+    {
+        ConfigError {
+            error_source: ErrorSource::FieldOverride {
+                name: name.into(),
+                value: value.into(),
+            },
+            inner,
+        }
     }
 
     /// Returns the error kind of the error.
@@ -66,7 +86,14 @@ impl Fail for ConfigError {
 
 impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} (file {})", self.inner, self.filename().display())
+        match &self.error_source {
+            ErrorSource::File(file_name) => {
+                write!(f, "{} (file {})", self.inner, file_name.display())
+            }
+            ErrorSource::FieldOverride { name, value } => {
+                write!(f, "{} (field {}:{})", self.inner, name, value)
+            }
+        }
     }
 }
 
@@ -95,33 +122,28 @@ pub enum ConfigErrorKind {
     InvalidOverride,
 }
 
+/// Structure used to hold information about configuration overrides via
+/// CLI parameters or environment variables
 #[derive(Debug, Default)]
 pub struct OverridableConfig {
-    // TODO change to UpstreamDescriptor to mach Relay config
+    /// the upstream for the Relay
     pub upstream: Option<String>,
-    //TODO change to IPAddr to match Relay config
+    /// the host
     pub host: Option<String>,
-    pub port: Option<u16>,
-    pub processing: Option<bool>,
+    /// the port serving requests
+    pub port: Option<String>,
+    /// "true" if processing is enabled "false" otherwise
+    pub processing: Option<String>,
+    /// the kafka bootstrap.servers configuration string
     pub kafka_url: Option<String>,
+    /// the redis server url
     pub redis_url: Option<String>,
+    /// the relay id
     pub id: Option<String>,
+    /// the relay secret key
     pub secret_key: Option<String>,
+    /// the relay public key
     pub public_key: Option<String>,
-}
-
-impl OverridableConfig {
-    fn has_config(&self) -> bool {
-        self.upstream.is_some()
-            || self.host.is_some()
-            || self.port.is_some()
-            || self.processing.is_some()
-            || self.kafka_url.is_some()
-            || self.redis_url.is_some()
-    }
-    fn has_credentials(&self) -> bool {
-        self.id.is_some() || self.public_key.is_some() || self.secret_key.is_some()
-    }
 }
 
 /// The relay credentials
@@ -660,7 +682,7 @@ impl Config {
         };
 
         if cfg!(not(feature = "processing")) && config.processing_enabled() {
-            return Err(ConfigError::new(
+            return Err(ConfigError::new_file_error(
                 &path,
                 ConfigErrorKind::ProcessingNotAvailable.into(),
             ));
@@ -678,35 +700,144 @@ impl Config {
         let relay = &mut self.values.relay;
 
         if let Some(upstream) = overrides.upstream {
-            relay.upstream = UpstreamDescriptor::from_str(upstream.as_ref()).map_err(|_| {
-                ConfigError::new(PathBuf::new(), ConfigErrorKind::InvalidOverride.into())
+            relay.upstream = UpstreamDescriptor::from_str(&upstream).map_err(|err| {
+                ConfigError::new_field_error(
+                    "upstream",
+                    upstream,
+                    err.context(ConfigErrorKind::InvalidOverride),
+                )
             })?;
         }
 
         if let Some(host) = overrides.host {
-            relay.host = host.parse().map_err(|_| {
-                ConfigError::new(PathBuf::new(), ConfigErrorKind::InvalidOverride.into())
+            relay.host = IpAddr::from_str(&host).map_err(|err| {
+                ConfigError::new_field_error(
+                    "host",
+                    host,
+                    err.context(ConfigErrorKind::InvalidOverride),
+                )
             })?;
         }
 
         if let Some(port) = overrides.port {
-            relay.port = port;
+            relay.port = u16::from_str_radix(port.as_str(), 10).map_err(|err| {
+                ConfigError::new_field_error(
+                    "port",
+                    port,
+                    err.context(ConfigErrorKind::InvalidOverride),
+                )
+            })?;
         }
 
         let processing = &mut self.values.processing;
         if let Some(enabled) = overrides.processing {
-            processing.enabled = enabled;
+            match enabled.to_lowercase().as_str() {
+                "true" => processing.enabled = true,
+                "false" => processing.enabled = false,
+                val => {
+                    return Err(ConfigError::new_field_error(
+                        "processing",
+                        val,
+                        Context::new(ConfigErrorKind::InvalidOverride),
+                    ));
+                }
+            }
         }
 
-        //TODO finish here
+        // TODO are we going to support Cluster redis ?
         if let Some(redis) = overrides.redis_url {
-            //processing.redis = from_str(redis.as_str());
+            processing.redis = Some(RedisConfig::Single(redis))
         }
 
-        //
-        // if let Some(kafka_servers_url) = overrides.kafka_url {
-        //     let kafka_config = get_or_create_sub_array(processing, "kafka_config").unwrap();
-        //     set_bootstrap_servers(kafka_config, kafka_servers_url);
+        if let Some(kafka_url) = overrides.kafka_url {
+            let mut bootstrap_servers_found = false;
+            for entry in processing.kafka_config.iter_mut() {
+                if entry.name.as_str() == "bootstrap.servers" {
+                    entry.value = kafka_url.clone();
+                    bootstrap_servers_found = true;
+                    break;
+                }
+            }
+            if !bootstrap_servers_found {
+                processing.kafka_config.push(KafkaConfigParam {
+                    name: "bootstrap.servers".to_owned(),
+                    value: kafka_url,
+                })
+            }
+        }
+        // credentials overrides
+        let id = if let Some(id) = overrides.id {
+            let id = Uuid::parse_str(&id).map_err(|err| {
+                ConfigError::new_field_error(
+                    "id",
+                    id,
+                    err.context(ConfigErrorKind::InvalidOverride),
+                )
+            })?;
+            Some(id)
+        } else {
+            None
+        };
+        let public_key = if let Some(public_key) = overrides.public_key {
+            let public_key = PublicKey::from_str(&public_key).map_err(|err| {
+                ConfigError::new_field_error(
+                    "public_key",
+                    public_key,
+                    err.context(ConfigErrorKind::InvalidOverride),
+                )
+            })?;
+            Some(public_key)
+        } else {
+            None
+        };
+
+        let secret_key = if let Some(secret_key) = overrides.secret_key {
+            let secret_key = SecretKey::from_str(&secret_key).map_err(|err| {
+                ConfigError::new_field_error(
+                    "secret_key",
+                    secret_key,
+                    err.context(ConfigErrorKind::InvalidOverride),
+                )
+            })?;
+            Some(secret_key)
+        } else {
+            None
+        };
+
+        if let Some(credentials) = &mut self.credentials {
+            //we have existing credentials we may override some entries
+            if let Some(id) = id {
+                credentials.id = id;
+            }
+            if let Some(public_key) = public_key {
+                credentials.public_key = public_key;
+            }
+            if let Some(secret_key) = secret_key {
+                credentials.secret_key = secret_key
+            }
+        } else {
+            //no existing credentials we may only create the full credentials
+            match (id, public_key, secret_key) {
+                (Some(id), Some(public_key), Some(secret_key)) => {
+                    self.credentials = Some(Credentials {
+                        id,
+                        public_key,
+                        secret_key,
+                    })
+                }
+                (id, public_key, secret_key) => {
+                    return Err(ConfigError::new_field_error(
+                        "incomplete credentials",
+                        format!(
+                            "id={:?} public_key={:?} secret_key{:?}",
+                            id, public_key, secret_key
+                        ),
+                        Context::new(ConfigErrorKind::InvalidOverride),
+                    ));
+                }
+            }
+        }
+
         Ok(self)
     }
 
