@@ -9,10 +9,11 @@ use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 
 use crate::pii::compiledconfig::RuleRef;
+use crate::pii::utils::process_pairlist;
 use crate::pii::{CompiledPiiConfig, HashAlgorithm, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, process_value, Chunk, Pii, ProcessValue, ProcessingState, Processor,
-    SelectorSpec, ValueType,
+    process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, SelectorSpec,
+    ValueType,
 };
 use crate::protocol::{AsPair, NativeImagePath, PairList};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
@@ -317,39 +318,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         _meta: &mut Meta,
         state: &ProcessingState,
     ) -> ProcessingResult {
-        // View pairlists as objects just for the purpose of PII stripping (e.g. `event.tags.mykey`
-        // instead of `event.tags.42.0`). For other purposes such as trimming we would run into
-        // problems:
-        //
-        // * tag keys need to be trimmed too and therefore need to have a path
-
-        for (idx, annotated) in value.iter_mut().enumerate() {
-            if let Some(ref mut pair) = annotated.value_mut() {
-                let (ref mut key, ref mut value) = pair.as_pair_mut();
-                if let Some(ref key_name) = key.as_str() {
-                    // if the pair has no key name, we skip over it for PII stripping. It is
-                    // still processed with index-based path in the invocation of
-                    // `process_child_values`.
-                    process_value(
-                        value,
-                        self,
-                        &state.enter_borrowed(
-                            key_name,
-                            state.inner_attrs(),
-                            ValueType::for_field(value),
-                        ),
-                    )?;
-                } else {
-                    process_value(
-                        value,
-                        self,
-                        &state.enter_index(idx, state.inner_attrs(), ValueType::for_field(value)),
-                    )?;
-                }
-            }
-        }
-
-        Ok(())
+        process_pairlist(self, value, state)
     }
 }
 
@@ -600,6 +569,7 @@ fn hash_value(algorithm: HashAlgorithm, text: &str, key: Option<&str>) -> String
 #[cfg(test)]
 use {
     crate::pii::PiiConfig,
+    crate::processor::process_value,
     crate::protocol::{
         Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
         Request,

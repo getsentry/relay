@@ -29,6 +29,7 @@ use crate::extractors::{RequestMeta, StartTime};
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError};
+use relay_config::Config;
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -177,6 +178,9 @@ impl ResponseError for BadStoreRequest {
                 // now executed asynchronously in `EventProcessor`.
                 HttpResponse::Forbidden().json(&body)
             }
+            BadStoreRequest::PayloadError(StorePayloadError::Overflow) => {
+                HttpResponse::PayloadTooLarge().json(&body)
+            }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client's fault.
@@ -302,6 +306,45 @@ pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
     builder
 }
 
+/// Checks for size limits of items in this envelope.
+///
+/// Returns `true`, if the envelope adheres to the configured size limits. Otherwise, returns
+/// `false`, in which case the envelope should be discarded and a `413 Payload Too Large` response
+/// shoult be given.
+///
+/// The following limits are checked:
+///
+///  - `max_event_size`
+///  - `max_attachment_size`
+///  - `max_attachments_size`
+///  - `max_session_count`
+fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
+    let mut event_size = 0;
+    let mut attachments_size = 0;
+    let mut session_count = 0;
+
+    for item in envelope.items() {
+        match item.ty() {
+            ItemType::Event | ItemType::SecurityReport | ItemType::FormData => {
+                event_size += item.len()
+            }
+            ItemType::Attachment | ItemType::UnrealReport => {
+                if item.len() > config.max_attachment_size() {
+                    return false;
+                }
+
+                attachments_size += item.len()
+            }
+            ItemType::Session => session_count += 1,
+            ItemType::UserReport => (),
+        }
+    }
+
+    event_size <= config.max_event_size()
+        && attachments_size <= config.max_attachments_size()
+        && session_count <= config.max_session_count()
+}
+
 /// Handles Sentry events.
 ///
 /// Sentry events may come either directly from a http request ( the store endpoint calls this
@@ -354,6 +397,7 @@ where
     let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
     let cloned_meta = Arc::new(meta.clone());
     let event_id = Rc::new(RefCell::new(None));
+    let config = request.state().config();
 
     let future = project_manager
         .send(GetProject { id: project_id })
@@ -366,6 +410,13 @@ where
                 .and_then(move |new_scoping| {
                     scoping.replace(new_scoping);
                     extract_envelope(&request, meta)
+                })
+                .and_then(move |envelope| {
+                    if check_envelope_size_limits(&config, &envelope) {
+                        Ok(envelope)
+                    } else {
+                        Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
+                    }
                 })
                 .and_then(clone!(project, |envelope| {
                     event_id.replace(envelope.event_id());
