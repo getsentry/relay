@@ -842,7 +842,7 @@ impl Config {
                     return Err(ConfigError::new_field_error(
                         "incomplete credentials",
                         format!(
-                            "id={:?} public_key={:?} secret_key{:?}",
+                            "id={:?} public_key={:?} secret_key={:?}",
                             id, public_key, secret_key
                         ),
                         Context::new(ConfigErrorKind::InvalidOverride),
