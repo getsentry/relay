@@ -825,6 +825,10 @@ impl Config {
                         secret_key,
                     })
                 }
+                (None, None, None) => {
+                    // nothing provided, we'll just leave the credentials None, maybe we
+                    // don't need them in the current command or we'll override them latter
+                }
                 (id, public_key, secret_key) => {
                     return Err(ConfigError::new_field_error(
                         "incomplete credentials",
