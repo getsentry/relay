@@ -102,14 +102,14 @@ impl pred::Predicate<ServiceState> for SecurityReportFilter {
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     common::cors(app)
         // Default security endpoint
-        .resource(r"/api/{project:\d+}/security/", |r| {
+        .resource(&common::normpath("api/{project:\\d+}/security"), |r| {
             r.name("store-security-report");
             r.post()
                 .filter(SecurityReportFilter)
                 .with(store_security_report);
         })
         // Legacy security endpoint
-        .resource(r"/api/{project:\d+}/csp-report/", |r| {
+        .resource(&common::normpath("api/{project:\\d+}/csp-report"), |r| {
             r.name("store-csp-report");
             r.post()
                 .filter(SecurityReportFilter)

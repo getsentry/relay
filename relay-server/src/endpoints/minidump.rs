@@ -200,7 +200,7 @@ fn store_minidump(
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     common::cors(app)
-        .resource(r"/api/{project:\d+}/minidump{t:/?}", |r| {
+        .resource(&common::normpath("api/{project:\\d+}/minidump"), |r| {
             r.name("store-minidump");
             r.post().with(store_minidump);
         })
