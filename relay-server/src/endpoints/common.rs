@@ -325,9 +325,10 @@ fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
 
     for item in envelope.items() {
         match item.ty() {
-            ItemType::Event | ItemType::SecurityReport | ItemType::FormData => {
-                event_size += item.len()
-            }
+            ItemType::Event
+            | ItemType::Transaction
+            | ItemType::SecurityReport
+            | ItemType::FormData => event_size += item.len(),
             ItemType::Attachment | ItemType::UnrealReport => {
                 if item.len() > config.max_attachment_size() {
                     return false;

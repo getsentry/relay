@@ -41,7 +41,7 @@ use failure::Fail;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use relay_general::protocol::{EventId, EventType};
+use relay_general::protocol::EventId;
 use relay_general::types::Value;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
@@ -75,6 +75,8 @@ pub enum EnvelopeError {
 pub enum ItemType {
     /// Event payload encoded in JSON.
     Event,
+    /// Transaction event payload encoded in JSON.
+    Transaction,
     /// Raw payload of an arbitrary attachment.
     Attachment,
     /// Multipart form data collected into a stream of JSON tuples.
@@ -93,6 +95,7 @@ impl fmt::Display for ItemType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Event => write!(f, "event"),
+            Self::Transaction => write!(f, "transaction"),
             Self::Attachment => write!(f, "attachment"),
             Self::FormData => write!(f, "form data"),
             Self::SecurityReport => write!(f, "security report"),
@@ -244,10 +247,6 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     length: Option<u32>,
 
-    /// If this is an event item, this may contain the event type.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    event_type: Option<EventType>,
-
     /// If this is an attachment item, this may contain the attachment type.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     attachment_type: Option<AttachmentType>,
@@ -278,7 +277,6 @@ impl Item {
             headers: ItemHeaders {
                 ty,
                 length: Some(0),
-                event_type: None,
                 attachment_type: None,
                 content_type: None,
                 filename: None,
@@ -307,18 +305,6 @@ impl Item {
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn content_type(&self) -> Option<&ContentType> {
         self.headers.content_type.as_ref()
-    }
-
-    /// Returns the event type if this item is an event.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-    pub fn event_type(&self) -> Option<EventType> {
-        // TODO: consider to replace this with an ItemType?
-        self.headers.event_type
-    }
-
-    /// Sets the event type of this item.
-    pub fn set_event_type(&mut self, event_type: EventType) {
-        self.headers.event_type = Some(event_type);
     }
 
     /// Returns the attachment type if this item is an attachment.
@@ -393,7 +379,10 @@ impl Item {
     pub fn creates_event(&self) -> bool {
         match self.ty() {
             // These items are direct event types.
-            ItemType::Event | ItemType::SecurityReport | ItemType::UnrealReport => true,
+            ItemType::Event
+            | ItemType::Transaction
+            | ItemType::SecurityReport
+            | ItemType::UnrealReport => true,
 
             // Attachments are only event items if they are crash reports.
             ItemType::Attachment => match self.attachment_type().unwrap_or_default() {
@@ -417,6 +406,7 @@ impl Item {
     pub fn requires_event(&self) -> bool {
         match self.ty() {
             ItemType::Event => true,
+            ItemType::Transaction => true,
             ItemType::Attachment => true,
             ItemType::FormData => true,
             ItemType::SecurityReport => true,

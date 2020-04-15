@@ -218,15 +218,14 @@ impl<'a> NormalizeProcessor<'a> {
 
     /// Infers the `EventType` from the event's interfaces.
     fn infer_event_type(&self, event: &Event) -> EventType {
-        if let Some(ty) = event.ty.value() {
-            return *ty;
+        // The only exception are legacy SDKs send transactions as events. We still support this
+        // temporarily, until all SDKs have been updated to send Envelopes with explicit transaction
+        // items. This fallback is DEPRECATED.
+        if let Some(EventType::Transaction) = event.ty.value() {
+            return EventType::Transaction;
         }
 
-        // port of src/sentry/eventtypes
-        //
-        // the SDKs currently do not describe event types, and we must infer
-        // them from available attributes
-
+        // The SDKs do not describe event types, and we must infer them from available attributes.
         let has_exceptions = event
             .exceptions
             .value()

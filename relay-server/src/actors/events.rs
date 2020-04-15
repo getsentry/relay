@@ -15,8 +15,8 @@ use relay_config::{Config, RelayMode};
 use relay_general::pii::PiiProcessor;
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    Breadcrumb, Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
-    SecurityReportType, Values,
+    Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
+    Metrics, SecurityReportType, Values,
 };
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 use relay_quotas::RateLimits;
@@ -380,6 +380,7 @@ impl EventProcessor {
         // attachments can remain in the envelope. The event will be added again at the end of
         // `process_event`.
         let event_item = envelope.take_item_by(|item| item.ty() == ItemType::Event);
+        let transaction_item = envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
         let security_item = envelope.take_item_by(|item| item.ty() == ItemType::SecurityReport);
         let form_item = envelope.take_item_by(|item| item.ty() == ItemType::FormData);
         let attachment_item = envelope
@@ -391,6 +392,13 @@ impl EventProcessor {
 
         if let Some(item) = event_item {
             log::trace!("processing json event");
+            return Ok(metric!(timer(RelayTimers::EventProcessingDeserialize), {
+                self.event_from_json_payload(item)?
+            }));
+        }
+
+        if let Some(item) = transaction_item {
+            log::trace!("processing json transaction");
             return Ok(metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 self.event_from_json_payload(item)?
             }));
@@ -538,6 +546,7 @@ impl EventProcessor {
         match item.ty() {
             // These should always be removed by `extract_event`:
             ItemType::Event => true,
+            ItemType::Transaction => true,
             ItemType::FormData => true,
             ItemType::SecurityReport => true,
 
@@ -691,12 +700,17 @@ impl EventProcessor {
             event.to_json().map_err(ProcessingError::SerializeFailed)?
         });
 
+        let event_type = match event.value().and_then(|e| e.ty.value()) {
+            Some(ty) => *ty,
+            None => EventType::Default,
+        };
+
         // Add the normalized event back to the envelope. All the other items are attachments.
-        let mut event_item = Item::new(ItemType::Event);
+        let mut event_item = Item::new(match event_type {
+            EventType::Transaction => ItemType::Transaction,
+            _ => ItemType::Event,
+        });
         event_item.set_payload(ContentType::Json, data);
-        if let Some(ty) = event.value().and_then(|e| e.ty.value()) {
-            event_item.set_event_type(*ty);
-        }
         envelope.add_item(event_item);
 
         Ok(ProcessEnvelopeResponse { envelope })
