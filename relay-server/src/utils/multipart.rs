@@ -8,7 +8,7 @@ use failure::Fail;
 use futures::{future, Async, Future, Poll, Stream};
 use serde::{Deserialize, Serialize};
 
-use crate::envelope::{ContentType, Item, ItemType, Items};
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
 use crate::service::ServiceState;
 
 #[derive(Debug, Fail)]
@@ -225,12 +225,9 @@ fn consume_item(
 
         if let Some(file_name) = file_name {
             let mut item = Item::new(ItemType::Attachment);
+            item.set_attachment_type((*content.infer_type)(field_name));
             item.set_payload(content_type.into(), data);
             item.set_filename(file_name);
-            if let Some(field_name) = field_name {
-                item.set_name(field_name);
-            }
-
             content.items.push(item);
         } else if let Some(field_name) = field_name {
             // Ensure to decode this safely to match Django's POST data behavior. This allows us to
@@ -289,6 +286,7 @@ pub struct MultipartItems {
     remaining_size: usize,
     // Collect all form data in here.
     form_data: FormDataWriter,
+    infer_type: Box<dyn Fn(Option<&str>) -> AttachmentType>,
 }
 
 impl MultipartItems {
@@ -297,7 +295,16 @@ impl MultipartItems {
             items: Items::new(),
             remaining_size: max_size,
             form_data: FormDataWriter::new(),
+            infer_type: Box::new(|_| AttachmentType::default()),
         }
+    }
+
+    pub fn infer_attachment_type<F>(mut self, f: F) -> Self
+    where
+        F: Fn(Option<&str>) -> AttachmentType + 'static,
+    {
+        self.infer_type = Box::new(f);
+        self
     }
 
     pub fn handle_request(

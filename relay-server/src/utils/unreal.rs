@@ -33,13 +33,13 @@ pub fn expand_unreal_envelope(
 
     for file in crash.files() {
         let (content_type, attachment_type) = match file.ty() {
-            Unreal4FileType::Minidump => (ContentType::OctetStream, AttachmentType::Minidump),
+            Unreal4FileType::Minidump => (ContentType::Minidump, AttachmentType::Minidump),
             Unreal4FileType::AppleCrashReport => {
-                (ContentType::OctetStream, AttachmentType::AppleCrashReport)
+                (ContentType::Text, AttachmentType::AppleCrashReport)
             }
-            Unreal4FileType::Log => (ContentType::OctetStream, AttachmentType::UnrealLogs),
+            Unreal4FileType::Log => (ContentType::Text, AttachmentType::UnrealLogs),
             Unreal4FileType::Config => (ContentType::OctetStream, AttachmentType::Attachment),
-            Unreal4FileType::Context => (ContentType::OctetStream, AttachmentType::UnrealContext),
+            Unreal4FileType::Context => (ContentType::Xml, AttachmentType::UnrealContext),
             Unreal4FileType::Unknown => match file.name() {
                 self::ITEM_NAME_EVENT => (ContentType::MsgPack, AttachmentType::EventPayload),
                 self::ITEM_NAME_BREADCRUMBS1 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
@@ -49,7 +49,6 @@ pub fn expand_unreal_envelope(
         };
 
         let mut item = Item::new(ItemType::Attachment);
-        item.set_name(file.name());
         item.set_filename(file.name());
         item.set_payload(content_type, file.data());
         item.set_attachment_type(attachment_type);

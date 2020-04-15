@@ -31,8 +31,8 @@ def assert_only_minidump(envelope, assert_payload=True):
     for item in envelope.items:
         item_type = item.headers.get("type")
         if item_type == "attachment":
-            item_name = item.headers.get("name")
-            assert item_name == MINIDUMP_ATTACHMENT_NAME
+            attachment_type = item.headers.get("attachment_type")
+            assert attachment_type == "event.minidump"
             minidump_item = item
 
     assert_minidump(minidump_item, assert_payload=assert_payload)
@@ -114,11 +114,13 @@ def test_minidump_attachments(mini_sentry, relay):
         if item.headers.get("type") != "attachment":
             continue
 
-        name = item.headers.get("name")
-        if name == MINIDUMP_ATTACHMENT_NAME:
+        name = item.headers.get("filename")
+        if name == "minidump.dmp":
             minidump_item = item
-        elif name == "attachment1":
+            assert item.headers.get("attachment_type") == "event.minidump"
+        elif name == "attach1.txt":
             attachment_item = item
+            assert item.headers.get("attachment_type") == "event.attachment"
         else:
             raise AssertionError("Unexpected attachment")
 

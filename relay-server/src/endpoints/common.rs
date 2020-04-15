@@ -23,8 +23,7 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, GetScoping};
 use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
-use crate::constants::ITEM_NAME_EVENT;
-use crate::envelope::{Envelope, EnvelopeError, ItemType, Items};
+use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::{RequestMeta, StartTime};
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
@@ -256,7 +255,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 
     if let Some(item) = items
         .iter()
-        .find(|item| item.name() == Some(ITEM_NAME_EVENT))
+        .find(|item| item.attachment_type() == Some(AttachmentType::EventPayload))
     {
         if let Some(event_id) = event_id_from_msgpack(&item.payload())? {
             return Ok(Some(event_id));
@@ -295,6 +294,7 @@ pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
             "authentication",
             "authorization",
             "content-encoding",
+            "transfer-encoding",
         ])
         .expose_headers(vec![
             "x-sentry-error",

@@ -116,18 +116,23 @@ pub enum ContentType {
     MsgPack,
     /// application/octet-stream
     OctetStream,
+    /// application/x-dmp
+    Minidump,
+    /// text/xml and application/xml
+    Xml,
     /// Any arbitrary content type not listed explicitly.
     Other(String),
 }
 
 impl ContentType {
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn as_str(&self) -> &str {
         match *self {
             Self::Text => "text/plain",
             Self::Json => "application/json",
             Self::MsgPack => "application/x-msgpack",
             Self::OctetStream => "application/octet-stream",
+            Self::Minidump => "application/x-dmp",
+            Self::Xml => "text/xml",
             Self::Other(ref other) => &other,
         }
     }
@@ -137,6 +142,8 @@ impl ContentType {
             "text/plain" => Some(Self::Text),
             "application/json" => Some(Self::Json),
             "application/x-msgpack" => Some(Self::MsgPack),
+            "application/x-dmp" => Some(Self::Minidump),
+            "text/xml" | "application/xml" => Some(Self::Xml),
             "application/octet-stream" => Some(Self::OctetStream),
             _ => None,
         }
@@ -160,15 +167,7 @@ impl Serialize for ContentType {
     where
         S: serde::Serializer,
     {
-        let string = match *self {
-            Self::Text => "text/plain",
-            Self::Json => "application/json",
-            Self::MsgPack => "application/x-msgpack",
-            Self::OctetStream => "application/octet-stream",
-            Self::Other(ref other) => other,
-        };
-
-        serializer.serialize_str(string)
+        serializer.serialize_str(self.as_str())
     }
 }
 
@@ -261,10 +260,6 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
 
-    /// If this item came from a multipart request, this may contain the field name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
-
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -287,7 +282,6 @@ impl Item {
                 attachment_type: None,
                 content_type: None,
                 filename: None,
-                name: None,
                 other: BTreeMap::new(),
             },
             payload: Bytes::new(),
@@ -310,6 +304,7 @@ impl Item {
     }
 
     /// Returns the content type of this item's payload.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn content_type(&self) -> Option<&ContentType> {
         self.headers.content_type.as_ref()
     }
@@ -372,19 +367,6 @@ impl Item {
         S: Into<String>,
     {
         self.headers.filename = Some(filename.into());
-    }
-
-    /// Returns the name header of the item.
-    pub fn name(&self) -> Option<&str> {
-        self.headers.name.as_deref()
-    }
-
-    /// Sets the name header of the item.
-    pub fn set_name<S>(&mut self, name: S)
-    where
-        S: Into<String>,
-    {
-        self.headers.name = Some(name.into());
     }
 
     /// Returns the specified header value, if present.
