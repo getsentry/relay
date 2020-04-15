@@ -16,7 +16,7 @@ use serde::{ser::Error, Serialize};
 
 use relay_common::{metric, LogError, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
-use relay_general::protocol::{EventId, EventType, SessionStatus, SessionUpdate};
+use relay_general::protocol::{EventId, SessionStatus, SessionUpdate};
 use relay_general::types;
 use relay_quotas::Scoping;
 
@@ -406,11 +406,12 @@ impl Handler<StoreEnvelope> for StoreForwarder {
 
         let retention = envelope.retention();
         let event_id = envelope.event_id();
-        let event_item = envelope.get_item_by(|item| item.ty() == ItemType::Event);
+        let event_item = envelope
+            .get_item_by(|item| matches!(item.ty(), ItemType::Event | ItemType::Transaction));
 
         let topic = if envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments
-        } else if event_item.and_then(|x| x.event_type()) == Some(EventType::Transaction) {
+        } else if event_item.map(|x| x.ty()) == Some(ItemType::Transaction) {
             KafkaTopic::Transactions
         } else {
             KafkaTopic::Events
