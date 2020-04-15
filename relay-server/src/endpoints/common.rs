@@ -15,7 +15,7 @@ use sentry_actix::ActixWebHubExt;
 use serde::Deserialize;
 
 use relay_common::{clone, metric, tryf, LogError};
-use relay_general::protocol::EventId;
+use relay_general::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 
 use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
@@ -189,10 +189,20 @@ impl ResponseError for BadStoreRequest {
     }
 }
 
-#[derive(Deserialize)]
-struct EventIdHelper {
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct MinimalEvent {
     #[serde(default, rename = "event_id")]
-    id: Option<EventId>,
+    pub id: Option<EventId>,
+
+    #[serde(default, rename = "type")]
+    pub ty: EventType,
+}
+
+/// Parses a minimal subset of the event payload.
+///
+/// This function validates that the provided payload is valid and returns an `Err` on parse errors.
+pub fn minimal_event_from_json(data: &[u8]) -> Result<MinimalEvent, BadStoreRequest> {
+    serde_json::from_slice(data).map_err(BadStoreRequest::InvalidJson)
 }
 
 /// Extracts the event id from a JSON payload.
@@ -201,9 +211,7 @@ struct EventIdHelper {
 /// the provided is valid and returns an `Err` on parse errors. If the event id itself is malformed,
 /// an `Err` is returned.
 pub fn event_id_from_json(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
-    serde_json::from_slice(data)
-        .map(|helper: EventIdHelper| helper.id)
-        .map_err(BadStoreRequest::InvalidJson)
+    minimal_event_from_json(data).map(|event| event.id)
 }
 
 /// Extracts the event id from a MessagePack payload.
@@ -213,7 +221,7 @@ pub fn event_id_from_json(data: &[u8]) -> Result<Option<EventId>, BadStoreReques
 /// an `Err` is returned.
 pub fn event_id_from_msgpack(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
     rmp_serde::from_slice(data)
-        .map(|helper: EventIdHelper| helper.id)
+        .map(|MinimalEvent { id, .. }| id)
         .map_err(BadStoreRequest::InvalidMsgpack)
 }
 
@@ -482,4 +490,61 @@ pub fn create_text_event_id_response(id: Option<EventId>) -> HttpResponse {
     HttpResponse::Ok()
         .content_type("text/plain")
         .body(format!("{}", id.0.to_hyphenated()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_minimal_empty_event() {
+        let json = r#"{}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: None,
+                ty: EventType::Default
+            }
+        );
+    }
+
+    #[test]
+    fn test_minimal_event_id() {
+        let json = r#"{"event_id": "037af9ac1b49494bacd7ec5114f801d9"}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: Some("037af9ac1b49494bacd7ec5114f801d9".parse().unwrap()),
+                ty: EventType::Default
+            }
+        );
+    }
+
+    #[test]
+    fn test_minimal_event_type() {
+        let json = r#"{"type": "expectct"}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: None,
+                ty: EventType::ExpectCT,
+            }
+        );
+    }
+
+    #[test]
+    fn test_minimal_event_invalid_type() {
+        let json = r#"{"type": "invalid"}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: None,
+                ty: EventType::Default,
+            }
+        );
+    }
 }

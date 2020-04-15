@@ -202,10 +202,19 @@ impl EventProcessor {
         }));
     }
 
-    fn event_from_json_payload(&self, item: Item) -> Result<ExtractedEvent, ProcessingError> {
-        Annotated::from_json_bytes(&item.payload())
-            .map(|event| (event, item.len()))
-            .map_err(ProcessingError::InvalidJson)
+    fn event_from_json_payload(
+        &self,
+        item: Item,
+        event_type: Option<EventType>,
+    ) -> Result<ExtractedEvent, ProcessingError> {
+        let mut event = Annotated::<Event>::from_json_bytes(&item.payload())
+            .map_err(ProcessingError::InvalidJson)?;
+
+        if let Some(event_value) = event.value_mut() {
+            event_value.ty.set_value(event_type);
+        }
+
+        Ok((event, item.len()))
     }
 
     fn event_from_security_report(&self, item: Item) -> Result<ExtractedEvent, ProcessingError> {
@@ -393,14 +402,18 @@ impl EventProcessor {
         if let Some(item) = event_item {
             log::trace!("processing json event");
             return Ok(metric!(timer(RelayTimers::EventProcessingDeserialize), {
-                self.event_from_json_payload(item)?
+                // Event items can never include transactions, so kill the event type and let
+                // inference deal with this during store normalization.
+                self.event_from_json_payload(item, None)?
             }));
         }
 
         if let Some(item) = transaction_item {
             log::trace!("processing json transaction");
             return Ok(metric!(timer(RelayTimers::EventProcessingDeserialize), {
-                self.event_from_json_payload(item)?
+                // Transaction items can only contain transaction events. Force the event type to
+                // hint to normalization that we're dealing with a transaction now.
+                self.event_from_json_payload(item, Some(EventType::Transaction))?
             }));
         }
 
@@ -603,6 +616,7 @@ impl EventProcessor {
         // Extract the event from the envelope. This removes all items from the envelope that should
         // not be forwarded, including the event item itself.
         let (mut event, event_len) = self.extract_event(&mut envelope)?;
+        let mut event_type = event.value().and_then(|e| e.ty.value()).copied();
         _metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
         // `extract_event` must remove all unique items from the envelope. Once the envelope is
@@ -663,9 +677,11 @@ impl EventProcessor {
         if_processing! {
             self.store_process_event(&mut event, &envelope, &message.project_state)?;
 
-            // Write metrics into the fully processed event. This ensures that whatever happens
-            // during processing is overwritten at last.
             if let Some(event) = event.value_mut() {
+                event_type = event.ty.value().copied();
+
+                // Write metrics into the fully processed event. This ensures that whatever happens
+                // during processing is overwritten at last.
                 event._metrics = Annotated::new(_metrics);
             }
         }
@@ -700,16 +716,13 @@ impl EventProcessor {
             event.to_json().map_err(ProcessingError::SerializeFailed)?
         });
 
-        let event_type = match event.value().and_then(|e| e.ty.value()) {
-            Some(ty) => *ty,
-            None => EventType::Default,
+        let item_type = match event_type {
+            Some(EventType::Transaction) => ItemType::Transaction,
+            _ => ItemType::Event,
         };
 
         // Add the normalized event back to the envelope. All the other items are attachments.
-        let mut event_item = Item::new(match event_type {
-            EventType::Transaction => ItemType::Transaction,
-            _ => ItemType::Event,
-        });
+        let mut event_item = Item::new(item_type);
         event_item.set_payload(ContentType::Json, data);
         envelope.add_item(event_item);
 

@@ -218,10 +218,10 @@ impl<'a> NormalizeProcessor<'a> {
 
     /// Infers the `EventType` from the event's interfaces.
     fn infer_event_type(&self, event: &Event) -> EventType {
-        // The only exception are legacy SDKs send transactions as events. We still support this
-        // temporarily, until all SDKs have been updated to send Envelopes with explicit transaction
-        // items. This fallback is DEPRECATED.
-        if let Some(EventType::Transaction) = event.ty.value() {
+        // The event type may be set explicitly when constructing the event items from specific
+        // items. This is DEPRECATED, and each distinct event type may get its own base class. For
+        // the time being, this is only implemented for transactions, so be specific:
+        if event.ty.value() == Some(&EventType::Transaction) {
             return EventType::Transaction;
         }
 
