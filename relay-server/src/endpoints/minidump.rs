@@ -39,6 +39,16 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
+fn infer_attachment_type(field_name: Option<&str>) -> AttachmentType {
+    match field_name.unwrap_or("") {
+        self::MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
+        self::ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
+        self::ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
+        self::ITEM_NAME_EVENT => AttachmentType::EventPayload,
+        _ => AttachmentType::Attachment,
+    }
+}
+
 fn get_embedded_minidump(
     payload: Bytes,
     max_size: usize,
@@ -95,8 +105,7 @@ fn extract_envelope(
                 validate_minidump(&data)?;
 
                 let mut item = Item::new(ItemType::Attachment);
-                item.set_name(MINIDUMP_FIELD_NAME);
-                item.set_payload(ContentType::OctetStream, data);
+                item.set_payload(ContentType::Minidump, data);
                 item.set_filename(MINIDUMP_FILE_NAME);
                 item.set_attachment_type(AttachmentType::Minidump);
 
@@ -110,12 +119,13 @@ fn extract_envelope(
     }
 
     let future = MultipartItems::new(max_multipart_size)
+        .infer_attachment_type(infer_attachment_type)
         .handle_request(request)
         .map_err(BadStoreRequest::InvalidMultipart)
         .and_then(move |mut items| {
             let minidump_index = items
                 .iter()
-                .position(|item| item.name() == Some(MINIDUMP_FIELD_NAME));
+                .position(|item| item.attachment_type() == Some(AttachmentType::Minidump));
 
             let mut minidump_item = match minidump_index {
                 Some(index) => items.swap_remove(index),
@@ -140,15 +150,9 @@ fn extract_envelope(
             let future = get_embedded_minidump(minidump_item.payload(), max_single_size).and_then(
                 move |embedded_opt| {
                     if let Some(embedded) = embedded_opt {
-                        let content_type = minidump_item
-                            .content_type()
-                            .cloned()
-                            .unwrap_or(ContentType::OctetStream);
-
-                        minidump_item.set_payload(content_type, embedded);
+                        minidump_item.set_payload(ContentType::Minidump, embedded);
                     }
 
-                    minidump_item.set_attachment_type(AttachmentType::Minidump);
                     validate_minidump(&minidump_item.payload())?;
                     items.push(minidump_item);
 
@@ -162,18 +166,7 @@ fn extract_envelope(
             let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
             let mut envelope = Envelope::from_request(Some(event_id), meta);
 
-            for mut item in items {
-                let attachment_type = match item.name() {
-                    Some(self::ITEM_NAME_BREADCRUMBS1) => Some(AttachmentType::Breadcrumbs),
-                    Some(self::ITEM_NAME_BREADCRUMBS2) => Some(AttachmentType::Breadcrumbs),
-                    Some(self::ITEM_NAME_EVENT) => Some(AttachmentType::EventPayload),
-                    _ => None,
-                };
-
-                if let Some(ty) = attachment_type {
-                    item.set_attachment_type(ty);
-                }
-
+            for item in items {
                 envelope.add_item(item);
             }
 
