@@ -4,7 +4,6 @@ use std::fs;
 use std::io;
 use std::io::Write;
 use std::net::{AddrParseError, IpAddr, SocketAddr, ToSocketAddrs};
-use std::ops::Add;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -36,7 +35,7 @@ enum ErrorSource {
     /// an error originating from a configuration file
     File(PathBuf),
     /// an error originating in a field override (an Env. Var. or a CLI parameter)
-    FieldOverride { name: String, value: String },
+    FieldOverride(String),
 }
 
 /// Indicates config related errors.
@@ -53,13 +52,13 @@ impl ConfigError {
             inner,
         }
     }
-    fn new_field_error(name: &'static str, value: String, inner: Context<ConfigErrorKind>) -> Self {
+    fn new_field_error<E>(name: &'static str, inner: E) -> Self
+    where
+        E: Fail,
+    {
         ConfigError {
-            error_source: ErrorSource::FieldOverride {
-                name: name.into(),
-                value: value.into(),
-            },
-            inner,
+            error_source: ErrorSource::FieldOverride(name.into()),
+            inner: inner.context(ConfigErrorKind::InvalidOverride),
         }
     }
 
@@ -85,9 +84,7 @@ impl fmt::Display for ConfigError {
             ErrorSource::File(file_name) => {
                 write!(f, "{} (file {})", self.inner, file_name.display())
             }
-            ErrorSource::FieldOverride { name, value } => {
-                write!(f, "{} (field {}:{})", self.inner, name, value)
-            }
+            ErrorSource::FieldOverride(name) => write!(f, "{} (field {})", self.inner, name),
         }
     }
 }
@@ -704,34 +701,21 @@ impl Config {
         let relay = &mut self.values.relay;
 
         if let Some(upstream) = overrides.upstream {
-            relay.upstream = upstream.parse().map_err(|err: UpstreamParseError| {
-                ConfigError::new_field_error(
-                    "upstream",
-                    upstream,
-                    err.context(ConfigErrorKind::InvalidOverride),
-                )
-            })?;
+            relay.upstream = upstream
+                .parse()
+                .map_err(|err: UpstreamParseError| ConfigError::new_field_error("upstream", err))?;
         }
 
         if let Some(host) = overrides.host {
             //relay.host = IpAddr::from_str(&host).map_err(|err| {
-            relay.host = host.parse().map_err(|err: AddrParseError| {
-                ConfigError::new_field_error(
-                    "host",
-                    host,
-                    err.context(ConfigErrorKind::InvalidOverride),
-                )
-            })?;
+            relay.host = host
+                .parse()
+                .map_err(|err: AddrParseError| ConfigError::new_field_error("host", err))?;
         }
 
         if let Some(port) = overrides.port {
-            relay.port = u16::from_str_radix(port.as_str(), 10).map_err(|err| {
-                ConfigError::new_field_error(
-                    "port",
-                    port,
-                    err.context(ConfigErrorKind::InvalidOverride),
-                )
-            })?;
+            relay.port = u16::from_str_radix(port.as_str(), 10)
+                .map_err(|err| ConfigError::new_field_error("port", err))?;
         }
 
         let processing = &mut self.values.processing;
@@ -763,38 +747,24 @@ impl Config {
         }
         // credentials overrides
         let id = if let Some(id) = overrides.id {
-            let id = Uuid::parse_str(&id).map_err(|err| {
-                ConfigError::new_field_error(
-                    "id",
-                    id,
-                    err.context(ConfigErrorKind::InvalidOverride),
-                )
-            })?;
+            let id = Uuid::parse_str(&id).map_err(|err| ConfigError::new_field_error("id", err))?;
             Some(id)
         } else {
             None
         };
         let public_key = if let Some(public_key) = overrides.public_key {
-            let public_key = public_key.parse().map_err(|err: KeyParseError| {
-                ConfigError::new_field_error(
-                    "public_key",
-                    public_key,
-                    err.context(ConfigErrorKind::InvalidOverride),
-                )
-            })?;
+            let public_key = public_key
+                .parse()
+                .map_err(|err: KeyParseError| ConfigError::new_field_error("public_key", err))?;
             Some(public_key)
         } else {
             None
         };
 
         let secret_key = if let Some(secret_key) = overrides.secret_key {
-            let secret_key = secret_key.parse().map_err(|err: KeyParseError| {
-                ConfigError::new_field_error(
-                    "secret_key",
-                    secret_key,
-                    err.context(ConfigErrorKind::InvalidOverride),
-                )
-            })?;
+            let secret_key = secret_key
+                .parse()
+                .map_err(|err: KeyParseError| ConfigError::new_field_error("secret_key", err))?;
             Some(secret_key)
         } else {
             None
@@ -825,35 +795,10 @@ impl Config {
                     // nothing provided, we'll just leave the credentials None, maybe we
                     // don't need them in the current command or we'll override them latter
                 }
-                (id, public_key, secret_key) => {
-                    let mut missing_fiels: Vec<&'static str> = vec![];
-                    if id == None {
-                        missing_fiels.push("id")
-                    }
-                    if public_key == None {
-                        missing_fiels.push("public_key")
-                    }
-                    if secret_key == None {
-                        missing_fiels.push("secret_key")
-                    }
-
-                    let error_message =
-                        missing_fiels
-                            .iter()
-                            .fold("".to_owned(), |message, missing_field| {
-                                let message = if message.len() == 0 {
-                                    message.add("Missing credential fields: ")
-                                } else {
-                                    message.add(", ")
-                                };
-                                let message = message.add(missing_field);
-                                message
-                            });
-
+                _ => {
                     return Err(ConfigError::new_field_error(
                         "incomplete credentials",
-                        error_message,
-                        Context::new(ConfigErrorKind::InvalidOverride),
+                        ConfigErrorKind::InvalidOverride,
                     ));
                 }
             }

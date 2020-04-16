@@ -71,9 +71,9 @@ pub fn execute() -> Result<(), Error> {
 
 /// Extract config arguments from a parsed command line arguments object
 pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
-    let processing = if matches.is_present("processing_enabled") {
+    let processing = if matches.is_present("processing") {
         Some("true".to_owned())
-    } else if matches.is_present("processing_disabled") {
+    } else if matches.is_present("no_processing") {
         Some("false".to_owned())
     } else {
         None

@@ -81,27 +81,24 @@ pub fn make_app() -> App<'static, 'static> {
                         .help("The server port."),
                 )
                 .arg(
-                    Arg::with_name("processing_enabled")
-                        .short("e")
-                        .long("processing-enabled")
+                    Arg::with_name("processing")
+                        .long("processing")
                         .help("Enable processing."),
                 )
                 .arg(
-                    Arg::with_name("processing_disabled")
-                        .short("d")
-                        .long("processing-disabled")
+                    Arg::with_name("no_processing")
+                        .long("no-processing")
                         .help("Disable processing."),
                 )
                 .group(
-                    ArgGroup::with_name("processing")
-                        .args(&["processing_enabled", "processing_disabled"])
+                    ArgGroup::with_name("processing_group")
+                        .args(&["processing", "no_processing"])
                         .multiple(false),
                 )
                 .arg(
                     Arg::with_name("kafka_broker_url")
                         .value_name("KAFKA_BROKER_URL")
                         .takes_value(true)
-                        .short("k")
                         .long("kafka-broker-url")
                         .help("Kafka broker URL."),
                 )
@@ -109,7 +106,6 @@ pub fn make_app() -> App<'static, 'static> {
                     Arg::with_name("redis_url")
                         .value_name("REDIS_URL")
                         .takes_value(true)
-                        .short("r")
                         .long("redis-url")
                         .help("Redis server URL."),
                 ),
