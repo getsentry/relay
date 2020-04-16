@@ -437,18 +437,37 @@ pub fn create_text_event_id_response(id: Option<EventId>) -> HttpResponse {
 /// Write `normpath("api/store")` to create a route pattern that matches "/api/store/",
 /// "api//store", "api//store////", etc.
 pub fn normpath(route: &str) -> String {
-    // Apparently the leading slash needs to be explicit and cannot be part of a pattern
-    let mut pattern = "/".to_owned();
-
-    for (i, segment) in route.split('/').enumerate() {
-        if i != 0 {
-            pattern.push_str(&format!("{{multislash{}:/+}}", i));
-        } else {
-            pattern.push_str(&format!("{{multislash{}:/*}}", i));
-        }
-        pattern.push_str(segment);
+    let mut pattern = String::new();
+    for (i, segment) in route.trim_matches('/').split('/').enumerate() {
+        // Apparently the leading slash needs to be explicit and cannot be part of a pattern
+        pattern.push_str(&format!(
+            "/{{multislash{i}:/*}}{segment}",
+            i = i,
+            segment = segment
+        ));
     }
 
-    pattern.push_str("{trailing_slash:/*}");
+    if route.ends_with('/') {
+        pattern.push_str("{trailing_slash:/+}");
+    } else {
+        pattern.push_str("{trailing_slash:/*}");
+    }
     pattern
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_normpath() {
+        assert_eq!(
+            normpath("api/store/"),
+            "/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/+}"
+        );
+        assert_eq!(
+            normpath("api/store"),
+            "/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/*}"
+        );
+    }
 }
