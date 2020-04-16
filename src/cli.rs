@@ -53,7 +53,7 @@ pub fn execute() -> Result<(), Error> {
     let mut config = Config::from_path(&config_path)?;
     // override file config with environment variables
     let env_config = extract_config_env_vars();
-    config.override_config(env_config)?;
+    config.apply_override(env_config)?;
     setup::init_logging(&config);
     if let Some(matches) = matches.subcommand_matches("config") {
         manage_config(&config, &matches)
@@ -62,7 +62,7 @@ pub fn execute() -> Result<(), Error> {
     } else if let Some(matches) = matches.subcommand_matches("run") {
         // override config with run command args
         let arg_config = extract_config_args(matches);
-        config.override_config(arg_config)?;
+        config.apply_override(arg_config)?;
         run(config, &matches)
     } else {
         unreachable!();
@@ -71,21 +71,21 @@ pub fn execute() -> Result<(), Error> {
 
 /// Extract config arguments from a parsed command line arguments object
 pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
-    let processing = if matches.is_present("processing-enabled") {
+    let processing = if matches.is_present("processing_enabled") {
         Some("true".to_owned())
-    } else if matches.is_present("processing-disabled") {
+    } else if matches.is_present("processing_disabled") {
         Some("false".to_owned())
     } else {
         None
     };
 
     OverridableConfig {
-        upstream: matches.value_of("upstream-url").map(str::to_owned),
+        upstream: matches.value_of("upstream").map(str::to_owned),
         host: matches.value_of("host").map(str::to_owned),
-        port: matches.value_of("redis-url").map(str::to_owned),
+        port: matches.value_of("redis_url").map(str::to_owned),
         processing,
-        kafka_url: matches.value_of("kafka-broker-url").map(str::to_owned),
-        redis_url: matches.value_of("redis-url").map(str::to_owned),
+        kafka_url: matches.value_of("kafka_broker_url").map(str::to_owned),
+        redis_url: matches.value_of("redis_url").map(str::to_owned),
         id: matches.value_of("id").map(str::to_owned),
         public_key: matches.value_of("public_key").map(str::to_owned),
         secret_key: matches.value_of("secret_key").map(str::to_owned),

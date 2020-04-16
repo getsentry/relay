@@ -3,20 +3,23 @@ use std::fmt;
 use std::fs;
 use std::io;
 use std::io::Write;
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::net::{AddrParseError, IpAddr, SocketAddr, ToSocketAddrs};
+use std::ops::Add;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use failure::{Backtrace, Context, Fail};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
+use relay_auth::{
+    generate_key_pair, generate_relay_id, KeyParseError, PublicKey, RelayId, SecretKey,
+};
 use relay_common::{Dsn, Uuid};
 use relay_redis::RedisConfig;
 
 use crate::types::ByteSize;
 use crate::upstream::UpstreamDescriptor;
-use std::str::FromStr;
+use crate::UpstreamParseError;
 
 macro_rules! ctry {
     ($expr:expr, $kind:expr, $path:expr) => {
@@ -50,15 +53,7 @@ impl ConfigError {
             inner,
         }
     }
-    fn new_field_error<NameT, ValueT>(
-        name: NameT,
-        value: ValueT,
-        inner: Context<ConfigErrorKind>,
-    ) -> Self
-    where
-        NameT: Into<String>,
-        ValueT: Into<String>,
-    {
+    fn new_field_error(name: &'static str, value: String, inner: Context<ConfigErrorKind>) -> Self {
         ConfigError {
             error_source: ErrorSource::FieldOverride {
                 name: name.into(),
@@ -126,11 +121,11 @@ pub enum ConfigErrorKind {
 /// CLI parameters or environment variables
 #[derive(Debug, Default)]
 pub struct OverridableConfig {
-    /// the upstream for the Relay
+    /// The upstream relay or sentry instance.
     pub upstream: Option<String>,
-    /// the host
+    /// The host the relay should bind to (network interface).
     pub host: Option<String>,
-    /// the port serving requests
+    /// The port to bind for the unencrypted relay HTTP server.
     pub port: Option<String>,
     /// "true" if processing is enabled "false" otherwise
     pub processing: Option<String>,
@@ -138,11 +133,11 @@ pub struct OverridableConfig {
     pub kafka_url: Option<String>,
     /// the redis server url
     pub redis_url: Option<String>,
-    /// the relay id
+    /// The globally unique ID of the relay.
     pub id: Option<String>,
-    /// the relay secret key
+    /// The secret key of the relay
     pub secret_key: Option<String>,
-    /// the relay public key
+    /// The public key of the relay
     pub public_key: Option<String>,
 }
 
@@ -702,14 +697,14 @@ impl Config {
 
     /// Override configuration with values coming from other sources (e.g. env variables or
     /// command line parameters)
-    pub fn override(
+    pub fn apply_override(
         &mut self,
         overrides: OverridableConfig,
     ) -> Result<&mut Self, ConfigError> {
         let relay = &mut self.values.relay;
 
         if let Some(upstream) = overrides.upstream {
-            relay.upstream = UpstreamDescriptor::from_str(&upstream).map_err(|err| {
+            relay.upstream = upstream.parse().map_err(|err: UpstreamParseError| {
                 ConfigError::new_field_error(
                     "upstream",
                     upstream,
@@ -719,7 +714,8 @@ impl Config {
         }
 
         if let Some(host) = overrides.host {
-            relay.host = IpAddr::from_str(&host).map_err(|err| {
+            //relay.host = IpAddr::from_str(&host).map_err(|err| {
+            relay.host = host.parse().map_err(|err: AddrParseError| {
                 ConfigError::new_field_error(
                     "host",
                     host,
@@ -741,33 +737,24 @@ impl Config {
         let processing = &mut self.values.processing;
         if let Some(enabled) = overrides.processing {
             match enabled.to_lowercase().as_str() {
-                "true" => processing.enabled = true,
-                "false" => processing.enabled = false,
-                val => {
-                    return Err(ConfigError::new_field_error(
-                        "processing",
-                        val,
-                        Context::new(ConfigErrorKind::InvalidOverride),
-                    ));
-                }
+                "true" | "1" => processing.enabled = true,
+                _ => processing.enabled = false,
             }
         }
 
-        // TODO are we going to support Cluster redis ?
         if let Some(redis) = overrides.redis_url {
             processing.redis = Some(RedisConfig::Single(redis))
         }
 
         if let Some(kafka_url) = overrides.kafka_url {
-            let mut bootstrap_servers_found = false;
-            for entry in processing.kafka_config.iter_mut() {
-                if entry.name.as_str() == "bootstrap.servers" {
-                    entry.value = kafka_url.clone();
-                    bootstrap_servers_found = true;
-                    break;
-                }
-            }
-            if !bootstrap_servers_found {
+            let existing = processing
+                .kafka_config
+                .iter_mut()
+                .find(|e| e.name == "bootstrap.servers");
+
+            if let Some(config_param) = existing {
+                config_param.value = kafka_url;
+            } else {
                 processing.kafka_config.push(KafkaConfigParam {
                     name: "bootstrap.servers".to_owned(),
                     value: kafka_url,
@@ -788,7 +775,7 @@ impl Config {
             None
         };
         let public_key = if let Some(public_key) = overrides.public_key {
-            let public_key = PublicKey::from_str(&public_key).map_err(|err| {
+            let public_key = public_key.parse().map_err(|err: KeyParseError| {
                 ConfigError::new_field_error(
                     "public_key",
                     public_key,
@@ -801,7 +788,7 @@ impl Config {
         };
 
         let secret_key = if let Some(secret_key) = overrides.secret_key {
-            let secret_key = SecretKey::from_str(&secret_key).map_err(|err| {
+            let secret_key = secret_key.parse().map_err(|err: KeyParseError| {
                 ConfigError::new_field_error(
                     "secret_key",
                     secret_key,
@@ -839,12 +826,33 @@ impl Config {
                     // don't need them in the current command or we'll override them latter
                 }
                 (id, public_key, secret_key) => {
+                    let mut missing_fiels: Vec<&'static str> = vec![];
+                    if id == None {
+                        missing_fiels.push("id")
+                    }
+                    if public_key == None {
+                        missing_fiels.push("public_key")
+                    }
+                    if secret_key == None {
+                        missing_fiels.push("secret_key")
+                    }
+
+                    let error_message =
+                        missing_fiels
+                            .iter()
+                            .fold("".to_owned(), |message, missing_field| {
+                                let message = if message.len() == 0 {
+                                    message.add("Missing credential fields: ")
+                                } else {
+                                    message.add(", ")
+                                };
+                                let message = message.add(missing_field);
+                                message
+                            });
+
                     return Err(ConfigError::new_field_error(
                         "incomplete credentials",
-                        format!(
-                            "id={:?} public_key={:?} secret_key={:?}",
-                            id, public_key, secret_key
-                        ),
+                        error_message,
                         Context::new(ConfigErrorKind::InvalidOverride),
                     ));
                 }

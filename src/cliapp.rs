@@ -57,11 +57,11 @@ pub fn make_app() -> App<'static, 'static> {
                         .help("The relay ID to set"),
                 )
                 .arg(
-                    Arg::with_name("upstream-url")
+                    Arg::with_name("upstream")
                         .value_name("UPSTREAM_URL")
                         .takes_value(true)
                         .short("u")
-                        .long("upstream-url")
+                        .long("upstream")
                         .help("The upstream server URL."),
                 )
                 .arg(
@@ -81,24 +81,24 @@ pub fn make_app() -> App<'static, 'static> {
                         .help("The server port."),
                 )
                 .arg(
-                    Arg::with_name("processing-enabled")
+                    Arg::with_name("processing_enabled")
                         .short("e")
                         .long("processing-enabled")
                         .help("Enable processing."),
                 )
                 .arg(
-                    Arg::with_name("processing-disabled")
-                        .short("-d")
+                    Arg::with_name("processing_disabled")
+                        .short("d")
                         .long("processing-disabled")
                         .help("Disable processing."),
                 )
                 .group(
                     ArgGroup::with_name("processing")
-                        .args(&["processing-enabled", "processing-disabled"])
+                        .args(&["processing_enabled", "processing_disabled"])
                         .multiple(false),
                 )
                 .arg(
-                    Arg::with_name("kafka-broker-url")
+                    Arg::with_name("kafka_broker_url")
                         .value_name("KAFKA_BROKER_URL")
                         .takes_value(true)
                         .short("k")
@@ -106,7 +106,7 @@ pub fn make_app() -> App<'static, 'static> {
                         .help("Kafka broker URL."),
                 )
                 .arg(
-                    Arg::with_name("redis-url")
+                    Arg::with_name("redis_url")
                         .value_name("REDIS_URL")
                         .takes_value(true)
                         .short("r")
