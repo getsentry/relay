@@ -702,7 +702,7 @@ impl Config {
 
     /// Override configuration with values coming from other sources (e.g. env variables or
     /// command line parameters)
-    pub fn override_config(
+    pub fn override(
         &mut self,
         overrides: OverridableConfig,
     ) -> Result<&mut Self, ConfigError> {
