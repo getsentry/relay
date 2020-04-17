@@ -3,28 +3,25 @@ use std::fmt;
 use std::fs;
 use std::io;
 use std::io::Write;
-use std::net::{AddrParseError, IpAddr, SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use failure::{Backtrace, Context, Fail};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use relay_auth::{
-    generate_key_pair, generate_relay_id, KeyParseError, PublicKey, RelayId, SecretKey,
-};
+use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::{Dsn, Uuid};
 use relay_redis::RedisConfig;
 
 use crate::types::ByteSize;
 use crate::upstream::UpstreamDescriptor;
-use crate::UpstreamParseError;
 
 macro_rules! ctry {
     ($expr:expr, $kind:expr, $path:expr) => {
         match $expr {
             Ok(val) => val,
-            Err(err) => return Err(ConfigError::new_file_error($path, err.context($kind))),
+            Err(err) => return Err(ConfigError::for_file($path, err.context($kind))),
         }
     };
 }
@@ -46,19 +43,19 @@ pub struct ConfigError {
 }
 
 impl ConfigError {
-    fn new_file_error<P: AsRef<Path>>(p: P, inner: Context<ConfigErrorKind>) -> Self {
+    fn for_file<P: AsRef<Path>>(p: P, inner: Context<ConfigErrorKind>) -> Self {
         ConfigError {
             error_source: ErrorSource::File(p.as_ref().to_path_buf()),
             inner,
         }
     }
-    fn new_field_error<E>(name: &'static str, inner: E) -> Self
+    fn for_field<E>(name: &'static str, inner: E) -> Self
     where
         E: Fail,
     {
         ConfigError {
             error_source: ErrorSource::FieldOverride(name.into()),
-            inner: inner.context(ConfigErrorKind::InvalidOverride),
+            inner: inner.context(ConfigErrorKind::InvalidValue),
         }
     }
 
@@ -108,10 +105,6 @@ pub enum ConfigErrorKind {
     /// compiled without the processing feature.
     #[fail(display = "was not compiled with processing, cannot enable processing")]
     ProcessingNotAvailable,
-    /// An override from a environment variable or a command line arg could not be
-    /// parsed into the proper type
-    #[fail(display = "Invalid override")]
-    InvalidOverride,
 }
 
 /// Structure used to hold information about configuration overrides via
@@ -683,7 +676,7 @@ impl Config {
         };
 
         if cfg!(not(feature = "processing")) && config.processing_enabled() {
-            return Err(ConfigError::new_file_error(
+            return Err(ConfigError::for_file(
                 &path,
                 ConfigErrorKind::ProcessingNotAvailable.into(),
             ));
@@ -703,26 +696,31 @@ impl Config {
         if let Some(upstream) = overrides.upstream {
             relay.upstream = upstream
                 .parse()
-                .map_err(|err: UpstreamParseError| ConfigError::new_field_error("upstream", err))?;
+                .map_err(|err| ConfigError::for_field("upstream", err))?;
         }
 
         if let Some(host) = overrides.host {
-            //relay.host = IpAddr::from_str(&host).map_err(|err| {
             relay.host = host
                 .parse()
-                .map_err(|err: AddrParseError| ConfigError::new_field_error("host", err))?;
+                .map_err(|err| ConfigError::for_field("host", err))?;
         }
 
         if let Some(port) = overrides.port {
             relay.port = u16::from_str_radix(port.as_str(), 10)
-                .map_err(|err| ConfigError::new_field_error("port", err))?;
+                .map_err(|err| ConfigError::for_field("port", err))?;
         }
 
         let processing = &mut self.values.processing;
         if let Some(enabled) = overrides.processing {
             match enabled.to_lowercase().as_str() {
                 "true" | "1" => processing.enabled = true,
-                _ => processing.enabled = false,
+                "false" | "0" | "" => processing.enabled = false,
+                _ => {
+                    return Err(ConfigError::for_field(
+                        "processing",
+                        ConfigErrorKind::InvalidValue,
+                    ))
+                }
             }
         }
 
@@ -747,7 +745,7 @@ impl Config {
         }
         // credentials overrides
         let id = if let Some(id) = overrides.id {
-            let id = Uuid::parse_str(&id).map_err(|err| ConfigError::new_field_error("id", err))?;
+            let id = Uuid::parse_str(&id).map_err(|err| ConfigError::for_field("id", err))?;
             Some(id)
         } else {
             None
@@ -755,7 +753,7 @@ impl Config {
         let public_key = if let Some(public_key) = overrides.public_key {
             let public_key = public_key
                 .parse()
-                .map_err(|err: KeyParseError| ConfigError::new_field_error("public_key", err))?;
+                .map_err(|err| ConfigError::for_field("public_key", err))?;
             Some(public_key)
         } else {
             None
@@ -764,7 +762,7 @@ impl Config {
         let secret_key = if let Some(secret_key) = overrides.secret_key {
             let secret_key = secret_key
                 .parse()
-                .map_err(|err: KeyParseError| ConfigError::new_field_error("secret_key", err))?;
+                .map_err(|err| ConfigError::for_field("secret_key", err))?;
             Some(secret_key)
         } else {
             None
@@ -793,12 +791,12 @@ impl Config {
                 }
                 (None, None, None) => {
                     // nothing provided, we'll just leave the credentials None, maybe we
-                    // don't need them in the current command or we'll override them latter
+                    // don't need them in the current command or we'll override them later
                 }
                 _ => {
-                    return Err(ConfigError::new_field_error(
+                    return Err(ConfigError::for_field(
                         "incomplete credentials",
-                        ConfigErrorKind::InvalidOverride,
+                        ConfigErrorKind::InvalidValue,
                     ));
                 }
             }
