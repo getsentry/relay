@@ -277,9 +277,15 @@ struct Limits {
     /// The concurrency of queries is additionally constrained by `max_concurrent_requests`.
     max_concurrent_queries: usize,
     /// The maximum payload size for events.
-    max_event_payload_size: ByteSize,
-    /// The maximum payload size for minidump events.
-    max_attachment_payload_size: ByteSize,
+    max_event_size: ByteSize,
+    /// The maximum size for each attachment.
+    max_attachment_size: ByteSize,
+    /// The maximum combined size for all attachments in an envelope or request.
+    max_attachments_size: ByteSize,
+    /// The maximum payload size for an entire envelopes. Individual limits still apply.
+    max_envelope_size: ByteSize,
+    /// The maximum number of session items per envelope.
+    max_session_count: usize,
     /// The maximum payload size for general API requests.
     max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
@@ -308,8 +314,11 @@ impl Default for Limits {
         Limits {
             max_concurrent_requests: 100,
             max_concurrent_queries: 5,
-            max_event_payload_size: ByteSize::from_megabytes(1),
-            max_attachment_payload_size: ByteSize::from_megabytes(50),
+            max_event_size: ByteSize::from_megabytes(1),
+            max_attachment_size: ByteSize::from_megabytes(50),
+            max_attachments_size: ByteSize::from_megabytes(50),
+            max_envelope_size: ByteSize::from_megabytes(50),
+            max_session_count: 100,
             max_api_payload_size: ByteSize::from_megabytes(20),
             max_api_file_upload_size: ByteSize::from_megabytes(40),
             max_api_chunk_upload_size: ByteSize::from_megabytes(100),
@@ -860,14 +869,31 @@ impl Config {
     }
 
     /// Returns the maximum size of an event payload in bytes.
-    pub fn max_event_payload_size(&self) -> usize {
-        self.values.limits.max_event_payload_size.as_bytes() as usize
+    pub fn max_event_size(&self) -> usize {
+        self.values.limits.max_event_size.as_bytes() as usize
     }
 
-    /// Returns the maximum size of payloads containing attachments (minidump, unreal, standalone
-    /// attachments) in bytes.
-    pub fn max_attachment_payload_size(&self) -> usize {
-        self.values.limits.max_attachment_payload_size.as_bytes() as usize
+    /// Returns the maximum size of each attachment.
+    pub fn max_attachment_size(&self) -> usize {
+        self.values.limits.max_attachment_size.as_bytes() as usize
+    }
+
+    /// Returns the maxmium combined size of attachments or payloads containing attachments
+    /// (minidump, unreal, standalone attachments) in bytes.
+    pub fn max_attachments_size(&self) -> usize {
+        self.values.limits.max_attachments_size.as_bytes() as usize
+    }
+
+    /// Returns the maximum size of an envelope payload in bytes.
+    ///
+    /// Individual item size limits still apply.
+    pub fn max_envelope_size(&self) -> usize {
+        self.values.limits.max_envelope_size.as_bytes() as usize
+    }
+
+    /// Returns the maximum number of sessions per envelope.
+    pub fn max_session_count(&self) -> usize {
+        self.values.limits.max_session_count
     }
 
     /// Returns the maximum payload size for general API requests.

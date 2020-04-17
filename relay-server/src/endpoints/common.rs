@@ -15,7 +15,7 @@ use sentry_actix::ActixWebHubExt;
 use serde::Deserialize;
 
 use relay_common::{clone, metric, tryf, LogError};
-use relay_general::protocol::EventId;
+use relay_general::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 
 use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
@@ -23,12 +23,12 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{EventAction, GetEventAction, GetScoping};
 use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
-use crate::constants::ITEM_NAME_EVENT;
-use crate::envelope::{Envelope, EnvelopeError, ItemType, Items};
+use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::{RequestMeta, StartTime};
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError};
+use relay_config::Config;
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -177,6 +177,9 @@ impl ResponseError for BadStoreRequest {
                 // now executed asynchronously in `EventProcessor`.
                 HttpResponse::Forbidden().json(&body)
             }
+            BadStoreRequest::PayloadError(StorePayloadError::Overflow) => {
+                HttpResponse::PayloadTooLarge().json(&body)
+            }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client's fault.
@@ -186,10 +189,20 @@ impl ResponseError for BadStoreRequest {
     }
 }
 
-#[derive(Deserialize)]
-struct EventIdHelper {
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct MinimalEvent {
     #[serde(default, rename = "event_id")]
-    id: Option<EventId>,
+    pub id: Option<EventId>,
+
+    #[serde(default, rename = "type")]
+    pub ty: EventType,
+}
+
+/// Parses a minimal subset of the event payload.
+///
+/// This function validates that the provided payload is valid and returns an `Err` on parse errors.
+pub fn minimal_event_from_json(data: &[u8]) -> Result<MinimalEvent, BadStoreRequest> {
+    serde_json::from_slice(data).map_err(BadStoreRequest::InvalidJson)
 }
 
 /// Extracts the event id from a JSON payload.
@@ -198,9 +211,7 @@ struct EventIdHelper {
 /// the provided is valid and returns an `Err` on parse errors. If the event id itself is malformed,
 /// an `Err` is returned.
 pub fn event_id_from_json(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
-    serde_json::from_slice(data)
-        .map(|helper: EventIdHelper| helper.id)
-        .map_err(BadStoreRequest::InvalidJson)
+    minimal_event_from_json(data).map(|event| event.id)
 }
 
 /// Extracts the event id from a MessagePack payload.
@@ -210,7 +221,7 @@ pub fn event_id_from_json(data: &[u8]) -> Result<Option<EventId>, BadStoreReques
 /// an `Err` is returned.
 pub fn event_id_from_msgpack(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
     rmp_serde::from_slice(data)
-        .map(|helper: EventIdHelper| helper.id)
+        .map(|MinimalEvent { id, .. }| id)
         .map_err(BadStoreRequest::InvalidMsgpack)
 }
 
@@ -252,7 +263,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 
     if let Some(item) = items
         .iter()
-        .find(|item| item.name() == Some(ITEM_NAME_EVENT))
+        .find(|item| item.attachment_type() == Some(AttachmentType::EventPayload))
     {
         if let Some(event_id) = event_id_from_msgpack(&item.payload())? {
             return Ok(Some(event_id));
@@ -291,6 +302,7 @@ pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
             "authentication",
             "authorization",
             "content-encoding",
+            "transfer-encoding",
         ])
         .expose_headers(vec![
             "x-sentry-error",
@@ -300,6 +312,46 @@ pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
         .max_age(3600);
 
     builder
+}
+
+/// Checks for size limits of items in this envelope.
+///
+/// Returns `true`, if the envelope adheres to the configured size limits. Otherwise, returns
+/// `false`, in which case the envelope should be discarded and a `413 Payload Too Large` response
+/// shoult be given.
+///
+/// The following limits are checked:
+///
+///  - `max_event_size`
+///  - `max_attachment_size`
+///  - `max_attachments_size`
+///  - `max_session_count`
+fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
+    let mut event_size = 0;
+    let mut attachments_size = 0;
+    let mut session_count = 0;
+
+    for item in envelope.items() {
+        match item.ty() {
+            ItemType::Event
+            | ItemType::Transaction
+            | ItemType::SecurityReport
+            | ItemType::FormData => event_size += item.len(),
+            ItemType::Attachment | ItemType::UnrealReport => {
+                if item.len() > config.max_attachment_size() {
+                    return false;
+                }
+
+                attachments_size += item.len()
+            }
+            ItemType::Session => session_count += 1,
+            ItemType::UserReport => (),
+        }
+    }
+
+    event_size <= config.max_event_size()
+        && attachments_size <= config.max_attachments_size()
+        && session_count <= config.max_session_count()
 }
 
 /// Handles Sentry events.
@@ -354,6 +406,7 @@ where
     let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
     let cloned_meta = Arc::new(meta.clone());
     let event_id = Rc::new(RefCell::new(None));
+    let config = request.state().config();
 
     let future = project_manager
         .send(GetProject { id: project_id })
@@ -366,6 +419,13 @@ where
                 .and_then(move |new_scoping| {
                     scoping.replace(new_scoping);
                     extract_envelope(&request, meta)
+                })
+                .and_then(move |envelope| {
+                    if check_envelope_size_limits(&config, &envelope) {
+                        Ok(envelope)
+                    } else {
+                        Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
+                    }
                 })
                 .and_then(clone!(project, |envelope| {
                     event_id.replace(envelope.event_id());
@@ -456,7 +516,7 @@ pub fn normpath(route: &str) -> String {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]
@@ -468,6 +528,58 @@ mod test {
         assert_eq!(
             normpath("api/store"),
             "/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/*}"
+        );
+    }
+
+    #[test]
+    fn test_minimal_empty_event() {
+        let json = r#"{}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: None,
+                ty: EventType::Default
+            }
+        );
+    }
+
+    #[test]
+    fn test_minimal_event_id() {
+        let json = r#"{"event_id": "037af9ac1b49494bacd7ec5114f801d9"}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: Some("037af9ac1b49494bacd7ec5114f801d9".parse().unwrap()),
+                ty: EventType::Default
+            }
+        );
+    }
+
+    #[test]
+    fn test_minimal_event_type() {
+        let json = r#"{"type": "expectct"}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: None,
+                ty: EventType::ExpectCT,
+            }
+        );
+    }
+
+    #[test]
+    fn test_minimal_event_invalid_type() {
+        let json = r#"{"type": "invalid"}"#;
+        let minimal = minimal_event_from_json(json.as_ref()).unwrap();
+        assert_eq!(
+            minimal,
+            MinimalEvent {
+                id: None,
+                ty: EventType::Default,
+            }
         );
     }
 }

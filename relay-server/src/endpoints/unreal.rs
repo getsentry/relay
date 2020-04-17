@@ -13,9 +13,10 @@ use crate::service::{ServiceApp, ServiceState};
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-    max_payload_size: usize,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
-    let user_id = request.query().get("UserID").map(String::to_owned);
+    let user_id = request.query().get("UserID").cloned();
+    let max_payload_size = request.state().config().max_attachments_size();
+
     let future = ForwardBody::new(request, max_payload_size)
         .map_err(|_| BadStoreRequest::InvalidUnrealReport)
         .and_then(move |data| {
@@ -40,14 +41,12 @@ fn store_unreal(
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    let event_size = request.state().config().max_attachment_payload_size();
-
     common::handle_store_like_request(
         meta,
         true,
         start_time,
         request,
-        move |data, meta| extract_envelope(data, meta, event_size),
+        extract_envelope,
         // The return here is only useful for consistency because the UE4 crash reporter doesn't
         // care about it.
         common::create_text_event_id_response,

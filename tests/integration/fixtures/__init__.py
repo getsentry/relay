@@ -4,20 +4,9 @@ import time
 import os
 
 import requests
+from sentry_sdk.envelope import Envelope, Item
 
 session = requests.session()
-
-
-# HACK: import the envelope module from librelay without requiring to build the cabi
-with open(
-    os.path.abspath(os.path.dirname(__file__)) + "/../../../py/sentry_relay/envelope.py"
-) as f:
-    envelope_namespace = {}
-    eval(compile(f.read(), "envelope.py", "exec"), envelope_namespace)
-
-Envelope = envelope_namespace["Envelope"]
-Item = envelope_namespace["Item"]
-PayloadRef = envelope_namespace["PayloadRef"]
 
 
 class SentryLike(object):
@@ -168,7 +157,7 @@ class SentryLike(object):
         return response
 
     def send_envelope(self, project_id, envelope, headers=None):
-        url = "/api/%s/store/" % project_id
+        url = "/api/%s/envelope/" % project_id
         headers = {
             "Content-Type": "application/x-sentry-envelope",
             "X-Sentry-Auth": self.auth_header,
@@ -179,8 +168,8 @@ class SentryLike(object):
         response.raise_for_status()
 
     def send_session(self, project_id, payload):
-        session_item = Item(json.dumps(payload), {"type": "session"})
-        envelope = Envelope(items=[session_item])
+        envelope = Envelope()
+        envelope.add_session(payload)
         self.send_envelope(project_id, envelope)
 
     def send_security_report(

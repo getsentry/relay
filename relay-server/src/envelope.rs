@@ -41,7 +41,7 @@ use failure::Fail;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use relay_general::protocol::{EventId, EventType};
+use relay_general::protocol::EventId;
 use relay_general::types::Value;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
@@ -75,6 +75,8 @@ pub enum EnvelopeError {
 pub enum ItemType {
     /// Event payload encoded in JSON.
     Event,
+    /// Transaction event payload encoded in JSON.
+    Transaction,
     /// Raw payload of an arbitrary attachment.
     Attachment,
     /// Multipart form data collected into a stream of JSON tuples.
@@ -93,6 +95,7 @@ impl fmt::Display for ItemType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Event => write!(f, "event"),
+            Self::Transaction => write!(f, "transaction"),
             Self::Attachment => write!(f, "attachment"),
             Self::FormData => write!(f, "form data"),
             Self::SecurityReport => write!(f, "security report"),
@@ -116,18 +119,23 @@ pub enum ContentType {
     MsgPack,
     /// application/octet-stream
     OctetStream,
+    /// application/x-dmp
+    Minidump,
+    /// text/xml and application/xml
+    Xml,
     /// Any arbitrary content type not listed explicitly.
     Other(String),
 }
 
 impl ContentType {
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn as_str(&self) -> &str {
         match *self {
             Self::Text => "text/plain",
             Self::Json => "application/json",
             Self::MsgPack => "application/x-msgpack",
             Self::OctetStream => "application/octet-stream",
+            Self::Minidump => "application/x-dmp",
+            Self::Xml => "text/xml",
             Self::Other(ref other) => &other,
         }
     }
@@ -137,6 +145,8 @@ impl ContentType {
             "text/plain" => Some(Self::Text),
             "application/json" => Some(Self::Json),
             "application/x-msgpack" => Some(Self::MsgPack),
+            "application/x-dmp" => Some(Self::Minidump),
+            "text/xml" | "application/xml" => Some(Self::Xml),
             "application/octet-stream" => Some(Self::OctetStream),
             _ => None,
         }
@@ -160,15 +170,7 @@ impl Serialize for ContentType {
     where
         S: serde::Serializer,
     {
-        let string = match *self {
-            Self::Text => "text/plain",
-            Self::Json => "application/json",
-            Self::MsgPack => "application/x-msgpack",
-            Self::OctetStream => "application/octet-stream",
-            Self::Other(ref other) => other,
-        };
-
-        serializer.serialize_str(string)
+        serializer.serialize_str(self.as_str())
     }
 }
 
@@ -245,10 +247,6 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     length: Option<u32>,
 
-    /// If this is an event item, this may contain the event type.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    event_type: Option<EventType>,
-
     /// If this is an attachment item, this may contain the attachment type.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     attachment_type: Option<AttachmentType>,
@@ -260,10 +258,6 @@ pub struct ItemHeaders {
     /// If this is an attachment item, this may contain the original file name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
-
-    /// If this item came from a multipart request, this may contain the field name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
@@ -283,11 +277,9 @@ impl Item {
             headers: ItemHeaders {
                 ty,
                 length: Some(0),
-                event_type: None,
                 attachment_type: None,
                 content_type: None,
                 filename: None,
-                name: None,
                 other: BTreeMap::new(),
             },
             payload: Bytes::new(),
@@ -310,20 +302,9 @@ impl Item {
     }
 
     /// Returns the content type of this item's payload.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn content_type(&self) -> Option<&ContentType> {
         self.headers.content_type.as_ref()
-    }
-
-    /// Returns the event type if this item is an event.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-    pub fn event_type(&self) -> Option<EventType> {
-        // TODO: consider to replace this with an ItemType?
-        self.headers.event_type
-    }
-
-    /// Sets the event type of this item.
-    pub fn set_event_type(&mut self, event_type: EventType) {
-        self.headers.event_type = Some(event_type);
     }
 
     /// Returns the attachment type if this item is an attachment.
@@ -374,19 +355,6 @@ impl Item {
         self.headers.filename = Some(filename.into());
     }
 
-    /// Returns the name header of the item.
-    pub fn name(&self) -> Option<&str> {
-        self.headers.name.as_deref()
-    }
-
-    /// Sets the name header of the item.
-    pub fn set_name<S>(&mut self, name: S)
-    where
-        S: Into<String>,
-    {
-        self.headers.name = Some(name.into());
-    }
-
     /// Returns the specified header value, if present.
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
     where
@@ -411,7 +379,10 @@ impl Item {
     pub fn creates_event(&self) -> bool {
         match self.ty() {
             // These items are direct event types.
-            ItemType::Event | ItemType::SecurityReport | ItemType::UnrealReport => true,
+            ItemType::Event
+            | ItemType::Transaction
+            | ItemType::SecurityReport
+            | ItemType::UnrealReport => true,
 
             // Attachments are only event items if they are crash reports.
             ItemType::Attachment => match self.attachment_type().unwrap_or_default() {
@@ -435,6 +406,7 @@ impl Item {
     pub fn requires_event(&self) -> bool {
         match self.ty() {
             ItemType::Event => true,
+            ItemType::Transaction => true,
             ItemType::Attachment => true,
             ItemType::FormData => true,
             ItemType::SecurityReport => true,

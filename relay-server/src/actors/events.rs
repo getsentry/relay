@@ -15,8 +15,8 @@ use relay_config::{Config, RelayMode};
 use relay_general::pii::PiiProcessor;
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    Breadcrumb, Csp, Event, EventId, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
-    SecurityReportType, Values,
+    Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
+    Metrics, SecurityReportType, Values,
 };
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 use relay_quotas::RateLimits;
@@ -202,10 +202,19 @@ impl EventProcessor {
         }));
     }
 
-    fn event_from_json_payload(&self, item: Item) -> Result<ExtractedEvent, ProcessingError> {
-        Annotated::from_json_bytes(&item.payload())
-            .map(|event| (event, item.len()))
-            .map_err(ProcessingError::InvalidJson)
+    fn event_from_json_payload(
+        &self,
+        item: Item,
+        event_type: Option<EventType>,
+    ) -> Result<ExtractedEvent, ProcessingError> {
+        let mut event = Annotated::<Event>::from_json_bytes(&item.payload())
+            .map_err(ProcessingError::InvalidJson)?;
+
+        if let Some(event_value) = event.value_mut() {
+            event_value.ty.set_value(event_type);
+        }
+
+        Ok((event, item.len()))
     }
 
     fn event_from_security_report(&self, item: Item) -> Result<ExtractedEvent, ProcessingError> {
@@ -274,7 +283,7 @@ impl EventProcessor {
 
         // Protect against blowing up during deserialization. Attachments can have a significantly
         // larger size than regular events and may cause significant processing delays.
-        if item.len() > config.max_event_payload_size() {
+        if item.len() > config.max_event_size() {
             return Err(ProcessingError::PayloadTooLarge);
         }
 
@@ -297,7 +306,7 @@ impl EventProcessor {
         // truncated to a maximum of 100 in event normalization, but this is to protect us from
         // blowing up during deserialization. As approximation, we use the maximum event payload
         // size as bound, which is roughly in the right ballpark.
-        if item.len() > config.max_event_payload_size() {
+        if item.len() > config.max_event_size() {
             return Err(ProcessingError::PayloadTooLarge);
         }
 
@@ -380,6 +389,7 @@ impl EventProcessor {
         // attachments can remain in the envelope. The event will be added again at the end of
         // `process_event`.
         let event_item = envelope.take_item_by(|item| item.ty() == ItemType::Event);
+        let transaction_item = envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
         let security_item = envelope.take_item_by(|item| item.ty() == ItemType::SecurityReport);
         let form_item = envelope.take_item_by(|item| item.ty() == ItemType::FormData);
         let attachment_item = envelope
@@ -392,7 +402,18 @@ impl EventProcessor {
         if let Some(item) = event_item {
             log::trace!("processing json event");
             return Ok(metric!(timer(RelayTimers::EventProcessingDeserialize), {
-                self.event_from_json_payload(item)?
+                // Event items can never include transactions, so kill the event type and let
+                // inference deal with this during store normalization.
+                self.event_from_json_payload(item, None)?
+            }));
+        }
+
+        if let Some(item) = transaction_item {
+            log::trace!("processing json transaction");
+            return Ok(metric!(timer(RelayTimers::EventProcessingDeserialize), {
+                // Transaction items can only contain transaction events. Force the event type to
+                // hint to normalization that we're dealing with a transaction now.
+                self.event_from_json_payload(item, Some(EventType::Transaction))?
             }));
         }
 
@@ -538,6 +559,7 @@ impl EventProcessor {
         match item.ty() {
             // These should always be removed by `extract_event`:
             ItemType::Event => true,
+            ItemType::Transaction => true,
             ItemType::FormData => true,
             ItemType::SecurityReport => true,
 
@@ -594,6 +616,7 @@ impl EventProcessor {
         // Extract the event from the envelope. This removes all items from the envelope that should
         // not be forwarded, including the event item itself.
         let (mut event, event_len) = self.extract_event(&mut envelope)?;
+        let mut event_type = event.value().and_then(|e| e.ty.value()).copied();
         _metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
         // `extract_event` must remove all unique items from the envelope. Once the envelope is
@@ -654,9 +677,11 @@ impl EventProcessor {
         if_processing! {
             self.store_process_event(&mut event, &envelope, &message.project_state)?;
 
-            // Write metrics into the fully processed event. This ensures that whatever happens
-            // during processing is overwritten at last.
             if let Some(event) = event.value_mut() {
+                event_type = event.ty.value().copied();
+
+                // Write metrics into the fully processed event. This ensures that whatever happens
+                // during processing is overwritten at last.
                 event._metrics = Annotated::new(_metrics);
             }
         }
@@ -691,12 +716,14 @@ impl EventProcessor {
             event.to_json().map_err(ProcessingError::SerializeFailed)?
         });
 
+        let item_type = match event_type {
+            Some(EventType::Transaction) => ItemType::Transaction,
+            _ => ItemType::Event,
+        };
+
         // Add the normalized event back to the envelope. All the other items are attachments.
-        let mut event_item = Item::new(ItemType::Event);
+        let mut event_item = Item::new(item_type);
         event_item.set_payload(ContentType::Json, data);
-        if let Some(ty) = event.value().and_then(|e| e.ty.value()) {
-            event_item.set_event_type(*ty);
-        }
         envelope.add_item(event_item);
 
         Ok(ProcessEnvelopeResponse { envelope })
