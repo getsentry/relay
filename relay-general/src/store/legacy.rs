@@ -1,9 +1,7 @@
 use std::mem;
 
-use debugid::DebugId;
-
 use crate::processor::{ProcessingState, Processor};
-use crate::protocol::{DebugImage, NativeDebugImage};
+use crate::protocol::{DebugId, DebugImage, NativeDebugImage};
 use crate::types::{Annotated, Meta, Object, ProcessingResult};
 
 /// Converts legacy data structures to current format.

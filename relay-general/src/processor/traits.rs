@@ -4,7 +4,7 @@
 use std::fmt::Debug;
 
 use crate::processor::{process_value, ProcessingState, ValueType};
-use crate::types::{FromValue, Meta, ProcessingResult, Timestamp, ToValue};
+use crate::types::{FromValue, Meta, ProcessingResult, ToValue};
 
 macro_rules! process_method {
     ($name: ident, $ty:ident $(::$path:ident)*) => {
@@ -56,7 +56,7 @@ pub trait Processor: Sized {
     process_method!(process_i64, i64);
     process_method!(process_f64, f64);
     process_method!(process_bool, bool);
-    process_method!(process_timestamp, Timestamp);
+    process_method!(process_timestamp, crate::protocol::Timestamp);
 
     process_method!(process_value, crate::types::Value);
     process_method!(process_array, crate::types::Array<T>);

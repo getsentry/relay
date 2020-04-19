@@ -2,6 +2,7 @@
 #![allow(clippy::cognitive_complexity)]
 #![deny(unused_must_use)]
 
+mod document;
 mod empty;
 mod process;
 
@@ -22,6 +23,7 @@ decl_derive!([Empty, attributes(metastructure)] => empty::derive_empty);
 decl_derive!([ToValue, attributes(metastructure)] => derive_to_value);
 decl_derive!([FromValue, attributes(metastructure)] => derive_from_value);
 decl_derive!([ProcessValue, attributes(metastructure)] => process::derive_process_value);
+decl_derive!([DocumentValue, attributes(metastructure)] => document::derive_document_value);
 
 fn derive_to_value(s: synstructure::Structure<'_>) -> TokenStream {
     derive_metastructure(s, Trait::To)
@@ -652,6 +654,7 @@ impl Pii {
 #[derive(Default)]
 struct FieldAttrs {
     additional_properties: bool,
+    omit_from_schema: bool,
     field_name: String,
     required: Option<bool>,
     nonempty: Option<bool>,
@@ -835,6 +838,8 @@ fn parse_field_attributes(
 
                             if ident == "additional_properties" {
                                 rv.additional_properties = true;
+                            } else if ident == "omit_from_schema" {
+                                rv.omit_from_schema = true;
                             } else {
                                 panic!("Unknown attribute {}", ident);
                             }

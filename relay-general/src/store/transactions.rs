@@ -166,8 +166,8 @@ mod tests {
         Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             transaction: Annotated::new("/".to_owned()),
-            start_timestamp: Annotated::new(start),
-            timestamp: Annotated::new(end),
+            start_timestamp: Annotated::new(start.into()),
+            timestamp: Annotated::new(end.into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -184,8 +184,8 @@ mod tests {
                 contexts
             })),
             spans: Annotated::new(vec![Annotated::new(Span {
-                start_timestamp: Annotated::new(start),
-                timestamp: Annotated::new(end),
+                start_timestamp: Annotated::new(start.into()),
+                timestamp: Annotated::new(end.into()),
                 trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                 op: Annotated::new("db.statement".to_owned()),
@@ -230,7 +230,7 @@ mod tests {
     fn test_discards_when_missing_start_timestamp() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             ..Default::default()
         });
 
@@ -250,8 +250,8 @@ mod tests {
     fn test_discards_on_missing_contexts_map() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             ..Default::default()
         });
 
@@ -271,8 +271,8 @@ mod tests {
     fn test_discards_on_missing_context() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts(Object::new())),
             ..Default::default()
         });
@@ -293,8 +293,8 @@ mod tests {
     fn test_discards_on_null_context() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert("trace".to_owned(), Annotated::empty());
@@ -319,8 +319,8 @@ mod tests {
     fn test_discards_on_missing_trace_id_in_context() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -350,8 +350,8 @@ mod tests {
     fn test_discards_on_missing_span_id_in_context() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -388,8 +388,8 @@ mod tests {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             transaction: Annotated::new("/".to_owned()),
-            timestamp: Annotated::new(end),
-            start_timestamp: Annotated::new(start),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -436,8 +436,8 @@ mod tests {
     fn test_allows_transaction_event_without_span_list() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -469,8 +469,8 @@ mod tests {
     fn test_allows_transaction_event_with_empty_span_list() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -503,8 +503,8 @@ mod tests {
     fn test_discards_transaction_event_with_nulled_out_span() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -540,8 +540,8 @@ mod tests {
     fn test_discards_transaction_event_with_span_with_missing_timestamp() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -579,8 +579,8 @@ mod tests {
     fn test_discards_transaction_event_with_span_with_missing_start_timestamp() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -597,7 +597,7 @@ mod tests {
                 contexts
             })),
             spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
                 ..Default::default()
             })]),
             ..Default::default()
@@ -619,8 +619,8 @@ mod tests {
     fn test_discards_transaction_event_with_span_with_missing_trace_id() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -637,8 +637,8 @@ mod tests {
                 contexts
             })),
             spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-                start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+                start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
                 ..Default::default()
             })]),
             ..Default::default()
@@ -660,8 +660,8 @@ mod tests {
     fn test_discards_transaction_event_with_span_with_missing_span_id() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -678,8 +678,8 @@ mod tests {
                 contexts
             })),
             spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
-                start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+                start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
                 trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                 ..Default::default()
             })]),
@@ -706,8 +706,8 @@ mod tests {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             transaction: Annotated::new("/".to_owned()),
-            timestamp: Annotated::new(end),
-            start_timestamp: Annotated::new(start),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -724,8 +724,8 @@ mod tests {
                 contexts
             })),
             spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 10)),
-                start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 10).into()),
+                start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
                 trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
 

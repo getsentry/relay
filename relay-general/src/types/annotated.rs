@@ -2,6 +2,9 @@ use std::fmt;
 
 use failure::Fail;
 
+use schemars::gen::SchemaGenerator;
+use schemars::schema::Schema;
+use schemars::JsonSchema;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -78,9 +81,6 @@ pub enum ProcessingAction {
 /// Wrapper for data fields with optional meta data.
 #[derive(Clone, PartialEq)]
 pub struct Annotated<T>(pub Option<T>, pub Meta);
-
-/// An utility to serialize annotated objects with payload.
-pub struct SerializableAnnotated<'a, T>(pub &'a Annotated<T>);
 
 impl<T: fmt::Debug> fmt::Debug for Annotated<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -402,12 +402,29 @@ impl<T> Default for Annotated<T> {
     }
 }
 
-impl<'a, T: ToValue> Serialize for SerializableAnnotated<'a, T> {
+impl<T> JsonSchema for Annotated<T>
+where
+    T: JsonSchema,
+{
+    fn schema_name() -> String {
+        format!("Annotated_{}", T::schema_name())
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        Option::<T>::json_schema(gen)
+    }
+
+    fn is_referenceable() -> bool {
+        false
+    }
+}
+
+impl<T: ToValue> Serialize for Annotated<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        self.0.serialize_with_meta(serializer)
+        self.serialize_with_meta(serializer)
     }
 }
 

@@ -120,18 +120,18 @@ impl<'a> NormalizeProcessor<'a> {
     /// Validates the timestamp range and sets a default value.
     fn normalize_timestamps(&self, event: &mut Event) -> ProcessingResult {
         let received_at = self.config.received_at.unwrap_or_else(Utc::now);
-        event.received = Annotated::new(received_at);
+        event.received = Annotated::new(received_at.into());
 
         event.timestamp.apply(|timestamp, meta| {
             if let Some(secs) = self.config.max_secs_in_future {
-                if *timestamp > received_at + Duration::seconds(secs) {
+                if **timestamp > received_at + Duration::seconds(secs) {
                     meta.add_error(ErrorKind::FutureTimestamp);
                     return Err(ProcessingAction::DeleteValueSoft);
                 }
             }
 
             if let Some(secs) = self.config.max_secs_in_past {
-                if *timestamp < received_at - Duration::seconds(secs) {
+                if **timestamp < received_at - Duration::seconds(secs) {
                     meta.add_error(ErrorKind::PastTimestamp);
                     return Err(ProcessingAction::DeleteValueSoft);
                 }
@@ -141,7 +141,7 @@ impl<'a> NormalizeProcessor<'a> {
         })?;
 
         if event.timestamp.value().is_none() {
-            event.timestamp.set_value(Some(received_at));
+            event.timestamp.set_value(Some(received_at.into()));
         }
 
         event
@@ -1432,7 +1432,6 @@ fn test_discards_received() {
 #[test]
 fn test_grouping_config() {
     use crate::protocol::LogEntry;
-    use crate::types::SerializableAnnotated;
     use insta::assert_ron_snapshot;
     use serde_json::json;
 
@@ -1456,7 +1455,7 @@ fn test_grouping_config() {
 
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    assert_ron_snapshot!(SerializableAnnotated(&event), {
+    assert_ron_snapshot!((&event), {
         ".event_id" => "[event-id]",
         ".received" => "[received]",
         ".timestamp" => "[timestamp]"

@@ -35,11 +35,14 @@ uaparser = { version = "0.3.3", optional = true }
 url = "2.0.0"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 relay-common = { path = "../relay-common" }
+schemars = { version = "0.7.1", features = ["uuid", "chrono"] }
+derive_more = "0.99.5"
 
 [dev-dependencies]
 difference = "2.0.0"
 insta = { version = "0.15.0", features =  ["ron", "redactions"] }
 criterion = "0.3"
+valico = "3.2.0"
 
 [features]
 mmap = ["maxminddb/mmap", "memmap"]

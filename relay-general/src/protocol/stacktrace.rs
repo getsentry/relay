@@ -4,7 +4,9 @@ use crate::protocol::{Addr, NativeImagePath, RegVal};
 use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// Holds information about a single stacktrace frame.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 #[metastructure(process_func = "process_frame", value_type = "Frame")]
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
@@ -119,11 +121,15 @@ pub struct Frame {
 }
 
 /// Frame local variables.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, DocumentValue)]
 pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<Value>);
 
 /// Additional frame data information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+///
+/// This value is set by the server and should not be set by the SDK.
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 pub struct FrameData {
     /// A reference to the sourcemap used.
     #[metastructure(max_chars = "path")]
@@ -179,7 +185,9 @@ impl FromValue for FrameVars {
 }
 
 /// Holds information about an entirey stacktrace.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 #[metastructure(process_func = "process_raw_stacktrace", value_type = "Stacktrace")]
 pub struct RawStacktrace {
     #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
@@ -198,7 +206,9 @@ pub struct RawStacktrace {
 }
 
 /// Newtype to distinguish `raw_stacktrace` attributes from the rest.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace(pub RawStacktrace);
 

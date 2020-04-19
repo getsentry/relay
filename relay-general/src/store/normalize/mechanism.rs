@@ -982,7 +982,6 @@ fn test_normalize_mach_fail() {
 
 #[test]
 fn test_normalize_http_url() {
-    use crate::types::SerializableAnnotated;
     use insta::assert_ron_snapshot;
 
     let mut good_mechanism = Mechanism {
@@ -992,7 +991,7 @@ fn test_normalize_http_url() {
     };
 
     normalize_mechanism(&mut good_mechanism, None).unwrap();
-    assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(good_mechanism)), @r###"
+    assert_ron_snapshot!((&Annotated::new(good_mechanism)), @r###"
     {
       "type": "generic",
       "help_link": "https://example.com/",
@@ -1006,7 +1005,7 @@ fn test_normalize_http_url() {
     };
 
     normalize_mechanism(&mut bad_mechanism, None).unwrap();
-    assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(bad_mechanism)), @r###"
+    assert_ron_snapshot!((&Annotated::new(bad_mechanism)), @r###"
     {
       "type": "generic",
       "help_link": (),

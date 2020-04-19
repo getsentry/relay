@@ -1,18 +1,18 @@
-use chrono::{DateTime, Utc};
-
-use crate::protocol::{OperationType, SpanId, TraceId};
+use crate::protocol::{OperationType, SpanId, Timestamp, TraceId};
 use crate::types::{Annotated, Object, Value};
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 #[metastructure(process_func = "process_span", value_type = "Span")]
 pub struct Span {
     /// Timestamp when the span was ended.
     #[metastructure(required = "true")]
-    pub timestamp: Annotated<DateTime<Utc>>,
+    pub timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the span started.
     #[metastructure(required = "true")]
-    pub start_timestamp: Annotated<DateTime<Utc>>,
+    pub start_timestamp: Annotated<Timestamp>,
 
     /// Human readable description of a span (e.g. method URL).
     #[metastructure(max_chars = "summary")]
@@ -43,7 +43,7 @@ pub struct Span {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
+    use chrono::{TimeZone, Utc};
 
     #[test]
     fn test_span_serialization() {
@@ -57,8 +57,8 @@ mod tests {
 }"#;
 
         let span = Annotated::new(Span {
-            timestamp: Annotated::new(Utc.ymd(1970, 1, 1).and_hms_nano(0, 0, 0, 0)),
-            start_timestamp: Annotated::new(Utc.ymd(1968, 1, 1).and_hms_nano(0, 0, 0, 0)),
+            timestamp: Annotated::new(Utc.ymd(1970, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(1968, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
             description: Annotated::new("desc".to_owned()),
             op: Annotated::new("operation".to_owned()),
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),

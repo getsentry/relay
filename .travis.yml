@@ -108,6 +108,8 @@ jobs:
         - zeus upload -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zip relay-debug.zip target/x86_64-unknown-linux-gnu/release/relay.debug
         - zeus upload -t "application/octet-stream" -n relay-Linux-x86_64-debug.zip relay-debug.zip  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+        - target/x86_64-unknown-linux-gnu/release/relay event-json-schema > target/release/event-schema.json
+        - zeus upload -t "application/octet-stream" -n event-schema.json target/release/event-schema.json || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: relay[macos]"
       if: branch ~= /^release\/[\d.]+$/
@@ -164,6 +166,11 @@ jobs:
         - make -e sdist
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
+
+    - name: "docs"
+      before_script:
+        - npm install -g @zeus-ci/cli
+      script: make -e travis-upload-prose-docs
 
 notifications:
   webhooks:

@@ -696,7 +696,7 @@ impl EventProcessor {
             // should be removed as soon as legacy ingestion has been removed.
             if envelope.sent_at().is_none() && event_type == Some(EventType::Transaction) {
                 if let Some(&event_timestamp) = event.timestamp.value() {
-                    envelope.set_sent_at(event_timestamp);
+                    envelope.set_sent_at(*event_timestamp);
                 }
             }
         } else {

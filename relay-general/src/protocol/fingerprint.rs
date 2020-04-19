@@ -5,7 +5,7 @@ use crate::types::{
 };
 
 /// A fingerprint value.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DocumentValue)]
 pub struct Fingerprint(Vec<String>);
 
 impl std::ops::Deref for Fingerprint {

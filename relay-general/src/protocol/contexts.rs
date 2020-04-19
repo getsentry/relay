@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use failure::Fail;
 use regex::Regex;
+use schemars::JsonSchema;
 use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
@@ -10,7 +11,9 @@ use crate::protocol::LenientString;
 use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value};
 
 /// Device information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 pub struct DeviceContext {
     /// Name of the device.
     #[metastructure(pii = "maybe")]
@@ -113,7 +116,9 @@ impl DeviceContext {
 }
 
 /// Operating system information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 pub struct OsContext {
     /// Name of the operating system.
     pub name: Annotated<String>,
@@ -149,7 +154,9 @@ impl OsContext {
 }
 
 /// Runtime information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 pub struct RuntimeContext {
     /// Runtime name.
     pub name: Annotated<String>,
@@ -178,7 +185,9 @@ impl RuntimeContext {
 }
 
 /// Application information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 pub struct AppContext {
     /// Start time of the app.
     #[metastructure(pii = "maybe")]
@@ -216,7 +225,9 @@ impl AppContext {
 }
 
 /// Web browser information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 pub struct BrowserContext {
     /// Runtime name.
     pub name: Annotated<String>,
@@ -246,7 +257,9 @@ lazy_static::lazy_static! {
 }
 
 /// GPU information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 pub struct GpuContext(#[metastructure(pii = "maybe")] pub Object<Value>);
 
 impl From<Object<Value>> for GpuContext {
@@ -277,7 +290,9 @@ impl GpuContext {
 }
 
 /// Monitor information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 pub struct MonitorContext(#[metastructure(pii = "maybe")] pub Object<Value>);
 
 impl From<Object<Value>> for MonitorContext {
@@ -307,7 +322,8 @@ impl MonitorContext {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+/// A 32-character hex string as described in the W3C trace context spec.
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, DocumentValue)]
 pub struct TraceId(pub String);
 
 impl FromValue for TraceId {
@@ -332,7 +348,8 @@ impl FromValue for TraceId {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+/// A 16-character hex string as described in the W3C trace context spec.
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, DocumentValue)]
 pub struct SpanId(pub String);
 
 impl FromValue for SpanId {
@@ -358,7 +375,9 @@ impl FromValue for SpanId {
 }
 
 /// Trace context
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
+)]
 pub struct TraceContext {
     /// The trace ID.
     pub trace_id: Annotated<TraceId>,
@@ -389,7 +408,8 @@ pub struct TraceContext {
 ///
 /// Note: This type is represented as a u8 in Snuba/Clickhouse, with Unknown being the default
 /// value. We use repr(u8) to statically validate that the trace status has 255 variants at most.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, JsonSchema)]
+#[schemars(rename_all = "snake_case")]
 #[repr(u8)] // size limit in clickhouse
 pub enum SpanStatus {
     // XXX: this mapping exists multiple times at the moment.  It's also in the python binding
@@ -607,7 +627,7 @@ impl TraceContext {
 }
 
 /// A context describes environment info (e.g. device, os or browser).
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue)]
 #[metastructure(process_func = "process_context")]
 pub enum Context {
     /// Device information.
@@ -650,7 +670,7 @@ impl Context {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue)]
 pub struct ContextInner(#[metastructure(bag_size = "large")] pub Context);
 
 impl std::ops::Deref for ContextInner {
@@ -674,7 +694,7 @@ impl From<Context> for ContextInner {
 }
 
 /// An object holding multiple contexts.
-#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, Default)]
+#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, Default, DocumentValue)]
 pub struct Contexts(pub Object<ContextInner>);
 
 impl Contexts {

@@ -16,8 +16,8 @@ use serde::{ser::Error, Serialize};
 
 use relay_common::{metric, LogError, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
+use relay_general::protocol;
 use relay_general::protocol::{EventId, SessionStatus, SessionUpdate};
-use relay_general::types;
 use relay_quotas::Scoping;
 
 use crate::constants::MAX_SESSION_DAYS;
@@ -199,8 +199,8 @@ impl StoreForwarder {
                 .map(make_distinct_id)
                 .unwrap_or_default(),
             seq: if session.init { 0 } else { session.sequence },
-            received: types::datetime_to_timestamp(session.timestamp),
-            started: types::datetime_to_timestamp(session.started),
+            received: protocol::datetime_to_timestamp(session.timestamp),
+            started: protocol::datetime_to_timestamp(session.started),
             duration: session.duration,
             status: session.status,
             errors: session

@@ -2,6 +2,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str;
 
+use schemars::gen::SchemaGenerator;
+use schemars::schema::Schema;
+use schemars::JsonSchema;
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
@@ -16,9 +19,6 @@ pub type Map<K, T> = BTreeMap<K, T>;
 /// Alias for typed objects.
 pub type Object<T> = Map<String, Annotated<T>>;
 
-/// Alias for datetimes.
-pub type Timestamp = chrono::DateTime<chrono::Utc>;
-
 /// Represents a boxed value.
 #[derive(Debug, Clone, PartialEq, ProcessValue)]
 #[metastructure(process_func = "process_value")]
@@ -30,6 +30,20 @@ pub enum Value {
     String(String),
     Array(Array<Value>),
     Object(Object<Value>),
+}
+
+impl JsonSchema for Value {
+    fn schema_name() -> String {
+        "Value".to_owned()
+    }
+
+    fn json_schema(_gen: &mut SchemaGenerator) -> Schema {
+        Schema::Bool(true)
+    }
+
+    fn is_referenceable() -> bool {
+        false
+    }
 }
 
 /// Helper type that renders out a description of the value.

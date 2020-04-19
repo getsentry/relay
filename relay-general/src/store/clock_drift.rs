@@ -3,8 +3,8 @@ use std::fmt;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::Event;
-use crate::types::{Error, ErrorKind, Meta, ProcessingResult, Timestamp};
+use crate::protocol::{Event, Timestamp};
+use crate::types::{Error, ErrorKind, Meta, ProcessingResult};
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT_SECS: i64 = 55 * 60;
@@ -130,7 +130,7 @@ impl Processor for ClockDriftProcessor {
         if let Some(correction) = self.correction {
             // NB: We're not setting the original value here, as this could considerably increase
             // the event's size. Instead, attach an error message to the top-level event.
-            *timestamp = *timestamp + correction.drift;
+            **timestamp = **timestamp + correction.drift;
         }
 
         Ok(())
@@ -152,8 +152,8 @@ mod tests {
     fn create_transaction(start: DateTime<Utc>, end: DateTime<Utc>) -> Annotated<Event> {
         Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(end),
-            start_timestamp: Annotated::new(start),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -186,8 +186,8 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
-        assert_eq!(*event.timestamp.value().unwrap(), end);
-        assert_eq!(*event.start_timestamp.value().unwrap(), start);
+        assert_eq!(**event.timestamp.value().unwrap(), end);
+        assert_eq!(**event.start_timestamp.value().unwrap(), start);
     }
 
     #[test]
@@ -203,8 +203,8 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
-        assert_eq!(*event.timestamp.value().unwrap(), end);
-        assert_eq!(*event.start_timestamp.value().unwrap(), start);
+        assert_eq!(**event.timestamp.value().unwrap(), end);
+        assert_eq!(**event.start_timestamp.value().unwrap(), start);
     }
 
     #[test]
@@ -221,8 +221,8 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
-        assert_eq!(*event.timestamp.value().unwrap(), end);
-        assert_eq!(*event.start_timestamp.value().unwrap(), start);
+        assert_eq!(**event.timestamp.value().unwrap(), end);
+        assert_eq!(**event.start_timestamp.value().unwrap(), start);
     }
 
     #[test]
@@ -239,8 +239,8 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
-        assert_eq!(*event.timestamp.value().unwrap(), now);
-        assert_eq!(*event.start_timestamp.value().unwrap(), start + drift);
+        assert_eq!(**event.timestamp.value().unwrap(), now);
+        assert_eq!(**event.start_timestamp.value().unwrap(), start + drift);
     }
 
     #[test]
@@ -257,7 +257,7 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
-        assert_eq!(*event.timestamp.value().unwrap(), now);
-        assert_eq!(*event.start_timestamp.value().unwrap(), start + drift);
+        assert_eq!(**event.timestamp.value().unwrap(), now);
+        assert_eq!(**event.start_timestamp.value().unwrap(), start + drift);
     }
 }

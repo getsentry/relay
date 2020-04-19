@@ -10,16 +10,18 @@ nav:
   - project-config.md
   - metrics.md
   - PII and datascrubbing:
-      - pii-config/index.md
-      - pii-config/types.md
-      - pii-config/methods.md
-      - pii-config/selectors.md
+    - pii-config/index.md
+    - pii-config/types.md
+    - pii-config/methods.md
+    - pii-config/selectors.md
 
   - Architecture:
-      - architecture/index.md
-      - architecture/actors.md
-      - architecture/ingest-event-path.md
-      - architecture/project-configuration.md
+    - architecture/index.md
+    - architecture/actors.md
+    - architecture/ingest-event-path.md
+    - architecture/project-configuration.md
+
+  - event-schema/index.md
 
 markdown_extensions:
   - admonition: {}
@@ -32,6 +34,15 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_div_format
+
+plugins:
+  - search
+  # Used in event schema docs
+  - macros
+
+  - exclude:
+      glob:
+        - event-schema/event.schema.md
 
 extra_css:
   # Config for diagrams
