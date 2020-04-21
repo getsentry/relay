@@ -194,7 +194,7 @@ fn store_minidump(
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     common::cors(app)
         // No mandatory trailing slash here because people already use it like this.
-        .resource(&common::normpath("api/{project:\\d+}/minidump"), |r| {
+        .resource(&common::normpath(r"/api/{project:\d+}/minidump"), |r| {
             r.name("store-minidump");
             r.post().with(store_minidump);
         })
