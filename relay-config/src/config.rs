@@ -11,7 +11,7 @@ use failure::{Backtrace, Context, Fail};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
-use relay_common::Dsn;
+use relay_common::{Dsn, Uuid};
 use relay_redis::RedisConfig;
 
 use crate::types::ByteSize;
@@ -21,29 +21,42 @@ macro_rules! ctry {
     ($expr:expr, $kind:expr, $path:expr) => {
         match $expr {
             Ok(val) => val,
-            Err(err) => return Err(ConfigError::new($path, err.context($kind))),
+            Err(err) => return Err(ConfigError::for_file($path, err.context($kind))),
         }
     };
+}
+
+/// Defines the source of a config error
+#[derive(Debug)]
+enum ErrorSource {
+    /// an error originating from a configuration file
+    File(PathBuf),
+    /// an error originating in a field override (an Env. Var. or a CLI parameter)
+    FieldOverride(String),
 }
 
 /// Indicates config related errors.
 #[derive(Debug)]
 pub struct ConfigError {
-    filename: PathBuf,
+    error_source: ErrorSource,
     inner: Context<ConfigErrorKind>,
 }
 
 impl ConfigError {
-    fn new<P: AsRef<Path>>(p: P, inner: Context<ConfigErrorKind>) -> Self {
+    fn for_file<P: AsRef<Path>>(p: P, inner: Context<ConfigErrorKind>) -> Self {
         ConfigError {
-            filename: p.as_ref().to_path_buf(),
+            error_source: ErrorSource::File(p.as_ref().to_path_buf()),
             inner,
         }
     }
-
-    /// Returns the filename that failed.
-    pub fn filename(&self) -> &Path {
-        &self.filename
+    fn for_field<E>(name: &'static str, inner: E) -> Self
+    where
+        E: Fail,
+    {
+        ConfigError {
+            error_source: ErrorSource::FieldOverride(name.into()),
+            inner: inner.context(ConfigErrorKind::InvalidValue),
+        }
     }
 
     /// Returns the error kind of the error.
@@ -64,7 +77,12 @@ impl Fail for ConfigError {
 
 impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} (file {})", self.inner, self.filename().display())
+        match &self.error_source {
+            ErrorSource::File(file_name) => {
+                write!(f, "{} (file {})", self.inner, file_name.display())
+            }
+            ErrorSource::FieldOverride(name) => write!(f, "{} (field {})", self.inner, name),
+        }
     }
 }
 
@@ -87,6 +105,30 @@ pub enum ConfigErrorKind {
     /// compiled without the processing feature.
     #[fail(display = "was not compiled with processing, cannot enable processing")]
     ProcessingNotAvailable,
+}
+
+/// Structure used to hold information about configuration overrides via
+/// CLI parameters or environment variables
+#[derive(Debug, Default)]
+pub struct OverridableConfig {
+    /// The upstream relay or sentry instance.
+    pub upstream: Option<String>,
+    /// The host the relay should bind to (network interface).
+    pub host: Option<String>,
+    /// The port to bind for the unencrypted relay HTTP server.
+    pub port: Option<String>,
+    /// "true" if processing is enabled "false" otherwise
+    pub processing: Option<String>,
+    /// the kafka bootstrap.servers configuration string
+    pub kafka_url: Option<String>,
+    /// the redis server url
+    pub redis_url: Option<String>,
+    /// The globally unique ID of the relay.
+    pub id: Option<String>,
+    /// The secret key of the relay
+    pub secret_key: Option<String>,
+    /// The public key of the relay
+    pub public_key: Option<String>,
 }
 
 /// The relay credentials
@@ -634,13 +676,133 @@ impl Config {
         };
 
         if cfg!(not(feature = "processing")) && config.processing_enabled() {
-            return Err(ConfigError::new(
+            return Err(ConfigError::for_file(
                 &path,
                 ConfigErrorKind::ProcessingNotAvailable.into(),
             ));
         }
 
         Ok(config)
+    }
+
+    /// Override configuration with values coming from other sources (e.g. env variables or
+    /// command line parameters)
+    pub fn apply_override(
+        &mut self,
+        overrides: OverridableConfig,
+    ) -> Result<&mut Self, ConfigError> {
+        let relay = &mut self.values.relay;
+
+        if let Some(upstream) = overrides.upstream {
+            relay.upstream = upstream
+                .parse()
+                .map_err(|err| ConfigError::for_field("upstream", err))?;
+        }
+
+        if let Some(host) = overrides.host {
+            relay.host = host
+                .parse()
+                .map_err(|err| ConfigError::for_field("host", err))?;
+        }
+
+        if let Some(port) = overrides.port {
+            relay.port = u16::from_str_radix(port.as_str(), 10)
+                .map_err(|err| ConfigError::for_field("port", err))?;
+        }
+
+        let processing = &mut self.values.processing;
+        if let Some(enabled) = overrides.processing {
+            match enabled.to_lowercase().as_str() {
+                "true" | "1" => processing.enabled = true,
+                "false" | "0" | "" => processing.enabled = false,
+                _ => {
+                    return Err(ConfigError::for_field(
+                        "processing",
+                        ConfigErrorKind::InvalidValue,
+                    ))
+                }
+            }
+        }
+
+        if let Some(redis) = overrides.redis_url {
+            processing.redis = Some(RedisConfig::Single(redis))
+        }
+
+        if let Some(kafka_url) = overrides.kafka_url {
+            let existing = processing
+                .kafka_config
+                .iter_mut()
+                .find(|e| e.name == "bootstrap.servers");
+
+            if let Some(config_param) = existing {
+                config_param.value = kafka_url;
+            } else {
+                processing.kafka_config.push(KafkaConfigParam {
+                    name: "bootstrap.servers".to_owned(),
+                    value: kafka_url,
+                })
+            }
+        }
+        // credentials overrides
+        let id = if let Some(id) = overrides.id {
+            let id = Uuid::parse_str(&id).map_err(|err| ConfigError::for_field("id", err))?;
+            Some(id)
+        } else {
+            None
+        };
+        let public_key = if let Some(public_key) = overrides.public_key {
+            let public_key = public_key
+                .parse()
+                .map_err(|err| ConfigError::for_field("public_key", err))?;
+            Some(public_key)
+        } else {
+            None
+        };
+
+        let secret_key = if let Some(secret_key) = overrides.secret_key {
+            let secret_key = secret_key
+                .parse()
+                .map_err(|err| ConfigError::for_field("secret_key", err))?;
+            Some(secret_key)
+        } else {
+            None
+        };
+
+        if let Some(credentials) = &mut self.credentials {
+            //we have existing credentials we may override some entries
+            if let Some(id) = id {
+                credentials.id = id;
+            }
+            if let Some(public_key) = public_key {
+                credentials.public_key = public_key;
+            }
+            if let Some(secret_key) = secret_key {
+                credentials.secret_key = secret_key
+            }
+        } else {
+            //no existing credentials we may only create the full credentials
+            match (id, public_key, secret_key) {
+                (Some(id), Some(public_key), Some(secret_key)) => {
+                    self.credentials = Some(Credentials {
+                        id,
+                        public_key,
+                        secret_key,
+                    })
+                }
+                (None, None, None) => {
+                    // nothing provided, we'll just leave the credentials None, maybe we
+                    // don't need them in the current command or we'll override them later
+                }
+                _ => {
+                    return Err(ConfigError::for_field(
+                        "incomplete credentials",
+                        ConfigErrorKind::InvalidValue,
+                    ));
+                }
+            }
+        }
+
+        Ok(self)
     }
 
     /// Checks if the config is already initialized.
