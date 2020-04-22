@@ -93,7 +93,9 @@ impl SelectorSpec {
     /// this distinction in the PII processor to decide whether pii=maybe should be scrubbed.
     pub fn is_specific(&self) -> bool {
         match *self {
-            SelectorSpec::And(_) | SelectorSpec::Or(_) | SelectorSpec::Not(_) => false,
+            SelectorSpec::And(ref selectors) => selectors.iter().any(SelectorSpec::is_specific),
+            SelectorSpec::Or(ref selectors) => selectors.iter().all(SelectorSpec::is_specific),
+            SelectorSpec::Not(_) => false,
             SelectorSpec::Path(ref path) => {
                 path.iter().enumerate().all(|(i, item)| {
                     match *item {
@@ -364,4 +366,24 @@ fn test_is_specific() {
         .is_specific());
     assert!(!SelectorSpec::from_str("$object.foo").unwrap().is_specific());
     assert!(SelectorSpec::from_str("extra.foo").unwrap().is_specific());
+
+    assert!(SelectorSpec::from_str("extra.foo && extra.foo")
+        .unwrap()
+        .is_specific());
+    assert!(SelectorSpec::from_str("extra.foo && $string")
+        .unwrap()
+        .is_specific());
+    assert!(!SelectorSpec::from_str("$string && $string")
+        .unwrap()
+        .is_specific());
+
+    assert!(SelectorSpec::from_str("extra.foo || extra.foo")
+        .unwrap()
+        .is_specific());
+    assert!(!SelectorSpec::from_str("extra.foo || $string")
+        .unwrap()
+        .is_specific());
+    assert!(!SelectorSpec::from_str("$string || $string")
+        .unwrap()
+        .is_specific());
 }
