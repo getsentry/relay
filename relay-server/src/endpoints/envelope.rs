@@ -47,10 +47,12 @@ fn store_envelope(
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    if request.content_type() != ContentType::Envelope {
-        return Box::new(future::err(BadStoreRequest::InvalidContentType(
-            envelope::CONTENT_TYPE,
-        )));
+    let content_type = request.content_type();
+    if content_type != ContentType::Envelope {
+        return Box::new(future::err(BadStoreRequest::InvalidContentType {
+            provided: content_type.to_owned(),
+            accepted: envelope::CONTENT_TYPE,
+        }));
     }
 
     common::handle_store_like_request(
