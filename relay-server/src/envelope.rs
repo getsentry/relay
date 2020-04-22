@@ -123,11 +123,14 @@ pub enum ContentType {
     Minidump,
     /// text/xml and application/xml
     Xml,
+    /// application/x-sentry-envelope
+    Envelope,
     /// Any arbitrary content type not listed explicitly.
     Other(String),
 }
 
 impl ContentType {
+    #[inline]
     pub fn as_str(&self) -> &str {
         match *self {
             Self::Text => "text/plain",
@@ -136,32 +139,88 @@ impl ContentType {
             Self::OctetStream => "application/octet-stream",
             Self::Minidump => "application/x-dmp",
             Self::Xml => "text/xml",
+            Self::Envelope => self::CONTENT_TYPE,
             Self::Other(ref other) => &other,
         }
     }
 
-    fn from_str(content_type: &str) -> Option<Self> {
-        match content_type {
-            "text/plain" => Some(Self::Text),
-            "application/json" => Some(Self::Json),
-            "application/x-msgpack" => Some(Self::MsgPack),
-            "application/x-dmp" => Some(Self::Minidump),
-            "text/xml" | "application/xml" => Some(Self::Xml),
-            "application/octet-stream" => Some(Self::OctetStream),
-            _ => None,
+    fn from_str(ct: &str) -> Option<Self> {
+        if ct.eq_ignore_ascii_case(Self::Text.as_str()) {
+            Some(Self::Text)
+        } else if ct.eq_ignore_ascii_case(Self::Json.as_str()) {
+            Some(Self::Json)
+        } else if ct.eq_ignore_ascii_case(Self::MsgPack.as_str()) {
+            Some(Self::MsgPack)
+        } else if ct.eq_ignore_ascii_case(Self::OctetStream.as_str()) {
+            Some(Self::OctetStream)
+        } else if ct.eq_ignore_ascii_case(Self::Minidump.as_str()) {
+            Some(Self::Minidump)
+        } else if ct.eq_ignore_ascii_case(Self::Xml.as_str())
+            || ct.eq_ignore_ascii_case("application/xml")
+        {
+            Some(Self::Xml)
+        } else if ct.eq_ignore_ascii_case(Self::Envelope.as_str()) {
+            Some(Self::Envelope)
+        } else {
+            None
         }
     }
 }
 
 impl From<String> for ContentType {
-    fn from(content_type: String) -> Self {
-        Self::from_str(&content_type).unwrap_or_else(|| ContentType::Other(content_type))
+    fn from(mut content_type: String) -> Self {
+        Self::from_str(&content_type).unwrap_or_else(|| {
+            content_type.make_ascii_lowercase();
+            ContentType::Other(content_type)
+        })
     }
 }
 
 impl From<&'_ str> for ContentType {
     fn from(content_type: &str) -> Self {
-        Self::from_str(&content_type).unwrap_or_else(|| ContentType::Other(content_type.to_owned()))
+        Self::from_str(&content_type)
+            .unwrap_or_else(|| ContentType::Other(content_type.to_ascii_lowercase()))
+    }
+}
+
+impl PartialEq<str> for ContentType {
+    fn eq(&self, other: &str) -> bool {
+        // Take an indirection via ContentType::from_str to also check aliases. Do not allocate in
+        // case there is no mapping.
+        match ContentType::from_str(other) {
+            Some(ct) => ct == *self,
+            None => other.eq_ignore_ascii_case(self.as_str()),
+        }
+    }
+}
+
+impl PartialEq<&'_ str> for ContentType {
+    fn eq(&self, other: &&'_ str) -> bool {
+        *self == **other
+    }
+}
+
+impl PartialEq<String> for ContentType {
+    fn eq(&self, other: &String) -> bool {
+        *self == other.as_str()
+    }
+}
+
+impl PartialEq<ContentType> for &'_ str {
+    fn eq(&self, other: &ContentType) -> bool {
+        *other == *self
+    }
+}
+
+impl PartialEq<ContentType> for str {
+    fn eq(&self, other: &ContentType) -> bool {
+        *other == *self
+    }
+}
+
+impl PartialEq<ContentType> for String {
+    fn eq(&self, other: &ContentType) -> bool {
+        *other == *self
     }
 }
 

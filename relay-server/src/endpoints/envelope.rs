@@ -1,15 +1,15 @@
 //! Handles envelope store requests.
 
 use actix::prelude::*;
-use actix_web::{pred, HttpRequest, HttpResponse};
-use futures::Future;
+use actix_web::{HttpMessage, HttpRequest, HttpResponse};
+use futures::{future, Future};
 use serde::Serialize;
 
 use relay_general::protocol::EventId;
 
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::envelope::{self, Envelope};
+use crate::envelope::{self, ContentType, Envelope};
 use crate::extractors::{RequestMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
@@ -47,6 +47,12 @@ fn store_envelope(
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
+    if request.content_type() != ContentType::Envelope {
+        return Box::new(future::err(BadStoreRequest::InvalidContentType(
+            envelope::CONTENT_TYPE,
+        )));
+    }
+
     common::handle_store_like_request(
         meta,
         true,
@@ -61,9 +67,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
     common::cors(app)
         .resource(r"/api/{project:\d+}/envelope/", |r| {
             r.name("store-envelope");
-            r.post()
-                .filter(pred::Header("content-type", envelope::CONTENT_TYPE))
-                .with(store_envelope);
+            r.post().with(store_envelope);
         })
         .register()
 }
