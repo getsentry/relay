@@ -33,6 +33,8 @@ pub enum LegacyBrowser {
     Ie9,
     /// Apply to Internet Explorer 10.
     Ie10,
+    /// Apply to Internet Explorer 11.
+    Ie11,
     /// Apply to Opera 14 and older.
     OperaPre15,
     /// Apply to OperaMini 7 and older.
@@ -57,6 +59,7 @@ impl<'de> Deserialize<'de> for LegacyBrowser {
             "ie_pre_9" => LegacyBrowser::IePre9,
             "ie9" => LegacyBrowser::Ie9,
             "ie10" => LegacyBrowser::Ie10,
+            "ie11" => LegacyBrowser::Ie11,
             "opera_pre_15" => LegacyBrowser::OperaPre15,
             "opera_mini_pre_8" => LegacyBrowser::OperaMiniPre8,
             "android_pre_4" => LegacyBrowser::AndroidPre4,
@@ -76,6 +79,7 @@ impl Serialize for LegacyBrowser {
             LegacyBrowser::IePre9 => "ie_pre_9",
             LegacyBrowser::Ie9 => "ie9",
             LegacyBrowser::Ie10 => "ie10",
+            LegacyBrowser::Ie11 => "ie11",
             LegacyBrowser::OperaPre15 => "opera_pre_15",
             LegacyBrowser::OperaMiniPre8 => "opera_mini_pre_8",
             LegacyBrowser::AndroidPre4 => "android_pre_4",
