@@ -4,6 +4,7 @@
 //!
 //! [`Controller`]: struct.Controller.html
 
+use std::fmt;
 use std::time::Duration;
 
 use ::actix::actors::signal;
@@ -12,14 +13,15 @@ use ::actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
 
-use crate::constants::SHUTDOWN_TIMEOUT;
-
 pub use crate::service::ServerError;
 
 /// Actor to start and gracefully stop an actix system.
 ///
 /// This actor contains a static `run` method which will run an actix system and block the current
 /// thread until the system shuts down again.
+///
+/// This actor starts with default configuration. To change this configuration, send the
+/// [`Configure`] message.
 ///
 /// To shut down more gracefully, other actors can register with the [`Subscribe`] message. When a
 /// shutdown signal is sent to the process, they will receive a [`Shutdown`] message with an
@@ -36,8 +38,7 @@ pub use crate::service::ServerError;
 ///     type Context = Context<Self>;
 ///
 ///     fn started(&mut self, context: &mut Self::Context) {
-///         Controller::from_registry()
-///             .do_send(Subscribe(context.address().recipient()));
+///         Controller::subscribe(context.address());
 ///     }
 /// }
 ///
@@ -96,6 +97,15 @@ impl Controller {
         Ok(())
     }
 
+    /// Subscribes the provided actor to the [`Shutdown`] signal of the system controller.
+    pub fn subscribe<A>(addr: Addr<A>)
+    where
+        A: Handler<Shutdown>,
+        A::Context: actix::dev::ToEnvelope<A, Shutdown>,
+    {
+        Controller::from_registry().do_send(Subscribe(addr.recipient()))
+    }
+
     /// Performs a graceful shutdown with the given timeout.
     ///
     /// This sends a `Shutdown` message to all subscribed actors and waits for them to finish. As
@@ -136,9 +146,18 @@ impl Controller {
 impl Default for Controller {
     fn default() -> Self {
         Controller {
-            timeout: Duration::from_secs(SHUTDOWN_TIMEOUT.into()),
+            timeout: Duration::from_secs(0),
             subscribers: Vec::new(),
         }
+    }
+}
+
+impl fmt::Debug for Controller {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Controller")
+            .field("timeout", &self.timeout)
+            .field("subscribers", &self.subscribers.len())
+            .finish()
     }
 }
 
@@ -178,10 +197,37 @@ impl Handler<signal::Signal> for Controller {
     }
 }
 
+/// Configures the [`Controller`] with new parameters.
+///
+/// [`Controller`]: struct.Controller.html
+#[derive(Debug)]
+pub struct Configure {
+    /// The maximum shutdown timeout before killing actors.
+    pub shutdown_timeout: Duration,
+}
+
+impl Message for Configure {
+    type Result = ();
+}
+
+impl Handler<Configure> for Controller {
+    type Result = ();
+
+    fn handle(&mut self, message: Configure, _context: &mut Self::Context) -> Self::Result {
+        self.timeout = message.shutdown_timeout;
+    }
+}
+
 /// Subscribtion message for [`Shutdown`] events.
 ///
 /// [`Shutdown`]: struct.Shutdown.html
 pub struct Subscribe(pub Recipient<Shutdown>);
+
+impl fmt::Debug for Subscribe {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Subscribe(Shutdown)")
+    }
+}
 
 impl Message for Subscribe {
     type Result = ();
@@ -208,6 +254,7 @@ impl Handler<Subscribe> for Controller {
 /// a handler.
 ///
 /// [`Controller`]: struct.Controller.html
+#[derive(Debug)]
 pub struct Shutdown {
     /// The timeout for this shutdown. `None` indicates an immediate forced shutdown.
     pub timeout: Option<Duration>,

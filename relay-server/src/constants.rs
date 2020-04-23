@@ -1,8 +1,5 @@
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
 
-/// Shutdown timeout before killing all tasks and dropping queued events.
-pub const SHUTDOWN_TIMEOUT: u16 = 10;
-
 /// Name of the event attachment.
 ///
 /// This is a special attachment that can contain a sentry event payload encoded as message pack.
