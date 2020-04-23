@@ -349,6 +349,8 @@ struct Limits {
     max_pending_connections: i32,
     /// The maximum number of open connections to Relay.
     max_connections: usize,
+    /// The maximum number of seconds to wait for pending events after receiving a shutdown signal.
+    shutdown_timeout: u64,
 }
 
 impl Default for Limits {
@@ -369,6 +371,7 @@ impl Default for Limits {
             max_connection_rate: 256,
             max_pending_connections: 2048,
             max_connections: 25_000,
+            shutdown_timeout: 10,
         }
     }
 }
@@ -1101,6 +1104,11 @@ impl Config {
     /// The maximum number of pending connects to Relay.
     pub fn max_pending_connections(&self) -> i32 {
         self.values.limits.max_pending_connections
+    }
+
+    /// The maximum number of seconds to wait for pending events after receiving a shutdown signal.
+    pub fn shutdown_timeout(&self) -> Duration {
+        Duration::from_secs(self.values.limits.shutdown_timeout)
     }
 
     /// Returns the number of cores to use for thread pools.

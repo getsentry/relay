@@ -13,6 +13,7 @@ use relay_common::clone;
 use relay_config::Config;
 use relay_redis::RedisPool;
 
+use crate::actors::controller::{Configure, Controller};
 use crate::actors::events::EventManager;
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::keys::KeyCache;
@@ -20,7 +21,6 @@ use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::project_keys::ProjectKeyLookup;
 use crate::actors::upstream::UpstreamRelay;
-use crate::constants::SHUTDOWN_TIMEOUT;
 use crate::endpoints;
 use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware};
 
@@ -295,6 +295,10 @@ where
 pub fn start(config: Config) -> Result<Recipient<server::StopServer>, ServerError> {
     let config = Arc::new(config);
 
+    Controller::from_registry().do_send(Configure {
+        shutdown_timeout: config.shutdown_timeout(),
+    });
+
     // Start the connector before creating the ServiceState. The service state will spawn Arbiters
     // that immediately start the authentication process. The connector must be available before.
     let connector = ClientConnector::default()
@@ -307,7 +311,7 @@ pub fn start(config: Config) -> Result<Recipient<server::StopServer>, ServerErro
     let mut server = server::new(move || make_app(state.clone()));
     server = server
         .workers(config.cpu_concurrency())
-        .shutdown_timeout(SHUTDOWN_TIMEOUT)
+        .shutdown_timeout(config.shutdown_timeout().as_secs() as u16)
         .maxconn(config.max_connections())
         .maxconnrate(config.max_connection_rate())
         .backlog(config.max_pending_connections())
