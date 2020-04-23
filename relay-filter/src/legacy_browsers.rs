@@ -37,6 +37,7 @@ pub fn should_filter(
                 LegacyBrowser::IePre9 => filter_browser(family, &user_agent, "IE", |x| x <= 8)?,
                 LegacyBrowser::Ie9 => filter_browser(family, &user_agent, "IE", |x| x == 9)?,
                 LegacyBrowser::Ie10 => filter_browser(family, &user_agent, "IE", |x| x == 10)?,
+                LegacyBrowser::Ie11 => filter_browser(family, &user_agent, "IE", |x| x == 11)?,
                 LegacyBrowser::OperaMiniPre8 => {
                     filter_browser(family, &user_agent, "Opera Mini", |x| x < 8)?
                 }
@@ -231,6 +232,7 @@ mod tests {
                 IE10_UA,
                 &[LegacyBrowser::AndroidPre4, LegacyBrowser::Ie10][..],
             ),
+            (IE11_UA, &[LegacyBrowser::Ie11][..]),
             (IE10_UA, &[LegacyBrowser::Ie10][..]),
             (IE9_UA, &[LegacyBrowser::Ie9][..]),
             (IE_MOBILE9_UA, &[LegacyBrowser::Ie9][..]),
@@ -284,6 +286,7 @@ mod tests {
         let test_configs = [
             (IE11_UA, LegacyBrowser::Ie10),
             (IE10_UA, LegacyBrowser::Ie9),
+            (IE10_UA, LegacyBrowser::Ie11),
             (IE9_UA, LegacyBrowser::IePre9),
             (OPERA_15_UA, LegacyBrowser::OperaPre15),
             (OPERA_MINI_8_UA, LegacyBrowser::OperaMiniPre8),
