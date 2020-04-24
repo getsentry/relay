@@ -89,7 +89,9 @@ def mini_sentry(request):
         else:
             data = flask_request.data
 
-        assert flask_request.headers.get("Content-Type") == "application/x-sentry-envelope", "Relay sent us non-envelope data to store"
+        assert (
+            flask_request.headers.get("Content-Type") == "application/x-sentry-envelope"
+        ), "Relay sent us non-envelope data to store"
 
         envelope = Envelope.deserialize(data)
 
