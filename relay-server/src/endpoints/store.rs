@@ -10,7 +10,7 @@ use relay_general::protocol::{EventId, EventType};
 
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::envelope::{self, ContentType, Envelope, Item, ItemType};
+use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{RequestMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
@@ -29,7 +29,7 @@ fn parse_envelope(meta: RequestMeta, data: Bytes) -> Result<Envelope, BadStoreRe
 /// Parses a JSON event body into an `Envelope`.
 fn parse_event(
     meta: RequestMeta,
-    content_type: String,
+    content_type: ContentType,
     mut data: Bytes,
 ) -> Result<Envelope, BadStoreRequest> {
     // Python clients are well known to send crappy JSON in the Sentry world.  The reason
@@ -54,12 +54,6 @@ fn parse_event(
     // is invalid, processing can be skipped altogether.
     let minimal = common::minimal_event_from_json(&data)?;
 
-    // Use the request's content type. If the content type is missing, assume "application/json".
-    let content_type = match &content_type {
-        ct if ct.is_empty() => ContentType::Json,
-        _ct => ContentType::from(content_type),
-    };
-
     // Old SDKs used to send transactions to the store endpoint with an explicit `Transaction` event
     // type. The processing queue expects those in an explicit item.
     let item_type = match minimal.ty {
@@ -82,7 +76,12 @@ fn extract_envelope(
     meta: RequestMeta,
 ) -> ResponseFuture<Envelope, BadStoreRequest> {
     let max_payload_size = request.state().config().max_event_size();
-    let content_type = request.content_type().to_owned();
+
+    // If the content type is missing, assume "application/json".
+    let content_type = match request.content_type() {
+        content_type if content_type.is_empty() => ContentType::Json,
+        content_type => ContentType::from(content_type),
+    };
 
     let future = StoreBody::new(&request, max_payload_size)
         .map_err(BadStoreRequest::PayloadError)
@@ -91,8 +90,8 @@ fn extract_envelope(
                 return Err(BadStoreRequest::EmptyBody);
             }
 
-            match content_type.as_str() {
-                envelope::CONTENT_TYPE => parse_envelope(meta, data),
+            match content_type {
+                ContentType::Envelope => parse_envelope(meta, data),
                 _ => parse_event(meta, content_type, data),
             }
         });

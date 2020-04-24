@@ -5,7 +5,7 @@ use futures::prelude::*;
 use relay_common::metric;
 use relay_config::Config;
 
-use crate::actors::controller::{Controller, Shutdown, Subscribe};
+use crate::actors::controller::{Controller, Shutdown};
 use crate::metrics::RelayCounters;
 use crate::service;
 
@@ -27,7 +27,7 @@ impl Actor for Server {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        Controller::from_registry().do_send(Subscribe(context.address().recipient()));
+        Controller::subscribe(context.address());
     }
 }
 

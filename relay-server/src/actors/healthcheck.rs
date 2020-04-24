@@ -7,7 +7,7 @@ use futures::prelude::*;
 
 use relay_config::{Config, RelayMode};
 
-use crate::actors::controller::{Controller, Shutdown, Subscribe};
+use crate::actors::controller::{Controller, Shutdown};
 use crate::actors::upstream::{IsAuthenticated, UpstreamRelay};
 
 pub struct Healthcheck {
@@ -30,7 +30,7 @@ impl Actor for Healthcheck {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        Controller::from_registry().do_send(Subscribe(context.address().recipient()));
+        Controller::subscribe(context.address());
     }
 }
 

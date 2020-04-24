@@ -2,7 +2,7 @@
 //
 // It must not have any other imports as also the build.rs file to
 // automatically generate the completion scripts.
-use clap::{App, AppSettings, Arg, Shell};
+use clap::{App, AppSettings, Arg, ArgGroup, Shell};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const ABOUT: &str = "The official Sentry Relay.";
@@ -26,10 +26,90 @@ pub fn make_app() -> App<'static, 'static> {
                 .global(true)
                 .help("The path to the config folder."),
         )
-        .subcommand(App::new("run").about("Run the relay").after_help(
-            "This runs the relay in the foreground until it's shut down.  It will bind \
+        .subcommand(
+            App::new("run")
+                .about("Run the relay")
+                .after_help(
+                    "This runs the relay in the foreground until it's shut down.  It will bind \
              to the port and network interface configured in the config file.",
-        ))
+                )
+                .arg(
+                    Arg::with_name("secret_key")
+                        .long("secret-key")
+                        .short("s")
+                        .value_name("KEY")
+                        .requires("public_key")
+                        .help("The secret key to set"),
+                )
+                .arg(
+                    Arg::with_name("public_key")
+                        .long("public-key")
+                        .short("p")
+                        .value_name("KEY")
+                        .requires("secret_key")
+                        .help("The public key to set"),
+                )
+                .arg(
+                    Arg::with_name("id")
+                        .long("id")
+                        .short("i")
+                        .value_name("RELAY_ID")
+                        .help("The relay ID to set"),
+                )
+                .arg(
+                    Arg::with_name("upstream")
+                        .value_name("UPSTREAM_URL")
+                        .takes_value(true)
+                        .short("u")
+                        .long("upstream")
+                        .help("The upstream server URL."),
+                )
+                .arg(
+                    Arg::with_name("host")
+                        .value_name("HOST")
+                        .takes_value(true)
+                        .short("H")
+                        .long("host")
+                        .help("The host dns name."),
+                )
+                .arg(
+                    Arg::with_name("port")
+                        .value_name("PORT")
+                        .takes_value(true)
+                        .short("P")
+                        .long("port")
+                        .help("The server port."),
+                )
+                .arg(
+                    Arg::with_name("processing")
+                        .long("processing")
+                        .help("Enable processing."),
+                )
+                .arg(
+                    Arg::with_name("no_processing")
+                        .long("no-processing")
+                        .help("Disable processing."),
+                )
+                .group(
+                    ArgGroup::with_name("processing_group")
+                        .args(&["processing", "no_processing"])
+                        .multiple(false),
+                )
+                .arg(
+                    Arg::with_name("kafka_broker_url")
+                        .value_name("KAFKA_BROKER_URL")
+                        .takes_value(true)
+                        .long("kafka-broker-url")
+                        .help("Kafka broker URL."),
+                )
+                .arg(
+                    Arg::with_name("redis_url")
+                        .value_name("REDIS_URL")
+                        .takes_value(true)
+                        .long("redis-url")
+                        .help("Redis server URL."),
+                ),
+        )
         .subcommand(
             App::new("credentials")
                 .setting(AppSettings::SubcommandRequiredElseHelp)
