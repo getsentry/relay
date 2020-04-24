@@ -534,11 +534,11 @@ mod tests {
     #[test]
     fn test_normpath() {
         assert_eq!(
-            normpath("api/store/"),
+            normpath("/api/store/"),
             "/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/+}"
         );
         assert_eq!(
-            normpath("api/store"),
+            normpath("/api/store"),
             "/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/*}"
         );
     }

@@ -144,7 +144,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         // Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs
         // in their URL handling. Since actix does not normalize such paths, allow any number of
         // slashes. The trailing slash can also be omitted, optionally.
-        .resource(&common::normpath(r"/api/{project:\\d+}/store/"), |r| {
+        .resource(&common::normpath(r"/api/{project:\d+}/store/"), |r| {
             r.name("store-default");
             r.post().with(store_event);
             r.get().with(store_event);
