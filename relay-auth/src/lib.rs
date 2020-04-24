@@ -476,8 +476,6 @@ fn test_keys() {
 
 #[test]
 fn test_serializing() {
-    use serde_json;
-
     let sk: SecretKey =
         "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
             .parse()

@@ -1,7 +1,5 @@
 use std::borrow::Cow;
 
-use serde_json;
-
 use crate::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk, MaxChars};
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::{Frame, RawStacktrace};
