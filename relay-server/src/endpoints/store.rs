@@ -144,7 +144,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         // Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs
         // in their URL handling. Since actix does not normalize such paths, allow any number of
         // slashes. The trailing slash can also be omitted, optionally.
-        .resource(r"/{l:/*}api/{project:\d+}/store{t:/*}", |r| {
+        .resource(&common::normpath(r"/api/{project:\d+}/store/"), |r| {
             r.name("store-default");
             r.post().with(store_event);
             r.get().with(store_event);
@@ -152,7 +152,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         // Legacy store path. Since it is missing the project parameter, the `RequestMeta` extractor
         // will use `ProjectKeyLookup` to map the public key to a project id before handling the
         // request.
-        .resource(r"/{l:/*}api/store{t:/*}", |r| {
+        .resource(&common::normpath(r"/api/store/"), |r| {
             r.name("store-legacy");
             r.post().with(store_event);
             r.get().with(store_event);

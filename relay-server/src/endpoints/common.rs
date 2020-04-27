@@ -504,9 +504,44 @@ pub fn create_text_event_id_response(id: Option<EventId>) -> HttpResponse {
         .body(format!("{}", id.0.to_hyphenated()))
 }
 
+/// A helper for creating Actix routes that are resilient against double-slashes
+///
+/// Write `normpath("api/store")` to create a route pattern that matches "/api/store/",
+/// "api//store", "api//store////", etc.
+pub fn normpath(route: &str) -> String {
+    let mut pattern = String::new();
+    for (i, segment) in route.trim_matches('/').split('/').enumerate() {
+        // Apparently the leading slash needs to be explicit and cannot be part of a pattern
+        pattern.push_str(&format!(
+            "/{{multislash{i}:/*}}{segment}",
+            i = i,
+            segment = segment
+        ));
+    }
+
+    if route.ends_with('/') {
+        pattern.push_str("{trailing_slash:/+}");
+    } else {
+        pattern.push_str("{trailing_slash:/*}");
+    }
+    pattern
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_normpath() {
+        assert_eq!(
+            normpath("/api/store/"),
+            "/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/+}"
+        );
+        assert_eq!(
+            normpath("/api/store"),
+            "/{multislash0:/*}api/{multislash1:/*}store{trailing_slash:/*}"
+        );
+    }
 
     #[test]
     fn test_minimal_empty_event() {

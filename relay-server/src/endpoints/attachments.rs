@@ -58,10 +58,10 @@ fn store_attachment(
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    let url_pattern = r"/api/{project:\d+}/events/{event_id:[\w-]+}/attachments{t:/}";
+    let url_pattern = common::normpath(r"/api/{project:\d+}/events/{event_id:[\w-]+}/attachments/");
 
     common::cors(app)
-        .resource(url_pattern, |r| {
+        .resource(&url_pattern, |r| {
             r.name("store-attachment");
             r.method(Method::POST).with(store_attachment);
         })

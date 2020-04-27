@@ -73,8 +73,8 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
     relay.wait_relay_healthcheck()
 
     response = relay.get(
-        "/api/42/store%s?sentry_data=%s"
-        "&sentry_key=%s" % ("/" if trailing_slash else "", input, relay.dsn_public_key,)
+        "/api/42/store/?sentry_data=%s"
+        "&sentry_key=%s" % (input, relay.dsn_public_key,)
     )
     response.raise_for_status()
     assert response.headers["content-type"] == "image/gif"
@@ -83,17 +83,15 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
     assert event["logentry"]["formatted"] == "im in ur query params"
 
 
-@pytest.mark.parametrize("trailing_slashes", list(range(4)))
-def test_store_post_trailing_slash(mini_sentry, relay, trailing_slashes):
+@pytest.mark.parametrize("route", ["/api/42/store/", "/api/42/store//"])
+def test_store_post_trailing_slash(mini_sentry, relay, route):
     mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
     relay = relay(mini_sentry)
 
     relay.wait_relay_healthcheck()
 
     response = relay.post(
-        "/api/42/store%s"
-        "?sentry_key=%s" % ("/" * trailing_slashes, relay.dsn_public_key,),
-        json={"message": "hi"},
+        "%s?sentry_key=%s" % (route, relay.dsn_public_key,), json={"message": "hi"},
     )
     response.raise_for_status()
 

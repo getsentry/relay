@@ -10,7 +10,7 @@ import pytest
 from flask import Flask, request as flask_request, jsonify
 from pytest_localserver.http import WSGIServer
 
-from . import SentryLike, Envelope, Item
+from . import SentryLike, Envelope
 
 
 class Sentry(SentryLike):
@@ -89,11 +89,11 @@ def mini_sentry(request):
         else:
             data = flask_request.data
 
-        if flask_request.headers.get("Content-Type") == "application/x-sentry-envelope":
-            envelope = Envelope.deserialize(data)
-        else:
-            envelope = Envelope()
-            envelope.add_item(Item(payload=json.loads(data)))
+        assert (
+            flask_request.headers.get("Content-Type") == "application/x-sentry-envelope"
+        ), "Relay sent us non-envelope data to store"
+
+        envelope = Envelope.deserialize(data)
 
         sentry.captured_events.put(envelope)
         return jsonify({"event_id": uuid.uuid4().hex})

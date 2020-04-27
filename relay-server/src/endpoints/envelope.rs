@@ -67,7 +67,7 @@ fn store_envelope(
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     common::cors(app)
-        .resource(r"/api/{project:\d+}/envelope/", |r| {
+        .resource(&common::normpath(r"/api/{project:\d+}/envelope/"), |r| {
             r.name("store-envelope");
             r.post().with(store_envelope);
         })
