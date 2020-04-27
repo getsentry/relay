@@ -110,7 +110,10 @@ pub fn extract_config_env_vars() -> OverridableConfig {
 pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> Result<(), Error> {
     // generate completely new credentials
     if let Some(matches) = matches.subcommand_matches("generate") {
-        if config.has_credentials() && !matches.is_present("overwrite") {
+        if !matches.is_present("stdout")
+            && !matches.is_present("overwrite")
+            && config.has_credentials()
+        {
             return Err(err_msg(
                 "aborting because credentials already exist. Pass --overwrite to force.",
             ));
